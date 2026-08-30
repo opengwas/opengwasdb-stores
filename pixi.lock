@@ -171,7 +171,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2026c-h151e31d_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/wheel-0.47.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zarr-2.18.7-pyhd8ed1ab_0.conda
-      - pypi: git+https://github.com/explodecomputer/opengwasdb?rev=1ecfd1e7945d4258e5b0585ae9381be5ecbe9373#1ecfd1e7945d4258e5b0585ae9381be5ecbe9373
+      - pypi: git+https://github.com/explodecomputer/opengwasdb?rev=6ef919e721d5b7368acad591264be50f79b77dfb#6ef919e721d5b7368acad591264be50f79b77dfb
       - pypi: https://files.pythonhosted.org/packages/13/6d/2e2a80cda66b152ec143ceb1784e56d8abc6abeeeb65f8ef6aa52c731038/pysam-0.24.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
   dev:
     channels:
@@ -443,7 +443,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2026c-h151e31d_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/wheel-0.47.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zarr-2.18.7-pyhd8ed1ab_0.conda
-      - pypi: git+https://github.com/explodecomputer/opengwasdb?rev=1ecfd1e7945d4258e5b0585ae9381be5ecbe9373#1ecfd1e7945d4258e5b0585ae9381be5ecbe9373
+      - pypi: git+https://github.com/explodecomputer/opengwasdb?rev=6ef919e721d5b7368acad591264be50f79b77dfb#6ef919e721d5b7368acad591264be50f79b77dfb
       - pypi: https://files.pythonhosted.org/packages/13/6d/2e2a80cda66b152ec143ceb1784e56d8abc6abeeeb65f8ef6aa52c731038/pysam-0.24.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
   docs:
     channels:
@@ -4826,9 +4826,9 @@ packages:
   run_exports: {}
   size: 160679
   timestamp: 1744263184163
-- pypi: git+https://github.com/explodecomputer/opengwasdb?rev=1ecfd1e7945d4258e5b0585ae9381be5ecbe9373#1ecfd1e7945d4258e5b0585ae9381be5ecbe9373
+- pypi: git+https://github.com/explodecomputer/opengwasdb?rev=6ef919e721d5b7368acad591264be50f79b77dfb#6ef919e721d5b7368acad591264be50f79b77dfb
   name: opengwasdb
-  version: 0.1.0
+  version: 0.2.0
   requires_dist:
   - numpy>=1.26,<2.5
   - zarr>=2.18,<3

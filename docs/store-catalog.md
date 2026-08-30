@@ -24,6 +24,29 @@ The symlinks are a convenience for browsing only -- every registry
 under `/data/opengwasdb/<family>/...`, so nothing else needs to change if the
 symlinks move or are removed.
 
+### Every store here is `format_version` 0.1
+
+None of these has been rebuilt since opengwasdb#114 moved the store format to
+`1.0`. That matters for accuracy rather than for access: a 0.1 store stores `z`
+as `float16`, whose spacing widens with |z|, so its p-values are least precise
+exactly where they are steepest -- out by a factor of 1.82 at |z| = 47.8, and
+by more above that. A 1.0 store stores `z` as `int16` fixed point at scale
+1/1024, uniform to about 1.6% anywhere, with out-of-range values held exactly.
+
+These stores stay **readable** by current builds, and `ogdb info` now reports
+each store's encoding explicitly (`encoding: z=float16, se=float16` here). Two
+things do change:
+
+- they cannot be **reference-completed** by a build that writes 1.0 -- completion
+  writes into its source's arrays, so it would have to stamp a version onto
+  arrays that are not in it (opengwasdb ADR 0038 §4). It refuses instead;
+- rebuilding is the only way to gain the accuracy, and it picks up every other
+  build-time fix since these were built (opengwasdb#83, #106, #107, #109, #115).
+
+Rebuilding them is tracked as opengwasdb#117. (This section added 2026-08-30;
+the per-store numbers below are still the 2026-08-19 compilation, since nothing
+has been rebuilt.)
+
 Last updated 2026-08-19. Regenerate by re-reading each store's `manifest.json`
 and the matching `families/*/releases/*/release.yaml` -- see "How this was
 compiled" at the bottom.
@@ -188,7 +211,10 @@ since it now has a fully registered, real, built Reference-Completed release.
 
 Every number above was read directly from each store's own `manifest.json`
 (`provenance.n_analyses`/`n_variants`/`n_associations`, and
-`provenance.completion`/`provenance.hybrid` for completion-specific counts),
+`provenance.completion`/`provenance.hybrid` for completion-specific counts;
+note that from `format_version` 1.0 the per-layout `provenance.*.dtype` key is
+named `se_dtype`, and the plane encodings are in the manifest's own `encoding`
+block rather than inferred from a dtype),
 cross-referenced against the matching `families/*/releases/*/release.yaml`
 for description/ancestry/status, and store directory sizes via `du -sh`. Not
 derived from `build_report.tsv`/`validation.yaml` sidecars alone, since those

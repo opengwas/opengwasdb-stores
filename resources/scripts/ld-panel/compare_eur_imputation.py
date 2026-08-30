@@ -15,11 +15,12 @@ for variable in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
 import numpy as np
 import pandas as pd
 import pysam
-import zarr
 from scipy.stats import spearmanr
 from threadpoolctl import threadpool_limits
 
 from opengwasdb.completion.impute import impute_z_block, scalar_n_se
+from opengwasdb.encoding import DenseZPlane
+from opengwasdb.store.open import open_store
 
 BLOCKS = (
     ("1", "222798680-224041489"),
@@ -115,11 +116,17 @@ def evaluate(task: tuple[str, str, str, str, str, str, str, float, float, int]) 
     alids = panel["alids"]
     matched_local = [i for i, alid in enumerate(alids) if alid in mapping]
     matched_store = [mapping[alids[i]] for i in matched_local]
-    root = zarr.open_group(str(store / "data.zarr"), mode="r")
-    n_analyses = root["z"].shape[1]
+    # z is read through the store's declared encoding, never off the raw array:
+    # since opengwasdb#114 the plane is int16 fixed point, so `.oindex[...]`
+    # alone would hand back z-scores 1024x too large -- and this script's whole
+    # output is a comparison of imputed z against observed z.
+    opened = open_store(store)
+    root = opened.arrays(mode="r")
+    z_plane = DenseZPlane.open(root, opened.manifest.encoding)
+    n_analyses = z_plane.n_analyses
     z = np.full((len(alids), n_analyses), np.nan, dtype=np.float64)
     se = np.full_like(z, np.nan)
-    z[matched_local] = root["z"].oindex[matched_store, :].astype(np.float64)
+    z[matched_local] = z_plane.rows(np.asarray(matched_store))
     se[matched_local] = root["se"].oindex[matched_store, :].astype(np.float64)
     target = np.array([alid in heldout for alid in alids])
     positions = panel["positions"]
