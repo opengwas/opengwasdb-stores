@@ -6,7 +6,7 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
-<meta name="dcterms.date" content="2026-08-19">
+<meta name="dcterms.date" content="2026-08-30">
 
 <title>Getting started with opengwasdb stores</title>
 <style>
@@ -2247,7 +2247,7 @@ vertical-align: -.125em;
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">August 19, 2026</p>
+      <p class="date">August 30, 2026</p>
     </div>
   </div>
   
@@ -2259,7 +2259,7 @@ vertical-align: -.125em;
 </header>
 
 
-<p>This is a walkthrough for someone who has never opened an OpenGWASDB store before. Everything below is run from the command line, against the real pilot stores on this machine, and every output block is pasted verbatim from an actual run on 2026-08-19.</p>
+<p>This is a walkthrough for someone who has never opened an OpenGWASDB store before. Everything below is run from the command line, against the real pilot stores on this machine, and every output block is pasted verbatim from an actual run on 2026-08-19 — except the <code>ogdb info</code> block in Step 1, re-run on 2026-08-30 after opengwasdb#114 added the <code>encoding</code> line to its output.</p>
 <p>If you want the inventory of what exists rather than how to use it, see <a href="store-catalog.md">the store catalog</a>.</p>
 <section id="what-is-a-store-exactly" class="level2">
 <h2 class="anchored" data-anchor-id="what-is-a-store-exactly">What is a store, exactly?</h2>
@@ -2318,12 +2318,14 @@ format_version: 0.1
 primary_layout: ragged
 association_coverage: cis_and_signals
 completion_state: observed_only
-reference_assembly: GRCh38</code></pre>
-<p>The three fields worth understanding:</p>
+reference_assembly: GRCh38
+encoding: z=float16, se=float16</code></pre>
+<p>The four fields worth understanding:</p>
 <ul>
 <li><strong><code>primary_layout</code></strong> — <code>dense</code>, <code>ragged</code>, or <code>hybrid</code>. This is a storage decision (is the store a full variant × analysis grid, or only selected regions?). <strong>You query all three identically</strong>, so mostly you can ignore it.</li>
 <li><strong><code>completion_state</code></strong> — <code>observed_only</code> means every number came from the source GWAS. <code>reference_completed</code> means gaps have additionally been <em>imputed</em> from an LD reference panel. See <a href="#observed-versus-reference-completed">Observed vs completed</a>.</li>
 <li><strong><code>association_coverage</code></strong> — <code>full</code> (genome-wide) versus <code>cis_and_signals</code> (only regions near the gene of interest, plus significant hits). A <code>cis_and_signals</code> store genuinely does not contain most of the genome; an empty result there means “not stored”, not “no effect”.</li>
+<li><strong><code>encoding</code></strong> — how the z-scores and standard errors are physically stored, which is a <em>precision</em> statement. The store above reads <code>z=float16</code> because it is a <code>format_version</code> 0.1 release, built before opengwasdb#114. <code>float16</code>’s spacing widens as |z| grows, so it is least precise exactly where p-values are steepest: at |z| = 47.8 the p-value it gives is out by a factor of 1.82. Stores rebuilt at <code>format_version</code> 1.0 read <code>z=int16_fixed (scale 1/1024), se=float16</code> — uniform precision, p-values good to about 1.6% anywhere, and values too large for the range (up to |z| = 137.5 in UK Biobank) held exactly in a side table rather than rounded. <strong>You query both identically</strong>; only the accuracy of what comes back differs. Every store in this catalogue is still 0.1 — rebuilding them is opengwasdb#117.</li>
 </ul>
 </section>
 <section id="step-2-whats-in-it" class="level2">

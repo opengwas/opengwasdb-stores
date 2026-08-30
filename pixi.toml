@@ -82,7 +82,25 @@ threadpoolctl = ">=3.0"
 # at production scale (up to 107/108 duplicate pairs genuinely conflicting in
 # one release). Now resolved (identical duplicates collapse, conflicting ones
 # drop) rather than silently kept.
-opengwasdb = { git = "https://github.com/explodecomputer/opengwasdb", rev = "1ecfd1e7945d4258e5b0585ae9381be5ecbe9373" }
+# Bumped for issue #76/opengwasdb#114: `z` is now stored as `int16` fixed point
+# at scale 1/1024 with a sparse exact overflow table, not `float16`, and the
+# store format moves to `format_version` 1.0 (ADR 0037 §1, ADR 0038). This is a
+# breaking store-format change, so it is the first pin bump that changes what a
+# built store *is* rather than what the builder accepts:
+#
+#   - a store built at this rev is 1.0 and its `data.zarr/z` is `int16`;
+#     anything reading that array raw reads z-scores 1024x too large, so reads
+#     go through `opengwasdb.encoding.DenseZPlane` / `RaggedCSRReader.z_slice`
+#     (this bump fixes the one place here that did: the LD-panel imputation
+#     comparison script);
+#   - `manifest.json` gains a required `encoding` block, and the per-layout
+#     `provenance.*.dtype` key is renamed `se_dtype` (it only ever described
+#     the float planes);
+#   - every store already catalogued is 0.1. Those stay *readable* at this rev,
+#     but they can no longer be reference-completed by it, and they do not gain
+#     the accuracy: a 0.1 store's p-value at |z| = 47.8 is still wrong by 1.82x.
+#     Rebuilding them is opengwasdb#117, tracked in docs/store-catalog.md.
+opengwasdb = { git = "https://github.com/explodecomputer/opengwasdb", rev = "6ef919e721d5b7368acad591264be50f79b77dfb" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"

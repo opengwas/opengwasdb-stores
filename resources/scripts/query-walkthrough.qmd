@@ -13,7 +13,8 @@ format:
 This is a walkthrough for someone who has never opened an OpenGWASDB store
 before. Everything below is run from the command line, against the real
 pilot stores on this machine, and every output block is pasted verbatim from
-an actual run on 2026-08-19.
+an actual run on 2026-08-19 — except the `ogdb info` block in Step 1, re-run
+on 2026-08-30 after opengwasdb#114 added the `encoding` line to its output.
 
 If you want the inventory of what exists rather than how to use it, see
 [the store catalog](store-catalog.md).
@@ -84,9 +85,10 @@ primary_layout: ragged
 association_coverage: cis_and_signals
 completion_state: observed_only
 reference_assembly: GRCh38
+encoding: z=float16, se=float16
 ```
 
-The three fields worth understanding:
+The four fields worth understanding:
 
 - **`primary_layout`** — `dense`, `ragged`, or `hybrid`. This is a storage
   decision (is the store a full variant × analysis grid, or only selected
@@ -99,6 +101,18 @@ The three fields worth understanding:
   (only regions near the gene of interest, plus significant hits). A
   `cis_and_signals` store genuinely does not contain most of the genome; an
   empty result there means "not stored", not "no effect".
+- **`encoding`** — how the z-scores and standard errors are physically stored,
+  which is a *precision* statement. The store above reads `z=float16` because
+  it is a `format_version` 0.1 release, built before opengwasdb#114. `float16`'s
+  spacing widens as |z| grows, so it is least precise exactly where p-values are
+  steepest: at |z| = 47.8 the p-value it gives is out by a factor of 1.82.
+  Stores rebuilt at `format_version` 1.0 read
+  `z=int16_fixed (scale 1/1024), se=float16` — uniform precision, p-values good
+  to about 1.6% anywhere, and values too large for the range (up to |z| = 137.5
+  in UK Biobank) held exactly in a side table rather than rounded.
+  **You query both identically**; only the accuracy of what comes back differs.
+  Every store in this catalogue is still 0.1 — rebuilding them is
+  opengwasdb#117.
 
 ## Step 2 — what's in it?
 
