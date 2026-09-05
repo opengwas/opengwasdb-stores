@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import logging
 import sys
 import tempfile
 from pathlib import Path
@@ -97,6 +98,15 @@ def write_builder_manifest(
 
 
 def main() -> None:
+    # opengwasdb reports its build phases through the logging module; without a
+    # handler those records are discarded and the build log holds only this
+    # script's own output. Records go to stderr so the JSON report on stdout
+    # stays machine-readable.
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        stream=sys.stderr,
+    )
     args = parse_args()
     release_dir = Path(args.release_dir).resolve()
     root = repo_root(release_dir)

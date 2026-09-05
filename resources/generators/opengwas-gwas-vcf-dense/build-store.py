@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import logging
 import math
 import resource
 import sys
@@ -140,6 +141,15 @@ def metadata_mismatch_errors(
 
 
 def main() -> None:
+    # opengwasdb reports its build phases through the logging module; without a
+    # handler those records are discarded and the build log holds only this
+    # script's own output. Records go to stderr so the JSON report on stdout
+    # stays machine-readable.
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        stream=sys.stderr,
+    )
     args = parse_args()
     if args.workers < 1:
         raise SystemExit("--workers must be at least 1")

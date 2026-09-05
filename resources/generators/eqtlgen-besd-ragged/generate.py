@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import logging
 import sys
 from pathlib import Path
 
@@ -91,6 +92,15 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    # opengwasdb reports its build phases through the logging module; without a
+    # handler those records are discarded and the build log holds only this
+    # script's own output. Records go to stderr so the JSON report on stdout
+    # stays machine-readable.
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        stream=sys.stderr,
+    )
     args = parse_args()
     config_path = Path(args.config).resolve()
     root = repo_root(config_path.parent)
