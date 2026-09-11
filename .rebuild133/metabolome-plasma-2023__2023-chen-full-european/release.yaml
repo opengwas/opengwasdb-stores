@@ -1,0 +1,38 @@
+metadata_schema_version: 1.0
+store_family_id: metabolome-plasma-2023
+family_release_id: 2023-chen-full-european
+store_key: ragged__pmid-36635386__European
+status: built
+source_collection_id: gwas-catalog-ssf
+source_snapshot_id: gwas-catalog-v1.0.3.1-r2026-07-10
+release_kind: full
+association_coverage: signals_only
+description: |
+  Full European-ancestry slice of the Chen et al. 2023 plasma metabolome atlas (PMID 36635386): every candidate analysis for this ancestry, no cap, as a single-ancestry no-cis ragged GWAS-SSF release.
+created_at: '2026-08-04T11:00:49Z'
+accepted_at: ~
+generator:
+  name: resources/generators/gwas-ssf-ragged/generate.R
+  version: sha256:d48e94f4170c4e91a8713c2891d4da46399ae53fed26867c2a40d86cc72b2dfe
+  command: Rscript resources/generators/gwas-ssf-ragged/generate.R --config=families/metabolome-plasma-2023/generators/config-european.yaml
+    --mode=emit
+source_defaults:
+  source_genome_build: GRCh38
+  license: EBI GWAS Catalog terms of use
+  original_effect_scale: sd
+  stored_effect_scale: sd
+  sample_size_kind: total
+  source_ancestry_label: European
+  assigned_ancestry: European
+lineage:
+  derived_from: ~
+sidecars:
+  sparse_regions: sidecars/sparse_regions.tsv
+  filter_summary: sidecars/filter_summary.tsv
+  build_report: sidecars/build_report.tsv
+  sd_estimation: sidecars/sd_estimation.tsv
+  ancestry: sidecars/ancestry.tsv
+notes: |
+  Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), scaled up per-ancestry (issue #31's "run the whole thing" follow-on): single-ancestry selection (ancestry_group: European, matching the candidates table's own store_key partitioning) rather than the pilot's mixed-ancestry-plus-AF-assignment approach, since each store here is already known single-ancestry from the source label. ancestry_assignment stays enabled with the fixed QC panel (issue #28/#29/#30) as a source/AF mislabel QC check, not for splitting.
+
+  Built (opengwasdb#100/#101 fixes; opengwasdb@1ecfd1e): 1,400 analyses, 12,086,426 variants, 58,053,989 associations. 108 duplicate (analysis, variant) pairs had conflicting z-scores across two source rows and were dropped entirely for those cells (opengwasdb#101) -- see validation.yaml's warning; one of these is what originally surfaced the opengwasdb#101 bug (a top-hit index violation before the fix). Reference completion is currently blocked: complete_ragged_store only enumerates LD blocks via a cis window (trait_chr/trait_bp), which this no-gene-target family has none of, so completion is a no-op (opengwasdb#102). No Reference-Completed sibling exists yet.

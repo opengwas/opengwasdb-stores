@@ -1,0 +1,61 @@
+store_family_id: gwas-catalog-eur-hybrid
+family_release_id: eur-hybrid-quant-pilot-10
+store_layout: hybrid-observed
+completion_state: observed-only
+builder:
+  package: opengwasdb
+  entrypoint: opengwasdb.layouts.hybrid.build:build_hybrid_from_vcf_manifest
+source:
+  source_format: gwas-ssf
+  source_reader_capability: opengwasdb.gwas-ssf
+  source_genome_build: GRCh38
+normalisation:
+  target_reference_assembly: GRCh38
+  liftover: ~
+  source_assembly: hg38
+effects:
+  stored_effect_scale: sd
+shape:
+  association_coverage: full_gwas
+reference_resources:
+- resource_id: hybrid-ieua-dense-panel
+  kind: hybrid_dense_panel
+  ancestry: ~
+  genome_build: GRCh38
+  variant_id_convention: chr:pos:A1:A2 (A1 = min(allele1, allele2))
+  allele_columns: ~
+  location: /data/opengwasdb/wip/hybrid-ieua/panel_alids.txt
+  location_kind: external_file
+  fine_group_map: ~
+- resource_id: ukb-hg38-eur-af
+  kind: reference_af
+  ancestry: European
+  genome_build: GRCh38
+  variant_id_convention: chr:pos_ref_alt
+  allele_columns:
+    effect: EA
+    other: OA
+    freq: EAF
+  location: /data/opengwasdb/reference/ukb-hg38
+  location_kind: external_directory
+  fine_group_map: ~
+effect_scale_validation:
+  enabled: yes
+  reference_resources:
+  - ancestry: European
+    resource_id: ukb-hg38-eur-af
+  thresholds:
+    maf_min: 0.01
+    maf_max: 0.5
+    min_overlap_variants: 20
+    sd_tolerance: 0.15
+    warning_multiplier: 2.0
+    dispersion_max: 0.5
+validation:
+  required: yes
+artifacts:
+  artifact_root: /data/opengwasdb
+  release_subdir: gwas-catalog-eur-hybrid/releases/eur-hybrid-quant-pilot-10
+  download_dir: /data/opengwasdb/gwas-catalog-eur-hybrid/releases/eur-hybrid-quant-pilot-10/download
+  store_uri: /data/opengwasdb/gwas-catalog-eur-hybrid/releases/eur-hybrid-quant-pilot-10/store/hybrid__European__pilot10-quant
+  build_log_uri: ~

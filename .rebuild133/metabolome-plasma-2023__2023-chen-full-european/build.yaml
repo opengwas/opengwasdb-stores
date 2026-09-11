@@ -1,0 +1,69 @@
+store_family_id: metabolome-plasma-2023
+family_release_id: 2023-chen-full-european
+store_layout: ragged-observed
+completion_state: observed-only
+builder:
+  package: opengwasdb
+  entrypoint: opengwasdb.layouts.ragged.build_ssf:build_ragged_from_ssf
+source:
+  source_format: gwas-ssf
+  source_reader_capability: opengwasdb.gwas-ssf
+  source_genome_build: GRCh38
+normalisation:
+  target_reference_assembly: GRCh38
+  liftover: ~
+effects:
+  stored_effect_scale: sd
+shape:
+  association_coverage: signals_only
+  ragged_region_policy: sig-trans-1mb_suggestive-leads
+reference_resources:
+- resource_id: ukb-ancestry-mixture-hg38
+  kind: ancestry_mixture
+  ancestry: ~
+  genome_build: GRCh38
+  variant_id_convention: chr:pos:A1:A2 (A1 = min(allele1, allele2))
+  allele_columns: ~
+  location: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
+  location_kind: external_file
+  fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+- resource_id: qc-panel-hg38
+  kind: qc_panel
+  ancestry: ~
+  genome_build: GRCh38
+  variant_id_convention: chr:pos:A1:A2 (A1 = min(allele1, allele2))
+  allele_columns: ~
+  location: reference-resources/qc-panel-hg38/qc_panel.tsv
+  location_kind: tracked_file
+  fine_group_map: ~
+effect_scale_validation:
+  enabled: yes
+  reference_resources: []
+  thresholds:
+    maf_min: 0.01
+    maf_max: 0.5
+    min_overlap_variants: 20
+    sd_tolerance: 0.15
+    warning_multiplier: 2.0
+    dispersion_max: 0.5
+ancestry_assignment:
+  enabled: yes
+  reference_resource_id: ukb-ancestry-mixture-hg38
+  maf_floor: 0.01
+  gates:
+    tau: 0.5
+    delta: 0.2
+    n_min: 200
+    residual_max: 0.06
+qc_panel:
+  enabled: yes
+  resource_id: qc-panel-hg38
+validation:
+  required: yes
+artifacts:
+  artifact_root: /data/opengwasdb
+  release_subdir: metabolome-plasma-2023/releases/2023-chen-full-european
+  filtered_dir: /data/opengwasdb/metabolome-plasma-2023/releases/2023-chen-full-european/filtered
+  work_dir: /data/opengwasdb/metabolome-plasma-2023/releases/2023-chen-full-european/work
+  store_uri: /data/opengwasdb/metabolome-plasma-2023/releases/2023-chen-full-european/store/ragged__pmid-36635386__European
+  build_log_uri: ~

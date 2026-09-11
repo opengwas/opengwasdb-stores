@@ -1,0 +1,21 @@
+analysis_id	field	value	method	evidence	notes
+ukb-b-10001	sample_size_kind	case_control	opengwas_api_gwasinfo	n_cases=6661;n_controls=456349	
+ukb-b-10001	stored_effect_scale	sd	opengwas_api_gwasinfo		
+ukb-b-10002	sample_size_kind	case_control	opengwas_api_gwasinfo	n_cases=3177;n_controls=28140	
+ukb-b-10002	stored_effect_scale	sd	opengwas_api_gwasinfo		
+ukb-b-10003	sample_size_kind	case_control	opengwas_api_gwasinfo	n_cases=2810;n_controls=460123	
+ukb-b-10003	stored_effect_scale	sd	opengwas_api_gwasinfo		
+ukb-b-10008	sample_size_kind	case_control	opengwas_api_gwasinfo	n_cases=13851;n_controls=449082	
+ukb-b-10008	stored_effect_scale	sd	opengwas_api_gwasinfo		
+ukb-b-10011	sample_size_kind	total	opengwas_api_gwasinfo	n_cases=;n_controls=	
+ukb-b-10011	stored_effect_scale	sd	opengwas_api_gwasinfo		
+ukb-b-1004	sample_size_kind	total	opengwas_api_gwasinfo	n_cases=;n_controls=	
+ukb-b-1004	stored_effect_scale	sd	opengwas_api_gwasinfo		
+ukb-b-10054	sample_size_kind	case_control	opengwas_api_gwasinfo	n_cases=29408;n_controls=35541	
+ukb-b-10054	stored_effect_scale	sd	opengwas_api_gwasinfo		
+ukb-b-10787	sample_size_kind	total	opengwas_api_gwasinfo	n_cases=;n_controls=	
+ukb-b-10787	stored_effect_scale	sd	opengwas_api_gwasinfo		
+ukb-b-11842	sample_size_kind	total	opengwas_api_gwasinfo	n_cases=;n_controls=	
+ukb-b-11842	stored_effect_scale	sd	opengwas_api_gwasinfo		
+ukb-b-19953	sample_size_kind	total	opengwas_api_gwasinfo	n_cases=;n_controls=	
+ukb-b-19953	stored_effect_scale	sd	opengwas_api_gwasinfo		

@@ -1,0 +1,41 @@
+analysis_id	field	value	method	evidence	notes
+finngen-r13-BMI_IRN	stored_effect_scale	sd	finngen_public_endpoint_manifest	category=Quantitative endpoints	resolved from pinned FinnGen endpoint manifest
+finngen-r13-BMI_IRN	sample_size_kind	total	finngen_public_endpoint_manifest	sample_size=362216;n_cases=;n_controls=	resolved from pinned FinnGen endpoint manifest
+finngen-r13-HEIGHT_IRN	stored_effect_scale	sd	finngen_public_endpoint_manifest	category=Quantitative endpoints	resolved from pinned FinnGen endpoint manifest
+finngen-r13-HEIGHT_IRN	sample_size_kind	total	finngen_public_endpoint_manifest	sample_size=364515;n_cases=;n_controls=	resolved from pinned FinnGen endpoint manifest
+finngen-r13-WEIGHT_IRN	stored_effect_scale	sd	finngen_public_endpoint_manifest	category=Quantitative endpoints	resolved from pinned FinnGen endpoint manifest
+finngen-r13-WEIGHT_IRN	sample_size_kind	total	finngen_public_endpoint_manifest	sample_size=369975;n_cases=;n_controls=	resolved from pinned FinnGen endpoint manifest
+finngen-r13-RX_PARACETAMOL_NSAID	stored_effect_scale	log_or	finngen_public_endpoint_manifest	category=Drug purchase endpoints	resolved from pinned FinnGen endpoint manifest
+finngen-r13-RX_PARACETAMOL_NSAID	sample_size_kind	case_control	finngen_public_endpoint_manifest	sample_size=500186;n_cases=434037;n_controls=66149	resolved from pinned FinnGen endpoint manifest
+finngen-r13-K11_ORAL	stored_effect_scale	log_or	finngen_public_endpoint_manifest	category=XI Diseases of the digestive system (K11_)	resolved from pinned FinnGen endpoint manifest
+finngen-r13-K11_ORAL	sample_size_kind	case_control	finngen_public_endpoint_manifest	sample_size=500186;n_cases=296147;n_controls=204039	resolved from pinned FinnGen endpoint manifest
+finngen-r13-FG_CVD	stored_effect_scale	log_or	finngen_public_endpoint_manifest	category=Cardiometabolic endpoints	resolved from pinned FinnGen endpoint manifest
+finngen-r13-FG_CVD	sample_size_kind	case_control	finngen_public_endpoint_manifest	sample_size=500186;n_cases=258917;n_controls=241269	resolved from pinned FinnGen endpoint manifest
+finngen-r13-PAIN	stored_effect_scale	log_or	finngen_public_endpoint_manifest	category=Miscellaneous, not yet classified endpoints	resolved from pinned FinnGen endpoint manifest
+finngen-r13-PAIN	sample_size_kind	case_control	finngen_public_endpoint_manifest	sample_size=499199;n_cases=246393;n_controls=252806	resolved from pinned FinnGen endpoint manifest
+finngen-r13-AB1_INFECT_PARASIT_WIDE	stored_effect_scale	log_or	finngen_public_endpoint_manifest	category=I Certain infectious and parasitic diseases (AB1_)	resolved from pinned FinnGen endpoint manifest
+finngen-r13-AB1_INFECT_PARASIT_WIDE	sample_size_kind	case_control	finngen_public_endpoint_manifest	sample_size=500186;n_cases=244545;n_controls=255641	resolved from pinned FinnGen endpoint manifest
+finngen-r13-RX_STATIN	stored_effect_scale	log_or	finngen_public_endpoint_manifest	category=IX Diseases of the circulatory system (I9_)	resolved from pinned FinnGen endpoint manifest
+finngen-r13-RX_STATIN	sample_size_kind	case_control	finngen_public_endpoint_manifest	sample_size=500186;n_cases=203299;n_controls=296887	resolved from pinned FinnGen endpoint manifest
+finngen-r13-M13_ARTHROPATHIES	stored_effect_scale	log_or	finngen_public_endpoint_manifest	category=XIII Diseases of the musculoskeletal system and connective tissue (M13_)	resolved from pinned FinnGen endpoint manifest
+finngen-r13-M13_ARTHROPATHIES	sample_size_kind	case_control	finngen_public_endpoint_manifest	sample_size=500186;n_cases=191339;n_controls=308847	resolved from pinned FinnGen endpoint manifest
+finngen-r13-PULM_INFECTIONS	stored_effect_scale	log_or	finngen_public_endpoint_manifest	category=Interstitial lung disease endpoints	resolved from pinned FinnGen endpoint manifest
+finngen-r13-PULM_INFECTIONS	sample_size_kind	case_control	finngen_public_endpoint_manifest	sample_size=500186;n_cases=168980;n_controls=331206	resolved from pinned FinnGen endpoint manifest
+finngen-r13-N14_FEMALEGENNONINF	stored_effect_scale	log_or	finngen_public_endpoint_manifest	category=XIV Diseases of the genitourinary system (N14_)	resolved from pinned FinnGen endpoint manifest
+finngen-r13-N14_FEMALEGENNONINF	sample_size_kind	case_control	finngen_public_endpoint_manifest	sample_size=281909;n_cases=159287;n_controls=122622	resolved from pinned FinnGen endpoint manifest
+finngen-r13-ANTIDEPRESSANTS	stored_effect_scale	log_or	finngen_public_endpoint_manifest	category=Comorbidities of Neurological endpoints	resolved from pinned FinnGen endpoint manifest
+finngen-r13-ANTIDEPRESSANTS	sample_size_kind	case_control	finngen_public_endpoint_manifest	sample_size=260016;n_cases=157103;n_controls=102913	resolved from pinned FinnGen endpoint manifest
+finngen-r13-O15_DELIV_SPONT	stored_effect_scale	log_or	finngen_public_endpoint_manifest	category=XV Pregnancy, childbirth and the puerperium (O15_)	resolved from pinned FinnGen endpoint manifest
+finngen-r13-O15_DELIV_SPONT	sample_size_kind	case_control	finngen_public_endpoint_manifest	sample_size=264231;n_cases=146565;n_controls=117666	resolved from pinned FinnGen endpoint manifest
+finngen-r13-KRA_PSY_ANYMENTAL	stored_effect_scale	log_or	finngen_public_endpoint_manifest	category=Psychiatric endpoints from Katri Räikkönen	resolved from pinned FinnGen endpoint manifest
+finngen-r13-KRA_PSY_ANYMENTAL	sample_size_kind	case_control	finngen_public_endpoint_manifest	sample_size=500186;n_cases=144890;n_controls=355296	resolved from pinned FinnGen endpoint manifest
+finngen-r13-CD2_BENIGN	stored_effect_scale	log_or	finngen_public_endpoint_manifest	category=II Neoplasms from hospital discharges (CD2_)	resolved from pinned FinnGen endpoint manifest
+finngen-r13-CD2_BENIGN	sample_size_kind	case_control	finngen_public_endpoint_manifest	sample_size=500186;n_cases=142938;n_controls=357248	resolved from pinned FinnGen endpoint manifest
+finngen-r13-G6_EPIPAROX	stored_effect_scale	log_or	finngen_public_endpoint_manifest	category=VI Diseases of the nervous system (G6_)	resolved from pinned FinnGen endpoint manifest
+finngen-r13-G6_EPIPAROX	sample_size_kind	case_control	finngen_public_endpoint_manifest	sample_size=500186;n_cases=133630;n_controls=366556	resolved from pinned FinnGen endpoint manifest
+finngen-r13-AUTOIMMUNE	stored_effect_scale	log_or	finngen_public_endpoint_manifest	category=Diseases marked as autimmune origin	resolved from pinned FinnGen endpoint manifest
+finngen-r13-AUTOIMMUNE	sample_size_kind	case_control	finngen_public_endpoint_manifest	sample_size=500186;n_cases=131428;n_controls=368758	resolved from pinned FinnGen endpoint manifest
+finngen-r13-J10_UPPERDIS	stored_effect_scale	log_or	finngen_public_endpoint_manifest	category=X Diseases of the respiratory system (J10_)	resolved from pinned FinnGen endpoint manifest
+finngen-r13-J10_UPPERDIS	sample_size_kind	case_control	finngen_public_endpoint_manifest	sample_size=500186;n_cases=131136;n_controls=369050	resolved from pinned FinnGen endpoint manifest
+finngen-r13-C3_CANCER_WIDE	stored_effect_scale	log_or	finngen_public_endpoint_manifest	category=II Neoplasms, from cancer register (ICD-O-3)	resolved from pinned FinnGen endpoint manifest
+finngen-r13-C3_CANCER_WIDE	sample_size_kind	case_control	finngen_public_endpoint_manifest	sample_size=500186;n_cases=128001;n_controls=372185	resolved from pinned FinnGen endpoint manifest

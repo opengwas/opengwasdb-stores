@@ -1,0 +1,55 @@
+store_family_id: pqtl-interval-2018
+family_release_id: 2018-sun-pilot-10
+store_layout: ragged-observed
+completion_state: observed-only
+builder:
+  package: opengwasdb
+  entrypoint: opengwasdb.layouts.ragged.build_ssf:build_ragged_from_ssf
+source:
+  source_format: gwas-ssf
+  source_reader_capability: opengwasdb.gwas-ssf
+  source_genome_build: GRCh38
+normalisation:
+  target_reference_assembly: GRCh38
+  liftover: ~
+effects:
+  stored_effect_scale: sd
+shape:
+  association_coverage: cis_plus_signals
+  ragged_region_policy: cis-1mb_sig-trans-1mb_suggestive-leads
+reference_resources:
+- resource_id: ukb-hg38-eur-af
+  kind: reference_af
+  ancestry: European
+  genome_build: GRCh38
+  variant_id_convention: chr:pos_ref_alt
+  allele_columns:
+    effect: EA
+    other: OA
+    freq: EAF
+  location: /data/opengwasdb/reference/ukb-hg38
+  location_kind: external_directory
+  fine_group_map: ~
+effect_scale_validation:
+  enabled: yes
+  reference_resources:
+  - ancestry: European
+    resource_id: ukb-hg38-eur-af
+  thresholds:
+    maf_min: 0.01
+    maf_max: 0.5
+    min_overlap_variants: 20
+    sd_tolerance: 0.15
+    warning_multiplier: 2.0
+    dispersion_max: 0.5
+ancestry_assignment: ~
+qc_panel: ~
+validation:
+  required: yes
+artifacts:
+  artifact_root: /data/opengwasdb
+  release_subdir: pqtl-interval-2018/releases/2018-sun-pilot-10
+  filtered_dir: /data/opengwasdb/pqtl-interval-2018/releases/2018-sun-pilot-10/filtered
+  work_dir: /data/opengwasdb/pqtl-interval-2018/releases/2018-sun-pilot-10/work
+  store_uri: /data/opengwasdb/pqtl-interval-2018/releases/2018-sun-pilot-10/store/ragged__pmid-29875488__European__pilot10
+  build_log_uri: ~

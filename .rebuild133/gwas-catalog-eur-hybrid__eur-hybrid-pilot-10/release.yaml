@@ -1,0 +1,41 @@
+metadata_schema_version: 1.0
+store_family_id: gwas-catalog-eur-hybrid
+family_release_id: eur-hybrid-pilot-10
+store_key: hybrid__European__pilot10-cc
+status: built
+source_collection_id: gwas-catalog-ssf
+source_snapshot_id: gwas-catalog-v1.0.3.1-r2026-07-10
+release_kind: one-off
+association_coverage: full_gwas
+description: |
+  First 10 case-control Analyses from the hybrid__European candidate pool (resources/data/derived/store-candidates-analyses.tsv, 6,035 Analyses across 1,007 publications) -- a small, current, grounded proof that GWAS-Catalog-SSF sources build into a real Hybrid OpenGWASDB store via opengwasdb's GWAS-SSF Source Reader Capability (opengwasdb#84) and its Dense/Hybrid liftover fix (opengwasdb#85).
+created_at: '2026-08-17T19:38:49Z'
+accepted_at: '2026-08-17T21:20:00Z'
+generator:
+  name: resources/generators/gwas-ssf-hybrid/generate.R
+  version: sha256:582e81b22059ddd5f7a6df9e336951a026e02d2774d98cfcbff98a899a0761d3
+  command: Rscript resources/generators/gwas-ssf-hybrid/generate.R --config=families/gwas-catalog-eur-hybrid/generators/config-pilot-10.yaml
+    --mode=emit
+build_environment:
+  repo_commit: 6a66cbc7e096adfdeb4fc0bfddabb43094a066a5
+  pixi_lock_sha256: 89d840eaaf4b4620e523010be59c1ea30296fc15efcdb0ba0040849f633c89c5
+  pixi_environment: unavailable
+  platform: x86_64-conda-linux-gnu
+  r_version: R version 4.5.3 (2026-03-11)
+source_defaults:
+  source_genome_build: GRCh38
+  license: EBI GWAS Catalog terms of use
+  original_effect_scale: log_or
+  stored_effect_scale: log_or
+  sample_size_kind: case_control
+  source_ancestry_label: European
+  assigned_ancestry: European
+lineage:
+  derived_from: ~
+sidecars:
+  download_summary: sidecars/download_summary.tsv
+  build_report: sidecars/build_report.tsv
+notes: |
+  Deliberately restricted to case-control Analyses (stored_effect_scale= log_or, original_sd_method=binary_trait): this multi-publication pool has no single-family curated effect-scale method the way a single-paper Store Family does, so a quantitative Analysis's original_sd_method would need real reference-AF phenotype-SD estimation (issue #16's engine) to be honestly populated rather than assumed. Deferred to a follow-up release (opengwasdb-stores#70) rather than fabricated here. This pilot proves the Hybrid layout and the GWAS-SSF Source Reader Capability end-to-end; it does not yet prove quantitative-trait effect-scale coverage for this pool.
+
+  Status is `built`, not `validated`: the store built successfully (10 Analyses, 20,531,956 shared variants -- 9,847,807 on-panel + 10,684,149 off-panel -- and 27,810,834 Ragged Overflow associations, confirming both Hybrid components were genuinely exercised) and reads back correctly, but validation.yaml correctly reports passed_with_warnings. Confirmed directly against this build: opengwasdb.layouts.dense.build_vcf._manifest_row_to_analysis (shared by the Dense and Hybrid builders) drops n_cases/n_controls/sample_size_kind/sample_size_scope/original_effect_scale from the built store despite the manifest supplying real values, and fabricates ancestry_assignment_method=af_assigned regardless of the manifest's actual (here: source_trusted_no_af) value. Filed as explodecomputer/opengwasdb#86. These are real upstream gaps, not defects in this release; left failing rather than silently accepted.

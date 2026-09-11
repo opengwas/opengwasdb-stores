@@ -1,2 +1,2 @@
 store_uri	n_analyses	n_variants	source_download_bytes	store_bytes	build_wall_seconds	peak_rss_kib	binary_probe_analysis_id	binary_probe_n_associations	binary_probe_n_finite_z	quantitative_probe_analysis_id	quantitative_probe_n_associations	quantitative_probe_n_finite_z	store_validation_status
-/data/opengwasdb/wip/rebuild-129/finngen-r13__r13-pilot-20	20	21230615	15588430448	3378180330	4539.897	44747592	finngen-r13-RX_PARACETAMOL_NSAID	21230615	21230615	finngen-r13-BMI_IRN	21228482	21228482	passed
+/data/opengwasdb/wip/rebuild-133/ukb-b__dense-observed-vcf-pilot-10	10	9847701	2288538309	1318866296	422.007	10614164		0	0	ukb-b-10001	5349216	5349216	passed

@@ -1,0 +1,47 @@
+metadata_schema_version: 1.0
+store_family_id: finngen-r13
+family_release_id: r13-pilot-20
+status: built
+source_collection_id: finngen-r13
+source_snapshot_id: finngen-r13-manifest-2026-05-12
+source_snapshot:
+  manifest_url: https://storage.googleapis.com/finngen-public-data-r13/summary_stats/finngen_R13_manifest.tsv
+  manifest_sha256: c9caafa9b98ee5ef050a705766bd1c451fc2154fb8e81b069022012a2f75ae20
+  manifest_size_bytes: 820805
+  manifest_etag: a70f4ecb57acf7c23e8f5d71be11d936
+  manifest_last_modified: '2026-05-12T12:48:15Z'
+release_kind: one-off
+association_coverage: full_gwas
+description: |
+  Bounded FinnGen R13 onboarding trial containing all three inverse-rank-normalised quantitative endpoints and 17 case-control endpoints selected deterministically across distinct manifest categories. This is not the full FinnGen collection.
+created_at: '2026-08-18T08:51:59Z'
+accepted_at: ~
+generator:
+  name: resources/generators/finngen-r13-dense/generate.R
+  version: sha256:1800b9cfa92a03fb48d4f666bdc376be4b31cce7ed50851c3491bbc5ba7fd5e3
+  command: Rscript resources/generators/finngen-r13-dense/generate.R --config=families/finngen-r13/generators/config-pilot-20.yaml
+    --mode=emit
+build_environment:
+  repo_commit: 61043c83662dc5588f2c4ed9ea46ff7e2055bf78
+  pixi_lock_sha256: 9cda82eee1ec8a7557b6788265508545c007d2a5ba38e4f67d2f89b05996e820
+  pixi_environment: default
+  platform: x86_64-conda-linux-gnu
+  r_version: R version 4.5.3 (2026-03-11)
+source_defaults:
+  source_genome_build: GRCh38
+  license: FinnGen public data
+  sample_size_kind: ~
+lineage:
+  derived_from: ~
+sidecars:
+  selection: sidecars/selection.tsv
+  derivations: sidecars/derivations.tsv
+  downloads: sidecars/downloads.tsv
+  ancestry: sidecars/ancestry.tsv
+  sd_estimation: sidecars/sd_estimation.tsv
+  build_report: sidecars/build_report.tsv
+  pilot_assessment: pilot_report.md
+notes: |
+  Quantitative endpoints are ordered by phenocode. For each binary category, the endpoint with the largest case count wins (phenocode breaks ties); the 17 category winners with the largest case counts are retained (category and phenocode break ties). The frozen provider manifest checksum makes the resulting 20-Analysis order reproducible.
+
+  Status is `built`, not `validated`: the 20-Analysis Store built and passed OpenGWASDB validation and binary/quantitative read-back probes, but effect-scale validation genuinely failed for finngen-r13-HEIGHT_IRN (implied phenotype SD 0.665 despite declared-standardised provenance). The pilot assessment therefore recommends NO-GO for the complete R13 collection until that discrepancy is resolved; the failure is deliberately retained rather than silently rescaling the endpoint.

@@ -1,0 +1,58 @@
+store_family_id: ukb-b
+family_release_id: dense-observed-vcf-pilot-10
+store_layout: dense-observed
+completion_state: observed-only
+builder:
+  package: opengwasdb
+  entrypoint: opengwasdb.layouts.dense.build_vcf:build_dense_from_vcf_manifest
+source:
+  source_format: gwas-vcf
+  source_reader_capability: opengwasdb.gwas-vcf
+  source_genome_build: GRCh37
+normalisation:
+  target_reference_assembly: GRCh38
+  liftover: hg19-to-hg38
+  liftover_chain: /data/opengwasdb/reference/liftover/hg19ToHg38.over.chain.gz
+effects:
+  stored_effect_scale: ~
+shape:
+  association_coverage: full_gwas
+reference_resources:
+- resource_id: hgdp1kgp-ancestry-mixture-hg38
+  kind: ancestry_mixture
+  genome_build: GRCh38
+  location: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
+  fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+- resource_id: ukb-eur-reference-af-hg38
+  kind: reference_af
+  genome_build: GRCh38
+  root: /data/opengwasdb/reference/ukb-hg38
+  ancestry_dir: EUR
+- resource_id: canonical-trait-mapping-efo
+  kind: trait_ontology_mapping
+  location: reference-resources/canonical-trait-mapping-efo/mapping.tsv
+ancestry_assignment:
+  enabled: yes
+  reference_resource_id: hgdp1kgp-ancestry-mixture-hg38
+  sampling_chromosome: 1
+  max_reference_sites: 20000
+  maf_floor: 0.01
+  gates:
+    tau: 0.5
+    delta: 0.2
+    n_min: 5000
+    residual_max: 0.06
+effect_scale_validation:
+  enabled: yes
+  min_overlap_variants: 20
+  sd_tolerance: 0.15
+  reference_resources:
+  - ancestry: EUR
+    resource_id: ukb-eur-reference-af-hg38
+validation:
+  required: yes
+artifacts:
+  artifact_root: /data/opengwasdb
+  release_subdir: ukb-b/releases/dense-observed-vcf-pilot-10
+  store_uri: /data/opengwasdb/wip/dense-observed-vcf-pilot-10-smoketest
+notes: ''

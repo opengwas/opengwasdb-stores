@@ -1,0 +1,45 @@
+metadata_schema_version: 1.0
+store_family_id: pqtl-interval-2018
+family_release_id: 2018-sun-pilot-10
+store_key: ragged__pmid-29875488__European__pilot10
+status: built
+source_collection_id: gwas-catalog-ssf
+source_snapshot_id: gwas-catalog-v1.0.3.1-r2026-07-10
+release_kind: one-off
+association_coverage: cis_plus_signals
+description: |
+  First 10 Sun et al. INTERVAL SomaScan plasma-proteome pQTL analyses (PMID 29875488) -- a deterministic prefix of the 100-analysis 2018-sun-pilot-100 selection, built end-to-end through OpenGWASDB's real ragged builder as a small, current, grounded proof that this Store Family's pipeline (Trait Ontology Mapping, CURIE-normalised trait_ontology_id, analysis_label) actually produces a working store.
+created_at: '2026-08-17T14:32:13Z'
+accepted_at: '2026-08-17T14:37:45Z'
+generator:
+  name: resources/generators/gwas-ssf-ragged/generate.R
+  version: sha256:ef0c8437171493bc205dfbb32156ce2c37209cf9de94edea99be53cefb825d94
+  command: Rscript resources/generators/gwas-ssf-ragged/generate.R --config=families/pqtl-interval-2018/generators/config-pilot-10.yaml
+    --mode=emit
+build_environment:
+  repo_commit: 273c1fd62897b317adb7cfba39c4bbaf3d351a69
+  pixi_lock_sha256: 2dc6c2d59dd4c11647fde3876c242010b658b5a16c05192f7ade9c53bbf4ea2d
+  pixi_environment: unavailable
+  platform: x86_64-conda-linux-gnu
+  r_version: R version 4.5.3 (2026-03-11)
+source_defaults:
+  source_genome_build: GRCh38
+  license: EBI GWAS Catalog terms of use
+  original_effect_scale: sd
+  stored_effect_scale: sd
+  sample_size_kind: total
+  source_ancestry_label: European
+  assigned_ancestry: European
+lineage:
+  derived_from: ~
+sidecars:
+  analysis_targets: sidecars/analysis_targets.tsv
+  sparse_regions: sidecars/sparse_regions.tsv
+  filter_summary: sidecars/filter_summary.tsv
+  build_report: sidecars/build_report.tsv
+  sd_estimation: sidecars/sd_estimation.tsv
+  ancestry: sidecars/ancestry.tsv
+notes: |
+  Deliberately not a replacement for 2018-sun-pilot-100 -- same source, same selection basis, just a small independent slice used to prove the build end-to-end without re-running the full 100-analysis pipeline.
+
+  Status is `built`, not `validated`: the store built successfully and reads back correctly, but validation.yaml correctly reports passed_with_warnings -- opengwasdb's Ragged builder (opengwasdb.layouts.ragged.build_ssf) silently drops analysis_label/trait_ontology_id/trait_ontology_label into the built store despite the manifest supplying real values (filed as explodecomputer/opengwasdb#83). This is a real upstream gap, not a defect in this release; left failing rather than silently accepted.

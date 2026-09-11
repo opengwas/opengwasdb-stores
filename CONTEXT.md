@@ -93,6 +93,14 @@ _Avoid_: store family, source format
 A versioned, immutable, validated OpenGWASDB analytical asset within a Store Family, produced from an accepted Release Manifest and material Build Recipe choices.
 _Avoid_: database, live store
 
+**Trial Store Release**:
+A deliberately small Store Release used to exercise a distinct Source Collection, Source Format, or Store Layout while developing and testing the generic release pipeline; it is not a phase of a production Store Release.
+_Avoid_: pilot store, pilot release
+
+**Preflight Run**:
+A representative subset run within the production workflow for a Store Release that produces stage reports for one explicit human review gate before the full build proceeds.
+_Avoid_: pilot run, pilot phase, trial run
+
 **Release Artifact**:
 A large material file or directory produced or consumed while building a Store Release, such as filtered source files, transient work files, build logs, or the built OpenGWASDB store. Release Artifacts live outside the Store Registry repository and are identified by explicit Store Family and Family Release ID paths.
 _Avoid_: release bundle, manifest

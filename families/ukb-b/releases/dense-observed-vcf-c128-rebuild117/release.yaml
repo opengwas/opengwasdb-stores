@@ -1,0 +1,36 @@
+metadata_schema_version: 1.0
+store_family_id: ukb-b
+family_release_id: dense-observed-vcf-c128-resolved
+status: candidate
+source_collection_id: opengwas-gwas-vcf
+source_snapshot_id: opengwas-api-r2026-08-10
+release_kind: source-natural
+association_coverage: full_gwas
+description: |
+  ukb-b batch (2,514 UK Biobank GWAS-VCF analyses) with stored_effect_scale, sample_size_kind, n_cases, and n_controls genuinely resolved per-Analysis from the OpenGWAS API (issue #49/#50), replacing the ad hoc reverse-engineered dense-observed-vcf-c128 candidate bundle's blank/ family-default values for these fields.
+created_at: '2026-08-10T06:51:23Z'
+accepted_at: ~
+generator:
+  name: resources/generators/opengwas-gwas-vcf-dense/generate.R
+  version: sha256:f0b0623aa3f12da1d0ac38a4e0cc64a8615f9c76c5e3481ad5d117b089ffac7e
+  command: Rscript resources/generators/opengwas-gwas-vcf-dense/generate.R --config=families/ukb-b/generators/config.yaml
+    --mode=emit
+build_environment:
+  repo_commit: 39519b90083352a8b387de059991ad5551fd3c28
+  pixi_lock_sha256: d6025e7e8175af0d1f60da97f1af3beb0ffd599ad049129034c63e2d645a5d69
+  pixi_environment: dev
+  platform: x86_64-conda-linux-gnu
+  r_version: R version 4.5.3 (2026-03-11)
+source_defaults:
+  source_genome_build: GRCh37
+  license: ~
+  sample_size_kind: ~
+lineage:
+  derived_from: dense-observed-vcf-c128
+sidecars:
+  derivations: sidecars/derivations.tsv
+  ancestry: sidecars/ancestry.tsv
+  sd_estimation: sidecars/sd_estimation.tsv
+notes: |
+  Scope boundary (issue #50): this release makes the release manifest correct. It does not make opengwasdb build a store using these values -- as of the currently pinned opengwasdb commit, opengwasdb.layouts.dense.build_vcf calls read_vcf_study_type() on the raw VCF ##SAMPLE header unconditionally, with no code path that even considers a manifest-supplied stored_effect_scale. The builder-side half is tracked separately at explodecomputer/opengwasdb#14; do not treat this release as having fixed the ieu-a-7-shaped bug end-to-end until that is resolved too. ieu-a-7 itself is not a ukb-b analysis (it belongs to the unrelated ieu-a batch) and is not part of this batch to compare against.
+  Out of scope for this release (unchanged from dense-observed-vcf-c128, not newly introduced here): `license`/`checksum`/`checksum_algorithm`/ `size_bytes` remain blank for every row, inherited as-is from the candidate manifest. This generator resolves only the fields issue #49/#50 scope it to (stored_effect_scale, sample_size_kind, sample_size, n_cases, n_controls); licence terms and file checksums need the source VCFs themselves, which this registry has no direct access to.

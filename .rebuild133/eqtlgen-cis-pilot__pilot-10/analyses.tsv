@@ -1,0 +1,11 @@
+analysis_index	analysis_id	analysis_label	trait_ontology_id	trait_ontology_label	tissue	context	trait_chr	trait_bp	stored_effect_scale	assigned_ancestry	ancestry_assignment_method	sample_size_kind	sample_size_scope	sample_size	n_cases	n_controls	eaf_scope	original_effect_scale	original_sd	original_sd_method	original_sd_dispersion	license	publication_doi	publication_pmid	consortium	first_author	completed_against	completion_median_pearson_r	completion_n_imputed_total	completion_n_missing_total	eaf_orientation	eaf_orientation_r	eaf_orientation_n	n_hits_5e8	n_hits_5e6	n_hits_5e4
+0	ENSG00000175445::whole_blood	ENSG00000175445	ENSEMBL:ENSG00000175445	Ensembl	whole_blood		8	19791998																										1071	1240	1761
+1	ENSG00000134243::whole_blood	ENSG00000134243	ENSEMBL:ENSG00000134243	Ensembl	whole_blood		1	109896382																										49	126	376
+2	ENSG00000130203::whole_blood	ENSG00000130203	ENSEMBL:ENSG00000130203	Ensembl	whole_blood		19	45410830																										0	0	0
+3	ENSG00000073605::whole_blood	ENSG00000073605	ENSEMBL:ENSG00000073605	Ensembl	whole_blood		17	38068477																										2747	3011	3525
+4	ENSG00000164308::whole_blood	ENSG00000164308	ENSEMBL:ENSG00000164308	Ensembl	whole_blood		5	96233531																										3358	3693	4309
+5	ENSG00000232810::whole_blood	ENSG00000232810	ENSEMBL:ENSG00000232810	Ensembl	whole_blood		6	31544728																										1973	3065	5727
+6	ENSG00000141510::whole_blood	ENSG00000141510	ENSEMBL:ENSG00000141510	Ensembl	whole_blood		17	7577976																										67	189	291
+7	ENSG00000136244::whole_blood	ENSG00000136244	ENSEMBL:ENSG00000136244	Ensembl	whole_blood		7	22768562																										45	105	296
+8	ENSG00000087237::whole_blood	ENSG00000087237	ENSEMBL:ENSG00000087237	Ensembl	whole_blood		16	57006759																										128	174	377
+9	ENSG00000136997::whole_blood	ENSG00000136997	ENSEMBL:ENSG00000136997	Ensembl	whole_blood		8	128750677																										69	134	202

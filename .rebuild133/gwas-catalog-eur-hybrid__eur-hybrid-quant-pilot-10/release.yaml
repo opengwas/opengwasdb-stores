@@ -1,0 +1,44 @@
+metadata_schema_version: 1.0
+store_family_id: gwas-catalog-eur-hybrid
+family_release_id: eur-hybrid-quant-pilot-10
+store_key: hybrid__European__pilot10-quant
+status: built
+source_collection_id: gwas-catalog-ssf
+source_snapshot_id: gwas-catalog-v1.0.3.1-r2026-07-10
+release_kind: one-off
+association_coverage: full_gwas
+description: |
+  First 10 quantitative-trait Analyses from the hybrid__European candidate pool (resources/data/derived/store-candidates-analyses.tsv) with a usable phenotype-SD estimate -- the follow-up opengwasdb-stores#70 promised: eur-hybrid-pilot-10 proved the Hybrid layout and GWAS-SSF Source Reader Capability on case-control Analyses (no SD estimation needed, binary_trait); this release proves the same pipeline for quantitative Analyses, whose original_sd_method has to be established empirically via resources/lib/effect_scale_validation.R's reference-AF engine (already proven end-to-end by gwas-ssf-ragged) rather than assumed, since this multi-publication pool has no single-family curated effect-scale method.
+created_at: '2026-08-18T00:50:57Z'
+accepted_at: '2026-08-18T01:20:00Z'
+generator:
+  name: resources/generators/gwas-ssf-hybrid/generate.R
+  version: sha256:b264d40e4af51da5033abfe56f3161d91273d6b26ec18bd5fa9f8be9720b3947
+  command: Rscript resources/generators/gwas-ssf-hybrid/generate.R --config=families/gwas-catalog-eur-hybrid/generators/config-quant-pilot-10.yaml
+    --mode=emit
+build_environment:
+  repo_commit: 5ae00493659c42dd5d8cf97b7fac638cda15d352
+  pixi_lock_sha256: 89d840eaaf4b4620e523010be59c1ea30296fc15efcdb0ba0040849f633c89c5
+  pixi_environment: unavailable
+  platform: x86_64-conda-linux-gnu
+  r_version: R version 4.5.3 (2026-03-11)
+source_defaults:
+  source_genome_build: GRCh38
+  license: EBI GWAS Catalog terms of use
+  original_effect_scale: sd
+  stored_effect_scale: sd
+  sample_size_kind: total
+  source_ancestry_label: European
+  assigned_ancestry: European
+lineage:
+  derived_from: ~
+sidecars:
+  download_summary: sidecars/download_summary.tsv
+  build_report: sidecars/build_report.tsv
+  sd_estimation: sidecars/sd_estimation.tsv
+notes: |
+  original_sd_method starts at `unavailable` (never `declared_standardised` -- this pool has no evidence any of these papers' betas are already phenotype-SD-standardised) and is overwritten only where empirical estimation actually passes/warns. Any Analysis where estimation is skipped or fails is excluded from the build (exclude_from_build=true) rather than crashing the whole batch over one unresolved row or silently defaulting -- see generate.R's effect_scale_stage(). All 10 Analyses here passed (8 via source-provided AF, 2 via the ukb-hg38-eur-af reference-AF fallback), so none were excluded this run.
+
+  Status is `built`, not `validated`: the store built successfully (10 Analyses, 14,763,864 shared variants -- 9,847,807 on-panel + 4,916,057 off-panel -- and 6,562,223 Ragged Overflow associations, confirming both Hybrid components were genuinely exercised again on a different Analysis mix) and reads back correctly, but validation.yaml correctly reports passed_with_warnings for the same confirmed opengwasdb#86 gap as eur-hybrid-pilot-10 (sample_size_kind/sample_size_scope/original_effect_scale dropped, ancestry_assignment_method fabricated as af_assigned). Left failing rather than silently accepted.
+
+  Also surfaced here: resources/lib/effect_scale_validation.R's phenotype-SD estimator shells out to a Python bridge with every retained variant's se/af serialised as a command-line JSON array (estimate_phenotype_sd()) -- built and proven against gwas-ssf-ragged's sparse per-Analysis files (hundreds to low-thousands of variants), it fails ("cannot popen") against this generator's full genome-wide harmonised files well before the OS's own ARG_MAX. Worked around here by sampling a bounded 2,000-variant subset per Analysis before estimation (generate.R's thin_for_sd_estimation()); the underlying engine itself was not changed. Tracked as opengwasdb-stores#71.

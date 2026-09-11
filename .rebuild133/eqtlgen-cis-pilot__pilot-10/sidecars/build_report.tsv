@@ -1,0 +1,2 @@
+store_uri	n_probes	n_variants	n_associations	source_genome_build	target_reference_assembly	smoke_probe_ids	smoke_n_associations
+/data/opengwasdb/wip/rebuild-133/artifacts/eqtlgen-cis-pilot/store/ragged__eqtlgen-cis-pilot__pilot-10	10	86376	86373	hg19	GRCh38	"[""ENSG00000175445::whole_blood"", ""ENSG00000134243::whole_blood""]"	"{""ENSG00000175445::whole_blood"": 9636, ""ENSG00000134243::whole_blood"": 6119}"

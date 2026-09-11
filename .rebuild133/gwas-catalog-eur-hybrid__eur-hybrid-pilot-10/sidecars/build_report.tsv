@@ -1,0 +1,2 @@
+store_uri	n_analyses	n_variants	n_panel	n_off_panel	n_overflow_associations	n_excluded	probe_analysis_id	probe_n_associations	probe_n_finite_z	probe_stored_effect_scale	probe_analysis_label
+/data/opengwasdb/wip/rebuild-133/gwas-catalog-eur-hybrid__eur-hybrid-pilot-10	9	20373380	9847807	10525573	27369974	1	GCST005076	10763959	10763959	log_or	Breast cancer (estrogen-receptor negative)

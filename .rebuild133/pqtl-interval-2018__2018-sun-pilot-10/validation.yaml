@@ -1,5 +1,5 @@
 status: passed
-validated_at: 2026-08-31T19:32:29.846057+00:00
+validated_at: 2026-09-05T15:02:44.473007+00:00
 validator:
   name: resources/generators/gwas-ssf-ragged/build-store.py
   version: null
@@ -8,8 +8,8 @@ build_environment:
   opengwasdb_version: 0.2.0
   opengwasdb_commit: 6ef919e721d5b7368acad591264be50f79b77dfb
   pixi_lock_sha256: f76211f9a1483fb35dd67f5961f97693e8c9c33c075dad82a80e8a885a6359aa
-  pixi_environment: default
-  platform: Linux-4.18.0-553.141.1.el8_10.x86_64-x86_64-with-glibc2.28
+  pixi_environment: unavailable
+  platform: Linux-4.18.0-553.155.1.el8_10.x86_64-x86_64-with-glibc2.28
   python_version: 3.11.15
 checks:
   schema: passed

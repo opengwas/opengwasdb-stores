@@ -1,0 +1,23 @@
+status: passed
+validated_at: 2026-09-05T14:16:16.151413+00:00
+validator:
+  name: resources/generators/eqtlgen-besd-ragged/generate.py
+  version: null
+build_environment:
+  repo_commit: 7a1cba261bcdae4ca5df2b9eb53ba804c1223323
+  opengwasdb_version: 0.2.0
+  opengwasdb_commit: 6ef919e721d5b7368acad591264be50f79b77dfb
+  pixi_lock_sha256: f76211f9a1483fb35dd67f5961f97693e8c9c33c075dad82a80e8a885a6359aa
+  pixi_environment: unavailable
+  platform: Linux-4.18.0-553.155.1.el8_10.x86_64-x86_64-with-glibc2.28
+  python_version: 3.11.15
+checks:
+  schema: not_run
+  files: passed
+  reader_smoke_test: passed
+  store: passed
+reports:
+  build_report: sidecars/build_report.tsv
+  selection: sidecars/selection.tsv
+warnings: []
+errors: []
