@@ -63,11 +63,18 @@ references:
 
 rho:
   enabled: true
+  arguments:
+    z-thresh: 100
+    min-nulls: 1
 
 reference_completion:
   enabled: true
   family_release_id: dense-reference-completed-v1
   command: complete-dense
+  arguments:
+    ld-panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+    ancestry: EUR
+    release-id: dense-reference-completed-v1
 ```
 
 `build.command` names an `opengwasdb` CLI subcommand, not an importable Python
@@ -77,7 +84,9 @@ to import and call it. `build.arguments` is an **opaque** flag mapping passed
 through to that subcommand unchanged; it is deliberately not a semantic schema,
 so a newly required builder flag (for example `build-dense-vcf`'s `store-id`,
 `release-id`, and EAF-orientation gate) is absorbed without a configuration
-change. `reference_completion.command` names the CLI subcommand for the child
+change. `rho.arguments` and `reference_completion.arguments` are the same
+opaque passthrough for the two optional branches, and
+`reference_completion.command` names the CLI subcommand for the child
 Reference-Completed release in the same way.
 
 `source.root` and `source.analyses` are resolved relative to the release
@@ -150,6 +159,13 @@ observed parent, then uses the configured reference panel to create a separate
 Store. Rho, summary regeneration, and final validation are run for that child in
 the same order as for the observed Store.
 
+Registration means a Release Bundle of the child's own, a sibling of the
+observed bundle (`families/<family>/releases/<child-release-id>/`), carrying a
+`release.yaml` whose `lineage.derived_from` names the observed release. The
+child's Store is built under ADR 0018's default layout for the child's own
+release id, never at the observed release's `store_uri`, so the branch cannot
+resolve onto -- or mutate -- the observed Store.
+
 The child is never an in-place mutation of the observed release (ADR 0007).
 
 ## Ownership
@@ -171,7 +187,11 @@ Snakemake must not use the modification time of a large mutable Store directory
 as evidence that a phase succeeded. Each expensive or in-place operation emits
 a small completion record only after its output passes the phase-specific
 read-back checks. A partial Store has no successful completion record and is
-therefore resumed or rebuilt on the next invocation.
+therefore resumed or rebuilt on the next invocation. An interrupted Dense
+Reference Completion leaves `opengwasdb`'s per-block checkpoint directory
+behind; `complete_store` records the command it issued beside that checkpoint
+and resumes it with the CLI's `-resume` subcommand rather than trusting the
+partial child.
 
 Every completion record binds at least:
 

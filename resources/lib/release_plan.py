@@ -14,7 +14,10 @@ the seven Trial Store Releases onto it:
   (``opengwasdb --help``), `build.arguments` is an *opaque* flag mapping passed
   through unchanged, `source.root`/`source.analyses` fix the input, and the
   optional `rho` / `reference_completion` branches say whether those in-place
-  and child releases are built.
+  and child releases are built, and each carries its own opaque `arguments`
+  flag mapping (`rho.arguments` for `build-dense-rho`, `reference_completion.
+  arguments` for the completion subcommand), passed through the same way as
+  `build.arguments`.
 * **legacy schema** - the pre-#95 bundle with `builder.entrypoint`, accepted so
   the loader never rejects a release #97 did not migrate. Legacy plans carry an
   explicit warning and are not executable by command name until migrated.
@@ -96,7 +99,9 @@ class ReleasePlan:
     build_command: str | None
     build_arguments: dict[str, object] = field(default_factory=dict)
     rho_enabled: bool = False
+    rho_arguments: dict[str, object] = field(default_factory=dict)
     reference_completion_enabled: bool = False
+    completion_arguments: dict[str, object] = field(default_factory=dict)
     completed_release_id: str | None = None
     completion_command: str | None = None
     builder_entrypoint: str | None = None
@@ -264,6 +269,20 @@ def load_plan(release_dir: Path) -> ReleasePlan:
     if not isinstance(arguments, dict):
         raise PlanError("build.arguments", "must be a mapping of CLI flags (opaque passthrough)")
 
+    rho_arguments = rho.get("arguments")
+    if rho_arguments is None:
+        rho_arguments = {}
+    if not isinstance(rho_arguments, dict):
+        raise PlanError("rho.arguments", "must be a mapping of CLI flags (opaque passthrough)")
+
+    completion_arguments = reference_completion.get("arguments")
+    if completion_arguments is None:
+        completion_arguments = {}
+    if not isinstance(completion_arguments, dict):
+        raise PlanError(
+            "reference_completion.arguments", "must be a mapping of CLI flags (opaque passthrough)"
+        )
+
     if schema == "cli" and str(command) not in known_commands():
         raise PlanError("build.command", f"unknown opengwasdb CLI subcommand {command!r}")
 
@@ -307,7 +326,9 @@ def load_plan(release_dir: Path) -> ReleasePlan:
         build_command=str(command) if command else None,
         build_arguments=arguments,
         rho_enabled=rho_enabled,
+        rho_arguments=rho_arguments,
         reference_completion_enabled=completion_enabled,
+        completion_arguments=completion_arguments,
         completed_release_id=str(completed_release_id) if completed_release_id else None,
         completion_command=str(completion_command) if completion_command else None,
         builder_entrypoint=str(entrypoint) if entrypoint else None,

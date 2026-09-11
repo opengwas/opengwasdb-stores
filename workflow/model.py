@@ -16,11 +16,13 @@ Layout under the configured artifact root follows ADR 0018
 (`<artifact-root>/<store-family-id>/releases/<family-release-id>/`). Work files
 (`work/`) and the built Store are artifacts, not tracked registry metadata
 (ADR 0015); the release bundle's `sidecars/` reports and `validation.yaml` are
-the only things this workflow writes back into the repository.
+the only things this workflow writes back into the repository -- plus the child
+Release Bundle a Reference-Completion branch registers (ADR 0007).
 """
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -32,8 +34,16 @@ from resources.lib.release_manifest import ADAPTER_PROJECTIONS, buildable_rows  
 from resources.lib.release_plan import PlanError, ReleasePlan, load_plan  # noqa: E402
 from resources.lib.release_yaml import read_release_yaml, read_tsv  # noqa: E402
 
-#: The phase whose completion record is the workflow's final target.
+#: The observed release's final phase (the workflow's target when rho and
+#: Reference Completion are both disabled).
 FINAL_PHASE = "validate_observed_release"
+
+#: The Reference-Completion child's final phase. When the parent enables the
+#: completion branch, this -- not `FINAL_PHASE` -- is the workflow's target.
+COMPLETION_FINAL_PHASE = "validate_completed_release"
+
+#: The Store Layout suffix a Reference-Completion child carries (ADR 0007).
+CHILD_LAYOUT_SUFFIX = "reference-completed"
 
 #: Directory under the configured artifact root that holds the built Store.
 STORE_DIR_NAME = "store.opengwasdb"
@@ -92,6 +102,77 @@ class WorkflowPaths:
 
 
 @dataclass(frozen=True)
+class ChildRelease:
+    """The lineage-linked child Store Release a completion branch produces.
+
+    Reference Completion is never an in-place mutation of the observed release
+    (ADR 0007): it registers a distinct Store Release whose lineage names the
+    observed parent and builds a *separate* Store under the artifact root. The
+    child's Release Bundle is a sibling of the observed bundle
+    (`families/<family>/releases/<child-release-id>/`), and its artifact paths
+    follow ADR 0018's default (`<artifact-root>/<family>/releases/<child>`).
+    """
+
+    release_id: str
+    layout: str
+    command: str
+    arguments: dict[str, object]
+    release_dir: Path
+    artifact_dir: Path
+    store_dir: Path
+    work_dir: Path
+
+    def completion(self, phase_id: str) -> Path:
+        return self.work_dir / "completions" / f"{phase_id}.json"
+
+    def report(self, name: str) -> Path:
+        return self.release_dir / "sidecars" / name
+
+    @property
+    def store_partial(self) -> Path:
+        return self.store_dir.with_name(self.store_dir.name + STORE_PARTIAL_SUFFIX)
+
+    @property
+    def release_yaml(self) -> Path:
+        return self.release_dir / "release.yaml"
+
+    @property
+    def validation_yaml(self) -> Path:
+        return self.release_dir / "validation.yaml"
+
+
+@dataclass(frozen=True)
+class ReleaseSite:
+    """Where one Store Release's phases write: identity, Store, and work paths.
+
+    The observed release and its Reference-Completion child differ only in these
+    paths and their identity, so a phase body is written once and pointed at
+    either (`workflow/phase.py`).
+    """
+
+    store_family_id: str
+    release_id: str
+    layout: str
+    release_dir: Path
+    store_dir: Path
+    work_dir: Path
+    completion: Callable[[str], Path]
+    report: Callable[[str], Path]
+
+    @property
+    def store_partial(self) -> Path:
+        return self.store_dir.with_name(self.store_dir.name + STORE_PARTIAL_SUFFIX)
+
+    @property
+    def release_yaml(self) -> Path:
+        return self.release_dir / "release.yaml"
+
+    @property
+    def validation_yaml(self) -> Path:
+        return self.release_dir / "validation.yaml"
+
+
+@dataclass(frozen=True)
 class Workflow:
     """One release's loaded plan, resolved paths, and fixed inputs."""
 
@@ -101,6 +182,49 @@ class Workflow:
     layout: str
     source_paths: tuple[Path, ...]
     reference_descriptors: tuple[Path, ...]
+    child: ChildRelease | None = None
+
+    @property
+    def rho_enabled(self) -> bool:
+        return self.plan.rho_enabled
+
+    @property
+    def rho_arguments(self) -> dict[str, object]:
+        return dict(self.plan.rho_arguments)
+
+    @property
+    def observed_site(self) -> ReleaseSite:
+        paths = self.paths
+        return ReleaseSite(
+            store_family_id=str(self.plan.store_family_id),
+            release_id=str(self.plan.family_release_id),
+            layout=str(self.plan.store_layout),
+            release_dir=paths.release_dir,
+            store_dir=paths.store_dir,
+            work_dir=paths.work_dir,
+            completion=paths.completion,
+            report=paths.report,
+        )
+
+    @property
+    def completion_site(self) -> ReleaseSite:
+        if self.child is None:
+            raise WorkflowError("this release does not enable Reference Completion")
+        child = self.child
+        return ReleaseSite(
+            store_family_id=str(self.plan.store_family_id),
+            release_id=child.release_id,
+            layout=child.layout,
+            release_dir=child.release_dir,
+            store_dir=child.store_dir,
+            work_dir=child.work_dir,
+            completion=child.completion,
+            report=child.report,
+        )
+
+    @property
+    def final_phase(self) -> str:
+        return COMPLETION_FINAL_PHASE if self.child is not None else FINAL_PHASE
 
 
 def _resolve(root: Path, value: object, *, key: str) -> Path:
@@ -179,9 +303,8 @@ def load_workflow(config_path: Path, repo_root: Path) -> Workflow:
     """Load one release's `build.yaml` into an executable workflow.
 
     Refuses a legacy-schema release (the workflow runs `build.command`, and
-    issue #97 migrates the checked-in bundles), a release with no artifact root
-    to build into, and any release asking for a branch this ticket has not wired
-    (rho and Reference Completion are issue #100).
+    issue #97 migrates the checked-in bundles) and a release with no artifact
+    root to build into.
     """
     config_path = Path(config_path).resolve()
     repo_root = Path(repo_root).resolve()
@@ -195,13 +318,6 @@ def load_workflow(config_path: Path, repo_root: Path) -> Workflow:
         raise WorkflowError(
             f"{config_path} is the pre-#95 build.yaml schema; the workflow executes "
             "build.command (CLI schema) only (issue #97 migrates checked-in releases)"
-        )
-    if plan.rho_enabled:
-        raise WorkflowError("rho is not wired yet (issue #100); set rho.enabled: false")
-    if plan.reference_completion_enabled:
-        raise WorkflowError(
-            "Reference Completion is not wired yet (issue #100); "
-            "set reference_completion.enabled: false"
         )
 
     config = read_release_yaml(config_path)
@@ -244,4 +360,40 @@ def load_workflow(config_path: Path, repo_root: Path) -> Workflow:
         layout=layout,
         source_paths=source_file_paths(plan),
         reference_descriptors=reference_descriptors(repo_root, config),
+        child=completion_child(plan, release_dir, artifact_root),
+    )
+
+
+def completion_child(
+    plan: ReleasePlan, release_dir: Path, artifact_root: Path
+) -> ChildRelease | None:
+    """The child Store Release a completion branch produces, or None.
+
+    The child's Release Bundle is the observed bundle's sibling, so
+    `families/<family>/releases/<observed>` registers its child at
+    `families/<family>/releases/<child>` -- the layout the checked-in trial
+    releases already use. Its artifact paths follow ADR 0018's default rather
+    than the observed release's own `artifacts.store_uri`/`release_subdir`, so
+    the child Store can never resolve onto the observed Store.
+    """
+    if not plan.reference_completion_enabled:
+        return None
+    if not plan.store_family_id or not plan.completed_release_id:
+        raise WorkflowError(
+            "reference_completion needs store_family_id and reference_completion.family_release_id"
+        )
+    assert plan.completion_command is not None
+
+    child_id = plan.completed_release_id
+    artifact_dir = artifact_root / str(plan.store_family_id) / "releases" / child_id
+    layout = str(plan.store_layout or "").split("-")[0]
+    return ChildRelease(
+        release_id=child_id,
+        layout=f"{layout}-{CHILD_LAYOUT_SUFFIX}",
+        command=plan.completion_command,
+        arguments=dict(plan.completion_arguments),
+        release_dir=release_dir.parent / child_id,
+        artifact_dir=artifact_dir,
+        store_dir=artifact_dir / STORE_DIR_NAME,
+        work_dir=artifact_dir / "work",
     )

@@ -6,7 +6,8 @@ The fixture is a genuine, if tiny, FinnGen R13 source: three bgzip-compatible
 reads (`#chrom`, `pos`, `ref`, `alt`, `beta`, `sebeta`, `af_alt`, `rsids`), and
 the `analyses.tsv` that selects them under the shared Analysis schema.
 
-It is checked in -- three ~200-byte files and one TSV -- so the workflow can be
+It is checked in -- three ~200-byte files and one TSV, plus a one-block LD
+reference panel for the Reference-Completion branch -- so the workflow can be
 run against it without any acquisition step. This script exists because
 `analyses.tsv` declares each source file's sha256: regenerating the sources
 without regenerating their checksums would make the fixture unbuildable.
@@ -48,6 +49,23 @@ FIXTURES_DIR = Path(__file__).resolve().parent
 FIXTURE_DIR = FIXTURES_DIR / "r13-fixture"
 SOURCE_DIR = FIXTURE_DIR / "source"
 ANCESTRY_REFERENCE_DIR = FIXTURES_DIR / "ancestry-reference"
+LD_PANEL_DIR = FIXTURE_DIR / "ld-panel"
+
+#: The smallest LD reference panel that lets `opengwasdb complete-dense` run
+#: against the fixture. One EUR chr1 block, at the positions the fixture's chr1
+#: variants occupy, with one panel-only variant (`1:1500000:C:T`) between two
+#: variants BMI observes -- so completion has a real imputation target and the
+#: child Store's variant axis is genuinely larger than the observed one. The
+#: panel ships only an eigendecomposition (ADR 0031), the same shape the
+#: production HGDP+1kGP panel uses.
+LD_BLOCK_NAME = "1000000-2000000"
+LD_BLOCK_SNPS: tuple[tuple[str, float, int], ...] = (
+    # (canonical ALID, panel EAF, base-pair position)
+    ("1:1000000:A:G", 0.41, 1_000_000),
+    ("1:1500000:C:T", 0.30, 1_500_000),
+    ("1:2000000:C:T", 0.33, 2_000_000),
+)
+LD_BLOCK_SEED = 0
 
 #: FinnGen R13 summary-statistics columns this fixture reproduces. `#chrom` is
 #: FinnGen's own spelling (chromosome 23 is X); `alt` is the effect allele.
@@ -243,10 +261,43 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def write_ld_panel() -> None:
+    """Write the fixture's one-block EUR chr1 LD panel, byte-reproducibly.
+
+    The block TSV follows the flat `ld_dir/{ancestry}/{chr}/{block}.tsv` layout
+    `opengwasdb.completion.ld_panel` reads (columns `CHR SNP OA EA EAF BP`), and
+    the eigendecomposition is `numpy.linalg.eigh` of a fixed-seed covariance
+    matrix written with `numpy.savez_compressed` (which stamps no timestamp), so
+    regenerating is byte-reproducible.
+    """
+    import numpy as np  # noqa: PLC0415 -- numpy is a fixture-generation dependency
+
+    block_dir = LD_PANEL_DIR / "EUR" / "1"
+    block_dir.mkdir(parents=True, exist_ok=True)
+
+    lines = ["CHR\tSNP\tOA\tEA\tEAF\tBP"]
+    for alid, eaf, bp in LD_BLOCK_SNPS:
+        chrom, _, a1, a2 = alid.split(":")
+        lines.append(f"{chrom}\t{alid}\t{a2}\t{a1}\t{eaf}\t{bp}")
+    (block_dir / f"{LD_BLOCK_NAME}.tsv").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    n = len(LD_BLOCK_SNPS)
+    rng = np.random.default_rng(LD_BLOCK_SEED)
+    loadings = rng.standard_normal((n, n))
+    ld = loadings @ loadings.T + np.eye(n) * n * 0.1
+    values, vectors = np.linalg.eigh(ld)
+    np.savez_compressed(
+        block_dir / f"{LD_BLOCK_NAME}.ldeig",
+        values=values[::-1],
+        vectors=vectors[:, ::-1],
+    )
+
+
 def main() -> None:
     SOURCE_DIR.mkdir(parents=True, exist_ok=True)
     for entry in ENDPOINTS.values():
         write_source(SOURCE_DIR / entry["file_name"], entry["variants"])
+    write_ld_panel()
 
     write_ancestry_reference()
     (FIXTURE_DIR / "release.yaml").write_text(RELEASE_YAML, encoding="utf-8")

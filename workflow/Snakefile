@@ -1,4 +1,4 @@
-"""Production Store Release workflow (issue #98) -- dependency wiring only.
+"""Production Store Release workflow (issues #98, #100) -- dependency wiring only.
 
 One command builds one Store Release from its fixed input:
 
@@ -6,22 +6,31 @@ One command builds one Store Release from its fixed input:
 
 This Snakefile deliberately contains no Store-Family name, no source column
 name, and no manifest translation. It reads the release's `build.yaml`, asks
-`workflow/model.py` for the release's paths, and declares which phase depends on
-which. Each rule shells out to `workflow/phase.py`, which owns everything
-semantic: it calls the `opengwasdb` CLI subcommands the plan names, checks each
-phase's output by reading it back, and writes the phase's completion record.
-Snakemake tracks those records, not the Store's modification time, so a partial
-Store cannot masquerade as a completed phase.
+`workflow/model.py` for the release's paths and which optional branches it
+enables, and declares which phase depends on which. Each rule shells out to
+`workflow/phase.py`, which owns everything semantic: it calls the `opengwasdb`
+CLI subcommands the plan names, checks each phase's output by reading it back,
+and writes the phase's completion record. Snakemake tracks those records, not
+the Store's modification time, so a partial Store cannot masquerade as a
+completed phase.
 
-The rho and Reference-Completion branches are issue #100 and are not wired here;
-`workflow/model.py` refuses a release that enables either, rather than building
-a Store that silently omits them.
+Two optional branches hang off that skeleton (issue #100):
+
+* **Rho** is an in-place mutation of the built Store, so it sits strictly
+  between the build and overview regeneration: `regenerate_observed_overview`
+  depends on `build_observed_rho` whenever rho is enabled, never on the build
+  alone. Dense-only enforcement happens earlier, in the release-plan loader, so
+  a non-Dense release asking for rho never reaches the rho rule.
+* **Reference Completion** registers a distinct, lineage-linked child Store
+  Release (ADR 0007) and builds a separate Store. The observed Store is only
+  read. The child then runs the same tail as the observed release: its own rho,
+  overview regeneration, and validation, in that order.
 """
 
 import shlex
 from pathlib import Path
 
-from model import FINAL_PHASE, load_workflow
+from model import load_workflow
 
 WORKFLOW_DIR = Path(workflow.basedir)
 REPO_ROOT = WORKFLOW_DIR.parent
@@ -31,6 +40,8 @@ PATHS = RELEASE.paths
 PHASE_RUNNER = WORKFLOW_DIR / "phase.py"
 SOURCE_FILES = [str(path) for path in RELEASE.source_paths]
 REFERENCE_DESCRIPTORS = [str(path) for path in RELEASE.reference_descriptors]
+RHO = RELEASE.rho_enabled
+FINAL_SITE = RELEASE.completion_site if RELEASE.child is not None else RELEASE.observed_site
 
 
 def run_phase(phase_id):
@@ -50,9 +61,9 @@ def run_phase(phase_id):
 
 
 rule release:
-    """Build the observed Store Release end to end."""
+    """Build the observed Store Release end to end, plus its completion child."""
     input:
-        PATHS.completion(FINAL_PHASE),
+        FINAL_SITE.completion(RELEASE.final_phase),
 
 
 rule validate_fixed_inputs:
@@ -101,10 +112,27 @@ rule build_observed_store:
         run_phase("build_observed_store")
 
 
+if RHO:
+    rule build_observed_rho:
+        """Build the Rho Matrix in place, after the build and before the overview."""
+        input:
+            completion=rules.build_observed_store.output.completion,
+            store_manifest=rules.build_observed_store.output.manifest,
+        output:
+            completion=str(PATHS.completion("build_observed_rho")),
+            report=str(PATHS.report("rho-report.json")),
+        shell:
+            run_phase("build_observed_rho")
+
+
 rule regenerate_observed_overview:
-    """Regenerate overview.html from the persisted Store, after any mutation."""
+    """Regenerate overview.html from the persisted Store, after every mutation."""
     input:
-        completion=rules.build_observed_store.output.completion,
+        completion=(
+            rules.build_observed_rho.output.completion
+            if RHO
+            else rules.build_observed_store.output.completion
+        ),
         store_manifest=rules.build_observed_store.output.manifest,
     output:
         completion=str(PATHS.completion("regenerate_observed_overview")),
@@ -126,3 +154,73 @@ rule validate_observed_release:
         validation=str(PATHS.validation_yaml),
     shell:
         run_phase("validate_observed_release")
+
+
+if RELEASE.child is not None:
+    CHILD = RELEASE.child
+
+    rule register_completed_release:
+        """Register the lineage-linked child Store Release (ADR 0007)."""
+        input:
+            completion=rules.validate_observed_release.output.completion,
+            build_yaml=str(CONFIG_PATH),
+        output:
+            completion=str(CHILD.completion("register_completed_release")),
+            release=str(CHILD.release_yaml),
+        shell:
+            run_phase("register_completed_release")
+
+
+    rule complete_store:
+        """Build the child Store from the observed Store, never mutating it."""
+        input:
+            completion=rules.register_completed_release.output.completion,
+            observed_manifest=rules.build_observed_store.output.manifest,
+        output:
+            completion=str(CHILD.completion("complete_store")),
+            manifest=str(CHILD.store_dir / "manifest.json"),
+            report=str(CHILD.report("completion-report.tsv")),
+        shell:
+            run_phase("complete_store")
+
+
+    if RHO:
+        rule build_completed_rho:
+            """Build the child's Rho Matrix in place, before its overview."""
+            input:
+                completion=rules.complete_store.output.completion,
+                store_manifest=rules.complete_store.output.manifest,
+            output:
+                completion=str(CHILD.completion("build_completed_rho")),
+                report=str(CHILD.report("rho-report.json")),
+            shell:
+                run_phase("build_completed_rho")
+
+
+    rule regenerate_completed_overview:
+        """Regenerate the child's overview.html, after every child mutation."""
+        input:
+            completion=(
+                rules.build_completed_rho.output.completion
+                if RHO
+                else rules.complete_store.output.completion
+            ),
+        output:
+            completion=str(CHILD.completion("regenerate_completed_overview")),
+            overview=str(CHILD.store_dir / "overview.html"),
+        shell:
+            run_phase("regenerate_completed_overview")
+
+
+    rule validate_completed_release:
+        """Validate the child Store and write the child bundle's validation.yaml."""
+        input:
+            completion=rules.regenerate_completed_overview.output.completion,
+            build_completion=rules.complete_store.output.completion,
+            overview=rules.regenerate_completed_overview.output.overview,
+            store_manifest=rules.complete_store.output.manifest,
+        output:
+            completion=str(CHILD.completion("validate_completed_release")),
+            validation=str(CHILD.validation_yaml),
+        shell:
+            run_phase("validate_completed_release")

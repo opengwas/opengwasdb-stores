@@ -60,10 +60,16 @@ build:
     feature-flags: [alpha, beta]
 rho:
   enabled: true
+  arguments:
+    z-thresh: 100
+    min-nulls: 1
 reference_completion:
   enabled: true
   family_release_id: r1-completed
   command: complete-dense
+  arguments:
+    ld-panel: /ref/panel
+    ancestry: EUR
 """
 
 LEGACY_BUILD_YAML = """\
@@ -140,9 +146,13 @@ def test_happy_path() -> None:
         check(plan.build_command == "build-dense-vcf", f"unexpected build command {plan.build_command!r}")
         check(plan.store_layout == "dense-observed", f"unexpected layout {plan.store_layout!r}")
         check(plan.rho_enabled is True, "rho should be enabled")
+        check(plan.rho_arguments == {"z-thresh": "100", "min-nulls": "1"},
+              f"rho.arguments should pass through opaque, got {plan.rho_arguments!r}")
         check(plan.reference_completion_enabled is True, "reference completion should be enabled")
         check(plan.completed_release_id == "r1-completed", f"unexpected completed release {plan.completed_release_id!r}")
         check(plan.completion_command == "complete-dense", f"unexpected completion command {plan.completion_command!r}")
+        check(plan.completion_arguments == {"ld-panel": "/ref/panel", "ancestry": "EUR"},
+              f"reference_completion.arguments should pass through opaque, got {plan.completion_arguments!r}")
         check(plan.source_root == release / "source", f"source.root should resolve next to build.yaml, got {plan.source_root}")
         check(plan.analyses_path == release / "analyses.tsv", f"unexpected analyses path {plan.analyses_path}")
         # Arguments are an opaque passthrough: keys and list values are preserved verbatim.
@@ -459,6 +469,28 @@ def test_arguments_must_be_mapping() -> None:
         check(any("build.arguments" in error for error in result.errors), result.errors)
 
 
+def test_branch_arguments_must_be_mappings() -> None:
+    """rho.arguments and reference_completion.arguments are opaque mappings too."""
+    with tempfile.TemporaryDirectory() as tmp:
+        rho_bad = HAPPY_BUILD_YAML.replace(
+            "  arguments:\n    z-thresh: 100\n    min-nulls: 1\n", "  arguments: []\n"
+        )
+        release = write_release(Path(tmp), rho_bad, [])
+        result = check_release(release)
+        check(not result.ok, "a non-mapping rho.arguments should be refused")
+        check(any("rho.arguments" in error for error in result.errors), result.errors)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        completion_bad = HAPPY_BUILD_YAML.replace(
+            "  command: complete-dense\n  arguments:\n    ld-panel: /ref/panel\n    ancestry: EUR\n",
+            "  command: complete-dense\n  arguments: []\n",
+        )
+        release = write_release(Path(tmp), completion_bad, [])
+        result = check_release(release)
+        check(not result.ok, "a non-mapping reference_completion.arguments should be refused")
+        check(any("reference_completion.arguments" in error for error in result.errors), result.errors)
+
+
 def test_no_shape_refused() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         release = Path(tmp) / "release"
@@ -545,6 +577,7 @@ def main() -> None:
         test_unknown_completion_command_refused,
         test_missing_completion_release_id_refused,
         test_arguments_must_be_mapping,
+        test_branch_arguments_must_be_mappings,
         test_no_shape_refused,
         test_legacy_rho_on_ragged_refused,
         test_legacy_shape_accepted,
