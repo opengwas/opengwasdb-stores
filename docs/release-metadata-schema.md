@@ -312,8 +312,8 @@ migrate (`resources/lib/release_plan.py`).
 
 `build.command` (an `opengwasdb` CLI subcommand) and its opaque
 `build.arguments` are the executable schema, ADR 0022; the `builder.package`/
-`builder.entrypoint` pair below is the pre-#95 form that issue #97 migrates away
-from. `artifacts.artifact_root` and the paths under it are what the production
+`builder.entrypoint` pair is the pre-#95 form that issue #97 migrated the seven
+Trial Store Releases away from. `artifacts.artifact_root` and the paths under it are what the production
 workflow builds into (see [`workflow/README.md`](../workflow/README.md)).
 
 | Field | Required | Description |
