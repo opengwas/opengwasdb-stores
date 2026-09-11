@@ -1,0 +1,91 @@
+digraph store_release_workflow {
+  graph [
+    rankdir=TB,
+    bgcolor="#ffffff",
+    fontname="Arial",
+    fontsize=11,
+    nodesep=0.4,
+    ranksep=0.45,
+    pad=0.2
+  ];
+  node [fontname="Arial", fontsize=10, color="#59636e", fontcolor="#20262d"];
+  edge [fontname="Arial", fontsize=9, color="#59636e", fontcolor="#20262d", arrowsize=0.7];
+
+  subgraph cluster_inputs {
+    label="Fixed release input";
+    color="#8b949e";
+    style="rounded";
+    raw [shape=folder, label="raw GWAS sumstats/\n*.vcf.gz or tabular files"];
+    analyses [shape=note, label="analyses.tsv\nmetadata + file_name"];
+    config [shape=note, label="build.yaml\nreader + OpenGWASDB args\npaths + release identity"];
+    config -> raw [label="points to"];
+    config -> analyses [label="points to"];
+  }
+
+  subgraph cluster_refs {
+    label="Versioned reference resources";
+    color="#8b949e";
+    style="rounded";
+    ancestry [shape=folder, label="ancestry / effect-scale\nreference data"];
+    genome [shape=folder, label="genome build / liftover\nresources"];
+    panel [shape=folder, label="reference completion\nvariant panel"];
+  }
+
+  validate_inputs [shape=box, style="rounded,filled", fillcolor="#e8f1fb", label="Validate fixed inputs\nschema, files, checksums"];
+  input_report [shape=note, label="input-validation.json"];
+  resolve [shape=box, style="rounded,filled", fillcolor="#e8f1fb", label="Resolve analysis metadata\nancestry + effect scale"];
+  resolved [shape=note, label="work/analyses.resolved.tsv"];
+  resolution_report [shape=note, label="metadata-resolution.tsv"];
+  build [shape=box, style="rounded,filled", fillcolor="#dcefe2", label="OpenGWASDB observed build\nStore envelope + Top-Hit indexes"];
+  observed [shape=folder, label="Observed Store\nmanifest.json\nanalyses.tsv\nvariants.tsv.bgz\ndata.zarr/\ntop-hit indexes\noverview.html"];
+  build_report [shape=note, label="build-report.tsv"];
+  rho [shape=box, style="rounded,filled,dashed", fillcolor="#fff3cd", label="Build rho (optional)\nin-place Store update"];
+  rho_data [shape=folder, label="data.zarr/rho/"];
+  rho_report [shape=note, label="rho-report.json"];
+  overview [shape=box, style="rounded,filled", fillcolor="#e8f1fb", label="Regenerate summary HTML\nafter all Store updates"];
+  overview_html [shape=note, label="overview.html\nAnalyses | Ancestry | Rho | Guide"];
+  validate_observed [shape=box, style="rounded,filled", fillcolor="#e8f1fb", label="Validate observed Store"];
+  observed_validation [shape=note, label="validation.yaml"];
+
+  config -> validate_inputs;
+  analyses -> validate_inputs;
+  raw -> validate_inputs;
+  validate_inputs -> input_report;
+  validate_inputs -> resolve;
+  analyses -> resolve;
+  ancestry -> resolve;
+  resolve -> resolved;
+  resolve -> resolution_report;
+  resolved -> build;
+  raw -> build;
+  config -> build;
+  genome -> build;
+  build -> observed;
+  build -> build_report;
+  observed -> rho;
+  config -> rho;
+  rho -> rho_data;
+  rho -> rho_report;
+  observed -> overview;
+  rho_data -> overview [style=dashed];
+  overview -> overview_html;
+  observed -> validate_observed;
+  overview_html -> validate_observed;
+  validate_observed -> observed_validation;
+
+  register_child [shape=box, style="rounded,filled,dashed", fillcolor="#fff3cd", label="Register lineage-linked\ncompleted release (optional)"];
+  complete [shape=box, style="rounded,filled,dashed", fillcolor="#dcefe2", label="OpenGWASDB\nReference Completion"];
+  completed [shape=folder, label="Reference-Completed Store\nseparate immutable child"];
+  completion_report [shape=note, label="completion-report.tsv"];
+  child_finish [shape=box, style="rounded,filled,dashed", fillcolor="#fff3cd", label="rho → regenerate overview\n→ validate"];
+  child_reports [shape=note, label="rho-report.json\noverview.html\nvalidation.yaml"];
+
+  observed_validation -> register_child [style=dashed];
+  register_child -> complete [style=dashed];
+  observed -> complete [style=dashed];
+  panel -> complete [style=dashed];
+  complete -> completed [style=dashed];
+  complete -> completion_report [style=dashed];
+  completed -> child_finish [style=dashed];
+  child_finish -> child_reports [style=dashed];
+}

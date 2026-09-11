@@ -6,6 +6,10 @@ This repository records what stores should exist, what source inputs define them
 how releases were produced, and what should be built next. It does not implement
 OpenGWASDB source readers, normalisation, storage layouts, or query engines.
 
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the development workflow and
+[`docs/spec/store-release-workflow.md`](docs/spec/store-release-workflow.md) for
+the proposed fixed-input Store Release pipeline.
+
 ## Software Environment
 
 All Python, R, Quarto, and native tooling (PLINK2, bcftools) is managed by
