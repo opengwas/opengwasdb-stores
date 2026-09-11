@@ -1,0 +1,17 @@
+metadata_schema_version: 1.0
+store_family_id: finngen-r13
+family_release_id: r13-fixture
+status: candidate
+source_collection_id: finngen-r13
+source_snapshot_id: finngen-r13-fixture
+release_kind: one-off
+association_coverage: full_gwas
+description: >
+  Tiny FinnGen R13-shaped fixture release for the production Store Release
+  workflow (issue #98), extended with real metadata resolution (issue #99).
+generator:
+  name: tests/release-workflow/fixtures/generate_r13_fixture.py
+  version: 1.0
+source_defaults:
+  source_genome_build: GRCh38
+  license: FinnGen public data

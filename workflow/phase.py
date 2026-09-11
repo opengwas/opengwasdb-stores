@@ -31,9 +31,10 @@ Changing a bound input invalidates that phase and its dependents on the next run
 Deferred branches
 -----------------
 The rho and Reference-Completion branches are issue #100 and are refused here
-rather than silently skipped. The resolve phase is a *passthrough*: it emits
-`work/analyses.resolved.tsv` and the shared builder manifest (issue #96) but
-computes no ancestry or phenotype SD -- that is issue #99.
+rather than silently skipped. The resolve phase owns real metadata resolution
+(issue #99): it computes Assigned Ancestry and proportions and effect-scale /
+phenotype SD into `work/analyses.resolved.tsv`, never mutating the committed
+`analyses.tsv`.
 """
 from __future__ import annotations
 
@@ -58,9 +59,14 @@ for _path in (str(_WORKFLOW_DIR), str(_REPO_ROOT)):
         sys.path.insert(0, _path)
 
 from model import Workflow, WorkflowError, load_workflow  # noqa: E402
+from resources.lib.metadata_resolution import ResolutionError, resolve_analyses  # noqa: E402
 from resources.lib.release_manifest import buildable_rows, write_builder_manifest  # noqa: E402
 from resources.lib.release_plan import check_release  # noqa: E402
-from resources.lib.release_yaml import merge_validation_yaml, read_tsv  # noqa: E402
+from resources.lib.release_yaml import (  # noqa: E402
+    merge_validation_yaml,
+    read_tsv,
+    write_release_status,
+)
 
 #: Builder-manifest columns `opengwasdb`'s Dense VCF builder requires. The
 #: manifest itself is produced by the shared module (issue #96); this is the
@@ -292,46 +298,48 @@ def phase_validate_fixed_inputs(workflow: Workflow) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Phase 2 -- resolve_analysis_metadata (passthrough; real resolution is #99)
+# Phase 2 -- resolve_analysis_metadata (real ancestry + effect-scale; issue #99)
 # ---------------------------------------------------------------------------
 
 
 def phase_resolve_analysis_metadata(workflow: Workflow) -> None:
-    """Emit the immutable working input and the shared builder manifest.
+    """Compute real ancestry and effect-scale metadata into the working input.
 
-    Passthrough by design (issue #98): no ancestry assignment and no phenotype
-    SD are computed here -- issue #99 replaces this rule. What it does do is
-    freeze the selection: `source_file` is resolved to an absolute path so the
-    builder manifest, and therefore the build, does not depend on the working
-    directory.
+    Reads the committed ``analyses.tsv`` and never writes it (issue #99, AC1):
+    the resolved table is a *new* file, so a rebuild is reproducible from the
+    registry alone and no phase mutates the fixed input. Computes Assigned
+    Ancestry and proportions (AF mixture fit against the declared reference),
+    and effect-scale / phenotype SD (source-AF estimate or declared-standardised
+    verification), writes ``work/analyses.resolved.tsv`` and the resolution
+    report, and persists the release-level checks in its completion record so the
+    validate phase can merge them into ``validation.yaml`` without a second
+    writer of that file.
+
+    A failed effect-scale check is evidence, not a workflow failure by default
+    (issue #99 decision 2): the release lands as ``built``. A family that wants
+    it blocking sets ``effect_scale_validation.block_on_failure: yes``.
     """
     plan = workflow.plan
     assert plan.analyses_path is not None and plan.source_root is not None
     fieldnames, rows = read_tsv_rows(plan.analyses_path)
     buildable = buildable_rows(rows)
 
-    resolved: list[dict[str, str]] = []
-    report_rows: list[dict[str, str]] = []
-    for row in buildable:
-        value = (row.get("source_file") or row.get("file_name") or "").strip()
-        source = Path(value)
-        absolute = source if source.is_absolute() else plan.source_root / source
-        resolved.append({**row, "source_file": str(absolute)})
-        report_rows.append({
-            "analysis_id": row.get("analysis_id", ""),
-            "source_file": str(absolute),
-            "ancestry_status": "passthrough",
-            "effect_scale_status": "passthrough",
-            "resolution": "issue #98 passthrough; real resolution is issue #99",
-        })
+    try:
+        resolution = resolve_analyses(
+            buildable,
+            fieldnames=fieldnames,
+            source_root=plan.source_root,
+            config=workflow.config,
+            repo_root=workflow.paths.repo_root,
+        )
+    except ResolutionError as exc:
+        raise PhaseError(f"metadata resolution failed: {exc}") from exc
 
-    write_tsv(workflow.paths.resolved_analyses, fieldnames, resolved)
-    manifest = write_builder_manifest(resolved, workflow.paths.builder_manifest, layout=workflow.layout)
+    write_tsv(workflow.paths.resolved_analyses, resolution.fieldnames, resolution.rows)
     report = workflow.paths.report("metadata-resolution.tsv")
-    write_tsv(
-        report,
-        ("analysis_id", "source_file", "ancestry_status", "effect_scale_status", "resolution"),
-        report_rows,
+    write_tsv(report, resolution.report_columns, resolution.report_rows)
+    manifest = write_builder_manifest(
+        resolution.rows, workflow.paths.builder_manifest, layout=workflow.layout
     )
 
     failures: list[str] = []
@@ -346,17 +354,36 @@ def phase_resolve_analysis_metadata(workflow: Workflow) -> None:
     if failures:
         raise PhaseError("metadata resolution read-back failed:\n" + "\n".join(failures))
 
+    validation = {
+        "check": "resolve_metadata",
+        "status": "passed",
+        "resolution": "af_ancestry_and_effect_scale",
+        "analysis_count": len(manifest.rows),
+        "manifest_layout": workflow.layout,
+        "derived_analysis_count": len(resolution.derived_analysis_ids),
+        "derived_analyses": list(resolution.derived_analysis_ids),
+        "warnings": list(resolution.warnings),
+        **resolution.checks,
+    }
+    if resolution.blocked:
+        # Write the record first so the failure is auditable, then block.
+        write_completion(
+            workflow,
+            "resolve_analysis_metadata",
+            outputs=[workflow.paths.resolved_analyses, workflow.paths.builder_manifest, report],
+            validation={**validation, "status": "blocked"},
+            extra_inputs=[workflow.paths.completion("validate_fixed_inputs")],
+        )
+        raise PhaseError(
+            "effect-scale validation failed and effect_scale_validation.block_on_failure is set "
+            "for this release; refusing to build\n"
+            + "\n".join(w for w in resolution.warnings if "effect-scale" in w)
+        )
     write_completion(
         workflow,
         "resolve_analysis_metadata",
         outputs=[workflow.paths.resolved_analyses, workflow.paths.builder_manifest, report],
-        validation={
-            "check": "resolve_metadata",
-            "status": "passed",
-            "resolution": "passthrough",
-            "analysis_count": len(manifest.rows),
-            "manifest_layout": workflow.layout,
-        },
+        validation=validation,
         extra_inputs=[workflow.paths.completion("validate_fixed_inputs")],
     )
 
@@ -572,6 +599,11 @@ def phase_validate_observed_release(workflow: Workflow) -> None:
     CLI result in, the way the existing assessment scripts do. `validation.yaml`
     is this phase's output alone -- one writer, so a merge can never race
     Snakemake deleting a stale output of a different rule.
+
+    The resolve phase's release-level checks (`ancestry`, `effect_scale`,
+    `sd_estimation`) and warnings are merged here too, and the release's
+    lifecycle status is landed: a failed effect-scale check is evidence, so the
+    release is `built` rather than `validated` (issue #99).
     """
     store_dir = workflow.paths.store_dir
     command = [opengwasdb_executable(), "validate", str(store_dir)]
@@ -584,34 +616,54 @@ def phase_validate_observed_release(workflow: Workflow) -> None:
     status = "passed" if result.returncode == 0 and not errors else "failed"
     build_record = json.loads(workflow.paths.completion("build_observed_store").read_text(encoding="utf-8"))
     files_status = str((build_record.get("validation") or {}).get("files_status", "not_run"))
+    resolve_record = json.loads(workflow.paths.completion("resolve_analysis_metadata").read_text(encoding="utf-8"))
+    resolve_validation = resolve_record.get("validation") or {}
+    effect_scale_status = str(resolve_validation.get("effect_scale", "not_run"))
     validation_yaml = workflow.paths.validation_yaml
     merge_validation_yaml(
         validation_yaml,
         validator_name="workflow/phase.py:validate_observed_release",
-        updated_checks={"schema": status, "files": files_status, "store": status},
+        updated_checks={
+            "schema": status,
+            "files": files_status,
+            "store": status,
+            "ancestry": str(resolve_validation.get("ancestry", "not_run")),
+            "effect_scale": effect_scale_status,
+            "sd_estimation": str(resolve_validation.get("sd_estimation", "not_run")),
+        },
         updated_reports={
             "input_validation": "sidecars/input-validation.json",
             "metadata_resolution": "sidecars/metadata-resolution.tsv",
             "build_report": "sidecars/build-report.tsv",
         },
-        new_warnings=warnings,
+        new_warnings=[*list(resolve_validation.get("warnings", [])), *warnings],
     )
     if status != "passed":
         raise PhaseError("Store validation failed:\n" + "\n".join(errors))
+
+    # Release Status (CONTEXT.md): a Store that built and validated but whose
+    # effect-scale evidence failed is `built`, not `validated`; the failure is
+    # retained as evidence rather than silently rescaled (issue #99).
+    release_status = "built" if effect_scale_status == "failed" else "validated"
+    status_changed = write_release_status(workflow.paths.release_yaml, release_status)
     write_completion(
         workflow,
         "validate_observed_release",
-        outputs=[validation_yaml],
+        outputs=[validation_yaml, workflow.paths.release_yaml],
         validation={
             "check": "validate",
             "status": status,
             "store_uri": str(store_dir),
+            "release_status": release_status,
+            "release_status_changed": status_changed,
+            "effect_scale_status": effect_scale_status,
             "warnings": warnings,
             "validation_yaml": str(validation_yaml),
         },
         command=command,
         extra_inputs=[
             workflow.paths.completion("regenerate_observed_overview"),
+            workflow.paths.completion("resolve_analysis_metadata"),
             store_dir / "overview.html",
         ],
     )

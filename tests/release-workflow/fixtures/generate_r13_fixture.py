@@ -11,6 +11,24 @@ run against it without any acquisition step. This script exists because
 `analyses.tsv` declares each source file's sha256: regenerating the sources
 without regenerating their checksums would make the fixture unbuildable.
 
+Issue #99 makes the fixture exercise *real* metadata resolution, so the script
+also writes the two inputs that resolution reads and the release bundle's
+lifecycle record:
+
+* `fixtures/ancestry-reference/` -- a two-fine-group ancestry-mixture panel
+  (one EUR group, one AFR group) over exactly the fixture's variants, so an
+  AF-based fit assigns EUR. It is deliberately tiny: `maf_floor: 0` and a low
+  `gates.n_min` in the release's `build.yaml` keep every variant informative.
+* `release.yaml` -- the lifecycle record the workflow lands as `built` or
+  `validated` (a failed effect-scale check is `built`, issue #99).
+
+Effect-scale roles are deliberate: `BMI_FIXTURE` declares no upstream phenotype
+SD (`original_sd_method: unavailable`), so resolution *derives* one; the two
+inverse-rank-normalised traits are seeded so `HEIGHT_FIXTURE` genuinely fails
+the declared-standardised check (implied SD ~0.665, mirroring the real R13
+pilot) while `BMI_FIXTURE` passes; the binary `RX_STATIN_FIXTURE` is skipped as
+non-quantitative.
+
 Run from the repository root:
 
     python3 tests/release-workflow/fixtures/generate_r13_fixture.py
@@ -26,18 +44,31 @@ import hashlib
 import io
 from pathlib import Path
 
-FIXTURE_DIR = Path(__file__).resolve().parent / "r13-fixture"
+FIXTURES_DIR = Path(__file__).resolve().parent
+FIXTURE_DIR = FIXTURES_DIR / "r13-fixture"
 SOURCE_DIR = FIXTURE_DIR / "source"
+ANCESTRY_REFERENCE_DIR = FIXTURES_DIR / "ancestry-reference"
 
 #: FinnGen R13 summary-statistics columns this fixture reproduces. `#chrom` is
 #: FinnGen's own spelling (chromosome 23 is X); `alt` is the effect allele.
 FINNGEN_COLUMNS = ("#chrom", "pos", "ref", "alt", "beta", "sebeta", "af_alt", "rsids")
 
+#: Fine ancestry groups in the fixture mixture panel, and the super-population
+#: each aggregates to. Two groups keep the NNLS fit well-conditioned on the
+#: fixture's handful of variants.
+ANCESTRY_GROUPS = (("EUR_fine", "EUR"), ("AFR_fine", "AFR"))
+ANCESTRY_REFERENCE_COLUMNS = ("alid", "chromosome", "position", "effect_allele", "other_allele", "rsid")
+
 #: `analysis_id` -> (file name, analysis row, variants). Quantitative endpoints
-#: are declared-standardised inverse-rank-normalised traits (`sd`,
-#: `declared_standardised`, no `original_sd`); the binary endpoint is a
-#: case-control `log_or` (`binary_trait`). Both tiers are what the shared Dense
-#: builder's manifest validation distinguishes (opengwasdb issues #17/#18).
+#: are declared-standardised inverse-rank-normalised traits (`sd`); the binary
+#: endpoint is a case-control `log_or` (`binary_trait`). Both tiers are what the
+#: shared Dense builder's manifest validation distinguishes (opengwasdb issues
+#: #17/#18).
+#:
+#: `sebeta` magnitudes are seeded against `implied_sd = se * sqrt(2*N*af*(1-af))`
+#: (ADR-0029): BMI_FIXTURE's imply SD ~1.0 and HEIGHT_FIXTURE's imply SD ~0.665,
+#: which is outside `sd_tolerance` (0.15) and so fails the declared-standardised
+#: check the way the real R13 `HEIGHT_IRN` does.
 ENDPOINTS: dict[str, dict] = {
     "finngen-r13-BMI_FIXTURE": {
         "file_name": "finngen_R13_BMI_FIXTURE.gz",
@@ -45,16 +76,16 @@ ENDPOINTS: dict[str, dict] = {
         "analysis_label": "Body mass index, inverse-rank normalized",
         "stored_effect_scale": "sd",
         "original_effect_scale": "sd",
-        "original_sd_method": "declared_standardised",
+        "original_sd_method": "unavailable",
         "sample_size_kind": "total",
         "sample_size": "362216",
         "n_cases": "",
         "n_controls": "",
         "variants": [
-            ("1", 1000000, "G", "A", 0.12, 0.03, 0.41, "rs1"),
-            ("1", 2000000, "T", "C", -0.08, 0.04, 0.33, "rs2"),
-            ("2", 3000000, "A", "G", 0.05, 0.02, 0.55, "rs3"),
-            ("3", 4000000, "C", "T", 0.07, 0.03, 0.28, "rs4"),
+            ("1", 1000000, "G", "A", 0.12, 0.00239, 0.41, "rs1"),
+            ("1", 2000000, "T", "C", -0.08, 0.00250, 0.33, "rs2"),
+            ("2", 3000000, "A", "G", 0.05, 0.00236, 0.55, "rs3"),
+            ("3", 4000000, "C", "T", 0.07, 0.00262, 0.28, "rs4"),
         ],
     },
     "finngen-r13-HEIGHT_FIXTURE": {
@@ -69,10 +100,10 @@ ENDPOINTS: dict[str, dict] = {
         "n_cases": "",
         "n_controls": "",
         "variants": [
-            ("1", 1000000, "G", "A", 0.20, 0.05, 0.40, "rs1"),
-            ("2", 3000000, "A", "G", -0.10, 0.03, 0.56, "rs3"),
-            ("5", 5000000, "A", "T", 0.09, 0.02, 0.22, "rs5"),
-            ("6", 6000000, "G", "C", -0.06, 0.02, 0.64, "rs6"),
+            ("1", 1000000, "G", "A", 0.20, 0.00159, 0.40, "rs1"),
+            ("2", 3000000, "A", "G", -0.10, 0.00157, 0.56, "rs3"),
+            ("5", 5000000, "A", "T", 0.09, 0.00188, 0.22, "rs5"),
+            ("6", 6000000, "G", "C", -0.06, 0.00162, 0.64, "rs6"),
         ],
     },
     "finngen-r13-RX_STATIN_FIXTURE": {
@@ -126,6 +157,26 @@ ANALYSES_COLUMNS = (
     "exclude_from_build",
 )
 
+RELEASE_YAML = """\
+metadata_schema_version: 1.0
+store_family_id: finngen-r13
+family_release_id: r13-fixture
+status: candidate
+source_collection_id: finngen-r13
+source_snapshot_id: finngen-r13-fixture
+release_kind: one-off
+association_coverage: full_gwas
+description: >
+  Tiny FinnGen R13-shaped fixture release for the production Store Release
+  workflow (issue #98), extended with real metadata resolution (issue #99).
+generator:
+  name: tests/release-workflow/fixtures/generate_r13_fixture.py
+  version: 1.0
+source_defaults:
+  source_genome_build: GRCh38
+  license: FinnGen public data
+"""
+
 
 def write_source(path: Path, variants: list[tuple]) -> None:
     """Write one FinnGen-shaped `.gz` source with a timestamp-free header."""
@@ -136,6 +187,52 @@ def write_source(path: Path, variants: list[tuple]) -> None:
                 writer.writerow(FINNGEN_COLUMNS)
                 for chrom, pos, ref, alt, beta, se, af, rsid in variants:
                     writer.writerow([chrom, pos, ref, alt, beta, se, af, rsid])
+
+
+def canonical_alid(chrom: object, pos: object, ref: str, alt: str) -> str:
+    """`chrom:pos:A1:A2`, A1 = min(ref, alt) -- the panel's ALID convention."""
+    a1, a2 = sorted((ref.upper(), alt.upper()))
+    return f"{chrom}:{pos}:{a1}:{a2}"
+
+
+def a1_frequency(ref: str, alt: str, af_alt: float) -> float:
+    """The A1-oriented frequency of a source row, from its alt frequency."""
+    a1 = min(ref.upper(), alt.upper())
+    return af_alt if alt.upper() == a1 else 1.0 - af_alt
+
+
+def write_ancestry_reference() -> None:
+    """The two-group mixture panel over exactly the fixture's variant sites.
+
+    EUR's frequency is the first source row seen for each ALID (all three
+    Analyses agree to within ~0.02); AFR's is its complement, so a study whose
+    A1 frequencies match EUR fits as a EUR-dominant mixture.
+    """
+    eur: dict[str, float] = {}
+    meta: dict[str, tuple[str, str, str, str]] = {}
+    for entry in ENDPOINTS.values():
+        for chrom, pos, ref, alt, _beta, _se, af_alt, _rsid in entry["variants"]:
+            alid = canonical_alid(chrom, pos, ref, alt)
+            eur.setdefault(alid, a1_frequency(ref, alt, af_alt))
+            meta.setdefault(alid, (str(chrom), str(pos), min(ref.upper(), alt.upper()), max(ref.upper(), alt.upper())))
+
+    ANCESTRY_REFERENCE_DIR.mkdir(parents=True, exist_ok=True)
+    with (ANCESTRY_REFERENCE_DIR / "ref_freqs.tsv.gz").open("wb") as raw:
+        with gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as compressed:
+            with io.TextIOWrapper(compressed, encoding="utf-8", newline="") as handle:
+                writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
+                writer.writerow([*ANCESTRY_REFERENCE_COLUMNS, *(group for group, _super in ANCESTRY_GROUPS)])
+                for alid in sorted(eur):
+                    chrom, pos, a1, a2 = meta[alid]
+                    writer.writerow([
+                        alid, chrom, pos, a1, a2, f"rs{pos}",
+                        f"{eur[alid]:.6g}", f"{1.0 - eur[alid]:.6g}",
+                    ])
+    with (ANCESTRY_REFERENCE_DIR / "ancestry_groups.tsv").open("w", newline="") as handle:
+        writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
+        writer.writerow(["group", "super_pop"])
+        for group, super_pop in ANCESTRY_GROUPS:
+            writer.writerow([group, super_pop])
 
 
 def sha256(path: Path) -> str:
@@ -150,6 +247,9 @@ def main() -> None:
     SOURCE_DIR.mkdir(parents=True, exist_ok=True)
     for entry in ENDPOINTS.values():
         write_source(SOURCE_DIR / entry["file_name"], entry["variants"])
+
+    write_ancestry_reference()
+    (FIXTURE_DIR / "release.yaml").write_text(RELEASE_YAML, encoding="utf-8")
 
     with (FIXTURE_DIR / "analyses.tsv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=ANALYSES_COLUMNS, delimiter="\t", lineterminator="\n")

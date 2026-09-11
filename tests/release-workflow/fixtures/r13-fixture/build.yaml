@@ -22,6 +22,29 @@ reference_resources:
   genome_build: GRCh38
   location: reference-resources/qc-panel-hg38/qc_panel.tsv
   location_kind: tracked_file
+- resource_id: fixture-ancestry-mixture-hg38
+  kind: ancestry_mixture
+  ancestry: multi
+  genome_build: GRCh38
+  location: tests/release-workflow/fixtures/ancestry-reference/ref_freqs.tsv.gz
+  fine_group_map: tests/release-workflow/fixtures/ancestry-reference/ancestry_groups.tsv
+  location_kind: tracked_file
+ancestry_assignment:
+  enabled: yes
+  reference_resource_id: fixture-ancestry-mixture-hg38
+  maf_floor: 0.0
+  gates:
+    tau: 0.5
+    delta: 0.2
+    n_min: 2
+    residual_max: 0.2
+effect_scale_validation:
+  enabled: yes
+  min_overlap_variants: 2
+  sd_tolerance: 0.15
+  warning_multiplier: 2.0
+  dispersion_max: 0.5
+  block_on_failure: no
 rho:
   enabled: false
 reference_completion:

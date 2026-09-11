@@ -204,6 +204,32 @@ def read_previous_checks_and_warnings(path: Path) -> tuple[dict[str, str], list[
     return checks, warnings
 
 
+def write_release_status(path: Path, status: str) -> bool:
+    """Set the top-level `status:` line of a `release.yaml`, and nothing else.
+
+    A release bundle's lifecycle state is one line in a hand-authored record;
+    this updates exactly that line, preserving every other line, so a workflow
+    that lands a release as `built` rather than `validated` (issue #99) does not
+    rewrite the rest of the bundle's provenance. Returns True when the file was
+    changed; a release with no `release.yaml` is left alone -- this workflow does
+    not invent lifecycle records.
+    """
+    if not path.exists():
+        return False
+    lines = path.read_text(encoding="utf-8").splitlines()
+    replacement = f"status: {status}"
+    for index, line in enumerate(lines):
+        if line.startswith("status:"):
+            if line.rstrip() == replacement:
+                return False
+            lines[index] = replacement
+            break
+    else:
+        lines.insert(0, replacement)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return True
+
+
 def read_previous_reports(path: Path) -> dict[str, str]:
     """Read the `reports.*` section from an existing validation.yaml."""
     if not path.exists():

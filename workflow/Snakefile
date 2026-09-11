@@ -70,7 +70,7 @@ rule validate_fixed_inputs:
 
 
 rule resolve_analysis_metadata:
-    """Passthrough resolve: freeze the working input and write the shared manifest."""
+    """Resolve ancestry and effect-scale metadata into the working input."""
     input:
         completion=rules.validate_fixed_inputs.output.completion,
         build_yaml=str(CONFIG_PATH),
@@ -118,6 +118,7 @@ rule validate_observed_release:
     input:
         completion=rules.regenerate_observed_overview.output.completion,
         build_completion=rules.build_observed_store.output.completion,
+        resolve_completion=rules.resolve_analysis_metadata.output.completion,
         overview=rules.regenerate_observed_overview.output.overview,
         store_manifest=rules.build_observed_store.output.manifest,
     output:

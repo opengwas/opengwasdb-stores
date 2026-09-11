@@ -85,6 +85,11 @@ class WorkflowPaths:
     def validation_yaml(self) -> Path:
         return self.release_dir / "validation.yaml"
 
+    @property
+    def release_yaml(self) -> Path:
+        """The release bundle's lifecycle record (Release Status)."""
+        return self.release_dir / "release.yaml"
+
 
 @dataclass(frozen=True)
 class Workflow:
@@ -135,13 +140,19 @@ def source_file_paths(plan: ReleasePlan) -> tuple[Path, ...]:
 
 
 def reference_descriptors(repo_root: Path, config: dict) -> tuple[Path, ...]:
-    """The declared Reference Resources' descriptors, hashed into every record.
+    """The declared Reference Resources' descriptors and tracked data, hashed
+    into every record.
 
-    A resource's data stays external (ADR 0011/0015); its *descriptor* is the
-    small `reference-resources/<resource_id>/resource.yaml` declaration, which
-    is what a completion record can bind. A declared resource with no descriptor
-    in this repository (an external resource recorded only in `build.yaml`) is
-    bound through `build.yaml`'s own hash instead.
+    A resource's data usually stays external (ADR 0011/0015); its *descriptor*
+    is the small `reference-resources/<resource_id>/resource.yaml` declaration,
+    which is what a completion record can bind. A declared resource with no
+    descriptor in this repository (an external resource recorded only in
+    `build.yaml`) is bound through `build.yaml`'s own hash instead.
+
+    When a resource's `location`/`fine_group_map` resolve to a file inside this
+    repository (a small tracked panel: the QC panel, the workflow fixture's
+    ancestry mixture), that file is bound too, so swapping the panel invalidates
+    the phases that used it (issue #99) rather than only its declaration.
     """
     resources = config.get("reference_resources") or []
     if not isinstance(resources, list):
@@ -153,6 +164,14 @@ def reference_descriptors(repo_root: Path, config: dict) -> tuple[Path, ...]:
         candidate = repo_root / "reference-resources" / str(entry["resource_id"]) / "resource.yaml"
         if candidate.is_file():
             descriptors.append(candidate)
+        for key in ("location", "fine_group_map"):
+            value = entry.get(key)
+            if not isinstance(value, str) or not value.strip():
+                continue
+            data_path = Path(value)
+            data_path = data_path if data_path.is_absolute() else repo_root / data_path
+            if data_path.is_file():
+                descriptors.append(data_path)
     return tuple(sorted(set(descriptors)))
 
 

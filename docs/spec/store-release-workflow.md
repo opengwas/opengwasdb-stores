@@ -115,7 +115,13 @@ The observed-release path is:
    reader configuration, and referenced resources. Emit
    `input-validation.json`.
 2. Resolve or verify ancestry and effect-scale metadata. Emit the immutable
-   working input `work/analyses.resolved.tsv` and a resolution report.
+   working input `work/analyses.resolved.tsv` and a resolution report. Resolution
+   never writes the committed `analyses.tsv`: it computes Assigned Ancestry and
+   proportions from the Analysis's own allele frequencies against the declared
+   ancestry-mixture Reference Resource, and computes or verifies effect scale and
+   phenotype SD from the source's allele frequencies and standard errors. Every
+   Analysis whose metadata was derived rather than declared is named in the
+   report (issue #99).
 3. Invoke the configured OpenGWASDB CLI subcommand (`build.command`) with its
    opaque `build.arguments`. It produces the Store envelope, initial
    `overview.html`, and Top-Hit indexes, plus a build report.
@@ -123,7 +129,12 @@ The observed-release path is:
    report.
 5. Regenerate `overview.html` after every Store mutation so the final page
    includes the Rho tab as well as Analyses, Ancestry, and Guide content.
-6. Validate the complete Store and emit `validation.yaml`.
+6. Validate the complete Store and emit `validation.yaml`, then land the
+   release's lifecycle status: `validated` when the Store passes and no
+   effect-scale check failed, or `built` when one did. A failed effect-scale
+   check is evidence, not a workflow failure: it is recorded in `validation.yaml`
+   and the release is `built` rather than `validated`, unless the release sets
+   `effect_scale_validation.block_on_failure` (issue #99).
 
 Top-Hit construction is not a separate Snakemake phase for the current Dense
 and Hybrid operations because OpenGWASDB constructs those indexes during the

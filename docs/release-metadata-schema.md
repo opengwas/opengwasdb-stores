@@ -381,6 +381,7 @@ effect-scale validation stage (issue #16) for one release:
 | `thresholds.sd_tolerance` | Yes when enabled | Maximum `abs(median implied SD - 1)` for a declared-standardised Analysis to pass. |
 | `thresholds.warning_multiplier` | Yes when enabled | Multiplier applied to `sd_tolerance` defining the boundary between a `warning` and a `failed` scale-inconsistency status. |
 | `thresholds.dispersion_max` | Yes when enabled | Maximum robust dispersion (median absolute deviation over median implied SD) before the result is downgraded to `warning` regardless of the central estimate. |
+| `block_on_failure` | Optional | Whether a `failed` empirical effect-scale result blocks the build. Defaults to `no`: the failure is recorded in `validation.yaml` (`checks.effect_scale`/`checks.sd_estimation` and `warnings`) and the release lands as `built` rather than `validated`, because a genuinely scale-inconsistent Analysis in an otherwise clean release is evidence to retain, not to rescale (issue #99). Set `yes` for a family that requires every Analysis to clear effect-scale validation before a Store is produced. |
 
 Family generator configuration may set defaults for these thresholds and
 override them per release, per the Store Family's molecular or
