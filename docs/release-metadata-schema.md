@@ -304,7 +304,11 @@ the source.
 
 Build-level metadata and execution configuration. This file describes how the
 accepted manifest should become an OpenGWASDB store, not which analyses belong
-to the release.
+to the release. The operation is named as an `opengwasdb` CLI subcommand
+(`build.command`), not an importable Python entry point (ADR 0022). Issue #97
+migrated the seven Trial Store Releases off the earlier inert `builder.entrypoint`
+shape; the loader still accepts that legacy shape for the releases it did not
+migrate (`resources/lib/release_plan.py`).
 
 | Field | Required | Description |
 |---|---:|---|
@@ -312,8 +316,10 @@ to the release.
 | `family_release_id` | Yes | Release ID. |
 | `store_layout` | Yes | `dense-observed`, `dense-reference-completed`, `ragged-observed`, `ragged-reference-completed`, `hybrid-observed`, or `hybrid-reference-completed`. |
 | `completion_state` | Yes | `observed-only` or `reference-completed`. |
-| `builder.package` | Yes | Package that owns the builder. Usually `opengwasdb`. |
-| `builder.entrypoint` | Yes | Importable builder entry point. |
+| `build.command` | Yes | The `opengwasdb` CLI subcommand that performs the build (name it from `opengwasdb --help`), such as `build-dense-vcf`, `build-hybrid`, `build-ragged-ssf`, `build-ragged-besd`, or a `complete-*` command for a Reference-Completed child. |
+| `build.arguments` | Optional | Opaque flag mapping passed through to `build.command` unchanged, such as `store-id`/`release-id`. Deliberately not a semantic schema, so a newly required builder flag needs no change here (ADR 0022). |
+| `source.root` | Yes | Directory holding the release's acquired source files; resolved relative to the release directory unless absolute. |
+| `source.analyses` | Yes | The release's `analyses.tsv`, resolved relative to the release directory unless absolute. Together with `source.root` this is the fixed input (ADR 0003). |
 | `source.source_format` | Yes | Source Format read by the builder, such as `gwas-vcf`, `gwas-ssf`, or `besd`. |
 | `source.source_reader_capability` | Yes | OpenGWASDB reader capability for the Source Collection. |
 | `normalisation.target_reference_assembly` | Yes | Target reference assembly for stored coordinates. |

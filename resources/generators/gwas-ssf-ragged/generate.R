@@ -420,11 +420,16 @@ write_build_yaml <- function(cfg, root, release_dir, paths) {
     family_release_id = cfg$family_release_id,
     store_layout = "ragged-observed",
     completion_state = "observed-only",
-    builder = list(
-      package = "opengwasdb",
-      entrypoint = "opengwasdb.layouts.ragged.build_ssf:build_ragged_from_ssf"
+    build = list(
+      command = "build-ragged-ssf",
+      arguments = list(
+        "store-id" = cfg$store_family_id,
+        "release-id" = cfg$family_release_id
+      )
     ),
     source = list(
+      root = paths$filtered_dir,
+      analyses = "analyses.tsv",
       source_format = "gwas-ssf",
       source_reader_capability = "opengwasdb.gwas-ssf",
       source_genome_build = cfg$defaults$source_genome_build

@@ -273,11 +273,16 @@ write_build_yaml <- function(cfg, root, release_dir, paths) {
     family_release_id = cfg$family_release_id,
     store_layout = "hybrid-observed",
     completion_state = "observed-only",
-    builder = list(
-      package = "opengwasdb",
-      entrypoint = "opengwasdb.layouts.hybrid.build:build_hybrid_from_vcf_manifest"
+    build = list(
+      command = "build-hybrid",
+      arguments = list(
+        "store-id" = cfg$store_family_id,
+        "release-id" = cfg$family_release_id
+      )
     ),
     source = list(
+      root = paths$download_dir,
+      analyses = "analyses.tsv",
       source_format = "gwas-ssf",
       source_reader_capability = cfg$hybrid$source_reader_capability %||% "opengwasdb.gwas-ssf",
       source_genome_build = cfg$defaults$source_genome_build

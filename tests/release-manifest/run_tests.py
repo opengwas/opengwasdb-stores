@@ -65,11 +65,29 @@ def load_adapter(module_name: str, relative_path: str) -> object:
     return module
 
 
-def release_layout(build: dict) -> str | None:
-    """The shared-module layout for a release, from its declared builder.
+# The executable `build.command` each Store Layout's adapter builds (#97).
+LAYOUT_BY_COMMAND = {
+    "build-dense-vcf": "dense",
+    "complete-dense": "dense",
+    "build-hybrid": "hybrid",
+    "complete-hybrid": "hybrid",
+    "build-ragged-ssf": "ragged",
+}
 
-    ``None`` for a release no ``build-store.py`` adapter builds (BESD -> Ragged).
+
+def release_layout(build: dict) -> str | None:
+    """The shared-module layout for a release, from its declared operation.
+
+    Accepts both schemas: #97 migrated the seven Trial Store Releases to
+    ``build.command``, while the releases it did not migrate still carry the
+    pre-#95 ``builder.entrypoint``. ``None`` for a release no ``build-store.py``
+    adapter builds (BESD -> Ragged).
     """
+    command = (build.get("build") or {}).get("command")
+    if command in LAYOUT_BY_COMMAND:
+        return LAYOUT_BY_COMMAND[command]
+    if command:
+        return None
     entrypoint = require_text(build, "builder", "entrypoint")
     if "build_dense_from_vcf_manifest" in entrypoint or "complete_dense_store" in entrypoint:
         return "dense"

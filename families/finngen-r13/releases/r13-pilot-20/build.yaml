@@ -2,10 +2,14 @@ store_family_id: finngen-r13
 family_release_id: r13-pilot-20
 store_layout: dense-observed
 completion_state: observed-only
-builder:
-  package: opengwasdb
-  entrypoint: opengwasdb.layouts.dense.build_vcf:build_dense_from_vcf_manifest
+build:
+  command: build-dense-vcf
+  arguments:
+    store-id: finngen-r13
+    release-id: r13-pilot-20
 source:
+  root: /data/opengwasdb/finngen-r13/releases/r13-pilot-20/source
+  analyses: analyses.tsv
   source_format: finngen-r13-tabular
   source_reader_capability: opengwasdb.finngen-r13
   source_genome_build: GRCh38

@@ -7,8 +7,8 @@ Reads one Store Release directory's `build.yaml` and validates it into a
     python3 resources/lib/release_plan.py families/finngen-r13/releases/r13-pilot-20
 
 Two shapes are accepted. The executable (CLI) schema evolves the pre-#95 bundle
-in place rather than introducing a second filename (ADR 0022), and #97 migrates
-the checked-in releases afterwards:
+in place rather than introducing a second filename (ADR 0022), and #97 migrated
+the seven Trial Store Releases onto it:
 
 * **CLI schema** - `build.command` names an ``opengwasdb`` CLI subcommand
   (``opengwasdb --help``), `build.arguments` is an *opaque* flag mapping passed
@@ -16,8 +16,8 @@ the checked-in releases afterwards:
   optional `rho` / `reference_completion` branches say whether those in-place
   and child releases are built.
 * **legacy schema** - the pre-#95 bundle with `builder.entrypoint`, accepted so
-  the loader never rejects an unmigrated release. Legacy plans carry an explicit
-  warning and are not executable by command name until #97.
+  the loader never rejects a release #97 did not migrate. Legacy plans carry an
+  explicit warning and are not executable by command name until migrated.
 
 Validation refuses, naming the offending key:
 

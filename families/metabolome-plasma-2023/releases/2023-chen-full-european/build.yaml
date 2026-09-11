@@ -2,10 +2,14 @@ store_family_id: metabolome-plasma-2023
 family_release_id: 2023-chen-full-european
 store_layout: ragged-observed
 completion_state: observed-only
-builder:
-  package: opengwasdb
-  entrypoint: opengwasdb.layouts.ragged.build_ssf:build_ragged_from_ssf
+build:
+  command: build-ragged-ssf
+  arguments:
+    store-id: metabolome-plasma-2023
+    release-id: 2023-chen-full-european
 source:
+  root: /data/opengwasdb/metabolome-plasma-2023/releases/2023-chen-full-european/filtered
+  analyses: analyses.tsv
   source_format: gwas-ssf
   source_reader_capability: opengwasdb.gwas-ssf
   source_genome_build: GRCh38

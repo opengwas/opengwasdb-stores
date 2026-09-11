@@ -398,13 +398,21 @@ def test_legacy_shape_accepted() -> None:
         check("legacy schema" in completed.stdout, completed.stdout)
 
 
-def test_checked_in_legacy_release_loads() -> None:
+def test_checked_in_release_loads() -> None:
+    # The seven Trial Store Releases were migrated to the executable schema by
+    # #97; this is the release the rest of the suite and #101 use.
     release = REPO_ROOT / "families" / "finngen-r13" / "releases" / "r13-pilot-20"
     plan = load_plan(release)
-    check(plan.schema == "legacy", f"checked-in pre-#95 release should load as legacy, got {plan.schema!r}")
-    check(plan.build_command is None, "pre-#95 release should not claim a CLI command")
-    result = check_release(release, verify_checksums=False)
-    check(result.ok, f"checked-in pre-#95 release should be accepted: {result.errors}")
+    check(plan.schema == "cli", f"migrated release should load as cli, got {plan.schema!r}")
+    check(plan.build_command == "build-dense-vcf", f"unexpected command {plan.build_command!r}")
+    # A release outside the migrated seven still loads as a legacy plan, so the
+    # loader's pre-#95 compatibility stays exercised against a real file.
+    unmigrated = REPO_ROOT / "families" / "ukb-b" / "releases" / "dense-observed-vcf-pilot-10"
+    legacy_plan = load_plan(unmigrated)
+    check(legacy_plan.schema == "legacy", f"unmigrated release should load as legacy, got {legacy_plan.schema!r}")
+    check(legacy_plan.build_command is None, "an unmigrated release should not claim a CLI command")
+    result = check_release(unmigrated, verify_checksums=False)
+    check(result.ok, f"an unmigrated release should still be accepted: {result.errors}")
 
 
 def main() -> None:
@@ -429,7 +437,7 @@ def main() -> None:
         test_no_shape_refused,
         test_legacy_rho_on_ragged_refused,
         test_legacy_shape_accepted,
-        test_checked_in_legacy_release_loads,
+        test_checked_in_release_loads,
     ]
     for test in tests:
         test()

@@ -44,11 +44,16 @@ write_build_yaml <- function(cfg, release_dir) {
     family_release_id = cfg$family_release_id,
     store_layout = "dense-observed",
     completion_state = "observed-only",
-    builder = list(
-      package = "opengwasdb",
-      entrypoint = "opengwasdb.layouts.dense.build_vcf:build_dense_from_vcf_manifest"
+    build = list(
+      command = "build-dense-vcf",
+      arguments = list(
+        "store-id" = cfg$store_family_id,
+        "release-id" = cfg$family_release_id
+      )
     ),
     source = list(
+      root = file.path(cfg$output$artifact_root, cfg$output$artifact_subdir, "source"),
+      analyses = "analyses.tsv",
       source_format = "finngen-r13-tabular",
       source_reader_capability = "opengwasdb.finngen-r13",
       source_genome_build = "GRCh38"
