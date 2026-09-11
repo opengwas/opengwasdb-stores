@@ -13,6 +13,12 @@ where the interesting cases are the ones a single release cannot show at once:
   prior label);
 * a source with no usable allele frequencies -> the declared
   `source_trusted_no_af` trust is preserved, and effect-scale is skipped;
+* a row missing any builder-required registry column -> a domain
+  `ResolutionError`, not the builder manifest's later `KeyError`;
+* an input whose source column is spelled `file_name` -> the resolved table
+  still carries the absolute usable path under the canonical `source_file`;
+* the reader seam's `ReaderAssociation.eaf` is used as the A1-oriented
+  frequency the reader already oriented, never inverted (ADR 0036).
 * the resolution report names exactly the Analyses whose metadata was derived.
 
 Fixtures are written into a temporary directory, so nothing is checked in and
@@ -30,7 +36,11 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from resources.lib.metadata_resolution import resolve_analyses  # noqa: E402
+from resources.lib.metadata_resolution import (  # noqa: E402
+    ResolutionError,
+    read_source_metrics,
+    resolve_analyses,
+)
 
 FINNGEN_COLUMNS = ("#chrom", "pos", "ref", "alt", "beta", "sebeta", "af_alt", "rsids")
 
@@ -43,11 +53,11 @@ REFERENCE = {
 }
 
 ANALYSES_COLUMNS = (
-    "analysis_id", "source_file", "stored_effect_scale", "sample_size",
-    "sample_size_kind", "sample_size_scope", "source_reader_capability",
-    "source_genome_build", "source_ancestry_label", "assigned_ancestry",
-    "ancestry_assignment_method", "original_effect_scale", "original_sd",
-    "original_sd_method", "exclude_from_build",
+    "analysis_id", "source_file", "analysis_label", "stored_effect_scale",
+    "sample_size", "sample_size_kind", "sample_size_scope",
+    "source_reader_capability", "source_genome_build", "source_ancestry_label",
+    "assigned_ancestry", "ancestry_assignment_method", "original_effect_scale",
+    "original_sd", "original_sd_method", "exclude_from_build",
 )
 
 CONFIG = {
@@ -126,6 +136,7 @@ def analysis_row(analysis_id: str, file_name: str, **overrides: str) -> dict[str
     row = {
         "analysis_id": analysis_id,
         "source_file": file_name,
+        "analysis_label": analysis_id,
         "stored_effect_scale": "sd",
         "sample_size": "10000",
         "sample_size_kind": "total",
@@ -142,6 +153,73 @@ def analysis_row(analysis_id: str, file_name: str, **overrides: str) -> dict[str
     }
     row.update(overrides)
     return row
+
+
+def check_required_columns(directory: Path, config: dict) -> None:
+    """A row missing a builder-required column is a domain error at resolve time.
+
+    `release_manifest.canonical_row` indexes its required registry columns
+    directly; resolution validates the same set so the failure is a named
+    `ResolutionError` here rather than a `KeyError` after the phase wrote its
+    outputs. `source_file` counts as present under either accepted spelling.
+    """
+    for missing in ("analysis_label", "sample_size", "original_sd_method", "source_file"):
+        row = analysis_row("CLEAN", "CLEAN.gz")
+        del row[missing]
+        try:
+            resolve_analyses(
+                [row], fieldnames=ANALYSES_COLUMNS, source_root=directory,
+                config=config, repo_root=REPO_ROOT,
+            )
+        except ResolutionError as exc:
+            check(
+                missing in str(exc),
+                f"the missing-{missing} error does not name the column: {exc}",
+            )
+        else:
+            raise AssertionError(f"a row missing {missing!r} did not raise ResolutionError")
+
+
+def check_file_name_resolution(directory: Path, config: dict) -> None:
+    """A `file_name` source column still yields an absolute `source_file` row.
+
+    The resolved table is what later phases and a human read, so the absolute
+    usable path this phase computed must survive the write under the canonical
+    `source_file` name instead of being dropped for want of a fieldname.
+    """
+    row = analysis_row("CLEAN", "CLEAN.gz")
+    row["file_name"] = row.pop("source_file")
+    fields = tuple(
+        "file_name" if column == "source_file" else column for column in ANALYSES_COLUMNS
+    )
+    result = resolve_analyses(
+        [row], fieldnames=fields, source_root=directory, config=config, repo_root=REPO_ROOT
+    )
+    check("source_file" in result.fieldnames,
+          "the resolved header drops source_file for a file_name-column release")
+    check(result.rows[0]["source_file"] == str(directory / "CLEAN.gz"),
+          f"the resolved row lost the absolute source path: {result.rows[0].get('source_file')!r}")
+    check(Path(result.rows[0]["source_file"]).is_file(),
+          "the resolved source_file does not point at a usable source file")
+
+
+def check_reader_eaf_is_a1_oriented(directory: Path) -> None:
+    """ADR 0036: `ReaderAssociation.eaf` is already the stored (A1) frequency.
+
+    FinnGen's `alt` is its effect allele, so the reader negates `z` AND stores
+    `1 - af_alt` when `alt` is not the canonical A1. Both rows below describe the
+    same A1 frequency (0.70) from opposite source orientations; inverting `eaf`
+    at this seam would report 0.30 for both, and trusting the raw `af_alt`
+    instead of the reader's oriented `eaf` would disagree between them. This is
+    the regression a false AF-orientation fix keeps breaking.
+    """
+    write_source(directory / "ORIENT.gz", [
+        ("1", 1000, "A", "G", 0.02, 0.05, "0.30"),
+        ("1", 2000, "G", "A", 0.02, 0.05, "0.70"),
+    ])
+    metrics = read_source_metrics(directory / "ORIENT.gz", "opengwasdb.finngen-r13", "sd")
+    check(metrics.af_by_alid == {"1:1000:A:G": 0.70, "1:2000:A:G": 0.70},
+          f"the reader seam no longer yields A1-oriented frequencies: {metrics.af_by_alid}")
 
 
 def main() -> int:
@@ -212,6 +290,10 @@ def main() -> int:
         check("ancestry_assignment_method" in report["CLEAN"]["derived_fields"],
               "the derived ancestry method is not reported")
         check(report["CLEAN"]["assigned_ancestry"] == "EUR", "the report does not carry the assigned ancestry")
+
+        check_required_columns(directory, config)
+        check_file_name_resolution(directory, config)
+        check_reader_eaf_is_a1_oriented(directory)
 
     print(f"metadata-resolution: {n_checks} checks passed")
     return 0

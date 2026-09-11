@@ -47,10 +47,22 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-#: Registry columns a resolution cannot proceed without. These are the same
-#: columns the shared builder manifest requires (`release_manifest.py`), so a
-#: release that resolves is a release that can be translated for the builder.
-REQUIRED_COLUMNS: tuple[str, ...] = ("analysis_id", "stored_effect_scale")
+from resources.lib.release_manifest import REQUIRED_REGISTRY_COLUMNS
+
+#: Registry columns a resolution cannot proceed without. These are exactly the
+#: columns the shared builder manifest indexes directly
+#: (`release_manifest.REQUIRED_REGISTRY_COLUMNS`), so a release that resolves is
+#: a release that can be translated for the builder -- and a missing one is the
+#: domain `ResolutionError` below, not the `KeyError` translation would raise
+#: later, after the resolve phase had already written its outputs.
+REQUIRED_COLUMNS: tuple[str, ...] = REQUIRED_REGISTRY_COLUMNS
+
+#: Accepted spellings of the required source-file column, in preference order.
+#: Real release bundles emit `source_file`; the fixed input may spell it
+#: `file_name` (see `release_plan._SOURCE_FILE_COLUMNS`). Either satisfies the
+#: `source_file` requirement; the resolved table always carries the canonical
+#: `source_file` name holding the absolute usable path.
+SOURCE_FILE_COLUMNS: tuple[str, ...] = ("source_file", "file_name")
 
 #: Prefix identifying the data-discovered ancestry-proportion columns.
 ANCESTRY_PROP_PREFIX = "ancestry_prop_"
@@ -106,6 +118,38 @@ def _as_int(value: object, key: str) -> int:
         return int(str(value))
     except (TypeError, ValueError) as exc:
         raise ResolutionError(f"{key}: {value!r} is not an integer") from exc
+
+
+def _require_registry_columns(row: Mapping[str, str]) -> None:
+    """Fail with a domain error before the builder manifest would `KeyError`.
+
+    The shared builder manifest indexes every required registry column
+    directly (`release_manifest.canonical_row`). Validating the same set here
+    keeps a release that resolves a release that can be translated for the
+    builder, and names the missing column as a `ResolutionError` at the resolve
+    phase rather than as a `KeyError` after the phase has written its outputs.
+    The source-file requirement is satisfied by either accepted spelling.
+    """
+    analysis_id = row.get("analysis_id") or "row"
+    missing = [
+        column
+        for column in REQUIRED_COLUMNS
+        if column not in row
+        and not (column == "source_file" and any(name in row for name in SOURCE_FILE_COLUMNS))
+    ]
+    if missing:
+        raise ResolutionError(
+            f"{analysis_id}: missing required column(s): {', '.join(missing)}"
+        )
+
+
+def _source_file_value(row: Mapping[str, str]) -> str:
+    """The row's declared source file, under either accepted column spelling."""
+    for name in SOURCE_FILE_COLUMNS:
+        value = row.get(name)
+        if value and value.strip():
+            return value.strip()
+    return ""
 
 
 def _mapping(container: Mapping, key: str) -> dict:
@@ -255,6 +299,15 @@ def read_source_metrics(path: Path, capability: str, stored_effect_scale: str) -
     AF/SE extraction cannot drift from what the build reads. Each association is
     canonicalised to its A1-oriented ALID and frequency; the frequency is the
     stored (A1) allele's, exactly as the reader documents.
+
+    **The frequency is used as the reader yields it -- never inverted.**
+    ``ReaderAssociation.eaf`` is already the stored effect allele's frequency:
+    a reader that negated ``z`` to reach the canonical A1 also stored ``1 - af``
+    (ADR 0036, see ``opengwasdb.readers.interface``). ``orientation.variant.alid``
+    is the same canonical A1 the reader oriented ``z`` and ``eaf`` to, so
+    ``association.eaf`` is the A1 frequency by construction. Inverting it here
+    would flip every assignment against the reference panel; the reader-seam
+    regression in ``tests/metadata-resolution/`` pins this.
     """
     from opengwasdb.model.enums import StoredEffectScale
     from opengwasdb.readers import is_palindromic, resolve_reader
@@ -493,6 +546,12 @@ class ResolutionResult:
 
 def _row_fieldnames(fieldnames: Sequence[str], proportions: Sequence[str]) -> list[str]:
     columns = list(fieldnames)
+    if "source_file" not in columns:
+        # The resolved table names every row's usable source path under the
+        # canonical `source_file` column even when the fixed input spelled it
+        # `file_name`; leaving it out of the header would drop the absolute
+        # path this phase computed when the table is written.
+        columns.append("source_file")
     for population in proportions:
         column = f"{ANCESTRY_PROP_PREFIX}{population}"
         if column not in columns:
@@ -540,10 +599,13 @@ def resolve_analyses(
 ) -> ResolutionResult:
     """Resolve every buildable Analysis's ancestry and effect scale.
 
-    Reads each Analysis's source file once, writes no input, and returns the
-    resolved rows (the committed columns plus the data-discovered
-    ``ancestry_prop_*`` columns), the resolution report, the release-level
-    checks, and whether a failure should block the workflow.
+    Validates each row against the builder manifest's required registry columns
+    (a missing column is a `ResolutionError` here, not the manifest's later
+    `KeyError`), reads each Analysis's source file once, writes no input, and
+    returns the resolved rows (the committed columns plus the always-present
+    absolute `source_file` and the data-discovered ``ancestry_prop_*`` columns),
+    the resolution report, the release-level checks, and whether a failure
+    should block the workflow.
     """
     ancestry = ancestry_settings(config)
     effect_scale = effect_scale_settings(config)
@@ -575,11 +637,9 @@ def resolve_analyses(
 
     for row in rows:
         analysis_id = row.get("analysis_id", "")
-        missing = [column for column in REQUIRED_COLUMNS if not row.get(column)]
-        if missing:
-            raise ResolutionError(f"{analysis_id or 'row'}: missing required column(s): {', '.join(missing)}")
+        _require_registry_columns(row)
 
-        value = (row.get("source_file") or row.get("file_name") or "").strip()
+        value = _source_file_value(row)
         if not value:
             raise ResolutionError(f"{analysis_id}: names no source file")
         source = Path(value)

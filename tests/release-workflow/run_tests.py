@@ -590,6 +590,15 @@ def test_file_name_source_column(temp_root: Path) -> None:
     assert_success(result, "file_name source column build")
     check(store_analysis_ids(fixture) == list(FIXTURE_ANALYSES),
           "the file_name-column release built the wrong Analyses")
+    # The resolved table persists the absolute usable path under the canonical
+    # `source_file` name even though the fixed input spelled it `file_name`.
+    resolved = read_tsv(fixture.work_dir / "analyses.resolved.tsv")
+    check(resolved and all("source_file" in row for row in resolved),
+          "the resolved table dropped source_file for a file_name-column release")
+    for row in resolved:
+        source = Path(row["source_file"])
+        check(source.is_absolute(), f"resolved source_file {row['source_file']!r} is not absolute")
+        check(source.is_file(), f"resolved source_file {row['source_file']!r} is not a source file")
     manifest = read_tsv(fixture.work_dir / "builder-manifest.tsv")
     check(len(manifest) == len(FIXTURE_ANALYSES), "builder manifest row count mismatch")
     for row in manifest:
