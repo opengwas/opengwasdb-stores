@@ -45,17 +45,17 @@ release:
 
 source:
   root: /data/opengwasdb/raw/ukb-b
-  analyses: families/ukb-b/releases/dense-observed-v1/analyses.tsv
+  analyses: analyses.tsv
   reader:
     capability: opengwasdb.gwas-vcf
     options: {}
 
 build:
-  operation: opengwasdb.layouts.dense.build_vcf:build_dense_from_vcf_manifest
-  arguments:
-    output_path: /data/opengwasdb/ukb-b/releases/dense-observed-v1/store
-    chunk_shape: [128, 256]
-    workers: 16
+  command: build-dense-vcf        # an opengwasdb CLI subcommand
+  arguments:                      # opaque; passed through unchanged as CLI flags
+    store-id: ukb-b
+    release-id: dense-observed-v1
+    n-workers: 16
 
 references:
   liftover_chain: reference-resources/grch37-to-grch38.yaml
@@ -63,15 +63,39 @@ references:
 
 rho:
   enabled: true
-  window_bp: 1000000
 
 reference_completion:
   enabled: true
   family_release_id: dense-reference-completed-v1
-  operation: opengwasdb.layouts.dense.complete:complete_dense_store
-  references:
-    variant_panel: reference-resources/eur-ld-panel.yaml
+  command: complete-dense
 ```
+
+`build.command` names an `opengwasdb` CLI subcommand, not an importable Python
+entrypoint: the operation is the shipped CLI (`opengwasdb --help`), so the
+configuration is executable on its own and no Store-Family-specific adapter has
+to import and call it. `build.arguments` is an **opaque** flag mapping passed
+through to that subcommand unchanged; it is deliberately not a semantic schema,
+so a newly required builder flag (for example `build-dense-vcf`'s `store-id`,
+`release-id`, and EAF-orientation gate) is absorbed without a configuration
+change. `reference_completion.command` names the CLI subcommand for the child
+Reference-Completed release in the same way.
+
+`source.root` and `source.analyses` are resolved relative to the release
+directory unless absolute, so `analyses.tsv` normally sits beside `build.yaml`
+while `source.root` points at external acquired inputs. The schema evolves the
+pre-existing `build.yaml` in place - one filename, one schema - rather than
+introducing a second file; the decision and the legacy-compatibility rule are
+recorded in ADR 0022, and
+[`resources/lib/release_plan.py`](../../resources/lib/release_plan.py) loads and
+validates a release's plan before any build step runs:
+
+```bash
+python3 resources/lib/release_plan.py families/ukb-b/releases/dense-observed-v1
+```
+
+It reports pass/fail with a reason naming the offending key, and refuses an
+unknown `build.command`, rho on a non-Dense layout, an unresolved Reference
+Resource, and a selected source file that is missing or checksum-mismatched.
 
 `source.reader.options` is capability-specific. GWAS-VCF needs no column map;
 a general tabular reader would declare source column names there. The concrete
@@ -92,8 +116,9 @@ The observed-release path is:
    `input-validation.json`.
 2. Resolve or verify ancestry and effect-scale metadata. Emit the immutable
    working input `work/analyses.resolved.tsv` and a resolution report.
-3. Invoke the configured OpenGWASDB build operation. It produces the Store
-   envelope, initial `overview.html`, and Top-Hit indexes, plus a build report.
+3. Invoke the configured OpenGWASDB CLI subcommand (`build.command`) with its
+   opaque `build.arguments`. It produces the Store envelope, initial
+   `overview.html`, and Top-Hit indexes, plus a build report.
 4. If enabled, build rho as an explicit in-place Store operation and emit its
    report.
 5. Regenerate `overview.html` after every Store mutation so the final page
