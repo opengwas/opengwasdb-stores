@@ -817,10 +817,16 @@ def test_rho_enabled_builds_then_regenerates(temp_root: Path) -> Fixture:
 
 
 def test_rho_on_non_dense_refused(temp_root: Path) -> None:
-    """A non-Dense layout asking for rho is refused at input validation, naming the layout."""
+    """A non-Dense layout asking for rho is refused at input validation, naming the layout.
+
+    The layout and command are made consistently non-Dense: a `store_layout`
+    that merely contradicts `build.command` is a separate refusal (#95), so this
+    scenario exercises the rho-is-Dense-only refusal itself.
+    """
     fixture = prepare(temp_root, "rho-non-dense")
     text = fixture.build_yaml.read_text(encoding="utf-8")
     text = text.replace("store_layout: dense-observed", "store_layout: hybrid-observed")
+    text = text.replace("command: build-dense-vcf", "command: build-hybrid")
     text = text.replace("rho:\n  enabled: false\n", "rho:\n  enabled: true\n")
     fixture.build_yaml.write_text(text, encoding="utf-8")
 
