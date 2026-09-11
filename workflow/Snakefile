@@ -1,0 +1,124 @@
+"""Production Store Release workflow (issue #98) -- dependency wiring only.
+
+One command builds one Store Release from its fixed input:
+
+    pixi run release --configfile families/<family>/releases/<release>/build.yaml
+
+This Snakefile deliberately contains no Store-Family name, no source column
+name, and no manifest translation. It reads the release's `build.yaml`, asks
+`workflow/model.py` for the release's paths, and declares which phase depends on
+which. Each rule shells out to `workflow/phase.py`, which owns everything
+semantic: it calls the `opengwasdb` CLI subcommands the plan names, checks each
+phase's output by reading it back, and writes the phase's completion record.
+Snakemake tracks those records, not the Store's modification time, so a partial
+Store cannot masquerade as a completed phase.
+
+The rho and Reference-Completion branches are issue #100 and are not wired here;
+`workflow/model.py` refuses a release that enables either, rather than building
+a Store that silently omits them.
+"""
+
+import shlex
+from pathlib import Path
+
+from model import FINAL_PHASE, load_workflow
+
+WORKFLOW_DIR = Path(workflow.basedir)
+REPO_ROOT = WORKFLOW_DIR.parent
+CONFIG_PATH = Path(workflow.configfiles[0]).resolve()
+RELEASE = load_workflow(CONFIG_PATH, REPO_ROOT)
+PATHS = RELEASE.paths
+PHASE_RUNNER = WORKFLOW_DIR / "phase.py"
+SOURCE_FILES = [str(path) for path in RELEASE.source_paths]
+
+
+def run_phase(phase_id):
+    return " ".join(
+        shlex.quote(part)
+        for part in (
+            "python3",
+            str(PHASE_RUNNER),
+            "--phase",
+            phase_id,
+            "--config",
+            str(CONFIG_PATH),
+            "--repo-root",
+            str(REPO_ROOT),
+        )
+    )
+
+
+rule release:
+    """Build the observed Store Release end to end."""
+    input:
+        PATHS.completion(FINAL_PHASE),
+
+
+rule validate_fixed_inputs:
+    """Validate build.yaml, analyses.tsv, the selected sources and resources."""
+    input:
+        build_yaml=str(CONFIG_PATH),
+        analyses=str(RELEASE.plan.analyses_path),
+        sources=SOURCE_FILES,
+    output:
+        completion=str(PATHS.completion("validate_fixed_inputs")),
+        report=str(PATHS.report("input-validation.json")),
+    shell:
+        run_phase("validate_fixed_inputs")
+
+
+rule resolve_analysis_metadata:
+    """Passthrough resolve: freeze the working input and write the shared manifest."""
+    input:
+        completion=rules.validate_fixed_inputs.output.completion,
+        build_yaml=str(CONFIG_PATH),
+        analyses=str(RELEASE.plan.analyses_path),
+        sources=SOURCE_FILES,
+    output:
+        completion=str(PATHS.completion("resolve_analysis_metadata")),
+        analyses=str(PATHS.resolved_analyses),
+        manifest=str(PATHS.builder_manifest),
+        report=str(PATHS.report("metadata-resolution.tsv")),
+    shell:
+        run_phase("resolve_analysis_metadata")
+
+
+rule build_observed_store:
+    """Invoke the plan's `opengwasdb` build subcommand with its opaque arguments."""
+    input:
+        completion=rules.resolve_analysis_metadata.output.completion,
+        build_yaml=str(CONFIG_PATH),
+        analyses=rules.resolve_analysis_metadata.output.analyses,
+        manifest=rules.resolve_analysis_metadata.output.manifest,
+    output:
+        completion=str(PATHS.completion("build_observed_store")),
+        manifest=str(PATHS.store_dir / "manifest.json"),
+        report=str(PATHS.report("build-report.tsv")),
+    shell:
+        run_phase("build_observed_store")
+
+
+rule regenerate_observed_overview:
+    """Regenerate overview.html from the persisted Store, after any mutation."""
+    input:
+        completion=rules.build_observed_store.output.completion,
+        store_manifest=rules.build_observed_store.output.manifest,
+    output:
+        completion=str(PATHS.completion("regenerate_observed_overview")),
+        overview=str(PATHS.store_dir / "overview.html"),
+    shell:
+        run_phase("regenerate_observed_overview")
+
+
+rule validate_observed_release:
+    """Validate the Store and merge the CLI result into the release's validation.yaml."""
+    input:
+        completion=rules.regenerate_observed_overview.output.completion,
+        build_completion=rules.build_observed_store.output.completion,
+        overview=rules.regenerate_observed_overview.output.overview,
+        store_manifest=rules.build_observed_store.output.manifest,
+    output:
+        completion=str(PATHS.completion("validate_observed_release")),
+        validation=str(PATHS.validation_yaml),
+    shell:
+        run_phase("validate_observed_release")

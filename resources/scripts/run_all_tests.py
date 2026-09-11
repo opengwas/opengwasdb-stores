@@ -46,6 +46,7 @@ SUITES: list[tuple[str, str, list[str]]] = [
     ("qc-panel-retention", "r", ["tests/qc-panel-retention/run_tests.R"]),
     ("release-manifest", "python", ["tests/release-manifest/run_tests.py"]),
     ("release-plan", "python", ["tests/release-plan/run_tests.py"]),
+    ("release-workflow", "python", ["tests/release-workflow/run_tests.py"]),
     ("schema-validation", "r", ["tests/schema-validation/run_tests.R"]),
 ]
 

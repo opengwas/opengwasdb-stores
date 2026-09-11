@@ -1,0 +1,30 @@
+store_family_id: finngen-r13
+family_release_id: r13-fixture
+store_layout: dense-observed
+completion_state: observed-only
+source:
+  root: source
+  analyses: analyses.tsv
+  reader:
+    capability: opengwasdb.finngen-r13
+build:
+  command: build-dense-vcf
+  arguments:
+    store-id: finngen-r13
+    release-id: r13-fixture
+    n-workers: 1
+artifacts:
+  artifact_root: .release-work
+  release_subdir: finngen-r13/releases/r13-fixture
+reference_resources:
+- resource_id: qc-panel-hg38
+  kind: qc_panel
+  genome_build: GRCh38
+  location: reference-resources/qc-panel-hg38/qc_panel.tsv
+  location_kind: tracked_file
+rho:
+  enabled: false
+reference_completion:
+  enabled: false
+validation:
+  required: yes

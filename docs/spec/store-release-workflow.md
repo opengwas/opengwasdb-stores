@@ -171,8 +171,11 @@ Every completion record binds at least:
 - output locations, completion time, and validation result.
 
 Changing a bound input invalidates that phase and its downstream dependents.
-The production implementation must define whether a failed phase can safely
-continue within an existing partial output or must replace it atomically.
+The production implementation builds a new-output phase into a `.partial`
+sibling and moves it into place only after its read-back checks pass, so an
+interrupted or failed phase never leaves a half-written Store at the release's
+Store path; the next invocation replaces it rather than continuing inside it.
+See [`workflow/README.md`](../../workflow/README.md).
 
 ## Orchestrator interface
 
@@ -185,5 +188,7 @@ snakemake --configfile families/ukb-b/releases/dense-observed-v1/build.yaml
 
 The Snakefile should contain dependency wiring only. It must not contain source
 column mappings, Store Family conditionals, manifest translation, or copied
-builder logic. A throwaway executable model of this design lives in
+builder logic. The production implementation is
+[`workflow/`](../../workflow/README.md) (Snakefile plus phase runner, issue
+#98); a throwaway executable model of this design lives in
 [`resources/prototypes/snakemake-release-pipeline/`](../../resources/prototypes/snakemake-release-pipeline/).
