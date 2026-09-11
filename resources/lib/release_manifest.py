@@ -304,6 +304,11 @@ def builder_manifest(
     ``layout`` is one of ``dense``, ``hybrid`` or ``ragged`` (see
     ``ADAPTER_PROJECTIONS``). The result is byte-identical to what that layout's
     ``build-store.py`` adapter writes for the same ``analyses.tsv``.
+
+    ``rows`` may be any iterable, including a single-use one (a generator or a
+    ``csv.DictReader``). The Ragged projection needs the release's full table
+    twice -- once for buildable rows and once for its registry column names --
+    so it is materialised once here, at the API boundary, before either read.
     """
     try:
         projection = ADAPTER_PROJECTIONS[layout]
@@ -313,6 +318,7 @@ def builder_manifest(
             f"{', '.join(sorted(ADAPTER_PROJECTIONS))}"
         ) from None
 
+    rows = list(rows)
     buildable = buildable_rows(rows)
     if projection.registry_columns:
         return BuilderManifest(

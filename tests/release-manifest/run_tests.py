@@ -186,6 +186,59 @@ def main() -> None:
         f"unexpected releases skipped: {skipped}",
     )
 
+    # --- A single-use iterable is materialised once, not read twice (issue #96) ---
+    # The Ragged projection needs the release table twice: once for its buildable
+    # rows, once for the registry column names that become the manifest header.
+    # A generator or csv.DictReader can only be read once, so builder_manifest()
+    # must materialise it at its own API boundary. Before the accepted fix a
+    # generator produced an empty header and an empty manifest.
+    ragged_path = (
+        REPO_ROOT / "families/metabolome-plasma-2023/releases/2023-chen-pilot-80/analyses.tsv"
+    )
+    ragged_rows = read_tsv(ragged_path)
+    ragged_header = ragged_path.read_text(encoding="utf-8").split("\n", 1)[0].split("\t")
+    check(
+        all(row.get("exclude_from_build") != "true" for row in ragged_rows),
+        "the ragged iterator regression assumes a release with no excluded rows",
+    )
+    list_manifest = release_manifest.builder_manifest(ragged_rows, layout="ragged")
+    with ragged_path.open(newline="", encoding="utf-8") as handle:
+        dictreader_manifest = release_manifest.builder_manifest(
+            csv.DictReader(handle, delimiter="\t"), layout="ragged"
+        )
+    generator_manifest = release_manifest.builder_manifest(
+        (row for row in ragged_rows), layout="ragged"
+    )
+    check(
+        list_manifest.fieldnames == ragged_header,
+        "the ragged manifest header must be the release's own analyses.tsv header",
+    )
+    for label, manifest in (
+        ("generator", generator_manifest),
+        ("csv.DictReader", dictreader_manifest),
+    ):
+        check(
+            manifest.fieldnames == list_manifest.fieldnames,
+            f"a {label} input must yield the same ragged header as a list input",
+        )
+        check(
+            manifest.rows == list_manifest.rows,
+            f"a {label} input must yield the same ragged rows as a list input",
+        )
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "ragged-generator.tsv"
+        written = release_manifest.write_builder_manifest(
+            (row for row in ragged_rows), out, layout="ragged"
+        )
+        check(
+            written.fieldnames == ragged_header and written.rows == list_manifest.rows,
+            "a generator write_builder_manifest must match the list-input manifest",
+        )
+        check(
+            read_bytes(out) == ragged_path.read_bytes(),
+            "a generator ragged manifest must stay byte-identical to analyses.tsv",
+        )
+
     # --- Excluded rows are omitted, matching adapter behaviour ---
     hybrid_release = REPO_ROOT / "families/gwas-catalog-eur-hybrid/releases/eur-hybrid-pilot-10"
     hybrid_rows = read_tsv(hybrid_release / "analyses.tsv")
