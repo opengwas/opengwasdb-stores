@@ -1,0 +1,4 @@
+analysis_id	file_name	trait_label	sample_size	ancestry
+EXAMPLE-001	example-001.vcf	Example height	1000	European
+EXAMPLE-002	example-002.vcf	Example BMI	2000	European
+EXAMPLE-003	example-003.vcf	Example LDL	3000	European

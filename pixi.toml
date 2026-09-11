@@ -139,6 +139,11 @@ git = "*"
 gh = "*"
 sqlite = "*"
 
+[feature.workflow-prototype.dependencies]
+# PROTOTYPE ONLY: used to test whether a release-centric Snakemake DAG makes
+# the Store Release architecture and resume behavior tangible.
+snakemake-minimal = ">=9,<10"
+
 # ---------------------------------------------------------------------------
 # Environments
 # ---------------------------------------------------------------------------
@@ -151,6 +156,7 @@ default = { features = ["python", "store-build", "r"], solve-group = "main" }
 docs = { features = ["r", "reporting"], solve-group = "main" }
 ld-panel = { features = ["python", "ld-panel"], solve-group = "main" }
 dev = { features = ["python", "store-build", "r", "reporting", "ld-panel", "dev"], solve-group = "main" }
+workflow-prototype = { features = ["python", "workflow-prototype"], solve-group = "prototype" }
 
 # ---------------------------------------------------------------------------
 # Tasks
@@ -161,6 +167,9 @@ test = { cmd = "python3 resources/scripts/run_all_tests.py" }
 test-python = { cmd = "python3 resources/scripts/run_all_tests.py --only python" }
 test-r = { cmd = "python3 resources/scripts/run_all_tests.py --only r" }
 env-check = { cmd = "python3 resources/scripts/env_check.py" }
+
+[feature.workflow-prototype.tasks]
+prototype-release-pipeline = { cmd = "python3 resources/prototypes/snakemake-release-pipeline/tui.py" }
 
 [feature.reporting.tasks]
 docs = { cmd = "bash resources/scripts/build-site.sh" }

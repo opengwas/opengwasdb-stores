@@ -1,0 +1,36 @@
+prototype_state: .prototype-state/snakemake-release-pipeline
+
+release:
+  store_family_id: example-dense-gwas
+  family_release_id: r1-observed
+
+source:
+  root: resources/prototypes/snakemake-release-pipeline/fixtures/raw
+  analyses: resources/prototypes/snakemake-release-pipeline/fixtures/analyses.tsv
+  reader:
+    capability: opengwasdb.gwas-vcf
+    options: {}
+
+build:
+  operation: opengwasdb.layouts.dense.build_vcf:build_dense_from_vcf_manifest
+  arguments:
+    store_layout: dense-observed
+    chunk_shape: [128, 256]
+    dtype: int16
+    workers: 4
+
+references:
+  liftover_chain: reference-resources/grch37-to-grch38.yaml
+  ancestry_alignment: reference-resources/ukb-eur-af.yaml
+
+rho:
+  enabled: true
+  window_bp: 1000000
+  z_threshold: 5.45
+
+reference_completion:
+  enabled: true
+  family_release_id: r1-reference-completed
+  operation: opengwasdb.layouts.dense.complete:complete_dense_store
+  references:
+    variant_panel: reference-resources/eur-ld-panel.yaml

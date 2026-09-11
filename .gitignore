@@ -39,3 +39,6 @@ __pycache__/
 # opengwas_api.R's fetch_opengwas_gwasinfo()); never committed.
 .Renviron
 .env
+# Throwaway workflow-prototype runtime state.
+.prototype-state/
+.snakemake/

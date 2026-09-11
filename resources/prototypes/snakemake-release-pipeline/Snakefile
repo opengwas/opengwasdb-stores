@@ -1,0 +1,155 @@
+# PROTOTYPE — tests whether fixed release inputs make the Store Release DAG clear.
+
+from pathlib import Path
+
+from pipeline_model import final_phase, load_prototype, source_files
+
+
+PROTOTYPE_DIR = Path(workflow.basedir)
+REPO_ROOT = PROTOTYPE_DIR.parents[2]
+CONFIG_PATH = Path(workflow.configfiles[0]).resolve()
+PLAN, PATHS, CONFIG = load_prototype(REPO_ROOT, CONFIG_PATH)
+PHASE_SCRIPT = PROTOTYPE_DIR / "prototype_phase.py"
+RAW_FILES = tuple(str(path) for path in source_files(PLAN))
+
+
+def marker(phase):
+    return str(PATHS.checkpoint(phase))
+
+
+def invoke(phase):
+    return f"python3 {PHASE_SCRIPT} {phase} --repo-root {REPO_ROOT} --config {CONFIG_PATH}"
+
+
+rule full_release:
+    input:
+        marker(final_phase(PLAN))
+
+
+rule validate_fixed_inputs:
+    input:
+        config=str(CONFIG_PATH),
+        analyses=str(PLAN.analyses_path),
+        sources=RAW_FILES,
+    output:
+        marker("validate_fixed_inputs"),
+        report=str(PATHS.report(PLAN.observed_release_id, "input-validation.json")),
+    shell:
+        invoke("validate_fixed_inputs")
+
+
+rule resolve_analysis_metadata:
+    input:
+        marker("validate_fixed_inputs"),
+        analyses=str(PLAN.analyses_path),
+    output:
+        marker("resolve_analysis_metadata"),
+        analyses=str(PATHS.resolved_analyses()),
+        report=str(PATHS.report(PLAN.observed_release_id, "metadata-resolution.tsv")),
+    shell:
+        invoke("resolve_analysis_metadata")
+
+
+rule build_observed_store:
+    input:
+        marker("resolve_analysis_metadata"),
+        analyses=rules.resolve_analysis_metadata.output.analyses,
+        config=str(CONFIG_PATH),
+        sources=RAW_FILES,
+    output:
+        marker("build_observed_store"),
+        manifest=str(PATHS.store_dir(PLAN.family_id, PLAN.observed_release_id) / "manifest.json"),
+        report=str(PATHS.report(PLAN.observed_release_id, "build-report.tsv")),
+    shell:
+        invoke("build_observed_store")
+
+
+if PLAN.rho:
+    rule build_observed_rho:
+        input:
+            marker("build_observed_store"),
+            rules.build_observed_store.output.manifest,
+        output:
+            marker("build_observed_rho"),
+            rho=str(PATHS.store_dir(PLAN.family_id, PLAN.observed_release_id) / "data.zarr" / "rho" / "metadata.json"),
+            report=str(PATHS.report(PLAN.observed_release_id, "rho-report.json")),
+        shell:
+            invoke("build_observed_rho")
+
+
+rule regenerate_observed_overview:
+    input:
+        marker("build_observed_rho") if PLAN.rho else marker("build_observed_store"),
+    output:
+        marker("regenerate_observed_overview"),
+        overview=str(PATHS.store_dir(PLAN.family_id, PLAN.observed_release_id) / "overview.html"),
+    shell:
+        invoke("regenerate_observed_overview")
+
+
+rule validate_observed_release:
+    input:
+        marker("regenerate_observed_overview"),
+        manifest=rules.build_observed_store.output.manifest,
+        overview=rules.regenerate_observed_overview.output.overview,
+    output:
+        marker("validate_observed_release"),
+        validation=str(PATHS.report(PLAN.observed_release_id, "validation.yaml")),
+    shell:
+        invoke("validate_observed_release")
+
+
+if PLAN.completion:
+    COMPLETED = PLAN.completed_release_id
+
+    rule register_completed_release:
+        input:
+            marker("validate_observed_release"),
+        output:
+            marker("register_completed_release"),
+            release=str(PATHS.release_dir(PLAN.family_id, COMPLETED) / "release.yaml"),
+        shell:
+            invoke("register_completed_release")
+
+    rule complete_store:
+        input:
+            marker("register_completed_release"),
+            observed_manifest=rules.build_observed_store.output.manifest,
+        output:
+            marker("complete_store"),
+            manifest=str(PATHS.store_dir(PLAN.family_id, COMPLETED) / "manifest.json"),
+            report=str(PATHS.report(COMPLETED, "completion-report.tsv")),
+        shell:
+            invoke("complete_store")
+
+    if PLAN.rho:
+        rule build_completed_rho:
+            input:
+                marker("complete_store"),
+                rules.complete_store.output.manifest,
+            output:
+                marker("build_completed_rho"),
+                rho=str(PATHS.store_dir(PLAN.family_id, COMPLETED) / "data.zarr" / "rho" / "metadata.json"),
+                report=str(PATHS.report(COMPLETED, "rho-report.json")),
+            shell:
+                invoke("build_completed_rho")
+
+    rule regenerate_completed_overview:
+        input:
+            marker("build_completed_rho") if PLAN.rho else marker("complete_store"),
+        output:
+            marker("regenerate_completed_overview"),
+            overview=str(PATHS.store_dir(PLAN.family_id, COMPLETED) / "overview.html"),
+        shell:
+            invoke("regenerate_completed_overview")
+
+    rule validate_completed_release:
+        input:
+            marker("regenerate_completed_overview"),
+            manifest=rules.complete_store.output.manifest,
+            overview=rules.regenerate_completed_overview.output.overview,
+        output:
+            marker("validate_completed_release"),
+            validation=str(PATHS.report(COMPLETED, "validation.yaml")),
+        shell:
+            invoke("validate_completed_release")
