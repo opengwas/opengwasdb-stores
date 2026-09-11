@@ -313,7 +313,7 @@ def phase_resolve_analysis_metadata(workflow: Workflow) -> None:
     resolved: list[dict[str, str]] = []
     report_rows: list[dict[str, str]] = []
     for row in buildable:
-        value = (row.get("source_file") or "").strip()
+        value = (row.get("source_file") or row.get("file_name") or "").strip()
         source = Path(value)
         absolute = source if source.is_absolute() else plan.source_root / source
         resolved.append({**row, "source_file": str(absolute)})

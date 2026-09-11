@@ -30,6 +30,7 @@ RELEASE = load_workflow(CONFIG_PATH, REPO_ROOT)
 PATHS = RELEASE.paths
 PHASE_RUNNER = WORKFLOW_DIR / "phase.py"
 SOURCE_FILES = [str(path) for path in RELEASE.source_paths]
+REFERENCE_DESCRIPTORS = [str(path) for path in RELEASE.reference_descriptors]
 
 
 def run_phase(phase_id):
@@ -60,6 +61,7 @@ rule validate_fixed_inputs:
         build_yaml=str(CONFIG_PATH),
         analyses=str(RELEASE.plan.analyses_path),
         sources=SOURCE_FILES,
+        reference_descriptors=REFERENCE_DESCRIPTORS,
     output:
         completion=str(PATHS.completion("validate_fixed_inputs")),
         report=str(PATHS.report("input-validation.json")),
@@ -74,6 +76,7 @@ rule resolve_analysis_metadata:
         build_yaml=str(CONFIG_PATH),
         analyses=str(RELEASE.plan.analyses_path),
         sources=SOURCE_FILES,
+        reference_descriptors=REFERENCE_DESCRIPTORS,
     output:
         completion=str(PATHS.completion("resolve_analysis_metadata")),
         analyses=str(PATHS.resolved_analyses),
