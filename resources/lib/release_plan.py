@@ -23,8 +23,14 @@ Validation refuses, naming the offending key:
 
 * a `build.command` that is not an ``opengwasdb`` CLI subcommand;
 * rho enabled on a layout with no rho implementation (rho is Dense-only);
-* a Reference Resource referenced by `ancestry_assignment` or
-  `effect_scale_validation` that is not declared in `reference_resources`;
+* a declared `store_layout` that contradicts the layout implied by
+  `build.command`;
+* a Reference Resource referenced by `ancestry_assignment`,
+  `effect_scale_validation`, or `qc_panel` that is not declared in
+  `reference_resources`;
+* a malformed `ancestry_assignment.reference_resources` /
+  `effect_scale_validation.reference_resources` entry (not a mapping, or
+  missing `resource_id`);
 * a source file named in `analyses.tsv` that is missing, or whose declared
   checksum does not match;
 * a `source.root`/`source.analyses` that does not exist.
@@ -59,6 +65,7 @@ from resources.lib.release_yaml import read_release_yaml, read_tsv  # noqa: E402
 # Store layouts are named `<layout>-<completion state>`; only Dense has a rho
 # implementation (there is no Hybrid or Ragged rho).
 _DENSE_LAYOUT = "dense"
+_LAYOUT_TOKENS = frozenset({"dense", "hybrid", "ragged"})
 
 _TRUE_STRINGS = {"true", "yes", "1", "on"}
 
@@ -174,8 +181,15 @@ def _referenced_resource_ids(data: dict) -> list[tuple[str, str]]:
         if not isinstance(entries, list):
             raise PlanError(f"{section}.{field_name}", "must be a list")
         for index, entry in enumerate(entries):
-            if isinstance(entry, dict) and entry.get("resource_id"):
-                references.append((f"{section}.{field_name}[{index}].resource_id", str(entry["resource_id"])))
+            key = f"{section}.{field_name}[{index}].resource_id"
+            if not isinstance(entry, dict):
+                raise PlanError(key, "must be a mapping with a resource_id")
+            if not entry.get("resource_id"):
+                raise PlanError(key, "missing resource_id")
+            references.append((key, str(entry["resource_id"])))
+    qc_panel = _mapping(data, "qc_panel")
+    if qc_panel.get("resource_id"):
+        references.append(("qc_panel.resource_id", str(qc_panel["resource_id"])))
     return references
 
 
@@ -185,15 +199,25 @@ def _check_references(data: dict, declared: set[str]) -> None:
             raise PlanError(key, f"Reference Resource {resource_id!r} is not declared in reference_resources")
 
 
-def _layout(data: dict, command: str | None) -> str | None:
-    layout = data.get("store_layout")
-    if layout:
-        return str(layout)
-    if command:
-        for token in command.split("-"):
-            if token in {"dense", "hybrid", "ragged"}:
-                return token
+def _command_layout(command: str | None) -> str | None:
+    """The layout named by a CLI subcommand such as ``build-dense-vcf``, or None."""
+    if not command:
+        return None
+    for token in command.split("-"):
+        if token in _LAYOUT_TOKENS:
+            return token
     return None
+
+
+def _layout(data: dict, command: str | None) -> str | None:
+    declared = str(data["store_layout"]) if data.get("store_layout") else None
+    inferred = _command_layout(command)
+    if declared and inferred and declared.split("-")[0] != inferred:
+        raise PlanError(
+            "store_layout",
+            f"store_layout {declared!r} contradicts the {inferred!r} layout implied by build.command {command!r}",
+        )
+    return declared or inferred
 
 
 def load_plan(release_dir: Path) -> ReleasePlan:

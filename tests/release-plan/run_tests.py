@@ -4,8 +4,10 @@
     pixi run python tests/release-plan/run_tests.py
 
 Covers the happy path for the new CLI build.yaml schema and every refusal the
-loader makes (unknown build.command, rho on a non-Dense layout, an unresolved
-Reference Resource, a missing/mismatched source file, a missing
+loader makes (unknown build.command, rho on a non-Dense layout, a
+store_layout/build.command layout contradiction, an unresolved Reference
+Resource from ancestry_assignment, effect_scale_validation, or qc_panel, a
+malformed reference entry, a missing/mismatched source file, a missing
 source.root/source.analyses), the legacy schema staying accepted, and path
 resolution relative to source.root. It drives the public CLI as well as the
 module directly, matching this repository's convention of asserting on the
@@ -251,6 +253,109 @@ def test_unresolved_reference_refused() -> None:
         check(run_loader(str(release)).returncode == 1, "CLI should exit 1 on an unresolved Reference Resource")
 
 
+def test_qc_panel_undeclared_resource_refused() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        yaml_text = HAPPY_BUILD_YAML + (
+            "reference_resources:\n"
+            "- resource_id: declared-resource\n"
+            "  kind: qc_panel\n"
+            "qc_panel:\n"
+            "  enabled: yes\n"
+            "  resource_id: undeclared-qc-panel\n"
+        )
+        release = write_release(Path(tmp), yaml_text, [])
+        result = check_release(release)
+        check(not result.ok, "an undeclared qc_panel.resource_id should be refused")
+        check(
+            any("qc_panel.resource_id" in error and "undeclared-qc-panel" in error for error in result.errors),
+            result.errors,
+        )
+        check(run_loader(str(release)).returncode == 1, "CLI should exit 1 on an undeclared qc_panel resource")
+
+
+def test_qc_panel_declared_resource_accepted() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        yaml_text = HAPPY_BUILD_YAML + (
+            "reference_resources:\n"
+            "- resource_id: qc-panel-hg38\n"
+            "  kind: qc_panel\n"
+            "qc_panel:\n"
+            "  enabled: yes\n"
+            "  resource_id: qc-panel-hg38\n"
+        )
+        release = write_release(Path(tmp), yaml_text, [])
+        result = check_release(release)
+        check(result.ok, f"a qc_panel referencing a declared resource should pass: {result.errors}")
+
+
+def test_effect_scale_reference_without_resource_id_refused() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        yaml_text = HAPPY_BUILD_YAML + (
+            "reference_resources:\n"
+            "- resource_id: declared-resource\n"
+            "  kind: reference_af\n"
+            "effect_scale_validation:\n"
+            "  enabled: yes\n"
+            "  reference_resources:\n"
+            "  - ancestry: EUR\n"
+        )
+        release = write_release(Path(tmp), yaml_text, [])
+        result = check_release(release)
+        check(not result.ok, "an effect_scale_validation reference without resource_id should be refused")
+        check(
+            any(
+                "effect_scale_validation.reference_resources[0].resource_id" in error and "missing resource_id" in error
+                for error in result.errors
+            ),
+            result.errors,
+        )
+        check(run_loader(str(release)).returncode == 1, "CLI should exit 1 on a malformed reference entry")
+
+
+def test_effect_scale_non_mapping_reference_refused() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        yaml_text = HAPPY_BUILD_YAML + (
+            "effect_scale_validation:\n"
+            "  enabled: yes\n"
+            "  reference_resources:\n"
+            "  - not-a-mapping\n"
+        )
+        release = write_release(Path(tmp), yaml_text, [])
+        result = check_release(release)
+        check(not result.ok, "a non-mapping effect_scale_validation reference should be refused")
+        check(
+            any("effect_scale_validation.reference_resources[0].resource_id" in error for error in result.errors),
+            result.errors,
+        )
+
+
+def test_layout_command_contradiction_refused() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        yaml_text = HAPPY_BUILD_YAML.replace("command: build-dense-vcf", "command: build-hybrid").replace(
+            "rho:\n  enabled: true\n", "rho:\n  enabled: false\n"
+        )
+        release = write_release(Path(tmp), yaml_text, [])
+        result = check_release(release)
+        check(not result.ok, "a store_layout/build.command layout contradiction should be refused")
+        check(
+            any("store_layout" in error and "contradict" in error and "hybrid" in error for error in result.errors),
+            result.errors,
+        )
+        check(run_loader(str(release)).returncode == 1, "CLI should exit 1 on a layout contradiction")
+
+
+def test_dense_declared_hybrid_command_refuses_rho() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        yaml_text = HAPPY_BUILD_YAML.replace("command: build-dense-vcf", "command: build-hybrid")
+        release = write_release(Path(tmp), yaml_text, [])
+        result = check_release(release)
+        check(
+            not result.ok,
+            "rho must not be allowed when build.command is Hybrid even if store_layout says Dense",
+        )
+        check(any("store_layout" in error and "contradict" in error for error in result.errors), result.errors)
+
+
 def test_missing_source_file_refused() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         release = write_release(Path(tmp), HAPPY_BUILD_YAML, [])
@@ -426,6 +531,12 @@ def main() -> None:
         test_rho_inferred_from_command_refused,
         test_rho_disabled_on_ragged_ok,
         test_unresolved_reference_refused,
+        test_qc_panel_undeclared_resource_refused,
+        test_qc_panel_declared_resource_accepted,
+        test_effect_scale_reference_without_resource_id_refused,
+        test_effect_scale_non_mapping_reference_refused,
+        test_layout_command_contradiction_refused,
+        test_dense_declared_hybrid_command_refuses_rho,
         test_missing_source_file_refused,
         test_checksum_mismatch_refused,
         test_missing_source_root_refused,
