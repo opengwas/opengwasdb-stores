@@ -96,8 +96,9 @@ BMI, HEIGHT, RX_STATIN = FIXTURE_ANALYSES
 #: Fixture union variant count (4 BMI + 2 new HEIGHT + 2 new RX_STATIN).
 FIXTURE_VARIANTS = 8
 
-#: The fixture's Reference-Completion child id used by the completion scenarios.
+#: The fixture's Reference-Completion child id and completed layout.
 CHILD_ID = "r13-fixture-completed"
+CHILD_LAYOUT = "dense-reference-completed"
 
 #: The tab `opengwasdb regenerate-overview` emits only when `data.zarr/rho` exists.
 RHO_TAB = 'data-tab="rho"'
@@ -170,14 +171,31 @@ class Fixture:
         return {row["analysis_id"]: row for row in read_tsv(self.store_dir / "analyses.tsv")}
 
 
+def _read_flat_section(lines: list[str], header: str) -> dict[str, str]:
+    """Read one flat `header:` section's `  key: value` children as strings."""
+    out: dict[str, str] = {}
+    in_section = False
+    for line in lines:
+        if line == header:
+            in_section = True
+            continue
+        if in_section and line and not line.startswith(" "):
+            break
+        if in_section and ":" in line:
+            key, _, value = line.strip().partition(":")
+            out[key.strip()] = value.strip().strip("'\"")
+    return out
+
+
 def _read_validation(path: Path) -> dict:
     """Read the flat `validation.yaml` fields this suite asserts on."""
+    lines = path.read_text(encoding="utf-8").splitlines()
     fields: dict[str, str] = {}
     checks: dict[str, str] = {}
     warnings: list[str] = []
     in_checks = False
     in_warnings = False
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in lines:
         if line == "checks:":
             in_checks, in_warnings = True, False
             continue
@@ -196,6 +214,7 @@ def _read_validation(path: Path) -> dict:
             fields[key] = value
     fields["checks"] = checks
     fields["warnings"] = warnings
+    fields["reports"] = _read_flat_section(lines, "reports:")
     return fields
 
 
@@ -758,6 +777,8 @@ def test_rho_disabled_skips_rho(fixture: Fixture) -> None:
     check(RHO_TAB not in html, "the overview has a Rho tab though rho is disabled")
     check(fixture.record("regenerate_observed_overview")["validation"]["rho_tab"] is False,
           "the overview record claims a Rho tab though rho is disabled")
+    check("rho_report" not in fixture.validation()["reports"],
+          "the observed validation records a rho report though rho is disabled")
 
 
 def test_rho_enabled_builds_then_regenerates(temp_root: Path) -> Fixture:
@@ -790,6 +811,8 @@ def test_rho_enabled_builds_then_regenerates(temp_root: Path) -> Fixture:
     check(RHO_TAB in html, "the regenerated overview reflects no post-rho Store (no Rho tab)")
     check(fixture.validation()["checks"].get("store") == "passed",
           "the rho-enabled release did not validate its Store")
+    check(fixture.validation()["reports"].get("rho_report") == "sidecars/rho-report.json",
+          "the rho-enabled observed validation does not record sidecars/rho-report.json")
     return fixture
 
 
@@ -863,6 +886,10 @@ def test_reference_completion_builds_child(temp_root: Path) -> tuple[Fixture, Ch
     registration = child.registration
     check(registration.get("family_release_id") == CHILD_ID,
           f"the registered child names release {registration.get('family_release_id')!r}")
+    check(registration.get("store_layout") == CHILD_LAYOUT,
+          f"the registered child's store_layout is {registration.get('store_layout')!r}")
+    check(registration.get("completion_state") == "reference-completed",
+          f"the registered child's completion_state is {registration.get('completion_state')!r}")
     check((registration.get("lineage") or {}).get("derived_from") == "r13-fixture",
           "the registered child's lineage does not name the observed parent")
     check(child.release_dir.parent == fixture.release_dir.parent,

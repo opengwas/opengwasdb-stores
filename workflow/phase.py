@@ -827,17 +827,20 @@ def phase_validate(
 
 
 def phase_validate_observed_release(workflow: Workflow) -> None:
+    reports = {
+        "input_validation": "sidecars/input-validation.json",
+        "metadata_resolution": "sidecars/metadata-resolution.tsv",
+        "build_report": "sidecars/build-report.tsv",
+    }
+    if workflow.rho_enabled:
+        reports["rho_report"] = "sidecars/rho-report.json"
     phase_validate(
         workflow,
         workflow.observed_site,
         phase_id="validate_observed_release",
         build_phase="build_observed_store",
         overview_phase="regenerate_observed_overview",
-        reports={
-            "input_validation": "sidecars/input-validation.json",
-            "metadata_resolution": "sidecars/metadata-resolution.tsv",
-            "build_report": "sidecars/build-report.tsv",
-        },
+        reports=reports,
         resolve_phase="resolve_analysis_metadata",
     )
 
@@ -879,7 +882,8 @@ def phase_register_completed_release(workflow: Workflow) -> None:
             "metadata_schema_version: 1\n",
             f"store_family_id: {plan.store_family_id}\n",
             f"family_release_id: {child.release_id}\n",
-            f"completion_state: {child.layout}\n",
+            f"store_layout: {child.layout}\n",
+            "completion_state: reference-completed\n",
             "status: built\n",
             f"created_at: '{datetime.now(UTC).isoformat()}'\n",
             "lineage:\n",
@@ -903,6 +907,14 @@ def phase_register_completed_release(workflow: Workflow) -> None:
     if str(lineage.get("derived_from")) != str(plan.family_release_id):
         failures.append(
             f"registered lineage.derived_from {lineage.get('derived_from')!r} != {plan.family_release_id!r}"
+        )
+    if str(registered.get("store_layout")) != child.layout:
+        failures.append(
+            f"registered store_layout {registered.get('store_layout')!r} != {child.layout!r}"
+        )
+    if str(registered.get("completion_state")) != "reference-completed":
+        failures.append(
+            f"registered completion_state {registered.get('completion_state')!r} != 'reference-completed'"
         )
     if failures:
         raise PhaseError("child registration read-back failed:\n" + "\n".join(failures))
