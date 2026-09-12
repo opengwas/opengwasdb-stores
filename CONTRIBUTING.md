@@ -52,7 +52,9 @@ reading, normalization, Store construction, and validation behavior belongs in
 
 Store-specific helpers may acquire and select data, but the shared Store Release
 workflow begins at the fixed-input boundary documented in
-[`docs/spec/store-release-workflow.md`](docs/spec/store-release-workflow.md).
+[`docs/spec/store-release-workflow.md`](docs/spec/store-release-workflow.md) and
+explained step by step in
+[`docs/operator-guide.md`](docs/operator-guide.md).
 
 ## Metadata and scripts
 

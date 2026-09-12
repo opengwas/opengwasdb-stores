@@ -44,6 +44,7 @@ SUITES: list[tuple[str, str, list[str]]] = [
     ("no-cis-region-policy", "r", ["tests/no-cis-region-policy/run_tests.R"]),
     ("opengwas-gwas-vcf-dense", "r", ["tests/opengwas-gwas-vcf-dense/run_tests.R"]),
     ("opengwas-gwas-vcf-dense annotation", "python", ["tests/opengwas-gwas-vcf-dense/test_annotation.py"]),
+    ("operator-guide", "python", ["tests/operator-guide/run_tests.py"]),
     ("qc-panel-retention", "r", ["tests/qc-panel-retention/run_tests.R"]),
     ("release-manifest", "python", ["tests/release-manifest/run_tests.py"]),
     ("release-plan", "python", ["tests/release-plan/run_tests.py"]),

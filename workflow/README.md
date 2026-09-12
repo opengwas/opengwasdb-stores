@@ -1,5 +1,10 @@
 # Production Store Release workflow (issues #98, #100)
 
+The operator-facing guide to this workflow -- what a new Store Family must
+provide, how to choose a build command, and how to run, resume, and read a
+release -- is [`docs/operator-guide.md`](../docs/operator-guide.md). This file
+documents the implementation.
+
 One command builds one Store Release from its fixed input:
 
 ```bash
