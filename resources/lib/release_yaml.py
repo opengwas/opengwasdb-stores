@@ -230,6 +230,89 @@ def write_release_status(path: Path, status: str) -> bool:
     return True
 
 
+def _strip_trailing_blanks(lines: list[str]) -> list[str]:
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return lines
+
+
+def split_top_level_blocks(text: str) -> list[tuple[str | None, list[str]]]:
+    """Split block-style YAML into `(top-level key, raw lines)` blocks.
+
+    A block starts at an unindented `key:` line and runs to just before the next
+    one, so an indented multi-line block scalar (`description: |`) stays with its
+    key instead of being mistaken for the next record. Lines before the first key
+    (a `---` marker, comments) come back with a `None` key. Re-joining the blocks'
+    lines reproduces the input, so this is a lossless split: it is the primitive
+    `merge_release_yaml` uses to refresh a few workflow-owned blocks while leaving
+    a bundle's curated blocks untouched.
+    """
+    blocks: list[tuple[str | None, list[str]]] = []
+    key: str | None = None
+    lines: list[str] = []
+    for line in text.splitlines():
+        is_key = bool(line) and not line[0].isspace() and ":" in line
+        if is_key:
+            if lines:
+                blocks.append((key, _strip_trailing_blanks(lines)))
+            key = line.split(":", 1)[0].strip()
+            lines = []
+        lines.append(line)
+    if lines:
+        blocks.append((key, _strip_trailing_blanks(lines)))
+    return blocks
+
+
+def merge_release_yaml(path: Path, owned: dict[str, list[str]]) -> None:
+    """Refresh the workflow-owned top-level blocks of a release-bundle record.
+
+    `owned` maps a top-level key to the rendered lines that replace (or add) its
+    block. Every other block is preserved verbatim -- a curator's multi-line
+    `description`/`notes` scalars, `source_*`, `build_environment`, and any field
+    added later -- so re-registering a child Store Release refreshes workflow
+    provenance without discarding the bundle's curated record (issue #101).
+
+    Owned blocks are emitted first, so a later multi-line block scalar cannot
+    hide them from the line-based readers above (which do not follow indentation
+    into a block scalar). A file that does not exist yet is created from `owned`
+    alone.
+    """
+    existing = split_top_level_blocks(path.read_text(encoding="utf-8")) if path.exists() else []
+    emitted: list[list[str]] = [list(lines) for lines in owned.values()]
+    seen = set(owned)
+    for key, lines in existing:
+        if key in seen:
+            continue
+        if key is not None:
+            seen.add(key)
+        emitted.append(list(lines))
+    text = "\n\n".join("\n".join(block) for block in emitted).rstrip("\n") + "\n"
+    path.write_text(text, encoding="utf-8")
+
+
+def top_level_scalars(text: str) -> dict[str, str]:
+    """Read the scalar value of each top-level `key: value` block, and `derived_from`.
+
+    Unlike `read_release_yaml`, this does not stop at an indented multi-line
+    block scalar, so it can read the workflow-owned identity fields from a bundle
+    whose curated `description`/`notes` use `|` (issue #101). A key whose value is
+    a nested block (`lineage:`, `generator:`) is reported as an empty string; a
+    `derived_from:` line inside such a block is surfaced under that name.
+    """
+    scalars: dict[str, str] = {}
+    for key, lines in split_top_level_blocks(text):
+        if key is None:
+            continue
+        head = lines[0].partition(":")[2].strip().strip("'\"")
+        if head and head not in {"|", ">"}:
+            scalars[key] = head
+        for line in lines[1:]:
+            stripped = line.strip()
+            if stripped.startswith("derived_from:"):
+                scalars["derived_from"] = stripped.partition(":")[2].strip().strip("'\"")
+    return scalars
+
+
 def read_previous_reports(path: Path) -> dict[str, str]:
     """Read the `reports.*` section from an existing validation.yaml."""
     if not path.exists():

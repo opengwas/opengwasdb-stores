@@ -76,7 +76,12 @@ PHASE_RUNNER = REPO_ROOT / "workflow" / "phase.py"
 SNAKEMAKE = shutil.which("snakemake")
 
 sys.path.insert(0, str(REPO_ROOT))
-from resources.lib.release_yaml import read_release_yaml, read_tsv  # noqa: E402
+from resources.lib.release_yaml import (  # noqa: E402
+    merge_release_yaml,
+    read_release_yaml,
+    read_tsv,
+    top_level_scalars,
+)
 
 #: The pinned `opengwasdb` revision, read from pixi.toml rather than hardcoded
 #: so a pin bump does not silently invalidate the completion-record assertion.
@@ -755,6 +760,52 @@ def test_file_name_source_column(temp_root: Path) -> None:
         check(file_path.is_file(), f"builder manifest file_path {row['file_path']!r} is not a source file")
 
 
+def test_child_release_merge_preserves_curated_blocks() -> None:
+    """`merge_release_yaml` refreshes owned blocks and preserves every other block.
+
+    The child bundle's `release.yaml` is the one file `register_completed_release`
+    shares with a curator, and it is where curated multi-line `description`/`notes`
+    live. Re-registering must refresh workflow provenance without rewriting those
+    block scalars, `status`, or `created_at` (issue #101).
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "release.yaml"
+        path.write_text(
+            "metadata_schema_version: 1\n"
+            "store_family_id: finngen-r13\n"
+            "family_release_id: old-id\n"
+            "store_layout: dense-observed\n"
+            "status: validated\n"
+            "created_at: '2026-08-18T16:58:59Z'\n"
+            "description: |\n"
+            "  Hand-curated description with: a colon.\n"
+            "\n"
+            "  A second paragraph.\n"
+            "notes: |\n"
+            "  Curated note.\n"
+            "lineage:\n"
+            "  derived_from: old-parent\n",
+            encoding="utf-8",
+        )
+        merge_release_yaml(path, {
+            "family_release_id": ["family_release_id: r13-pilot-20-completed"],
+            "store_layout": ["store_layout: dense-reference-completed"],
+            "completion_state": ["completion_state: reference-completed"],
+            "lineage": ["lineage:", "  derived_from: r13-pilot-20"],
+        })
+        text = path.read_text(encoding="utf-8")
+        check("Hand-curated description with: a colon." in text, "curated description was lost")
+        check("A second paragraph." in text, "curated description's second paragraph was lost")
+        check("Curated note." in text, "curated notes were lost")
+        check("status: validated" in text, "curated lifecycle status was lost")
+        check("created_at: '2026-08-18T16:58:59Z'" in text, "curated created_at was lost")
+        scalars = top_level_scalars(text)
+        check(scalars["family_release_id"] == "r13-pilot-20-completed", "owned family_release_id was not refreshed")
+        check(scalars["store_layout"] == "dense-reference-completed", "owned store_layout was not added")
+        check(scalars["completion_state"] == "reference-completed", "owned completion_state was not added")
+        check(scalars["derived_from"] == "r13-pilot-20", "owned lineage was not refreshed")
+
+
 def test_snakefile_is_wiring_only() -> None:
     """The Snakefile names no Store Family, no column, and no Store Layout."""
     text = SNAKEFILE.read_text(encoding="utf-8")
@@ -922,6 +973,39 @@ def test_reference_completion_builds_child(temp_root: Path) -> tuple[Fixture, Ch
     return fixture, child
 
 
+def test_reregistered_child_preserves_curated_bundle(fixture: Fixture, child: Child) -> None:
+    """Forcing a child re-registration refreshes provenance, keeping curated metadata.
+
+    This is the real command path (`snakemake --forcerun register_completed_release`),
+    so it covers the registration merge end to end rather than the helper alone.
+    """
+    curated_description = "Curated child description with: a colon."
+    curated_note = "Finnish-founder ancestry caveat, curated by hand."
+    child.release_yaml.write_text(
+        child.release_yaml.read_text(encoding="utf-8")
+        + "\ndescription: |\n"
+        + f"  {curated_description}\n"
+        + "notes: |\n"
+        + f"  {curated_note}\n",
+        encoding="utf-8",
+    )
+
+    result = snakemake(fixture, force="register_completed_release")
+    assert_success(result, "forced child re-registration")
+    text = child.release_yaml.read_text(encoding="utf-8")
+    check(curated_description in text, "re-registration discarded the curated description")
+    check(curated_note in text, "re-registration discarded the curated notes")
+    scalars = top_level_scalars(text)
+    check(scalars.get("family_release_id") == CHILD_ID,
+          f"re-registration did not refresh family_release_id: {scalars.get('family_release_id')!r}")
+    check(scalars.get("store_layout") == CHILD_LAYOUT, "re-registration did not refresh store_layout")
+    check(scalars.get("completion_state") == "reference-completed",
+          "re-registration did not refresh completion_state")
+    check(scalars.get("derived_from") == "r13-fixture", "re-registration did not refresh lineage")
+    check(scalars.get("status") == "built", "re-registration did not seed the lifecycle status")
+    check(child.validation["status"] == "passed", "the re-registered child did not validate")
+
+
 def interrupt_completion(fixture: Fixture) -> None:
     """Run the completion phase and kill it once opengwasdb has checkpointed.
 
@@ -1052,13 +1136,14 @@ def main() -> int:
         test_file_name_source_column(temp_root)
         test_effect_scale_escalation_blocks(temp_root)
         test_snakefile_is_wiring_only()
+        test_child_release_merge_preserves_curated_blocks()
         test_rho_disabled_skips_rho(fixture)
         test_rho_enabled_builds_then_regenerates(temp_root)
         test_rho_on_non_dense_refused(temp_root)
-        test_reference_completion_builds_child(temp_root)
-        test_partial_child_cannot_masquerade(
-            *test_completion_interrupted_resumes(temp_root)
-        )
+        fixture, child = test_reference_completion_builds_child(temp_root)
+        test_reregistered_child_preserves_curated_bundle(fixture, child)
+        test_partial_child_cannot_masquerade(fixture, child)
+        test_completion_interrupted_resumes(temp_root)
         test_partial_store_cannot_masquerade(test_interrupted_run_resumes(temp_root))
     print(f"release-workflow: {n_checks} checks passed")
     return 0

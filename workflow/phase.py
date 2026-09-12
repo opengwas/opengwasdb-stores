@@ -67,9 +67,11 @@ from resources.lib.metadata_resolution import ResolutionError, resolve_analyses 
 from resources.lib.release_manifest import buildable_rows, write_builder_manifest  # noqa: E402
 from resources.lib.release_plan import check_release  # noqa: E402
 from resources.lib.release_yaml import (  # noqa: E402
+    merge_release_yaml,
     merge_validation_yaml,
-    read_release_yaml,
     read_tsv,
+    split_top_level_blocks,
+    top_level_scalars,
     write_release_status,
 )
 
@@ -877,42 +879,56 @@ def phase_register_completed_release(workflow: Workflow) -> None:
     if child is None:
         raise PhaseError("this release does not enable Reference Completion")
 
-    payload = "".join(
-        [
-            "metadata_schema_version: 1\n",
-            f"store_family_id: {plan.store_family_id}\n",
-            f"family_release_id: {child.release_id}\n",
-            f"store_layout: {child.layout}\n",
-            "completion_state: reference-completed\n",
-            "status: built\n",
-            f"created_at: '{datetime.now(UTC).isoformat()}'\n",
-            "lineage:\n",
-            f"  derived_from: {plan.family_release_id}\n",
-            "generator:\n",
-            "  name: workflow/phase.py:register_completed_release\n",
-            "  version: null\n",
-            f"  command: {child.command}\n",
-        ]
+    # Workflow-owned blocks, refreshed on every re-registration. `description`
+    # and `notes` block scalars, `source_*`, `release_kind`,
+    # `association_coverage`, `accepted_at`, `build_environment`,
+    # `source_defaults`, and anything a curator adds later are preserved
+    # verbatim by `merge_release_yaml`, so re-registering refreshes provenance
+    # without discarding the bundle's curated record (issue #101).
+    owned: dict[str, list[str]] = {
+        "metadata_schema_version": ["metadata_schema_version: 1"],
+        "store_family_id": [f"store_family_id: {plan.store_family_id}"],
+        "family_release_id": [f"family_release_id: {child.release_id}"],
+        "store_layout": [f"store_layout: {child.layout}"],
+        "completion_state": ["completion_state: reference-completed"],
+        "lineage": ["lineage:", f"  derived_from: {plan.family_release_id}"],
+        "generator": [
+            "generator:",
+            "  name: workflow/phase.py:register_completed_release",
+            "  version: null",
+            f"  command: {child.command}",
+        ],
+    }
+    # Lifecycle state and creation time are seeded for a new child, never reset on
+    # re-registration: a curator's `status` (or a later validation's) stands.
+    present = (
+        {key for key, _ in split_top_level_blocks(child.release_yaml.read_text(encoding="utf-8")) if key}
+        if child.release_yaml.exists()
+        else set()
     )
-    child.release_dir.mkdir(parents=True, exist_ok=True)
-    child.release_yaml.write_text(payload, encoding="utf-8")
+    if "status" not in present:
+        owned["status"] = ["status: built"]
+    if "created_at" not in present:
+        owned["created_at"] = [f"created_at: '{datetime.now(UTC).isoformat()}'"]
 
-    registered = read_release_yaml(child.release_yaml)
-    lineage = registered.get("lineage") or {}
+    child.release_dir.mkdir(parents=True, exist_ok=True)
+    merge_release_yaml(child.release_yaml, owned)
+
+    registered = top_level_scalars(child.release_yaml.read_text(encoding="utf-8"))
     failures: list[str] = []
-    if str(registered.get("family_release_id")) != child.release_id:
+    if registered.get("family_release_id") != child.release_id:
         failures.append(
             f"registered family_release_id {registered.get('family_release_id')!r} != {child.release_id!r}"
         )
-    if str(lineage.get("derived_from")) != str(plan.family_release_id):
+    if registered.get("derived_from") != str(plan.family_release_id):
         failures.append(
-            f"registered lineage.derived_from {lineage.get('derived_from')!r} != {plan.family_release_id!r}"
+            f"registered lineage.derived_from {registered.get('derived_from')!r} != {plan.family_release_id!r}"
         )
-    if str(registered.get("store_layout")) != child.layout:
+    if registered.get("store_layout") != child.layout:
         failures.append(
             f"registered store_layout {registered.get('store_layout')!r} != {child.layout!r}"
         )
-    if str(registered.get("completion_state")) != "reference-completed":
+    if registered.get("completion_state") != "reference-completed":
         failures.append(
             f"registered completion_state {registered.get('completion_state')!r} != 'reference-completed'"
         )

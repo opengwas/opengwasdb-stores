@@ -160,13 +160,20 @@ if RELEASE.child is not None:
     CHILD = RELEASE.child
 
     rule register_completed_release:
-        """Register the lineage-linked child Store Release (ADR 0007)."""
+        """Register the lineage-linked child Store Release (ADR 0007).
+
+        The child's `release.yaml` is a registry side effect, not a tracked
+        output (exactly as the observed release's is): Snakemake removes a
+        declared output before it reruns the rule, which would discard the
+        curated `description`/`notes` a child bundle already carries. The phase
+        merges into the existing bundle instead, and the completion record is
+        what Snakemake tracks.
+        """
         input:
             completion=rules.validate_observed_release.output.completion,
             build_yaml=str(CONFIG_PATH),
         output:
             completion=str(CHILD.completion("register_completed_release")),
-            release=str(CHILD.release_yaml),
         shell:
             run_phase("register_completed_release")
 
