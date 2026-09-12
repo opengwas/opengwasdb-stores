@@ -12,12 +12,12 @@ in this position; `gwas-ssf-ragged`'s GWAS Catalog source already supplies
 `trait_ontology_label`. A generator looks up a row's own trait label against
 `trait_label` using an **exact match** on the normalised (trimmed,
 lowercased) string — no fuzzy or semantic matching. See
-`resources/lib/metadata_resolvers/canonical_trait_table.R`.
+`generators/lib/metadata_resolvers/canonical_trait_table.R`.
 
 A miss is not an error: the resolver returns `trait_ontology_mapping_method =
 unmapped` and leaves `trait_ontology_id`/`trait_ontology_label` blank, per
 this registry's "never silently default" convention for resolvers (see
-`resources/lib/metadata_resolvers/contract.R` for the precedent this
+`generators/lib/metadata_resolvers/contract.R` for the precedent this
 follows).
 
 ## Why this table is empty today

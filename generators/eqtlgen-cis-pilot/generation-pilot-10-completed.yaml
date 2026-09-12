@@ -1,0 +1,24 @@
+store_id: OGS-00002
+family: eqtlgen-cis-pilot
+label: pilot-10-completed
+_note: Lifted verbatim from the pre-ADR-0022 build.yaml. These are Phase B inputs -- source reading, effect-scale
+  resolution, ancestry assignment, QC panel -- not Store build parameters. Retained for provenance; the
+  Phase B design has not yet been written.
+source:
+  source_format: besd
+  source_reader_capability: null
+normalisation:
+  target_reference_assembly: GRCh38
+  liftover: hg19-to-hg38
+effects:
+  stored_effect_scale: null
+shape:
+  association_coverage: cis
+reference_resources:
+- resource_id: hgdp1kgp-hg38-eur-ld
+  kind: ld_panel
+  ancestry: EUR
+  genome_build: GRCh38
+  variant_id_convention: chr:pos:A1:A2 (A1 = min(allele1, allele2))
+  location: /data/opengwasdb/reference/hgdp1kgp-hg38/panel/EUR
+  location_kind: external_directory

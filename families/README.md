@@ -1,7 +1,21 @@
 # Store Families
 
-Store Families describe intended OpenGWASDB analytical products. Each family owns its Manifest Generator, accepted Release Manifests, Build Recipes, validation records, Store Releases, and Release Errata.
+A Store Family is a stable product identity built from one Source Collection:
+its query promise, access posture, release cadence, and build priority.
 
-Use `_candidates/` for proposed Store Families that are still being assessed and have not yet received a permanent Store Family ID.
+Under ADR 0022 a family is a **field on a Store Release**, not a path level.
+`stores/OGS-00042/release.yaml` carries `family: finngen-r13`, resolved against
+`families/finngen-r13/family.yaml`.
 
-Within an accepted Store Family, `releases/<family-release-id>/` may contain candidate release bundles once they have a Family Release ID. Unreviewed generator output should stay outside the curated `releases/` tree.
+## Migration in progress
+
+`families/<id>/releases/` still holds the thirteen bundles that have not yet
+been migrated to flat Store Release ids -- superseded releases, `-resolved`
+and `-completed-issue34` variants, full-ancestry siblings, and rebuild
+bundles. They await triage: each is either migrated to `stores/`, or marked
+`superseded`/`withdrawn` and retired.
+
+Once that directory is empty, `family.yaml` flattens to `families/<id>.yaml`
+and this directory becomes a plain lookup table.
+
+Family-specific generator code has already moved to `generators/<family-id>/`.

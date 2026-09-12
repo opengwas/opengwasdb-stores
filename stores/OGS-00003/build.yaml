@@ -1,0 +1,15 @@
+store_id: OGS-00003
+layout: dense
+completion_state: observed_only
+build:
+  command: build-dense-vcf
+  options:
+    source-reader-capability: opengwasdb.finngen-r13
+    source-assembly: hg38
+post:
+  top_hits: true
+  rho: false
+  overview: true
+  validate: true
+artifacts:
+  root: /data/opengwasdb

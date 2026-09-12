@@ -1,0 +1,16 @@
+store_id: OGS-00004
+layout: hybrid
+completion_state: observed_only
+build:
+  command: build-hybrid
+  options:
+    reference-panel: /data/opengwasdb/wip/hybrid-ieua/panel_alids.txt
+    source-reader-capability: opengwasdb.gwas-ssf
+    source-assembly: hg38
+post:
+  top_hits: true
+  rho: false
+  overview: true
+  validate: true
+artifacts:
+  root: /data/opengwasdb

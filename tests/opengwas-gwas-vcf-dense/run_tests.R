@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# Unit-level smoke test for resources/lib/opengwas_gwas_vcf_dense.R (issue
+# Unit-level smoke test for generators/lib/opengwas_gwas_vcf_dense.R (issue
 # #50) -- the pure candidate-selection and resolution-application logic
 # behind the ukb-b Manifest Generator. Run from the repository root:
 #
@@ -30,9 +30,9 @@
 
 suppressPackageStartupMessages(library(data.table))
 
-source("resources/lib/metadata_resolvers/ontology_contract.R")
-source("resources/lib/metadata_resolvers/canonical_trait_table.R")
-source("resources/lib/opengwas_gwas_vcf_dense.R")
+source("generators/lib/metadata_resolvers/ontology_contract.R")
+source("generators/lib/metadata_resolvers/canonical_trait_table.R")
+source("generators/lib/opengwas_gwas_vcf_dense.R")
 
 fail <- function(...) stop(sprintf(...), call. = FALSE)
 n_checks <- 0L
@@ -188,7 +188,7 @@ writeLines(c("checks:", "  schema: not_run", "warnings: []", "errors: []"),
            file.path(schema_tmp, "validation.yaml"))
 run_dense_validate <- function() {
   output <- suppressWarnings(system2("Rscript", c(
-    "resources/generators/opengwas-gwas-vcf-dense/generate.R",
+    "generators/lib/source-formats/opengwas-gwas-vcf-dense/generate.R",
     paste0("--config=", schema_config), "--mode=validate"
   ), stdout = TRUE, stderr = TRUE))
   status <- attr(output, "status")

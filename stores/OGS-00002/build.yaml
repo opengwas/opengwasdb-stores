@@ -1,0 +1,15 @@
+store_id: OGS-00002
+layout: ragged
+completion_state: reference_completed
+complete:
+  command: complete-ragged
+  options:
+    ld-panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel/EUR
+    ancestry: EUR
+post:
+  top_hits: true
+  rho: false
+  overview: true
+  validate: true
+artifacts:
+  root: /data/opengwasdb

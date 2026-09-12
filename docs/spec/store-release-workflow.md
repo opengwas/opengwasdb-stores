@@ -1,164 +1,403 @@
 # Store Release workflow
 
-Status: proposed architecture for issue #86 (2026-09-11).
+How an accepted Release Bundle becomes a validated Store Release.
 
-This specification defines the fixed input and file/process DAG for building an
-OpenGWASDB Store Release. It deliberately excludes a Preflight Run and human
-approval gate. Those may be added later as an optional target without changing
-the core build boundary.
+Governed by [ADR 0022](../adr/0022-flat-opaque-store-ids.md) (flat opaque store IDs) and [ADR 0023](../adr/0023-the-registry-store-seam-is-a-command-line.md) (the seam is a command line). Everything below follows from ADR 0023's single rule:
 
-The authoritative diagram is
-[`docs/diagrams/store-release-workflow.svg`](../diagrams/store-release-workflow.svg),
-generated from the adjacent
-[`store-release-workflow.dot`](../diagrams/store-release-workflow.dot).
+> The only thing this repository computes is an `opengwasdb` command line.
 
-![Store Release file and process DAG](../diagrams/store-release-workflow.svg)
+This document specifies Phase A (bundle to store). Phase B (what produces a bundle) is at the end, and is deliberately out of scope until Phase A is small and boring.
 
-## Fixed-input boundary
+## Repository layout
 
-The shared pipeline begins with exactly three Store Release inputs:
+```text
+stores.tsv                      generated  master list, one row per Store Release
+STORES.md                       generated  human view of the same
+stores/
+  OGS-00042/
+    release.yaml                           identity, label, family, status, lineage, provenance
+    build.yaml                             the recipe
+    analyses.tsv                           membership; opengwasdb owns the schema
+    validation.yaml          written back  merged evidence from the run
+  by-label/                  generated     finngen-r13-pilot-20 -> ../OGS-00042
+families/<family-id>.yaml                  query promise, access posture, cadence, priority
+source-collections/<id>/                   source.yaml, inventory.tsv, acquire
+reference-resources/<id>/                  resource.yaml
+generators/<family-id>/                    Phase B
+src/ogstores/                              bundle.py plan.py paths.py run.py index.py
+workflow/Snakefile                         Phase A: scans stores/, wires every release
+workflow/generate.smk                      Phase B: acquisition + generation (separate DAG)
+tests/
+```
 
-1. a directory containing acquired raw GWAS summary-statistics files;
-2. an `analyses.tsv` containing the exact selected Analyses and the file name
-   for each one;
-3. a `build.yaml` that points to the directory and TSV and declares how the
-   sources are read and how OpenGWASDB is invoked.
+Artifacts live outside git, at a path that is a pure function of the store ID:
 
-Together these form the fixed input to the Store build. Store-specific helpers
-may produce them, but the shared pipeline does not discover Analyses by scanning
-the raw directory or by embedding Store-specific selection logic.
+```text
+/data/opengwasdb/OGS-00042/
+  source/                    acquired or filtered source files
+  work/                      checkpoints, scratch
+  records/<step>.json        one per executed step
+  store.opengwasdb           the Store Release
+/data/opengwasdb/by-label/   generated symlinks
+```
 
-A Source Inventory and `analyses.tsv` are related but distinct. A Source
-Inventory may describe every acquired upstream file. A Store-specific helper
-can select from it and emit `analyses.tsv`; the shared build consumes only that
-exact release selection.
+## `release.yaml`
 
-## `build.yaml` responsibilities
-
-The configuration must carry enough information to execute the build without a
-hardcoded Store-specific script:
+Registry identity and provenance. Never read by `opengwasdb`.
 
 ```yaml
-release:
-  store_family_id: ukb-b
-  family_release_id: dense-observed-v1
+store_id: OGS-00042
+label: r13-pilot-20                 # source-natural display name; not an identifier
+family: finngen-r13
+status: built                       # candidate|accepted|built|validated|superseded|withdrawn
+source_collection_id: finngen-r13
+association_coverage: full_gwas
+derived_from: ~                     # the parent's store_id for a completed release
+created_at: '2026-08-18T08:51:59Z'
+generator:                          # how the bundle was produced (Phase B)
+  command: Rscript generators/finngen-r13/generate.R --config=config-pilot-20.yaml
+  version: sha256:1800b9cf...
+build_environment:
+  repo_commit: ...
+  opengwasdb_rev: d6e5de7...
+  pixi_lock_sha256: ...
+notes: |
+  ...
+```
 
-source:
-  root: /data/opengwasdb/raw/ukb-b
-  analyses: families/ukb-b/releases/dense-observed-v1/analyses.tsv
-  reader:
-    capability: opengwasdb.gwas-vcf
-    options: {}
+## `build.yaml`
+
+The recipe, and the only input to `plan()`. Every value is either a registry fact or an `opengwasdb` flag.
+
+```yaml
+store_id: OGS-00042
+layout: dense                       # dense | ragged | hybrid
+completion_state: observed_only     # observed_only | reference_completed
 
 build:
-  operation: opengwasdb.layouts.dense.build_vcf:build_dense_from_vcf_manifest
-  arguments:
-    output_path: /data/opengwasdb/ukb-b/releases/dense-observed-v1/store
-    chunk_shape: [128, 256]
-    workers: 16
+  command: build-dense-vcf          # an opengwasdb CLI subcommand; never a Python path
+  options:                          # opengwasdb flag names, passed through verbatim
+    source-reader-capability: opengwasdb.finngen-r13
+    source-assembly: hg38
+    n-workers: 8
+    chunk-variants: 1000
 
-references:
-  liftover_chain: reference-resources/grch37-to-grch38.yaml
-  ancestry_alignment: reference-resources/ukb-eur-af.yaml
+post:
+  top_hits: true
+  rho: false                        # dense only; opengwasdb rejects otherwise
+  overview: true
+  validate: true
 
-rho:
-  enabled: true
-  window_bp: 1000000
-
-reference_completion:
-  enabled: true
-  family_release_id: dense-reference-completed-v1
-  operation: opengwasdb.layouts.dense.complete:complete_dense_store
-  references:
-    variant_panel: reference-resources/eur-ld-panel.yaml
+artifacts:
+  root: /data/opengwasdb
 ```
 
-`source.reader.options` is capability-specific. GWAS-VCF needs no column map;
-a general tabular reader would declare source column names there. The concrete
-reader capability and accepted options remain an OpenGWASDB contract, not logic
-implemented in Snakemake.
+A Reference-Completed release is the same file with a `complete` block instead of `build`. It carries no parent path: the parent is `release.yaml`'s `derived_from`, and its artifact path is a pure function of that ID.
 
-The exact `analyses.tsv` columns are governed by the shared OpenGWASDB Analysis
-schema (ADR 0017). At this workflow boundary it must at least identify each
-Analysis and its source file unambiguously; paths are resolved relative to
-`source.root` unless explicitly absolute.
+```yaml
+store_id: OGS-00043
+layout: dense
+completion_state: reference_completed
 
-## Core DAG
-
-The observed-release path is:
-
-1. Validate `build.yaml`, `analyses.tsv`, the selected source files, checksums,
-   reader configuration, and referenced resources. Emit
-   `input-validation.json`.
-2. Resolve or verify ancestry and effect-scale metadata. Emit the immutable
-   working input `work/analyses.resolved.tsv` and a resolution report.
-3. Invoke the configured OpenGWASDB build operation. It produces the Store
-   envelope, initial `overview.html`, and Top-Hit indexes, plus a build report.
-4. If enabled, build rho as an explicit in-place Store operation and emit its
-   report.
-5. Regenerate `overview.html` after every Store mutation so the final page
-   includes the Rho tab as well as Analyses, Ancestry, and Guide content.
-6. Validate the complete Store and emit `validation.yaml`.
-
-Top-Hit construction is not a separate Snakemake phase for the current Dense
-and Hybrid operations because OpenGWASDB constructs those indexes during the
-core build and Reference Completion operations. If OpenGWASDB later exposes a
-different lifecycle, the DAG should follow that public operation rather than
-duplicating its implementation here.
-
-## Reference Completion branch
-
-Reference Completion is optional and begins only after the observed Store has
-validated. It registers a distinct Store Release whose lineage names the
-observed parent, then uses the configured reference panel to create a separate
-Store. Rho, summary regeneration, and final validation are run for that child in
-the same order as for the observed Store.
-
-The child is never an in-place mutation of the observed release (ADR 0007).
-
-## Ownership
-
-- Store-specific helper scripts own acquisition, provider-specific metadata
-  calls, selection policy, and production of the fixed input.
-- Shared helper modules may own downloading, checksum calculation, provider API
-  access, and ontology lookup when more than one Store Family uses them.
-- Snakemake owns dependencies, conditional branches, resource requests, and
-  resumption.
-- OpenGWASDB owns source reading, normalization, Store construction, Top-Hit and
-  rho operations, overview generation, and Store validation.
-- This repository owns the accepted release definitions and small reports; raw
-  inputs, work files, and Store artifacts remain outside Git (ADR 0015).
-
-## Resumption contract
-
-Snakemake must not use the modification time of a large mutable Store directory
-as evidence that a phase succeeded. Each expensive or in-place operation emits
-a small completion record only after its output passes the phase-specific
-read-back checks. A partial Store has no successful completion record and is
-therefore resumed or rebuilt on the next invocation.
-
-Every completion record binds at least:
-
-- the phase name and Store Release identity;
-- hashes of `build.yaml`, `analyses.tsv`, selected raw files, and relevant
-  reference-resource descriptors;
-- the OpenGWASDB revision and effective operation arguments;
-- output locations, completion time, and validation result.
-
-Changing a bound input invalidates that phase and its downstream dependents.
-The production implementation must define whether a failed phase can safely
-continue within an existing partial output or must replace it atomically.
-
-## Orchestrator interface
-
-The intended operator surface is one command with the Store's YAML as the
-Snakemake config file:
-
-```bash
-snakemake --configfile families/ukb-b/releases/dense-observed-v1/build.yaml
+complete:
+  command: complete-dense
+  options:
+    ld-panel: /data/opengwasdb/reference/ld/hgdp1kgp-hg38
+    ancestry: EUR
+    n-workers: 16
 ```
 
-The Snakefile should contain dependency wiring only. It must not contain source
-column mappings, Store Family conditionals, manifest translation, or copied
-builder logic. A throwaway executable model of this design lives in
-[`resources/prototypes/snakemake-release-pipeline/`](../../resources/prototypes/snakemake-release-pipeline/).
+### The passthrough rule
+
+`options` keys are `opengwasdb` flag names. `plan()` renders `key: value` as `--key value`, booleans as bare flags, and never interprets a key. The registry does not know what `--min-cor` means and must not acquire a copy of `opengwasdb`'s parameter schema.
+
+An unrecognised or invalid flag fails in the CLI argument parser in milliseconds, before any expensive work. That is the intended validation mechanism: the schema is enforced once, where it is defined.
+
+`plan()` composes only the arguments that are the registry's own facts — store identity, the bundle's `analyses.tsv` path, and artifact paths. Everything else comes from `options`.
+
+### Retired: `builder.entrypoint`
+
+The previous `builder.entrypoint: opengwasdb.layouts.dense.build_vcf:build_dense_from_vcf_manifest` named an internal module and function. It encoded the seam violation in the data model, and forced typed dispatch and per-layout adapters. Migration is mechanical: entry point to subcommand, one lookup table.
+
+This also removes the "catalogue-routed" special case — `build-hybrid-from-catalogue` is another `command:` value, not another code path.
+
+## Store identity passed to `opengwasdb`
+
+```text
+--store-id   <family>      finngen-r13
+--release-id <store_id>    OGS-00042
+```
+
+The built store's `manifest.json` then reads `store_id: finngen-r13, release_id: OGS-00042` — a human-readable family plus the globally unique registry key, so a store found on disk joins back to its registry record without a lookup table.
+
+## Phase A never writes `analyses.tsv`
+
+> Anything that writes a column into `analyses.tsv` belongs to Phase B.
+
+This settles where Ancestry Assignment and effect-scale/phenotype-SD estimation run: both produce shared-core columns -- `assigned_ancestry`, `ancestry_assignment_method`, `ancestry_prop_*` from the first; `original_sd`, `original_sd_method`, `stored_effect_scale` from the second -- so both run before acceptance, in Phase B.
+
+Running them at build time would make Phase A mutate its own input, and the accepted bundle would stop being fixed input. It would also make the bundle stop determining the store: the same bundle built twice against a refreshed Ancestry Reference Panel would assign different ancestries. Frozen into `analyses.tsv` in Phase B, the assignment is checksummed, diffed in a pull request, and the build is a pure function of the bundle.
+
+Effect-scale validation is additionally an *acceptance* decision rather than a build step. `finngen-r13/r13-pilot-20` is the worked case: effect-scale validation failed for `HEIGHT_IRN` (implied phenotype SD 0.665 against declared-standardised provenance) while the Store itself built and passed `opengwasdb validate`, and the pilot recorded a NO-GO. A check that can veto a release has to run before thirteen hours are spent, not after.
+
+Phase A keeps a cheap residual role: `bundle.check()` asserts these columns are present and vocabulary-valid, delegating to `opengwasdb.model.analyses`. Asserting presence is registry-side structural validation; recomputing the values is not.
+
+## `src/ogstores/` — four modules
+
+### `bundle.py` (~150 lines)
+
+```python
+@dataclass(frozen=True)
+class Bundle:
+    store_id: str
+    root: Path              # stores/OGS-00042/
+    release: dict           # release.yaml
+    build: dict             # build.yaml
+    analyses_path: Path
+
+def load(store_id: str, registry_root: Path) -> Bundle: ...
+def check(bundle: Bundle) -> list[str]: ...
+```
+
+`check` covers registry-side facts only: required keys, `store_id` matches the directory name, ID format, declared files exist, checksums match, `derived_from` resolves, status transitions are legal, and `analyses.tsv` parses via `opengwasdb.model.analyses.read_analyses`. It delegates the Analysis schema rather than reimplementing it, and it never opens a store.
+
+### `plan.py` (~200 lines)
+
+```python
+@dataclass(frozen=True)
+class Step:
+    name: str               # build|complete|top-hits|rho|overview|validate
+    argv: list[str]
+    inputs: list[Path]
+    outputs: list[Path]
+
+def plan(bundle: Bundle) -> list[Step]: ...
+```
+
+A pure function that turns one release's `build.yaml` into the command lines needed to build it. Nothing more.
+
+Given the `build.yaml` above it returns four `Step`s, each holding an argv plus the files that step reads and writes:
+
+```python
+[Step(name="build",    argv=["opengwasdb", "build-dense-vcf",
+                             "stores/OGS-00042/analyses.tsv",
+                             "/data/opengwasdb/OGS-00042/store.opengwasdb",
+                             "--store-id", "finngen-r13", "--release-id", "OGS-00042",
+                             "--source-reader-capability", "opengwasdb.finngen-r13",
+                             "--source-assembly", "hg38",
+                             "--n-workers", "8", "--chunk-variants", "1000"], ...),
+ Step(name="top-hits", argv=["opengwasdb", "build-dense-top-hits", "<store>"], ...),
+ Step(name="overview", argv=["opengwasdb", "regenerate-overview",  "<store>"], ...),
+ Step(name="validate", argv=["opengwasdb", "validate",             "<store>"], ...)]
+```
+
+Internally it is a lookup table -- `("dense", "observed_only")` to `build-dense-vcf`, `("ragged", "reference_completed")` to `complete-ragged` -- plus about fifteen lines per entry assembling positional arguments, plus a renderer turning `options` into flags without reading them.
+
+It reads `build.yaml` and `release.yaml` and nothing else: no I/O beyond path construction, no store opened, no `analyses.tsv` row read. So it is deterministic and testable by string comparison, and it is the only place in this repository that knows how to invoke `opengwasdb` -- which is why the Snakefile's rules and the master list's `build_command` are two renderings of one thing and cannot disagree.
+
+This is the entire adapter layer. It replaces `workflow/phase.py`, `workflow/model.py`, `release_plan.py`, `release_manifest.py`, `metadata_resolution.py` and `catalogue_coverage.py` (~4,100 lines on PR #105).
+
+### `paths.py` (~60 lines)
+
+Artifact layout as pure functions of the store ID. No other module constructs an artifact path.
+
+### `run.py` (~120 lines)
+
+Executes one `Step`: runs the argv, captures stdout/stderr/timing/exit status, writes `records/<step>.json`, and enforces the two safety rules below. It does not read the step's output back, interpret it, or re-validate it.
+
+## Safety
+
+**Tracked outputs are record files, not store directories.** Snakemake handles directory outputs poorly, and a half-written store must never satisfy a rule.
+
+**A build writes to `store.opengwasdb.partial` and renames on success.** `run.py` refuses to rename over an existing store unless explicitly forced. This is what makes "a failed phase cannot damage a live Store" true, and it is one unit test.
+
+**`validation.yaml` is written only by the terminal `register` step.** A failed run leaves the previous one intact.
+
+## `workflow/Snakefile` (~110 lines)
+
+One Snakefile for the whole registry, not one per release. It scans `stores/*/` at parse time and wildcards on `store_id`, so Snakemake's own expansion *is* the multi-release runner -- there is no separate batch script.
+
+Dependency wiring only, per ADR 0023. It contains no family name, no source column name, no manifest translation, and no layout branch:
+
+```text
+build ──> top_hits ──> rho ──> overview ──> validate ──> register
+```
+
+`rho` and `top_hits` are conditional on `post`. A Reference-Completed release substitutes `complete` for `build` and takes the same tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
+
+**Lineage ordering is why the DAG spans every store rather than one.** A Reference-Completed release declares its parent's `register` record as an input, resolved from `release.yaml`'s `derived_from`. A per-release workflow driven by a batch loop would have to sequence parents before children by hand, and would get it wrong. Here it is a declared edge.
+
+Resumption is Snakemake's, over the record files. The one exception is `complete-dense`, which owns its own checkpoint directory and has a separate `complete-dense-resume` entry point: that rule's body picks between the two by testing for the checkpoint, in about four visible lines.
+
+Scanning every store means DAG construction is proportional to the registry, which is immaterial at twenty stores and worth revisiting past a few thousand. The `index` target is unaffected either way: it depends only on bundle files, never on store artifacts, so refreshing the master list never proposes a build.
+
+### Operator interface
+
+```sh
+pixi run release OGS-00042             # one release, plus any parent it depends on
+pixi run release OGS-00042 OGS-00051   # several; lineage order is resolved for you
+pixi run release-family finngen-r13    # every release of one family
+pixi run index                         # regenerate stores.tsv, STORES.md, by-label/
+```
+
+All four are targets of the same Snakefile.
+
+## The master list
+
+`stores.tsv`, `STORES.md` and both `by-label/` trees are **generated** by the `index` rule, committed, and verified in CI by regenerating them and failing if the tree is dirty. Authority stays with each store directory, which is self-describing; everything else is a view that cannot go stale.
+
+**`index` reads git, never the artifact root.** That is the whole constraint, and it is narrower than it first appears. It does not mean the master list is limited to bookkeeping; measurements are welcome, they just have to land in the bundle when the build happens rather than be scraped off disk whenever someone runs the indexer.
+
+Two kinds of column, and they are not in tension:
+
+| | examples | drifts? | so |
+|---|---|---|---|
+| derived | `store_id`, `label`, `family`, `layout`, `status`, `build_command` | yes, if hand-maintained | regenerate from bundles; CI checks |
+| observed | `n_variants`, `n_analyses`, `n_associations`, store size, `format_version`, elapsed, validate verdict | no -- facts about an event that happened once | `register` writes them into the bundle at build time |
+
+Observed values cost nothing to collect: `build-dense-vcf` already prints `{n_variants, n_analyses}` and `complete-dense` already prints `{n_imputed, elapsed_s}`. `register` puts them in `validation.yaml`, git records them, and `index` reads them from there -- so CI can still regenerate the entire file, observed columns included. The numbers also become reviewable in a pull request diff rather than being whatever the disk said last time.
+
+This subsumes `docs/store-catalog.md`, which today says of itself that its per-store numbers are a stale compilation from a date months earlier. A generated `STORES.md` cannot be stale.
+
+The only thing deliberately excluded is anything whose answer changes without a commit -- whether a store still exists on disk, whether it is still readable. That is monitoring, not registry.
+
+`stores.tsv` columns:
+
+```text
+derived   store_id  label  family  layout  completion_state  status  derived_from
+          store_uri  created_at  opengwasdb_rev  generator_command  build_command
+observed  format_version  n_analyses  n_variants  n_associations  store_bytes
+          build_elapsed_s  validate_status
+```
+
+Two commands per store matter, and they are different kinds of thing. The **generator command** (`inventory.tsv` + config to bundle) is recorded by the generator into `release.yaml`. The **build command** (bundle to store) is *derived by `plan()`*, the same function the workflow renders its rules from. A hand-maintained list would be wrong within a month.
+
+### Planned and executed argv are different facts
+
+`plan()` is rendered two ways, and they carry different amounts of the truth:
+
+```text
+build.yaml
+    |
+    +--> plan()                     pure: -> [Step(name, argv, inputs, outputs)]
+          |
+          +--> stores.tsv           renderer 1: one row, the build command
+          +--> Snakefile rules      renderer 2: one rule per Step
+                    |
+                    +--> run.py     adds: .partial -> rename, record write, timing
+                    +--> snakemake  adds: resumption, resource limits,
+                                          cross-store lineage dependencies
+```
+
+So `stores.tsv` records the **planned** argv, and it is not by itself evidence that anything ran, nor that what ran matched. Those are separate facts with separate checks:
+
+| | what it is | exists | checked by |
+|---|---|---|---|
+| planned argv | `plan(build.yaml)` -> `stores.tsv` | before any build | CI: regenerate, fail if the tree is dirty |
+| executed argv | `run.py` -> `records/<step>.json`, with exit status, timing, and the `opengwasdb` rev actually used | after each step | `register`: compare against planned, fail on mismatch |
+
+That closes the loop with one comparison, and catches two failure modes CI alone cannot: a step run by hand with different flags, and a `build.yaml` edited after the build. The one legitimate divergence is `complete-dense-resume` substituted for a planned `complete-dense`; `register` accepts that specific pair and records `resumed: true` rather than reporting drift.
+
+### No per-store `commands.sh`
+
+An earlier draft generated a runnable `stores/<id>/commands.sh` per release. It is deliberately not in this design.
+
+It was justified on portability -- rebuild without this repository -- but a script is not what makes a rebuild portable. The inputs are, and they are hundreds of gigabytes of source files and LD panels under the artifact root. Its other benefit, a visible diff in every command line when `plan()` changes, is already delivered twice: by `stores.tsv`'s `build_command` column, and by the golden-argv test in `tests/`.
+
+A per-store command *log* is still wanted, but for Phase B rather than Phase A, and for the opposite reason -- see below.
+
+## `validation.yaml`
+
+Assembled by `register` from the step records: the JSON each build command already prints, plus `opengwasdb validate`'s verdict. `register` also compares each record's executed argv against `plan()`'s planned argv and fails on drift, per "Planned and executed argv are different facts" above. It records; it does not judge. This repository does not decide whether a store is scientifically sound — it captures what `opengwasdb` reported and who accepted it.
+
+## Tests
+
+Exactly the four things this repository is responsible for:
+
+1. **`plan()` argv is correct.** Golden argv per store, ~5 steps each, no fixture stores required.
+2. **Conditional branches and resumption.** Rho off, no completion child, partial record sets produce the right step set.
+3. **A failed step cannot damage a live store or a good `validation.yaml`.**
+4. **Records merge into `validation.yaml` correctly**, and `register` fails when a record's executed argv differs from the planned argv — except for the `complete-dense-resume` substitution, which it accepts and records.
+
+Fixture-scale end-to-end runs stay, as *one* smoke test. Source formats, store contents, layouts, queries and scientific invariants are tested once, in `opengwasdb`.
+
+## Upstream dependencies
+
+Phase A cannot be completed for every layout until these land on `opengwasdb` `dev`:
+
+| Issue | Blocks |
+|---|---|
+| [opengwasdb#172](https://github.com/opengwas/opengwasdb/issues/172) | Ragged SSF releases — canonical `analyses.tsv` names |
+| [opengwasdb#173](https://github.com/opengwas/opengwasdb/issues/173) | BESD releases carrying registry metadata at all |
+| [opengwasdb#174](https://github.com/opengwas/opengwasdb/issues/174) | Dropping the constant-column workaround |
+| [opengwasdb#175](https://github.com/opengwas/opengwasdb/issues/175) | Structured evidence in `validation.yaml` |
+| [opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176) | Phase B only — `estimate-phenotype-sd` as a CLI command |
+
+Dense and Hybrid are unblocked today: opengwasdb#170 landed canonical `analyses.tsv` consumption on `dev`. The pin swap is [opengwasdb-stores#106](https://github.com/opengwas/opengwasdb-stores/issues/106).
+
+## Phase B — what produces a bundle
+
+Not designed yet. Four rules fix its boundary now, so Phase A is not built against a moving target; everything inside that boundary is open.
+
+### Phase A and Phase B are separate workflows
+
+They meet at the accepted Release Bundle and share no DAG. Phase B may well use Snakemake too -- acquisition is genuinely DAG-shaped, with per-file downloads, checksums and filtering -- but as `workflow/generate.smk` with its own entry point.
+
+The reason is not that one graph would be complex. It is that **the accepted bundle is a boundary only because a human froze it.** Span both phases with one DAG and Snakemake will correctly, silently, regenerate a bundle and rebuild a 71 GB store because a generator config changed upstream. The acceptance gate stops existing, and with it the property the whole of Phase A rests on: that its inputs are fixed.
+
+Their outputs also live in different places and are reviewed differently. Phase B writes into git and is reviewed in a pull request; Phase A writes to the artifact root and is reviewed through `validation.yaml`. And their iteration shapes are opposite: a generator is rerun twenty times while selection is tuned, a build is run once for thirteen hours.
+
+### Why Phase B needs a recorded command log and Phase A does not
+
+| | how the commands are known | so the record is |
+|---|---|---|
+| Phase A | *derived* from a declarative `build.yaml` by `plan()` | regenerable, CI-checkable, verified against `records/` |
+| Phase B | *not derivable* -- family-specific imperative code calling several scripts in sequence | must be **recorded as it runs** |
+
+`release.yaml` currently holds `generator: {name, version, command}` -- a single command string, which is wrong as soon as generation calls acquire, select, assign-ancestry, estimate-SD and emit in turn. Phase B's design has to replace it with the executed sequence. That is the per-store script that Phase A does not need, and it is a log rather than a prediction.
+
+### The four fixed rules
+
+**Phase B is a separate workflow, meeting Phase A at the accepted bundle** — above.
+
+**Phase B owns every `analyses.tsv` column, including Ancestry Assignment and effect-scale resolution** — see "Phase A never writes `analyses.tsv`", and "Who implements the statistics" below.
+
+**A generator's only output is a bundle directory. It never builds a store.** The four copy-pasted `generators/lib/source-formats/*/build-store.py` adapters exist only because nothing else could reach a builder; under ADR 0023 nothing but the workflow may.
+
+**Acquisition is separate from selection.** Acquisition is per Source Collection, shared across families, and is the expensive resumable part. Selection is per Store Release.
+
+```text
+source-collections/<collection-id>/
+    source.yaml
+    inventory.tsv          discovered upstream analyses
+    acquire.py             refresh inventory; download; verify checksums
+
+generators/<family-id>/
+    README.md              the exact commands
+    config-<label>.yaml
+    generate.R|py          inventory.tsv + config -> stores/OGS-xxxxx/
+
+generators/lib/            source-format-scoped helpers shared between families
+```
+
+The entry point is family-scoped, matching `CONTEXT.md`'s definition of a Manifest Generator; the library is source-format-scoped, so families sharing a Source Collection share selection code without a configuration system by accident. This resolves the `generators/lib/source-formats/<source-format>-<layout>/` naming collision.
+
+A generator has the same shape as the build workflow: discover upstream, select rows, shell out to `opengwasdb` for the statistics, write the bundle.
+
+### Who implements the statistics
+
+Phase B must *interpret* source statistics — it cannot emit a meaningful `analyses.tsv` otherwise. The line is not between interpreting and not interpreting; it is between deciding and computing:
+
+> If two Store Families computing something differently would be a bug, `opengwasdb` implements it. Otherwise Phase B does.
+
+| | example | owner |
+|---|---|---|
+| which Analyses, and which method tier applies | FinnGen's endpoint categories; choosing `estimated_from_beta_distribution` for a source with no AF | Phase B |
+| the computation | phenotype-SD estimation, allele alignment to a reference, AF extraction at sites | `opengwasdb` |
+| the acceptance policy | the SD-disagreement tolerance, and whether a failure blocks the release | Phase B |
+
+There is no catch-22 requiring a Store to exist first. `opengwasdb.readers.interface` already declares source reading for pre-build annotation — "extracting allele frequency and standard error at a requested set of sites for annotation (ancestry assignment, phenotype-SD estimation)" — and `assign-ancestry` is the working example: a raw source manifest in, a resolved `SourceReader` per row, annotated metadata out, no Store involved. `opengwasdb.build.phenotype_sd.estimate_phenotype_sd` likewise already implements every computed ADR-0029 tier, and already specifies that method selection is caller-supplied rather than inferred.
+
+Deferring instead -- building first and correcting the Store afterwards -- is not available. `stored_se = original_se / original_sd` is applied at write time, so a Store built without the SD holds wrong standard errors, and there is no rescale operation: Stores are immutable (ADR 0004, ADR 0007) and Reference Completion writes a new one. It would also mean building every candidate to discover which are unusable, when `GCST002047`'s odds-ratio beta column and `GCST003566`'s inverted EAF are both detectable from the source.
+
+What is missing upstream is CLI wiring, not statistics -- [opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176). Until it lands, Phase B may keep a local helper, provided it is called from **one** code path: the per-family connectors are the defect, not the helper's location. `generators/lib/phenotype_sd_estimate.py` is a 47-line shim taking JSON arrays on the command line, which forces each family to open source files and extract `se`/`af`/`beta` itself; that is how `generators/lib/effect_scale_validation.R` grew to 562 lines, of which roughly 60 are the acceptance policy that genuinely belongs here and the rest re-implements reference-panel access and allele harmonisation `opengwasdb` already owns.

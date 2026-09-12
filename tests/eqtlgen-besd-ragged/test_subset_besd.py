@@ -23,7 +23,7 @@ import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
-sys.path.insert(0, str(REPO_ROOT / "resources" / "generators" / "eqtlgen-besd-ragged"))
+sys.path.insert(0, str(REPO_ROOT / "generators" / "lib" / "source-formats" / "eqtlgen-besd-ragged"))
 
 from subset_besd import write_besd_subset  # noqa: E402
 

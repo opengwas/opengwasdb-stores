@@ -29,7 +29,7 @@ status <- system2("Rscript", c(shQuote(file.path(fixtures_dir, "generate_fixture
 if (status != 0) fail("Fixture generation failed")
 
 status <- system2("Rscript", c(
-  "resources/generators/gwas-ssf-ragged/generate.R",
+  "generators/lib/source-formats/gwas-ssf-ragged/generate.R",
   paste0("--config=", config_path), "--mode=effect-scale"
 ))
 if (status != 0) fail("generate.R --mode=effect-scale exited non-zero")

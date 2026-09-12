@@ -109,7 +109,7 @@ r-yaml = "*"
 # data.table::fread() shells out to R.utils to read .gz files directly; never
 # library()'d explicitly, so it's easy to miss auditing only `library()` calls.
 "r-r.utils" = "*"
-# Needed by resources/lib/metadata_resolvers/opengwas_api.R's
+# Needed by generators/lib/metadata_resolvers/opengwas_api.R's
 # fetch_opengwas_gwasinfo() (issue #49) to call the live OpenGWAS API; the
 # tested resolve_opengwas_api_metadata() itself has no network dependency.
 r-httr = "*"
@@ -139,9 +139,9 @@ git = "*"
 gh = "*"
 sqlite = "*"
 
-[feature.workflow-prototype.dependencies]
-# PROTOTYPE ONLY: used to test whether a release-centric Snakemake DAG makes
-# the Store Release architecture and resume behavior tangible.
+[feature.workflow.dependencies]
+# Phase A orchestration. The DAG only wires dependencies and resource requests;
+# every semantic step is an `opengwasdb` subcommand (ADR 0023).
 snakemake-minimal = ">=9,<10"
 
 # ---------------------------------------------------------------------------
@@ -156,7 +156,7 @@ default = { features = ["python", "store-build", "r"], solve-group = "main" }
 docs = { features = ["r", "reporting"], solve-group = "main" }
 ld-panel = { features = ["python", "ld-panel"], solve-group = "main" }
 dev = { features = ["python", "store-build", "r", "reporting", "ld-panel", "dev"], solve-group = "main" }
-workflow-prototype = { features = ["python", "workflow-prototype"], solve-group = "prototype" }
+workflow = { features = ["python", "store-build", "workflow"], solve-group = "main" }
 
 # ---------------------------------------------------------------------------
 # Tasks
@@ -168,8 +168,13 @@ test-python = { cmd = "python3 resources/scripts/run_all_tests.py --only python"
 test-r = { cmd = "python3 resources/scripts/run_all_tests.py --only r" }
 env-check = { cmd = "python3 resources/scripts/env_check.py" }
 
-[feature.workflow-prototype.tasks]
-prototype-release-pipeline = { cmd = "python3 resources/prototypes/snakemake-release-pipeline/tui.py" }
+[feature.workflow.tasks]
+# Phase A. `release` takes one or more Store Release ids; lineage order is
+# resolved by the DAG, so a Reference-Completed child never needs sequencing
+# by hand. `index` regenerates the master list from the bundles alone.
+release = { cmd = "snakemake --snakefile workflow/Snakefile --cores all --" }
+release-dry = { cmd = "snakemake --snakefile workflow/Snakefile --dry-run --" }
+index = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
 [feature.reporting.tasks]
 docs = { cmd = "bash resources/scripts/build-site.sh" }

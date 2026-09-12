@@ -1,0 +1,14 @@
+store_id: OGS-00007
+layout: ragged
+completion_state: observed_only
+build:
+  command: build-ragged-ssf
+  options:
+    stored-effect-scale: sd
+post:
+  top_hits: true
+  rho: false
+  overview: true
+  validate: true
+artifacts:
+  root: /data/opengwasdb

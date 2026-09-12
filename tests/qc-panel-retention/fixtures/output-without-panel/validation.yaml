@@ -1,7 +1,7 @@
 status: passed
-validated_at: '2026-08-17T08:28:06Z'
+validated_at: '2026-09-12T23:08:35Z'
 validator:
-  name: resources/generators/gwas-ssf-ragged/generate.R
+  name: generators/lib/source-formats/gwas-ssf-ragged/generate.R
   version: ~
 checks:
   schema: passed

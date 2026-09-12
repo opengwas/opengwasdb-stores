@@ -1,0 +1,54 @@
+store_id: OGS-00002
+label: pilot-10-completed
+family: eqtlgen-cis-pilot
+status: validated
+source_collection_id: eqtlgen-cis
+association_coverage: cis
+derived_from: OGS-00001
+created_at: '2026-08-18T16:48:16Z'
+description: 'Reference-Completed sibling of pilot-10: the same 10-gene cis-eQTL Ragged Observed-Only
+  Store, reference-completed against the real HGDP+1kGP hg38 EUR LD panel via opengwasdb''s complete_ragged_store().
+  Proves the Ragged Reference-Completion pipeline end to end with real data, satisfying opengwasdb#89''s
+  "at least one Reference-Completed Ragged release" checklist item.
+
+  '
+source_snapshot_id: eqtlgen-2019-cis-full
+release_kind: one-off
+accepted_at: '2026-08-18T16:48:16Z'
+generator:
+  name: opengwasdb CLI (opengwasdb complete-ragged)
+  version: opengwasdb@553aee3a5ef32ac4f23ffed142808807cf350fd7
+  command: opengwasdb complete-ragged /data/opengwasdb/eqtlgen-cis-pilot/releases/pilot-10/store/ragged__eqtlgen-cis-pilot__pilot-10
+    /data/opengwasdb/eqtlgen-cis-pilot/releases/pilot-10/store/ragged__eqtlgen-cis-pilot__pilot-10-completed
+    --ld-panel /data/opengwasdb/reference/hgdp1kgp-hg38/panel --ancestry EUR --n-workers 32
+build_environment:
+  repo_commit: 03701f9b182e9f2e0d430f2afc7399435fe68ef1
+  opengwasdb_commit: 553aee3a5ef32ac4f23ffed142808807cf350fd7
+  pixi_environment: default
+  platform: Linux-4.18.0-553.141.1.el8_10.x86_64-x86_64-with-glibc2.28
+source_defaults:
+  source_genome_build: GRCh38
+  license: EBI GWAS Catalog terms of use
+notes: 'Completion adds no new Analyses -- analyses.tsv here is unchanged from pilot-10, repeated per
+  the release-bundle convention (self-contained bundles). LD reference completion parameters: min_cor
+  0.7, pca_thresh 0.9 (opengwasdb defaults), ancestry EUR (a direct match -- eqtlgen''s donors are the
+  eQTLGen Consortium''s whole-blood EUR meta-analysis cohort, no ancestry-approximation caveat needed
+  here, unlike finngen-r13-completed).
+
+
+  From the built manifest''s completion provenance: 207,764 total variants across the completed union
+  (121,388 newly added by the LD panel beyond the 86,376-variant build panel), 106,653 imputed cells,
+  14,735 left missing (no correlated on-panel neighbour clearing min_cor). `opengwasdb validate` reports
+  valid.
+
+  '
+migration:
+  adr: '0022'
+  previous_identity:
+    store_family_id: eqtlgen-cis-pilot
+    family_release_id: pilot-10-completed
+  previous_bundle_path: families/eqtlgen-cis-pilot/releases/pilot-10-completed
+  previous_store_uri: /data/opengwasdb/eqtlgen-cis-pilot/releases/pilot-10/store/ragged__eqtlgen-cis-pilot__pilot-10-completed
+  artifact_move_pending: true
+  note: Registry identity migrated to a flat OGS id. The built Store artifact has NOT yet moved to <artifact-root>/<store_id>/;
+    until it does, previous_store_uri is where it actually lives.

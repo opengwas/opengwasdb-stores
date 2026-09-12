@@ -33,108 +33,94 @@ than invoking a bare interpreter or a sibling checkout's virtualenv.
 
 ## Model
 
-The core flow is:
-
 ```text
 Source Collection
-  -> Store Family
-  -> Manifest Generator
-  -> Release Manifest bundle
-  -> Build Recipe
-  -> Store Release
+  -> Manifest Generator            (Phase B, not yet designed)
+  -> accepted Release Bundle       stores/OGS-00042/
+  -> Store Release                 (Phase A)
 ```
 
-- A Source Collection is a homogeneous upstream summary-statistics inventory
-  with one source format and one OpenGWASDB reader capability.
-- A Store Family is a stable product identity built from one Source Collection.
-  One Source Collection may feed many Store Families, but a Store Family does
-  not combine multiple Source Collections.
-- A Manifest Generator is Store Family-specific orchestration code that selects
-  inputs from the family's Source Collection and emits a candidate release.
-- A Release Manifest bundle is a self-contained directory containing release
-  metadata, a concrete analysis table, a build recipe, and validation summary.
-- A Build Recipe records the release shape, such as dense versus ragged and
-  observed-only versus reference-completed.
-- A Store Release is the immutable, validated OpenGWASDB analytical asset
-  produced from the accepted release bundle.
+Two workflows, meeting at the accepted Release Bundle and sharing no DAG.
+Phase A is specified in
+[`docs/spec/store-release-workflow.md`](docs/spec/store-release-workflow.md);
+Phase B has four fixed boundary rules and is otherwise open.
+
+The single rule everything else follows from (ADR 0023):
+
+> The only thing this repository computes on the path from an accepted Release
+> Bundle to a built Store Release is an `opengwasdb` command line.
+
+It does not read, rewrite, project, or validate a row of association or
+Analysis data, and it does not inspect a built Store's internals. Where an
+`opengwasdb` command cannot consume the canonical bundle, the fix is to
+improve that command's interface upstream rather than to add a projection
+layer here.
 
 ## Repository Layout
 
 ```text
-CONTEXT.md
-docs/adr/
-source-collections/
-reference-resources/
-families/
-annotations/
+stores/<store-id>/       accepted Release Bundles, one per Store Release
+stores.tsv  STORES.md    generated master list
+families/<family-id>/    Store Family identity, priority, query promise
+source-collections/      upstream summary-statistics inventories
+reference-resources/     LD panels, reference AF, trait mappings
+generators/              Phase B: bundle producers
+src/ogstores/            bundle.py  plan.py  paths.py  run.py  index.py
+workflow/                Snakefile (Phase A), generate.smk (Phase B)
+annotations/             curated metadata that evolves after release
+docs/adr/  docs/spec/    decisions and specifications
+CONTEXT.md               project language
 ```
 
-- `CONTEXT.md` defines the project language.
-- `docs/adr/` records design decisions that should not be rediscovered.
-- `source-collections/` records upstream summary-statistics inventories.
-- `reference-resources/` records auxiliary build-time resources such as LD
-  panels and genome references.
-- `families/` records Store Families, release bundles, generators, priorities,
-  validation summaries, and errata.
-- `annotations/` records curated metadata that can evolve independently from
-  immutable store releases, such as Trait Annotations.
+## Store Release identity
+
+Every Store Release has one globally unique opaque identifier, `OGS-` plus
+five digits, allocated sequentially (ADR 0022). It names the registry
+directory, the artifact directory, and the `release_id` in the built Store's
+manifest. Store Family is a field on the release, not a path level.
+
+Identifiers are opaque so that metadata cannot be stuffed into them and go
+stale, and so the generated master list is the only way to find a release --
+which makes that list load-bearing rather than documentation. Human legibility
+comes from each release's `label` and from generated `by-label/` symlinks;
+nothing resolves a release by label.
 
 ## Release Bundles
 
-Each release lives under:
-
 ```text
-families/<store-family-id>/releases/<family-release-id>/
+stores/<store-id>/
+  release.yaml      identity, label, family, status, lineage, provenance
+  build.yaml        the recipe: an opengwasdb subcommand and its flags
+  analyses.tsv      membership; opengwasdb owns the schema
+  validation.yaml   evidence, written back by the run
 ```
 
-Each release bundle should contain:
-
-```text
-release.yaml
-analyses.tsv
-build.yaml
-validation.yaml
-```
-
-`release.yaml` records release identity, status, source collection, association
-coverage, and lineage. `analyses.tsv` lists the concrete Analyses, Traits,
-source files, checksums, license, compact publication metadata, ancestry, effect
-scale, and sample-size metadata. `build.yaml` records the concrete build shape
-and OpenGWASDB builder entry point. `validation.yaml` summarises validation
-status and points to any detailed reports.
-
-The draft field-level schema for these files, including sidecars for ancestry
-assignment and ragged sparse-region evidence, is recorded in
-`docs/release-metadata-schema.md`.
+`build.yaml` names an `opengwasdb` CLI subcommand, never a Python entry point,
+and its `options` keys are `opengwasdb` flag names passed through verbatim --
+the registry never acquires a mirrored copy of a parameter schema that would
+drift.
 
 The repository stores metadata and small reports only. Store artifacts, source
-data, large logs, and large benchmark outputs belong outside this repository and
-should be referenced by URI when needed.
+data, large logs, and large benchmark outputs live outside it.
 
 ## External Artifacts
 
-Large build products should mirror the Store Family and Release Bundle identity
-under the configured artifact root:
+A Store Release's artifact path is a pure function of its identifier, so
+resolving a parent Store from `derived_from` needs no registry lookup:
 
 ```text
-<artifact-root>/<store-family-id>/releases/<family-release-id>/
+<artifact-root>/<store-id>/
+  source/  work/  records/  store.opengwasdb
 ```
 
-For this server, the artifact root is `/data/opengwasdb`. A release artifact
-directory may contain `filtered/`, `work/`, and `store/` subdirectories. A local
-`<artifact-root>/<store-family-id>/latest` symlink may be useful for inspection,
-but tracked release bundles and build reports should record explicit release
-IDs and concrete artifact paths.
+For this server the artifact root is `/data/opengwasdb`.
 
-## Example
-
-The initial worked example is:
+## Worked example
 
 ```text
-source-collections/opengwas-gwas-vcf/
-families/ukb-b/
-families/ukb-b/releases/2018-ieu/
+stores/OGS-00003/          finngen-r13 / r13-pilot-20, dense observed-only
+generators/finngen-r13/    the family's Phase B entry point
+source-collections/finngen-r13/
 ```
 
-It models the IEU OpenGWAS `ukb-b` batch as a dense observed-only candidate
-release built from the `opengwas-gwas-vcf` Source Collection.
+`stores/README.md` lists all seven migrated Trial Store Releases.

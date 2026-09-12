@@ -60,7 +60,7 @@ def main() -> None:
     result = subprocess.run(
         [
             sys.executable,
-            str(REPO_ROOT / "resources" / "generators" / "gwas-ssf-ragged" / "ancestry-assign.py"),
+            str(REPO_ROOT / "generators" / "lib" / "source-formats" / "gwas-ssf-ragged" / "ancestry-assign.py"),
             f"--release-dir={RELEASE_DIR}",
         ],
         cwd=REPO_ROOT,

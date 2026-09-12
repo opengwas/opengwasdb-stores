@@ -25,12 +25,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SUITES: list[tuple[str, str, list[str]]] = [
     ("ancestry-assignment", "python", ["tests/ancestry-assignment/run_tests.py"]),
     ("effect-scale-validation (R)", "r", ["tests/effect-scale-validation/run_tests.R"]),
-    ("effect-scale-validation (merge)", "python", ["tests/effect-scale-validation/test_build_store_validation_merge.py"]),
     ("eqtlgen-besd-ragged", "python", ["tests/eqtlgen-besd-ragged/test_subset_besd.py"]),
     ("finngen-r13-pilot", "r", ["tests/finngen-r13-pilot/run_tests.R"]),
     ("finngen-r13-acquisition", "python", ["tests/finngen-r13-pilot/test_acquire.py"]),
     ("finngen-r13-annotation", "python", ["tests/finngen-r13-pilot/test_annotation.py"]),
-    ("finngen-r13-store-envelope", "python", ["tests/finngen-r13-pilot/test_build_store.py"]),
     ("finngen-r13-assessment", "python", ["tests/finngen-r13-pilot/test_assessment.py"]),
     ("ld-panel-eigendecomposition", "python", ["tests/ld-panel-eigendecomposition/run_tests.py"]),
     ("ld-panel-generation", "python", ["tests/ld-panel-generation/run_tests.py"]),

@@ -16,12 +16,12 @@
 #      rather than silently staying not_run or passing regardless.
 #   3. Issue #51 AC3's two named example violations -- an out-of-vocabulary
 #      controlled value and a missing required column -- each fail
-#      resources/lib/schema_validate.py directly with a message identifying
+#      generators/lib/schema_validate.py directly with a message identifying
 #      the violation, checked in isolation from the full generator pipeline.
 #   4. The real, already-accepted release bundles this repository tracks
 #      (pqtl-interval-2018, metabolome-plasma-2023) still conform to
 #      opengwasdb's shared schema (issue #51 AC4) -- checked directly
-#      against resources/lib/schema_validate.py without mutating the
+#      against generators/lib/schema_validate.py without mutating the
 #      tracked release bundles' own validation.yaml.
 
 suppressPackageStartupMessages(library(yaml))
@@ -45,7 +45,7 @@ run_emit <- function(config_name) {
   # silences system2()'s routine "had status 1" warning for that case.
   result <- suppressWarnings(system2(
     "Rscript",
-    c("resources/generators/gwas-ssf-ragged/generate.R",
+    c("generators/lib/source-formats/gwas-ssf-ragged/generate.R",
       paste0("--config=", file.path(fixtures_dir, config_name)), "--mode=emit"),
     stdout = TRUE, stderr = TRUE
   ))
@@ -81,7 +81,7 @@ check(identical(invalid_validation$status, "failed"),
 # validator in isolation (not via the full generator pipeline) ---
 validate_directly <- function(tsv_name) {
   result <- suppressWarnings(system2(
-    "python3", c("resources/lib/schema_validate.py", shQuote(file.path(fixtures_dir, tsv_name))),
+    "python3", c("generators/lib/schema_validate.py", shQuote(file.path(fixtures_dir, tsv_name))),
     stdout = TRUE, stderr = TRUE
   ))
   list(status = attr(result, "status") %||% 0L, output = result)
@@ -106,7 +106,7 @@ real_bundles <- c(
 )
 check(length(real_bundles) >= 5, "expected to find pqtl-interval-2018 + 5 metabolome-plasma-2023 release bundles, found %d", length(real_bundles))
 for (bundle in real_bundles) {
-  result <- system2("python3", c("resources/lib/schema_validate.py", shQuote(bundle)), stdout = TRUE, stderr = TRUE)
+  result <- system2("python3", c("generators/lib/schema_validate.py", shQuote(bundle)), stdout = TRUE, stderr = TRUE)
   status <- attr(result, "status") %||% 0L
   check(status == 0L, "%s: expected to still conform to opengwasdb's shared schema, got:\n%s",
         bundle, paste(result, collapse = "\n"))

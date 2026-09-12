@@ -1,0 +1,29 @@
+"""Phase A: every accepted Release Bundle in stores/, wired by dependency only.
+
+    pixi run release OGS-00042             one release, plus any parent it needs
+    pixi run release OGS-00042 OGS-00051   several; lineage order is resolved
+    pixi run index                         regenerate the master list
+
+One Snakefile for the whole registry rather than one per release, so
+Snakemake's own wildcard expansion is the multi-release runner and a
+Reference-Completed release can declare its parent's `register` record as a
+real input edge. A batch loop would have to sequence parents before children
+by hand.
+
+Per ADR 0023 this file contains no Store Family name, no source column name,
+no manifest translation, and no layout branch. Each rule asks `ogstores.plan`
+for a Step and hands it to `ogstores.run`; each rule's tracked output is that
+step's record file, never the Store directory -- a half-written Store must not
+satisfy a rule.
+
+    build ──> top_hits ──> rho ──> overview ──> validate ──> register
+
+`top_hits` and `rho` are conditional on `build.yaml`'s `post` block. A
+Reference-Completed release substitutes `complete` for `build` and takes the
+same tail.
+
+IMPLEMENTATION PENDING -- see docs/spec/store-release-workflow.md. The
+sequencing is deliberately bundle.py + plan.py + golden argv tests first, with
+no Snakefile at all, so that the seam is proven to be just an argv before any
+orchestration is built on it.
+"""

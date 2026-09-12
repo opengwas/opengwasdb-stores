@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 suppressPackageStartupMessages(library(data.table))
-source("resources/lib/metadata_resolvers/ontology_contract.R")
-source("resources/lib/metadata_resolvers/canonical_trait_table.R")
+source("generators/lib/metadata_resolvers/ontology_contract.R")
+source("generators/lib/metadata_resolvers/canonical_trait_table.R")
 
 check <- function(x, message) if (!isTRUE(x)) stop(message, call. = FALSE)
 

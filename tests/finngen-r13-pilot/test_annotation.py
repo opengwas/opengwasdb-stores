@@ -152,7 +152,7 @@ effect_scale_validation:
         result = subprocess.run(
             [
                 sys.executable,
-                "resources/generators/opengwas-gwas-vcf-dense/annotate.py",
+                "generators/lib/source-formats/opengwas-gwas-vcf-dense/annotate.py",
                 f"--release-dir={release}",
                 "--workers=2",
             ],

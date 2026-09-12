@@ -23,7 +23,7 @@
 
 suppressPackageStartupMessages(library(data.table))
 
-source("resources/lib/metadata_resolvers/opengwas_api.R")
+source("generators/lib/metadata_resolvers/opengwas_api.R")
 
 fail <- function(...) stop(sprintf(...), call. = FALSE)
 n_checks <- 0L

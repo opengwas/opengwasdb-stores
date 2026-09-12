@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 suppressPackageStartupMessages(library(data.table))
-source("resources/lib/metadata_resolvers/finngen_manifest.R")
+source("generators/lib/metadata_resolvers/finngen_manifest.R")
 
 check <- function(x, message) if (!isTRUE(x)) stop(message, call. = FALSE)
 

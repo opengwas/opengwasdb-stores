@@ -17,7 +17,7 @@ bound first, imputation would silently use less variance than requested.
 Each block's read+eigendecompose+write is independent (own matrix file, own npz
 output), so blocks run across a small pool of worker processes (issue #34)
 instead of one at a time. Unlike I/O-bound parallelism (e.g.
-resources/generators/gwas-ssf-ragged/generate.R's per-analysis download pool),
+generators/lib/source-formats/gwas-ssf-ragged/generate.R's per-analysis download pool),
 this is memory-bound per block — a 15.6k-variant block's dense float64 matrix is
 ~1.9 GB — so pick ``--jobs`` from available RAM headroom, not core count. See
 ``find_underresolved_blocks.py`` in this directory for deriving the ``--blocks``
