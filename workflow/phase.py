@@ -83,6 +83,7 @@ from resources.lib.metadata_resolution import ResolutionError, resolve_analyses 
 from resources.lib.release_manifest import (  # noqa: E402
     ANCESTRY_PROPORTION_PREFIX,
     CANONICAL_COLUMN_SOURCE,
+    ancestry_proportion_columns,
     buildable_rows,
     canonical_manifest,
     write_builder_manifest,
@@ -1260,6 +1261,7 @@ def phase_validate(
     reports: dict[str, str],
     resolve_phase: str | None = None,
     catalogue_phase: str | None = None,
+    land_release_status: bool = False,
 ) -> None:
     """Validate `site`'s Store with `opengwasdb validate` and record the result.
 
@@ -1276,9 +1278,15 @@ def phase_validate(
     release is `built` rather than `validated` (issue #99). `catalogue_phase`
     is the catalogue-routed counterpart: the release-level ancestry evidence is
     the `assign-ancestry` outcome rather than a metadata-resolution check, and
-    the release still lands its lifecycle status. A Reference Completion child
-    has neither, so it only lands `schema`/`files`/`store` and its own
-    `validation.yaml`.
+    the release still lands its lifecycle status.
+
+    `land_release_status` lands the release's lifecycle status for a release
+    with no release-level evidence phase of its own: a Reference-Completion child
+    (ADR 0007) has neither a resolve nor a catalogue phase, but a successful
+    validation still lands its newly registered bundle `validated` rather than
+    leaving the registration seed `built`. Either way `release.yaml` is a
+    registry side effect named in this phase's completion `outputs`, never bound
+    as an input.
     """
     store_dir = site.store_dir
     command = [opengwasdb_executable(), "validate", str(store_dir)]
@@ -1300,9 +1308,13 @@ def phase_validate(
     # Analysis Catalogue instead. That Catalogue carries the canonical
     # builder-manifest column names, so translate them back to the registry
     # vocabulary the built Store's `analyses.tsv` uses and read back the same way.
+    # The data-discovered `ancestry_prop_*` columns are not registry columns, so
+    # they are carried through under their own names and compared too -- dropping
+    # them would leave the Store's ancestry proportions unchecked.
     if workflow.catalogue_routed:
         readback_inputs = [workflow.paths.routed_catalogue]
         catalogue_rows = read_tsv(workflow.paths.routed_catalogue)
+        ancestry_columns = ancestry_proportion_columns(catalogue_rows)
         resolved_rows = [
             {
                 "analysis_id": row.get("trait_id", ""),
@@ -1310,6 +1322,7 @@ def phase_validate(
                     registry: row.get(column, "")
                     for column, registry in CANONICAL_COLUMN_SOURCE.items()
                 },
+                **{column: row.get(column, "") for column in ancestry_columns},
             }
             for row in catalogue_rows
         ]
@@ -1379,6 +1392,14 @@ def phase_validate(
         # retained as evidence rather than silently rescaled (issue #99).
         release_status = "built" if effect_scale_status == "failed" else "validated"
         status_changed = write_release_status(site.release_yaml, release_status)
+    elif land_release_status:
+        # A Reference-Completion child (ADR 0007) has no release-level evidence
+        # phase, so its own Store validation is the gate: a successful validation
+        # lands its newly registered bundle `validated` rather than leaving the
+        # seed `built`, and the bundle is named in this record's outputs.
+        outputs = [validation_yaml, site.release_yaml]
+        if status == "passed":
+            status_changed = write_release_status(site.release_yaml, release_status)
 
     merge_validation_yaml(
         validation_yaml,
@@ -1399,7 +1420,7 @@ def phase_validate(
         "metadata_readback": "passed" if not metadata_errors else "failed",
         "association_probes": finite_by_probe,
     }
-    if release_phase is not None:
+    if release_phase is not None or land_release_status:
         validation["release_status"] = release_status
         validation["release_status_changed"] = status_changed
         validation["effect_scale_status"] = effect_scale_status
@@ -1454,6 +1475,7 @@ def phase_validate_completed_release(workflow: Workflow) -> None:
         build_phase="complete_store",
         overview_phase="regenerate_completed_overview",
         reports=reports,
+        land_release_status=True,
     )
 
 
@@ -1620,20 +1642,24 @@ def phase_complete_store(workflow: Workflow) -> None:
         raise PhaseError(f"the observed Store {source} does not exist; build it before completion")
 
     dest = child.store_partial
-    remove_path(dest)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-
     fresh_command = completion_command(workflow)
+    # Inspect any checkpoint *before* touching the partial Store: a resumable
+    # checkpoint means an earlier completion was interrupted, and its partial is
+    # the resume's own output to replace, not stale work to discard. Deleting the
+    # partial first would lose it whenever the resume then fails.
     checkpoint = resume_checkpoint(workflow, fresh_command)
     resume_command = COMPLETION_RESUME_COMMANDS.get(child.command)
     marker = child.work_dir / "completion-command.json"
     if checkpoint is not None and resume_command is not None:
         command = [opengwasdb_executable(), resume_command, str(checkpoint), *_n_workers_flags(child.arguments)]
     else:
-        # A checkpoint from a command with no `-resume` sibling is not resumable:
-        # start clean rather than leaving `opengwasdb` to fail on it.
+        # No resumable checkpoint: start clean. A checkpoint from a command with
+        # no `-resume` sibling is not resumable and is discarded rather than left
+        # for `opengwasdb` to fail on, as is a stale partial Store.
         if checkpoint is not None:
             remove_path(checkpoint)
+        remove_path(dest)
+        dest.parent.mkdir(parents=True, exist_ok=True)
         command = fresh_command
         write_json(marker, {"command": list(fresh_command), "dest": str(dest)})
 

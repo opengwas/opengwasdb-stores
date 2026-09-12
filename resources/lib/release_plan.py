@@ -35,7 +35,6 @@ Validation refuses, naming the offending key:
 * a catalogue-routed `build.command` missing any of its required inputs above;
 
 * a `build.command` that is not an ``opengwasdb`` CLI subcommand;
-* a catalogue-routed `build.command` missing any of its required inputs above;
 * rho enabled on a layout with no rho implementation (rho is Dense-only);
 * a declared `store_layout` that contradicts the layout implied by
   `build.command`;

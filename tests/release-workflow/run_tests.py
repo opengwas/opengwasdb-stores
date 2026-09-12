@@ -906,6 +906,60 @@ def test_store_metadata_readback_blocks(temp_root: Path) -> None:
           "the failure does not name the dropped column and Analysis")
 
 
+def test_catalogue_metadata_readback_checks_ancestry_proportions(catalogue: Fixture) -> None:
+    """A catalogue-routed Store's dynamic ancestry_prop_* columns are read back.
+
+    The routed Analysis Catalogue carries the data-discovered
+    ``ancestry_prop_<population>`` columns (issue #104), and the build writes them
+    into the Store's own ``analyses.tsv``. The catalogue-routed validate phase must
+    reconstruct the resolved rows with those columns so a Store that changed one
+    fails the same metadata read-back a manifest-direct release gets; dropping
+    them would leave the Store's ancestry proportions silently unchecked.
+    """
+    mutated = CATALOGUE_BUILT_ANALYSES[0]
+    rewrite_tsv(catalogue.store_dir / "analyses.tsv", lambda row: row.update(
+        {"ancestry_prop_EUR": "0.5"} if row["analysis_id"] == mutated else {}
+    ))
+    result = snakemake(catalogue, force="validate_observed_release")
+    check(result.returncode != 0,
+          "validate passed though the catalogue Store changed an ancestry proportion")
+    check("metadata read-back" in result.stdout, "the failure does not name the metadata read-back")
+    check("ancestry_prop_EUR" in result.stdout and mutated in result.stdout,
+          "the failure does not name the changed ancestry column and Analysis")
+
+
+def test_catalogue_coverage_accepts_registry_columns() -> None:
+    """`derive_coverage_rows` reads registry column names, not only canonical ones.
+
+    The route phase feeds it the canonical source manifest, but the function also
+    accepts a release's own `analyses.tsv` rows (`analysis_id`/`source_file`) and
+    the accepted `file_name` alias; every spelling must derive the same table.
+    """
+    from resources.lib.catalogue_coverage import derive_coverage_rows  # noqa: PLC0415
+
+    source = CATALOGUE_FIXTURE / "source"
+    analyses = read_tsv(CATALOGUE_FIXTURE / "analyses.tsv")
+    capability = "opengwasdb.gwas-ssf"
+    canonical = [
+        {"trait_id": row["analysis_id"], "file_path": str(source / row["source_file"])}
+        for row in analyses
+    ]
+    registry = [
+        {"analysis_id": row["analysis_id"], "source_file": str(source / row["source_file"])}
+        for row in analyses
+    ]
+    file_name_alias = [
+        {"analysis_id": row["analysis_id"], "file_name": str(source / row["source_file"])}
+        for row in analyses
+    ]
+    expected = derive_coverage_rows(canonical, capability=capability)
+    check([row["trait_id"] for row in expected] == [row["analysis_id"] for row in analyses],
+          "the canonical rows derived the wrong trait ids")
+    for spelling, rows in (("source_file", registry), ("file_name", file_name_alias)):
+        check(derive_coverage_rows(rows, capability=capability) == expected,
+              f"the {spelling} column spelling derived a different coverage table")
+
+
 def test_snakefile_is_wiring_only() -> None:
     """The Snakefile names no Store Family, no column, and no Store Layout."""
     text = SNAKEFILE.read_text(encoding="utf-8")
@@ -1070,6 +1124,15 @@ def test_reference_completion_builds_child(temp_root: Path) -> tuple[Fixture, Ch
     child_html = (child.store_dir / "overview.html").read_text(encoding="utf-8")
     check(RHO_TAB in child_html, "the child overview has no Rho tab")
     check(child.validation["status"] == "passed", "the child Store did not validate")
+    # A newly registered child is seeded `built`; a successful validation lands it
+    # `validated` and records the child bundle in the validate record's outputs.
+    check(child.registration.get("status") == "validated",
+          f"a validated child landed as {child.registration.get('status')!r}, expected 'validated'")
+    validate_record = child.record("validate_completed_release")
+    check(str(child.release_yaml) in validate_record["outputs"],
+          "the child validation record does not name the child release.yaml as an output")
+    check(validate_record["validation"]["release_status"] == "validated",
+          "the child validation record does not land the validated status")
     return fixture, child
 
 
@@ -1102,7 +1165,8 @@ def test_reregistered_child_preserves_curated_bundle(fixture: Fixture, child: Ch
     check(scalars.get("completion_state") == "reference-completed",
           "re-registration did not refresh completion_state")
     check(scalars.get("derived_from") == "r13-fixture", "re-registration did not refresh lineage")
-    check(scalars.get("status") == "built", "re-registration did not seed the lifecycle status")
+    check(scalars.get("status") == "validated",
+          "re-registration did not preserve the validated lifecycle status")
     check(child.validation["status"] == "passed", "the re-registered child did not validate")
 
 
@@ -1176,6 +1240,40 @@ def test_completion_interrupted_resumes(temp_root: Path) -> tuple[Fixture, Child
     check(store_fingerprint(fixture.store_dir) == observed_before,
           "the resumed completion mutated the observed parent Store")
     return fixture, child
+
+
+def test_completion_resume_preserves_partial(temp_root: Path) -> None:
+    """A resumable checkpoint is inspected before the interrupted partial is touched.
+
+    An interrupted completion can leave both a checkpoint and a partial child
+    Store. The rerun must inspect the checkpoint first and resume, deleting the
+    partial only when no resumable checkpoint exists; deleting it first would
+    destroy the interrupted work whenever the resume itself fails. The resume is
+    made to fail here so the partial's survival is observable.
+    """
+    fixture = prepare(temp_root, "completion-resume-order")
+    enable_rho(fixture)
+    enable_completion(fixture)
+    child = child_of(fixture)
+
+    assert_success(snakemake(fixture, until="validate_observed_release"), "completion-resume observed tail")
+    interrupt_completion(fixture)
+
+    partial = child.store_dir.with_name(child.store_dir.name + ".partial")
+    checkpoint = partial.parent / f".{partial.name}.checkpoint"
+    check(checkpoint.is_dir(), "the interrupted completion left no checkpoint directory")
+    partial.mkdir(parents=True, exist_ok=True)
+    (partial / "INTERRUPTED").write_text("interrupted completion\n", encoding="utf-8")
+
+    # Make the resume fail once its checkpoint has been accepted, without disturbing
+    # the partial: the phase's own check only needs the observed envelope to exist.
+    (fixture.store_dir / "manifest.json").write_text("{ not a manifest\n", encoding="utf-8")
+    result = run_phase_runner(fixture, "complete_store")
+    check(result.returncode != 0, "the failing resume was not reported as a failure")
+    check(partial.is_dir(),
+          "the resume deleted the interrupted partial Store before inspecting the checkpoint")
+    check((partial / "INTERRUPTED").is_file(),
+          "the interrupted partial Store was not preserved for the next resume attempt")
 
 
 def test_partial_child_cannot_masquerade(fixture: Fixture, child: Child) -> None:
@@ -1445,6 +1543,7 @@ def main() -> int:
         test_file_name_source_column(temp_root)
         test_effect_scale_escalation_blocks(temp_root)
         test_store_metadata_readback_blocks(temp_root)
+        test_catalogue_coverage_accepts_registry_columns()
         test_snakefile_is_wiring_only()
         test_child_release_merge_preserves_curated_blocks()
         test_rho_disabled_skips_rho(fixture)
@@ -1454,10 +1553,12 @@ def main() -> int:
         test_reregistered_child_preserves_curated_bundle(fixture, child)
         test_partial_child_cannot_masquerade(fixture, child)
         test_completion_interrupted_resumes(temp_root)
+        test_completion_resume_preserves_partial(temp_root)
         test_partial_store_cannot_masquerade(test_interrupted_run_resumes(temp_root))
         test_catalogue_dag_replaces_resolve(temp_root)
         catalogue = test_catalogue_scratch_build(temp_root)
         test_catalogue_rerun_is_noop(catalogue)
+        test_catalogue_metadata_readback_checks_ancestry_proportions(catalogue)
         test_catalogue_route_interrupted_does_not_reassign(temp_root)
         test_catalogue_missing_inputs_refused(temp_root)
     print(f"release-workflow: {n_checks} checks passed")

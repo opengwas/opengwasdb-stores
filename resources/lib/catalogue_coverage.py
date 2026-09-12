@@ -41,6 +41,16 @@ COVERAGE_COLUMNS: tuple[str, ...] = (
     "frac_largest_chrom",
 )
 
+#: The column names one source row may spell its Analysis identity under: the
+#: canonical builder-manifest name first, then this registry's ``analyses.tsv``
+#: vocabulary. The route phase feeds `derive_coverage_rows` the canonical source
+#: manifest, but a caller may hand it registry rows directly.
+SOURCE_ID_COLUMNS: tuple[str, ...] = ("trait_id", "analysis_id")
+
+#: The column names one source row may spell its source path under, including the
+#: accepted ``file_name`` alias ``resources/lib/release_plan.py`` also accepts.
+SOURCE_PATH_COLUMNS: tuple[str, ...] = ("file_path", "source_file", "file_name")
+
 #: Human autosomes. The coverage gate wants a genome-wide store, so a source
 #: observed only on the sex chromosomes or on too few autosomes is not eligible.
 AUTOSOMES: frozenset[str] = frozenset(str(number) for number in range(1, 23))
@@ -78,15 +88,34 @@ def _coverage_task(task: tuple[str, str, str]) -> dict[str, str]:
     return source_coverage(trait_id, file_path, capability)
 
 
+def _first_present(row: Mapping[str, str], columns: Sequence[str]) -> str:
+    """The first non-empty value the row carries under one of ``columns``."""
+    for column in columns:
+        value = row.get(column)
+        if value:
+            return str(value)
+    return ""
+
+
 def derive_coverage_rows(
     rows: Mapping[str, str] | Iterable[Mapping[str, str]],
     *,
     capability: str,
     n_workers: int = 1,
 ) -> list[dict[str, str]]:
-    """The coverage rows for a release's source-manifest rows, in manifest order."""
+    """The coverage rows for a release's source rows, in manifest order.
+
+    Each row's identity and path are read under the canonical builder-manifest
+    names or this registry's names (`analysis_id`, `source_file`, or the accepted
+    `file_name` alias), so a caller may pass a source manifest or `analyses.tsv`
+    rows directly.
+    """
     tasks = [
-        (str(row["trait_id"]), str(row["file_path"]), capability)
+        (
+            _first_present(row, SOURCE_ID_COLUMNS),
+            _first_present(row, SOURCE_PATH_COLUMNS),
+            capability,
+        )
         for row in rows
     ]
     if n_workers > 1 and len(tasks) > 1:
