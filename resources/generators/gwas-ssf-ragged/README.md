@@ -3,7 +3,7 @@
 Shared generator for molecular GWAS Catalog harmonised GWAS-SSF releases that
 should be stored as ragged observed-only OpenGWASDB stores.
 
-The generator is deliberately split into three steps:
+The generator is deliberately split into two fixed-input steps:
 
 ```sh
 pixi run Rscript resources/generators/gwas-ssf-ragged/generate.R \
@@ -13,9 +13,6 @@ pixi run Rscript resources/generators/gwas-ssf-ragged/generate.R \
 pixi run Rscript resources/generators/gwas-ssf-ragged/generate.R \
   --config=families/pqtl-interval-2018/generators/config.yaml \
   --mode=filter
-
-pixi run python resources/generators/gwas-ssf-ragged/build-store.py \
-  --release-dir=families/pqtl-interval-2018/releases/2018-sun-pilot-100
 ```
 
 `emit` freezes the selected analyses and writes a release bundle. `filter`
@@ -31,16 +28,26 @@ conservative number chosen to avoid opening too many concurrent connections to
 EBI's public FTP rather than maxing out available cores. Per-analysis
 `download_seconds`/`filter_seconds`/`total_seconds` in
 `sidecars/filter_summary.tsv` and per-analysis error handling are unchanged by
-parallelising the run. `build-store.py`
-passes the filtered files to OpenGWASDB and records a small read-back report.
+parallelising the run.
+
+`emit` is the generator-to-build seam: there is no build mode. The Store is
+built from the fixed input by the shared workflow (issue #103), whose
+`build.command` names the `opengwasdb build-ragged-ssf` CLI and whose validate
+phase reads the built Store back for metadata mismatches and association
+statistics — the read-back the retired `build-store.py` adapter used to do:
+
+```sh
+pixi run release --configfile families/pqtl-interval-2018/releases/2018-sun-pilot-10/build.yaml
+```
+
 `refresh-artifacts` updates artifact paths in an existing release bundle after
 changing `output.artifact_root` or `output.artifact_subdir`. `refresh-build`
 re-writes `build.yaml` from the current config (for example after adding or
 changing `reference_resources`/`effect_scale_validation`) without touching
 `analyses.tsv`.
 
-Run reference-AF effect-scale validation after `filter` and before
-`build-store.py` (issue #16):
+Run reference-AF effect-scale validation after `filter` and before the Store is
+built (issue #16):
 
 ```sh
 pixi run Rscript resources/generators/gwas-ssf-ragged/generate.R \
@@ -57,9 +64,9 @@ diagnostics from standard error/N/MAF, and write
 `analyses.tsv` only for Analyses that needed estimation (not
 `declared_standardised` ones, which keep their source declaration and gain QC
 evidence instead), and merges empirical `checks.effect_scale`/
-`checks.sd_estimation` into `validation.yaml` without discarding the
-schema/files/reader-smoke-test/sparse-regions checks that `build-store.py`
-separately maintains. A release only needs this step when its config declares
+`checks.sd_estimation` into `validation.yaml` without discarding the other
+checks the workflow's validate phase and this stage separately maintain. A
+release only needs this step when its config declares
 `effect_scale_validation`; otherwise those checks remain `not_run`, as before.
 See `docs/release-metadata-schema.md` for the config and sidecar field
 reference, and `tests/effect-scale-validation/` for fixture coverage.
@@ -82,8 +89,8 @@ without usable source AF are left untouched at `source_trusted_no_af`, per
 issue #11's settled trust-vs-validate policy — this stage never assigns
 ancestry when there is nothing to validate against. It merges empirical
 `checks.ancestry` into `validation.yaml` via the same shared
-`resources/lib/release_yaml.py::merge_validation_yaml` helper the effect-scale
-stage's fix to `build-store.py` introduced, so it never clobbers another
+`resources/lib/release_yaml.py::merge_validation_yaml` helper the workflow's
+validate phase introduced, so it never clobbers another
 stage's checks. See `docs/release-metadata-schema.md` ("Ancestry assignment
 configuration") and `tests/ancestry-assignment/` for fixture coverage.
 

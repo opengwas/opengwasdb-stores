@@ -2,10 +2,13 @@ store_family_id: eqtlgen-cis-pilot
 family_release_id: pilot-10-completed
 store_layout: ragged-reference-completed
 completion_state: reference-completed
-builder:
-  package: opengwasdb
-  entrypoint: "opengwasdb.layouts.ragged.complete:complete_ragged_store"
+build:
+  command: complete-ragged
+  arguments:
+    release-id: pilot-10-completed
 source:
+  root: /data/opengwasdb/eqtlgen-cis-pilot/releases/pilot-10/source
+  analyses: analyses.tsv
   source_format: besd
   source_reader_capability: null
 normalisation:

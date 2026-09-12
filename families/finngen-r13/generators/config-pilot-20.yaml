@@ -36,6 +36,13 @@ reference_resources:
     genome_build: GRCh38
     location: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
     fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+  - resource_id: hgdp1kgp-hg38-eur-ld
+    kind: ld_panel
+    ancestry: EUR
+    genome_build: GRCh38
+    variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+    location: /data/opengwasdb/reference/hgdp1kgp-hg38/panel/EUR
+    location_kind: external_directory
 
 ancestry_assignment:
   enabled: true
@@ -53,6 +60,30 @@ effect_scale_validation:
   enabled: true
   min_overlap_variants: 20
   sd_tolerance: 0.15
+
+# Execution flags for the observed build, and the two optional workflow
+# branches (issue #101): rho is built in place before the overview regenerates,
+# and Reference Completion builds the lineage-linked r13-pilot-20-completed
+# child from the HGDP+1kGP hg38 EUR panel.
+build:
+  arguments:
+    n-workers: 32
+
+rho:
+  enabled: true
+  arguments:
+    n-workers: 32
+
+reference_completion:
+  enabled: true
+  family_release_id: r13-pilot-20-completed
+  command: complete-dense
+  arguments:
+    ld-panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+    ancestry: EUR
+    min-cor: 0.7
+    release-id: r13-pilot-20-completed
+    n-workers: 32
 
 output:
   release_dir: families/finngen-r13/releases/r13-pilot-20

@@ -1,18 +1,22 @@
 status: passed
-validated_at: '2026-08-18T20:00:00Z'
+validated_at: 2026-09-12T03:31:29.156075+00:00
 validator:
-  name: opengwasdb validate
-  version: opengwasdb@553aee3a5ef32ac4f23ffed142808807cf350fd7
+  name: workflow/phase.py:validate_completed_release
+  version: null
+build_environment:
+  repo_commit: f18a5d46cd9251c97c59feef05589c48cc2f005b
+  opengwasdb_version: 0.2.0
+  opengwasdb_commit: 6ef919e721d5b7368acad591264be50f79b77dfb
+  pixi_lock_sha256: d29d9a768ae82a11bb809b8e93d5c4bc1cefc95fe24bc9072f99b09cbc2743fd
+  pixi_environment: workflow
+  platform: Linux-4.18.0-553.155.1.el8_10.x86_64-x86_64-with-glibc2.28
+  python_version: 3.11.15
 checks:
   schema: passed
   files: passed
-  reader_smoke_test: not_run
-  ancestry: not_run
-  effect_scale: not_run
-  sd_estimation: not_run
-  sparse_regions: not_run
-reports: []
-warnings:
-  - "Inherited from r13-pilot-20: finngen-r13-HEIGHT_IRN fails empirical effect-scale validation (implied SD 0.665 vs declared-standardised). Unresolved upstream; not introduced or affected by reference completion."
-  - "Ancestry approximation: completed against EUR (nearest available continental panel), not a Finnish-specific LD reference. See release.yaml notes."
+  store: passed
+reports:
+  completion_report: sidecars/completion-report.tsv
+  rho_report: sidecars/rho-report.json
+warnings: []
 errors: []

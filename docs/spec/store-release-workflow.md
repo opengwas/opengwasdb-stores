@@ -45,17 +45,17 @@ release:
 
 source:
   root: /data/opengwasdb/raw/ukb-b
-  analyses: families/ukb-b/releases/dense-observed-v1/analyses.tsv
+  analyses: analyses.tsv
   reader:
     capability: opengwasdb.gwas-vcf
     options: {}
 
 build:
-  operation: opengwasdb.layouts.dense.build_vcf:build_dense_from_vcf_manifest
-  arguments:
-    output_path: /data/opengwasdb/ukb-b/releases/dense-observed-v1/store
-    chunk_shape: [128, 256]
-    workers: 16
+  command: build-dense-vcf        # an opengwasdb CLI subcommand
+  arguments:                      # opaque; passed through unchanged as CLI flags
+    store-id: ukb-b
+    release-id: dense-observed-v1
+    n-workers: 16
 
 references:
   liftover_chain: reference-resources/grch37-to-grch38.yaml
@@ -63,20 +63,108 @@ references:
 
 rho:
   enabled: true
-  window_bp: 1000000
+  arguments:
+    z-thresh: 100
+    min-nulls: 1
 
 reference_completion:
   enabled: true
   family_release_id: dense-reference-completed-v1
-  operation: opengwasdb.layouts.dense.complete:complete_dense_store
-  references:
-    variant_panel: reference-resources/eur-ld-panel.yaml
+  command: complete-dense
+  arguments:
+    ld-panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+    ancestry: EUR
+    release-id: dense-reference-completed-v1
 ```
+
+`build.command` names an `opengwasdb` CLI subcommand, not an importable Python
+entrypoint: the operation is the shipped CLI (`opengwasdb --help`), so the
+configuration is executable on its own and no Store-Family-specific adapter has
+to import and call it. `build.arguments` is an **opaque** flag mapping passed
+through to that subcommand unchanged; it is deliberately not a semantic schema,
+so a newly required builder flag (for example `build-dense-vcf`'s `store-id`,
+`release-id`, and EAF-orientation gate) is absorbed without a configuration
+change. `rho.arguments` and `reference_completion.arguments` are the same
+opaque passthrough for the two optional branches, and
+`reference_completion.command` names the CLI subcommand for the child
+Reference-Completed release in the same way.
+
+`source.root` and `source.analyses` are resolved relative to the release
+directory unless absolute, so `analyses.tsv` normally sits beside `build.yaml`
+while `source.root` points at external acquired inputs. The schema evolves the
+pre-existing `build.yaml` in place - one filename, one schema - rather than
+introducing a second file; the decision and the legacy-compatibility rule are
+recorded in ADR 0022, and
+[`resources/lib/release_plan.py`](../../resources/lib/release_plan.py) loads and
+validates a release's plan before any build step runs:
+
+```bash
+python3 resources/lib/release_plan.py families/ukb-b/releases/dense-observed-v1
+```
+
+It reports pass/fail with a reason naming the offending key, and refuses an
+unknown `build.command`, rho on a non-Dense layout, an unresolved Reference
+Resource, and a selected source file that is missing or checksum-mismatched.
 
 `source.reader.options` is capability-specific. GWAS-VCF needs no column map;
 a general tabular reader would declare source column names there. The concrete
 reader capability and accepted options remain an OpenGWASDB contract, not logic
 implemented in Snakemake.
+
+### The two pre-build paths
+
+`build.command` also decides *which* pre-build path the release takes, never a
+Store-Family name (issue #104). There are two:
+
+* **manifest-direct.** A build command such as `build-dense-vcf` or
+  `build-hybrid` resolves each Analysis's ancestry and effect-scale metadata
+  into a builder manifest, and builds from it. This is the `finngen-r13` and
+  `ukb-b` path, and it is unchanged.
+* **catalogue-routed.** `build.command: build-hybrid-from-catalogue` instead
+  annotates the source manifest into a versioned **Analysis Catalogue**, adds
+  routing and coverage columns to it, and builds from the routed Catalogue.
+  This is the `gwas-catalog-eur-hybrid` path.
+
+A catalogue-routed release declares two inputs the manifest-direct path does
+not: the Source Reader Capability (`source.reader.capability`, or the equivalent
+`source.source_reader_capability`) that the catalogue phases read every source
+through, and an `ancestry_assignment.reference_resource_id` naming an
+`ancestry_mixture` Reference Resource with both a `location` (reference
+frequencies) and a `fine_group_map` (fine-to-super-population map). It also
+declares a `hybrid_dense_panel` Reference Resource for the Dense Component's
+variant panel. `resources/lib/release_plan.py` refuses a catalogue-routed
+command missing any of them at input validation, before anything expensive runs,
+so a missing input cannot surface as a failure after the ancestry extraction.
+
+The catalogue path is two phases, each with its own completion record, rather
+than one:
+
+1. **assign ancestry.** Writes the release's Analyses as the lossless canonical
+   source manifest (every interpretation-bearing column retained, each source
+   file resolved to a real path) and runs `opengwasdb assign-ancestry` against
+   the declared ancestry-mixture resource. Non-matching and Unassigned Analyses
+   stay in the Catalogue; nothing is dropped. Emits `work/analysis-catalogue.tsv`.
+2. **route catalogue.** Derives a coverage table from the same selected sources
+   through the release's configured reader (`trait_id`, `total_variants`,
+   `n_autosomes`, `frac_largest_chrom`), then runs
+   `opengwasdb route-catalogue` to add the routing and eligibility columns. The
+   derivation is bound into the phase's completion record, so a changed source
+   invalidates routing exactly as it invalidates the build. Emits
+   `work/routed-catalogue.tsv`.
+
+Splitting them means an interrupted routing step re-runs only routing; the
+expensive ancestry assignment is not repeated. The coverage table is *derived*
+from the release's own sources, not a hand-authored input, so the fixed-input
+boundary stays three inputs. The build then consumes the routed Catalogue:
+`build-hybrid-from-catalogue` row-filters it to one ancestry and builds a Hybrid
+Store from the Dense Component panel.
+
+One column the Analysis Catalogue schema does not carry, `source_assembly`,
+comes from the release's own `normalisation.source_assembly` (`phase.py` fills
+it onto the routed Catalogue). Without it the builder would default every row
+to hg19 and re-lift an already-GRCh38 source -- the opengwasdb#85 failure the
+manifest-direct path avoids by sourcing capability and assembly from
+`build.yaml`.
 
 The exact `analyses.tsv` columns are governed by the shared OpenGWASDB Analysis
 schema (ADR 0017). At this workflow boundary it must at least identify each
@@ -90,15 +178,27 @@ The observed-release path is:
 1. Validate `build.yaml`, `analyses.tsv`, the selected source files, checksums,
    reader configuration, and referenced resources. Emit
    `input-validation.json`.
-2. Resolve or verify ancestry and effect-scale metadata. Emit the immutable
-   working input `work/analyses.resolved.tsv` and a resolution report.
-3. Invoke the configured OpenGWASDB build operation. It produces the Store
-   envelope, initial `overview.html`, and Top-Hit indexes, plus a build report.
+2. Resolve the release's metadata into the working input. A manifest-direct
+   release emits the immutable `work/analyses.resolved.tsv` and a resolution
+   report: Assigned Ancestry and proportions computed from each Analysis's own
+   allele frequencies against the declared ancestry-mixture Reference Resource,
+   and effect scale and phenotype SD computed or verified from the source's
+   allele frequencies and standard errors (issue #99). A catalogue-routed
+   release instead emits a routed Analysis Catalogue, as its two pre-build
+   phases above. Neither path writes the committed `analyses.tsv`.
+3. Invoke the configured OpenGWASDB CLI subcommand (`build.command`) with its
+   opaque `build.arguments`. It produces the Store envelope, initial
+   `overview.html`, and Top-Hit indexes, plus a build report.
 4. If enabled, build rho as an explicit in-place Store operation and emit its
    report.
 5. Regenerate `overview.html` after every Store mutation so the final page
    includes the Rho tab as well as Analyses, Ancestry, and Guide content.
-6. Validate the complete Store and emit `validation.yaml`.
+6. Validate the complete Store and emit `validation.yaml`, then land the
+   release's lifecycle status: `validated` when the Store passes and no
+   effect-scale check failed, or `built` when one did. A failed effect-scale
+   check is evidence, not a workflow failure: it is recorded in `validation.yaml`
+   and the release is `built` rather than `validated`, unless the release sets
+   `effect_scale_validation.block_on_failure` (issue #99).
 
 Top-Hit construction is not a separate Snakemake phase for the current Dense
 and Hybrid operations because OpenGWASDB constructs those indexes during the
@@ -113,6 +213,13 @@ validated. It registers a distinct Store Release whose lineage names the
 observed parent, then uses the configured reference panel to create a separate
 Store. Rho, summary regeneration, and final validation are run for that child in
 the same order as for the observed Store.
+
+Registration means a Release Bundle of the child's own, a sibling of the
+observed bundle (`families/<family>/releases/<child-release-id>/`), carrying a
+`release.yaml` whose `lineage.derived_from` names the observed release. The
+child's Store is built under ADR 0018's default layout for the child's own
+release id, never at the observed release's `store_uri`, so the branch cannot
+resolve onto -- or mutate -- the observed Store.
 
 The child is never an in-place mutation of the observed release (ADR 0007).
 
@@ -135,7 +242,11 @@ Snakemake must not use the modification time of a large mutable Store directory
 as evidence that a phase succeeded. Each expensive or in-place operation emits
 a small completion record only after its output passes the phase-specific
 read-back checks. A partial Store has no successful completion record and is
-therefore resumed or rebuilt on the next invocation.
+therefore resumed or rebuilt on the next invocation. An interrupted Dense
+Reference Completion leaves `opengwasdb`'s per-block checkpoint directory
+behind; `complete_store` records the command it issued beside that checkpoint
+and resumes it with the CLI's `-resume` subcommand rather than trusting the
+partial child.
 
 Every completion record binds at least:
 
@@ -146,8 +257,11 @@ Every completion record binds at least:
 - output locations, completion time, and validation result.
 
 Changing a bound input invalidates that phase and its downstream dependents.
-The production implementation must define whether a failed phase can safely
-continue within an existing partial output or must replace it atomically.
+The production implementation builds a new-output phase into a `.partial`
+sibling and moves it into place only after its read-back checks pass, so an
+interrupted or failed phase never leaves a half-written Store at the release's
+Store path; the next invocation replaces it rather than continuing inside it.
+See [`workflow/README.md`](../../workflow/README.md).
 
 ## Orchestrator interface
 
@@ -160,5 +274,7 @@ snakemake --configfile families/ukb-b/releases/dense-observed-v1/build.yaml
 
 The Snakefile should contain dependency wiring only. It must not contain source
 column mappings, Store Family conditionals, manifest translation, or copied
-builder logic. A throwaway executable model of this design lives in
+builder logic. The production implementation is
+[`workflow/`](../../workflow/README.md) (Snakefile plus phase runner, issue
+#98); a throwaway executable model of this design lives in
 [`resources/prototypes/snakemake-release-pipeline/`](../../resources/prototypes/snakemake-release-pipeline/).

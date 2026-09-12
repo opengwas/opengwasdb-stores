@@ -42,3 +42,10 @@ __pycache__/
 # Throwaway workflow-prototype runtime state.
 .prototype-state/
 .snakemake/
+
+# Production Store Release workflow runtime state (issue #98): the artifact
+# root, the release-bundle reports, and the generated validation.yaml. Rebuild
+# with `pixi run release --configfile <release>/build.yaml`.
+.release-work/
+tests/release-workflow/fixtures/*/sidecars/
+tests/release-workflow/fixtures/*/validation.yaml

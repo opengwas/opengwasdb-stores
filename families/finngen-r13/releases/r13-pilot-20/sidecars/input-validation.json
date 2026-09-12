@@ -1,0 +1,14 @@
+{
+  "analysis_count": 20,
+  "build_command": "build-dense-vcf",
+  "checksums_verified": true,
+  "family_release_id": "r13-pilot-20",
+  "reader_capability": "",
+  "reference_descriptor_count": 2,
+  "schema": "cli",
+  "source_file_count": 20,
+  "status": "passed",
+  "store_family_id": "finngen-r13",
+  "store_layout": "dense-observed",
+  "warnings": []
+}

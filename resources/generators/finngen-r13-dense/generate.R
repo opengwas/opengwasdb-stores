@@ -39,16 +39,26 @@ script_version <- function(root) {
 }
 
 write_build_yaml <- function(cfg, release_dir) {
-  write_yaml_file(list(
+  # `build.arguments` is the opaque OpenGWASDB CLI flag mapping (ADR 0022). A
+  # config may extend it with execution flags such as `n-workers`; the two
+  # identity flags are always derived from the config.
+  build_arguments <- list(
+    "store-id" = cfg$store_family_id,
+    "release-id" = cfg$family_release_id
+  )
+  build_arguments <- c(build_arguments, cfg$build$arguments %||% list())
+  document <- list(
     store_family_id = cfg$store_family_id,
     family_release_id = cfg$family_release_id,
     store_layout = "dense-observed",
     completion_state = "observed-only",
-    builder = list(
-      package = "opengwasdb",
-      entrypoint = "opengwasdb.layouts.dense.build_vcf:build_dense_from_vcf_manifest"
+    build = list(
+      command = "build-dense-vcf",
+      arguments = build_arguments
     ),
     source = list(
+      root = file.path(cfg$output$artifact_root, cfg$output$artifact_subdir, "source"),
+      analyses = "analyses.tsv",
       source_format = "finngen-r13-tabular",
       source_reader_capability = "opengwasdb.finngen-r13",
       source_genome_build = "GRCh38"
@@ -67,7 +77,12 @@ write_build_yaml <- function(cfg, release_dir) {
       store_uri = cfg$output$planned_store_uri
     ),
     notes = cfg$build_notes %||% ""
-  ), file.path(release_dir, "build.yaml"))
+  )
+  # The two optional workflow branches are declared in the same build.yaml
+  # (ADR 0022); emit them only when the config asks for them.
+  if (!is.null(cfg$rho)) document$rho <- cfg$rho
+  if (!is.null(cfg$reference_completion)) document$reference_completion <- cfg$reference_completion
+  write_yaml_file(document, file.path(release_dir, "build.yaml"))
 }
 
 update_schema_check <- function(release_dir, root) {

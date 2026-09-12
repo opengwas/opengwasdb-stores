@@ -10,10 +10,11 @@ at whatever `ancestry_assignment_method` the generator already gave them
 (`source_trusted_no_af`, per issue #11's settled policy) and still get an
 explicit skipped sidecar row.
 
-Mirrors build-store.py's shape: reads `build.yaml`/`analyses.tsv`, writes a
-small TSV sidecar, and merges its own `checks.ancestry` into `validation.yaml`
-via the same shared merge helper the effect-scale stage's fix to
-build-store.py introduced, so no stage clobbers another's checks.
+Mirrors the workflow's phase shape (issue #103): reads
+`build.yaml`/`analyses.tsv`, writes a small TSV sidecar, and merges its own
+`checks.ancestry` into `validation.yaml` via the shared
+`resources/lib/release_yaml.py::merge_validation_yaml` helper, so no stage
+clobbers another's checks.
 
 Usage:
   pixi run python resources/generators/gwas-ssf-ragged/ancestry-assign.py \

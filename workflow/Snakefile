@@ -1,0 +1,291 @@
+"""Production Store Release workflow (issues #98, #100) -- dependency wiring only.
+
+One command builds one Store Release from its fixed input:
+
+    pixi run release --configfile families/<family>/releases/<release>/build.yaml
+
+This Snakefile deliberately contains no Store-Family name, no source column
+name, and no manifest translation. It reads the release's `build.yaml`, asks
+`workflow/model.py` for the release's paths and which optional branches it
+enables, and declares which phase depends on which. Each rule shells out to
+`workflow/phase.py`, which owns everything semantic: it calls the `opengwasdb`
+CLI subcommands the plan names, checks each phase's output by reading it back,
+and writes the phase's completion record. Snakemake tracks those records, not
+the Store's modification time, so a partial Store cannot masquerade as a
+completed phase.
+
+There are two pre-build paths, and which one a release takes is decided by its
+`build.command`, never by a Store-Family name (issue #104):
+
+* **manifest-direct** (a Dense or Ragged build) resolves each Analysis's
+  metadata into a builder manifest, which the build consumes;
+* **catalogue-routed** builds through a versioned Analysis Catalogue instead:
+  the sources are annotated into the Catalogue and then routed to one ancestry,
+  in two phases with their own records, so an interrupted routing step never
+  forces a re-assignment.
+
+Two optional branches hang off that skeleton (issue #100):
+
+* **Rho** is an in-place mutation of the built Store, so it sits strictly
+  between the build and overview regeneration: `regenerate_observed_overview`
+  depends on `build_observed_rho` whenever rho is enabled, never on the build
+  alone. Dense-only enforcement happens earlier, in the release-plan loader, so
+  a non-Dense release asking for rho never reaches the rho rule.
+* **Reference Completion** registers a distinct, lineage-linked child Store
+  Release (ADR 0007) and builds a separate Store. The observed Store is only
+  read. The child then runs the same tail as the observed release: its own rho,
+  overview regeneration, and validation, in that order.
+"""
+
+import shlex
+from pathlib import Path
+
+from model import load_workflow
+
+WORKFLOW_DIR = Path(workflow.basedir)
+REPO_ROOT = WORKFLOW_DIR.parent
+CONFIG_PATH = Path(workflow.configfiles[0]).resolve()
+RELEASE = load_workflow(CONFIG_PATH, REPO_ROOT)
+PATHS = RELEASE.paths
+PHASE_RUNNER = WORKFLOW_DIR / "phase.py"
+SOURCE_FILES = [str(path) for path in RELEASE.source_paths]
+REFERENCE_DESCRIPTORS = [str(path) for path in RELEASE.reference_descriptors]
+RHO = RELEASE.rho_enabled
+FINAL_SITE = RELEASE.completion_site if RELEASE.child is not None else RELEASE.observed_site
+
+
+def run_phase(phase_id):
+    return " ".join(
+        shlex.quote(part)
+        for part in (
+            "python3",
+            str(PHASE_RUNNER),
+            "--phase",
+            phase_id,
+            "--config",
+            str(CONFIG_PATH),
+            "--repo-root",
+            str(REPO_ROOT),
+        )
+    )
+
+
+rule release:
+    """Build the observed Store Release end to end, plus its completion child."""
+    input:
+        FINAL_SITE.completion(RELEASE.final_phase),
+
+
+rule validate_fixed_inputs:
+    """Validate build.yaml, analyses.tsv, the selected sources and resources."""
+    input:
+        build_yaml=str(CONFIG_PATH),
+        analyses=str(RELEASE.plan.analyses_path),
+        sources=SOURCE_FILES,
+        reference_descriptors=REFERENCE_DESCRIPTORS,
+    output:
+        completion=str(PATHS.completion("validate_fixed_inputs")),
+        report=str(PATHS.report("input-validation.json")),
+    shell:
+        run_phase("validate_fixed_inputs")
+
+
+if RELEASE.catalogue_routed:
+    rule assign_ancestry:
+        """Annotate the sources into the versioned Analysis Catalogue (issue #104)."""
+        input:
+            completion=rules.validate_fixed_inputs.output.completion,
+            build_yaml=str(CONFIG_PATH),
+            analyses=str(RELEASE.plan.analyses_path),
+            sources=SOURCE_FILES,
+            reference_descriptors=REFERENCE_DESCRIPTORS,
+        output:
+            completion=str(PATHS.completion("assign_ancestry")),
+            source_manifest=str(PATHS.source_manifest),
+            catalogue=str(PATHS.analysis_catalogue),
+            report=str(PATHS.report("catalogue-assignment.json")),
+        shell:
+            run_phase("assign_ancestry")
+
+
+    rule route_catalogue:
+        """Add routing and coverage columns to the Catalogue (issue #104)."""
+        input:
+            completion=rules.assign_ancestry.output.completion,
+            build_yaml=str(CONFIG_PATH),
+            catalogue=rules.assign_ancestry.output.catalogue,
+            source_manifest=rules.assign_ancestry.output.source_manifest,
+            sources=SOURCE_FILES,
+        output:
+            completion=str(PATHS.completion("route_catalogue")),
+            coverage=str(PATHS.catalogue_coverage),
+            routed=str(PATHS.routed_catalogue),
+            report=str(PATHS.report("catalogue-routing.json")),
+        shell:
+            run_phase("route_catalogue")
+
+
+    PREBUILD_COMPLETION = rules.route_catalogue.output.completion
+    EVIDENCE_COMPLETION = rules.assign_ancestry.output.completion
+    PREBUILD_INPUTS = {"catalogue": str(PATHS.routed_catalogue)}
+else:
+    rule resolve_analysis_metadata:
+        """Resolve ancestry and effect-scale metadata into the working input."""
+        input:
+            completion=rules.validate_fixed_inputs.output.completion,
+            build_yaml=str(CONFIG_PATH),
+            analyses=str(RELEASE.plan.analyses_path),
+            sources=SOURCE_FILES,
+            reference_descriptors=REFERENCE_DESCRIPTORS,
+        output:
+            completion=str(PATHS.completion("resolve_analysis_metadata")),
+            analyses=str(PATHS.resolved_analyses),
+            manifest=str(PATHS.builder_manifest),
+            report=str(PATHS.report("metadata-resolution.tsv")),
+        shell:
+            run_phase("resolve_analysis_metadata")
+
+
+    PREBUILD_COMPLETION = rules.resolve_analysis_metadata.output.completion
+    EVIDENCE_COMPLETION = rules.resolve_analysis_metadata.output.completion
+    PREBUILD_INPUTS = {
+        "analyses": str(PATHS.resolved_analyses),
+        "manifest": str(PATHS.builder_manifest),
+    }
+
+
+rule build_observed_store:
+    """Invoke the plan's `opengwasdb` build subcommand with its opaque arguments."""
+    input:
+        completion=PREBUILD_COMPLETION,
+        build_yaml=str(CONFIG_PATH),
+        **PREBUILD_INPUTS,
+    output:
+        completion=str(PATHS.completion("build_observed_store")),
+        manifest=str(PATHS.store_dir / "manifest.json"),
+        report=str(PATHS.report("build-report.tsv")),
+    shell:
+        run_phase("build_observed_store")
+
+
+if RHO:
+    rule build_observed_rho:
+        """Build the Rho Matrix in place, after the build and before the overview."""
+        input:
+            completion=rules.build_observed_store.output.completion,
+            store_manifest=rules.build_observed_store.output.manifest,
+        output:
+            completion=str(PATHS.completion("build_observed_rho")),
+            report=str(PATHS.report("rho-report.json")),
+        shell:
+            run_phase("build_observed_rho")
+
+
+rule regenerate_observed_overview:
+    """Regenerate overview.html from the persisted Store, after every mutation."""
+    input:
+        completion=(
+            rules.build_observed_rho.output.completion
+            if RHO
+            else rules.build_observed_store.output.completion
+        ),
+        store_manifest=rules.build_observed_store.output.manifest,
+    output:
+        completion=str(PATHS.completion("regenerate_observed_overview")),
+        overview=str(PATHS.store_dir / "overview.html"),
+    shell:
+        run_phase("regenerate_observed_overview")
+
+
+rule validate_observed_release:
+    """Validate the Store and merge the CLI result into the release's validation.yaml."""
+    input:
+        completion=rules.regenerate_observed_overview.output.completion,
+        build_completion=rules.build_observed_store.output.completion,
+        evidence_completion=EVIDENCE_COMPLETION,
+        **PREBUILD_INPUTS,
+        overview=rules.regenerate_observed_overview.output.overview,
+        store_manifest=rules.build_observed_store.output.manifest,
+    output:
+        completion=str(PATHS.completion("validate_observed_release")),
+        validation=str(PATHS.validation_yaml),
+    shell:
+        run_phase("validate_observed_release")
+
+
+if RELEASE.child is not None:
+    CHILD = RELEASE.child
+
+    rule register_completed_release:
+        """Register the lineage-linked child Store Release (ADR 0007).
+
+        The child's `release.yaml` is a registry side effect, not a tracked
+        output (exactly as the observed release's is): Snakemake removes a
+        declared output before it reruns the rule, which would discard the
+        curated `description`/`notes` a child bundle already carries. The phase
+        merges into the existing bundle instead, and the completion record is
+        what Snakemake tracks.
+        """
+        input:
+            completion=rules.validate_observed_release.output.completion,
+            build_yaml=str(CONFIG_PATH),
+        output:
+            completion=str(CHILD.completion("register_completed_release")),
+        shell:
+            run_phase("register_completed_release")
+
+
+    rule complete_store:
+        """Build the child Store from the observed Store, never mutating it."""
+        input:
+            completion=rules.register_completed_release.output.completion,
+            observed_manifest=rules.build_observed_store.output.manifest,
+        output:
+            completion=str(CHILD.completion("complete_store")),
+            manifest=str(CHILD.store_dir / "manifest.json"),
+            report=str(CHILD.report("completion-report.tsv")),
+        shell:
+            run_phase("complete_store")
+
+
+    if RHO:
+        rule build_completed_rho:
+            """Build the child's Rho Matrix in place, before its overview."""
+            input:
+                completion=rules.complete_store.output.completion,
+                store_manifest=rules.complete_store.output.manifest,
+            output:
+                completion=str(CHILD.completion("build_completed_rho")),
+                report=str(CHILD.report("rho-report.json")),
+            shell:
+                run_phase("build_completed_rho")
+
+
+    rule regenerate_completed_overview:
+        """Regenerate the child's overview.html, after every child mutation."""
+        input:
+            completion=(
+                rules.build_completed_rho.output.completion
+                if RHO
+                else rules.complete_store.output.completion
+            ),
+        output:
+            completion=str(CHILD.completion("regenerate_completed_overview")),
+            overview=str(CHILD.store_dir / "overview.html"),
+        shell:
+            run_phase("regenerate_completed_overview")
+
+
+    rule validate_completed_release:
+        """Validate the child Store and write the child bundle's validation.yaml."""
+        input:
+            completion=rules.regenerate_completed_overview.output.completion,
+            build_completion=rules.complete_store.output.completion,
+            **PREBUILD_INPUTS,
+            overview=rules.regenerate_completed_overview.output.overview,
+            store_manifest=rules.complete_store.output.manifest,
+        output:
+            completion=str(CHILD.completion("validate_completed_release")),
+            validation=str(CHILD.validation_yaml),
+        shell:
+            run_phase("validate_completed_release")

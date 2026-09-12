@@ -48,3 +48,13 @@ pixi run python resources/generators/gwas-ssf-ragged/ancestry-assign.py \
 For smoke tests, pass `--max-analyses=N` or `--only-analysis-id=GCST...` to
 `--mode=filter`; partial runs write `*.partial.tsv` reports and leave the
 release manifest untouched.
+
+## Building the Store
+
+The generator produces the fixed input (`analyses.tsv` and the filtered source
+files); `--mode=emit` is its generator-to-build seam. Building and validating
+the Store is the shared workflow's job, not a generator mode (issue #103):
+
+```sh
+pixi run release --configfile families/metabolome-plasma-2023/releases/<family-release-id>/build.yaml
+```

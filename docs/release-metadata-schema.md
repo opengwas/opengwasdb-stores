@@ -304,7 +304,17 @@ the source.
 
 Build-level metadata and execution configuration. This file describes how the
 accepted manifest should become an OpenGWASDB store, not which analyses belong
-to the release.
+to the release. The operation is named as an `opengwasdb` CLI subcommand
+(`build.command`), not an importable Python entry point (ADR 0022). Issue #97
+migrated the seven Trial Store Releases off the earlier inert `builder.entrypoint`
+shape; the loader still accepts that legacy shape for the releases it did not
+migrate (`resources/lib/release_plan.py`).
+
+`build.command` (an `opengwasdb` CLI subcommand) and its opaque
+`build.arguments` are the executable schema, ADR 0022; the `builder.package`/
+`builder.entrypoint` pair is the pre-#95 form that issue #97 migrated the seven
+Trial Store Releases away from. `artifacts.artifact_root` and the paths under it are what the production
+workflow builds into (see [`workflow/README.md`](../workflow/README.md)).
 
 | Field | Required | Description |
 |---|---:|---|
@@ -312,8 +322,10 @@ to the release.
 | `family_release_id` | Yes | Release ID. |
 | `store_layout` | Yes | `dense-observed`, `dense-reference-completed`, `ragged-observed`, `ragged-reference-completed`, `hybrid-observed`, or `hybrid-reference-completed`. |
 | `completion_state` | Yes | `observed-only` or `reference-completed`. |
-| `builder.package` | Yes | Package that owns the builder. Usually `opengwasdb`. |
-| `builder.entrypoint` | Yes | Importable builder entry point. |
+| `build.command` | Yes | The `opengwasdb` CLI subcommand that performs the build (name it from `opengwasdb --help`), such as `build-dense-vcf`, `build-hybrid`, `build-ragged-ssf`, `build-ragged-besd`, or a `complete-*` command for a Reference-Completed child. |
+| `build.arguments` | Optional | Opaque flag mapping passed through to `build.command` unchanged, such as `store-id`/`release-id`. Deliberately not a semantic schema, so a newly required builder flag needs no change here (ADR 0022). |
+| `source.root` | Yes | Directory holding the release's acquired source files; resolved relative to the release directory unless absolute. |
+| `source.analyses` | Yes | The release's `analyses.tsv`, resolved relative to the release directory unless absolute. Together with `source.root` this is the fixed input (ADR 0003). |
 | `source.source_format` | Yes | Source Format read by the builder, such as `gwas-vcf`, `gwas-ssf`, or `besd`. |
 | `source.source_reader_capability` | Yes | OpenGWASDB reader capability for the Source Collection. |
 | `normalisation.target_reference_assembly` | Yes | Target reference assembly for stored coordinates. |
@@ -369,6 +381,7 @@ effect-scale validation stage (issue #16) for one release:
 | `thresholds.sd_tolerance` | Yes when enabled | Maximum `abs(median implied SD - 1)` for a declared-standardised Analysis to pass. |
 | `thresholds.warning_multiplier` | Yes when enabled | Multiplier applied to `sd_tolerance` defining the boundary between a `warning` and a `failed` scale-inconsistency status. |
 | `thresholds.dispersion_max` | Yes when enabled | Maximum robust dispersion (median absolute deviation over median implied SD) before the result is downgraded to `warning` regardless of the central estimate. |
+| `block_on_failure` | Optional | Whether a `failed` empirical effect-scale result blocks the build. Defaults to `no`: the failure is recorded in `validation.yaml` (`checks.effect_scale`/`checks.sd_estimation` and `warnings`) and the release lands as `built` rather than `validated`, because a genuinely scale-inconsistent Analysis in an otherwise clean release is evidence to retain, not to rescale (issue #99). Set `yes` for a family that requires every Analysis to clear effect-scale validation before a Store is produced. |
 
 Family generator configuration may set defaults for these thresholds and
 override them per release, per the Store Family's molecular or

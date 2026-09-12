@@ -24,30 +24,38 @@ The symlinks are a convenience for browsing only -- every registry
 under `/data/opengwasdb/<family>/...`, so nothing else needs to change if the
 symlinks move or are removed.
 
-### Every store here is `format_version` 0.1
+### Store format: 0.1, except FinnGen R13
 
-None of these has been rebuilt since opengwasdb#114 moved the store format to
-`1.0`. That matters for accuracy rather than for access: a 0.1 store stores `z`
-as `float16`, whose spacing widens with |z|, so its p-values are least precise
-exactly where they are steepest -- out by a factor of 1.82 at |z| = 47.8, and
-by more above that. A 1.0 store stores `z` as `int16` fixed point at scale
-1/1024, uniform to about 1.6% anywhere, with out-of-range values held exactly.
+Every catalogued Store here is still `format_version` 0.1 **except** FinnGen
+R13's two releases. Issue #101 rebuilt `finngen-r13/r13-pilot-20` and its
+`r13-pilot-20-completed` child through the shared workflow, so both are now
+format 1.0 and declare their encoding (`z` as `int16` fixed point at scale
+1/1024, `se` as `float16`); see
+[`finngen-r13-r13-pilot-20-rebuild-evidence.md`](finngen-r13-r13-pilot-20-rebuild-evidence.md).
 
-These stores stay **readable** by current builds, and `ogdb info` now reports
-each store's encoding explicitly (`encoding: z=float16, se=float16` here). Two
-things do change:
+Everything else has not been rebuilt since opengwasdb#114 moved the store format
+to `1.0`. That matters for accuracy rather than for access: a 0.1 store stores
+`z` as `float16`, whose spacing widens with |z|, so its p-values are least
+precise exactly where they are steepest -- out by a factor of 1.82 at |z| =
+47.8, and by more above that. A 1.0 store stores `z` as `int16` fixed point at
+scale 1/1024, uniform to about 1.6% anywhere, with out-of-range values held
+exactly.
 
-- they cannot be **reference-completed** by a build that writes 1.0 -- completion
-  writes into its source's arrays, so it would have to stamp a version onto
-  arrays that are not in it (opengwasdb ADR 0038 §4). It refuses instead;
+A 0.1 store stays **readable** by current builds, and `ogdb info` reports each
+store's encoding explicitly. Two things change:
+
+- a 0.1 store cannot be **reference-completed** by a build that writes 1.0 --
+  completion writes into its source's arrays, so it would have to stamp a
+  version onto arrays that are not in it (opengwasdb ADR 0038 §4). It refuses
+  instead;
 - rebuilding is the only way to gain the accuracy, and it picks up every other
   build-time fix since these were built (opengwasdb#83, #106, #107, #109, #115).
 
-Rebuilding them is tracked as opengwasdb#117. (This section added 2026-08-30;
-the per-store numbers below are still the 2026-08-19 compilation, since nothing
-has been rebuilt.)
+Rebuilding the remaining 0.1 stores is tracked as opengwasdb#117. (This section
+added 2026-08-30; updated 2026-09-12 after #101 rebuilt the FinnGen R13 pair.
+The other per-store numbers below are still the 2026-08-19 compilation.)
 
-Last updated 2026-08-19. Regenerate by re-reading each store's `manifest.json`
+Last updated 2026-09-12. Regenerate by re-reading each store's `manifest.json`
 and the matching `families/*/releases/*/release.yaml` -- see "How this was
 compiled" at the bottom.
 
@@ -81,11 +89,20 @@ downstream LD-sensitive use of imputed cells should account for that.
 
 | Release | Layout | State | Variants | Analyses | Cells imputed | Size | Status |
 |---|---|---|---|---|---|---|---|
-| `r13-pilot-20` | Dense | Observed-Only | 21,230,615 | 20 | -- | 4.0G | built |
-| `r13-pilot-20-completed` | Dense | Reference-Completed | 23,792,347 (2,561,732 new) | 20 | 53,293,883 imputed, 177,267 failed, 24,445 off-panel missing | 3.7G | validated |
+| `r13-pilot-20` | Dense | Observed-Only | 21,230,615 | 20 | -- | 5.1G | built |
+| `r13-pilot-20-completed` | Dense | Reference-Completed | 23,792,347 (2,561,732 new) | 20 | 53,293,883 imputed, 177,267 failed, 24,445 off-panel missing | 4.9G | validated |
 
 LD panel: HGDP+1kGP hg38, EUR. `min_cor=0.7`. Dense Rho Matrix (20x20
-pairwise genetic correlation) built on the completed release.
+pairwise genetic correlation) built on both the observed and the completed
+release.
+
+Both releases were rebuilt on 2026-09-12 by issue #101 as **format 1.0**,
+through the shared one-command workflow; the wall time, peak RSS, resumption and
+semantic-equivalence evidence is in
+[`finngen-r13-r13-pilot-20-rebuild-evidence.md`](finngen-r13-r13-pilot-20-rebuild-evidence.md).
+The observed Store is `built`, not `validated`, for the same `HEIGHT_IRN`
+effect-scale reason as the pilot, and the sizes above grew with the 1.0
+encoding.
 
 ## gwas-catalog-eur-hybrid
 

@@ -11,7 +11,7 @@ Run from the repository root:
 
 ```sh
 pixi run Rscript tests/effect-scale-validation/run_tests.R
-pixi run python tests/effect-scale-validation/test_build_store_validation_merge.py
+pixi run python tests/effect-scale-validation/test_validation_merge.py
 ```
 
 `run_tests.R` regenerates `fixtures/` (deterministic; see
@@ -27,7 +27,8 @@ emitted metadata as the contract.
 `/data/opengwasdb/reference/ukb-hg38`) covering forward, swapped, palindromic,
 mismatched, non-overlapping, out-of-MAF-bounds, and multi-chromosome cases.
 
-`test_build_store_validation_merge.py` unit-tests
-`resources/generators/gwas-ssf-ragged/build-store.py`'s validation.yaml
-preservation logic in isolation (stubbing the `opengwasdb` package import so
-it doesn't require that sibling repo to be installed).
+`test_validation_merge.py` unit-tests the shared
+`resources/lib/release_yaml.py::merge_validation_yaml` logic in isolation, so
+no later writer — the effect-scale generator stage, the workflow's validate
+phase (`workflow/phase.py`), or the ancestry-assignment stage — discards
+another's checks, reports, or warnings.

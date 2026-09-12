@@ -1,0 +1,14 @@
+{
+  "analysis_count": 9,
+  "build_command": "build-hybrid-from-catalogue",
+  "checksums_verified": true,
+  "family_release_id": "eur-hybrid-pilot-10",
+  "reader_capability": "",
+  "reference_descriptor_count": 3,
+  "schema": "cli",
+  "source_file_count": 9,
+  "status": "passed",
+  "store_family_id": "gwas-catalog-eur-hybrid",
+  "store_layout": "hybrid-observed",
+  "warnings": []
+}

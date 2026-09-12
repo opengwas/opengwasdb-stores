@@ -1,27 +1,16 @@
-status: passed_with_warnings
-validated_at: 2026-08-18T21:27:01.763363+00:00
+status: passed
+validated_at: '2026-09-12T04:35:51Z'
 validator:
-  name: resources/generators/gwas-ssf-ragged/build-store.py
-  version: null
-build_environment:
-  repo_commit: 8c814785d7e9a75747bc297909e211d7424a59ea
-  opengwasdb_version: 0.1.0
-  opengwasdb_commit: 1ecfd1e7945d4258e5b0585ae9381be5ecbe9373
-  pixi_lock_sha256: f6775451715fb1f53d0e84a4814c2d0fb198acdd10c18dc91e52f6d7fdd1fe14
-  pixi_environment: default
-  platform: Linux-4.18.0-553.141.1.el8_10.x86_64-x86_64-with-glibc2.28
-  python_version: 3.11.15
+  name: resources/generators/gwas-ssf-ragged/generate.R
+  version: ~
 checks:
   schema: passed
-  files: passed
-  reader_smoke_test: passed
+  files: not_run
+  reader_smoke_test: not_run
   ancestry: not_run
   effect_scale: not_run
   sd_estimation: not_run
-  sparse_regions: passed_with_warnings
-reports:
-  build_report: sidecars/build_report.tsv
-warnings:
-  - trans query observed 4 associations but sidecar records 5
-  - store has 4 associations but filter summary records 8
+  sparse_regions: not_run
+reports: []
+warnings: []
 errors: []

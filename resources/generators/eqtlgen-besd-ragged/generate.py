@@ -84,6 +84,59 @@ def write_yaml_file(value: dict, path: Path) -> None:
     path.write_text("\n".join(_dump_yaml(value)) + "\n", encoding="utf-8")
 
 
+def build_yaml_document(
+    *,
+    store_family_id: str,
+    family_release_id: str,
+    association_coverage: str,
+    source_genome_build: str,
+    source_dir: Path,
+    artifact_root: str,
+    artifact_subdir: str,
+    store_dir: Path,
+) -> dict:
+    """This release's executable `build.yaml` (issue #97, ADR 0022).
+
+    Factorised out of `main()` so the emitted schema can be asserted against a
+    migrated release's `build.yaml` without running a build.
+    """
+    return {
+        "store_family_id": store_family_id,
+        "family_release_id": family_release_id,
+        "store_layout": "ragged-observed",
+        "completion_state": "observed-only",
+        "build": {
+            "command": "build-ragged-besd",
+            "arguments": {"store-id": store_family_id, "release-id": family_release_id},
+        },
+        "source": {
+            "root": str(source_dir),
+            "analyses": "analyses.tsv",
+            "source_format": "besd",
+            "source_reader_capability": None,
+        },
+        "normalisation": {
+            "target_reference_assembly": "GRCh38",
+            "liftover": "hg19-to-hg38" if source_genome_build != "hg38" else "none",
+        },
+        # docs/release-metadata-schema.md marks effects.stored_effect_scale
+        # required, but BESD/molecular-QTL Analyses carry no effect-scale
+        # concept for build_ragged_from_besd() to declare (see the
+        # analyses.tsv comment above) -- recorded as null rather than
+        # silently omitting the whole block, the same "never fabricate,
+        # never silently drop" choice checks.schema=not_run makes below.
+        "effects": {"stored_effect_scale": None},
+        "shape": {"association_coverage": association_coverage},
+        "validation": {"required": True},
+        "artifacts": {
+            "artifact_root": artifact_root,
+            "release_subdir": artifact_subdir,
+            "source_dir": str(source_dir),
+            "store_uri": str(store_dir),
+        },
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
@@ -255,36 +308,16 @@ def main() -> None:
         release_dir / "release.yaml",
     )
     write_yaml_file(
-        {
-            "store_family_id": store_family_id,
-            "family_release_id": family_release_id,
-            "store_layout": "ragged-observed",
-            "completion_state": "observed-only",
-            "builder": {
-                "package": "opengwasdb",
-                "entrypoint": "opengwasdb.layouts.ragged.build_besd:build_ragged_from_besd",
-            },
-            "source": {"source_format": "besd", "source_reader_capability": None},
-            "normalisation": {
-                "target_reference_assembly": "GRCh38",
-                "liftover": "hg19-to-hg38" if source_genome_build != "hg38" else "none",
-            },
-            # docs/release-metadata-schema.md marks effects.stored_effect_scale
-            # required, but BESD/molecular-QTL Analyses carry no effect-scale
-            # concept for build_ragged_from_besd() to declare (see the
-            # analyses.tsv comment above) -- recorded as null rather than
-            # silently omitting the whole block, the same "never fabricate,
-            # never silently drop" choice checks.schema=not_run makes below.
-            "effects": {"stored_effect_scale": None},
-            "shape": {"association_coverage": require_text(cfg, "association_coverage")},
-            "validation": {"required": True},
-            "artifacts": {
-                "artifact_root": artifact_root,
-                "release_subdir": artifact_subdir,
-                "source_dir": str(source_dir),
-                "store_uri": str(store_dir),
-            },
-        },
+        build_yaml_document(
+            store_family_id=store_family_id,
+            family_release_id=family_release_id,
+            association_coverage=require_text(cfg, "association_coverage"),
+            source_genome_build=source_genome_build,
+            source_dir=source_dir,
+            artifact_root=artifact_root,
+            artifact_subdir=artifact_subdir,
+            store_dir=store_dir,
+        ),
         release_dir / "build.yaml",
     )
 

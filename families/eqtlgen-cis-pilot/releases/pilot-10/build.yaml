@@ -2,10 +2,14 @@ store_family_id: eqtlgen-cis-pilot
 family_release_id: pilot-10
 store_layout: ragged-observed
 completion_state: observed-only
-builder:
-  package: opengwasdb
-  entrypoint: "opengwasdb.layouts.ragged.build_besd:build_ragged_from_besd"
+build:
+  command: build-ragged-besd
+  arguments:
+    store-id: eqtlgen-cis-pilot
+    release-id: pilot-10
 source:
+  root: /data/opengwasdb/eqtlgen-cis-pilot/releases/pilot-10/source
+  analyses: analyses.tsv
   source_format: besd
   source_reader_capability: null
 normalisation:

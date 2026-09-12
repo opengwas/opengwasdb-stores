@@ -2,10 +2,14 @@ store_family_id: pqtl-interval-2018
 family_release_id: 2018-sun-pilot-10
 store_layout: ragged-observed
 completion_state: observed-only
-builder:
-  package: opengwasdb
-  entrypoint: opengwasdb.layouts.ragged.build_ssf:build_ragged_from_ssf
+build:
+  command: build-ragged-ssf
+  arguments:
+    store-id: pqtl-interval-2018
+    release-id: 2018-sun-pilot-10
 source:
+  root: /data/opengwasdb/pqtl-interval-2018/releases/2018-sun-pilot-10/filtered
+  analyses: analyses.tsv
   source_format: gwas-ssf
   source_reader_capability: opengwasdb.gwas-ssf
   source_genome_build: GRCh38

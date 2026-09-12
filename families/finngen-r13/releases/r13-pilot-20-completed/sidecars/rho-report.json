@@ -1,0 +1,19 @@
+{
+  "command": [
+    "/home/gh13047/repo/worktrees/opengwasdb-stores/pi-worktree-35e5d1e5-7542-40ab-8a6f-d4dce5f3d37c-s0-0/.pixi/envs/workflow/bin/opengwasdb",
+    "build-dense-rho",
+    "/data/opengwasdb/finngen-r13/releases/r13-pilot-20-completed/store.opengwasdb",
+    "--n-workers",
+    "32"
+  ],
+  "family_release_id": "r13-pilot-20-completed",
+  "method": "pleiodb-cml",
+  "min_nulls": 500,
+  "n_analyses": 20,
+  "n_variants_used": 190939,
+  "status": "passed",
+  "store_family_id": "finngen-r13",
+  "store_uri": "/data/opengwasdb/finngen-r13/releases/r13-pilot-20-completed/store.opengwasdb",
+  "window_bp": 15000,
+  "z_thresh": 1.0
+}

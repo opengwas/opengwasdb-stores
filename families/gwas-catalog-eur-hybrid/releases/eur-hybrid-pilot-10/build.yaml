@@ -2,10 +2,18 @@ store_family_id: gwas-catalog-eur-hybrid
 family_release_id: eur-hybrid-pilot-10
 store_layout: hybrid-observed
 completion_state: observed-only
-builder:
-  package: opengwasdb
-  entrypoint: opengwasdb.layouts.hybrid.build:build_hybrid_from_vcf_manifest
+build:
+  command: build-hybrid-from-catalogue
+  arguments:
+    store-id: gwas-catalog-eur-hybrid
+    release-id: eur-hybrid-pilot-10
+    stored-effect-scale: log_or
+    original-sd-method: binary_trait
+    ancestry: EUR
+    n-workers: 16
 source:
+  root: /data/opengwasdb/gwas-catalog-eur-hybrid/releases/eur-hybrid-pilot-10/download
+  analyses: analyses.tsv
   source_format: gwas-ssf
   source_reader_capability: opengwasdb.gwas-ssf
   source_genome_build: GRCh38
@@ -18,12 +26,30 @@ effects:
 shape:
   association_coverage: full_gwas
 reference_resources:
+- resource_id: hgdp1kgp-ancestry-mixture-hg38
+  kind: ancestry_mixture
+  genome_build: GRCh38
+  location: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
+  fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+  location_kind: external_file
 - resource_id: hybrid-ieua-dense-panel
   kind: hybrid_dense_panel
   genome_build: GRCh38
   variant_id_convention: chr:pos:A1:A2 (A1 = min(allele1, allele2))
   location: /data/opengwasdb/wip/hybrid-ieua/panel_alids.txt
   location_kind: external_file
+ancestry_assignment:
+  enabled: yes
+  reference_resource_id: hgdp1kgp-ancestry-mixture-hg38
+  maf_floor: 0.01
+  workers: 16
+  gates:
+    tau: 0.5
+    delta: 0.2
+    n_min: 5000
+    residual_max: 0.06
+routing:
+  workers: 16
 validation:
   required: yes
 artifacts:

@@ -37,6 +37,16 @@ regions, deletes the full download as it goes, writes checksums/sizes back into
 `analyses.tsv`, and emits `sidecars/filter_summary.tsv` plus
 `sidecars/sparse_regions.tsv`.
 
-OpenGWASDB then builds the ragged store from that bundle via
-`opengwasdb.layouts.ragged.build_ssf:build_ragged_from_ssf`; the shared
-`build-store.py` wrapper records a small read-back report.
+OpenGWASDB builds the ragged store from that bundle's fixed input (the filtered
+GWAS-SSF files and `analyses.tsv`). The retired `gwas-ssf-ragged/build-store.py`
+wrapper used to do it and record a small read-back report; since issue #103 the
+Store is built by the shared workflow, whose `build.command` names the same
+`opengwasdb build-ragged-ssf` CLI and whose validate phase performs the
+read-back:
+
+```sh
+pixi run release --configfile families/pqtl-interval-2018/releases/2018-sun-pilot-10/build.yaml
+```
+
+`--mode=emit` is the generator-to-build seam: it freezes the fixed input. The
+workflow, not the generator, owns building and validating the Store.
