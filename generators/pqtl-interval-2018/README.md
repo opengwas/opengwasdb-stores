@@ -20,14 +20,14 @@ molecular GWAS-SSF ragged stores; only this family's inputs differ, held here as
 Generate and validate the candidate bundle with:
 
 ```sh
-pixi run Rscript families/pqtl-interval-2018/generators/generate.R --mode=emit
-pixi run Rscript families/pqtl-interval-2018/generators/generate.R --mode=validate
+pixi run Rscript generators/pqtl-interval-2018/generate.R --mode=emit
+pixi run Rscript generators/pqtl-interval-2018/generate.R --mode=validate
 ```
 
 Run sparse filtering with:
 
 ```sh
-pixi run Rscript families/pqtl-interval-2018/generators/generate.R --mode=filter
+pixi run Rscript generators/pqtl-interval-2018/generate.R --mode=filter
 ```
 
 For smoke tests, pass `--max-analyses=N` or `--only-analysis-id=GCST...`; partial

@@ -2,7 +2,7 @@
 
 args <- commandArgs(trailingOnly = TRUE)
 if (!any(grepl("^--config=", args))) {
-  args <- c("--config=families/finngen-r13/generators/config-pilot-20.yaml", args)
+  args <- c("--config=generators/finngen-r13/config-pilot-20.yaml", args)
 }
 
 status <- system2(

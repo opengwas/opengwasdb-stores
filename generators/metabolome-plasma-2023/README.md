@@ -25,21 +25,21 @@ mixture fitting across more than one ancestry.
 Generate and validate the candidate bundle with:
 
 ```sh
-pixi run Rscript families/metabolome-plasma-2023/generators/generate.R --mode=emit
-pixi run Rscript families/metabolome-plasma-2023/generators/generate.R --mode=validate
+pixi run Rscript generators/metabolome-plasma-2023/generate.R --mode=emit
+pixi run Rscript generators/metabolome-plasma-2023/generate.R --mode=validate
 ```
 
 Run sparse filtering with:
 
 ```sh
-pixi run Rscript families/metabolome-plasma-2023/generators/generate.R --mode=filter
+pixi run Rscript generators/metabolome-plasma-2023/generate.R --mode=filter
 ```
 
 Then run reference-AF effect-scale validation and AF-based ancestry
 assignment:
 
 ```sh
-pixi run Rscript families/metabolome-plasma-2023/generators/generate.R --mode=effect-scale
+pixi run Rscript generators/metabolome-plasma-2023/generate.R --mode=effect-scale
 
 pixi run python generators/lib/source-formats/gwas-ssf-ragged/ancestry-assign.py \
   --release-dir=families/metabolome-plasma-2023/releases/2023-chen-pilot-80

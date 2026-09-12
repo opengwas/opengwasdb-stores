@@ -11,7 +11,7 @@ The provider manifest and summary-statistics artifacts live outside Git under
 the URL in `config-pilot-20.yaml`, verify its pinned SHA-256, then run:
 
 ```sh
-pixi run Rscript families/finngen-r13/generators/generate.R --mode=emit
+pixi run Rscript generators/finngen-r13/generate.R --mode=emit
 pixi run python generators/lib/source-formats/finngen-r13-dense/acquire.py \
   --release-dir=families/finngen-r13/releases/r13-pilot-20
 pixi run python generators/lib/source-formats/opengwas-gwas-vcf-dense/annotate.py \

@@ -54,8 +54,8 @@ Requires an OpenGWAS API JWT (see <https://api.opengwas.io/>) in the
 `.Renviron` (`OPENGWAS_JWT=...`). Never commit this token.
 
 ```sh
-pixi run Rscript families/ukb-b/generators/generate.R --mode=emit
-pixi run Rscript families/ukb-b/generators/generate.R --mode=validate
+pixi run Rscript generators/ukb-b/generate.R --mode=emit
+pixi run Rscript generators/ukb-b/generate.R --mode=validate
 ```
 
 For smoke tests, pass `--max-analyses=N` or

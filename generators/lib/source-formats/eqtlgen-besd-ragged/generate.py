@@ -11,7 +11,7 @@ discover/select/derive/emit/accept pipeline heavier Source Formats need.
 
 Run from the repository root:
     python3 generators/lib/source-formats/eqtlgen-besd-ragged/generate.py \
-        --config=families/eqtlgen-cis-pilot/generators/config-pilot-10.yaml
+        --config=generators/eqtlgen-cis-pilot/config-pilot-10.yaml
 """
 from __future__ import annotations
 

@@ -2,7 +2,7 @@
 
 args <- commandArgs(trailingOnly = TRUE)
 if (!any(grepl("^--config=", args))) {
-  args <- c("--config=families/pqtl-interval-2018/generators/config.yaml", args)
+  args <- c("--config=generators/pqtl-interval-2018/config.yaml", args)
 }
 
 status <- system2(

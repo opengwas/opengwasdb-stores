@@ -7,11 +7,11 @@ The generator is deliberately split into three steps:
 
 ```sh
 pixi run Rscript generators/lib/source-formats/gwas-ssf-ragged/generate.R \
-  --config=families/pqtl-interval-2018/generators/config.yaml \
+  --config=generators/pqtl-interval-2018/config.yaml \
   --mode=emit
 
 pixi run Rscript generators/lib/source-formats/gwas-ssf-ragged/generate.R \
-  --config=families/pqtl-interval-2018/generators/config.yaml \
+  --config=generators/pqtl-interval-2018/config.yaml \
   --mode=filter
 
 pixi run python generators/lib/source-formats/gwas-ssf-ragged/build-store.py \
@@ -44,7 +44,7 @@ Run reference-AF effect-scale validation after `filter` and before
 
 ```sh
 pixi run Rscript generators/lib/source-formats/gwas-ssf-ragged/generate.R \
-  --config=families/pqtl-interval-2018/generators/config.yaml \
+  --config=generators/pqtl-interval-2018/config.yaml \
   --mode=effect-scale
 ```
 
