@@ -36,16 +36,21 @@ not re-lifted, opengwasdb#85), `ancestry_prop_*` columns are discovered from the
 data rather than hardcoded, and the canonical lossless representation keeps the
 six Analytical Metadata columns the legacy Hybrid projection omits.
 
-## The deferred Hybrid loss
+## The Hybrid loss, and its fix
 
-`ADAPTER_PROJECTIONS["hybrid"]` reproduces the 17-column manifest
-`gwas-ssf-hybrid/build-store.py` wrote: it omits `sample_size_kind`,
-`sample_size_scope`, `n_cases`, `n_controls`, `original_effect_scale` and
-`ancestry_assignment_method` (issue #82), so the built Hybrid stores cannot
-carry them. The suite regression-tests that omission as *legacy compatibility*,
-not as accidental loss. Switching live Hybrid builds to the lossless
-`canonical_manifest()` representation changes what an accepted Store contains
-and is deferred to the catalogue-path/rebuild work (issue #104).
+`gwas-ssf-hybrid/build-store.py` wrote a 17-column manifest: it omitted
+`sample_size_kind`, `sample_size_scope`, `n_cases`, `n_controls`,
+`original_effect_scale` and `ancestry_assignment_method` (issue #82), so the
+built Hybrid stores could not carry them. Issue #104 switched the *live* Hybrid
+projection (`ADAPTER_PROJECTIONS["hybrid"]`) to the lossless canonical
+representation, so a live Hybrid build now carries the same Analytical Metadata
+a Dense build does.
+
+The pre-#104 17-column adapter-compatible serialisation is retained as
+`LEGACY_HYBRID_PROJECTION`, and this suite still proves it reproduces the
+adapter's bytes exactly -- the historical #96 equivalence evidence for what an
+already-accepted Hybrid Store Release contains. It is never selected by a live
+build.
 
 ## Upstream
 

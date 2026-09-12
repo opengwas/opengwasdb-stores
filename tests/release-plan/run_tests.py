@@ -8,8 +8,9 @@ loader makes (unknown build.command, rho on a non-Dense layout, a
 store_layout/build.command layout contradiction, an unresolved Reference
 Resource from ancestry_assignment, effect_scale_validation, or qc_panel, a
 malformed reference entry, a missing/mismatched source file, a missing
-source.root/source.analyses), the legacy schema staying accepted, and path
-resolution relative to source.root. It drives the public CLI as well as the
+source.root/source.analyses, and a catalogue-routed command missing its reader
+capability, ancestry resource, fine-group map, or Dense Component panel), the
+legacy schema staying accepted, and path resolution relative to source.root. It drives the public CLI as well as the
 module directly, matching this repository's convention of asserting on the
 observable surface rather than internals.
 
@@ -71,6 +72,42 @@ reference_completion:
     ld-panel: /ref/panel
     ancestry: EUR
 """
+
+CATALOGUE_BUILD_YAML = """\
+store_family_id: example-catalogue
+family_release_id: r1-catalogue
+store_layout: hybrid-observed
+source:
+  root: source
+  analyses: analyses.tsv
+  reader:
+    capability: opengwasdb.gwas-ssf
+normalisation:
+  source_assembly: GRCh38
+build:
+  command: build-hybrid-from-catalogue
+  arguments:
+    store-id: example-catalogue
+    release-id: r1-catalogue
+    stored-effect-scale: log_or
+    original-sd-method: binary_trait
+    ancestry: EUR
+reference_resources:
+- resource_id: example-ancestry-mixture
+  kind: ancestry_mixture
+  location: /ref/ref_freqs.hg38.tsv.gz
+  fine_group_map: /ref/ancestry_groups.tsv
+- resource_id: example-hybrid-panel
+  kind: hybrid_dense_panel
+  location: /ref/panel_alids.txt
+ancestry_assignment:
+  enabled: yes
+  reference_resource_id: example-ancestry-mixture
+"""
+
+CATALOGUE_FIXTURE = (
+    REPO_ROOT / "tests" / "release-workflow" / "fixtures" / "catalogue-fixture" / "build.yaml"
+)
 
 LEGACY_BUILD_YAML = """\
 store_family_id: example-legacy
@@ -535,6 +572,70 @@ def test_legacy_shape_accepted() -> None:
         check("legacy schema" in completed.stdout, completed.stdout)
 
 
+def test_catalogue_routed_plan_loads() -> None:
+    """A catalogue-routed command is detected from build.command, not a family."""
+    plan = load_plan(CATALOGUE_FIXTURE.parent)
+    check(plan.catalogue_routed, "a build-hybrid-from-catalogue release must be catalogue-routed")
+    check(plan.build_command == "build-hybrid-from-catalogue", f"unexpected command {plan.build_command!r}")
+    check(plan.source_reader_capability == "opengwasdb.gwas-ssf",
+          f"unexpected reader capability {plan.source_reader_capability!r}")
+    # A manifest-direct command is not catalogue-routed, and carries its own capability.
+    dense = load_plan(REPO_ROOT / "families" / "finngen-r13" / "releases" / "r13-pilot-20")
+    check(not dense.catalogue_routed, "a Dense release must not be catalogue-routed")
+    check(dense.source_reader_capability == "opengwasdb.finngen-r13",
+          f"a source.source_reader_capability key must still be read, got {dense.source_reader_capability!r}")
+    result = check_release(CATALOGUE_FIXTURE.parent, verify_checksums=True)
+    check(result.ok, f"the checked-in catalogue fixture must load: {result.errors}")
+
+
+def test_catalogue_missing_inputs_refused() -> None:
+    """A catalogue-routed command is refused when a required input is absent."""
+    with tempfile.TemporaryDirectory() as tmp:
+        release = write_release(Path(tmp), CATALOGUE_BUILD_YAML, [])
+        check(load_plan(release).catalogue_routed, "the synthetic catalogue plan should load")
+
+        no_ancestry = release / "build.yaml"
+        no_ancestry.write_text(
+            CATALOGUE_BUILD_YAML.replace("  reference_resource_id: example-ancestry-mixture\n", ""),
+            encoding="utf-8",
+        )
+        result = check_release(release)
+        check(not result.ok, "a catalogue command without an ancestry resource should be refused")
+        check(any("ancestry_assignment.reference_resource_id" in error for error in result.errors), result.errors)
+
+        missing_map = release / "build.yaml"
+        missing_map.write_text(
+            CATALOGUE_BUILD_YAML.replace("  fine_group_map: /ref/ancestry_groups.tsv\n", ""),
+            encoding="utf-8",
+        )
+        result = check_release(release)
+        check(not result.ok, "a catalogue ancestry resource without a fine-group map should be refused")
+        check(any("fine_group_map" in error for error in result.errors), result.errors)
+
+        no_panel = release / "build.yaml"
+        no_panel.write_text(
+            CATALOGUE_BUILD_YAML.replace(
+                "- resource_id: example-hybrid-panel\n"
+                "  kind: hybrid_dense_panel\n"
+                "  location: /ref/panel_alids.txt\n",
+                "",
+            ),
+            encoding="utf-8",
+        )
+        result = check_release(release)
+        check(not result.ok, "a catalogue command without a Dense Component panel should be refused")
+        check(any("hybrid_dense_panel" in error for error in result.errors), result.errors)
+
+        no_reader = release / "build.yaml"
+        no_reader.write_text(
+            CATALOGUE_BUILD_YAML.replace("  reader:\n    capability: opengwasdb.gwas-ssf\n", ""),
+            encoding="utf-8",
+        )
+        result = check_release(release)
+        check(not result.ok, "a catalogue command without a reader capability should be refused")
+        check(any("source.source_reader_capability" in error for error in result.errors), result.errors)
+
+
 def test_checked_in_release_loads() -> None:
     # The seven Trial Store Releases were migrated to the executable schema by
     # #97; this is the release the rest of the suite and #101 use.
@@ -589,6 +690,8 @@ def main() -> None:
         test_no_shape_refused,
         test_legacy_rho_on_ragged_refused,
         test_legacy_shape_accepted,
+        test_catalogue_routed_plan_loads,
+        test_catalogue_missing_inputs_refused,
         test_checked_in_release_loads,
     ]
     for test in tests:

@@ -1,0 +1,14 @@
+{
+  "catalogue_uri": "/data/opengwasdb/gwas-catalog-eur-hybrid/releases/eur-hybrid-pilot-10/work/analysis-catalogue.tsv",
+  "coverage_uri": "/data/opengwasdb/gwas-catalog-eur-hybrid/releases/eur-hybrid-pilot-10/work/catalogue-coverage.tsv",
+  "dropped_low_coverage": 0,
+  "dropped_no_ancestry": 1,
+  "family_release_id": "eur-hybrid-pilot-10",
+  "n_analyses": 9,
+  "rescued_via_reported": 0,
+  "routed_catalogue_uri": "/data/opengwasdb/gwas-catalog-eur-hybrid/releases/eur-hybrid-pilot-10/work/routed-catalogue.tsv",
+  "source_reader_capability": "opengwasdb.gwas-ssf",
+  "status": "passed",
+  "store_eligible": 8,
+  "store_family_id": "gwas-catalog-eur-hybrid"
+}

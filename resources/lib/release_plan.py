@@ -22,9 +22,20 @@ the seven Trial Store Releases onto it:
   the loader never rejects a release #97 did not migrate. Legacy plans carry an
   explicit warning and are not executable by command name until migrated.
 
+There is also a second pre-build path (issue #104). A release whose
+``build.command`` is ``build-hybrid-from-catalogue`` is *catalogue-routed*: its
+resolve half is `assign-ancestry` then `route-catalogue`, not a builder
+manifest, so its required inputs differ and are checked here before anything
+expensive runs -- a `source` reader capability, an `ancestry_assignment`
+Reference Resource that declares both a `location` and a `fine_group_map`, and a
+declared `hybrid_dense_panel` Reference Resource for the Dense Component axis.
+
 Validation refuses, naming the offending key:
 
+* a catalogue-routed `build.command` missing any of its required inputs above;
+
 * a `build.command` that is not an ``opengwasdb`` CLI subcommand;
+* a catalogue-routed `build.command` missing any of its required inputs above;
 * rho enabled on a layout with no rho implementation (rho is Dense-only);
 * a declared `store_layout` that contradicts the layout implied by
   `build.command`;
@@ -76,6 +87,21 @@ _TRUE_STRINGS = {"true", "yes", "1", "on"}
 # bundles emit `source_file`; the workflow prototype's fixture used `file_name`.
 _SOURCE_FILE_COLUMNS = ("source_file", "file_name")
 
+#: The OpenGWASDB CLI subcommand that declares the catalogue-routed pre-build
+#: path (issue #104): ``assign-ancestry`` -> ``route-catalogue`` ->
+#: ``build-hybrid-from-catalogue``. The branch is determined by the command, never
+#: by a Store-Family name.
+CATALOGUE_BUILD_COMMAND = "build-hybrid-from-catalogue"
+
+#: Reference Resource `kind` that names the Dense Component's variant panel for a
+#: Hybrid build.
+HYBRID_DENSE_PANEL_KIND = "hybrid_dense_panel"
+
+#: `build.yaml` keys that may carry a release's Source Reader Capability. The
+#: spec's `source.reader.capability` and the #97 migrations' flatter
+#: `source.source_reader_capability` both mean the same thing.
+_READER_CAPABILITY_KEYS = ("source_reader_capability",)
+
 
 class PlanError(Exception):
     """A `build.yaml` that cannot be loaded, naming the offending key."""
@@ -104,8 +130,14 @@ class ReleasePlan:
     completion_arguments: dict[str, object] = field(default_factory=dict)
     completed_release_id: str | None = None
     completion_command: str | None = None
+    source_reader_capability: str | None = None
     builder_entrypoint: str | None = None
     warnings: tuple[str, ...] = ()
+
+    @property
+    def catalogue_routed(self) -> bool:
+        """Whether the plan's build command drives the catalogue pre-build path."""
+        return self.build_command == CATALOGUE_BUILD_COMMAND
 
 
 @dataclass(frozen=True)
@@ -214,6 +246,86 @@ def _command_layout(command: str | None) -> str | None:
     return None
 
 
+def reference_resources(data: dict) -> list[dict]:
+    """The declared Reference Resource mappings, in declaration order."""
+    resources = data.get("reference_resources")
+    if resources is None:
+        return []
+    if not isinstance(resources, list):
+        raise PlanError("reference_resources", "must be a list of Reference Resource declarations")
+    return [resource for resource in resources if isinstance(resource, dict)]
+
+
+def reference_resource(data: dict, resource_id: str) -> dict | None:
+    """The declared Reference Resource with this ``resource_id``, or None."""
+    for resource in reference_resources(data):
+        if str(resource.get("resource_id", "")) == resource_id:
+            return resource
+    return None
+
+
+def resource_by_kind(data: dict, kind: str) -> dict | None:
+    """The first declared Reference Resource with this ``kind``, or None."""
+    for resource in reference_resources(data):
+        if str(resource.get("kind", "")) == kind:
+            return resource
+    return None
+
+
+def _reader_capability(source: dict) -> str | None:
+    """The release's Source Reader Capability, from either declared spelling."""
+    for key in _READER_CAPABILITY_KEYS:
+        value = str(source.get(key) or "").strip()
+        if value:
+            return value
+    value = str(_mapping(source, "reader").get("capability") or "").strip()
+    return value or None
+
+
+def _check_catalogue_inputs(data: dict, reader_capability: str | None) -> None:
+    """Refuse a catalogue-routed command whose required inputs are absent (#104).
+
+    The catalogue pre-build path reads each source through the declared reader
+    capability, assigns ancestry from the declared ancestry-mixture Reference
+    Resource (reference frequencies plus the fine-group map), and builds the
+    Dense Component from the declared Hybrid panel. Every one is checked here so
+    a missing input fails at input validation rather than after the expensive
+    ancestry extraction.
+    """
+    if not reader_capability:
+        raise PlanError(
+            "source.source_reader_capability",
+            f"is required by build.command {CATALOGUE_BUILD_COMMAND!r} "
+            "(the catalogue phases read every source through it)",
+        )
+    ancestry = _mapping(data, "ancestry_assignment")
+    resource_id = ancestry.get("reference_resource_id")
+    if not resource_id:
+        raise PlanError(
+            "ancestry_assignment.reference_resource_id",
+            f"is required by build.command {CATALOGUE_BUILD_COMMAND!r}",
+        )
+    resource = reference_resource(data, str(resource_id))
+    if resource is None:
+        raise PlanError(
+            "ancestry_assignment.reference_resource_id",
+            f"names Reference Resource {resource_id!r}, which is not declared in reference_resources",
+        )
+    for key in ("location", "fine_group_map"):
+        if not resource.get(key):
+            raise PlanError(
+                f"reference_resources[{resource_id}].{key}",
+                "is required by ancestry assignment (reference frequencies and fine-group map)",
+            )
+    panel = resource_by_kind(data, HYBRID_DENSE_PANEL_KIND)
+    if panel is None or not panel.get("location"):
+        raise PlanError(
+            "reference_resources",
+            f"needs a {HYBRID_DENSE_PANEL_KIND!r} entry with a location "
+            "(the Dense Component's variant panel)",
+        )
+
+
 def _layout(data: dict, command: str | None) -> str | None:
     declared = str(data["store_layout"]) if data.get("store_layout") else None
     inferred = _command_layout(command)
@@ -286,6 +398,10 @@ def load_plan(release_dir: Path) -> ReleasePlan:
     if schema == "cli" and str(command) not in known_commands():
         raise PlanError("build.command", f"unknown opengwasdb CLI subcommand {command!r}")
 
+    reader_capability = _reader_capability(source)
+    if schema == "cli" and str(command) == CATALOGUE_BUILD_COMMAND:
+        _check_catalogue_inputs(data, reader_capability)
+
     resolved_layout = _layout(data, str(command) if command else None)
     if rho_enabled and (resolved_layout is None or resolved_layout.split("-")[0] != _DENSE_LAYOUT):
         raise PlanError(
@@ -331,6 +447,7 @@ def load_plan(release_dir: Path) -> ReleasePlan:
         completion_arguments=completion_arguments,
         completed_release_id=str(completed_release_id) if completed_release_id else None,
         completion_command=str(completion_command) if completion_command else None,
+        source_reader_capability=reader_capability,
         builder_entrypoint=str(entrypoint) if entrypoint else None,
         warnings=warnings,
     )

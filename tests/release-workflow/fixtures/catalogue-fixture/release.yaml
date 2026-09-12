@@ -1,0 +1,18 @@
+metadata_schema_version: 1.0
+store_family_id: catalogue-fixture
+family_release_id: catalogue-fixture
+status: candidate
+source_collection_id: gwas-catalog-ssf
+source_snapshot_id: catalogue-fixture
+release_kind: one-off
+association_coverage: full_gwas
+description: >
+  Tiny catalogue-routed Hybrid fixture release for the production Store Release
+  workflow (issue #104): assign-ancestry -> route-catalogue ->
+  build-hybrid-from-catalogue.
+generator:
+  name: tests/release-workflow/fixtures/generate_catalogue_fixture.py
+  version: 1.0
+source_defaults:
+  source_genome_build: GRCh38
+  license: fixture data

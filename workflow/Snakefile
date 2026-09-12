@@ -14,6 +14,16 @@ and writes the phase's completion record. Snakemake tracks those records, not
 the Store's modification time, so a partial Store cannot masquerade as a
 completed phase.
 
+There are two pre-build paths, and which one a release takes is decided by its
+`build.command`, never by a Store-Family name (issue #104):
+
+* **manifest-direct** (a Dense or Ragged build) resolves each Analysis's
+  metadata into a builder manifest, which the build consumes;
+* **catalogue-routed** builds through a versioned Analysis Catalogue instead:
+  the sources are annotated into the Catalogue and then routed to one ancestry,
+  in two phases with their own records, so an interrupted routing step never
+  forces a re-assignment.
+
 Two optional branches hang off that skeleton (issue #100):
 
 * **Rho** is an in-place mutation of the built Store, so it sits strictly
@@ -80,30 +90,76 @@ rule validate_fixed_inputs:
         run_phase("validate_fixed_inputs")
 
 
-rule resolve_analysis_metadata:
-    """Resolve ancestry and effect-scale metadata into the working input."""
-    input:
-        completion=rules.validate_fixed_inputs.output.completion,
-        build_yaml=str(CONFIG_PATH),
-        analyses=str(RELEASE.plan.analyses_path),
-        sources=SOURCE_FILES,
-        reference_descriptors=REFERENCE_DESCRIPTORS,
-    output:
-        completion=str(PATHS.completion("resolve_analysis_metadata")),
-        analyses=str(PATHS.resolved_analyses),
-        manifest=str(PATHS.builder_manifest),
-        report=str(PATHS.report("metadata-resolution.tsv")),
-    shell:
-        run_phase("resolve_analysis_metadata")
+if RELEASE.catalogue_routed:
+    rule assign_ancestry:
+        """Annotate the sources into the versioned Analysis Catalogue (issue #104)."""
+        input:
+            completion=rules.validate_fixed_inputs.output.completion,
+            build_yaml=str(CONFIG_PATH),
+            analyses=str(RELEASE.plan.analyses_path),
+            sources=SOURCE_FILES,
+            reference_descriptors=REFERENCE_DESCRIPTORS,
+        output:
+            completion=str(PATHS.completion("assign_ancestry")),
+            source_manifest=str(PATHS.source_manifest),
+            catalogue=str(PATHS.analysis_catalogue),
+            report=str(PATHS.report("catalogue-assignment.json")),
+        shell:
+            run_phase("assign_ancestry")
+
+
+    rule route_catalogue:
+        """Add routing and coverage columns to the Catalogue (issue #104)."""
+        input:
+            completion=rules.assign_ancestry.output.completion,
+            build_yaml=str(CONFIG_PATH),
+            catalogue=rules.assign_ancestry.output.catalogue,
+            source_manifest=rules.assign_ancestry.output.source_manifest,
+            sources=SOURCE_FILES,
+        output:
+            completion=str(PATHS.completion("route_catalogue")),
+            coverage=str(PATHS.catalogue_coverage),
+            routed=str(PATHS.routed_catalogue),
+            report=str(PATHS.report("catalogue-routing.json")),
+        shell:
+            run_phase("route_catalogue")
+
+
+    PREBUILD_COMPLETION = rules.route_catalogue.output.completion
+    EVIDENCE_COMPLETION = rules.assign_ancestry.output.completion
+    PREBUILD_INPUTS = {"catalogue": str(PATHS.routed_catalogue)}
+else:
+    rule resolve_analysis_metadata:
+        """Resolve ancestry and effect-scale metadata into the working input."""
+        input:
+            completion=rules.validate_fixed_inputs.output.completion,
+            build_yaml=str(CONFIG_PATH),
+            analyses=str(RELEASE.plan.analyses_path),
+            sources=SOURCE_FILES,
+            reference_descriptors=REFERENCE_DESCRIPTORS,
+        output:
+            completion=str(PATHS.completion("resolve_analysis_metadata")),
+            analyses=str(PATHS.resolved_analyses),
+            manifest=str(PATHS.builder_manifest),
+            report=str(PATHS.report("metadata-resolution.tsv")),
+        shell:
+            run_phase("resolve_analysis_metadata")
+
+
+    PREBUILD_COMPLETION = rules.resolve_analysis_metadata.output.completion
+    EVIDENCE_COMPLETION = rules.resolve_analysis_metadata.output.completion
+    PREBUILD_INPUTS = {
+        "analyses": str(PATHS.resolved_analyses),
+        "manifest": str(PATHS.builder_manifest),
+    }
 
 
 rule build_observed_store:
     """Invoke the plan's `opengwasdb` build subcommand with its opaque arguments."""
     input:
-        completion=rules.resolve_analysis_metadata.output.completion,
+        completion=PREBUILD_COMPLETION,
         build_yaml=str(CONFIG_PATH),
-        analyses=rules.resolve_analysis_metadata.output.analyses,
-        manifest=rules.resolve_analysis_metadata.output.manifest,
+        **PREBUILD_INPUTS,
     output:
         completion=str(PATHS.completion("build_observed_store")),
         manifest=str(PATHS.store_dir / "manifest.json"),
@@ -146,9 +202,8 @@ rule validate_observed_release:
     input:
         completion=rules.regenerate_observed_overview.output.completion,
         build_completion=rules.build_observed_store.output.completion,
-        resolve_completion=rules.resolve_analysis_metadata.output.completion,
-        resolved=rules.resolve_analysis_metadata.output.analyses,
-        manifest=rules.resolve_analysis_metadata.output.manifest,
+        evidence_completion=EVIDENCE_COMPLETION,
+        **PREBUILD_INPUTS,
         overview=rules.regenerate_observed_overview.output.overview,
         store_manifest=rules.build_observed_store.output.manifest,
     output:
@@ -226,8 +281,7 @@ if RELEASE.child is not None:
         input:
             completion=rules.regenerate_completed_overview.output.completion,
             build_completion=rules.complete_store.output.completion,
-            resolved=rules.resolve_analysis_metadata.output.analyses,
-            manifest=rules.resolve_analysis_metadata.output.manifest,
+            **PREBUILD_INPUTS,
             overview=rules.regenerate_completed_overview.output.overview,
             store_manifest=rules.complete_store.output.manifest,
         output:

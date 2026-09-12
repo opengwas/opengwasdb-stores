@@ -31,11 +31,22 @@ digraph store_release_workflow {
     panel [shape=folder, label="reference completion\nvariant panel"];
   }
 
-  validate_inputs [shape=box, style="rounded,filled", fillcolor="#e8f1fb", label="Validate fixed inputs\nschema, files, checksums"];
+  validate_inputs [shape=box, style="rounded,filled", fillcolor="#e8f1fb", label="Validate fixed inputs\nschema, files, checksums\n+ catalogue inputs when routed"];
   input_report [shape=note, label="input-validation.json"];
+
+  // Pre-build path A: manifest-direct (build.command is a build-* command).
   resolve [shape=box, style="rounded,filled", fillcolor="#e8f1fb", label="Resolve analysis metadata\nancestry + effect scale"];
-  resolved [shape=note, label="work/analyses.resolved.tsv"];
+  resolved [shape=note, label="work/analyses.resolved.tsv\n+ builder manifest"];
   resolution_report [shape=note, label="metadata-resolution.tsv"];
+
+  // Pre-build path B: catalogue-routed (build.command is build-hybrid-from-catalogue).
+  assign_ancestry [shape=box, style="rounded,filled", fillcolor="#fdeef5", label="Assign ancestry\nAnalysis Catalogue"];
+  catalogue [shape=note, label="work/analysis-catalogue.tsv\nversioned Annotation"];
+  assignment_report [shape=note, label="catalogue-assignment.json"];
+  route_catalogue [shape=box, style="rounded,filled", fillcolor="#fdeef5", label="Route catalogue\nderive coverage + routing columns"];
+  coverage [shape=note, label="work/catalogue-coverage.tsv\nderived from sources"];
+  routed [shape=note, label="work/routed-catalogue.tsv\nrouting + store_eligible"];
+  routing_report [shape=note, label="catalogue-routing.json"];
   build [shape=box, style="rounded,filled", fillcolor="#dcefe2", label="OpenGWASDB observed build\nStore envelope + Top-Hit indexes"];
   observed [shape=folder, label="Observed Store\nmanifest.json\nanalyses.tsv\nvariants.tsv.bgz\ndata.zarr/\ntop-hit indexes\noverview.html"];
   build_report [shape=note, label="build-report.tsv"];
@@ -51,12 +62,23 @@ digraph store_release_workflow {
   analyses -> validate_inputs;
   raw -> validate_inputs;
   validate_inputs -> input_report;
-  validate_inputs -> resolve;
+  validate_inputs -> resolve [label="manifest-direct"];
+  validate_inputs -> assign_ancestry [label="catalogue-routed"];
   analyses -> resolve;
   ancestry -> resolve;
   resolve -> resolved;
   resolve -> resolution_report;
+  analyses -> assign_ancestry;
+  ancestry -> assign_ancestry;
+  assign_ancestry -> catalogue;
+  assign_ancestry -> assignment_report;
+  catalogue -> route_catalogue;
+  raw -> route_catalogue;
+  route_catalogue -> coverage;
+  route_catalogue -> routed;
+  route_catalogue -> routing_report;
   resolved -> build;
+  routed -> build;
   raw -> build;
   config -> build;
   genome -> build;

@@ -1,0 +1,22 @@
+{
+  "ancestry_groups": "/data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv",
+  "ancestry_reference": "/data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz",
+  "catalogue_uri": "/data/opengwasdb/gwas-catalog-eur-hybrid/releases/eur-hybrid-pilot-10/work/analysis-catalogue.tsv",
+  "family_release_id": "eur-hybrid-pilot-10",
+  "n_analyses": 9,
+  "n_assigned": 8,
+  "n_parked": 1,
+  "source_manifest_uri": "/data/opengwasdb/gwas-catalog-eur-hybrid/releases/eur-hybrid-pilot-10/work/source-manifest.tsv",
+  "source_reader_capability": "opengwasdb.gwas-ssf",
+  "status": "passed",
+  "store_family_id": "gwas-catalog-eur-hybrid",
+  "superpops": [
+    "AFR",
+    "AMR",
+    "EAS",
+    "EUR",
+    "MID",
+    "NAF",
+    "SAS"
+  ]
+}

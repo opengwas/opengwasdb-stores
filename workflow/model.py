@@ -87,6 +87,26 @@ class WorkflowPaths:
         return self.work_dir / "builder-manifest.tsv"
 
     @property
+    def source_manifest(self) -> Path:
+        """The canonical manifest the catalogue assignment phase annotates (#104)."""
+        return self.work_dir / "source-manifest.tsv"
+
+    @property
+    def analysis_catalogue(self) -> Path:
+        """The versioned Analysis Catalogue `assign-ancestry` emits (#104)."""
+        return self.work_dir / "analysis-catalogue.tsv"
+
+    @property
+    def routed_catalogue(self) -> Path:
+        """The routed Catalogue `route-catalogue` emits, and the build consumes (#104)."""
+        return self.work_dir / "routed-catalogue.tsv"
+
+    @property
+    def catalogue_coverage(self) -> Path:
+        """The derived coverage table `route-catalogue` reads (#104)."""
+        return self.work_dir / "catalogue-coverage.tsv"
+
+    @property
     def store_partial(self) -> Path:
         """Where a build phase writes before replacing the Store atomically."""
         return self.store_dir.with_name(self.store_dir.name + STORE_PARTIAL_SUFFIX)
@@ -191,6 +211,26 @@ class Workflow:
     @property
     def rho_arguments(self) -> dict[str, object]:
         return dict(self.plan.rho_arguments)
+
+    @property
+    def catalogue_routed(self) -> bool:
+        """Whether this release resolves to a routed Catalogue instead of a manifest.
+
+        Driven entirely by ``build.command`` (issue #104), never by a
+        Store-Family name, so the Snakefile stays family-free.
+        """
+        return self.plan.catalogue_routed
+
+    @property
+    def release_reader_capability(self) -> str:
+        """The release's declared Source Reader Capability (issue #104)."""
+        return self.plan.source_reader_capability or ""
+
+    @property
+    def release_source_assembly(self) -> str:
+        """The source assembly the release's files are already in, if declared."""
+        normalisation = _mapping(self.config, "normalisation")
+        return str(normalisation.get("source_assembly") or "")
 
     @property
     def observed_site(self) -> ReleaseSite:

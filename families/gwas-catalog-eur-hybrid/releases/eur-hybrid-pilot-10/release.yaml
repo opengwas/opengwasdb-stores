@@ -2,7 +2,7 @@ metadata_schema_version: 1.0
 store_family_id: gwas-catalog-eur-hybrid
 family_release_id: eur-hybrid-pilot-10
 store_key: hybrid__European__pilot10-cc
-status: built
+status: validated
 source_collection_id: gwas-catalog-ssf
 source_snapshot_id: gwas-catalog-v1.0.3.1-r2026-07-10
 release_kind: one-off
@@ -34,8 +34,11 @@ lineage:
   derived_from: ~
 sidecars:
   download_summary: sidecars/download_summary.tsv
-  build_report: sidecars/build_report.tsv
+  input_validation: sidecars/input-validation.json
+  catalogue_assignment: sidecars/catalogue-assignment.json
+  catalogue_routing: sidecars/catalogue-routing.json
+  build_report: sidecars/build-report.tsv
 notes: |
   Deliberately restricted to case-control Analyses (stored_effect_scale= log_or, original_sd_method=binary_trait): this multi-publication pool has no single-family curated effect-scale method the way a single-paper Store Family does, so a quantitative Analysis's original_sd_method would need real reference-AF phenotype-SD estimation (issue #16's engine) to be honestly populated rather than assumed. Deferred to a follow-up release (opengwasdb-stores#70) rather than fabricated here. This pilot proves the Hybrid layout and the GWAS-SSF Source Reader Capability end-to-end; it does not yet prove quantitative-trait effect-scale coverage for this pool.
 
-  Status is `built`, not `validated`: the store built successfully (10 Analyses, 20,531,956 shared variants -- 9,847,807 on-panel + 10,684,149 off-panel -- and 27,810,834 Ragged Overflow associations, confirming both Hybrid components were genuinely exercised) and reads back correctly, but validation.yaml correctly reports passed_with_warnings. Confirmed directly against this build: opengwasdb.layouts.dense.build_vcf._manifest_row_to_analysis (shared by the Dense and Hybrid builders) drops n_cases/n_controls/sample_size_kind/sample_size_scope/original_effect_scale from the built store despite the manifest supplying real values, and fabricates ancestry_assignment_method=af_assigned regardless of the manifest's actual (here: source_trusted_no_af) value. Filed as explodecomputer/opengwasdb#86. These are real upstream gaps, not defects in this release; left failing rather than silently accepted.
+  Since issue #104 the release is catalogue-routed (`build.command: build-hybrid-from-catalogue`): it builds from a routed Analysis Catalogue rather than a hand-supplied manifest, so `assigned_ancestry` here is AF-derived (not the generator's source-trusted label). AF ancestry assignment admits 8 of the 9 buildable Analyses as EUR; GCST007320 is Unassigned (its NNLS residual 0.137 exceeds the 0.06 gate) and is parked in the Catalogue, and GCST003566 stays excluded from the build (its EAF is reported against the other allele, opengwasdb#115). The rebuilt Store therefore carries 8 Analyses and 19,790,723 variants (9,847,807 Dense on-panel + 9,942,916 Ragged off-panel; 23,875,142 Overflow associations), is format 1.0, passes `opengwasdb validate`, and lands `status: validated`. The pre-#104 format-0.1 catalogued Store is retained under /data/opengwasdb/backups/issue-104/; see docs/gwas-catalog-eur-hybrid-issue-104-evidence.md.

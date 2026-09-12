@@ -18,11 +18,17 @@ is that file unchanged, and equivalence is asserted against its bytes.
 `eqtlgen-cis-pilot` is skipped: it is built from BESD through
 `eqtlgen-besd-ragged/generate.py`, not by any of the three adapters.
 
+Since #104 the *live* Hybrid projection is the lossless canonical one, so the
+adapter's 17-column output is compared through the retained
+``LEGACY_HYBRID_PROJECTION``: that is the historical #96 evidence that the
+retired adapter's bytes are still exactly recoverable.
+
 Beyond the byte diff, the suite pins the behaviours the ticket names: excluded
 rows are omitted, reader capability/assembly travel per row so a GRCh38 source
-is not re-lifted, ancestry-proportion columns are discovered from the data, and
-the canonical (lossless) representation keeps the six Hybrid columns the legacy
-projection omits on purpose (issue #82, deferred to #104).
+is not re-lifted, ancestry-proportion columns are discovered from the data, the
+live Hybrid projection keeps the six Analytical Metadata columns the legacy
+projection omits (issue #82, adopted by #104), and the legacy projection still
+omits exactly those six as #96 evidence.
 
 Run from the repository root:
     python3 tests/release-manifest/run_tests.py
@@ -73,6 +79,9 @@ LAYOUT_BY_COMMAND = {
     "build-dense-vcf": "dense",
     "complete-dense": "dense",
     "build-hybrid": "hybrid",
+    # The catalogue-routed Hybrid command (issue #104) still produces a Hybrid
+    # Store, so its release is covered by the Hybrid adapter's legacy projection.
+    "build-hybrid-from-catalogue": "hybrid",
     "complete-hybrid": "hybrid",
     "build-ragged-ssf": "ragged",
 }
@@ -116,12 +125,17 @@ def vcf_manifest_bytes(
         if layout == "dense":
             release_manifest.write_builder_manifest(rows, shared_path, layout=layout)
         else:
+            # #104 flipped the *live* Hybrid projection to the lossless canonical
+            # one, so the adapter's 17-column output is reproduced through the
+            # retained ``LEGACY_HYBRID_PROJECTION`` -- the historical #96 evidence
+            # that the retired adapter's bytes are still recoverable.
             release_manifest.write_builder_manifest(
                 rows,
                 shared_path,
                 layout=layout,
                 release_reader_capability=require_text(build, "source", "source_reader_capability"),
                 release_source_assembly=require_text(build, "normalisation", "source_assembly"),
+                projection=release_manifest.LEGACY_HYBRID_PROJECTION,
             )
         return read_bytes(shared_path)
 
@@ -296,12 +310,24 @@ def main() -> None:
         all(row["source_reader_capability"] == "" for row in ukb_manifest.rows),
         "an absent reader capability must stay blank, never inferred",
     )
-    # Hybrid overrides both with the release-level build.yaml declaration, which
-    # is what its adapter does.
+    # Hybrid's live projection is lossless (issue #104): a blank per-row
+    # capability is filled from build.yaml, while each row's own assembly wins.
     check(
         all(row["source_reader_capability"] == "opengwasdb.gwas-ssf" for row in hybrid_manifest.rows)
-        and all(row["source_assembly"] == "hg38" for row in hybrid_manifest.rows),
-        "the hybrid projection must use build.yaml's reader capability/assembly for every row",
+        and all(row["source_assembly"] == "GRCh38" for row in hybrid_manifest.rows),
+        "the lossless hybrid projection must fill a blank capability but keep each row's assembly",
+    )
+    legacy_hybrid_manifest = release_manifest.builder_manifest(
+        hybrid_rows,
+        layout="hybrid",
+        release_reader_capability="opengwasdb.gwas-ssf",
+        release_source_assembly="hg38",
+        projection=release_manifest.LEGACY_HYBRID_PROJECTION,
+    )
+    check(
+        all(row["source_reader_capability"] == "opengwasdb.gwas-ssf" for row in legacy_hybrid_manifest.rows)
+        and all(row["source_assembly"] == "hg38" for row in legacy_hybrid_manifest.rows),
+        "the legacy hybrid projection must keep taking capability/assembly from build.yaml",
     )
 
     # --- Ancestry proportions are discovered from the data, not hardcoded ---
@@ -333,27 +359,36 @@ def main() -> None:
         "a population the registry has never seen must still be discovered, sorted",
     )
 
-    # --- The canonical representation is lossless; the hybrid projection is not ---
+    # --- Live Hybrid is lossless; the legacy adapter projection is retained ---
     canonical_hybrid = release_manifest.canonical_manifest(
         hybrid_rows,
         release_reader_capability="opengwasdb.gwas-ssf",
         release_source_assembly="hg38",
     )
-    # The Hybrid omission is deliberate legacy compatibility debt (issue #82):
-    # the canonical representation keeps every column; the adapter-compatible
-    # projection keeps dropping the six until #104 adopts the lossless one.
+    # #104 adopted the lossless canonical representation for live Hybrid builds,
+    # so the live projection and the canonical representation are now identical.
+    check(
+        hybrid_manifest.fieldnames == canonical_hybrid.fieldnames,
+        "the live hybrid projection must be the lossless canonical column set (issue #104)",
+    )
+    check(
+        hybrid_manifest.rows == canonical_hybrid.rows,
+        "the live hybrid projection must carry every canonical row value verbatim",
+    )
+    # The six Analytical Metadata columns issue #82 recorded as lost are now kept
+    # live; the legacy projection is retained purely as the #96 equivalence oracle.
     for column in HYBRID_OMITTED_COLUMNS:
         check(
             column in canonical_hybrid.fieldnames,
-            f"the canonical representation must retain {column} (issue #82)",
+            f"the live representation must retain {column} (issue #82)",
         )
         check(
-            column not in hybrid_manifest.fieldnames,
-            f"the legacy hybrid projection must keep omitting {column} until #104",
+            column not in legacy_hybrid_manifest.fieldnames,
+            f"the legacy hybrid projection must keep omitting {column} (#96 evidence)",
         )
     check(
         len(HYBRID_OMITTED_COLUMNS) == 6,
-        "exactly the six columns issue #82 names are deferred",
+        "exactly the six columns issue #82 names were lost",
     )
     check(
         canonical_hybrid.fieldnames == [

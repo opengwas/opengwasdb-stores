@@ -111,6 +111,61 @@ a general tabular reader would declare source column names there. The concrete
 reader capability and accepted options remain an OpenGWASDB contract, not logic
 implemented in Snakemake.
 
+### The two pre-build paths
+
+`build.command` also decides *which* pre-build path the release takes, never a
+Store-Family name (issue #104). There are two:
+
+* **manifest-direct.** A build command such as `build-dense-vcf` or
+  `build-hybrid` resolves each Analysis's ancestry and effect-scale metadata
+  into a builder manifest, and builds from it. This is the `finngen-r13` and
+  `ukb-b` path, and it is unchanged.
+* **catalogue-routed.** `build.command: build-hybrid-from-catalogue` instead
+  annotates the source manifest into a versioned **Analysis Catalogue**, adds
+  routing and coverage columns to it, and builds from the routed Catalogue.
+  This is the `gwas-catalog-eur-hybrid` path.
+
+A catalogue-routed release declares two inputs the manifest-direct path does
+not: the Source Reader Capability (`source.reader.capability`, or the equivalent
+`source.source_reader_capability`) that the catalogue phases read every source
+through, and an `ancestry_assignment.reference_resource_id` naming an
+`ancestry_mixture` Reference Resource with both a `location` (reference
+frequencies) and a `fine_group_map` (fine-to-super-population map). It also
+declares a `hybrid_dense_panel` Reference Resource for the Dense Component's
+variant panel. `resources/lib/release_plan.py` refuses a catalogue-routed
+command missing any of them at input validation, before anything expensive runs,
+so a missing input cannot surface as a failure after the ancestry extraction.
+
+The catalogue path is two phases, each with its own completion record, rather
+than one:
+
+1. **assign ancestry.** Writes the release's Analyses as the lossless canonical
+   source manifest (every interpretation-bearing column retained, each source
+   file resolved to a real path) and runs `opengwasdb assign-ancestry` against
+   the declared ancestry-mixture resource. Non-matching and Unassigned Analyses
+   stay in the Catalogue; nothing is dropped. Emits `work/analysis-catalogue.tsv`.
+2. **route catalogue.** Derives a coverage table from the same selected sources
+   through the release's configured reader (`trait_id`, `total_variants`,
+   `n_autosomes`, `frac_largest_chrom`), then runs
+   `opengwasdb route-catalogue` to add the routing and eligibility columns. The
+   derivation is bound into the phase's completion record, so a changed source
+   invalidates routing exactly as it invalidates the build. Emits
+   `work/routed-catalogue.tsv`.
+
+Splitting them means an interrupted routing step re-runs only routing; the
+expensive ancestry assignment is not repeated. The coverage table is *derived*
+from the release's own sources, not a hand-authored input, so the fixed-input
+boundary stays three inputs. The build then consumes the routed Catalogue:
+`build-hybrid-from-catalogue` row-filters it to one ancestry and builds a Hybrid
+Store from the Dense Component panel.
+
+One column the Analysis Catalogue schema does not carry, `source_assembly`,
+comes from the release's own `normalisation.source_assembly` (`phase.py` fills
+it onto the routed Catalogue). Without it the builder would default every row
+to hg19 and re-lift an already-GRCh38 source -- the opengwasdb#85 failure the
+manifest-direct path avoids by sourcing capability and assembly from
+`build.yaml`.
+
 The exact `analyses.tsv` columns are governed by the shared OpenGWASDB Analysis
 schema (ADR 0017). At this workflow boundary it must at least identify each
 Analysis and its source file unambiguously; paths are resolved relative to
@@ -123,14 +178,14 @@ The observed-release path is:
 1. Validate `build.yaml`, `analyses.tsv`, the selected source files, checksums,
    reader configuration, and referenced resources. Emit
    `input-validation.json`.
-2. Resolve or verify ancestry and effect-scale metadata. Emit the immutable
-   working input `work/analyses.resolved.tsv` and a resolution report. Resolution
-   never writes the committed `analyses.tsv`: it computes Assigned Ancestry and
-   proportions from the Analysis's own allele frequencies against the declared
-   ancestry-mixture Reference Resource, and computes or verifies effect scale and
-   phenotype SD from the source's allele frequencies and standard errors. Every
-   Analysis whose metadata was derived rather than declared is named in the
-   report (issue #99).
+2. Resolve the release's metadata into the working input. A manifest-direct
+   release emits the immutable `work/analyses.resolved.tsv` and a resolution
+   report: Assigned Ancestry and proportions computed from each Analysis's own
+   allele frequencies against the declared ancestry-mixture Reference Resource,
+   and effect scale and phenotype SD computed or verified from the source's
+   allele frequencies and standard errors (issue #99). A catalogue-routed
+   release instead emits a routed Analysis Catalogue, as its two pre-build
+   phases above. Neither path writes the committed `analyses.tsv`.
 3. Invoke the configured OpenGWASDB CLI subcommand (`build.command`) with its
    opaque `build.arguments`. It produces the Store envelope, initial
    `overview.html`, and Top-Hit indexes, plus a build report.

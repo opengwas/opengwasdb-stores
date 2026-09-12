@@ -268,17 +268,23 @@ manifest_rows <- function(cfg, selected, paths, canonical_table = NULL) {
 }
 
 write_build_yaml <- function(cfg, root, release_dir, paths) {
-  write_yaml_file(list(
+  # `build.command`/`build.arguments` come from the config so a release may take
+  # the catalogue-routed pre-build path (issue #104) without changing this
+  # emitter: `build-hybrid-from-catalogue` when declared, else the manifest-direct
+  # `build-hybrid`. The two identity flags are always derived from the config.
+  build_arguments <- list(
+    "store-id" = cfg$store_family_id,
+    "release-id" = cfg$family_release_id
+  )
+  build_arguments <- c(build_arguments, cfg$build$arguments %||% list())
+  document <- list(
     store_family_id = cfg$store_family_id,
     family_release_id = cfg$family_release_id,
     store_layout = "hybrid-observed",
     completion_state = "observed-only",
     build = list(
-      command = "build-hybrid",
-      arguments = list(
-        "store-id" = cfg$store_family_id,
-        "release-id" = cfg$family_release_id
-      )
+      command = cfg$build$command %||% "build-hybrid",
+      arguments = build_arguments
     ),
     source = list(
       root = paths$download_dir,
@@ -304,7 +310,13 @@ write_build_yaml <- function(cfg, root, release_dir, paths) {
       store_uri = paths$store_uri,
       build_log_uri = NULL
     )
-  ), file.path(release_dir, "build.yaml"))
+  )
+  # The catalogue-routed path's extra inputs (issue #104) are declared in the
+  # config and emitted only when present, so a manifest-direct Hybrid release's
+  # build.yaml is byte-for-byte what it was before this branch existed.
+  if (!is.null(cfg$ancestry_assignment)) document$ancestry_assignment <- cfg$ancestry_assignment
+  if (!is.null(cfg$routing)) document$routing <- cfg$routing
+  write_yaml_file(document, file.path(release_dir, "build.yaml"))
 }
 
 emit_bundle <- function(cfg, root) {

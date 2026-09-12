@@ -22,34 +22,35 @@ The module has three layers, deliberately separated:
     columns are discovered from the data, never hardcoded.
 
 ``ADAPTER_PROJECTIONS``
-    The adapter-compatible serialisation of those rows: one named projection per
-    Store Layout. These mirror the retired ``build-store.py`` adapters rather
-    than the ideal, because the evidence for #96 was that regenerating a
-    release's manifest reproduced what the corresponding adapter wrote byte for
-    byte, and that guarantee is pinned in ``tests/release-manifest/``.
+    The serialisation of those rows: one named projection per Store Layout.
+    Since #104 every live projection is the lossless canonical translation, so
+    no layout drops Analytical Metadata. The pre-#104 adapter-compatible
+    projection for Hybrid is kept separately as ``LEGACY_HYBRID_PROJECTION``,
+    because #96's evidence is that regenerating a release's manifest reproduces
+    what the corresponding ``build-store.py`` adapter wrote byte for byte.
 
 ``write_builder_manifest``
-    Registry Analysis rows in, adapter-compatible builder manifest TSV out.
+    Registry Analysis rows in, builder manifest TSV out.
 
-Legacy Hybrid projection (issue #82, deferred to #104)
-------------------------------------------------------
-``build_hybrid_from_vcf_manifest`` shares the Dense builder's manifest shape,
-but the retired ``gwas-ssf-hybrid/build-store.py`` wrote only 17 of Dense's 23
-columns: it
-omits ``sample_size_kind``, ``sample_size_scope``, ``n_cases``, ``n_controls``,
-``original_effect_scale`` and ``ancestry_assignment_method``, and it takes the
-row's source reader capability/assembly from ``build.yaml`` instead of from the
-row. All six are Analytical Metadata (``CONTEXT.md``), so the built Hybrid
-stores cannot carry them -- issue #82's metadata loss, which those releases'
-own ``validation.yaml`` files record as warnings.
+Hybrid is now lossless (issue #104)
+-----------------------------------
+``build_hybrid_from_vcf_manifest`` shares the Dense builder's manifest shape.
+The pre-#104 ``gwas-ssf-hybrid/build-store.py`` adapter wrote only 17 of Dense's
+23 columns: it omitted ``sample_size_kind``, ``sample_size_scope``, ``n_cases``,
+``n_controls``, ``original_effect_scale`` and ``ancestry_assignment_method``,
+and it took the row's source reader capability/assembly from ``build.yaml``
+instead of from the row. All six are Analytical Metadata (``CONTEXT.md``), so
+the built Hybrid stores could not carry them -- issue #82's metadata loss.
 
-``ADAPTER_PROJECTIONS["hybrid"]`` reproduces that omission on purpose. #96's
-contract is deduplication, not a change to what an already-accepted Store
-Release contains; feeding the lossless columns into a live Hybrid build would
-change the built Store, and that change belongs with the catalogue-path/rebuild
-work (#104). Callers that want the lossless representation use
-``canonical_manifest``, which retains all six columns, so nothing has to be
-reconstructed from the registry table.
+#104 switches the *live* Hybrid projection onto the lossless canonical
+representation: ``ADAPTER_PROJECTIONS["hybrid"]`` now keeps every column, so a
+Hybrid build carries the same Analytical Metadata a Dense build does. The
+pre-#104 17-column adapter-compatible projection is kept as
+``LEGACY_HYBRID_PROJECTION`` -- and still regression-tested byte-for-byte
+against the adapter by ``tests/release-manifest/`` -- as the historical #96
+equivalence evidence for what an already-accepted Hybrid Store Release
+contains. It is no longer used by a live build. Callers that want the lossless
+representation for a specific row set use ``canonical_manifest``.
 
 Ragged is not a VCF manifest at all: ``build_ragged_from_ssf`` reads the registry
 Analysis column names (``analysis_index``, ``analysis_id``, ``filtered_file``,
@@ -152,13 +153,11 @@ class AdapterProjection:
 
 
 #: The 17 columns ``gwas-ssf-hybrid/build-store.py`` wrote, in that adapter's
-#: order: the Dense set minus the six Analytical Metadata columns
-#: listed in the module docstring (issue #82). Kept as an explicit projection --
-#: and regression-tested as such -- so a Hybrid manifest is byte-identical to
-#: the adapter's, and so the omission is a recorded decision rather than drift.
-#: This is legacy compatibility debt: switching live Hybrid builds to the
-#: canonical lossless representation changes what an accepted Store contains
-#: and is deferred to the catalogue-path/rebuild work (#104).
+#: order: the Dense set minus the six Analytical Metadata columns listed in the
+#: module docstring (issue #82). Kept as an explicit projection -- and
+#: regression-tested byte-for-byte against the adapter -- as the historical #96
+#: equivalence evidence for what an already-accepted Hybrid Store Release
+#: contains. A live build uses the lossless canonical projection instead (#104).
 LEGACY_HYBRID_COLUMNS: tuple[str, ...] = (
     "trait_id", "file_path", "trait_name", "n", "stored_effect_scale",
     "original_sd_method", "original_sd", "assigned_ancestry",
@@ -167,20 +166,33 @@ LEGACY_HYBRID_COLUMNS: tuple[str, ...] = (
     "source_reader_capability", "source_assembly",
 )
 
+#: The pre-#104 adapter-compatible Hybrid projection: the 17 columns the
+#: retired ``gwas-ssf-hybrid/build-store.py`` wrote, with capability/assembly
+#: taken from ``build.yaml`` rather than the row. Retained purely as the #96
+#: historical equivalence oracle -- a live build no longer uses it.
+LEGACY_HYBRID_PROJECTION = AdapterProjection(
+    "hybrid", LEGACY_HYBRID_COLUMNS, release_sourced_columns=RELEASE_SOURCED_COLUMNS
+)
+
+#: The *live* projections, one named projection per Store Layout (issue #104).
+#: Every layout now uses the lossless canonical translation (``columns is None``),
+#: so no layout silently drops Analytical Metadata. Ragged is the degenerate
+#: case: its builder reads the registry Analysis column names directly.
 ADAPTER_PROJECTIONS: dict[str, AdapterProjection] = {
     # Dense's adapter *is* the lossless canonical translation, plus the ancestry
     # proportions the release happens to carry.
     "dense": AdapterProjection("dense", None),
-    # Hybrid shares Dense's builder manifest shape but not its adapter's column
-    # set, and sources capability/assembly from build.yaml. This projection is
-    # legacy compatibility debt (issue #82); the lossless alternative is
-    # canonical_manifest(), and adopting it for live builds is #104's call.
-    "hybrid": AdapterProjection(
-        "hybrid", LEGACY_HYBRID_COLUMNS, release_sourced_columns=RELEASE_SOURCED_COLUMNS
-    ),
+    # Hybrid now uses the same lossless translation as Dense (issue #104).
+    "hybrid": AdapterProjection("hybrid", None),
     # The Ragged GWAS-SSF builder reads registry Analysis column names directly.
     "ragged": AdapterProjection("ragged", None, registry_columns=True),
 }
+
+#: Pre-#104 adapter-compatible projections retained as historical evidence
+#: (issue #96). ``LEGACY_HYBRID_PROJECTION`` reproduces what the retired
+#: ``build-store.py`` adapter wrote, so the byte-equivalence suite can still
+#: prove it; it is never selected by a live build.
+LEGACY_PROJECTIONS: dict[str, AdapterProjection] = {"hybrid": LEGACY_HYBRID_PROJECTION}
 
 
 @dataclass
@@ -295,38 +307,25 @@ def _registry_columns(rows: Iterable[Mapping[str, str]]) -> list[str]:
     return columns
 
 
-def builder_manifest(
+def _manifest_for_projection(
     rows: Iterable[Mapping[str, str]],
+    projection: AdapterProjection,
     *,
-    layout: str,
-    release_reader_capability: str = "",
-    release_source_assembly: str = "",
+    release_reader_capability: str,
+    release_source_assembly: str,
 ) -> BuilderManifest:
-    """The adapter-compatible builder manifest for one Store Layout.
+    """Serialise ``rows`` under one projection.
 
-    ``layout`` is one of ``dense``, ``hybrid`` or ``ragged`` (see
-    ``ADAPTER_PROJECTIONS``). The result is byte-identical to what that layout's
-    retired ``build-store.py`` adapter wrote for the same ``analyses.tsv``.
-
-    ``rows`` may be any iterable, including a single-use one (a generator or a
-    ``csv.DictReader``). The Ragged projection needs the release's full table
-    twice -- once for buildable rows and once for its registry column names --
-    so it is materialised once here, at the API boundary, before either read.
+    A canonical projection (``columns is None``) is lossless: a blank per-row
+    capability/assembly *may* be filled from the release-level declaration, but a
+    value the row carries is never overwritten. A legacy explicit-column
+    projection keeps its historical overwrite semantics, which is what makes it
+    byte-identical to the adapter it reproduces.
     """
-    try:
-        projection = ADAPTER_PROJECTIONS[layout]
-    except KeyError:
-        raise ValueError(
-            f"unknown Store Layout {layout!r}; expected one of "
-            f"{', '.join(sorted(ADAPTER_PROJECTIONS))}"
-        ) from None
-
     rows = list(rows)
     buildable = buildable_rows(rows)
     if projection.registry_columns:
-        return BuilderManifest(
-            projection.layout, _registry_columns(rows), buildable
-        )
+        return BuilderManifest(projection.layout, _registry_columns(rows), buildable)
 
     ancestry_columns = ancestry_proportion_columns(buildable)
     canonical = [canonical_row(row, ancestry_columns) for row in buildable]
@@ -337,6 +336,10 @@ def builder_manifest(
     for translated in canonical:
         for column in projection.release_sourced_columns:
             translated[column] = release_values[column]
+        if projection.columns is None:
+            for column in RELEASE_SOURCED_COLUMNS:
+                if not translated[column]:
+                    translated[column] = release_values[column]
 
     columns = (
         canonical_columns(buildable) if projection.columns is None else list(projection.columns)
@@ -346,25 +349,46 @@ def builder_manifest(
     )
 
 
-def write_builder_manifest(
+def builder_manifest(
     rows: Iterable[Mapping[str, str]],
-    out_path: str | Path,
     *,
     layout: str,
     release_reader_capability: str = "",
     release_source_assembly: str = "",
+    projection: AdapterProjection | None = None,
 ) -> BuilderManifest:
-    """Write one layout's adapter-compatible builder manifest TSV.
+    """The builder manifest for one Store Layout (issue #104).
 
-    Same tab-separated, LF-terminated, UTF-8 shape the ``build-store.py``
-    adapters wrote into a temporary file before handing it to OpenGWASDB.
+    ``layout`` is one of ``dense``, ``hybrid`` or ``ragged`` (see
+    ``ADAPTER_PROJECTIONS``); every live projection is the lossless canonical
+    translation, so no layout drops Analytical Metadata. Pass an explicit
+    ``projection`` to serialise under a different one -- the byte-equivalence
+    suite does this with ``LEGACY_HYBRID_PROJECTION`` to prove the retired
+    adapter's 17-column output can still be reproduced (#96 evidence).
+
+    ``rows`` may be any iterable, including a single-use one (a generator or a
+    ``csv.DictReader``). The Ragged projection needs the release's full table
+    twice -- once for buildable rows and once for its registry column names --
+    so it is materialised once here, at the API boundary, before either read.
     """
-    manifest = builder_manifest(
+    if projection is None:
+        try:
+            projection = ADAPTER_PROJECTIONS[layout]
+        except KeyError:
+            raise ValueError(
+                f"unknown Store Layout {layout!r}; expected one of "
+                f"{', '.join(sorted(ADAPTER_PROJECTIONS))}"
+            ) from None
+    return _manifest_for_projection(
         rows,
-        layout=layout,
+        projection,
         release_reader_capability=release_reader_capability,
         release_source_assembly=release_source_assembly,
     )
+
+
+def write_manifest(manifest: BuilderManifest, out_path: str | Path) -> BuilderManifest:
+    """Serialise an already-built ``BuilderManifest`` as a builder-manifest TSV."""
     with Path(out_path).open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
             handle, delimiter="\t", fieldnames=manifest.fieldnames, lineterminator="\n"
@@ -372,3 +396,28 @@ def write_builder_manifest(
         writer.writeheader()
         writer.writerows(manifest.rows)
     return manifest
+
+
+def write_builder_manifest(
+    rows: Iterable[Mapping[str, str]],
+    out_path: str | Path,
+    *,
+    layout: str,
+    release_reader_capability: str = "",
+    release_source_assembly: str = "",
+    projection: AdapterProjection | None = None,
+) -> BuilderManifest:
+    """Write one layout's builder manifest TSV.
+
+    Same tab-separated, LF-terminated, UTF-8 shape the ``build-store.py``
+    adapters wrote into a temporary file before handing it to OpenGWASDB, and
+    the shape OpenGWASDB's CLI builders read from a file.
+    """
+    manifest = builder_manifest(
+        rows,
+        layout=layout,
+        release_reader_capability=release_reader_capability,
+        release_source_assembly=release_source_assembly,
+        projection=projection,
+    )
+    return write_manifest(manifest, out_path)

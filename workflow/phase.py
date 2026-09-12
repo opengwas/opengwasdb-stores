@@ -78,14 +78,23 @@ for _path in (str(_WORKFLOW_DIR), str(_REPO_ROOT)):
         sys.path.insert(0, _path)
 
 from model import ReleaseSite, Workflow, WorkflowError, load_workflow  # noqa: E402
+from resources.lib.catalogue_coverage import derive_coverage  # noqa: E402
 from resources.lib.metadata_resolution import ResolutionError, resolve_analyses  # noqa: E402
 from resources.lib.release_manifest import (  # noqa: E402
     ANCESTRY_PROPORTION_PREFIX,
     CANONICAL_COLUMN_SOURCE,
     buildable_rows,
+    canonical_manifest,
     write_builder_manifest,
+    write_manifest,
 )
-from resources.lib.release_plan import check_release  # noqa: E402
+from resources.lib.release_plan import (  # noqa: E402
+    CATALOGUE_BUILD_COMMAND,
+    HYBRID_DENSE_PANEL_KIND,
+    check_release,
+    reference_resource,
+    resource_by_kind,
+)
 from resources.lib.release_yaml import (  # noqa: E402
     merge_release_yaml,
     merge_validation_yaml,
@@ -406,7 +415,11 @@ def phase_resolve_analysis_metadata(workflow: Workflow) -> None:
     report = workflow.paths.report("metadata-resolution.tsv")
     write_tsv(report, resolution.report_columns, resolution.report_rows)
     manifest = write_builder_manifest(
-        resolution.rows, workflow.paths.builder_manifest, layout=workflow.layout
+        resolution.rows,
+        workflow.paths.builder_manifest,
+        layout=workflow.layout,
+        release_reader_capability=workflow.release_reader_capability,
+        release_source_assembly=workflow.release_source_assembly,
     )
 
     failures: list[str] = []
@@ -456,11 +469,329 @@ def phase_resolve_analysis_metadata(workflow: Workflow) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Phase 2b -- assign_ancestry / route_catalogue (catalogue-routed path, #104)
+# ---------------------------------------------------------------------------
+
+#: `assigned_ancestry` value `opengwasdb.ancestry.catalogue` writes for a
+#: non-routable Analysis. A catalogue-routed build filters it out.
+UNASSIGNED_ANCESTRY = "Unassigned"
+
+
+def _config_mapping(config: dict, key: str) -> dict:
+    value = config.get(key)
+    return value if isinstance(value, dict) else {}
+
+
+def _resource_path(workflow: Workflow, value: object) -> Path:
+    """Resolve a Reference Resource path the way `model.reference_descriptors` does.
+
+    Relative paths resolve against the repository root (the r13 fixture's panel
+    is a tracked `tests/...` path); absolute paths already name an external
+    resource such as the ancestry mixture or the Hybrid panel.
+    """
+    path = Path(str(value))
+    return path if path.is_absolute() else workflow.paths.repo_root / path
+
+
+def _ancestry_reference_paths(workflow: Workflow) -> tuple[Path, Path]:
+    """The declared ancestry-mixture reference frequencies and fine-group map."""
+    ancestry = _config_mapping(workflow.config, "ancestry_assignment")
+    resource_id = str(ancestry.get("reference_resource_id") or "")
+    resource = reference_resource(workflow.config, resource_id) if resource_id else None
+    if resource is None:
+        raise PhaseError(
+            "ancestry_assignment.reference_resource_id names no declared Reference Resource"
+        )
+    return (
+        _resource_path(workflow, resource["location"]),
+        _resource_path(workflow, resource["fine_group_map"]),
+    )
+
+
+def _hybrid_panel_path(workflow: Workflow) -> Path:
+    """The declared Dense Component variant panel for a catalogue-routed build."""
+    panel = resource_by_kind(workflow.config, HYBRID_DENSE_PANEL_KIND)
+    if panel is None or not panel.get("location"):
+        raise PhaseError(
+            f"reference_resources needs a {HYBRID_DENSE_PANEL_KIND!r} entry with a location"
+        )
+    return _resource_path(workflow, panel["location"])
+
+
+def _canonical_source_rows(workflow: Workflow) -> list[dict[str, str]]:
+    """The release's buildable rows with each source file resolved to a real path.
+
+    The catalogue phases read through OpenGWASDB, which needs an actual file
+    path, not a `source.root`-relative name, so `file_path` is made absolute
+    here (matching `workflow/model.py`'s source resolution) before the canonical
+    manifest is written.
+    """
+    plan = workflow.plan
+    assert plan.analyses_path is not None and plan.source_root is not None
+    rows = buildable_rows(read_tsv(plan.analyses_path))
+    for row in rows:
+        value = (row.get("source_file") or row.get("file_name") or "").strip()
+        if not value:
+            raise PhaseError(f"source.analyses: {row.get('analysis_id') or 'row'} names no source file")
+        path = Path(value)
+        row["source_file"] = str(path if path.is_absolute() else plan.source_root / path)
+    return rows
+
+
+def _ancestry_flags(ancestry: dict) -> list[str]:
+    """The `assign-ancestry` flags a build.yaml's ancestry-assignment block sets."""
+    flags: list[str] = []
+    if ancestry.get("maf_floor") is not None:
+        flags += ["--maf-floor", str(ancestry["maf_floor"])]
+    gates = ancestry.get("gates")
+    if isinstance(gates, dict):
+        for key, flag in (
+            ("tau", "--tau"),
+            ("delta", "--delta"),
+            ("n_min", "--n-min"),
+            ("residual_max", "--residual-max"),
+        ):
+            if gates.get(key) is not None:
+                flags += [flag, str(gates[key])]
+    if ancestry.get("orientation_flip_r") is not None:
+        flags += ["--orientation-flip-r", str(ancestry["orientation_flip_r"])]
+    if ancestry.get("workers") is not None:
+        flags += ["--workers", str(ancestry["workers"])]
+    if ancestry.get("catalogue_version"):
+        flags += ["--catalogue-version", str(ancestry["catalogue_version"])]
+    if ancestry.get("reference_version"):
+        flags += ["--reference-version", str(ancestry["reference_version"])]
+    return flags
+
+
+def phase_assign_ancestry(workflow: Workflow) -> None:
+    """Annotate the release's source manifest into the versioned Analysis Catalogue.
+
+    The catalogue-routed pre-build path's first phase (issue #104). It writes the
+    release's Analyses as the canonical (lossless) source manifest -- every
+    interpretation-bearing column retained and each source file resolved to a
+    path OpenGWASDB can read -- then runs `opengwasdb assign-ancestry` against the
+    declared ancestry-mixture Reference Resource. Non-EUR and Unassigned
+    Analyses stay in the Catalogue (parked), never dropped.
+    """
+    capability = workflow.release_reader_capability
+    if not capability:
+        raise PhaseError("build.yaml declares no Source Reader Capability")
+    reference, groups = _ancestry_reference_paths(workflow)
+
+    manifest = canonical_manifest(
+        _canonical_source_rows(workflow),
+        release_reader_capability=capability,
+        release_source_assembly=workflow.release_source_assembly,
+    )
+    write_manifest(manifest, workflow.paths.source_manifest)
+
+    catalogue = workflow.paths.analysis_catalogue
+    ancestry = _config_mapping(workflow.config, "ancestry_assignment")
+    command = [
+        opengwasdb_executable(),
+        "assign-ancestry",
+        str(workflow.paths.source_manifest),
+        str(catalogue),
+        "--ancestry-reference",
+        str(reference),
+        "--ancestry-groups",
+        str(groups),
+        *_ancestry_flags(ancestry),
+    ]
+    result = run_cli(command)
+    if result.returncode != 0:
+        raise PhaseError(f"{' '.join(command)} exited {result.returncode}")
+
+    summary = _last_json_object(result.stdout)
+    if not catalogue.is_file():
+        raise PhaseError("assign-ancestry wrote no Analysis Catalogue")
+    catalogue_rows = read_tsv(catalogue)
+    manifest_ids = [row["trait_id"] for row in manifest.rows]
+    failures: list[str] = []
+    if not catalogue_rows:
+        failures.append("the Analysis Catalogue is empty")
+    if any(row.get("assigned_ancestry", "") == "" for row in catalogue_rows):
+        failures.append("an Analysis Catalogue row carries no assigned_ancestry")
+    if [row.get("trait_id") for row in catalogue_rows] != manifest_ids:
+        failures.append("the Analysis Catalogue does not cover exactly the source-manifest Analyses")
+    if failures:
+        raise PhaseError("catalogue assignment read-back failed:\n" + "\n".join(failures))
+
+    n_assigned = sum(
+        1 for row in catalogue_rows if row.get("assigned_ancestry") not in ("", UNASSIGNED_ANCESTRY)
+    )
+    report = workflow.paths.report("catalogue-assignment.json")
+    write_json(report, {
+        "status": "passed",
+        "store_family_id": workflow.plan.store_family_id,
+        "family_release_id": workflow.plan.family_release_id,
+        "catalogue_uri": str(catalogue),
+        "source_manifest_uri": str(workflow.paths.source_manifest),
+        "ancestry_reference": str(reference),
+        "ancestry_groups": str(groups),
+        "source_reader_capability": capability,
+        "n_analyses": len(catalogue_rows),
+        "n_assigned": n_assigned,
+        "n_parked": len(catalogue_rows) - n_assigned,
+        "superpops": summary.get("superpops", []),
+    })
+    write_completion(
+        workflow,
+        "assign_ancestry",
+        outputs=[workflow.paths.source_manifest, catalogue, report],
+        validation={
+            "check": "assign_ancestry",
+            "status": "passed",
+            "source_reader_capability": capability,
+            "ancestry_reference": str(reference),
+            "ancestry_groups": str(groups),
+            "n_analyses": len(catalogue_rows),
+            "n_assigned": n_assigned,
+            "n_parked": len(catalogue_rows) - n_assigned,
+        },
+        command=command,
+        extra_inputs=[workflow.paths.completion("validate_fixed_inputs")],
+    )
+
+
+def _add_release_column(path: Path, column: str, value: str) -> None:
+    """Fill a release-level column the Catalogue schema does not carry.
+
+    `opengwasdb`'s Analysis Catalogue is a fixed column set: it carries
+    `source_reader_capability` (so a non-VCF Catalogue can drive a build) but not
+    `source_assembly`, so `build-hybrid-from-catalogue`'s row-filtered manifest
+    omits it and the builder would default every row to hg19 -- re-lifting an
+    already-GRCh38 source (opengwasdb#85) and failing at the liftover gate. The
+    manifest-direct Hybrid path took capability/assembly from `build.yaml`; this
+    restores that parity for the catalogue-routed path from the release's own
+    `normalisation.source_assembly`. A value a row already carries is never
+    overwritten.
+    """
+    if not value:
+        return
+    fieldnames, rows = read_tsv_rows(path)
+    if column not in fieldnames:
+        fieldnames = [*fieldnames, column]
+    for row in rows:
+        if not row.get(column):
+            row[column] = value
+    write_tsv(path, fieldnames, rows)
+
+
+def phase_route_catalogue(workflow: Workflow) -> None:
+    """Derive coverage from the sources, then add routing columns to the Catalogue.
+
+    The catalogue-routed pre-build path's second phase (issue #104). Coverage is
+    derived here, from the selected sources through the release's configured
+    reader, because it is a property of the data rather than a hand-authored
+    input; the derivation is bound into this phase's completion record, so a
+    changed source invalidates routing exactly as it invalidates the build. The
+    routed Catalogue is what the build consumes: `build-hybrid-from-catalogue`
+    subsets it to one ancestry and builds a Hybrid Store.
+    """
+    capability = workflow.release_reader_capability
+    if not capability:
+        raise PhaseError("build.yaml declares no Source Reader Capability")
+    catalogue = workflow.paths.analysis_catalogue
+    if not catalogue.is_file():
+        raise PhaseError(f"no Analysis Catalogue at {catalogue}; run assign_ancestry first")  # noqa: E501
+    source_rows = read_tsv(workflow.paths.source_manifest)
+    routing = _config_mapping(workflow.config, "routing")
+    coverage = derive_coverage(
+        source_rows,
+        workflow.paths.catalogue_coverage,
+        capability=capability,
+        n_workers=int(routing.get("workers") or 1),
+    )
+
+    routed = workflow.paths.routed_catalogue
+    command = [
+        opengwasdb_executable(),
+        "route-catalogue",
+        str(catalogue),
+        str(workflow.paths.catalogue_coverage),
+        str(routed),
+    ]
+    if routing.get("min_variants") is not None:
+        command += ["--min-variants", str(routing["min_variants"])]
+    result = run_cli(command)
+    if result.returncode != 0:
+        raise PhaseError(f"{' '.join(command)} exited {result.returncode}")
+
+    if not routed.is_file():
+        raise PhaseError("route-catalogue wrote no routed Catalogue")
+    _add_release_column(routed, "source_assembly", workflow.release_source_assembly)
+
+    summary = _last_json_object(result.stdout)
+    routed_rows = read_tsv(routed)
+    fieldnames = set(routed_rows[0].keys()) if routed_rows else set()
+    failures: list[str] = []
+    for column in ("routing_ancestry", "routing_source", "store_eligible"):
+        if column not in fieldnames:
+            failures.append(f"the routed Catalogue has no {column} column")
+    if [row.get("trait_id") for row in routed_rows] != [row.get("trait_id") for row in read_tsv(catalogue)]:
+        failures.append("the routed Catalogue does not cover exactly the assigned Analyses")
+    if len(coverage) != len(source_rows):
+        failures.append("the derived coverage table does not cover every selected source")
+    if failures:
+        raise PhaseError("catalogue routing read-back failed:\n" + "\n".join(failures))
+
+    report = workflow.paths.report("catalogue-routing.json")
+    write_json(report, {
+        "status": "passed",
+        "store_family_id": workflow.plan.store_family_id,
+        "family_release_id": workflow.plan.family_release_id,
+        "catalogue_uri": str(catalogue),
+        "routed_catalogue_uri": str(routed),
+        "coverage_uri": str(workflow.paths.catalogue_coverage),
+        "source_reader_capability": capability,
+        "n_analyses": len(routed_rows),
+        "store_eligible": summary.get("store_eligible"),
+        "rescued_via_reported": summary.get("rescued_via_reported"),
+        "dropped_no_ancestry": summary.get("dropped_no_ancestry"),
+        "dropped_low_coverage": summary.get("dropped_low_coverage"),
+    })
+    write_completion(
+        workflow,
+        "route_catalogue",
+        outputs=[workflow.paths.catalogue_coverage, routed, report],
+        validation={
+            "check": "route_catalogue",
+            "status": "passed",
+            "source_reader_capability": capability,
+            "n_analyses": len(routed_rows),
+            "n_coverage_rows": len(coverage),
+            "store_eligible": summary.get("store_eligible"),
+        },
+        command=command,
+        extra_inputs=[workflow.paths.completion("assign_ancestry")],
+    )
+
+
+# ---------------------------------------------------------------------------
 # Phase 3 -- build_observed_store
 # ---------------------------------------------------------------------------
 
 
+def _expected_catalogue_analysis_ids(workflow: Workflow) -> list[str]:
+    """The Analyses a catalogue-routed build keeps: one Assigned Ancestry subset.
+
+    `build-hybrid-from-catalogue` row-filters the routed Catalogue to
+    `assigned_ancestry == <build.arguments.ancestry>`; the read-back expects
+    exactly that set, so a build that silently dropped an Analysis fails.
+    """
+    ancestry = str(workflow.plan.build_arguments.get("ancestry") or "EUR")
+    return [
+        row["trait_id"]
+        for row in read_tsv(workflow.paths.routed_catalogue)
+        if row.get("assigned_ancestry") == ancestry
+    ]
+
+
 def expected_analysis_ids(workflow: Workflow) -> list[str]:
+    if workflow.catalogue_routed:
+        return _expected_catalogue_analysis_ids(workflow)
     return [row["analysis_id"] for row in buildable_rows(read_tsv(workflow.plan.analyses_path))]
 
 
@@ -483,6 +814,24 @@ def store_info(store_dir: Path) -> dict[str, str]:
 
 def directory_bytes(path: Path) -> int:
     return sum(item.stat().st_size for item in path.rglob("*") if item.is_file())
+
+
+def store_variant_count(store_dir: Path) -> int | None:
+    """The built Store's union-variant count, read from its own envelope.
+
+    `build-hybrid-from-catalogue`'s JSON summary names the Catalogue subset
+    (`n_kept`/`n_total`) rather than the built variant axis, and `opengwasdb
+    info` does not print it either, so the number is read back from
+    `manifest.json`'s `provenance.n_variants` -- which both the 0.1 and 1.0
+    envelopes carry. Returns None when it cannot be read.
+    """
+    try:
+        manifest = json.loads((store_dir / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    provenance = manifest.get("provenance")
+    value = provenance.get("n_variants") if isinstance(provenance, dict) else manifest.get("n_variants")
+    return int(value) if isinstance(value, (int, float)) else None
 
 
 def _last_json_object(output: str) -> dict:
@@ -509,19 +858,39 @@ def replace_store(partial: Path, store_dir: Path) -> None:
 
 
 def phase_build_observed_store(workflow: Workflow) -> None:
-    """Run the plan's `build.command` and read the built envelope back."""
+    """Run the plan's `build.command` and read the built envelope back.
+
+    A manifest-direct release (a Dense or Ragged build) feeds the shared builder
+    manifest. A catalogue-routed release feeds the routed Analysis Catalogue and
+    its Dense Component panel instead: the branch is `build.command`, not a
+    Store-Family name (issue #104).
+    """
     plan = workflow.plan
     partial = workflow.paths.store_partial
     remove_path(partial)
     partial.parent.mkdir(parents=True, exist_ok=True)
 
-    command = [
-        opengwasdb_executable(),
-        str(plan.build_command),
-        *cli_flags(plan.build_arguments),
-        str(workflow.paths.builder_manifest),
-        str(partial),
-    ]
+    if plan.catalogue_routed:
+        routed = workflow.paths.routed_catalogue
+        if not routed.is_file():
+            raise PhaseError(f"no routed Analysis Catalogue at {routed}; run route_catalogue first")  # noqa: E501
+        command = [
+            opengwasdb_executable(),
+            str(plan.build_command),
+            *cli_flags(plan.build_arguments),
+            "--reference-panel",
+            str(_hybrid_panel_path(workflow)),
+            str(routed),
+            str(partial),
+        ]
+    else:
+        command = [
+            opengwasdb_executable(),
+            str(plan.build_command),
+            *cli_flags(plan.build_arguments),
+            str(workflow.paths.builder_manifest),
+            str(partial),
+        ]
     started = time.monotonic()
     result = run_cli(command)
     wall_seconds = time.monotonic() - started
@@ -532,6 +901,8 @@ def phase_build_observed_store(workflow: Workflow) -> None:
     info = store_info(partial)
     expected = expected_analysis_ids(workflow)
     actual = store_analysis_ids(partial)
+    n_analyses = summary.get("n_kept") or summary.get("n_analyses") or len(actual)
+    n_variants = summary.get("n_variants") or store_variant_count(partial) or ""
 
     failures: list[str] = []
     if not summary:
@@ -584,8 +955,8 @@ def phase_build_observed_store(workflow: Workflow) -> None:
             "store_uri": str(workflow.paths.store_dir),
             "store_id": plan.store_family_id,
             "release_id": plan.family_release_id,
-            "n_analyses": summary.get("n_analyses", len(actual)),
-            "n_variants": summary.get("n_variants", ""),
+            "n_analyses": n_analyses,
+            "n_variants": n_variants,
             "store_bytes": directory_bytes(workflow.paths.store_dir),
             "build_wall_seconds": f"{wall_seconds:.3f}",
             "command": " ".join(command),
@@ -593,23 +964,28 @@ def phase_build_observed_store(workflow: Workflow) -> None:
             "status": "passed",
         }],
     )
+    upstream_phase = "route_catalogue" if plan.catalogue_routed else "resolve_analysis_metadata"
+    validation: dict = {
+        "check": "build",
+        "status": "passed",
+        "files_status": "passed",
+        "store_uri": str(workflow.paths.store_dir),
+        "n_analyses": n_analyses,
+        "n_variants": n_variants,
+        "format_version": info.get("format_version", ""),
+        "build_wall_seconds": f"{wall_seconds:.3f}",
+        "catalogue_routed": plan.catalogue_routed,
+        "warnings": warnings,
+    }
+    if plan.catalogue_routed:
+        validation["routing_ancestry"] = str(plan.build_arguments.get("ancestry") or "EUR")
     write_completion(
         workflow,
         "build_observed_store",
         outputs=[workflow.paths.store_dir / "manifest.json", report],
-        validation={
-            "check": "build",
-            "status": "passed",
-            "files_status": "passed",
-            "store_uri": str(workflow.paths.store_dir),
-            "n_analyses": summary.get("n_analyses", len(actual)),
-            "n_variants": summary.get("n_variants", ""),
-            "format_version": info.get("format_version", ""),
-            "build_wall_seconds": f"{wall_seconds:.3f}",
-            "warnings": warnings,
-        },
+        validation=validation,
         command=command,
-        extra_inputs=[workflow.paths.completion("resolve_analysis_metadata")],
+        extra_inputs=[workflow.paths.completion(upstream_phase)],
     )
 
 
@@ -883,6 +1259,7 @@ def phase_validate(
     overview_phase: str,
     reports: dict[str, str],
     resolve_phase: str | None = None,
+    catalogue_phase: str | None = None,
 ) -> None:
     """Validate `site`'s Store with `opengwasdb validate` and record the result.
 
@@ -896,9 +1273,12 @@ def phase_validate(
     resolve phase's release-level checks (`ancestry`, `effect_scale`,
     `sd_estimation`) and warnings are merged here too, and the release's
     lifecycle status is landed: a failed effect-scale check is evidence, so the
-    release is `built` rather than `validated` (issue #99). A Reference
-    Completion child has no resolve phase, so it only lands `schema`/`files`/
-    `store` and its own `validation.yaml`.
+    release is `built` rather than `validated` (issue #99). `catalogue_phase`
+    is the catalogue-routed counterpart: the release-level ancestry evidence is
+    the `assign-ancestry` outcome rather than a metadata-resolution check, and
+    the release still lands its lifecycle status. A Reference Completion child
+    has neither, so it only lands `schema`/`files`/`store` and its own
+    `validation.yaml`.
     """
     store_dir = site.store_dir
     command = [opengwasdb_executable(), "validate", str(store_dir)]
@@ -914,14 +1294,41 @@ def phase_validate(
     # passthrough checks), and a probe Analysis must hold finite associations
     # (the adapters' smoke query). `opengwasdb validate` covers Store structure,
     # not either of these.
-    resolved_rows = read_tsv(workflow.paths.resolved_analyses)
-    manifest_fieldnames, _ = read_tsv_rows(workflow.paths.builder_manifest)
+    #
+    # A manifest-direct release was built from the resolved table and the builder
+    # manifest; a catalogue-routed release (issue #104) was built from the routed
+    # Analysis Catalogue instead. That Catalogue carries the canonical
+    # builder-manifest column names, so translate them back to the registry
+    # vocabulary the built Store's `analyses.tsv` uses and read back the same way.
+    if workflow.catalogue_routed:
+        readback_inputs = [workflow.paths.routed_catalogue]
+        catalogue_rows = read_tsv(workflow.paths.routed_catalogue)
+        resolved_rows = [
+            {
+                "analysis_id": row.get("trait_id", ""),
+                **{
+                    registry: row.get(column, "")
+                    for column, registry in CANONICAL_COLUMN_SOURCE.items()
+                },
+            }
+            for row in catalogue_rows
+        ]
+        manifest_fieldnames = list(catalogue_rows[0]) if catalogue_rows else []
+    else:
+        readback_inputs = [workflow.paths.resolved_analyses, workflow.paths.builder_manifest]
+        resolved_rows = read_tsv(workflow.paths.resolved_analyses)
+        manifest_fieldnames, _ = read_tsv_rows(workflow.paths.builder_manifest)
     _, store_rows = read_tsv_rows(store_dir / "analyses.tsv")
     store_by_id = {row.get("analysis_id", ""): row for row in store_rows}
     metadata_errors = store_metadata_mismatches(resolved_rows, manifest_fieldnames, store_by_id)
     errors.extend(f"metadata read-back: {error}" for error in metadata_errors)
 
-    probe_ids = probe_analysis_ids(resolved_rows)
+    # Only Analyses the Store actually carries can be probed: a catalogue-routed
+    # release keeps every parked Analysis in its Catalogue, and the build kept one
+    # ancestry subset of them.
+    probe_ids = probe_analysis_ids(
+        [row for row in resolved_rows if row.get("analysis_id", "") in store_by_id]
+    )
     finite_by_probe = association_readback(store_dir, probe_ids)
     empty_probes = [analysis_id for analysis_id, n_finite in finite_by_probe.items() if n_finite == 0]
     errors.extend(
@@ -939,29 +1346,33 @@ def phase_validate(
     extra_inputs = [
         site.completion(overview_phase),
         store_dir / "overview.html",
-        workflow.paths.resolved_analyses,
-        workflow.paths.builder_manifest,
+        *readback_inputs,
     ]
     release_status = "validated"
     status_changed = False
     effect_scale_status = "not_run"
-    if resolve_phase is not None:
-        resolve_record = json.loads(site.completion(resolve_phase).read_text(encoding="utf-8"))
-        resolve_validation = resolve_record.get("validation") or {}
-        effect_scale_status = str(resolve_validation.get("effect_scale", "not_run"))
-        updated_checks.update({
-            "ancestry": str(resolve_validation.get("ancestry", "not_run")),
-            "effect_scale": effect_scale_status,
-            "sd_estimation": str(resolve_validation.get("sd_estimation", "not_run")),
-        })
-        new_warnings = [*list(resolve_validation.get("warnings", [])), *warnings]
+    release_phase = resolve_phase or catalogue_phase
+    if release_phase is not None:
+        release_record = json.loads(site.completion(release_phase).read_text(encoding="utf-8"))
+        release_validation = release_record.get("validation") or {}
+        if resolve_phase is not None:
+            effect_scale_status = str(release_validation.get("effect_scale", "not_run"))
+            updated_checks.update({
+                "ancestry": str(release_validation.get("ancestry", "not_run")),
+                "effect_scale": effect_scale_status,
+                "sd_estimation": str(release_validation.get("sd_estimation", "not_run")),
+            })
+            new_warnings = [*list(release_validation.get("warnings", [])), *warnings]
+        else:
+            # Catalogue-routed: `assign-ancestry` is the release-level ancestry
+            # evidence (issue #104), so its outcome lands as the ancestry check.
+            updated_checks["ancestry"] = str(release_validation.get("status", "not_run"))
         outputs = [validation_yaml, site.release_yaml]
         extra_inputs = [
-            site.completion(resolve_phase),
+            site.completion(release_phase),
             site.completion(overview_phase),
             store_dir / "overview.html",
-            workflow.paths.resolved_analyses,
-            workflow.paths.builder_manifest,
+            *readback_inputs,
         ]
         # Release Status (CONTEXT.md): a Store that built and validated but whose
         # effect-scale evidence failed is `built`, not `validated`; the failure is
@@ -988,10 +1399,12 @@ def phase_validate(
         "metadata_readback": "passed" if not metadata_errors else "failed",
         "association_probes": finite_by_probe,
     }
-    if resolve_phase is not None:
+    if release_phase is not None:
         validation["release_status"] = release_status
         validation["release_status_changed"] = status_changed
         validation["effect_scale_status"] = effect_scale_status
+        if catalogue_phase is not None:
+            validation["catalogue_phase"] = catalogue_phase
     write_completion(
         workflow,
         phase_id,
@@ -1004,11 +1417,18 @@ def phase_validate(
 
 
 def phase_validate_observed_release(workflow: Workflow) -> None:
+    resolve_phase: str | None = "resolve_analysis_metadata"
+    catalogue_phase: str | None = None
     reports = {
         "input_validation": "sidecars/input-validation.json",
-        "metadata_resolution": "sidecars/metadata-resolution.tsv",
         "build_report": "sidecars/build-report.tsv",
     }
+    if workflow.catalogue_routed:
+        reports["catalogue_assignment"] = "sidecars/catalogue-assignment.json"
+        reports["catalogue_routing"] = "sidecars/catalogue-routing.json"
+        resolve_phase, catalogue_phase = None, "assign_ancestry"
+    else:
+        reports["metadata_resolution"] = "sidecars/metadata-resolution.tsv"
     if workflow.rho_enabled:
         reports["rho_report"] = "sidecars/rho-report.json"
     phase_validate(
@@ -1018,7 +1438,8 @@ def phase_validate_observed_release(workflow: Workflow) -> None:
         build_phase="build_observed_store",
         overview_phase="regenerate_observed_overview",
         reports=reports,
-        resolve_phase="resolve_analysis_metadata",
+        resolve_phase=resolve_phase,
+        catalogue_phase=catalogue_phase,
     )
 
 
@@ -1307,6 +1728,8 @@ def phase_complete_store(workflow: Workflow) -> None:
 PHASES = {
     "validate_fixed_inputs": phase_validate_fixed_inputs,
     "resolve_analysis_metadata": phase_resolve_analysis_metadata,
+    "assign_ancestry": phase_assign_ancestry,
+    "route_catalogue": phase_route_catalogue,
     "build_observed_store": phase_build_observed_store,
     "build_observed_rho": phase_build_observed_rho,
     "regenerate_observed_overview": phase_regenerate_observed_overview,

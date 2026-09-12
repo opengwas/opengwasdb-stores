@@ -1,4 +1,4 @@
-# Production Store Release workflow (issues #98, #100)
+# Production Store Release workflow (issues #98, #100, #104)
 
 The operator-facing guide to this workflow -- what a new Store Family must
 provide, how to choose a build command, and how to run, resume, and read a
@@ -19,11 +19,19 @@ shells out to `workflow/phase.py`, which owns everything semantic.
 
 ## The DAG
 
+Which pre-build path a release takes is decided by its `build.command`, never by
+a Store-Family name (issue #104). A **manifest-direct** release (a `build-*`
+command) runs `resolve_analysis_metadata`; a **catalogue-routed** release
+(`build-hybrid-from-catalogue`) runs `assign_ancestry` then `route_catalogue`.
+The Snakefile contains no family conditional either way.
+
 | Phase | What it does | OpenGWASDB call |
 |---|---|---|
-| `validate_fixed_inputs` | Validates `build.yaml`, `analyses.tsv`, the selected source files and their checksums, and every declared Reference Resource (`resources/lib/release_plan.py`). Refuses rho on a non-Dense layout here, before any Store work. Emits `sidecars/input-validation.json`. | — |
-| `resolve_analysis_metadata` | **Real resolution** (issue #99): computes Assigned Ancestry, the Ancestry Assignment Method and per-super-population proportions (AF mixture fit against the declared `ancestry_mixture` resource), and effect-scale / phenotype SD (source-AF estimate, or declared-standardised verification). Writes `work/analyses.resolved.tsv` and the shared builder manifest (issue #96) into `work/builder-manifest.tsv`, and emits `sidecars/metadata-resolution.tsv`. Never writes the committed `analyses.tsv`. | — |
-| `build_observed_store` | Runs the plan's `build.command` with its opaque `build.arguments`. Emits `sidecars/build-report.tsv`. | `opengwasdb <build.command>` |
+| `validate_fixed_inputs` | Validates `build.yaml`, `analyses.tsv`, the selected source files and their checksums, and every declared Reference Resource (`resources/lib/release_plan.py`). Refuses rho on a non-Dense layout, and refuses a catalogue-routed command missing its reader capability, ancestry resource, or Dense Component panel, here -- before any Store work. Emits `sidecars/input-validation.json`. | — |
+| `resolve_analysis_metadata` | **Manifest-direct only.** **Real resolution** (issue #99): computes Assigned Ancestry, the Ancestry Assignment Method and per-super-population proportions (AF mixture fit against the declared `ancestry_mixture` resource), and effect-scale / phenotype SD (source-AF estimate, or declared-standardised verification). Writes `work/analyses.resolved.tsv` and the shared builder manifest (issue #96) into `work/builder-manifest.tsv`, and emits `sidecars/metadata-resolution.tsv`. Never writes the committed `analyses.tsv`. | — |
+| `assign_ancestry` | **Catalogue-routed only** (issue #104). Writes the lossless canonical source manifest into `work/source-manifest.tsv`, then annotates it into the versioned Analysis Catalogue `work/analysis-catalogue.tsv`. Non-matching and Unassigned Analyses stay in the Catalogue. Emits `sidecars/catalogue-assignment.json`. | `opengwasdb assign-ancestry` |
+| `route_catalogue` | **Catalogue-routed only** (issue #104). Derives `work/catalogue-coverage.tsv` from the selected sources through the release's reader, then adds the routing and eligibility columns, emitting `work/routed-catalogue.tsv` and `sidecars/catalogue-routing.json`. Its own completion record means an interrupted routing step never re-runs ancestry assignment. | `opengwasdb route-catalogue` |
+| `build_observed_store` | Runs the plan's `build.command` with its opaque `build.arguments`. A catalogue-routed release feeds the routed Catalogue and the declared Dense Component panel; a manifest-direct release feeds `work/builder-manifest.tsv`. Emits `sidecars/build-report.tsv`. | `opengwasdb <build.command>` |
 | `build_observed_rho` | **Only when `rho.enabled`.** Mutates the built Store in place, adding `data.zarr/rho`. Emits `sidecars/rho-report.json`. | `opengwasdb build-dense-rho` |
 | `regenerate_observed_overview` | Regenerates `overview.html` from the persisted Store. Depends on `build_observed_rho` when rho is enabled, so the page can never be written before the mutation that adds its Rho tab. | `opengwasdb regenerate-overview` |
 | `validate_observed_release` | Validates the Store, reads the built Store's own `analyses.tsv` back against the metadata the build was handed and probes a binary and a quantitative Analysis for finite associations (the read-back the three retired `build-store.py` adapters performed by hand, issue #103), and merges the CLI result into the release's `validation.yaml`. Lands the release's lifecycle status: `validated`, or `built` when the effect-scale check failed (issue #99). | `opengwasdb validate` + `opengwasdb query-analysis` read-back |
@@ -32,6 +40,56 @@ shells out to `workflow/phase.py`, which owns everything semantic.
 | `build_completed_rho` | **Only when `rho.enabled`.** The child's in-place Rho Matrix. | `opengwasdb build-dense-rho` |
 | `regenerate_completed_overview` | The child's `overview.html`, after its last mutation. | `opengwasdb regenerate-overview` |
 | `validate_completed_release` | Validates the child Store, runs the same metadata and association read-back, and writes the child bundle's `validation.yaml`. The workflow's final target when completion is enabled. | `opengwasdb validate` + read-back |
+
+## The catalogue-routed path
+
+`families/gwas-catalog-eur-hybrid/releases/eur-hybrid-pilot-10` is the worked
+example. Its `build.command` is `build-hybrid-from-catalogue`, so it skips
+`resolve_analysis_metadata` entirely and runs two phases instead:
+
+```yaml
+build:
+  command: build-hybrid-from-catalogue
+  arguments:                 # opaque passthrough, as for any build command
+    store-id: gwas-catalog-eur-hybrid
+    release-id: eur-hybrid-pilot-10
+    stored-effect-scale: log_or
+    original-sd-method: binary_trait
+    ancestry: EUR
+source:
+  reader:
+    capability: opengwasdb.gwas-ssf   # or source.source_reader_capability
+reference_resources:
+- resource_id: hgdp1kgp-ancestry-mixture-hg38
+  kind: ancestry_mixture
+  location: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
+  fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+- resource_id: hybrid-ieua-dense-panel
+  kind: hybrid_dense_panel
+  location: /data/opengwasdb/wip/hybrid-ieua/panel_alids.txt
+ancestry_assignment:
+  reference_resource_id: hgdp1kgp-ancestry-mixture-hg38
+routing:
+  workers: 8                 # coverage-derivation pool size
+```
+
+Every required catalogue input is checked by `validate_fixed_inputs` before any
+work: the reader capability (`source.reader.capability` or
+`source.source_reader_capability`), an `ancestry_assignment.reference_resource_id`
+whose resource declares both `location` and `fine_group_map`, and a
+`hybrid_dense_panel` Reference Resource. There is no hand-authored coverage
+file: `route_catalogue` derives `work/catalogue-coverage.tsv` from the release's
+own selected sources through the configured reader, and binds the derivation into
+its completion record, so editing a source invalidates routing exactly as it
+invalidates the build.
+
+`build-hybrid-from-catalogue` row-filters the routed Catalogue to
+`--ancestry` and builds a Hybrid Store from the Dense Component panel.
+Analyses of another ancestry stay in the Catalogue (they are not dropped), so
+the built Store carries exactly the `assigned_ancestry == <ancestry>` subset.
+One column the Catalogue schema does not carry, `source_assembly`, is filled
+from the release's `normalisation.source_assembly` (`phase.py`, on the routed
+Catalogue) so an already-GRCh38 source is not re-lifted (opengwasdb#85).
 
 ## Effect-scale failure: report by default, block on request
 
