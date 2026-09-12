@@ -81,3 +81,13 @@ pixi run Rscript resources/scripts/download-opengwas-vcfs.R \
 pixi run python resources/generators/opengwas-gwas-vcf-dense/annotate.py \
   --release-dir=families/ukb-b/releases/dense-observed-vcf-c128-resolved
 ```
+
+## Building the Store
+
+The generator produces the fixed input; `--mode=emit` is its generator-to-build
+seam. There is no build mode: the Store is built and validated from that fixed
+input by the shared workflow (issue #103):
+
+```sh
+pixi run release --configfile families/ukb-b/releases/dense-observed-vcf-c128-resolved/build.yaml
+```

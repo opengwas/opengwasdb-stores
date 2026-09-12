@@ -39,6 +39,20 @@ runs the child's own rho, overview, and validation phases. The resolve phase
 owns real metadata resolution (issue #99): it computes Assigned Ancestry and
 proportions and effect-scale / phenotype SD into `work/analyses.resolved.tsv`,
 never mutating the committed `analyses.tsv`.
+
+Read-back
+---------
+The validate phase is where the read-back the three `build-store.py` adapters
+each performed by hand now lives, once, for the observed release and its
+completion child (issue #103): `opengwasdb validate` for Store structure
+(the retired adapters' `validate_store` call), `store_metadata_mismatches` for
+every interpretation-bearing Analytical Metadata column the builder manifest
+carried (the Dense/Hybrid/Ragged adapters' metadata-mismatch check), and
+`association_readback` for a binary and a quantitative probe Analysis (the
+Dense/Hybrid adapters' smoke query). The Ragged adapter's sparse-region and
+filter-count cross-checks were Ragged-only reads of that release's `sidecars/`
+and depend on the Ragged builder's `filtered_dir` wiring, which this workflow
+does not yet carry; they are not silently reproduced here.
 """
 from __future__ import annotations
 
@@ -47,6 +61,7 @@ import csv
 import hashlib
 import importlib.metadata
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -64,7 +79,12 @@ for _path in (str(_WORKFLOW_DIR), str(_REPO_ROOT)):
 
 from model import ReleaseSite, Workflow, WorkflowError, load_workflow  # noqa: E402
 from resources.lib.metadata_resolution import ResolutionError, resolve_analyses  # noqa: E402
-from resources.lib.release_manifest import buildable_rows, write_builder_manifest  # noqa: E402
+from resources.lib.release_manifest import (  # noqa: E402
+    ANCESTRY_PROPORTION_PREFIX,
+    CANONICAL_COLUMN_SOURCE,
+    buildable_rows,
+    write_builder_manifest,
+)
 from resources.lib.release_plan import check_release  # noqa: E402
 from resources.lib.release_yaml import (  # noqa: E402
     merge_release_yaml,
@@ -86,6 +106,39 @@ REQUIRED_BUILDER_COLUMNS: tuple[str, ...] = (
     "stored_effect_scale",
     "original_sd_method",
 )
+
+#: Interpretation-bearing registry columns the built Store's own `analyses.tsv`
+#: must reproduce from the build it was given (ADR 0034). This is the read-back
+#: the three retired `build-store.py` adapters each performed by hand (issue
+#: #103): the Dense adapter failed on a mismatch, the Hybrid and Ragged adapters
+#: warned, because their builders drop a different subset of these columns. It
+#: runs once here, in the validate phase, against the resolved table and the
+#: builder manifest the build actually consumed -- never against a value
+#: re-derived from a source header (opengwasdb#14).
+STORE_METADATA_COLUMNS: tuple[str, ...] = (
+    "analysis_label",
+    "trait_ontology_id",
+    "trait_ontology_label",
+    "stored_effect_scale",
+    "sample_size_kind",
+    "sample_size_scope",
+    "sample_size",
+    "n_cases",
+    "n_controls",
+    "assigned_ancestry",
+    "ancestry_assignment_method",
+    "original_effect_scale",
+    "original_sd",
+    "original_sd_method",
+)
+
+#: Registry column -> the builder-manifest column that carries it (the reverse
+#: of `release_manifest.CANONICAL_COLUMN_SOURCE`). A column whose manifest column
+#: the projection did not carry -- the legacy Hybrid projection omits six -- is
+#: simply not checked, so this read-back is correct for every Store Layout.
+MANIFEST_COLUMN_FOR_REGISTRY: dict[str, str] = {
+    registry: builder for builder, registry in CANONICAL_COLUMN_SOURCE.items()
+}
 
 
 class PhaseError(Exception):
@@ -500,6 +553,16 @@ def phase_build_observed_store(workflow: Workflow) -> None:
     if failures:
         raise PhaseError("build read-back failed:\n" + "\n".join(failures))
 
+    # The retired Hybrid adapter warned when a build routed every Analysis
+    # on-panel (or none): a Hybrid Store whose Ragged Overflow was never
+    # exercised is structurally valid, so this stays a warning, not a failure.
+    # The Dense summary carries neither key, so this is inert for Dense.
+    warnings: list[str] = []
+    for key, label in (("n_off_panel", "off-panel variants"), ("n_overflow", "Ragged Overflow associations")):
+        value = summary.get(key)
+        if value is not None and int(value) == 0:
+            warnings.append(f"{key}=0: the build exercised no {label}")
+
     replace_store(partial, workflow.paths.store_dir)
 
     report = workflow.paths.report("build-report.tsv")
@@ -543,6 +606,7 @@ def phase_build_observed_store(workflow: Workflow) -> None:
             "n_variants": summary.get("n_variants", ""),
             "format_version": info.get("format_version", ""),
             "build_wall_seconds": f"{wall_seconds:.3f}",
+            "warnings": warnings,
         },
         command=command,
         extra_inputs=[workflow.paths.completion("resolve_analysis_metadata")],
@@ -729,6 +793,87 @@ def _prefixed_lines(output: str, prefix: str) -> list[str]:
     return [line.split(prefix, 1)[1].strip() for line in output.splitlines() if prefix in line]
 
 
+def store_metadata_mismatches(
+    resolved_rows: Sequence[dict[str, str]],
+    manifest_fieldnames: Sequence[str],
+    store_rows: dict[str, dict[str, str]],
+) -> list[str]:
+    """Interpretation-bearing metadata the build was given, vs what it persisted.
+
+    The read-back the three retired `build-store.py` adapters each performed
+    (issue #103): for every registry column in `STORE_METADATA_COLUMNS` (and
+    every `ancestry_prop_*` column) whose builder-manifest column the plan's
+    projection actually carried, the built Store's own `analyses.tsv` must hold
+    the value the manifest gave the builder. A column the projection omitted
+    (the legacy Hybrid projection omits six, issue #82) is not checked. An
+    Analysis missing from the Store entirely is reported by
+    `association_readback` instead, so a missing row is not double-counted here.
+    """
+    carried = set(manifest_fieldnames)
+    errors: list[str] = []
+    for row in resolved_rows:
+        analysis_id = row.get("analysis_id", "")
+        store_row = store_rows.get(analysis_id)
+        if store_row is None:
+            continue
+        columns = (*STORE_METADATA_COLUMNS, *(
+            column for column in row if column.startswith(ANCESTRY_PROPORTION_PREFIX)
+        ))
+        for column in columns:
+            if column not in row:
+                continue
+            manifest_column = MANIFEST_COLUMN_FOR_REGISTRY.get(column, column)
+            if column not in carried and manifest_column not in carried:
+                continue
+            if store_row.get(column, "") != row.get(column, ""):
+                errors.append(
+                    f"{analysis_id}: built {column}={store_row.get(column)!r} "
+                    f"!= resolved {row.get(column)!r}"
+                )
+    return errors
+
+
+def probe_analysis_ids(resolved_rows: Sequence[dict[str, str]]) -> list[str]:
+    """One binary and one non-binary Analysis to probe, when the release has them.
+
+    The retired adapters probed a known Analysis to confirm the built Store
+    actually holds association statistics rather than an empty envelope -- a
+    Dense adapter check `opengwasdb validate` does not make, because an
+    all-missing Analysis is structurally valid.
+    """
+    binary = next(
+        (row["analysis_id"] for row in resolved_rows if row.get("stored_effect_scale") == "log_or"),
+        "",
+    )
+    quantitative = next(
+        (row["analysis_id"] for row in resolved_rows if row.get("stored_effect_scale") != "log_or"),
+        "",
+    )
+    return [analysis_id for analysis_id in dict.fromkeys((binary, quantitative)) if analysis_id]
+
+
+def association_readback(store_dir: Path, analysis_ids: Sequence[str]) -> dict[str, int]:
+    """Count each probe Analysis's finite association statistics in `store_dir`.
+
+    Reads through OpenGWASDB's query API, like the retired adapters' probes, so
+    the count is the Store's resolved observed associations, not a raw array.
+    """
+    if not analysis_ids:
+        return {}
+    from opengwasdb.query import query_store  # noqa: PLC0415 -- the workflow environment carries stores
+
+    query = query_store(str(store_dir))
+    try:
+        return {
+            analysis_id: int(
+                sum(1 for z in query.analysis(analysis_id, observed_only=True).get("z", []) if math.isfinite(z))
+            )
+            for analysis_id in analysis_ids
+        }
+    finally:
+        query.close()
+
+
 def phase_validate(
     workflow: Workflow,
     site: ReleaseSite,
@@ -763,6 +908,27 @@ def phase_validate(
     if result.returncode != 0 and not errors:
         errors.append(f"{' '.join(command)} exited {result.returncode}")
 
+    # Read-back the three retired `build-store.py` adapters each owned (issue
+    # #103): the built Store's own `analyses.tsv` must carry the metadata the
+    # build was given (Dense's `metadata_mismatch_errors`, Hybrid's and Ragged's
+    # passthrough checks), and a probe Analysis must hold finite associations
+    # (the adapters' smoke query). `opengwasdb validate` covers Store structure,
+    # not either of these.
+    resolved_rows = read_tsv(workflow.paths.resolved_analyses)
+    manifest_fieldnames, _ = read_tsv_rows(workflow.paths.builder_manifest)
+    _, store_rows = read_tsv_rows(store_dir / "analyses.tsv")
+    store_by_id = {row.get("analysis_id", ""): row for row in store_rows}
+    metadata_errors = store_metadata_mismatches(resolved_rows, manifest_fieldnames, store_by_id)
+    errors.extend(f"metadata read-back: {error}" for error in metadata_errors)
+
+    probe_ids = probe_analysis_ids(resolved_rows)
+    finite_by_probe = association_readback(store_dir, probe_ids)
+    empty_probes = [analysis_id for analysis_id, n_finite in finite_by_probe.items() if n_finite == 0]
+    errors.extend(
+        f"association read-back: {analysis_id} has zero finite association statistics"
+        for analysis_id in empty_probes
+    )
+
     status = "passed" if result.returncode == 0 and not errors else "failed"
     build_record = json.loads(site.completion(build_phase).read_text(encoding="utf-8"))
     files_status = str((build_record.get("validation") or {}).get("files_status", "not_run"))
@@ -770,7 +936,12 @@ def phase_validate(
     updated_checks = {"schema": status, "files": files_status, "store": status}
     new_warnings = list(warnings)
     outputs = [validation_yaml]
-    extra_inputs = [site.completion(overview_phase), store_dir / "overview.html"]
+    extra_inputs = [
+        site.completion(overview_phase),
+        store_dir / "overview.html",
+        workflow.paths.resolved_analyses,
+        workflow.paths.builder_manifest,
+    ]
     release_status = "validated"
     status_changed = False
     effect_scale_status = "not_run"
@@ -789,6 +960,8 @@ def phase_validate(
             site.completion(resolve_phase),
             site.completion(overview_phase),
             store_dir / "overview.html",
+            workflow.paths.resolved_analyses,
+            workflow.paths.builder_manifest,
         ]
         # Release Status (CONTEXT.md): a Store that built and validated but whose
         # effect-scale evidence failed is `built`, not `validated`; the failure is
@@ -812,6 +985,8 @@ def phase_validate(
         "store_uri": str(store_dir),
         "warnings": warnings,
         "validation_yaml": str(validation_yaml),
+        "metadata_readback": "passed" if not metadata_errors else "failed",
+        "association_probes": finite_by_probe,
     }
     if resolve_phase is not None:
         validation["release_status"] = release_status

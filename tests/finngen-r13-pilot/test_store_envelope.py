@@ -1,29 +1,39 @@
 #!/usr/bin/env python3
-"""Frozen FinnGen bundle through OpenGWASDB's Store envelope and query API."""
+"""A frozen FinnGen-shaped bundle through OpenGWASDB's Store envelope and query API.
+
+Issue #103 deleted the `opengwas-gwas-vcf-dense/build-store.py` adapter that used
+to drive this build. The two pieces it owned are exercised here against their
+surviving shared homes: the builder manifest comes from
+`resources/lib/release_manifest.py` (issue #96), the Store from the
+`opengwasdb build-dense-vcf` CLI the production workflow invokes, and the
+metadata read-back from `workflow/phase.py::store_metadata_mismatches` -- the
+check the adapter used to perform by hand.
+
+Run from the repository root:
+    pixi run python tests/finngen-r13-pilot/test_store_envelope.py
+"""
 from __future__ import annotations
 
 import csv
 import gzip
-import importlib.util
 import math
+import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
-from opengwasdb.query import query_store
-from opengwasdb.validation import validate_store
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "workflow"))
+
+from opengwasdb.query import query_store  # noqa: E402
+from opengwasdb.validation import validate_store  # noqa: E402
+
+from phase import store_metadata_mismatches  # noqa: E402
+from resources.lib.release_manifest import write_builder_manifest  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-
-
-def load_build_module() -> object:
-    path = ROOT / "resources/generators/opengwas-gwas-vcf-dense/build-store.py"
-    spec = importlib.util.spec_from_file_location("dense_build_store", path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+OPENGWASDB = shutil.which("opengwasdb")
 
 
 def write_finngen(path: Path, *, beta: float, se: float) -> None:
@@ -47,6 +57,7 @@ def read_rows(path: Path) -> list[dict[str, str]]:
 
 
 def main() -> None:
+    assert OPENGWASDB is not None, "opengwasdb is not on PATH; run inside the `dev` pixi environment"
     with tempfile.TemporaryDirectory(dir=ROOT) as tmp_raw:
         tmp = Path(tmp_raw)
         release = tmp / "release"
@@ -119,46 +130,17 @@ def main() -> None:
                 "n_controls": "",
             },
         ]
-        with (release / "analyses.tsv").open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=columns, delimiter="\t", lineterminator="\n")
-            writer.writeheader()
-            writer.writerows(rows)
-        (release / "release.yaml").write_text(
-            "store_family_id: finngen-r13-fixture\nfamily_release_id: fixture-2\n",
-            encoding="utf-8",
-        )
-        (release / "build.yaml").write_text(
-            f"""store_family_id: finngen-r13-fixture
-family_release_id: fixture-2
-store_layout: dense-observed
-completion_state: observed-only
-builder:
-  package: opengwasdb
-  entrypoint: opengwasdb.layouts.dense.build_vcf:build_dense_from_vcf_manifest
-source:
-  source_format: finngen-r13-tabular
-  source_reader_capability: opengwasdb.finngen-r13
-  source_genome_build: GRCh38
-normalisation:
-  target_reference_assembly: GRCh38
-  liftover: none
-artifacts:
-  store_uri: {store}
-""",
-            encoding="utf-8",
-        )
-        (release / "validation.yaml").write_text(
-            "checks:\n  schema: passed\n  files: passed\n  reader_smoke_test: not_run\n"
-            "reports: {}\nwarnings: []\nerrors: []\n",
-            encoding="utf-8",
-        )
+        manifest_path = tmp / "builder-manifest.tsv"
+        manifest = write_builder_manifest(rows, manifest_path, layout="dense")
 
+        # The production workflow's build invocation: the shared builder manifest
+        # and the opaque `build.arguments` flags, shelled out to the CLI.
         result = subprocess.run(
             [
-                sys.executable,
-                "resources/generators/opengwas-gwas-vcf-dense/build-store.py",
-                f"--release-dir={release}",
-                "--workers=2",
+                OPENGWASDB, "build-dense-vcf", str(manifest_path), str(store),
+                "--store-id", "finngen-r13-fixture",
+                "--release-id", "fixture-2",
+                "--n-workers", "2",
             ],
             cwd=ROOT,
             text=True,
@@ -196,22 +178,17 @@ artifacts:
                 )
             assert math.isclose(float(observed["ancestry_prop_EUR"]), 0.99, rel_tol=1e-9)
 
-        report = read_rows(release / "sidecars" / "build_report.tsv")[0]
-        assert report["binary_probe_analysis_id"] == "finngen-r13-BINARY"
-        assert report["quantitative_probe_analysis_id"] == "finngen-r13-QUANT"
-        assert report["store_validation_status"] == "passed"
-        validation_text = (release / "validation.yaml").read_text(encoding="utf-8")
-        assert "reader_smoke_test: passed" in validation_text
-        assert "store: passed" in validation_text
+        # The read-back the retired adapter performed by hand now lives in the
+        # workflow: no interpretation-bearing metadata may differ between the
+        # resolved rows/manifest the build was handed and the built Store.
+        mismatches = store_metadata_mismatches(rows, manifest.fieldnames, built)
+        assert mismatches == [], mismatches
+        corrupt = {**built, "finngen-r13-BINARY": {**built["finngen-r13-BINARY"], "n_cases": ""}}
+        assert store_metadata_mismatches(rows, manifest.fieldnames, corrupt), (
+            "the metadata read-back must flag a built Store that drops n_cases"
+        )
 
-    build_module = load_build_module()
-    mismatch_errors = build_module.metadata_mismatch_errors(  # type: ignore[attr-defined]
-        [{"analysis_id": "fixture", "stored_effect_scale": "log_or", "n_cases": "100"}],
-        {"fixture": {"stored_effect_scale": "log_or", "n_cases": ""}},
-    )
-    assert mismatch_errors
-    assert "n_cases" in mismatch_errors[0]
-    print("ALL 30 CHECKS PASSED")
+    print("store-envelope metadata read-back: passed")
 
 
 if __name__ == "__main__":

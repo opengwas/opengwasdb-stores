@@ -18,7 +18,11 @@ generator (`emit` -> `validate` -> `filter`) against it, asserting on the
 emitted release-bundle outputs: `analyses.tsv` has no single-gene-target
 columns, `release.yaml` has no `sidecars.analysis_targets` pointer, and
 `sidecars/sparse_regions.tsv` has zero `cis` rows and only the expected
-significant/suggestive regions.
+significant/suggestive regions. It then builds the release with the
+production `opengwasdb build-ragged-ssf` CLI — the command the shared workflow
+shells out to (issue #103) — and asserts the trans-only Store validates, since
+the retired `build-store.py` adapter's read-back smoke test used to require a
+non-empty cis region and failed this family.
 
 The existing pqtl-interval-2018 family (which does declare
 `inputs.analysis_targets`) is unaffected by this change — its

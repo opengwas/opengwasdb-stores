@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-"""Byte-equivalence of the shared builder-manifest module against the three
-``build-store.py`` adapters (issue #96).
+"""The shared builder-manifest module reproduces what the three retired
+``build-store.py`` adapters wrote (issue #96), byte for byte (issue #103).
 
-`resources/lib/release_manifest.py` replaces the manifest translation that was
+`resources/lib/release_manifest.py` replaced the manifest translation that was
 copy-pasted into `opengwas-gwas-vcf-dense/build-store.py`,
-`gwas-ssf-hybrid/build-store.py` and `gwas-ssf-ragged/build-store.py`. The
-adapters stay in the tree (#103 deletes them), so this suite keeps them as the
-oracle: for every already-built Store Release, regenerating the manifest through
-the shared module must reproduce the adapter's bytes exactly.
+`gwas-ssf-hybrid/build-store.py` and `gwas-ssf-ragged/build-store.py`. Issue #96
+proved equivalence by importing the adapters as the oracle; issue #103 deleted
+those adapters, so their exact output bytes are pinned in
+`adapter_manifest_sha256.json` (generated from the adapters before deletion) and
+this suite keeps asserting the shared module reproduces them. The module is the
+only manifest producer left; nothing else translates a release's
+`analyses.tsv` for OpenGWASDB.
 
-The Ragged adapter is the degenerate case -- it hands the release's
-`analyses.tsv` straight to `build_ragged_from_ssf`, so the manifest it produces
+The Ragged adapter is the degenerate case -- it handed the release's
+`analyses.tsv` straight to `build_ragged_from_ssf`, so the manifest it produced
 is that file unchanged, and equivalence is asserted against its bytes.
 `eqtlgen-cis-pilot` is skipped: it is built from BESD through
 `eqtlgen-besd-ragged/generate.py`, not by any of the three adapters.
@@ -27,7 +30,8 @@ Run from the repository root:
 from __future__ import annotations
 
 import csv
-import importlib.util
+import hashlib
+import json
 import sys
 import tempfile
 from pathlib import Path
@@ -42,6 +46,10 @@ from resources.lib.release_yaml import (  # noqa: E402
     require_text,
 )
 
+#: The adapter output bytes the shared module must still reproduce, pinned from
+#: the three retired adapters before #103 deleted them.
+ADAPTER_GOLDEN_PATH = REPO_ROOT / "tests" / "release-manifest" / "adapter_manifest_sha256.json"
+
 # The six Analytical Metadata columns `gwas-ssf-hybrid/build-store.py` never
 # writes (issue #82). They are named here so the regression that documents the
 # deferred loss cannot silently grow or shrink.
@@ -55,14 +63,9 @@ HYBRID_OMITTED_COLUMNS = (
 )
 
 
-def load_adapter(module_name: str, relative_path: str) -> object:
-    """Import a build-store.py adapter as the oracle of what it writes."""
-    path = REPO_ROOT / relative_path
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    assert spec is not None and spec.loader is not None, f"cannot load {path}"
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def load_adapter_golden() -> dict[str, dict]:
+    """The pinned adapter output bytes, keyed by release label."""
+    return json.loads(ADAPTER_GOLDEN_PATH.read_text(encoding="utf-8"))["releases"]
 
 
 # The executable `build.command` each Store Layout's adapter builds (#97).
@@ -103,31 +106,24 @@ def read_bytes(path: Path) -> bytes:
 
 
 def vcf_manifest_bytes(
-    rows: list[dict[str, str]], layout: str, release_dir: Path, adapter: object
-) -> tuple[bytes, bytes]:
-    """(adapter manifest bytes, shared-module manifest bytes) for Dense/Hybrid."""
+    rows: list[dict[str, str]], layout: str, release_dir: Path
+) -> bytes:
+    """The shared module's Dense/Hybrid builder manifest bytes for one release."""
     assert layout in {"dense", "hybrid"}, layout
     build = read_release_yaml(release_dir / "build.yaml")
-    buildable = release_manifest.buildable_rows(rows)
     with tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
+        shared_path = Path(tmp) / "shared.tsv"
         if layout == "dense":
-            adapter.write_builder_manifest(buildable, tmp_path / "adapter.tsv")  # type: ignore[attr-defined]
-            release_manifest.write_builder_manifest(rows, tmp_path / "shared.tsv", layout=layout)
+            release_manifest.write_builder_manifest(rows, shared_path, layout=layout)
         else:
-            capability = require_text(build, "source", "source_reader_capability")
-            assembly = require_text(build, "normalisation", "source_assembly")
-            adapter.write_builder_manifest(  # type: ignore[attr-defined]
-                buildable, capability, assembly, tmp_path / "adapter.tsv"
-            )
             release_manifest.write_builder_manifest(
                 rows,
-                tmp_path / "shared.tsv",
+                shared_path,
                 layout=layout,
-                release_reader_capability=capability,
-                release_source_assembly=assembly,
+                release_reader_capability=require_text(build, "source", "source_reader_capability"),
+                release_source_assembly=require_text(build, "normalisation", "source_assembly"),
             )
-        return read_bytes(tmp_path / "adapter.tsv"), read_bytes(tmp_path / "shared.tsv")
+        return read_bytes(shared_path)
 
 
 def main() -> None:
@@ -139,14 +135,9 @@ def main() -> None:
         if not condition:
             raise AssertionError(message)
 
-    dense_adapter = load_adapter(
-        "dense_build_store", "resources/generators/opengwas-gwas-vcf-dense/build-store.py"
-    )
-    hybrid_adapter = load_adapter(
-        "hybrid_build_store", "resources/generators/gwas-ssf-hybrid/build-store.py"
-    )
+    golden = load_adapter_golden()
 
-    # --- Byte-equivalence against each adapter, over every already-built release ---
+    # --- Byte-equivalence against the pinned adapter output, over every already-built release ---
     covered = {"dense": 0, "hybrid": 0, "ragged": 0}
     skipped: list[str] = []
     for build_path in sorted((REPO_ROOT / "families").glob("*/releases/*/build.yaml")):
@@ -160,21 +151,27 @@ def main() -> None:
             skipped.append(label)
             continue
         rows = read_tsv(analyses_path)
-        adapter = dense_adapter if layout == "dense" else hybrid_adapter
+        if label not in golden:
+            raise AssertionError(f"{label}: no pinned adapter output in {ADAPTER_GOLDEN_PATH.name}")
+        expected = golden[label]
+        check(expected["layout"] == layout,
+              f"{label}: pinned adapter layout {expected['layout']!r} != release layout {layout!r}")
 
         if layout == "ragged":
-            with tempfile.TemporaryDirectory() as tmp:
-                shared_path = Path(tmp) / "shared.tsv"
-                release_manifest.write_builder_manifest(rows, shared_path, layout="ragged")
-                shared = read_bytes(shared_path)
-            expected = read_bytes(analyses_path)
+            shared = read_bytes(analyses_path)
         else:
-            expected, shared = vcf_manifest_bytes(rows, layout, release_dir, adapter)
+            shared = vcf_manifest_bytes(rows, layout, release_dir)
+        digest = hashlib.sha256(shared).hexdigest()
 
         check(
-            shared == expected,
-            f"{label}: shared {layout} manifest differs from the adapter's "
-            f"({len(shared)} vs {len(expected)} bytes)",
+            len(shared) == expected["bytes"],
+            f"{label}: shared {layout} manifest is {len(shared)} bytes, the retired "
+            f"adapter's was {expected['bytes']}",
+        )
+        check(
+            digest == expected["sha256"],
+            f"{label}: shared {layout} manifest sha256 {digest} != the retired "
+            f"adapter's {expected['sha256']}",
         )
         covered[layout] += 1
 
@@ -425,8 +422,8 @@ def main() -> None:
         check(reparsed == written.rows, "rows must round-trip")
 
     print(
-        f"byte-equivalence: {covered['dense']} Dense, {covered['hybrid']} Hybrid, "
-        f"{covered['ragged']} Ragged releases vs their adapters"
+        f"byte-equivalence to the retired adapters: {covered['dense']} Dense, "
+        f"{covered['hybrid']} Hybrid, {covered['ragged']} Ragged releases"
     )
     print(f"ALL {n_checks} CHECKS PASSED")
 

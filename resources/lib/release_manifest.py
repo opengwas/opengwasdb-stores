@@ -4,8 +4,10 @@ OpenGWASDB's layout builders do not, in general, read this registry's
 ``analyses.tsv`` columns. They want OpenGWASDB's own vocabulary -- ``trait_id``,
 ``trait_name``, ``n`` -- from before the shared Analysis schema (OpenGWASDB ADR
 0034) replaced it. That translation used to be copy-pasted into each
-``build-store.py`` adapter; from #96 it lives here, once, proven byte-equivalent
-to all three adapters by ``tests/release-manifest/``.
+``build-store.py`` adapter; from #96 it lives here, once, and #103 deleted the
+adapters. Its projections are still pinned byte-for-byte to what those adapters
+wrote (``tests/release-manifest/``), because switching a live build to the
+lossless representation changes what an accepted Store contains.
 
 The module has three layers, deliberately separated:
 
@@ -21,10 +23,10 @@ The module has three layers, deliberately separated:
 
 ``ADAPTER_PROJECTIONS``
     The adapter-compatible serialisation of those rows: one named projection per
-    Store Layout. These mirror the existing ``build-store.py`` adapters rather
-    than the ideal, because the evidence for this ticket is that regenerating a
-    release's manifest reproduces what the corresponding adapter wrote byte for
-    byte.
+    Store Layout. These mirror the retired ``build-store.py`` adapters rather
+    than the ideal, because the evidence for #96 was that regenerating a
+    release's manifest reproduced what the corresponding adapter wrote byte for
+    byte, and that guarantee is pinned in ``tests/release-manifest/``.
 
 ``write_builder_manifest``
     Registry Analysis rows in, adapter-compatible builder manifest TSV out.
@@ -32,7 +34,8 @@ The module has three layers, deliberately separated:
 Legacy Hybrid projection (issue #82, deferred to #104)
 ------------------------------------------------------
 ``build_hybrid_from_vcf_manifest`` shares the Dense builder's manifest shape,
-but ``gwas-ssf-hybrid/build-store.py`` writes only 17 of Dense's 23 columns: it
+but the retired ``gwas-ssf-hybrid/build-store.py`` wrote only 17 of Dense's 23
+columns: it
 omits ``sample_size_kind``, ``sample_size_scope``, ``n_cases``, ``n_controls``,
 ``original_effect_scale`` and ``ancestry_assignment_method``, and it takes the
 row's source reader capability/assembly from ``build.yaml`` instead of from the
@@ -133,7 +136,7 @@ class AdapterProjection:
     """How one Store Layout's builder manifest is serialised.
 
     ``columns`` is the ordered builder-manifest column set that layout's
-    ``build-store.py`` adapter writes, or ``None`` for ``canonical_columns``
+    ``build-store.py`` adapter wrote, or ``None`` for ``canonical_columns``
     (the full lossless set plus the ancestry-proportion columns the data
     carries). ``registry_columns`` means the layout's builder reads the registry
     Analysis column names directly, so rows are serialised verbatim under their
@@ -148,8 +151,8 @@ class AdapterProjection:
     release_sourced_columns: tuple[str, ...] = ()
 
 
-#: The 17 columns ``gwas-ssf-hybrid/build-store.py`` writes today, in that
-#: adapter's order: the Dense set minus the six Analytical Metadata columns
+#: The 17 columns ``gwas-ssf-hybrid/build-store.py`` wrote, in that adapter's
+#: order: the Dense set minus the six Analytical Metadata columns
 #: listed in the module docstring (issue #82). Kept as an explicit projection --
 #: and regression-tested as such -- so a Hybrid manifest is byte-identical to
 #: the adapter's, and so the omission is a recorded decision rather than drift.
@@ -303,7 +306,7 @@ def builder_manifest(
 
     ``layout`` is one of ``dense``, ``hybrid`` or ``ragged`` (see
     ``ADAPTER_PROJECTIONS``). The result is byte-identical to what that layout's
-    ``build-store.py`` adapter writes for the same ``analyses.tsv``.
+    retired ``build-store.py`` adapter wrote for the same ``analyses.tsv``.
 
     ``rows`` may be any iterable, including a single-use one (a generator or a
     ``csv.DictReader``). The Ragged projection needs the release's full table
@@ -354,7 +357,7 @@ def write_builder_manifest(
     """Write one layout's adapter-compatible builder manifest TSV.
 
     Same tab-separated, LF-terminated, UTF-8 shape the ``build-store.py``
-    adapters write into a temporary file before handing it to OpenGWASDB.
+    adapters wrote into a temporary file before handing it to OpenGWASDB.
     """
     manifest = builder_manifest(
         rows,

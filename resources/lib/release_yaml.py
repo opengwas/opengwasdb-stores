@@ -1,8 +1,9 @@
 """Minimal indentation-based reader for this registry's release-bundle YAML.
 
 This repository deliberately avoids a PyYAML dependency in its Python
-generator scripts (see build-store.py's original hand-rolled parser). That
-parser only handled flat keys and one level of nested mapping, which is not
+generator scripts (see the retired build-store.py's original hand-rolled
+parser, #103). That parser only handled flat keys and one level of nested
+mapping, which is not
 enough to read `build.yaml`'s `reference_resources` (a list of mappings, some
 with their own nested mapping) or `effect_scale_validation`/`ancestry_assignment`
 (nested mappings two levels deep). This module generalises it to arbitrary
@@ -337,8 +338,8 @@ def merge_validation_yaml(
     call is authoritative for; `updated_checks` overrides/adds specific
     checks (e.g. `{"ancestry": "passed"}`) on top of whatever was already
     recorded, so two stages (this repository's effect-scale and ancestry
-    stages, or this stage and build-store.py) can each own their own checks
-    without one clobbering the other.
+    stages, the workflow's validate phase, or any adapter) can each own their
+    own checks without one clobbering the other.
     """
     from datetime import UTC, datetime
 

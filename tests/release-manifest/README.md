@@ -10,18 +10,20 @@ Run from the repository root:
 pixi run python tests/release-manifest/run_tests.py
 ```
 
-The module replaces the manifest translation that was copy-pasted into
+The module replaced the manifest translation that was copy-pasted into
 `resources/generators/opengwas-gwas-vcf-dense/build-store.py`,
 `resources/generators/gwas-ssf-hybrid/build-store.py` and
-`resources/generators/gwas-ssf-ragged/build-store.py`. Those adapters stay in
-the tree (issue #103 deletes them), so this suite keeps them as the oracle:
+`resources/generators/gwas-ssf-ragged/build-store.py`. Issue #103 deleted those
+adapters, so their exact output bytes are pinned in
+`adapter_manifest_sha256.json` (generated from the adapters before deletion),
+and the suite keeps asserting the shared module reproduces them:
 
 - **Dense** — for every already-built Dense Store Release, the shared module's
-  23-column manifest must be byte-identical to what
-  `opengwas-gwas-vcf-dense/build-store.py` writes.
+  23-column manifest must match what `opengwas-gwas-vcf-dense/build-store.py`
+  wrote, byte for byte.
 - **Hybrid** — likewise against `gwas-ssf-hybrid/build-store.py`, including its
   release-level `source_reader_capability`/`source_assembly`.
-- **Ragged** — `gwas-ssf-ragged/build-store.py` hands the release's own
+- **Ragged** — `gwas-ssf-ragged/build-store.py` handed the release's own
   `analyses.tsv` straight to `build_ragged_from_ssf`, so equivalence is asserted
   against that file's bytes.
 
@@ -37,7 +39,7 @@ six Analytical Metadata columns the legacy Hybrid projection omits.
 ## The deferred Hybrid loss
 
 `ADAPTER_PROJECTIONS["hybrid"]` reproduces the 17-column manifest
-`gwas-ssf-hybrid/build-store.py` writes: it omits `sample_size_kind`,
+`gwas-ssf-hybrid/build-store.py` wrote: it omits `sample_size_kind`,
 `sample_size_scope`, `n_cases`, `n_controls`, `original_effect_scale` and
 `ancestry_assignment_method` (issue #82), so the built Hybrid stores cannot
 carry them. The suite regression-tests that omission as *legacy compatibility*,

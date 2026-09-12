@@ -45,7 +45,7 @@ software environments.
 
 | Runtime | Evidence and use | Version status |
 |---|---|---|
-| Python | Python 3 shebangs are used by the LD acquisition and generation scripts ([acquire_hgdp1kgp.py](../resources/scripts/ld-panel/acquire_hgdp1kgp.py#L1-L6)) and tests ([run_tests.py](../tests/ld-panel-generation/run_tests.py#L1-L8)). Store builders use the ambiguous `#!/usr/bin/env python` shebang ([build-store.py](../resources/generators/gwas-ssf-ragged/build-store.py#L1-L12)). | No version declared. Syntax such as `X | None` requires Python 3.10+, while `datetime.UTC` in `resources/lib/release_yaml.py` requires 3.11+, making 3.11 the effective minimum. |
+| Python | Python 3 shebangs are used by the LD acquisition and generation scripts ([acquire_hgdp1kgp.py](../resources/scripts/ld-panel/acquire_hgdp1kgp.py#L1-L6)), tests ([run_tests.py](../tests/ld-panel-generation/run_tests.py#L1-L8)), and the Store workflow phase runner ([phase.py](../workflow/phase.py#L1)) (`#103` deleted the three `build-store.py` adapters, the last scripts with a non-3 `#!/usr/bin/env python` shebang). | No version declared. Syntax such as `X | None` requires Python 3.10+, while `datetime.UTC` in `resources/lib/release_yaml.py` requires 3.11+, making 3.11 the effective minimum. |
 | R | Generators and tests run as `Rscript`; the shared generator workflow documents direct invocations ([generator README](../resources/generators/gwas-ssf-ragged/README.md#L6-L21)). | No R version declared or locked. |
 | Bash | The site build is a Bash script with strict mode ([build-site.sh](../resources/scripts/build-site.sh#L1-L16)). | No Bash/platform version declared. It also assumes GNU-like utilities. |
 | Quarto | Quarto renders the reports in the site build ([build-site.sh](../resources/scripts/build-site.sh#L21-L28)). | No version declared. Only prose says to use an activated Conda environment ([build-site.sh](../resources/scripts/build-site.sh#L6-L7)). |
@@ -60,8 +60,9 @@ The only direct third-party scientific imports in this repository are:
 - `scipy` (`scipy.linalg`): LD eigendecomposition
   ([backfill_eigendecomposition.py](../resources/scripts/ld-panel/backfill_eigendecomposition.py#L58-L66)).
 - `opengwasdb`: store construction/read-back, ancestry assignment, variant
-  normalization, and LD consumption. Store construction imports its APIs
-  directly ([build-store.py](../resources/generators/gwas-ssf-ragged/build-store.py#L23-L26)).
+  normalization, and LD consumption. The Store workflow shells out to its CLI
+  ([phase.py](../workflow/phase.py#L188-L195)) and reads a Store's Zarr groups
+  through its Python API ([phase.py](../workflow/phase.py#L607-L620)).
 
 Everything else imported is from the Python standard library or local
 `resources.lib` code. None of these packages has a declared version constraint.
@@ -101,7 +102,7 @@ informal package list easy to miss.
 | `curl` CLI | Resumable gnomAD downloads ([acquire_hgdp1kgp.py](../resources/scripts/ld-panel/acquire_hgdp1kgp.py#L12-L22)). | Not versioned; distinct from the R `curl` package. |
 | GitHub CLI `gh` | Checks whether an external consumer issue is closed before smoke testing ([smoke_test_consumer.py](../resources/scripts/ld-panel/smoke_test_consumer.py#L13-L16)). | Not declared/versioned; also introduces network/auth/API availability into a smoke test. |
 | `git` | `resources/lib/release_yaml.py` discovers the repository root using `git rev-parse`. | Not declared/versioned. |
-| GNU `du` | Store-size measurement invokes `du -sb` from Python ([build-store.py](../resources/generators/gwas-ssf-ragged/build-store.py#L106-L113)); `-b` is not portable to BSD/macOS `du`. | Undeclared platform assumption. |
+| GNU `du` | The ragged-store spike script measures store size with `du -sh` ([build-store.py](../resources/scripts/ragged-spike/build-store.py#L51-L52)); the three production `build-store.py` adapters that used `du -sb` were deleted in `#103`, and the workflow measures bytes in Python instead. | Undeclared platform assumption. |
 | `Rscript`, `quarto`, `bash`, `cp` | Generators/tests and documentation build ([build-site.sh](../resources/scripts/build-site.sh#L21-L34)). | Only prose requirements, no versions. |
 
 Standard-library gzip readers handle compressed files in both languages; no

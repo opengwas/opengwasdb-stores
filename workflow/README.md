@@ -26,12 +26,12 @@ shells out to `workflow/phase.py`, which owns everything semantic.
 | `build_observed_store` | Runs the plan's `build.command` with its opaque `build.arguments`. Emits `sidecars/build-report.tsv`. | `opengwasdb <build.command>` |
 | `build_observed_rho` | **Only when `rho.enabled`.** Mutates the built Store in place, adding `data.zarr/rho`. Emits `sidecars/rho-report.json`. | `opengwasdb build-dense-rho` |
 | `regenerate_observed_overview` | Regenerates `overview.html` from the persisted Store. Depends on `build_observed_rho` when rho is enabled, so the page can never be written before the mutation that adds its Rho tab. | `opengwasdb regenerate-overview` |
-| `validate_observed_release` | Validates the Store and merges the CLI result into the release's `validation.yaml`. Lands the release's lifecycle status: `validated`, or `built` when the effect-scale check failed (issue #99). | `opengwasdb validate` |
+| `validate_observed_release` | Validates the Store, reads the built Store's own `analyses.tsv` back against the metadata the build was handed and probes a binary and a quantitative Analysis for finite associations (the read-back the three retired `build-store.py` adapters performed by hand, issue #103), and merges the CLI result into the release's `validation.yaml`. Lands the release's lifecycle status: `validated`, or `built` when the effect-scale check failed (issue #99). | `opengwasdb validate` + `opengwasdb query-analysis` read-back |
 | `register_completed_release` | **Only when `reference_completion.enabled`.** Registers the lineage-linked child Store Release (ADR 0007) in its own Release Bundle, a sibling of the observed bundle. | — |
 | `complete_store` | Builds the child Store from the observed Store into a `.partial` sibling, then moves it into place. The observed Store is only read. Emits `sidecars/completion-report.tsv` in the child bundle. | `opengwasdb <reference_completion.command>` |
 | `build_completed_rho` | **Only when `rho.enabled`.** The child's in-place Rho Matrix. | `opengwasdb build-dense-rho` |
 | `regenerate_completed_overview` | The child's `overview.html`, after its last mutation. | `opengwasdb regenerate-overview` |
-| `validate_completed_release` | Validates the child Store and writes the child bundle's `validation.yaml`. The workflow's final target when completion is enabled. | `opengwasdb validate` |
+| `validate_completed_release` | Validates the child Store, runs the same metadata and association read-back, and writes the child bundle's `validation.yaml`. The workflow's final target when completion is enabled. | `opengwasdb validate` + read-back |
 
 ## Effect-scale failure: report by default, block on request
 
@@ -101,6 +101,17 @@ repository, so swapping the panel invalidates the phases that used it), the
 pinned `opengwasdb` revision and the effective arguments, the output locations,
 the completion time, and the read-back result. Changing any bound input
 invalidates that phase and its dependents on the next run.
+
+The validate phase's metadata read-back compares the built Store's own
+`analyses.tsv` to the resolved table and the builder manifest the build
+consumed, for every interpretation-bearing column that manifest projection
+carried (never a value re-derived from a source header, opengwasdb#14). It is
+the check the retired `build-store.py` adapters each performed by hand; a
+built Store that drops an Analytical Metadata column the plan mandated fails
+the phase. The association read-back probes one binary and one quantitative
+Analysis and fails on a Store that holds no finite association statistics for
+either -- the Dense and Hybrid adapters' smoke query, which `opengwasdb
+validate` does not make because an all-missing Analysis is structurally valid.
 
 ## Resumption contract
 

@@ -147,6 +147,8 @@ rule validate_observed_release:
         completion=rules.regenerate_observed_overview.output.completion,
         build_completion=rules.build_observed_store.output.completion,
         resolve_completion=rules.resolve_analysis_metadata.output.completion,
+        resolved=rules.resolve_analysis_metadata.output.analyses,
+        manifest=rules.resolve_analysis_metadata.output.manifest,
         overview=rules.regenerate_observed_overview.output.overview,
         store_manifest=rules.build_observed_store.output.manifest,
     output:
@@ -224,6 +226,8 @@ if RELEASE.child is not None:
         input:
             completion=rules.regenerate_completed_overview.output.completion,
             build_completion=rules.complete_store.output.completion,
+            resolved=rules.resolve_analysis_metadata.output.analyses,
+            manifest=rules.resolve_analysis_metadata.output.manifest,
             overview=rules.regenerate_completed_overview.output.overview,
             store_manifest=rules.complete_store.output.manifest,
         output:
