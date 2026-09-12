@@ -71,6 +71,16 @@ compare_with_migrated <- function(label, generated_path, migrated_path) {
       sprintf("%s: generator and migrated source.%s differ", label, key)
     )
   }
+  ## The two optional workflow branches (issue #101) are part of the emitted
+  ## build recipe, not curation: a regenerate must not silently drop them.
+  for (key in c("rho", "reference_completion")) {
+    check(
+      identical(generated[[key]], migrated[[key]]),
+      sprintf("%s: generator and migrated %s block differ (%s vs %s)",
+              label, key, paste(capture.output(str(generated[[key]])), collapse = " "),
+              paste(capture.output(str(migrated[[key]])), collapse = " "))
+    )
+  }
 }
 
 ## (generator, config, migrated release, extra libraries the emitter needs)

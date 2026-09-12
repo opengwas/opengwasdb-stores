@@ -542,6 +542,14 @@ def test_checked_in_release_loads() -> None:
     plan = load_plan(release)
     check(plan.schema == "cli", f"migrated release should load as cli, got {plan.schema!r}")
     check(plan.build_command == "build-dense-vcf", f"unexpected command {plan.build_command!r}")
+    # Issue #101 rebuilds this real Dense release through the shared workflow with
+    # both optional branches wired: rho in place and a lineage-linked child.
+    check(plan.rho_enabled is True, "r13-pilot-20 should enable rho (issue #101)")
+    check(plan.reference_completion_enabled is True, "r13-pilot-20 should enable Reference Completion (issue #101)")
+    check(plan.completed_release_id == "r13-pilot-20-completed",
+          f"unexpected child release id {plan.completed_release_id!r}")
+    check(plan.completion_command == "complete-dense",
+          f"unexpected completion command {plan.completion_command!r}")
     # A release outside the migrated seven still loads as a legacy plan, so the
     # loader's pre-#95 compatibility stays exercised against a real file.
     unmigrated = REPO_ROOT / "families" / "ukb-b" / "releases" / "dense-observed-vcf-pilot-10"

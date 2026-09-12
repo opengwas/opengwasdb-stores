@@ -7,6 +7,7 @@ build:
   arguments:
     store-id: finngen-r13
     release-id: r13-pilot-20
+    n-workers: 32
 source:
   root: /data/opengwasdb/finngen-r13/releases/r13-pilot-20/source
   analyses: analyses.tsv
@@ -26,6 +27,13 @@ reference_resources:
   genome_build: GRCh38
   location: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
   fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+- resource_id: hgdp1kgp-hg38-eur-ld
+  kind: ld_panel
+  ancestry: EUR
+  genome_build: GRCh38
+  variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+  location: /data/opengwasdb/reference/hgdp1kgp-hg38/panel/EUR
+  location_kind: external_directory
 ancestry_assignment:
   enabled: yes
   reference_resource_id: hgdp1kgp-ancestry-mixture-hg38
@@ -41,6 +49,20 @@ effect_scale_validation:
   enabled: yes
   min_overlap_variants: 20
   sd_tolerance: 0.15
+rho:
+  enabled: true
+  arguments:
+    n-workers: 32
+reference_completion:
+  enabled: true
+  family_release_id: r13-pilot-20-completed
+  command: complete-dense
+  arguments:
+    ld-panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+    ancestry: EUR
+    min-cor: 0.7
+    release-id: r13-pilot-20-completed
+    n-workers: 32
 validation:
   required: yes
 artifacts:
@@ -48,6 +70,14 @@ artifacts:
   release_subdir: finngen-r13/releases/r13-pilot-20
   source_dir: /data/opengwasdb/finngen-r13/releases/r13-pilot-20/source
   store_uri: /data/opengwasdb/finngen-r13/releases/r13-pilot-20/store.opengwasdb
-notes: Build directly from the frozen 20-row Release Manifest through the native opengwasdb.finngen-r13
-  Source Reader Capability. Source and target assembly are GRCh38, so no format conversion
-  or liftover is used.
+notes: |
+  Build directly from the frozen 20-row Release Manifest through the shared
+  Store Release workflow (`pixi run release --configfile
+  families/finngen-r13/releases/r13-pilot-20/build.yaml`) and the native
+  opengwasdb.finngen-r13 Source Reader Capability. Source and target assembly
+  are GRCh38, so no format conversion or liftover is used.
+
+  Since issue #101 the release also exercises both optional branches: rho is
+  built into the observed Store in place before the overview is regenerated,
+  and Reference Completion registers and builds the lineage-linked
+  `r13-pilot-20-completed` child from the HGDP+1kGP hg38 EUR panel.
