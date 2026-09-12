@@ -1,33 +1,28 @@
 status: failed
-validated_at: 2026-08-31T20:50:09.645464+00:00
+validated_at: 2026-09-12T03:17:07.760283+00:00
 validator:
-  name: resources/generators/opengwas-gwas-vcf-dense/build-store.py
+  name: workflow/phase.py:validate_observed_release
   version: null
 build_environment:
-  repo_commit: 7a1cba261bcdae4ca5df2b9eb53ba804c1223323
+  repo_commit: f18a5d46cd9251c97c59feef05589c48cc2f005b
   opengwasdb_version: 0.2.0
   opengwasdb_commit: 6ef919e721d5b7368acad591264be50f79b77dfb
-  pixi_lock_sha256: f76211f9a1483fb35dd67f5961f97693e8c9c33c075dad82a80e8a885a6359aa
-  pixi_environment: default
-  platform: Linux-4.18.0-553.141.1.el8_10.x86_64-x86_64-with-glibc2.28
+  pixi_lock_sha256: d29d9a768ae82a11bb809b8e93d5c4bc1cefc95fe24bc9072f99b09cbc2743fd
+  pixi_environment: workflow
+  platform: Linux-4.18.0-553.155.1.el8_10.x86_64-x86_64-with-glibc2.28
   python_version: 3.11.15
 checks:
   schema: passed
   files: passed
-  reader_smoke_test: passed
   ancestry: passed
   effect_scale: failed
   sd_estimation: failed
-  selection: passed
-  metadata_resolution: passed
   store: passed
 reports:
-  metadata_resolution: sidecars/derivations.tsv
-  downloads: sidecars/downloads.tsv
-  ancestry: sidecars/ancestry.tsv
-  sd_estimation: sidecars/sd_estimation.tsv
-  build_report: sidecars/build_report.tsv
-  pilot_assessment: pilot_report.md
+  input_validation: sidecars/input-validation.json
+  metadata_resolution: sidecars/metadata-resolution.tsv
+  build_report: sidecars/build-report.tsv
+  rho_report: sidecars/rho-report.json
 warnings:
-  - finngen-r13-HEIGHT_IRN: empirical effect-scale status=failed
+  - finngen-r13-HEIGHT_IRN: empirical effect-scale status=failed (scale_inconsistent (median implied SD=0.663, dispersion=0.002, n=9720452))
 errors: []

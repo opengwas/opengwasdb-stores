@@ -1,29 +1,48 @@
 metadata_schema_version: 1
+
 store_family_id: finngen-r13
+
 family_release_id: r13-pilot-20-completed
+
+store_layout: dense-reference-completed
+
+completion_state: reference-completed
+
+lineage:
+  derived_from: r13-pilot-20
+
+generator:
+  name: workflow/phase.py:register_completed_release
+  version: null
+  command: complete-dense
+
 status: validated
+
 source_collection_id: finngen-r13
+
 source_snapshot_id: finngen-r13-manifest-2026-05-12
+
 release_kind: one-off
+
 association_coverage: full_gwas
+
 description: |
   Reference-Completed sibling of r13-pilot-20: the same 20-Analysis Dense Observed-Only FinnGen R13 Store, reference-completed against the real HGDP+1kGP hg38 EUR LD panel via opengwasdb's complete_dense_store(). Proves the Dense Reference-Completion pipeline end to end with real data, satisfying opengwasdb#89's "at least one Reference-Completed Dense release" checklist item.
+
 created_at: '2026-08-18T16:58:59Z'
+
 accepted_at: '2026-08-18T16:58:59Z'
-generator:
-  name: opengwasdb CLI (opengwasdb complete-dense)
-  version: opengwasdb@553aee3a5ef32ac4f23ffed142808807cf350fd7
-  command: opengwasdb complete-dense /data/opengwasdb/finngen-r13/releases/r13-pilot-20/store.opengwasdb /data/opengwasdb/finngen-r13/releases/r13-pilot-20/store-completed.opengwasdb --ld-panel /data/opengwasdb/reference/hgdp1kgp-hg38/panel --ancestry EUR --n-workers 32
+
 build_environment:
   repo_commit: 61043c83662dc5588f2c4ed9ea46ff7e2055bf78
   opengwasdb_commit: 553aee3a5ef32ac4f23ffed142808807cf350fd7
   pixi_environment: default
   platform: Linux-4.18.0-553.141.1.el8_10.x86_64-x86_64-with-glibc2.28
+
 source_defaults:
   source_genome_build: GRCh38
   license: FinnGen public data
-lineage:
-  derived_from: r13-pilot-20
+
 notes: |
   Ancestry caveat: FinnGen R13 is a Finnish-founder-population cohort with no FIN-specific LD reference panel available in this registry (the HGDP+1kGP hg38 panel ships continental EUR/AFR/EAS/SAS only). Completed against EUR as the nearest available approximation -- a deliberate, explicit choice, not a silent default. Any downstream use of this release's imputed cells for fine-mapping or LD-sensitive analysis should account for the Finnish population's known long-range LD and allele-frequency drift from broad continental EUR.
 
