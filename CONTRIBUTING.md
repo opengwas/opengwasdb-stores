@@ -108,9 +108,22 @@ because it is not Phase A's: a generator validates what it emits with
 ### `resources/families/`
 
 Store Family identity -- intended biological scope, query promise, access
-posture, release cadence, build priority. A lookup table keyed by Store Family
-ID, because ADR 0022 made family a field on a Store Release rather than a path
-level. A Store Family is built from exactly one Source Collection (ADR 0010).
+posture, release cadence, build priority. One file per family, keyed by Store
+Family ID, because ADR 0022 made family a field on a Store Release rather than
+a path level. A Store Family is built from exactly one Source Collection
+(ADR 0010).
+
+The old `families/<id>/releases/` tree retires as its bundles migrate to
+`stores/`, but the family record does not go with it. Of its eight fields only
+`source_collection_id` is derivable from the releases; `query_promise`,
+`priority` and `release_cadence` are statements about releases that *do not
+exist yet*, which is the "what should be built next" half of what this
+repository is for. Folding them onto each release would denormalise exactly
+what ADR 0022 normalised.
+
+`_candidates/` holds Candidate Store Families -- proposals being assessed for
+value, readiness, cost, risk and scope. A candidate has zero Store Releases by
+definition, so it cannot be represented as a field on one.
 
 ### `resources/source-collections/`
 
