@@ -54,18 +54,132 @@ Store-specific helpers may acquire and select data, but the shared Store Release
 workflow begins at the fixed-input boundary documented in
 [`docs/spec/store-release-workflow.md`](docs/spec/store-release-workflow.md).
 
+## Repository layout
+
+```text
+stores/            accepted Release Bundles, one per Store Release
+workflow/          Phase A: accepted bundle -> validated Store Release
+src/ogstores/      the Python package both phases use
+resources/         everything on the input side
+  families/            Store Family identity and priority
+  source-collections/  upstream summary-statistics inventories
+  reference-resources/ auxiliary build-time inputs
+  annotations/         curated metadata that outlives a release
+  generators/          Phase B: sources -> candidate bundle
+  scripts/             standalone toolchains and repo tooling
+docs/              adr/ decisions, spec/ specifications, rendered site
+tests/
+```
+
+`resources/` is not a miscellany. The split is output versus input: `stores/`
+holds what this repository produces, `workflow/` and `src/` are the machinery
+that produces it, and everything under `resources/` is an input to that, or
+something that makes an input.
+
+### `stores/`
+
+One directory per Store Release, named by its opaque `OGS-` identifier
+(ADR 0022): `release.yaml`, `build.yaml`, `analyses.tsv`, `validation.yaml`.
+Simultaneously the output of Phase B and the fixed input of Phase A.
+
+A bundle is immutable once accepted. A material change to membership or to the
+Build Recipe is a **new** Store Release (ADR 0004), not an edit. Correcting
+Analytical Metadata after publication is a Release Erratum.
+
+### `workflow/`
+
+Phase A. `Snakefile` scans `stores/` and wires dependencies; nothing else.
+Per ADR 0023 it contains no Store Family name, no source column name, no
+manifest translation, and no layout branch -- each rule asks `ogstores.plan`
+for a Step and hands it to `ogstores.run`.
+
+`generate.smk` (Phase B) will live here too. The two share no DAG: the accepted
+bundle is a boundary only because a human froze it, and one graph spanning both
+would silently regenerate a bundle and rebuild a Store when a generator config
+changed.
+
+### `src/ogstores/`
+
+`bundle.py` (load and check a bundle), `plan.py` (Bundle to argv -- the seam),
+`paths.py`, `run.py`, `index.py`. Top-level rather than inside `workflow/`
+because it is not Phase A's: a generator validates what it emits with
+`bundle.check()`, so Phase B depends on it too.
+
+### `resources/families/`
+
+Store Family identity -- intended biological scope, query promise, access
+posture, release cadence, build priority. A lookup table keyed by Store Family
+ID, because ADR 0022 made family a field on a Store Release rather than a path
+level. A Store Family is built from exactly one Source Collection (ADR 0010).
+
+### `resources/source-collections/`
+
+One directory per homogeneous upstream summary-statistics inventory.
+`source.yaml` declares the provider, Source Format, Source Reader Capability,
+access posture, and default licence; an optional `inventory.tsv` is the
+discovered snapshot of what is available upstream.
+
+A Source Collection has exactly one Source Format and one Source Reader
+Capability (ADR 0009). Declarative records only -- code that *reads* the data
+belongs in `generators/`, and code that interprets the statistics belongs in
+`opengwasdb`.
+
+### `resources/reference-resources/`
+
+Auxiliary build-time inputs that are **not** the Source Collection of any
+family (ADR 0011): LD reference panels, reference allele-frequency panels,
+ancestry-mixture references, QC panels, and the Canonical Trait Mapping Table.
+Each carries a `resource.yaml` declaring kind, ancestry, genome build, variant
+ID convention, and location.
+
+Small tables may be tracked here. Large panels live under the artifact root and
+are referenced by path -- this repository is not an artifact store (ADR 0015).
+
+### `resources/annotations/`
+
+Curated metadata that may change *after* a Store Release is published without
+changing the analytical asset -- Trait Annotations principally.
+
+The distinction is deliberate and load-bearing. Re-curating a Trait Annotation
+does not create a new Store Release; correcting Analytical Metadata, which
+changes how the statistics are interpreted, does.
+
+### `resources/generators/`
+
+Phase B. `<family-id>/` holds a family's entry point, config, and README;
+`lib/` holds shared helpers; `lib/source-formats/` holds code scoped to a
+Source Format, so two families sharing a Source Collection share selection code
+without a configuration system by accident.
+
+A generator's only output is a bundle directory. It never builds a Store, and
+it invokes statistics rather than implementing them: if two Store Families
+computing something differently would be a bug, it belongs in `opengwasdb`.
+
+### `resources/scripts/`
+
+Standalone toolchains and repository tooling that belong to neither phase: LD
+panel construction (`ld-panel/`), documentation rendering (`*.qmd`,
+`build-site.sh`), repository checks (`run_all_tests.py`, `env_check.py`), and
+one-off analyses.
+
+This is the one directory at risk of becoming a junk drawer. The test: if
+something here starts being run as a step in producing a Store Release, it
+belongs in `generators/` or `workflow/` instead.
+
 ## Metadata and scripts
 
 - YAML holds nested configuration and metadata; TSV holds repeated tabular rows
   (ADR 0013).
-- Keep Release Bundles self-contained and use family-first artifact paths (ADRs
-  0014 and 0018).
+- Keep Release Bundles self-contained. A Store Release's artifact path is a
+  pure function of its identifier, `<artifact-root>/<store-id>/` (ADRs 0014 and
+  0022; 0018's family-first layout is superseded).
 - A committed `analyses.tsv` is an exact release selection. Do not silently add
   every file found in a directory at build time.
 - Record source file names and checksums. Fail if a selected file is missing or
   its identity no longer matches.
 - Do not copy OpenGWASDB builder logic into this repository. Invoke a documented
-  OpenGWASDB operation with explicit arguments.
+  OpenGWASDB CLI subcommand with explicit arguments; `build.options` keys are
+  flag names passed through verbatim, never interpreted here (ADR 0023).
 - Comments should explain why a choice exists and cite the issue or ADR that
   constrained it.
 
