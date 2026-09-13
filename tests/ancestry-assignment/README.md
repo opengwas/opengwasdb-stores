@@ -1,6 +1,6 @@
 # AF-based ancestry assignment tests
 
-Fixture-based tests for `generators/lib/source-formats/gwas-ssf-ragged/ancestry-assign.py`
+Fixture-based tests for `resources/generators/lib/source-formats/gwas-ssf-ragged/ancestry-assign.py`
 (issues #23, #25). Run from the repository root:
 
 ```sh
@@ -26,9 +26,9 @@ with no usable source allele frequencies (left untouched at
 Requires numpy/scipy/`opengwasdb.ancestry`, provided by the `dev`/`default`
 Pixi environments (issue #41).
 
-`ancestry-assign.py` and `generators/lib/source-formats/gwas-ssf-ragged/build-store.py`
+`ancestry-assign.py` and `resources/generators/lib/source-formats/gwas-ssf-ragged/build-store.py`
 both mutate `validation.yaml` in place via the shared
-`generators/lib/release_yaml.py::merge_validation_yaml` helper, so re-running
+`resources/generators/lib/release_yaml.py::merge_validation_yaml` helper, so re-running
 either stage on a real release never discards the other's checks. The fixture
 generators reset `validation.yaml` to a pristine `not_run` baseline on every
 regeneration for the same reason: without that reset, repeated test runs

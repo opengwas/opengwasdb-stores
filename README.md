@@ -61,16 +61,21 @@ layer here.
 ```text
 stores/<store-id>/       accepted Release Bundles, one per Store Release
 stores.tsv  STORES.md    generated master list
-families/<family-id>/    Store Family identity, priority, query promise
-source-collections/      upstream summary-statistics inventories
-reference-resources/     LD panels, reference AF, trait mappings
-generators/              Phase B: bundle producers
-src/ogstores/            bundle.py  plan.py  paths.py  run.py  index.py
 workflow/                Snakefile (Phase A), generate.smk (Phase B)
-annotations/             curated metadata that evolves after release
+src/ogstores/            bundle.py  plan.py  paths.py  run.py  index.py
+resources/
+  families.yaml            Store Family records
+  reference-resources/     LD panels, reference AF, trait mappings, QC panels
+  annotations/             curated metadata that evolves after release
+  generators/              Phase B: bundle producers
+  scripts/                 toolchains and repository tooling
 docs/adr/  docs/spec/    decisions and specifications
 CONTEXT.md               project language
 ```
+
+The organising split is output versus input: `stores/` is what this repository
+produces, `workflow/` and `src/` are the machinery, and `resources/` holds the
+inputs and the things that make inputs. `CONTRIBUTING.md` documents each one.
 
 ## Store Release identity
 
@@ -118,9 +123,11 @@ For this server the artifact root is `/data/opengwasdb`.
 ## Worked example
 
 ```text
-stores/OGS-00003/          finngen-r13 / r13-pilot-20, dense observed-only
-generators/finngen-r13/    the family's Phase B entry point
-source-collections/finngen-r13/
+stores/OGS-00003/                  finngen-r13 / r13-pilot-20, dense observed-only
+resources/generators/finngen-r13/  the family's Phase B entry point
+resources/families.yaml            the finngen-r13 family record
 ```
 
-`stores/README.md` lists all seven migrated Trial Store Releases.
+`stores/README.md` lists all seven migrated Trial Store Releases. A further
+thirteen bundles remain under `families/` awaiting triage; that directory goes
+when it empties.

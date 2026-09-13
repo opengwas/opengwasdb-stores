@@ -41,7 +41,7 @@ run_release <- function(config_name) {
   run_mode <- function(mode) {
     status <- system2(
       "Rscript",
-      c("generators/lib/source-formats/gwas-ssf-ragged/generate.R",
+      c("resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R",
         paste0("--config=", tmp_config), paste0("--mode=", mode))
     )
     if (status != 0) fail("generate.R --mode=%s exited non-zero for %s", mode, config_name)

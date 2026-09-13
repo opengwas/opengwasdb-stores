@@ -45,7 +45,7 @@ software environments.
 
 | Runtime | Evidence and use | Version status |
 |---|---|---|
-| Python | Python 3 shebangs are used by the LD acquisition and generation scripts ([acquire_hgdp1kgp.py](../resources/scripts/ld-panel/acquire_hgdp1kgp.py#L1-L6)) and tests ([run_tests.py](../tests/ld-panel-generation/run_tests.py#L1-L8)). Store builders use the ambiguous `#!/usr/bin/env python` shebang ([build-store.py](../generators/lib/source-formats/gwas-ssf-ragged/build-store.py#L1-L12)). | No version declared. Syntax such as `X | None` requires Python 3.10+, while `datetime.UTC` in `generators/lib/release_yaml.py` requires 3.11+, making 3.11 the effective minimum. |
+| Python | Python 3 shebangs are used by the LD acquisition and generation scripts ([acquire_hgdp1kgp.py](../resources/scripts/ld-panel/acquire_hgdp1kgp.py#L1-L6)) and tests ([run_tests.py](../tests/ld-panel-generation/run_tests.py#L1-L8)). Store builders use the ambiguous `#!/usr/bin/env python` shebang ([build-store.py](../generators/lib/source-formats/gwas-ssf-ragged/build-store.py#L1-L12)). | No version declared. Syntax such as `X | None` requires Python 3.10+, while `datetime.UTC` in `resources/generators/lib/release_yaml.py` requires 3.11+, making 3.11 the effective minimum. |
 | R | Generators and tests run as `Rscript`; the shared generator workflow documents direct invocations ([generator README](../generators/lib/source-formats/gwas-ssf-ragged/README.md#L6-L21)). | No R version declared or locked. |
 | Bash | The site build is a Bash script with strict mode ([build-site.sh](../resources/scripts/build-site.sh#L1-L16)). | No Bash/platform version declared. It also assumes GNU-like utilities. |
 | Quarto | Quarto renders the reports in the site build ([build-site.sh](../resources/scripts/build-site.sh#L21-L28)). | No version declared. Only prose says to use an activated Conda environment ([build-site.sh](../resources/scripts/build-site.sh#L6-L7)). |
@@ -100,7 +100,7 @@ informal package list easy to miss.
 | `bcftools` | Header verification and index checks ([acquire_hgdp1kgp.py](../resources/scripts/ld-panel/acquire_hgdp1kgp.py#L25-L31), [same file](../resources/scripts/ld-panel/acquire_hgdp1kgp.py#L64-L71)). | Not versioned; PATH-resolved. |
 | `curl` CLI | Resumable gnomAD downloads ([acquire_hgdp1kgp.py](../resources/scripts/ld-panel/acquire_hgdp1kgp.py#L12-L22)). | Not versioned; distinct from the R `curl` package. |
 | GitHub CLI `gh` | Checks whether an external consumer issue is closed before smoke testing ([smoke_test_consumer.py](../resources/scripts/ld-panel/smoke_test_consumer.py#L13-L16)). | Not declared/versioned; also introduces network/auth/API availability into a smoke test. |
-| `git` | `generators/lib/release_yaml.py` discovers the repository root using `git rev-parse`. | Not declared/versioned. |
+| `git` | `resources/generators/lib/release_yaml.py` discovers the repository root using `git rev-parse`. | Not declared/versioned. |
 | GNU `du` | Store-size measurement invokes `du -sb` from Python ([build-store.py](../generators/lib/source-formats/gwas-ssf-ragged/build-store.py#L106-L113)); `-b` is not portable to BSD/macOS `du`. | Undeclared platform assumption. |
 | `Rscript`, `quarto`, `bash`, `cp` | Generators/tests and documentation build ([build-site.sh](../resources/scripts/build-site.sh#L21-L34)). | Only prose requirements, no versions. |
 

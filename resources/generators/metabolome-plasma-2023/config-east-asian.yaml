@@ -1,0 +1,96 @@
+store_family_id: metabolome-plasma-2023
+family_release_id: 2023-chen-full-east-asian
+store_key: ragged__pmid-36635386__East-Asian
+source_collection_id: gwas-catalog-ssf
+release_kind: full
+association_coverage: signals_only
+description: >
+  Full East Asian-ancestry slice of the Chen et al. 2023 plasma metabolome
+  atlas (PMID 36635386): every candidate analysis for this ancestry, no
+  cap, as a single-ancestry no-cis ragged GWAS-SSF release.
+notes: >
+  Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27),
+  scaled up per-ancestry (issue #31's "run the whole thing" follow-on):
+  single-ancestry selection (ancestry_group: East Asian, matching the
+  candidates table's own store_key partitioning) rather than the pilot's
+  mixed-ancestry-plus-AF-assignment approach, since each store here is
+  already known single-ancestry from the source label.
+  ancestry_assignment stays enabled with the fixed QC panel (issue
+  #28/#29/#30) as a source/AF mislabel QC check, not for splitting.
+
+source:
+  source_snapshot_id: gwas-catalog-v1.0.3.1-r2026-07-10
+  ftp_base: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics
+
+inputs:
+  candidates: resources/data/derived/store-candidates-analyses.tsv
+
+selection:
+  pubmed_id: 36635386
+  store_key: ragged__pmid-36635386__East-Asian
+  ancestry_group: East Asian
+
+defaults:
+  source_genome_build: GRCh38
+  license: EBI GWAS Catalog terms of use
+  publication_doi: 10.1038/s41588-022-01270-1
+  consortium: Chen et al. 2023
+  original_effect_scale: sd
+  original_sd_method: unavailable
+  stored_effect_scale: sd
+  sample_size_scope: analysis_level
+  ancestry_assignment_method: source_trusted_no_af
+  analysis_group_id: PMID36635386
+  inclusion_reason: full_ancestry_split_metabolome_release
+  tissue: plasma
+  context: metabolomics
+
+filter:
+  region_policy_id: sig-trans-1mb_suggestive-leads
+  trans_flank_bp: 1000000
+  significant_p: 5.0e-8
+  suggestive_p: 1.0e-5
+  suggestive_lead_min_distance_bp: 100000
+  download_timeout_seconds: 3600
+  qc_panel:
+    enabled: true
+    resource_id: qc-panel-hg38
+
+effect_scale_validation:
+  enabled: true
+  maf_min: 0.01
+  maf_max: 0.5
+  min_overlap_variants: 20
+  sd_tolerance: 0.15
+  warning_multiplier: 2.0
+  dispersion_max: 0.5
+
+reference_resources:
+  - resource_id: ukb-ancestry-mixture-hg38
+    kind: ancestry_mixture
+    genome_build: GRCh38
+    variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+    root: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
+    fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+    location_kind: external_file
+  - resource_id: qc-panel-hg38
+    kind: qc_panel
+    genome_build: GRCh38
+    variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+    root: resources/reference-resources/qc-panel-hg38/qc_panel.tsv
+    location_kind: tracked_file
+
+ancestry_assignment:
+  enabled: true
+  reference_resource_id: ukb-ancestry-mixture-hg38
+  maf_floor: 0.01
+  gates:
+    tau: 0.50
+    delta: 0.20
+    n_min: 200
+    residual_max: 0.06
+
+output:
+  release_dir: families/metabolome-plasma-2023/releases/2023-chen-full-east-asian
+  artifact_root: /data/opengwasdb
+  artifact_subdir: metabolome-plasma-2023/releases/2023-chen-full-east-asian

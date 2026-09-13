@@ -24,9 +24,9 @@ qc_panel: ~
 validation:
   required: yes
 artifacts:
-  artifact_root: /home/gh13047/repo/opengwasdb-stores/tests/no-cis-region-policy/fixtures
+  artifact_root: /home/gh13047/repo/opengwasdb-stores/.claude/worktrees/bridge-cse_01LGuFPdWLB8xaiHE7ZbL4Fe/tests/no-cis-region-policy/fixtures
   release_subdir: output
-  filtered_dir: /home/gh13047/repo/opengwasdb-stores/tests/no-cis-region-policy/fixtures/output/filtered
-  work_dir: /home/gh13047/repo/opengwasdb-stores/tests/no-cis-region-policy/fixtures/output/work
-  store_uri: /home/gh13047/repo/opengwasdb-stores/tests/no-cis-region-policy/fixtures/output/store/ragged__pmid-99999999__European
+  filtered_dir: /home/gh13047/repo/opengwasdb-stores/.claude/worktrees/bridge-cse_01LGuFPdWLB8xaiHE7ZbL4Fe/tests/no-cis-region-policy/fixtures/output/filtered
+  work_dir: /home/gh13047/repo/opengwasdb-stores/.claude/worktrees/bridge-cse_01LGuFPdWLB8xaiHE7ZbL4Fe/tests/no-cis-region-policy/fixtures/output/work
+  store_uri: /home/gh13047/repo/opengwasdb-stores/.claude/worktrees/bridge-cse_01LGuFPdWLB8xaiHE7ZbL4Fe/tests/no-cis-region-policy/fixtures/output/store/ragged__pmid-99999999__European
   build_log_uri: ~

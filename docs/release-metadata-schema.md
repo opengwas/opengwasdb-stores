@@ -61,7 +61,7 @@ disagree with or omit this metadata (see issue #15's `ieu-a-7` example, where
 a GWAS-VCF `##SAMPLE` header declares `StudyType=Continuous` for a study the
 source API correctly reports as case-control).
 
-Conventionally, resolver modules live under `generators/lib/metadata_resolvers/`,
+Conventionally, resolver modules live under `resources/generators/lib/metadata_resolvers/`,
 one file per Source Collection, named for the resolved field set they share:
 `resolve_<source_collection>_metadata(...)`.
 
@@ -85,7 +85,7 @@ adapt this generic record onto its own legacy column names, but the resolver
 itself must not know which downstream shape it feeds — this is what lets
 `derive` stay agnostic to which provider it is talking to.
 
-The first implementation is `generators/lib/metadata_resolvers/gwas_catalog_ssf.R`
+The first implementation is `resources/generators/lib/metadata_resolvers/gwas_catalog_ssf.R`
 (`resolve_gwas_catalog_ssf_metadata()`), which resolves GWAS Catalog's
 free-text "INITIAL SAMPLE SIZE" study field into these fields: a study whose
 parsed components include any `cases`/`controls` counts resolves as
@@ -94,7 +94,7 @@ case-control effect estimates to log odds ratio); otherwise it resolves as
 `total` with `stored_effect_scale = sd`; a field with no parseable numeric
 component resolves as `unresolved`.
 
-The second implementation is `generators/lib/metadata_resolvers/opengwas_api.R`
+The second implementation is `resources/generators/lib/metadata_resolvers/opengwas_api.R`
 (`resolve_opengwas_api_metadata()`, issue #49), for the `opengwas-gwas-vcf`
 Source Collection. It resolves a study's `ncase`/`ncontrol`/`sample_size`
 from the OpenGWAS API's own "gwasinfo" record rather than the source
@@ -117,7 +117,7 @@ API responses) from the network transport that fetches gwasinfo records
 (`fetch_opengwas_gwasinfo()`, untested here since it needs a live OpenGWAS
 API token).
 
-The third implementation is `generators/lib/metadata_resolvers/finngen_manifest.R`
+The third implementation is `resources/generators/lib/metadata_resolvers/finngen_manifest.R`
 (`resolve_finngen_manifest_metadata()`, issue #57), for FinnGen's public endpoint
 manifest. Binary endpoint rows carry `num_cases` and `num_controls` and resolve
 to `log_or`/`case_control`. FinnGen encodes its inverse-rank-normalised
@@ -128,10 +128,10 @@ misrepresenting that total as a case count. Any other shape is explicit
 
 ## Trait ontology mapping resolver
 
-A separate resolver family, also under `generators/lib/metadata_resolvers/`,
+A separate resolver family, also under `resources/generators/lib/metadata_resolvers/`,
 resolves Trait Ontology Mapping (see `CONTEXT.md`) rather than the
 effect-scale/sample-size fields above — a different output shape, documented
-separately. `generators/lib/metadata_resolvers/canonical_trait_table.R`
+separately. `resources/generators/lib/metadata_resolvers/canonical_trait_table.R`
 (`resolve_trait_ontology_mapping()`) returns:
 
 | Field | Required | Description |
@@ -146,7 +146,7 @@ Resolution order: (1) if the Source Collection already supplies an ontology
 ID (e.g. GWAS Catalog's `MAPPED_TRAIT_URI`), pass it through as
 `source_provided`; (2) otherwise, exact-match the Analysis's trait label
 against the curated Canonical Trait Mapping Table Reference Resource
-(`reference-resources/canonical-trait-mapping-efo/`) as
+(`resources/reference-resources/canonical-trait-mapping-efo/`) as
 `canonical_table_lookup`; (3) otherwise `unmapped`, leaving
 `trait_ontology_id`/`trait_ontology_label` blank rather than guessing. See
 `docs/adr/0021-trait-ontology-mapping-lookup-lives-in-registry.md` for why
@@ -173,7 +173,7 @@ promoted `trait_ontology_id`/`trait_ontology_label` (renamed from
 `publication_pmid`, `consortium`, and the new `first_author`) from
 registry-only to shared core, so a built store carries them without needing
 the registry — this repository never hand-maintains that classification (see
-"Metadata resolvers" and `generators/lib/schema_validate.py`/`.R`), so the
+"Metadata resolvers" and `resources/generators/lib/schema_validate.py`/`.R`), so the
 promotion took effect automatically once opengwasdb shipped it; only this
 document's classification and the generators' emitted column names needed a
 matching update, tracked as

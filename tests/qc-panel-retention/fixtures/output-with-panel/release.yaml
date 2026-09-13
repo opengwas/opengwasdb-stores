@@ -8,15 +8,15 @@ source_snapshot_id: fixture
 release_kind: one-off
 association_coverage: signals_only
 description: Fixture release proving unconditional QC-panel retention (issue
-created_at: '2026-09-12T23:08:31Z'
+created_at: '2026-09-13T21:19:08Z'
 accepted_at: ~
 generator:
-  name: generators/lib/source-formats/gwas-ssf-ragged/generate.R
-  version: sha256:9f84f5c6ddcaf9a74495a640697d76e7317521115eebd9c5f42294599044a830
-  command: Rscript generators/lib/source-formats/gwas-ssf-ragged/generate.R --config=/tmp/RtmpKqnZNT/file245fee247895cf.yaml
-    --mode=emit
+  name: resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R
+  version: sha256:91f759845e6096b08d1213c15c142ff7e9b3f421857f923f2dc13a9f89006d94
+  command: Rscript resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R
+    --config=/tmp/RtmphZXrck/file2d435431fc761d.yaml --mode=emit
 build_environment:
-  repo_commit: f45bba1d6414d63c3f16ddb406198c2fad711022
+  repo_commit: 770fa57763cff40c77aaa3271db5ece2bf7f8ca9
   pixi_lock_sha256: 265cc26f8c6688eda145aa1870c43fb37ea771519ada05064059f56fa584d10b
   pixi_environment: dev
   platform: x86_64-conda-linux-gnu

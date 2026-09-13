@@ -30,7 +30,7 @@ reference_resources:
   ancestry_dir: EUR
 - resource_id: canonical-trait-mapping-efo
   kind: trait_ontology_mapping
-  location: reference-resources/canonical-trait-mapping-efo/mapping.tsv
+  location: resources/reference-resources/canonical-trait-mapping-efo/mapping.tsv
 ancestry_assignment:
   enabled: yes
   reference_resource_id: hgdp1kgp-ancestry-mixture-hg38

@@ -1,9 +1,9 @@
 # Reference-AF effect-scale validation tests
 
-Fixture-based tests for the shared engine at `generators/lib/effect_scale_validation.R`
+Fixture-based tests for the shared engine at `resources/generators/lib/effect_scale_validation.R`
 (issues #16-#21). They are plain `Rscript`/`python3` checks that exit non-zero
 on failure, matching the existing `validate_emit()` smoke-check convention in
-`generators/lib/source-formats/gwas-ssf-ragged/generate.R`; `pixi run test` (issue #41)
+`resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R`; `pixi run test` (issue #41)
 runs them, along with every other suite, from the repository's locked `dev`
 environment.
 
@@ -28,6 +28,6 @@ emitted metadata as the contract.
 mismatched, non-overlapping, out-of-MAF-bounds, and multi-chromosome cases.
 
 `test_build_store_validation_merge.py` unit-tests
-`generators/lib/source-formats/gwas-ssf-ragged/build-store.py`'s validation.yaml
+`resources/generators/lib/source-formats/gwas-ssf-ragged/build-store.py`'s validation.yaml
 preservation logic in isolation (stubbing the `opengwasdb` package import so
 it doesn't require that sibling repo to be installed).

@@ -66,7 +66,7 @@ def main() -> None:
         result = subprocess.run(
             [
                 sys.executable,
-                "generators/lib/source-formats/finngen-r13-dense/assess.py",
+                "resources/generators/lib/source-formats/finngen-r13-dense/assess.py",
                 f"--release-dir={release}",
                 "--full-analysis-count=2754",
             ],
@@ -103,7 +103,7 @@ def main() -> None:
         failed_check = subprocess.run(
             [
                 sys.executable,
-                "generators/lib/source-formats/finngen-r13-dense/assess.py",
+                "resources/generators/lib/source-formats/finngen-r13-dense/assess.py",
                 f"--release-dir={release}",
                 "--full-analysis-count=2754",
             ],

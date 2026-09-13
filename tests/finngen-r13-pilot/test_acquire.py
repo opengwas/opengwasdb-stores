@@ -87,7 +87,7 @@ def main() -> None:
 
             command = [
                 sys.executable,
-                "generators/lib/source-formats/finngen-r13-dense/acquire.py",
+                "resources/generators/lib/source-formats/finngen-r13-dense/acquire.py",
                 f"--release-dir={release}",
             ]
             first = subprocess.run(

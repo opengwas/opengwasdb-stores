@@ -8,17 +8,17 @@ source_snapshot_id: fixture
 release_kind: one-off
 association_coverage: signals_only
 description: Fixture release proving the no-cis sparse-region policy (issue
-created_at: '2026-08-17T08:27:57Z'
+created_at: '2026-09-13T21:19:01Z'
 accepted_at: ~
 generator:
-  name: resources/generators/gwas-ssf-ragged/generate.R
-  version: sha256:ef0c8437171493bc205dfbb32156ce2c37209cf9de94edea99be53cefb825d94
-  command: Rscript resources/generators/gwas-ssf-ragged/generate.R --config=/tmp/RtmpAdy2Xc/file1afec910369457.yaml
-    --mode=emit
+  name: resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R
+  version: sha256:91f759845e6096b08d1213c15c142ff7e9b3f421857f923f2dc13a9f89006d94
+  command: Rscript resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R
+    --config=/tmp/Rtmp825ani/file2d35db624ee3f8.yaml --mode=emit
 build_environment:
-  repo_commit: 88aa7b5aa4ded18b087ea55235da230f2ccdf558
-  pixi_lock_sha256: e0f51554e8ecbc36095a67e6f83a1e87e1e607a8a3e756e5e2b1f8ad4c362644
-  pixi_environment: unavailable
+  repo_commit: 770fa57763cff40c77aaa3271db5ece2bf7f8ca9
+  pixi_lock_sha256: 265cc26f8c6688eda145aa1870c43fb37ea771519ada05064059f56fa584d10b
+  pixi_environment: dev
   platform: x86_64-conda-linux-gnu
   r_version: R version 4.5.3 (2026-03-11)
 source_defaults:

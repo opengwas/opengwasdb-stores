@@ -109,7 +109,7 @@ r-yaml = "*"
 # data.table::fread() shells out to R.utils to read .gz files directly; never
 # library()'d explicitly, so it's easy to miss auditing only `library()` calls.
 "r-r.utils" = "*"
-# Needed by generators/lib/metadata_resolvers/opengwas_api.R's
+# Needed by resources/generators/lib/metadata_resolvers/opengwas_api.R's
 # fetch_opengwas_gwasinfo() (issue #49) to call the live OpenGWAS API; the
 # tested resolve_opengwas_api_metadata() itself has no network dependency.
 r-httr = "*"

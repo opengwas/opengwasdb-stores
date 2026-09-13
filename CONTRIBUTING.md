@@ -61,8 +61,7 @@ stores/            accepted Release Bundles, one per Store Release
 workflow/          Phase A: accepted bundle -> validated Store Release
 src/ogstores/      the Python package both phases use
 resources/         everything on the input side
-  families/            Store Family identity and priority
-  source-collections/  upstream summary-statistics inventories
+  families.yaml        Store Family records
   reference-resources/ auxiliary build-time inputs
   annotations/         curated metadata that outlives a release
   generators/          Phase B: sources -> candidate bundle
@@ -80,7 +79,9 @@ something that makes an input.
 
 One directory per Store Release, named by its opaque `OGS-` identifier
 (ADR 0022): `release.yaml`, `build.yaml`, `analyses.tsv`, `validation.yaml`.
-Simultaneously the output of Phase B and the fixed input of Phase A.
+Simultaneously the output of Phase B and the fixed input of Phase A. Also holds
+candidate releases (`status: candidate`), so what is under consideration and
+what has been built appear in one list.
 
 A bundle is immutable once accepted. A material change to membership or to the
 Build Recipe is a **new** Store Release (ADR 0004), not an edit. Correcting
@@ -103,53 +104,34 @@ changed.
 `bundle.py` (load and check a bundle), `plan.py` (Bundle to argv -- the seam),
 `paths.py`, `run.py`, `index.py`. Top-level rather than inside `workflow/`
 because it is not Phase A's: a generator validates what it emits with
-`bundle.check()`, so Phase B depends on it too.
+`bundle.check()`, so Phase B depends on it too. `workflow/` is also Snakemake's
+own namespace (`Snakefile`, `rules/`, `scripts/`, `envs/`).
 
-### `resources/families/`
+### `resources/families.yaml`
 
-Store Family identity -- intended biological scope, query promise, access
-posture, release cadence, build priority. One file per family, keyed by Store
-Family ID, because ADR 0022 made family a field on a Store Release rather than
-a path level. A Store Family is built from exactly one Source Collection
-(ADR 0010).
+One entry per Store Family: label, provider, access posture, default licence,
+Source Reader Capability, Source Collection, query promise, build priority.
 
-The old `families/<id>/releases/` tree retires as its bundles migrate to
-`stores/`, and `_candidates/` retires with it. The family record itself does
-not: `label`, `description`, `access_posture`, `release_cadence`,
-`query_promise` and `priority` are one fact per family, so attaching them to
-releases would duplicate them across every release of that family --
-denormalising exactly what ADR 0022 normalised. Only `source_collection_id` is
-derivable from the releases, and ADR 0010 makes disagreement a bug.
+A Store Family is a product identity, not a format (ADR 0024). Three families
+here share one Source Collection and one Source Format -- all EBI GWAS Catalog
+GWAS-SSF -- and promise `full-gwas`, `signals_only` and `cis_and_signals`. The
+format is what a builder sees; the family is what a query user sees. A family
+is also the unit of continuity across releases, which is why the promise cannot
+be a field restated on each one.
 
-A **Candidate Store Family** does not need a home of its own. Its concrete
-expression is a candidate Store Release -- `stores/<id>/` with
-`status: candidate`, which the Release Status vocabulary already carries -- so
-what is under consideration and what has been built appear in one list, and
-the generated master list covers both. A proposal with no candidate release
-attached is a roadmap item and belongs in an issue, not in the registry.
-`families/_candidates/` held nothing but a README for the life of the
-repository, which is the evidence for this rather than an argument against the
-concept.
-
-### `resources/source-collections/`
-
-One directory per homogeneous upstream summary-statistics inventory.
-`source.yaml` declares the provider, Source Format, Source Reader Capability,
-access posture, and default licence; an optional `inventory.tsv` is the
-discovered snapshot of what is available upstream.
-
-A Source Collection has exactly one Source Format and one Source Reader
-Capability (ADR 0009). Declarative records only -- code that *reads* the data
-belongs in `generators/`, and code that interprets the statistics belongs in
-`opengwasdb`.
+`source_reader_capability` is the only field that becomes argv. There is no
+separate `source_format`, and no `source-collections/` directory: the Source
+Collection is a grouping string. A real Source Inventory, when acquisition
+produces one, returns as `resources/inventories/<id>.tsv` -- rows, not a
+metadata tier.
 
 ### `resources/reference-resources/`
 
 Auxiliary build-time inputs that are **not** the Source Collection of any
 family (ADR 0011): LD reference panels, reference allele-frequency panels,
-ancestry-mixture references, QC panels, and the Canonical Trait Mapping Table.
-Each carries a `resource.yaml` declaring kind, ancestry, genome build, variant
-ID convention, and location.
+ancestry-mixture references, QC panels, the Canonical Trait Mapping Table, and
+the SomaScan target tables. Each carries a `resource.yaml` declaring kind,
+ancestry, genome build, variant ID convention, and location.
 
 Small tables may be tracked here. Large panels live under the artifact root and
 are referenced by path -- this repository is not an artifact store (ADR 0015).
@@ -184,6 +166,13 @@ one-off analyses.
 This is the one directory at risk of becoming a junk drawer. The test: if
 something here starts being run as a step in producing a Store Release, it
 belongs in `generators/` or `workflow/` instead.
+
+### `families/`
+
+Not part of the layout. What remains is the thirteen Release Bundles that have
+not yet migrated to `stores/`, awaiting triage -- each is either given a Store
+Release id or marked `superseded`/`withdrawn` and retired. The directory goes
+when it empties.
 
 ## Metadata and scripts
 

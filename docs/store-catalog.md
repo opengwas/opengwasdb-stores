@@ -95,7 +95,7 @@ GWAS-Catalog-SSF `hybrid__European` candidate pool
 across 1,007 publications), via `build_hybrid_from_vcf_manifest`. Two
 sibling pilots split by effect type -- case-control needs no phenotype-SD
 estimation (`log_or`, `binary_trait`); quantitative needs real reference-AF
-SD estimation (`generators/lib/effect_scale_validation.R`). **Known caveat**
+SD estimation (`resources/generators/lib/effect_scale_validation.R`). **Known caveat**
 (opengwasdb#86, open): the Dense/Hybrid VCF-manifest builder drops
 `sample_size_kind`/`sample_size_scope`/`original_effect_scale` from the
 built store and fabricates `ancestry_assignment_method=af_assigned`

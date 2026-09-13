@@ -20,13 +20,14 @@ stores/
     analyses.tsv                           membership; opengwasdb owns the schema
     validation.yaml          written back  merged evidence from the run
   by-label/                  generated     finngen-r13-pilot-20 -> ../OGS-00042
-families/<family-id>.yaml                  query promise, access posture, cadence, priority
-source-collections/<id>/                   source.yaml, inventory.tsv, acquire
-reference-resources/<id>/                  resource.yaml
-generators/<family-id>/                    Phase B
 src/ogstores/                              bundle.py plan.py paths.py run.py index.py
 workflow/Snakefile                         Phase A: scans stores/, wires every release
 workflow/generate.smk                      Phase B: acquisition + generation (separate DAG)
+resources/families.yaml                    Store Family records (ADR 0024)
+resources/reference-resources/<id>/        resource.yaml
+resources/annotations/                     post-release curated metadata
+resources/generators/<family-id>/          Phase B
+resources/scripts/                         toolchains and repository tooling
 tests/
 ```
 
@@ -55,7 +56,7 @@ association_coverage: full_gwas
 derived_from: ~                     # the parent's store_id for a completed release
 created_at: '2026-08-18T08:51:59Z'
 generator:                          # how the bundle was produced (Phase B)
-  command: Rscript generators/finngen-r13/generate.R --config=config-pilot-20.yaml
+  command: Rscript resources/generators/finngen-r13/generate.R --config=config-pilot-20.yaml
   version: sha256:1800b9cf...
 build_environment:
   repo_commit: ...
@@ -362,25 +363,28 @@ Their outputs also live in different places and are reviewed differently. Phase 
 
 **Phase B owns every `analyses.tsv` column, including Ancestry Assignment and effect-scale resolution** — see "Phase A never writes `analyses.tsv`", and "Who implements the statistics" below.
 
-**A generator's only output is a bundle directory. It never builds a store.** The four copy-pasted `generators/lib/source-formats/*/build-store.py` adapters exist only because nothing else could reach a builder; under ADR 0023 nothing but the workflow may.
+**A generator's only output is a bundle directory. It never builds a store.** The four copy-pasted `resources/generators/lib/source-formats/*/build-store.py` adapters exist only because nothing else could reach a builder; under ADR 0023 nothing but the workflow may.
 
-**Acquisition is separate from selection.** Acquisition is per Source Collection, shared across families, and is the expensive resumable part. Selection is per Store Release.
+**Acquisition is separate from selection.** Acquisition is per Source Collection, shared across families, and is the expensive resumable part. Selection is per Store Release. The Source Collection is a grouping string on the family record, not a directory (ADR 0024).
 
 ```text
-source-collections/<collection-id>/
-    source.yaml
-    inventory.tsv          discovered upstream analyses
-    acquire.py             refresh inventory; download; verify checksums
+resources/families.yaml        one entry per family; names the Source Reader
+                               Capability and the Source Collection
 
-generators/<family-id>/
-    README.md              the exact commands
+resources/inventories/<id>.tsv discovered upstream analyses, once acquisition
+                               produces one at scale (ADR 0024). Does not exist
+                               yet -- every collection's inventory was null.
+
+resources/generators/<family-id>/
+    README.md                  the exact commands
     config-<label>.yaml
-    generate.R|py          inventory.tsv + config -> stores/OGS-xxxxx/
+    generate.R|py              inventory + config -> stores/OGS-xxxxx/
 
-generators/lib/            source-format-scoped helpers shared between families
+resources/generators/lib/                  shared helpers
+resources/generators/lib/source-formats/   Source-Format-scoped generation code
 ```
 
-The entry point is family-scoped, matching `CONTEXT.md`'s definition of a Manifest Generator; the library is source-format-scoped, so families sharing a Source Collection share selection code without a configuration system by accident. This resolves the `generators/lib/source-formats/<source-format>-<layout>/` naming collision.
+The entry point is family-scoped, matching `CONTEXT.md`'s definition of a Manifest Generator; the library is source-format-scoped, so families sharing a Source Collection share selection code without a configuration system by accident. This resolves the old `resources/generators/<source-format>-<layout>/` naming collision, where one directory served two families and grew a configuration system to tell them apart.
 
 A generator has the same shape as the build workflow: discover upstream, select rows, shell out to `opengwasdb` for the statistics, write the bundle.
 
@@ -400,4 +404,4 @@ There is no catch-22 requiring a Store to exist first. `opengwasdb.readers.inter
 
 Deferring instead -- building first and correcting the Store afterwards -- is not available. `stored_se = original_se / original_sd` is applied at write time, so a Store built without the SD holds wrong standard errors, and there is no rescale operation: Stores are immutable (ADR 0004, ADR 0007) and Reference Completion writes a new one. It would also mean building every candidate to discover which are unusable, when `GCST002047`'s odds-ratio beta column and `GCST003566`'s inverted EAF are both detectable from the source.
 
-What is missing upstream is CLI wiring, not statistics -- [opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176). Until it lands, Phase B may keep a local helper, provided it is called from **one** code path: the per-family connectors are the defect, not the helper's location. `generators/lib/phenotype_sd_estimate.py` is a 47-line shim taking JSON arrays on the command line, which forces each family to open source files and extract `se`/`af`/`beta` itself; that is how `generators/lib/effect_scale_validation.R` grew to 562 lines, of which roughly 60 are the acceptance policy that genuinely belongs here and the rest re-implements reference-panel access and allele harmonisation `opengwasdb` already owns.
+What is missing upstream is CLI wiring, not statistics -- [opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176). Until it lands, Phase B may keep a local helper, provided it is called from **one** code path: the per-family connectors are the defect, not the helper's location. `resources/generators/lib/phenotype_sd_estimate.py` is a 47-line shim taking JSON arrays on the command line, which forces each family to open source files and extract `se`/`af`/`beta` itself; that is how `resources/generators/lib/effect_scale_validation.R` grew to 562 lines, of which roughly 60 are the acceptance policy that genuinely belongs here and the rest re-implements reference-panel access and allele harmonisation `opengwasdb` already owns.

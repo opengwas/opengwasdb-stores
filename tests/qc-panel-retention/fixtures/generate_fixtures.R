@@ -57,7 +57,7 @@ candidates <- data.table(
 fwrite(candidates, file.path(fixtures_dir, "candidates.tsv"), sep = "\t", na = "")
 
 # Fixture QC panel: exactly the 15 "panel" positions above, distinct from the
-# real reference-resources/qc-panel-hg38/qc_panel.tsv (this is a tiny
+# real resources/reference-resources/qc-panel-hg38/qc_panel.tsv (this is a tiny
 # deterministic panel for testing the wiring, not real biology).
 qc_panel <- data.table(
   alid = sprintf("1:%d:A:G", panel_positions),

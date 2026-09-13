@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 suppressPackageStartupMessages(library(data.table))
-source("generators/lib/metadata_resolvers/ontology_contract.R")
-source("generators/lib/metadata_resolvers/canonical_trait_table.R")
+source("resources/generators/lib/metadata_resolvers/ontology_contract.R")
+source("resources/generators/lib/metadata_resolvers/canonical_trait_table.R")
 
 check <- function(x, message) if (!isTRUE(x)) stop(message, call. = FALSE)
 
@@ -39,7 +39,7 @@ check(
 
 # Fabricated fixture table, not real curated data -- exercises the exact-
 # match lookup contract documented in
-# reference-resources/canonical-trait-mapping-efo/README.md.
+# resources/reference-resources/canonical-trait-mapping-efo/README.md.
 fixture_path <- tempfile(fileext = ".tsv")
 writeLines(c(
   "trait_label\ttrait_ontology_id\ttrait_ontology_label",
