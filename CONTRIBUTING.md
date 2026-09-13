@@ -114,16 +114,22 @@ a path level. A Store Family is built from exactly one Source Collection
 (ADR 0010).
 
 The old `families/<id>/releases/` tree retires as its bundles migrate to
-`stores/`, but the family record does not go with it. Of its eight fields only
-`source_collection_id` is derivable from the releases; `query_promise`,
-`priority` and `release_cadence` are statements about releases that *do not
-exist yet*, which is the "what should be built next" half of what this
-repository is for. Folding them onto each release would denormalise exactly
-what ADR 0022 normalised.
+`stores/`, and `_candidates/` retires with it. The family record itself does
+not: `label`, `description`, `access_posture`, `release_cadence`,
+`query_promise` and `priority` are one fact per family, so attaching them to
+releases would duplicate them across every release of that family --
+denormalising exactly what ADR 0022 normalised. Only `source_collection_id` is
+derivable from the releases, and ADR 0010 makes disagreement a bug.
 
-`_candidates/` holds Candidate Store Families -- proposals being assessed for
-value, readiness, cost, risk and scope. A candidate has zero Store Releases by
-definition, so it cannot be represented as a field on one.
+A **Candidate Store Family** does not need a home of its own. Its concrete
+expression is a candidate Store Release -- `stores/<id>/` with
+`status: candidate`, which the Release Status vocabulary already carries -- so
+what is under consideration and what has been built appear in one list, and
+the generated master list covers both. A proposal with no candidate release
+attached is a roadmap item and belongs in an issue, not in the registry.
+`families/_candidates/` held nothing but a README for the life of the
+repository, which is the evidence for this rather than an argument against the
+concept.
 
 ### `resources/source-collections/`
 
