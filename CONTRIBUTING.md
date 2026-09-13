@@ -35,6 +35,71 @@ feature branch  ->  dev  ->  main
 Do not mix unrelated clean-up into a feature branch. Preserve a contributor's
 existing working-tree changes and resolve overlapping edits explicitly.
 
+## Worktrees
+
+A worktree is a second working directory backed by the **same** `.git`
+database, so several branches can be checked out at once without stashing.
+Agents use them heavily — one per task — and they accumulate silently: this
+repository reached 54 before anyone counted.
+
+Two facts make them safe to be relaxed about:
+
+- **Removing a worktree does not delete its branch or its commits.** Those live
+  in the shared `.git`. A worktree is a *view*, and removing one throws away
+  only the view.
+- **The same branch cannot be checked out in two worktrees.** Git refuses. This
+  is the rule that actually bites.
+
+### The rule
+
+> **The branch a human is reading must never be checked out in an agent's
+> worktree.**
+
+A feature branch lives in the primary checkout, where it can be opened in an
+editor and watched while work continues. If an agent checks it out in a
+worktree, the human cannot have it — which is the failure this rule exists to
+prevent.
+
+So:
+
+```text
+primary checkout          feat/<name>            read by a human, never by an agent
+  worktree per task       ticket/<n>-<slug>      one agent, one ticket
+                              |
+                              +--> merged into feat/<name> by an orchestrator
+```
+
+Each ticket gets its own worktree and its own branch. An orchestrator merges
+each one into the feature branch when it is green. Where tickets declare
+blocking edges, those edges are the merge order.
+
+### Naming
+
+```text
+feat/<name>          a feature branch, in the primary checkout
+ticket/<n>-<slug>    one ticket's work, in its own worktree
+```
+
+### Cleaning up
+
+```sh
+git worktree list                 # every view, and what it has checked out
+git worktree remove <path>        # remove one; its branch survives
+git worktree prune                # forget views whose directory is gone
+```
+
+Before removing in bulk, check for work that exists nowhere else — uncommitted
+files, and commits not reachable from any `origin` ref:
+
+```sh
+git -C <path> status --porcelain
+git -C <path> rev-list --count HEAD --not --remotes=origin
+```
+
+Commit or tag anything that turns up. A branch merged into a pushed branch is
+already safe, and a branch that reached a GitHub pull request is safe forever —
+GitHub keeps `refs/pull/<n>/head` after the branch is deleted.
+
 ## Repository boundaries
 
 The repository tracks small, reviewable definitions and evidence:
