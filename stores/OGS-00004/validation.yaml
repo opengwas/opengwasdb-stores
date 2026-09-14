@@ -18,7 +18,7 @@ checks:
 reports:
   build_report: sidecars/build_report.tsv
 warnings:
-  - GCST003566: excluded from build -- excluded_2026-08-22: effect_allele_frequency reported against the other allele (r=-0.999 vs EUR panel and vs the other nine studies); opengwasdb#115
+  - "GCST003566: excluded from build -- excluded_2026-08-22: effect_allele_frequency reported against the other allele (r=-0.999 vs EUR panel and vs the other nine studies); opengwasdb#115"
   - GCST005076: n_cases present in the manifest but missing from the built store's analyses.tsv
   - GCST005076: n_controls present in the manifest but missing from the built store's analyses.tsv
   - GCST005076: sample_size_kind present in the manifest but missing from the built store's analyses.tsv

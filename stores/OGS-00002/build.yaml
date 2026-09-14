@@ -4,10 +4,10 @@ completion_state: reference_completed
 complete:
   command: complete-ragged
   options:
-    ld-panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel/EUR
+    ld-panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
     ancestry: EUR
 post:
-  top_hits: true
+  top_hits: false
   rho: false
   overview: true
   validate: true

@@ -39,8 +39,6 @@ sidecars:
   sparse_regions: sidecars/sparse_regions.tsv
   filter_summary: sidecars/filter_summary.tsv
   build_report: sidecars/build_report.tsv
-  sd_estimation: sidecars/sd_estimation.tsv
-  ancestry: sidecars/ancestry.tsv
 notes: 'Deliberately not a replacement for 2018-sun-pilot-100 -- same source, same selection basis, just
   a small independent slice used to prove the build end-to-end without re-running the full 100-analysis
   pipeline.

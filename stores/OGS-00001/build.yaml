@@ -5,8 +5,9 @@ build:
   command: build-ragged-besd
   options:
     source-build: hg19
+    tissue: whole_blood
 post:
-  top_hits: true
+  top_hits: false
   rho: false
   overview: true
   validate: true

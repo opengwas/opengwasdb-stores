@@ -1,0 +1,64 @@
+[
+  {
+    "name": "build",
+    "argv": [
+      "opengwasdb",
+      "build-ragged-ssf",
+      "stores/OGS-00006/analyses.tsv",
+      "/data/opengwasdb/OGS-00006/source",
+      "/data/opengwasdb/OGS-00006/store.opengwasdb",
+      "--store-id",
+      "metabolome-plasma-2023",
+      "--release-id",
+      "OGS-00006",
+      "--stored-effect-scale",
+      "sd"
+    ],
+    "inputs": [
+      "stores/OGS-00006/analyses.tsv"
+    ],
+    "outputs": [
+      "/data/opengwasdb/OGS-00006/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "top-hits",
+    "argv": [
+      "opengwasdb",
+      "build-ragged-top-hits",
+      "/data/opengwasdb/OGS-00006/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/OGS-00006/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/OGS-00006/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "overview",
+    "argv": [
+      "opengwasdb",
+      "regenerate-overview",
+      "/data/opengwasdb/OGS-00006/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/OGS-00006/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/OGS-00006/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "validate",
+    "argv": [
+      "opengwasdb",
+      "validate",
+      "/data/opengwasdb/OGS-00006/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/OGS-00006/store.opengwasdb"
+    ],
+    "outputs": []
+  }
+]

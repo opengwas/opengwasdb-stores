@@ -1,6 +1,6 @@
-"""Render the master list from the bundles.
+"""Render the master list from Release Bundles.
 
-`stores.tsv`, `STORES.md` and the `by-label/` symlink trees are generated,
+`stores.tsv`, `STORES.md` and both `by-label/` symlink trees are generated,
 committed, and verified in CI by regenerating and failing on a dirty tree.
 
 This module reads git, never the artifact root -- which is the whole
@@ -10,10 +10,335 @@ the index; they just have to reach it through the bundle. `register` writes
 `validation.yaml` at build time, git records them, and this module reads them
 from there. Only facts that change without a commit stay out.
 
-The `build_command` column is rendered by `plan()`, so the published command
+The `build_command` column is derived by `plan()`, so the published command
 is derived rather than maintained.
+
+See docs/spec/store-release-workflow.md and ADRs 0022, 0023, 0024.
 """
 
 from __future__ import annotations
 
-raise NotImplementedError("Phase A implementation pending; see docs/spec/store-release-workflow.md")
+import csv
+import io
+import os
+from dataclasses import replace
+from pathlib import Path
+from typing import Any
+
+from ogstores import bundle, paths
+from ogstores.bundle import Bundle
+from ogstores.plan import plan
+
+REPO_ROOT: Path = Path(__file__).resolve().parents[2]
+
+COLUMNS: tuple[str, ...] = (
+    "store_id",
+    "label",
+    "family",
+    "layout",
+    "completion_state",
+    "status",
+    "derived_from",
+    "store_uri",
+    "created_at",
+    "opengwasdb_rev",
+    "generator_command",
+    "build_command",
+    "format_version",
+    "n_analyses",
+    "n_variants",
+    "n_associations",
+    "store_bytes",
+    "build_elapsed_s",
+    "validate_status",
+)
+
+
+def render_stores_row(
+    bundle_obj: Bundle,
+    artifact_root: Path | str | None = None,
+    repo_root: Path | str | None = None,
+) -> dict[str, str]:
+    """Derive one canonical row for stores.tsv from a Release Bundle without opening any Store (ADR 0023)."""
+    paths.require_valid_store_id(bundle_obj.store_id)
+
+    store_id = bundle_obj.store_id
+    label = bundle_obj.label or ""
+    family = bundle_obj.family or ""
+    layout = bundle_obj.layout or ""
+    completion_state = bundle_obj.completion_state or ""
+    status = bundle_obj.status or ""
+    derived_from = bundle_obj.derived_from or ""
+
+    # store_uri from release.yaml or artifact function
+    store_uri = bundle_obj.release.get("store_uri")
+    if not store_uri:
+        store_uri = bundle_obj.release.get("migration", {}).get("previous_store_uri")
+    if not store_uri:
+        build_art = bundle_obj.build.get("artifacts")
+        art_root = (
+            Path(build_art["root"])
+            if isinstance(build_art, dict) and "root" in build_art
+            else (Path(artifact_root) if artifact_root else paths.DEFAULT_ARTIFACT_ROOT)
+        )
+        store_uri = str(paths.store_path(store_id, root=art_root))
+
+    created_at = str(bundle_obj.release.get("created_at") or "")
+
+    opengwasdb_rev = (
+        bundle_obj.release.get("build_environment", {}).get("opengwasdb_rev")
+        or bundle_obj.release.get("build_environment", {}).get("opengwasdb_commit")
+        or (bundle_obj.validation.get("build_environment", {}).get("opengwasdb_commit") if bundle_obj.validation else "")
+        or ""
+    )
+
+    gen = bundle_obj.release.get("generator")
+    if isinstance(gen, dict):
+        generator_command = str(gen.get("command") or "")
+    elif isinstance(gen, str):
+        generator_command = gen
+    else:
+        generator_command = ""
+
+    # Ensure analyses_path in build_command is formatted relative to registry parent (stores/...)
+    b_for_plan = bundle_obj
+    try:
+        if len(bundle_obj.root.resolve().parents) > 1:
+            bundle_parent = bundle_obj.root.resolve().parents[1]
+            rel_analyses = bundle_obj.analyses_path.resolve().relative_to(bundle_parent)
+            b_for_plan = replace(bundle_obj, analyses_path=rel_analyses)
+    except (ValueError, IndexError, AttributeError):
+        pass
+
+    # build_command derived purely from plan()
+    steps = plan(b_for_plan, artifact_root=artifact_root)
+    build_command = " ".join(steps[0].argv) if steps else ""
+
+    # Observed columns extracted exclusively from validation.yaml in git
+    val = bundle_obj.validation or {}
+    obs = val.get("observed", {})
+
+    format_version = obs.get("format_version")
+    if format_version is None:
+        format_version = val.get("format_version", "")
+    format_version_str = str(format_version) if format_version else ""
+
+    n_analyses = obs.get("n_analyses")
+    if n_analyses is None:
+        n_analyses = val.get("n_analyses", "")
+    n_analyses_str = str(n_analyses) if n_analyses != "" and n_analyses is not None else ""
+
+    n_variants = obs.get("n_variants")
+    if n_variants is None:
+        n_variants = val.get("n_variants", "")
+    n_variants_str = str(n_variants) if n_variants != "" and n_variants is not None else ""
+
+    n_associations = obs.get("n_associations")
+    if n_associations is None:
+        n_associations = val.get("n_associations", "")
+    n_associations_str = str(n_associations) if n_associations != "" and n_associations is not None else ""
+
+    store_bytes = obs.get("store_bytes")
+    if store_bytes is None:
+        store_bytes = val.get("store_bytes", "")
+    store_bytes_str = str(store_bytes) if store_bytes != "" and store_bytes is not None else ""
+
+    build_elapsed_s = obs.get("build_elapsed_s")
+    if build_elapsed_s is None:
+        build_elapsed_s = val.get("build_elapsed_s", "")
+    build_elapsed_s_str = str(build_elapsed_s) if build_elapsed_s != "" and build_elapsed_s is not None else ""
+
+    validate_status = obs.get("validate_status")
+    if not validate_status:
+        validate_status = val.get("checks", {}).get("store", val.get("status", ""))
+    validate_status_str = str(validate_status) if validate_status else ""
+
+    return {
+        "store_id": store_id,
+        "label": label,
+        "family": family,
+        "layout": layout,
+        "completion_state": completion_state,
+        "status": status,
+        "derived_from": derived_from,
+        "store_uri": store_uri,
+        "created_at": created_at,
+        "opengwasdb_rev": opengwasdb_rev,
+        "generator_command": generator_command,
+        "build_command": build_command,
+        "format_version": format_version_str,
+        "n_analyses": n_analyses_str,
+        "n_variants": n_variants_str,
+        "n_associations": n_associations_str,
+        "store_bytes": store_bytes_str,
+        "build_elapsed_s": build_elapsed_s_str,
+        "validate_status": validate_status_str,
+    }
+
+
+def render_stores_tsv(
+    bundles: list[Bundle],
+    artifact_root: Path | str | None = None,
+    repo_root: Path | str | None = None,
+) -> str:
+    """Render 19-column stores.tsv from a list of bundles."""
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=COLUMNS, delimiter="\t", lineterminator="\n")
+    writer.writeheader()
+    for b in sorted(bundles, key=lambda x: x.store_id):
+        row = render_stores_row(b, artifact_root=artifact_root, repo_root=repo_root)
+        writer.writerow(row)
+    return output.getvalue()
+
+
+def _format_cell(val: Any) -> str:
+    """Format markdown table cell values."""
+    if val is None or val == "":
+        return "-"
+    try:
+        return f"{int(val):,}"
+    except (ValueError, TypeError):
+        return str(val)
+
+
+def render_stores_md(
+    bundles: list[Bundle],
+    rows: list[dict[str, str]],
+) -> str:
+    """Render human-readable STORES.md table."""
+    lines: list[str] = [
+        "# OpenGWASDB Store Releases",
+        "",
+        "Generated master list of Store Releases in this registry.",
+        "",
+        "> Generated from Release Bundles in `stores/`. Do not edit by hand; regenerate with `pixi run index`.",
+        "",
+        "| Store ID | Label | Family | Layout | Completion | Status | Format | Analyses | Variants | Associations | Validated |",
+        "|:---|:---|:---|:---|:---|:---|:---|---:|---:|---:|:---|",
+    ]
+
+    for row in rows:
+        sid = f"`{row['store_id']}`"
+        lbl = row["label"] or "-"
+        fam = row["family"] or "-"
+        lay = row["layout"] or "-"
+        comp = row["completion_state"] or "-"
+        st = row["status"] or "-"
+        fmt = row["format_version"] or "-"
+        n_ana = _format_cell(row["n_analyses"])
+        n_var = _format_cell(row["n_variants"])
+        n_assoc = _format_cell(row["n_associations"])
+        val_st = row["validate_status"] or "-"
+
+        lines.append(f"| {sid} | {lbl} | {fam} | {lay} | {comp} | {st} | {fmt} | {n_ana} | {n_var} | {n_assoc} | {val_st} |")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
+def generate_by_label_symlinks(
+    bundles: list[Bundle],
+    registry_root: Path | str | None = None,
+    artifact_root: Path | str | None = None,
+) -> None:
+    """Generate stores/by-label/ and <artifact_root>/by-label/ symlink trees."""
+    resolved_registry_root = (
+        Path(registry_root).resolve()
+        if registry_root
+        else (REPO_ROOT / "stores").resolve()
+    )
+
+    # 1. stores/by-label/
+    stores_by_label_dir = resolved_registry_root / "by-label"
+    stores_by_label_dir.mkdir(parents=True, exist_ok=True)
+
+    # Clean existing symlinks in stores/by-label/
+    for item in stores_by_label_dir.iterdir():
+        if item.is_symlink() or item.is_file():
+            item.unlink()
+
+    for b in bundles:
+        if b.label and b.store_id:
+            link_p = stores_by_label_dir / b.label
+            target_rel = Path("..") / b.store_id
+            link_p.symlink_to(target_rel)
+
+    # 2. <artifact_root>/by-label/ (if artifact_root directory exists)
+    if artifact_root:
+        resolved_artifact_root = Path(artifact_root).resolve()
+        if resolved_artifact_root.is_dir():
+            art_by_label_dir = resolved_artifact_root / "by-label"
+            art_by_label_dir.mkdir(parents=True, exist_ok=True)
+            for item in art_by_label_dir.iterdir():
+                if item.is_symlink() or item.is_file():
+                    item.unlink()
+            for b in bundles:
+                if b.label and b.store_id:
+                    link_p = art_by_label_dir / b.label
+                    target_rel = Path("..") / b.store_id
+                    link_p.symlink_to(target_rel)
+
+
+def generate_index(
+    registry_root: Path | str | None = None,
+    repo_root: Path | str | None = None,
+    artifact_root: Path | str | None = None,
+) -> tuple[Path, Path]:
+    """Generate stores.tsv, STORES.md, and by-label symlinks, and remove docs/store-catalog.md.
+
+    Strict seam compliance: reads git, never opens or inspects the artifact root.
+    """
+    resolved_repo_root = Path(repo_root).resolve() if repo_root else REPO_ROOT.resolve()
+    resolved_registry_root = (
+        Path(registry_root).resolve()
+        if registry_root
+        else (resolved_repo_root / "stores").resolve()
+    )
+
+    # Discover all store directories in registry_root
+    store_ids = sorted([
+        d.name for d in resolved_registry_root.iterdir()
+        if d.is_dir() and paths.is_valid_store_id(d.name) and (d / "release.yaml").is_file()
+    ]) if resolved_registry_root.is_dir() else []
+
+    bundles = [bundle.load(sid, registry_root=resolved_registry_root) for sid in store_ids]
+    rows = [render_stores_row(b, artifact_root=artifact_root, repo_root=resolved_repo_root) for b in bundles]
+
+    # Write stores.tsv
+    tsv_content = render_stores_tsv(bundles, artifact_root=artifact_root, repo_root=resolved_repo_root)
+    stores_tsv_path = resolved_repo_root / "stores.tsv"
+    stores_tsv_path.write_text(tsv_content, encoding="utf-8")
+
+    # Write STORES.md
+    md_content = render_stores_md(bundles, rows)
+    stores_md_path = resolved_repo_root / "STORES.md"
+    stores_md_path.write_text(md_content, encoding="utf-8")
+
+    # Generate by-label trees
+    generate_by_label_symlinks(
+        bundles,
+        registry_root=resolved_registry_root,
+        artifact_root=Path(artifact_root) if artifact_root else None,
+    )
+
+    # Delete docs/store-catalog.md as subsumed
+    store_catalog_p = resolved_repo_root / "docs" / "store-catalog.md"
+    if store_catalog_p.is_file():
+        store_catalog_p.unlink()
+
+    return stores_tsv_path, stores_md_path
+
+
+build_index = generate_index
+regenerate_index = generate_index
+
+__all__ = [
+    "COLUMNS",
+    "build_index",
+    "generate_by_label_symlinks",
+    "generate_index",
+    "regenerate_index",
+    "render_stores_md",
+    "render_stores_row",
+    "render_stores_tsv",
+]

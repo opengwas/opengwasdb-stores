@@ -17,7 +17,7 @@ an actual run on 2026-08-19 — except the `ogdb info` block in Step 1, re-run
 on 2026-08-30 after opengwasdb#114 added the `encoding` line to its output.
 
 If you want the inventory of what exists rather than how to use it, see
-[the store catalog](store-catalog.md).
+[the store master list](../../STORES.md).
 
 ## What is a store, exactly?
 
@@ -496,11 +496,11 @@ a window.
 **Store paths are not uniform.** Each family lays its releases out slightly
 differently — `.../store.opengwasdb` for FinnGen, `.../store/<name>` for the
 others. Use tab-completion, or copy the paths from
-[the store catalog](store-catalog.md).
+[the store master list](../../STORES.md).
 
 ## Where to go next
 
-- [Store catalog](store-catalog.md) — every built release, its exact path,
+- [Store master list](../../STORES.md) — every built release, its exact path,
   size, and known caveats.
 - `ogdb <command> --help` — every command takes it.
 - The Python API (`import opengwasdb`) — same queries, plus

@@ -66,6 +66,23 @@ notes: |
   ...
 ```
 
+### Status lifecycle and transitions
+
+A Store Release progresses through an explicit status state machine:
+
+```text
+candidate ──> accepted ──> built ──> validated ──> superseded
+    │              │          │            │            │
+    └──────────────┴──────────┴────────────┴────────────┴──> withdrawn
+```
+
+- `candidate` — Phase B output under evaluation; `validation.yaml` optional; unresolved rows tolerated. Transitions to: `accepted`, `withdrawn`, `superseded`.
+- `accepted` — Frozen as build input for Phase A. Transitions to: `built`, `withdrawn`, `superseded`.
+- `built` — Built by `opengwasdb`; `store.opengwasdb` produced. Transitions to: `validated`, `superseded`, `withdrawn`.
+- `validated` — Passed `opengwasdb validate`; terminal release step complete. Transitions to: `superseded`, `withdrawn`.
+- `superseded` — Replaced by a newer Store Release. Transitions to: `withdrawn`.
+- `withdrawn` — Retracted/withdrawn release (terminal).
+
 ## `build.yaml`
 
 The recipe, and the only input to `plan()`. Every value is either a registry fact or an `opengwasdb` flag.
@@ -210,7 +227,7 @@ Executes one `Step`: runs the argv, captures stdout/stderr/timing/exit status, w
 
 **Tracked outputs are record files, not store directories.** Snakemake handles directory outputs poorly, and a half-written store must never satisfy a rule.
 
-**A build writes to `store.opengwasdb.partial` and renames on success.** `run.py` refuses to rename over an existing store unless explicitly forced. This is what makes "a failed phase cannot damage a live Store" true, and it is one unit test.
+**Staged release transaction lifecycle.** A release executes entirely against `store.opengwasdb.partial` across all steps: `build` or `complete` creates `store.opengwasdb.partial`, and every mutating post-step (`top-hits`, `rho`, `overview`) as well as `validate` operates directly on that staged `.partial` path. Only upon successful terminal validation/finalization is `store.opengwasdb.partial` published (atomically renamed) to the final `store.opengwasdb` path. If any step fails or is interrupted, `store.opengwasdb.partial` is retained for debugging or resumption, and any pre-existing final Store and `validation.yaml` remain completely untouched without needing whole-Store copying. `force=True` replacement applies only at this terminal publication moment.
 
 **`validation.yaml` is written only by the terminal `register` step.** A failed run leaves the previous one intact.
 
@@ -324,17 +341,18 @@ Fixture-scale end-to-end runs stay, as *one* smoke test. Source formats, store c
 
 ## Upstream dependencies
 
-Phase A cannot be completed for every layout until these land on `opengwasdb` `dev`:
+The upstream prerequisites on `opengwasdb` `dev` (merged in PR #178 / epic opengwasdb#177) and pinned in this repository via #106:
 
-| Issue | Blocks |
-|---|---|
-| [opengwasdb#172](https://github.com/opengwas/opengwasdb/issues/172) | Ragged SSF releases — canonical `analyses.tsv` names |
-| [opengwasdb#173](https://github.com/opengwas/opengwasdb/issues/173) | BESD releases carrying registry metadata at all |
-| [opengwasdb#174](https://github.com/opengwas/opengwasdb/issues/174) | Dropping the constant-column workaround |
-| [opengwasdb#175](https://github.com/opengwas/opengwasdb/issues/175) | Structured evidence in `validation.yaml` |
-| [opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176) | Phase B only — `estimate-phenotype-sd` as a CLI command |
+| Issue | Status | Role in Store Release workflow |
+|---|---|---|
+| [opengwasdb#170](https://github.com/opengwas/opengwasdb/issues/170) | Closed on `dev` | Dense and Hybrid releases — canonical `analyses.tsv` names |
+| [opengwasdb#172](https://github.com/opengwas/opengwasdb/issues/172) | Closed on `dev` | Ragged SSF releases — canonical `analyses.tsv` names (`sample_size`, `source_file`) |
+| [opengwasdb#173](https://github.com/opengwas/opengwasdb/issues/173) | Closed on `dev` | BESD releases — `--analyses` Analytical/Attribution Metadata overlay |
+| [opengwasdb#174](https://github.com/opengwas/opengwasdb/issues/174) | Closed on `dev` | Dense/Hybrid `--source-reader-capability` and `--source-assembly` CLI defaults |
+| [opengwasdb#175](https://github.com/opengwas/opengwasdb/issues/175) | Closed on `dev` | Machine-readable `--format json` in `validate` and `info` for `validation.yaml` |
+| [opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176) | Closed on `dev` | Phase B — `estimate-phenotype-sd` CLI over canonical manifests |
 
-Dense and Hybrid are unblocked today: opengwasdb#170 landed canonical `analyses.tsv` consumption on `dev`. The pin swap is [opengwasdb-stores#106](https://github.com/opengwas/opengwasdb-stores/issues/106).
+All layouts (Dense, Hybrid, Ragged SSF, and BESD) are unblocked on `opengwasdb@dev`. The active pin in `pixi.toml` ([opengwasdb-stores#106](https://github.com/opengwas/opengwasdb-stores/issues/106)) brings these capabilities into the workspace environment.
 
 ## Phase B — what produces a bundle
 
@@ -404,4 +422,4 @@ There is no catch-22 requiring a Store to exist first. `opengwasdb.readers.inter
 
 Deferring instead -- building first and correcting the Store afterwards -- is not available. `stored_se = original_se / original_sd` is applied at write time, so a Store built without the SD holds wrong standard errors, and there is no rescale operation: Stores are immutable (ADR 0004, ADR 0007) and Reference Completion writes a new one. It would also mean building every candidate to discover which are unusable, when `GCST002047`'s odds-ratio beta column and `GCST003566`'s inverted EAF are both detectable from the source.
 
-What is missing upstream is CLI wiring, not statistics -- [opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176). Until it lands, Phase B may keep a local helper, provided it is called from **one** code path: the per-family connectors are the defect, not the helper's location. `resources/generators/lib/phenotype_sd_estimate.py` is a 47-line shim taking JSON arrays on the command line, which forces each family to open source files and extract `se`/`af`/`beta` itself; that is how `resources/generators/lib/effect_scale_validation.R` grew to 562 lines, of which roughly 60 are the acceptance policy that genuinely belongs here and the rest re-implements reference-panel access and allele harmonisation `opengwasdb` already owns.
+That CLI wiring is provided upstream by `estimate-phenotype-sd` ([opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176)), now available on `dev` and active via #106; Phase B must invoke the upstream CLI command rather than keeping local estimation shims or per-family connectors. The previous `resources/generators/lib/phenotype_sd_estimate.py` was a 47-line shim taking JSON arrays on the command line, which forced each family to open source files and extract `se`/`af`/`beta` itself; that is how `resources/generators/lib/effect_scale_validation.R` grew to 562 lines, of which roughly 60 are the acceptance policy that genuinely belongs here and the rest re-implements reference-panel access and allele harmonisation `opengwasdb` already owns.

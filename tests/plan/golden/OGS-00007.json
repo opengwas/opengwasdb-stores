@@ -1,0 +1,64 @@
+[
+  {
+    "name": "build",
+    "argv": [
+      "opengwasdb",
+      "build-ragged-ssf",
+      "stores/OGS-00007/analyses.tsv",
+      "/data/opengwasdb/OGS-00007/source",
+      "/data/opengwasdb/OGS-00007/store.opengwasdb",
+      "--store-id",
+      "pqtl-interval-2018",
+      "--release-id",
+      "OGS-00007",
+      "--stored-effect-scale",
+      "sd"
+    ],
+    "inputs": [
+      "stores/OGS-00007/analyses.tsv"
+    ],
+    "outputs": [
+      "/data/opengwasdb/OGS-00007/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "top-hits",
+    "argv": [
+      "opengwasdb",
+      "build-ragged-top-hits",
+      "/data/opengwasdb/OGS-00007/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/OGS-00007/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/OGS-00007/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "overview",
+    "argv": [
+      "opengwasdb",
+      "regenerate-overview",
+      "/data/opengwasdb/OGS-00007/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/OGS-00007/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/OGS-00007/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "validate",
+    "argv": [
+      "opengwasdb",
+      "validate",
+      "/data/opengwasdb/OGS-00007/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/OGS-00007/store.opengwasdb"
+    ],
+    "outputs": []
+  }
+]

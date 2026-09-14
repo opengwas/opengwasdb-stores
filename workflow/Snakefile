@@ -2,6 +2,7 @@
 
     pixi run release OGS-00042             one release, plus any parent it needs
     pixi run release OGS-00042 OGS-00051   several; lineage order is resolved
+    pixi run release-family finngen-r13    every release of one family
     pixi run index                         regenerate the master list
 
 One Snakefile for the whole registry rather than one per release, so
@@ -16,14 +17,232 @@ for a Step and hands it to `ogstores.run`; each rule's tracked output is that
 step's record file, never the Store directory -- a half-written Store must not
 satisfy a rule.
 
-    build ──> top_hits ──> rho ──> overview ──> validate ──> register
+    build (or complete) ──> top_hits ──> rho ──> overview ──> validate ──> register
 
 `top_hits` and `rho` are conditional on `build.yaml`'s `post` block. A
 Reference-Completed release substitutes `complete` for `build` and takes the
 same tail.
-
-IMPLEMENTATION PENDING -- see docs/spec/store-release-workflow.md. The
-sequencing is deliberately bundle.py + plan.py + golden argv tests first, with
-no Snakefile at all, so that the seam is proven to be just an argv before any
-orchestration is built on it.
 """
+
+from __future__ import annotations
+
+import datetime
+import os
+import sys
+from pathlib import Path
+
+# Ensure src/ is on sys.path when invoked via snakemake CLI
+_CANDIDATE_SRC_DIRS = [
+    Path(workflow.basedir).parent / "src" if hasattr(workflow, "basedir") else None,
+    Path(workflow.snakefile).resolve().parents[1] / "src" if hasattr(workflow, "snakefile") and workflow.snakefile else None,
+    Path.cwd() / "src",
+]
+for _src in _CANDIDATE_SRC_DIRS:
+    if _src is not None and _src.is_dir() and str(_src) not in sys.path:
+        sys.path.insert(0, str(_src))
+
+from ogstores import bundle, paths, plan, register, run
+
+# Registry root from config override or default stores/ directory
+REGISTRY_ROOT: Path = Path(config.get("registry_root", "stores"))
+if not REGISTRY_ROOT.is_dir() and (Path.cwd() / "stores").is_dir():
+    REGISTRY_ROOT = Path.cwd() / "stores"
+
+ALL_STORE_IDS: list[str] = sorted([
+    d.name for d in REGISTRY_ROOT.iterdir()
+    if d.is_dir() and paths.is_valid_store_id(d.name) and (d / "release.yaml").is_file()
+]) if REGISTRY_ROOT.is_dir() else []
+
+
+def get_bundle(store_id: str) -> bundle.Bundle:
+    """Load bundle for store_id from active REGISTRY_ROOT."""
+    return bundle.load(store_id, registry_root=REGISTRY_ROOT)
+
+
+def get_artifact_root(store_id: str) -> Path:
+    """Resolve artifact root for store_id from config override or build.yaml."""
+    if "artifact_root" in config:
+        return Path(config["artifact_root"])
+    b = get_bundle(store_id)
+    build_artifacts = b.build.get("artifacts")
+    if isinstance(build_artifacts, dict) and "root" in build_artifacts:
+        return Path(build_artifacts["root"])
+    return paths.DEFAULT_ARTIFACT_ROOT
+
+
+def get_steps(store_id: str, root: Path | str | None = None) -> list[Step]:
+    """Derive planned Steps for store_id without layout branching (ADR 0023)."""
+    if root is None:
+        root = get_artifact_root(store_id)
+    b = get_bundle(store_id)
+    return plan(b, artifact_root=root)
+
+
+def get_prev_record(store_id: str, step_name: str, root: Path | str) -> str:
+    """Determine the tracked predecessor record file for step_name in the planned chain."""
+    steps = get_steps(store_id, root)
+    names = [s.name for s in steps]
+    if step_name == "register":
+        prev = names[-1]
+    else:
+        idx = names.index(step_name)
+        if idx == 0:
+            raise ValueError(f"Step {step_name!r} has no predecessor in plan for {store_id}")
+        prev = names[idx - 1]
+    return str(paths.record_path(store_id, prev, root=root))
+
+
+def get_complete_inputs(store_id: str, root: Path | str) -> list[str]:
+    """Resolve inputs for complete step, enforcing parent register record dependency."""
+    b = get_bundle(store_id)
+    if b.derived_from:
+        parent_id = b.derived_from
+        parent_root = get_artifact_root(parent_id) if "artifact_root" not in config else root
+        return [str(paths.record_path(parent_id, "register", root=parent_root))]
+    steps = get_steps(store_id, root)
+    complete_step = next(s for s in steps if s.name == "complete")
+    return [str(p) for p in complete_step.inputs]
+
+
+wildcard_constraints:
+    root=".+",
+    store_id=r"OGS-\d{5}"
+
+
+rule all:
+    input:
+        [str(paths.record_path(sid, "register", root=get_artifact_root(sid))) for sid in ALL_STORE_IDS]
+
+
+rule build:
+    input:
+        lambda wildcards: [str(p) for p in next(s for s in get_steps(wildcards.store_id, wildcards.root) if s.name == "build").inputs]
+    output:
+        "{root}/{store_id}/records/build.json"
+    run:
+        b = get_bundle(wildcards.store_id)
+        steps = plan(b, artifact_root=wildcards.root)
+        step = next(s for s in steps if s.name == "build")
+        run.run_step(step, store_id=wildcards.store_id, artifact_root=wildcards.root)
+
+
+rule complete:
+    input:
+        lambda wildcards: get_complete_inputs(wildcards.store_id, wildcards.root)
+    output:
+        "{root}/{store_id}/records/complete.json"
+    run:
+        b = get_bundle(wildcards.store_id)
+        steps = plan(b, artifact_root=wildcards.root)
+        step = next(s for s in steps if s.name == "complete")
+        # complete-dense checkpoint resumption in a few visible lines
+        if step.argv and len(step.argv) > 1 and step.argv[1] == "complete-dense":
+            partial_p = paths.partial_store_path(wildcards.store_id, root=wildcards.root)
+            ckpt_p = partial_p.parent / f".{partial_p.name}.checkpoint"
+            if not ckpt_p.is_dir():
+                target_p = paths.store_path(wildcards.store_id, root=wildcards.root)
+                ckpt_p = target_p.parent / f".{target_p.name}.checkpoint"
+            if ckpt_p.is_dir():
+                step = Step(
+                    name="complete",
+                    argv=["opengwasdb", "complete-dense-resume", str(ckpt_p)],
+                    inputs=[ckpt_p],
+                    outputs=step.outputs,
+                )
+        run.run_step(step, store_id=wildcards.store_id, artifact_root=wildcards.root, resume=True)
+
+
+rule top_hits:
+    input:
+        lambda wildcards: get_prev_record(wildcards.store_id, "top-hits", wildcards.root)
+    output:
+        "{root}/{store_id}/records/top-hits.json"
+    run:
+        b = get_bundle(wildcards.store_id)
+        steps = plan(b, artifact_root=wildcards.root)
+        step = next(s for s in steps if s.name == "top-hits")
+        run.run_step(step, store_id=wildcards.store_id, artifact_root=wildcards.root)
+
+
+rule rho:
+    input:
+        lambda wildcards: get_prev_record(wildcards.store_id, "rho", wildcards.root)
+    output:
+        "{root}/{store_id}/records/rho.json"
+    run:
+        b = get_bundle(wildcards.store_id)
+        steps = plan(b, artifact_root=wildcards.root)
+        step = next(s for s in steps if s.name == "rho")
+        run.run_step(step, store_id=wildcards.store_id, artifact_root=wildcards.root)
+
+
+rule overview:
+    input:
+        lambda wildcards: get_prev_record(wildcards.store_id, "overview", wildcards.root)
+    output:
+        "{root}/{store_id}/records/overview.json"
+    run:
+        b = get_bundle(wildcards.store_id)
+        steps = plan(b, artifact_root=wildcards.root)
+        step = next(s for s in steps if s.name == "overview")
+        run.run_step(step, store_id=wildcards.store_id, artifact_root=wildcards.root)
+
+
+rule validate:
+    input:
+        lambda wildcards: get_prev_record(wildcards.store_id, "validate", wildcards.root)
+    output:
+        "{root}/{store_id}/records/validate.json"
+    run:
+        b = get_bundle(wildcards.store_id)
+        steps = plan(b, artifact_root=wildcards.root)
+        step = next(s for s in steps if s.name == "validate")
+        run.run_step(step, store_id=wildcards.store_id, artifact_root=wildcards.root)
+
+
+rule register:
+    input:
+        lambda wildcards: get_prev_record(wildcards.store_id, "register", wildcards.root)
+    output:
+        "{root}/{store_id}/records/register.json"
+    run:
+        b = get_bundle(wildcards.store_id)
+        register.register_release(
+            b,
+            registry_root=REGISTRY_ROOT,
+            artifact_root=wildcards.root,
+            force=False,
+            publish=True,
+        )
+
+
+FAMILIES: dict[str, list[str]] = {}
+for sid in ALL_STORE_IDS:
+    rule:
+        name: sid
+        input: str(paths.record_path(sid, "register", root=get_artifact_root(sid)))
+    fam = get_bundle(sid).family
+    if fam:
+        FAMILIES.setdefault(fam, []).append(sid)
+
+for fam, sids in FAMILIES.items():
+    rule:
+        name: f"family_{fam}"
+        input: [str(paths.record_path(s, "register", root=get_artifact_root(s))) for s in sids]
+    if fam not in ALL_STORE_IDS:
+        rule:
+            name: fam
+            input: [str(paths.record_path(s, "register", root=get_artifact_root(s))) for s in sids]
+
+
+rule index:
+    input:
+        [str(REGISTRY_ROOT / sid / "release.yaml") for sid in ALL_STORE_IDS],
+        [str(REGISTRY_ROOT / sid / "build.yaml") for sid in ALL_STORE_IDS],
+    run:
+        from ogstores import index
+        index.generate_index(
+            registry_root=REGISTRY_ROOT,
+            repo_root=Path(workflow.basedir).parent if hasattr(workflow, "basedir") else Path.cwd(),
+            artifact_root=config.get("artifact_root"),
+        )

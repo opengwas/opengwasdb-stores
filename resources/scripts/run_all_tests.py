@@ -24,12 +24,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # (label, kind, command relative to REPO_ROOT)
 SUITES: list[tuple[str, str, list[str]]] = [
     ("ancestry-assignment", "python", ["tests/ancestry-assignment/run_tests.py"]),
+    ("bundle", "python", ["tests/bundle/test_bundle.py"]),
     ("effect-scale-validation (R)", "r", ["tests/effect-scale-validation/run_tests.R"]),
     ("eqtlgen-besd-ragged", "python", ["tests/eqtlgen-besd-ragged/test_subset_besd.py"]),
     ("finngen-r13-pilot", "r", ["tests/finngen-r13-pilot/run_tests.R"]),
     ("finngen-r13-acquisition", "python", ["tests/finngen-r13-pilot/test_acquire.py"]),
     ("finngen-r13-annotation", "python", ["tests/finngen-r13-pilot/test_annotation.py"]),
     ("finngen-r13-assessment", "python", ["tests/finngen-r13-pilot/test_assessment.py"]),
+    ("index", "python", ["tests/index/test_index.py"]),
     ("ld-panel-eigendecomposition", "python", ["tests/ld-panel-eigendecomposition/run_tests.py"]),
     ("ld-panel-generation", "python", ["tests/ld-panel-generation/run_tests.py"]),
     ("metadata-resolvers/gwas-catalog-ssf", "r", ["tests/metadata-resolvers/gwas-catalog-ssf/run_tests.R"]),
@@ -39,8 +41,13 @@ SUITES: list[tuple[str, str, list[str]]] = [
     ("no-cis-region-policy", "r", ["tests/no-cis-region-policy/run_tests.R"]),
     ("opengwas-gwas-vcf-dense", "r", ["tests/opengwas-gwas-vcf-dense/run_tests.R"]),
     ("opengwas-gwas-vcf-dense annotation", "python", ["tests/opengwas-gwas-vcf-dense/test_annotation.py"]),
+    ("plan", "python", ["tests/plan/test_plan.py"]),
     ("qc-panel-retention", "r", ["tests/qc-panel-retention/run_tests.R"]),
+    ("reconcile-build-yaml", "python", ["tests/reconcile-build-yaml/test_reconcile_build_yaml.py"]),
+    ("register", "python", ["tests/register/test_register.py"]),
+    ("run", "python", ["tests/run/test_run.py"]),
     ("schema-validation", "r", ["tests/schema-validation/run_tests.R"]),
+    ("workflow", "python", ["tests/workflow/test_workflow.py"]),
 ]
 
 
