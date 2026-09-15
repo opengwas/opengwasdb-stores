@@ -1,8 +1,21 @@
 status: passed
-validated_at: '2026-08-18T20:00:00Z'
+validated_at: '2026-09-15T23:34:00.192300Z'
 validator:
   name: opengwasdb validate
-  version: opengwasdb@553aee3a5ef32ac4f23ffed142808807cf350fd7
+  version: opengwasdb@a9e8bc825af692cdb5bb7cba39d56d11654fcebe
+build_environment:
+  opengwasdb_version: 0.3.0
+  opengwasdb_commit: a9e8bc825af692cdb5bb7cba39d56d11654fcebe
+  python_version: 3.11.15
+  platform: Linux-4.18.0-553.155.1.el8_10.x86_64-x86_64-with-glibc2.28
+observed:
+  format_version: '1.0'
+  n_analyses: 10
+  n_variants: 207764
+  n_associations: 207761
+  store_bytes: null
+  build_elapsed_s: 74.38
+  validate_status: passed
 checks:
   schema: passed
   files: passed
