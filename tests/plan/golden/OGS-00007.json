@@ -36,20 +36,6 @@
     ]
   },
   {
-    "name": "overview",
-    "argv": [
-      "opengwasdb",
-      "regenerate-overview",
-      "/data/opengwasdb/stores/OGS-00007/store.opengwasdb"
-    ],
-    "inputs": [
-      "/data/opengwasdb/stores/OGS-00007/store.opengwasdb"
-    ],
-    "outputs": [
-      "/data/opengwasdb/stores/OGS-00007/store.opengwasdb"
-    ]
-  },
-  {
     "name": "validate",
     "argv": [
       "opengwasdb",

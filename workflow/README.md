@@ -26,7 +26,9 @@ pixi run index                                             # regenerate stores.t
 
 A release target must be an ID currently registered under `stores/`; use
 `stores.tsv` to find valid IDs. IDs shown in commands are real targets, not
-placeholders.
+placeholders. Post-steps follow the selected command's Store-format support:
+`rho` is Dense-only, and `overview` is Dense/Hybrid-only because Ragged's
+closed Store envelope excludes `overview.html`.
 
 ### Production Execution vs. Fixture-Scale Tests
 

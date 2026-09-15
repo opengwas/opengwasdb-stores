@@ -104,7 +104,7 @@ build:
 post:
   top_hits: true
   rho: false                        # dense only; opengwasdb rejects otherwise
-  overview: true
+  overview: true                   # Dense/Hybrid only; Ragged's envelope excludes overview.html
   validate: true
 
 artifacts:
@@ -242,7 +242,7 @@ Dependency wiring only, per ADR 0023. It contains no family name, no source colu
 build ──> top_hits ──> rho ──> overview ──> validate ──> register
 ```
 
-`rho` and `top_hits` are conditional on `post`. A Reference-Completed release substitutes `complete` for `build` and takes the same tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
+Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. A Reference-Completed release substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
 
 **Lineage ordering is why the DAG spans every store rather than one.** A Reference-Completed release declares its parent's `register` record as an input, resolved from `release.yaml`'s `derived_from`. A per-release workflow driven by a batch loop would have to sequence parents before children by hand, and would get it wrong. Here it is a declared edge.
 

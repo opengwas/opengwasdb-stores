@@ -19,6 +19,10 @@ must not satisfy a rule.
 
     build (or complete) --> top_hits --> rho --> overview --> validate --> register
 
+Post-steps exist only when supported by the selected command: notably, Ragged
+Store envelopes exclude overview.html, so Ragged plans go directly to validate
+after their final supported index step.
+
 Every execution step is one rule over a `{step}` wildcard, because the rules
 differed only in which name they looked up. The chain's shape lives in
 `plan()`, so `step_input` reads the planned order rather than restating it.

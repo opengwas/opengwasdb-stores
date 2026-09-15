@@ -60,6 +60,7 @@ class CommandSpec:
     analyses_flag: bool = False
     top_hits_cmd: str | None = None
     rho_cmd: str | None = None
+    overview_cmd: str | None = None
 
 
 COMMANDS: dict[str, CommandSpec] = {
@@ -70,6 +71,7 @@ COMMANDS: dict[str, CommandSpec] = {
         inputs=("analyses",),
         top_hits_cmd="build-dense-top-hits",
         rho_cmd="build-dense-rho",
+        overview_cmd="regenerate-overview",
     ),
     # Hybrid builds top-hit indexes inline during build-hybrid; rho is dense-only.
     "build-hybrid": CommandSpec(
@@ -77,6 +79,7 @@ COMMANDS: dict[str, CommandSpec] = {
         name="hybrid",
         positionals=("analyses", "store"),
         inputs=("analyses",),
+        overview_cmd="regenerate-overview",
     ),
     "build-ragged-ssf": CommandSpec(
         phase="build",
@@ -101,6 +104,7 @@ COMMANDS: dict[str, CommandSpec] = {
         inputs=("parent_store",),
         identity=False,
         rho_cmd="build-dense-rho",
+        overview_cmd="regenerate-overview",
     ),
     "complete-hybrid": CommandSpec(
         phase="complete",
@@ -108,6 +112,7 @@ COMMANDS: dict[str, CommandSpec] = {
         positionals=("parent_store", "store"),
         inputs=("parent_store",),
         identity=False,
+        overview_cmd="regenerate-overview",
     ),
     "complete-ragged": CommandSpec(
         phase="complete",
@@ -239,10 +244,14 @@ def _post_steps(store_p: Path, post: dict[str, Any], spec: CommandSpec) -> list[
         )
 
     if post.get("overview"):
+        if spec.overview_cmd is None:
+            raise ValueError(
+                f"overview post-processing is not supported for {spec.name} layout"
+            )
         steps.append(
             Step(
                 name="overview",
-                argv=["opengwasdb", "regenerate-overview", str(store_p)],
+                argv=["opengwasdb", spec.overview_cmd, str(store_p)],
                 inputs=[store_p],
                 outputs=[store_p],
             )

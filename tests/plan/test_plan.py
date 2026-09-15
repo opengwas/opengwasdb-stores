@@ -5,10 +5,12 @@ Verifies:
 - OGS-00003 Dense observed-only golden test against external JSON fixture.
 - OGS-00004 and OGS-00005 Hybrid observed-only golden tests against external JSON fixtures.
 - OGS-00006 and OGS-00007 Ragged SSF observed-only golden tests against external JSON fixtures.
-- Post-step sequencing: build -> top-hits (dense/ragged) -> rho (dense only) -> overview -> validate.
+- Post-step sequencing: build -> top-hits (dense/ragged) -> rho (dense only) -> overview (Dense/Hybrid only) -> validate.
 - Hybrid top-hits policy: top hits are built inline during build-hybrid, so no redundant/invalid
   dense-root build-dense-top-hits step is planned; setting post.top_hits=true on Hybrid is rejected.
 - Ragged top-hits policy: build-ragged-top-hits is planned for ragged layout when post.top_hits=true.
+- Ragged overview policy: overview.html is excluded from the documented Ragged Store envelope,
+  so post.overview=true is rejected for observed and reference-completed Ragged releases.
 - Negative assertions:
   - no dense-root top-hits command is planned for hybrid releases.
   - no dense-root top-hits command is planned for ragged releases.
@@ -707,6 +709,33 @@ class TestPlanRagged(unittest.TestCase):
                 str(ctx.exception),
             )
 
+    def test_ragged_overview_rejected(self) -> None:
+        """Ragged's documented Store envelope excludes overview.html."""
+        for bundle, expected_layout_name in (
+            (self.bundle_00001, "ragged-besd"),
+            (self.bundle_00006, "ragged-ssf"),
+        ):
+            invalid = Bundle(
+                store_id=bundle.store_id,
+                root=bundle.root,
+                release=bundle.release,
+                build={
+                    **bundle.build,
+                    "post": {
+                        **(bundle.build.get("post") or {}),
+                        "overview": True,
+                    },
+                },
+                analyses_path=bundle.analyses_path,
+            )
+            with self.assertRaises(ValueError) as ctx:
+                plan(invalid)
+            record_check()
+            self.assertIn(
+                f"overview post-processing is not supported for {expected_layout_name} layout",
+                str(ctx.exception),
+            )
+
     def test_ragged_post_flags_selective_toggle(self) -> None:
         """Individual post flags toggle corresponding steps for ragged layout."""
         for bundle in (self.bundle_00001, self.bundle_00006):
@@ -741,7 +770,6 @@ class TestPlanRagged(unittest.TestCase):
         self.assertEqual(steps_ssf[0].argv[4], str(expected_store_p_6))
         self.assertEqual(steps_ssf[1].argv[2], str(expected_store_p_6))
         self.assertEqual(steps_ssf[2].argv[2], str(expected_store_p_6))
-        self.assertEqual(steps_ssf[3].argv[2], str(expected_store_p_6))
 
         # Test BESD override: artifact_root moves outputs, but the BESD source
         # prefix is the bundle-recorded fixed input, not an artifact-root path.
@@ -765,7 +793,6 @@ class TestPlanRagged(unittest.TestCase):
             ],
         )
         self.assertEqual(steps_besd[1].argv[2], str(expected_store_p_1))
-        self.assertEqual(steps_besd[2].argv[2], str(expected_store_p_1))
 
     def test_ragged_besd_specific_arguments(self) -> None:
         """OGS-00001 (BESD) build step receives correct positionals, --analyses, and 4 explicit inputs."""
@@ -830,10 +857,11 @@ class TestPlanRagged(unittest.TestCase):
         steps_besd = plan(self.bundle_00001)
         steps_ssf = plan(self.bundle_00006)
 
-        # 1. Step counts: BESD has 3 steps (build, overview, validate); SSF has 4 steps (build, top-hits, overview, validate)
+        # 1. Step counts: Ragged's documented Store envelope excludes
+        # overview.html, while SSF still has its separate top-hits step.
         record_check()
-        self.assertEqual([s.name for s in steps_besd], ["build", "overview", "validate"])
-        self.assertEqual([s.name for s in steps_ssf], ["build", "top-hits", "overview", "validate"])
+        self.assertEqual([s.name for s in steps_besd], ["build", "validate"])
+        self.assertEqual([s.name for s in steps_ssf], ["build", "top-hits", "validate"])
 
         # 2. Build positional arguments: BESD takes prefix and output; SSF takes manifest, source_dir, and output
         build_besd = steps_besd[0]
@@ -910,7 +938,7 @@ class TestPlanRagged(unittest.TestCase):
             "layout": "ragged",
             "completion_state": "observed_only",
             "build": {"command": "build-ragged-besd"},
-            "post": {"top_hits": False, "rho": False, "overview": True, "validate": True},
+            "post": {"top_hits": False, "rho": False, "overview": False, "validate": True},
             "artifacts": {"root": "/custom/artifact/root"},
         }
 
@@ -962,7 +990,7 @@ class TestPlanRagged(unittest.TestCase):
                         "eaf-reference-ancestry": "EUR",
                     },
                 },
-                "post": {"top_hits": True, "rho": False, "overview": True, "validate": True},
+                "post": {"top_hits": True, "rho": False, "overview": False, "validate": True},
                 "artifacts": {"root": "/custom/artifact/root"},
             },
             analyses_path=Path("stores/OGS-00096/analyses.tsv"),
@@ -1049,7 +1077,7 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                         "ancestry": "EUR",
                     },
                 },
-                "post": {"top_hits": False, "rho": False, "overview": True, "validate": True},
+                "post": {"top_hits": False, "rho": False, "overview": False, "validate": True},
                 "artifacts": {"root": "/custom/artifact/root"},
             },
             analyses_path=Path("stores/OGS-00088/analyses.tsv"),
@@ -1282,14 +1310,14 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                         "min-cor": 0.75,
                     },
                 },
-                "post": {"top_hits": False, "rho": False, "overview": True, "validate": True},
+                "post": {"top_hits": False, "rho": False, "overview": False, "validate": True},
                 "artifacts": {"root": "/data/opengwasdb/stores"},
             },
             analyses_path=Path("stores/OGS-00050/analyses.tsv"),
         )
         steps = plan(synthetic_bundle)
         record_check()
-        self.assertEqual([s.name for s in steps], ["complete", "overview", "validate"])
+        self.assertEqual([s.name for s in steps], ["complete", "validate"])
 
         complete_step = steps[0]
         self.assertEqual(
@@ -1320,6 +1348,29 @@ class TestPlanReferenceCompleted(unittest.TestCase):
 
         for step in steps:
             validate_step_argv_against_cli(self, step)
+
+    def test_complete_ragged_overview_rejected(self) -> None:
+        """Ragged completion cannot add overview.html to its closed Store envelope."""
+        invalid = Bundle(
+            store_id=self.bundle_00002.store_id,
+            root=self.bundle_00002.root,
+            release=self.bundle_00002.release,
+            build={
+                **self.bundle_00002.build,
+                "post": {
+                    **(self.bundle_00002.build.get("post") or {}),
+                    "overview": True,
+                },
+            },
+            analyses_path=self.bundle_00002.analyses_path,
+        )
+        with self.assertRaises(ValueError) as ctx:
+            plan(invalid)
+        record_check()
+        self.assertIn(
+            "overview post-processing is not supported for ragged-completed layout",
+            str(ctx.exception),
+        )
 
     def test_reference_completed_top_hits_rejected(self) -> None:
         """Configuring top_hits: true on any reference-completed layout raises ValueError (built inline)."""
@@ -1431,7 +1482,6 @@ class TestPlanReferenceCompleted(unittest.TestCase):
         self.assertEqual(steps[0].argv[2], str(expected_parent_p))
         self.assertEqual(steps[0].argv[3], str(expected_store_p))
         self.assertEqual(steps[1].argv[2], str(expected_store_p))
-        self.assertEqual(steps[2].argv[2], str(expected_store_p))
 
     def test_reference_completed_pure_function_no_io_and_tripwires(self) -> None:
         """plan() on reference-completed performs no file or network I/O; tripwires guard calls."""

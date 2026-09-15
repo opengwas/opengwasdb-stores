@@ -9,7 +9,7 @@ complete:
 post:
   top_hits: false
   rho: false
-  overview: true
+  overview: false
   validate: true
 artifacts:
   root: /data/opengwasdb/stores
