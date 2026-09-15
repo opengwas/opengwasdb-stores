@@ -134,6 +134,7 @@ r-yaml = "*"
 # tested resolve_opengwas_api_metadata() itself has no network dependency.
 r-httr = "*"
 r-jsonlite = "*"
+r-openssl = "*"
 r-ieugwasr = ">=1.1.0,<2"
 
 [feature.reporting.dependencies]
@@ -188,6 +189,9 @@ test = { cmd = "python3 resources/scripts/run_all_tests.py" }
 test-python = { cmd = "python3 resources/scripts/run_all_tests.py --only python" }
 test-r = { cmd = "python3 resources/scripts/run_all_tests.py --only r" }
 env-check = { cmd = "python3 resources/scripts/env_check.py" }
+
+[feature.r.tasks]
+materialise-gwas-ssf-ragged = { cmd = "Rscript resources/scripts/materialise-gwas-ssf-ragged.R" }
 
 [feature.workflow.tasks]
 # Phase A. `release` takes one or more Store Release ids; lineage order is

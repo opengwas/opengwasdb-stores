@@ -3,7 +3,33 @@
 Shared generator for molecular GWAS Catalog harmonised GWAS-SSF releases that
 should be stored as ragged observed-only OpenGWASDB stores.
 
-The generator is deliberately split into three steps:
+## Materialising an accepted release
+
+Do not rerun this generator merely to restore the external source artifacts of
+an accepted release. Materialise them directly from its frozen manifest and
+sparse-region plan:
+
+```sh
+pixi run materialise-gwas-ssf-ragged OGS-00006 \
+  --qc-panel=resources/reference-resources/qc-panel-hg38/qc_panel.tsv
+```
+
+The materialiser downloads each `source_url`, applies the intervals already
+recorded in `sidecars/sparse_regions.tsv`, writes atomically to `source_file`,
+and writes a standard `<source_file>.sha256` checksum alongside it. An existing
+output is skipped only when that checksum file still matches it. The script
+does not read or update checksum fields in `analyses.tsv`, allowing Phase B to
+populate a partial manifest separately.
+
+`--qc-panel` is required only when the sparse-region plan contains `qc_panel`
+rows. Use `--only-analysis-id=ID,...` for a bounded run and
+`--parallel-workers=N` to control concurrency. The accepted release does not
+currently record the QC-panel resource ID, so the operator must supply the
+same panel revision used to create the sparse-region plan.
+
+## Producing a candidate release
+
+The legacy generator is deliberately split into three steps:
 
 ```sh
 pixi run Rscript resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R \

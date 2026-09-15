@@ -253,13 +253,15 @@ Scanning every store means DAG construction is proportional to the registry, whi
 ### Operator interface
 
 ```sh
-pixi run release OGS-00042             # one release, plus any parent it depends on
-pixi run release OGS-00042 OGS-00051   # several; lineage order is resolved for you
+pixi run release OGS-00003             # one registered release, plus any parent it depends on
+pixi run release OGS-00003 OGS-00004   # several registered releases; lineage order is resolved
 pixi run release-family finngen-r13    # every release of one family
 pixi run index                         # regenerate stores.tsv, STORES.md, by-label/
 ```
 
-All four are targets of the same Snakefile.
+A release target must be an ID currently registered under `stores/`; the
+operator finds valid IDs in `stores.tsv`. IDs in these commands are real
+targets, not placeholders. All four are targets of the same Snakefile.
 
 > **Production note**: Workflow tests (`tests/workflow/`) are fixture-scale and run
 > in temporary environments. Full production runs (such as building all seven Trial

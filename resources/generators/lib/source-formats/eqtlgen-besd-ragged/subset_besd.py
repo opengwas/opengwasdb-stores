@@ -1,5 +1,12 @@
-"""Write a small, standalone SPARSE_FILE_TYPE_3 BESD triple from a subset of
-probes read out of a larger BESD triple (issue #67).
+#!/usr/bin/env python3
+"""Write a standalone SPARSE_FILE_TYPE_3 BESD triple for an analyses manifest.
+
+Command-line interface::
+
+    subset_besd.py ANALYSES_TSV INPUT_PREFIX OUTPUT_PREFIX
+
+``analysis_id`` supplies the probe ID; an optional ``::tissue`` suffix is
+removed. Rows whose ``exclude_from_build`` value is true are ignored.
 
 `opengwasdb.layouts.ragged.besd_reader` (`BESDReader`/`read_esi`/`read_epi`)
 already reads this format correctly and `build_ragged_from_besd` already
@@ -37,6 +44,8 @@ writer reproduces that duplication rather than leaving it as an assumption.
 
 from __future__ import annotations
 
+import argparse
+import csv
 import struct
 from dataclasses import dataclass
 from pathlib import Path
@@ -54,6 +63,47 @@ class BesdSubsetResult:
     n_probes: int
     n_snps: int
     n_associations: int
+
+
+def probe_ids_from_analyses(analyses_path: str | Path) -> list[str]:
+    """Return buildable BESD probe IDs in ``analyses.tsv`` row order."""
+    analyses_path = Path(analyses_path)
+    with analyses_path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        if not reader.fieldnames or "analysis_id" not in reader.fieldnames:
+            raise ValueError(f"{analyses_path} is missing required column 'analysis_id'")
+        probe_ids: list[str] = []
+        seen: set[str] = set()
+        for line_number, row in enumerate(reader, start=2):
+            excluded = str(row.get("exclude_from_build") or "").strip().lower()
+            if excluded in {"true", "1", "yes"}:
+                continue
+            analysis_id = str(row.get("analysis_id") or "").strip()
+            if not analysis_id:
+                raise ValueError(f"{analyses_path}:{line_number}: analysis_id is empty")
+            probe_id = analysis_id.split("::", 1)[0]
+            if probe_id in seen:
+                raise ValueError(
+                    f"{analyses_path}:{line_number}: duplicate BESD probe id {probe_id!r}"
+                )
+            seen.add(probe_id)
+            probe_ids.append(probe_id)
+    if not probe_ids:
+        raise ValueError(f"{analyses_path} contains no buildable probes")
+    return probe_ids
+
+
+def write_besd_subset_from_analyses(
+    analyses_path: str | Path,
+    source_prefix: str | Path,
+    dest_prefix: str | Path,
+) -> BesdSubsetResult:
+    """Write a BESD subset containing the probes declared by ``analyses.tsv``."""
+    return write_besd_subset(
+        source_prefix,
+        dest_prefix,
+        probe_ids=probe_ids_from_analyses(analyses_path),
+    )
 
 
 def write_besd_subset(
@@ -150,3 +200,30 @@ def write_besd_subset(
         n_snps=len(referenced_old_idx),
         n_associations=val_num // 2,
     )
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Subset a BESD triple to the probes declared by analyses.tsv."
+    )
+    parser.add_argument("analyses_tsv", help="Accepted analyses.tsv")
+    parser.add_argument("input_prefix", help="Input BESD prefix, without .besd/.epi/.esi")
+    parser.add_argument("output_prefix", help="Output BESD prefix, without .besd/.epi/.esi")
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    result = write_besd_subset_from_analyses(
+        args.analyses_tsv,
+        args.input_prefix,
+        args.output_prefix,
+    )
+    print(
+        f"Wrote {result.n_probes} probes, {result.n_snps} SNPs, "
+        f"and {result.n_associations} associations to {args.output_prefix}"
+    )
+
+
+if __name__ == "__main__":
+    main()

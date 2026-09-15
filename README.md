@@ -22,6 +22,8 @@ pixi run env-check      # report/validate resolved tool + package versions
 pixi run test           # every lightweight test suite (Python + R)
 pixi run test-python    # Python suites only
 pixi run test-r         # R suites only
+pixi run materialise-gwas-ssf-ragged OGS-00006 \
+  --qc-panel=resources/reference-resources/qc-panel-hg38/qc_panel.tsv
 pixi run --environment docs docs   # render and assemble the docs/ site
 pixi run --environment ld-panel ld-acquire -- --help
 pixi run --environment ld-panel ld-materialize -- --help

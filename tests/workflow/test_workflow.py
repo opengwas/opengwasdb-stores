@@ -289,6 +289,11 @@ class TestWorkflowSnakefileStaticProperties(unittest.TestCase):
                     in_output_block = False
                     continue
                 if stripped:
+                    # The unknown-ID guard declares the requested ID only so its
+                    # input function can fail during DAG construction; it never
+                    # materialises that sentinel output.
+                    if stripped == '"{store_id,OGS-[0-9]{5}}"':
+                        continue
                     self.assertIn("records", stripped, f"Output line {stripped!r} missing 'records'")
                     self.assertIn(".json", stripped, f"Output line {stripped!r} missing '.json'")
                     self.assertNotIn("store.opengwasdb\"", stripped)
@@ -734,6 +739,27 @@ class TestWorkflowOperatorInterface(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
+
+    def test_unknown_store_release_id_reports_registered_ids(self) -> None:
+        """An unknown Store Release target fails with an actionable registry error."""
+        known_id = "OGS-00099"
+        create_dense_fixture_store(
+            self.stores_dir,
+            store_id=known_id,
+            artifact_root=self.artifact_root,
+        )
+
+        res = run_snakemake(
+            ["OGS-00042"],
+            registry_root=self.stores_dir,
+            artifact_root=self.artifact_root,
+            dry_run=True,
+        )
+
+        self.assertNotEqual(res.returncode, 0)
+        output = res.stdout + res.stderr
+        self.assertIn("Unknown Store Release ID 'OGS-00042'", output)
+        self.assertIn(f"Registered IDs: {known_id}", output)
 
     def test_family_target_rule_resolves_all_family_releases(self) -> None:
         """Targeting a Store Family resolves and builds every release of that family."""
