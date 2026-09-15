@@ -9,7 +9,7 @@ This is also the review artifact for a change to the seam: a change to
 `plan()` shows up as a visible diff in every affected command line at once.
 
 Covered by `tests/plan/test_plan.py`:
-- `OGS-00001` Ragged BESD observed-only golden test: exact step sequence (`build`, `overview`, `validate`), argv with `--analyses` overlay and post-migration file prefix, sibling inputs (`.esi`, `.epi`, `.besd`, `analyses.tsv`), and outputs (`tests/plan/golden/OGS-00001.json`).
+- `OGS-00001` Ragged BESD observed-only golden test: exact step sequence (`build`, `overview`, `validate`), argv with `--analyses` overlay and the bundle-recorded `source_snapshot.besd_prefix` BESD source prefix, sibling inputs (`.esi`, `.epi`, `.besd`, `analyses.tsv`), and outputs (`tests/plan/golden/OGS-00001.json`).
 - `OGS-00002` Ragged Reference-Completed golden test: exact step sequence (`complete`, `overview`, `validate`), parent Store input derived solely from `release.yaml` `derived_from` (`OGS-00001`), `--release-id` identity, `--ld-panel` and `--ancestry` options, and outputs (`tests/plan/golden/OGS-00002.json`).
 - `OGS-00003` Dense observed-only golden test: exact step sequence (`build`, `top-hits`, `overview`, `validate`), argv, inputs, and outputs (`tests/plan/golden/OGS-00003.json`).
 - `OGS-00004` Hybrid observed-only golden test: exact step sequence (`build`, `overview`, `validate`), argv, inputs, and outputs (`tests/plan/golden/OGS-00004.json`).
@@ -20,6 +20,7 @@ Covered by `tests/plan/test_plan.py`:
 - Inline index building policy: all three completion commands (`complete-dense`, `complete-hybrid`, `complete-ragged`) build top-hit indexes inline, so external `top_hits: true` post-steps are rejected with explicit errors.
 - Hybrid top-hits policy: top hits are built inline during `build-hybrid` (for both the nested Dense Component and Ragged Overflow), so no post-build top-hits command is planned at the hybrid root.
 - Ragged top-hits policy: `build-ragged-top-hits` is planned at the ragged root for SSF when `post.top_hits: true`; BESD builds top-hit indexes inline during `build-ragged-besd` and rejects external top-hits post-steps.
+- BESD source resolution is a bundle fact: `plan()` requires a non-empty `source_snapshot.besd_prefix` in `release.yaml` and fails with a clear `ValueError` when it is missing or invalid.
 - Negative assertions: no dense-root top-hits command is emitted for hybrid or ragged releases; no rho command is emitted for non-dense layouts (both observed and completed).
 - Rejection of invalid post-processing steps: `top_hits: true` on Hybrid, Ragged BESD, and all Reference-Completed layouts; `rho: true` on Hybrid/Ragged (observed and completed) raise explicit errors.
 - Pass-through of unknown `build.options`/`complete.options` keys verbatim without interpretation.

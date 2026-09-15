@@ -4,7 +4,7 @@
     "argv": [
       "opengwasdb",
       "build-ragged-besd",
-      "/data/opengwasdb/stores/OGS-00001/source/pilot-10",
+      "/data/opengwasdb/raw/eqtlgen/pilot-10",
       "/data/opengwasdb/stores/OGS-00001/store.opengwasdb",
       "--store-id",
       "eqtlgen-cis-pilot",
@@ -18,9 +18,9 @@
       "whole_blood"
     ],
     "inputs": [
-      "/data/opengwasdb/stores/OGS-00001/source/pilot-10.esi",
-      "/data/opengwasdb/stores/OGS-00001/source/pilot-10.epi",
-      "/data/opengwasdb/stores/OGS-00001/source/pilot-10.besd",
+      "/data/opengwasdb/raw/eqtlgen/pilot-10.esi",
+      "/data/opengwasdb/raw/eqtlgen/pilot-10.epi",
+      "/data/opengwasdb/raw/eqtlgen/pilot-10.besd",
       "stores/OGS-00001/analyses.tsv"
     ],
     "outputs": [

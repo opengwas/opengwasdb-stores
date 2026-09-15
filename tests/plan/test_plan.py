@@ -743,11 +743,15 @@ class TestPlanRagged(unittest.TestCase):
         self.assertEqual(steps_ssf[2].argv[2], str(expected_store_p_6))
         self.assertEqual(steps_ssf[3].argv[2], str(expected_store_p_6))
 
-        # Test BESD override
+        # Test BESD override: artifact_root moves outputs, but the BESD source
+        # prefix is the bundle-recorded fixed input, not an artifact-root path.
         steps_besd = plan(self.bundle_00001, artifact_root="/temporary/scratch/root")
         expected_store_p_1 = Path("/temporary/scratch/root/OGS-00001/store.opengwasdb")
-        expected_prefix_1 = Path("/temporary/scratch/root/OGS-00001/source/pilot-10")
+        expected_prefix_1 = Path(
+            self.bundle_00001.release["source_snapshot"]["besd_prefix"]
+        )
         record_check()
+        self.assertEqual(expected_prefix_1, Path("/data/opengwasdb/raw/eqtlgen/pilot-10"))
         self.assertEqual(steps_besd[0].outputs, [expected_store_p_1])
         self.assertEqual(steps_besd[0].argv[2], str(expected_prefix_1))
         self.assertEqual(steps_besd[0].argv[3], str(expected_store_p_1))
@@ -770,7 +774,7 @@ class TestPlanRagged(unittest.TestCase):
         record_check()
         self.assertEqual(build_step.argv[0], "opengwasdb")
         self.assertEqual(build_step.argv[1], "build-ragged-besd")
-        self.assertEqual(build_step.argv[2], "/data/opengwasdb/stores/OGS-00001/source/pilot-10")
+        self.assertEqual(build_step.argv[2], "/data/opengwasdb/raw/eqtlgen/pilot-10")
         self.assertEqual(build_step.argv[3], "/data/opengwasdb/stores/OGS-00001/store.opengwasdb")
         self.assertIn("--store-id", build_step.argv)
         idx_store = build_step.argv.index("--store-id")
@@ -790,9 +794,9 @@ class TestPlanRagged(unittest.TestCase):
 
         # Explicit sibling inputs + analyses.tsv
         expected_inputs = [
-            Path("/data/opengwasdb/stores/OGS-00001/source/pilot-10.esi"),
-            Path("/data/opengwasdb/stores/OGS-00001/source/pilot-10.epi"),
-            Path("/data/opengwasdb/stores/OGS-00001/source/pilot-10.besd"),
+            Path("/data/opengwasdb/raw/eqtlgen/pilot-10.esi"),
+            Path("/data/opengwasdb/raw/eqtlgen/pilot-10.epi"),
+            Path("/data/opengwasdb/raw/eqtlgen/pilot-10.besd"),
             Path("stores/OGS-00001/analyses.tsv"),
         ]
         self.assertEqual(build_step.inputs, expected_inputs)
@@ -814,10 +818,11 @@ class TestPlanRagged(unittest.TestCase):
         record_check()
         self.assertEqual(planned_source_build, source_snapshot.get("source_genome_build"))
 
-        # 3. Syntactic prefix and sibling validation (portable CI semantics)
-        self.assertEqual(build_step.argv[2], "/data/opengwasdb/stores/OGS-00001/source/pilot-10")
+        # 3. BESD positional prefix is the bundle-recorded source snapshot path
+        self.assertEqual(build_step.argv[2], source_snapshot.get("besd_prefix"))
+        self.assertEqual(build_step.argv[2], "/data/opengwasdb/raw/eqtlgen/pilot-10")
         self.assertNotIn("eqtlgen-cis-pilot/releases", build_step.argv[2])
-        self.assertIn(Path("/data/opengwasdb/stores/OGS-00001/source/pilot-10.epi"), build_step.inputs)
+        self.assertIn(Path("/data/opengwasdb/raw/eqtlgen/pilot-10.epi"), build_step.inputs)
         record_check()
 
     def test_ragged_ssf_vs_besd_seam_separation(self) -> None:
@@ -835,7 +840,7 @@ class TestPlanRagged(unittest.TestCase):
         build_ssf = steps_ssf[0]
         record_check()
         self.assertEqual(build_besd.argv[1], "build-ragged-besd")
-        self.assertEqual(build_besd.argv[2], "/data/opengwasdb/stores/OGS-00001/source/pilot-10")
+        self.assertEqual(build_besd.argv[2], "/data/opengwasdb/raw/eqtlgen/pilot-10")
         self.assertEqual(build_besd.argv[3], "/data/opengwasdb/stores/OGS-00001/store.opengwasdb")
 
         self.assertEqual(build_ssf.argv[1], "build-ragged-ssf")
@@ -852,9 +857,9 @@ class TestPlanRagged(unittest.TestCase):
         self.assertEqual(
             build_besd.inputs,
             [
-                Path("/data/opengwasdb/stores/OGS-00001/source/pilot-10.esi"),
-                Path("/data/opengwasdb/stores/OGS-00001/source/pilot-10.epi"),
-                Path("/data/opengwasdb/stores/OGS-00001/source/pilot-10.besd"),
+                Path("/data/opengwasdb/raw/eqtlgen/pilot-10.esi"),
+                Path("/data/opengwasdb/raw/eqtlgen/pilot-10.epi"),
+                Path("/data/opengwasdb/raw/eqtlgen/pilot-10.besd"),
                 Path("stores/OGS-00001/analyses.tsv"),
             ],
         )
@@ -891,6 +896,49 @@ class TestPlanRagged(unittest.TestCase):
             plan(unsupported_ragged_bundle)
         record_check()
         self.assertIn("Unsupported ragged build command 'build-ragged-unknown'", str(ctx.exception))
+
+    def test_ragged_besd_requires_recorded_source_snapshot(self) -> None:
+        """BESD planning reads source_snapshot.besd_prefix and errors clearly when absent."""
+        release_base = {
+            "store_id": "OGS-00097",
+            "label": "synthetic-besd",
+            "family": "custom-besd-family",
+            "status": "accepted",
+        }
+        build_base = {
+            "store_id": "OGS-00097",
+            "layout": "ragged",
+            "completion_state": "observed_only",
+            "build": {"command": "build-ragged-besd"},
+            "post": {"top_hits": False, "rho": False, "overview": True, "validate": True},
+            "artifacts": {"root": "/custom/artifact/root"},
+        }
+
+        no_snapshot = Bundle(
+            store_id="OGS-00097",
+            root=Path("stores/OGS-00097"),
+            release=release_base,
+            build=build_base,
+            analyses_path=Path("stores/OGS-00097/analyses.tsv"),
+        )
+        with self.assertRaises(ValueError) as ctx:
+            plan(no_snapshot)
+        record_check()
+        self.assertIn("source_snapshot", str(ctx.exception))
+        self.assertIn("besd_prefix", str(ctx.exception))
+
+        for bad_prefix in (None, "", "   ", 42):
+            bad_snapshot = Bundle(
+                store_id="OGS-00097",
+                root=Path("stores/OGS-00097"),
+                release={**release_base, "source_snapshot": {"besd_prefix": bad_prefix}},
+                build=build_base,
+                analyses_path=Path("stores/OGS-00097/analyses.tsv"),
+            )
+            with self.assertRaises(ValueError) as ctx:
+                plan(bad_snapshot)
+            record_check()
+            self.assertIn("source_snapshot.besd_prefix", str(ctx.exception))
 
     def test_ragged_options_passthrough(self) -> None:
         """build.options flags pass through generically without interpretation."""

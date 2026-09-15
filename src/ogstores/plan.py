@@ -165,13 +165,26 @@ def _resolve_artifact_root(
     return paths.DEFAULT_ARTIFACT_ROOT
 
 
-def _besd_prefix(bundle: Bundle, root: Path) -> Path:
-    """Path prefix shared by a BESD triple, from the bundle's label."""
-    if not bundle.label:
+def _besd_prefix(bundle: Bundle) -> Path:
+    """BESD source prefix recorded in `release.yaml:source_snapshot.besd_prefix`.
+
+    A BESD triple is a fixed build input that lives outside the artifact root,
+    so its location is a bundle fact frozen when the bundle was generated,
+    not a path derived from the artifact layout.
+    """
+    source_snapshot = bundle.release.get("source_snapshot")
+    if not isinstance(source_snapshot, dict):
         raise ValueError(
-            f"Bundle {bundle.store_id} missing required 'label' in release.yaml"
+            f"Bundle {bundle.store_id} requires a 'source_snapshot' mapping in "
+            f"release.yaml carrying a non-empty 'besd_prefix'"
         )
-    return paths.source_dir(bundle.store_id, root=root) / bundle.label
+    prefix = source_snapshot.get("besd_prefix")
+    if not isinstance(prefix, str) or not prefix.strip():
+        raise ValueError(
+            f"Bundle {bundle.store_id} requires a non-empty string "
+            f"'source_snapshot.besd_prefix' in release.yaml"
+        )
+    return Path(prefix)
 
 
 def _resolve(token: str, bundle: Bundle, root: Path) -> list[Path]:
@@ -185,9 +198,9 @@ def _resolve(token: str, bundle: Bundle, root: Path) -> list[Path]:
     if token == "parent_store":
         return [paths.store_path(bundle.derived_from, root=root)]  # type: ignore[arg-type]
     if token == "besd_prefix":
-        return [_besd_prefix(bundle, root)]
+        return [_besd_prefix(bundle)]
     if token == "besd_files":
-        prefix = _besd_prefix(bundle, root)
+        prefix = _besd_prefix(bundle)
         return [Path(f"{prefix}{suffix}") for suffix in (".esi", ".epi", ".besd")]
     raise ValueError(f"Unknown path token {token!r}")
 
