@@ -12,7 +12,7 @@ description: 10 well-known genes' cis-eQTL summary statistics from the eQTLGen C
   cis-eQTL catalogue (19,250 genes).
 source_snapshot_id: eqtlgen-2019-cis-full
 source_snapshot:
-  besd_prefix: /data/besd/eqtlgen-sparse
+  besd_prefix: /data/opengwasdb/raw/eqtlgen/pilot-10
   source_genome_build: hg19
 release_kind: one-off
 generator:

@@ -1,7 +1,7 @@
 """Phase A: every accepted Release Bundle in stores/, wired by dependency only.
 
-    pixi run release OGS-00042             one release, plus any parent it needs
-    pixi run release OGS-00042 OGS-00051   several; lineage order is resolved
+    pixi run release OGS-00003             one release, plus any parent it needs
+    pixi run release OGS-00003 OGS-00004   several; lineage order is resolved
     pixi run release-family finngen-r13    every release of one family
     pixi run index                         regenerate the master list
 
@@ -28,6 +28,8 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+
+from snakemake.exceptions import WorkflowError
 
 # Ensure src/ is on sys.path when invoked via snakemake CLI
 _CANDIDATE_SRC_DIRS = [
@@ -160,6 +162,21 @@ for fam, sids in FAMILIES.items():
         rule:
             name: fam
             input: [record(s, "register") for s in sids]
+
+
+def reject_unknown_store_id(wildcards):
+    """Replace Snakemake's generic missing-rule error with registry guidance."""
+    registered = ", ".join(ALL_STORE_IDS) or "(none)"
+    raise WorkflowError(
+        f"Unknown Store Release ID {wildcards.store_id!r}. Registered IDs: {registered}"
+    )
+
+
+rule unknown_store_release:
+    input:
+        reject_unknown_store_id
+    output:
+        "{store_id,OGS-[0-9]{5}}"
 
 
 rule index:

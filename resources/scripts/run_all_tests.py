@@ -38,6 +38,7 @@ SUITES: list[tuple[str, str, list[str]]] = [
     ("metadata-resolvers/finngen-manifest", "r", ["tests/metadata-resolvers/finngen-manifest/run_tests.R"]),
     ("metadata-resolvers/opengwas-api", "r", ["tests/metadata-resolvers/opengwas-api/run_tests.R"]),
     ("metadata-resolvers/trait-ontology-mapping", "r", ["tests/metadata-resolvers/trait-ontology-mapping/run_tests.R"]),
+    ("materialise-gwas-ssf-ragged", "r", ["tests/materialise-gwas-ssf-ragged/run_tests.R"]),
     ("no-cis-region-policy", "r", ["tests/no-cis-region-policy/run_tests.R"]),
     ("opengwas-gwas-vcf-dense", "r", ["tests/opengwas-gwas-vcf-dense/run_tests.R"]),
     ("opengwas-gwas-vcf-dense annotation", "python", ["tests/opengwas-gwas-vcf-dense/test_annotation.py"]),

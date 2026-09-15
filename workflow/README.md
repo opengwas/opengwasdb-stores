@@ -18,11 +18,15 @@ and the acceptance gate stops existing.
 Phase A is driven by `workflow/Snakefile`:
 
 ```sh
-pixi run release OGS-00042                                 # one release, plus any parent it needs
-pixi run release OGS-00042 OGS-00051                       # several; lineage order is resolved for you
+pixi run release OGS-00003                                 # one registered release, plus any parent it needs
+pixi run release OGS-00003 OGS-00004                       # several registered releases; lineage order is resolved
 pixi run release-family finngen-r13                        # every release of one family
 pixi run index                                             # regenerate stores.tsv, STORES.md, by-label/
 ```
+
+A release target must be an ID currently registered under `stores/`; use
+`stores.tsv` to find valid IDs. IDs shown in commands are real targets, not
+placeholders.
 
 ### Production Execution vs. Fixture-Scale Tests
 
