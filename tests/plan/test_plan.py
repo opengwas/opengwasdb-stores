@@ -20,8 +20,9 @@ Verifies:
   - Generic --reference-panel option flow from build.options with zero special handling.
 - Identity flags --store-id <family> --release-id <store-id>.
 - Dense-only rho enforcement (forbidden on Hybrid and other non-Dense layouts).
-- Shared post-step builder mechanism parameterised by planner-specific commands.
-- Dispatch table keyed on (layout, completion_state) with Hybrid as table entry.
+- Shared post-step builder mechanism parameterised by each subcommand's CommandSpec.
+- Command table keyed on the opengwasdb subcommand, with (layout, completion_state)
+  validated as a supported pair that selects the default subcommand.
 - Real pinned CLI validation for every planned step argv.
 - Pure function execution with tripwire proof for Path.stat, Path.exists, Path.is_file, etc.
 """
@@ -45,8 +46,8 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 from ogstores import paths
 from ogstores.bundle import Bundle, load
 from ogstores.plan import (
-    DISPATCH_TABLE,
-    RAGGED_BUILD_DISPATCH,
+    COMMANDS,
+    DEFAULT_COMMANDS,
     Step,
     plan,
     render_options,
@@ -334,8 +335,8 @@ class TestPlanDense(unittest.TestCase):
         self.assertEqual([s.name for s in steps], ["build", "validate"])
 
     def test_dispatch_table_keying(self) -> None:
-        """Dispatch table is keyed by (layout, completion_state) across all 6 layout/state pairs."""
-        # Dispatch table contains all 6 valid combinations
+        """All 6 (layout, completion_state) pairs are supported and plan successfully."""
+        # Every valid combination resolves to a configured default subcommand
         expected_keys = [
             ("dense", "observed_only"),
             ("hybrid", "observed_only"),
@@ -346,8 +347,8 @@ class TestPlanDense(unittest.TestCase):
         ]
         for key in expected_keys:
             record_check()
-            self.assertIn(key, DISPATCH_TABLE)
-            self.assertTrue(callable(DISPATCH_TABLE[key]))
+            self.assertIn(key, DEFAULT_COMMANDS)
+            self.assertIn(DEFAULT_COMMANDS[key], COMMANDS)
 
         # Calling with unconfigured combination raises NotImplementedError
         unsupported_bundle = Bundle(
@@ -860,12 +861,16 @@ class TestPlanRagged(unittest.TestCase):
         self.assertEqual(build_ssf.inputs, [Path("stores/OGS-00006/analyses.tsv")])
 
     def test_ragged_build_subdispatch_table(self) -> None:
-        """Sub-dispatch table for ragged observed-only contains expected command handlers."""
+        """Both ragged observed-only build subcommands are configured with distinct argv shapes."""
         record_check()
-        self.assertIn("build-ragged-ssf", RAGGED_BUILD_DISPATCH)
-        self.assertTrue(callable(RAGGED_BUILD_DISPATCH["build-ragged-ssf"].build_fn))
-        self.assertIn("build-ragged-besd", RAGGED_BUILD_DISPATCH)
-        self.assertTrue(callable(RAGGED_BUILD_DISPATCH["build-ragged-besd"].build_fn))
+        self.assertIn("build-ragged-ssf", COMMANDS)
+        self.assertEqual(COMMANDS["build-ragged-ssf"].phase, "build")
+        self.assertIn("build-ragged-besd", COMMANDS)
+        self.assertEqual(COMMANDS["build-ragged-besd"].phase, "build")
+        self.assertNotEqual(
+            COMMANDS["build-ragged-ssf"].positionals,
+            COMMANDS["build-ragged-besd"].positionals,
+        )
 
         # Calling with unconfigured ragged build command raises NotImplementedError
         unsupported_ragged_bundle = Bundle(

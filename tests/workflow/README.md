@@ -21,17 +21,14 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
    - The terminal `register` rule completes the DAG for the release and writes `records/register.json`.
    - Safely finalizes the staged transaction by atomically publishing `store.opengwasdb.partial` to `store.opengwasdb`.
 
-5. **`complete-dense` checkpoint resumption**:
-   - The `complete` rule detects existing checkpoint directories (`.<store>.checkpoint`) and automatically selects `complete-dense-resume` in a few visible lines.
-
-6. **Multi-release DAG expansion (Issue #116)**:
+5. **Multi-release DAG expansion (Issue #116)**:
    - Snakemake wildcard expansion across `stores/` is the sole multi-release orchestrator; no external batch/loop runner script exists.
    - Several Store Release IDs requested in a single invocation build in correct dependency and lineage order.
    - Requesting only a Reference-Completed child release automatically builds its parent first via the lineage input edge (`child complete` depends on `parent register` record).
    - Requesting a Store Family (e.g. `pixi run release-family <family>` or targeting `<family>`) resolves and builds every release in that family.
    - The `index` target depends only on Release Bundle files (`release.yaml`, `build.yaml`), never on Store artifacts or record files, guaranteeing that refreshing the master list proposes 0 build jobs.
 
-7. **End-to-end execution, idempotency, and resumption**:
+6. **End-to-end execution, idempotency, and resumption**:
    - A fixture-scale Dense store builds and registers end to end with a single snakemake command.
    - Re-running snakemake after success executes 0 jobs (idempotent no-op).
    - Re-running after an interrupted step resumes from the missing step rather than starting from scratch.

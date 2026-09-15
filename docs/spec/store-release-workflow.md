@@ -246,7 +246,7 @@ build ──> top_hits ──> rho ──> overview ──> validate ──> reg
 
 **Lineage ordering is why the DAG spans every store rather than one.** A Reference-Completed release declares its parent's `register` record as an input, resolved from `release.yaml`'s `derived_from`. A per-release workflow driven by a batch loop would have to sequence parents before children by hand, and would get it wrong. Here it is a declared edge.
 
-Resumption is Snakemake's, over the record files. The one exception is `complete-dense`, which owns its own checkpoint directory and has a separate `complete-dense-resume` entry point: that rule's body picks between the two by testing for the checkpoint, in about four visible lines.
+Resumption is Snakemake's, over the record files. `complete-dense` additionally owns a checkpoint directory and a separate `complete-dense-resume` entry point, but the workflow does not yet select it: a resume must be invoked by hand, and `register` accepts the substitution when it sees it. Wiring this into the workflow needs a decision about how a resume participates in the `.partial` staging transaction, which `rewrite_argv_for_staging` currently rejects.
 
 Scanning every store means DAG construction is proportional to the registry, which is immaterial at twenty stores and worth revisiting past a few thousand. The `index` target is unaffected either way: it depends only on bundle files, never on store artifacts, so refreshing the master list never proposes a build.
 

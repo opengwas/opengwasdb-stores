@@ -13,7 +13,6 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
    where top_hits and rho are conditional on build.yaml post flags.
 3. Tracked outputs are record files (records/<step>.json), never the Store directory.
 4. Terminal register step completes the DAG and writes records/register.json.
-5. complete-dense checkpoint resumption selects complete-dense-resume when checkpoint dir exists.
 6. Multi-release DAG expansion (Issue #116):
    - Multiple store IDs in one invocation build in correct order.
    - Requesting only a Reference-Completed child also builds its parent first via lineage input edge.
@@ -41,9 +40,35 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from ogstores import bundle, paths, run
-from ogstores.plan import Step, plan
+from ogstores.plan import plan
 
 SNAKEFILE_PATH: Path = REPO_ROOT / "workflow" / "Snakefile"
+
+
+def scheduled_targets(stdout: str) -> list[str]:
+    """Names of the jobs a dry-run scheduled.
+
+    Execution steps share one rule, so a job is identified by the step it
+    produces (`records/<step>.json`) rather than by its rule name; target
+    alias rules have no output and fall back to the rule name.
+    """
+    targets: list[str] = []
+    current: str | None = None
+    for line in stdout.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("rule ") and stripped.endswith(":"):
+            if current is not None:
+                targets.append(current)
+            current = stripped.split()[1].rstrip(":")
+        elif stripped.startswith("output:") and current is not None:
+            for token in stripped[len("output:"):].split():
+                name = Path(token.rstrip(",")).name
+                if name.endswith(".json"):
+                    current = name[: -len(".json")]
+                    break
+    if current is not None:
+        targets.append(current)
+    return targets
 
 
 def find_snakemake_cmd() -> list[str]:
@@ -433,16 +458,12 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
             dry_run=True,
         )
         self.assertEqual(res_dry.returncode, 0)
-        scheduled_rules = [
-            line.strip().split()[1].rstrip(":")
-            for line in res_dry.stdout.splitlines()
-            if line.strip().startswith("rule ")
-        ]
+        scheduled_rules = scheduled_targets(res_dry.stdout)
         self.assertIn("overview", scheduled_rules)
         self.assertIn("validate", scheduled_rules)
         self.assertIn("register", scheduled_rules)
         self.assertNotIn("build", scheduled_rules)
-        self.assertNotIn("top_hits", scheduled_rules)
+        self.assertNotIn("top-hits", scheduled_rules)
 
         res_resume = run_snakemake([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
         self.assertEqual(res_resume.returncode, 0, f"Resume run failed:\n{res_resume.stderr}")
@@ -478,16 +499,12 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
             dry_run=True,
         )
         self.assertEqual(res_dry.returncode, 0)
-        scheduled = [
-            line.strip().split()[1].rstrip(":")
-            for line in res_dry.stdout.splitlines()
-            if line.strip().startswith("rule ")
-        ]
+        scheduled = scheduled_targets(res_dry.stdout)
         self.assertEqual(set(scheduled), {"validate", "register", store_id})
 
 
 class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):
-    """Multi-release DAG expansion, cross-store lineage ordering, and checkpoint resumption (Issue #116)."""
+    """Multi-release DAG expansion and cross-store lineage ordering (Issue #116)."""
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -652,73 +669,6 @@ class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):
         self.assertEqual(res2.returncode, 0)
         self.assertNotIn(f"wildcards: root={self.artifact_root}, store_id={parent_id}", res2.stdout)
 
-    def test_complete_dense_checkpoint_resumption_logic(self) -> None:
-        """complete-dense selects complete-dense-resume when a checkpoint directory exists."""
-        store_id = "OGS-00093"
-        store_dir = self.stores_dir / store_id
-        store_dir.mkdir(parents=True, exist_ok=True)
-
-        rel_yaml = {
-            "store_id": store_id,
-            "label": "dense-completed",
-            "family": "test-fam",
-            "status": "candidate",
-            "source_collection_id": "test-col",
-            "association_coverage": "full_gwas",
-            "derived_from": "OGS-00001",
-            "created_at": "2026-08-18T16:00:00Z",
-            "description": "Dense completed store",
-            "source_snapshot_id": "test-snap",
-            "release_kind": "pilot",
-            "generator": {"command": "test"},
-        }
-        bld_yaml = {
-            "store_id": store_id,
-            "layout": "dense",
-            "completion_state": "reference_completed",
-            "complete": {
-                "command": "complete-dense",
-                "options": {
-                    "ld-panel": "/fake/panel",
-                    "ancestry": "EUR",
-                },
-            },
-            "post": {
-                "top_hits": False,
-                "rho": False,
-                "overview": True,
-                "validate": True,
-            },
-            "artifacts": {"root": str(self.artifact_root)},
-        }
-        with open(store_dir / "release.yaml", "w") as f:
-            import yaml
-            yaml.safe_dump(rel_yaml, f)
-        with open(store_dir / "build.yaml", "w") as f:
-            import yaml
-            yaml.safe_dump(bld_yaml, f)
-        (store_dir / "analyses.tsv").write_text("analysis_id\tsource_file\n")
-
-        partial_p = paths.partial_store_path(store_id, root=self.artifact_root)
-        ckpt_p = partial_p.parent / f".{partial_p.name}.checkpoint"
-        ckpt_p.mkdir(parents=True, exist_ok=True)
-
-        b = bundle.load(store_id, registry_root=self.stores_dir)
-        steps = plan(b, artifact_root=self.artifact_root)
-        step = next(s for s in steps if s.name == "complete")
-        self.assertEqual(step.argv[1], "complete-dense")
-
-        if step.argv and len(step.argv) > 1 and step.argv[1] == "complete-dense":
-            if ckpt_p.is_dir():
-                step = Step(
-                    name="complete",
-                    argv=["opengwasdb", "complete-dense-resume", str(ckpt_p)],
-                    inputs=[ckpt_p],
-                    outputs=step.outputs,
-                )
-
-        self.assertEqual(step.argv, ["opengwasdb", "complete-dense-resume", str(ckpt_p)])
-        self.assertEqual(step.inputs, [ckpt_p])
 
 
 class TestWorkflowOperatorInterface(unittest.TestCase):
