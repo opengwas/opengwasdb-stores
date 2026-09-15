@@ -10,6 +10,10 @@ the real active opengwasdb CLI/API (pinned at dev SHA a9e8bc8 via issue #106):
   3. Every required column in analyses.tsv is validated directly through opengwasdb's
      public manifest column and analyses readers (ADR 0034, opengwasdb#170, #172, #173),
      including Ragged SSF sample_size/source_file and BESD .epi probe derivation.
+     BESD probe derivation for OGS-00001 is validated unconditionally via a committed fixture
+     tests/reconcile-build-yaml/fixtures/pilot-10.epi (a 10-row provenance slice of authentic
+     eQTLGen pilot probe records), verifying probe ID derivation and ::{tissue} namespace
+     qualification portably in CI without relying on /data/besd.
   4. Each of the seven releases is derived as executable today against the real CLI.
   5. The source_genome_build/source_assembly mismatch is resolved live via
      --source-assembly, with the option value matching the normalized build of
@@ -22,6 +26,7 @@ Run from repository root:
 from __future__ import annotations
 
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +34,7 @@ import typer.main
 import yaml
 from opengwasdb.build.liftover import normalise_build
 from opengwasdb.cli import main as opengwasdb_cli
-from opengwasdb.layouts.ragged.besd_reader import read_epi
+from opengwasdb.layouts.ragged.besd_reader import BESDMetadataError, read_epi
 from opengwasdb.model.analyses import read_analyses, validate_analyses
 from opengwasdb.model.enums import StoredEffectScale
 from opengwasdb.model.manifest_columns import (
@@ -39,6 +44,7 @@ from opengwasdb.model.manifest_columns import (
 from opengwasdb.readers import known_capabilities
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 sys.path.insert(0, str(REPO_ROOT))
 
 n_checks = 0
@@ -228,25 +234,27 @@ def test_reconcile_stores() -> None:
             require_columns(fieldnames, analyses_file, "analysis_id")
             aid_col = "analysis_id" if "analysis_id" in fieldnames else "trait_id"
 
-            # Derive expected IDs from the real BESD .epi source file + configured tissue option
-            epi_path = Path("/data/opengwasdb/eqtlgen-cis-pilot/releases/pilot-10/source/pilot-10.epi")
-            if not epi_path.exists():
-                epi_path = Path("/data/besd/eqtlgen-sparse.epi")
-            check(epi_path.exists(), f"{store_id} BESD .epi source file exists at {epi_path}")
-
-            probes = read_epi(epi_path)
             tissue = options.get("tissue")
             check(bool(tissue), f"{store_id} build.options declares tissue for probe ID namespace qualification")
 
+            # Check that analysis_ids are non-empty and formatted with tissue namespace
+            for r in analyses_table.rows:
+                val = r.get(aid_col, "")
+                check(bool(val) and f"::{tissue}" in val, f"{store_id} {aid_col} {val!r} qualified with ::{tissue}")
+
+            # Unconditional portable probe derivation validation using committed fixture
+            # (a 10-row provenance slice of authentic eQTLGen pilot probe records)
+            fixture_epi_path = FIXTURES_DIR / "pilot-10.epi"
+            check(fixture_epi_path.is_file(), f"Portable BESD .epi fixture exists at {fixture_epi_path}")
+
+            probes = read_epi(fixture_epi_path)
             expected_ids = {f"{p.probe_id}::{tissue}" if tissue else p.probe_id for p in probes}
             manifest_ids = {r[aid_col] for r in analyses_table.rows}
-            if len(probes) == len(analyses_table.rows):
-                check(manifest_ids == expected_ids, f"{store_id} .epi probes + tissue match analyses.tsv analysis_ids exactly")
-                analyses_valid = manifest_ids == expected_ids
-            else:
-                # Subset of whole-genome BESD
-                check(manifest_ids.issubset(expected_ids), f"{store_id} all analyses.tsv IDs derive from .epi probes + tissue")
-                analyses_valid = manifest_ids.issubset(expected_ids)
+            check(
+                manifest_ids == expected_ids,
+                f"{store_id} portable .epi probes + tissue match analyses.tsv analysis_ids exactly",
+            )
+            analyses_valid = manifest_ids == expected_ids
 
         elif cmd == "complete-ragged":
             # Child release derived from parent
@@ -284,8 +292,64 @@ def test_reconcile_stores() -> None:
                 )
 
 
+def test_besd_probe_derivation_negative() -> None:
+    """Verify that the BESD probe derivation contract meaningfully fails on invalid probe IDs or formats."""
+    fixture_epi_path = FIXTURES_DIR / "pilot-10.epi"
+    check(fixture_epi_path.is_file(), f"Portable BESD .epi fixture exists at {fixture_epi_path}")
+
+    # 1. Baseline: valid fixture produces exact matching IDs for OGS-00001
+    analyses_table = read_analyses(REPO_ROOT / "stores" / "OGS-00001" / "analyses.tsv")
+    manifest_ids = {r["analysis_id"] for r in analyses_table.rows}
+    probes = read_epi(fixture_epi_path)
+    expected_ids = {f"{p.probe_id}::whole_blood" for p in probes}
+    check(manifest_ids == expected_ids, "Baseline fixture matches OGS-00001 manifest IDs")
+
+    # 2. Meaningful failure on invalid / mutated probe ID in .epi
+    mutated_expected = {
+        id.replace("ENSG00000175445", "ENSG00000999999_INVALID") for id in expected_ids
+    }
+    check(manifest_ids != mutated_expected, "Mutated probe ID is detected as non-matching")
+    check(
+        not manifest_ids.issubset(mutated_expected),
+        "Mutated probe ID fails subset validation",
+    )
+
+    # 3. Meaningful failure when manifest contains an alien/invalid probe ID
+    alien_manifest_ids = set(manifest_ids)
+    alien_manifest_ids.add("INVALID_PROBE_999::whole_blood")
+    check(
+        alien_manifest_ids != expected_ids,
+        "Alien manifest probe ID fails exact match",
+    )
+    check(
+        not alien_manifest_ids.issubset(expected_ids),
+        "Alien manifest probe ID fails subset validation",
+    )
+
+    # 4. Meaningful failure when tissue namespace does not match
+    wrong_tissue_expected = {f"{p.probe_id}::brain_cortex" for p in probes}
+    check(
+        manifest_ids != wrong_tissue_expected,
+        "Wrong tissue namespace qualification fails match",
+    )
+
+    # 5. Meaningful failure on malformed .epi content (non-integer probe_bp)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        bad_epi_file = Path(tmp_dir) / "corrupt.epi"
+        bad_epi_file.write_text(
+            "1\tENSG00000134243\t0\tNOT_AN_INTEGER_BP\tENSG00000134243\tN\n",
+            encoding="utf-8",
+        )
+        try:
+            read_epi(bad_epi_file)
+            check(False, "read_epi must fail on malformed .epi file")
+        except BESDMetadataError:
+            check(True, "read_epi correctly raised BESDMetadataError on malformed row")
+
+
 def main() -> None:
     test_reconcile_stores()
+    test_besd_probe_derivation_negative()
     print(f"ALL {n_checks} CHECKS PASSED")
 
 

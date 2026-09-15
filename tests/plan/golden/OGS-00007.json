@@ -5,8 +5,8 @@
       "opengwasdb",
       "build-ragged-ssf",
       "stores/OGS-00007/analyses.tsv",
-      "/data/opengwasdb/OGS-00007/source",
-      "/data/opengwasdb/OGS-00007/store.opengwasdb",
+      "/data/opengwasdb/stores/OGS-00007/source",
+      "/data/opengwasdb/stores/OGS-00007/store.opengwasdb",
       "--store-id",
       "pqtl-interval-2018",
       "--release-id",
@@ -18,7 +18,7 @@
       "stores/OGS-00007/analyses.tsv"
     ],
     "outputs": [
-      "/data/opengwasdb/OGS-00007/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00007/store.opengwasdb"
     ]
   },
   {
@@ -26,13 +26,13 @@
     "argv": [
       "opengwasdb",
       "build-ragged-top-hits",
-      "/data/opengwasdb/OGS-00007/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00007/store.opengwasdb"
     ],
     "inputs": [
-      "/data/opengwasdb/OGS-00007/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00007/store.opengwasdb"
     ],
     "outputs": [
-      "/data/opengwasdb/OGS-00007/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00007/store.opengwasdb"
     ]
   },
   {
@@ -40,13 +40,13 @@
     "argv": [
       "opengwasdb",
       "regenerate-overview",
-      "/data/opengwasdb/OGS-00007/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00007/store.opengwasdb"
     ],
     "inputs": [
-      "/data/opengwasdb/OGS-00007/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00007/store.opengwasdb"
     ],
     "outputs": [
-      "/data/opengwasdb/OGS-00007/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00007/store.opengwasdb"
     ]
   },
   {
@@ -54,10 +54,10 @@
     "argv": [
       "opengwasdb",
       "validate",
-      "/data/opengwasdb/OGS-00007/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00007/store.opengwasdb"
     ],
     "inputs": [
-      "/data/opengwasdb/OGS-00007/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00007/store.opengwasdb"
     ],
     "outputs": []
   }

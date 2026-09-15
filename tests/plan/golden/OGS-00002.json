@@ -4,8 +4,8 @@
     "argv": [
       "opengwasdb",
       "complete-ragged",
-      "/data/opengwasdb/OGS-00001/store.opengwasdb",
-      "/data/opengwasdb/OGS-00002/store.opengwasdb",
+      "/data/opengwasdb/stores/OGS-00001/store.opengwasdb",
+      "/data/opengwasdb/stores/OGS-00002/store.opengwasdb",
       "--release-id",
       "OGS-00002",
       "--ld-panel",
@@ -14,10 +14,10 @@
       "EUR"
     ],
     "inputs": [
-      "/data/opengwasdb/OGS-00001/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00001/store.opengwasdb"
     ],
     "outputs": [
-      "/data/opengwasdb/OGS-00002/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00002/store.opengwasdb"
     ]
   },
   {
@@ -25,13 +25,13 @@
     "argv": [
       "opengwasdb",
       "regenerate-overview",
-      "/data/opengwasdb/OGS-00002/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00002/store.opengwasdb"
     ],
     "inputs": [
-      "/data/opengwasdb/OGS-00002/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00002/store.opengwasdb"
     ],
     "outputs": [
-      "/data/opengwasdb/OGS-00002/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00002/store.opengwasdb"
     ]
   },
   {
@@ -39,10 +39,10 @@
     "argv": [
       "opengwasdb",
       "validate",
-      "/data/opengwasdb/OGS-00002/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00002/store.opengwasdb"
     ],
     "inputs": [
-      "/data/opengwasdb/OGS-00002/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00002/store.opengwasdb"
     ],
     "outputs": []
   }

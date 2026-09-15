@@ -147,7 +147,7 @@ class TestStepClassificationAndArgvRewrite(unittest.TestCase):
                     record_check()
 
     def test_build_argv_rewriting(self) -> None:
-        root = Path("/data/opengwasdb")
+        root = Path("/data/opengwasdb/stores")
         store_id = "OGS-00042"
         target_store = paths.store_path(store_id, root=root)
         partial_store = paths.partial_store_path(store_id, root=root)
@@ -177,7 +177,7 @@ class TestStepClassificationAndArgvRewrite(unittest.TestCase):
         record_check()
 
     def test_complete_argv_rewriting_preserves_parent(self) -> None:
-        root = Path("/data/opengwasdb")
+        root = Path("/data/opengwasdb/stores")
         parent_id = "OGS-00001"
         child_id = "OGS-00002"
         parent_store = paths.store_path(parent_id, root=root)
@@ -205,7 +205,7 @@ class TestStepClassificationAndArgvRewrite(unittest.TestCase):
         record_check()
 
     def test_post_steps_argv_rewritten_to_partial(self) -> None:
-        root = Path("/data/opengwasdb")
+        root = Path("/data/opengwasdb/stores")
         store_id = "OGS-00003"
         target_store = paths.store_path(store_id, root=root)
         partial_store = paths.partial_store_path(store_id, root=root)
@@ -227,7 +227,7 @@ class TestStepClassificationAndArgvRewrite(unittest.TestCase):
             record_check()
 
     def test_embedded_flag_substring_rewriting(self) -> None:
-        root = Path("/data/opengwasdb")
+        root = Path("/data/opengwasdb/stores")
         store_id = "OGS-00042"
         target_store = paths.store_path(store_id, root=root)
         partial_store = paths.partial_store_path(store_id, root=root)
@@ -248,7 +248,7 @@ class TestStepClassificationAndArgvRewrite(unittest.TestCase):
         record_check()
 
     def test_strict_destination_token_validation_and_preflight_record(self) -> None:
-        root = Path("/data/opengwasdb")
+        root = Path("/data/opengwasdb/stores")
         store_id = "OGS-00042"
         target_store = paths.store_path(store_id, root=root)
 

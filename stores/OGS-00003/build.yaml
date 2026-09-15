@@ -12,4 +12,4 @@ post:
   overview: true
   validate: true
 artifacts:
-  root: /data/opengwasdb
+  root: /data/opengwasdb/stores

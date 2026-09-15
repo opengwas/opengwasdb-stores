@@ -81,7 +81,7 @@ def create_mock_bundle(
         "layout": layout,
         "completion_state": completion_state,
         "post": {"top_hits": False, "rho": False, "overview": True, "validate": True},
-        "artifacts": {"root": "/data/opengwasdb"},
+        "artifacts": {"root": "/data/opengwasdb/stores"},
     }
     if completion_state == "reference_completed":
         bld_dict["complete"] = {"command": "complete-dense", "options": options or {"ancestry": "EUR"}}

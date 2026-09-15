@@ -22,7 +22,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-DEFAULT_ARTIFACT_ROOT: Path = Path("/data/opengwasdb")
+DEFAULT_ARTIFACT_ROOT: Path = Path("/data/opengwasdb/stores")
 STORE_ID_PATTERN: re.Pattern[str] = re.compile(r"\AOGS-\d{5}\Z")
 
 

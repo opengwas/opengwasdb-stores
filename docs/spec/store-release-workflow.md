@@ -34,12 +34,13 @@ tests/
 Artifacts live outside git, at a path that is a pure function of the store ID:
 
 ```text
-/data/opengwasdb/OGS-00042/
+/data/opengwasdb/stores/OGS-00042/
   source/                    acquired or filtered source files
-  work/                      checkpoints, scratch
+  work/                      checkpoints, scratch, logs
   records/<step>.json        one per executed step
   store.opengwasdb           the Store Release
-/data/opengwasdb/by-label/   generated symlinks
+  store.opengwasdb.partial   transient staged destination
+/data/opengwasdb/stores/by-label/   generated symlinks
 ```
 
 ## `release.yaml`
@@ -107,7 +108,7 @@ post:
   validate: true
 
 artifacts:
-  root: /data/opengwasdb
+  root: /data/opengwasdb/stores
 ```
 
 A Reference-Completed release is the same file with a `complete` block instead of `build`. It carries no parent path: the parent is `release.yaml`'s `derived_from`, and its artifact path is a pure function of that ID.
@@ -199,7 +200,7 @@ Given the `build.yaml` above it returns four `Step`s, each holding an argv plus 
 ```python
 [Step(name="build",    argv=["opengwasdb", "build-dense-vcf",
                              "stores/OGS-00042/analyses.tsv",
-                             "/data/opengwasdb/OGS-00042/store.opengwasdb",
+                             "/data/opengwasdb/stores/OGS-00042/store.opengwasdb",
                              "--store-id", "finngen-r13", "--release-id", "OGS-00042",
                              "--source-reader-capability", "opengwasdb.finngen-r13",
                              "--source-assembly", "hg38",
@@ -259,6 +260,12 @@ pixi run index                         # regenerate stores.tsv, STORES.md, by-la
 ```
 
 All four are targets of the same Snakefile.
+
+> **Production note**: Workflow tests (`tests/workflow/`) are fixture-scale and run
+> in temporary environments. Full production runs (such as building all seven Trial
+> Store Releases via `pixi run release OGS-00001 OGS-00002 OGS-00003 OGS-00004 OGS-00005 OGS-00006 OGS-00007`)
+> require raw source and reference preflight to confirm external data exists before
+> execution, and must not be run until those inputs are verified.
 
 ## The master list
 

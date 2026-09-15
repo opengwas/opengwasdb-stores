@@ -13,4 +13,25 @@ phases with one DAG and Snakemake will correctly, silently, regenerate a
 bundle and rebuild a 71 GB Store because a generator config changed upstream,
 and the acceptance gate stops existing.
 
+## Phase A Operator Interface
+
+Phase A is driven by `workflow/Snakefile`:
+
+```sh
+pixi run release OGS-00042                                 # one release, plus any parent it needs
+pixi run release OGS-00042 OGS-00051                       # several; lineage order is resolved for you
+pixi run release-family finngen-r13                        # every release of one family
+pixi run index                                             # regenerate stores.tsv, STORES.md, by-label/
+```
+
+### Production Execution vs. Fixture-Scale Tests
+
+- **Workflow tests (`tests/workflow/`) are fixture-scale**: they exercise DAG wiring, command line composition, transaction staging (`.partial`), publication gating, and step resumption using temporary mock bundles and mock executables without requiring multi-gigabyte production data or reference panels.
+- **Production builds require source and reference preflight**: before executing a real release pipeline, the operator must verify that all declared raw sources (e.g. GWAS-SSF, VCF, or BESD prefixes) and reference panels (e.g. LD panels, reference allele frequency tables) exist at their configured paths.
+- **The all-seven command**:
+  ```sh
+  pixi run release OGS-00001 OGS-00002 OGS-00003 OGS-00004 OGS-00005 OGS-00006 OGS-00007
+  ```
+  **Must NOT be run until configured inputs exist.** Running this without the required source data and reference resources present will fail at preflight or step execution.
+
 See `docs/spec/store-release-workflow.md`.

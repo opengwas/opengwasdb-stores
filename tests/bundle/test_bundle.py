@@ -145,7 +145,7 @@ class TestBundleAndPaths(unittest.TestCase):
                     "options": {"source-assembly": "hg38"},
                 },
                 "post": {"top_hits": True, "rho": False, "overview": True, "validate": True},
-                "artifacts": {"root": "/data/opengwasdb"},
+                "artifacts": {"root": "/data/opengwasdb/stores"},
             }
             if build_override:
                 for k, v in build_override.items():
@@ -800,12 +800,12 @@ class TestBundleAndPaths(unittest.TestCase):
         # 4. Prove tripwires actively detect and fail on artifact access
         with mock.patch("builtins.open", side_effect=guarded_open):
             with self.assertRaises(AssertionError) as ctx:
-                open("/data/opengwasdb/OGS-00001/store.opengwasdb", "r")
+                open("/data/opengwasdb/stores/OGS-00001/store.opengwasdb", "r")
             self.assertIn("Forbidden artifact path accessed", str(ctx.exception))
 
         with mock.patch.object(Path, "exists", guarded_exists):
             with self.assertRaises(AssertionError) as ctx:
-                Path("/data/opengwasdb/OGS-00001/store.opengwasdb").exists()
+                Path("/data/opengwasdb/stores/OGS-00001/store.opengwasdb").exists()
             self.assertIn("Forbidden artifact path accessed", str(ctx.exception))
 
     # -------------------------------------------------------------------------

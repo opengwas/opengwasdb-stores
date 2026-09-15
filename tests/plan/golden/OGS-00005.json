@@ -5,7 +5,7 @@
       "opengwasdb",
       "build-hybrid",
       "stores/OGS-00005/analyses.tsv",
-      "/data/opengwasdb/OGS-00005/store.opengwasdb",
+      "/data/opengwasdb/stores/OGS-00005/store.opengwasdb",
       "--store-id",
       "gwas-catalog-eur-hybrid",
       "--release-id",
@@ -21,7 +21,7 @@
       "stores/OGS-00005/analyses.tsv"
     ],
     "outputs": [
-      "/data/opengwasdb/OGS-00005/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00005/store.opengwasdb"
     ]
   },
   {
@@ -29,13 +29,13 @@
     "argv": [
       "opengwasdb",
       "regenerate-overview",
-      "/data/opengwasdb/OGS-00005/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00005/store.opengwasdb"
     ],
     "inputs": [
-      "/data/opengwasdb/OGS-00005/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00005/store.opengwasdb"
     ],
     "outputs": [
-      "/data/opengwasdb/OGS-00005/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00005/store.opengwasdb"
     ]
   },
   {
@@ -43,10 +43,10 @@
     "argv": [
       "opengwasdb",
       "validate",
-      "/data/opengwasdb/OGS-00005/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00005/store.opengwasdb"
     ],
     "inputs": [
-      "/data/opengwasdb/OGS-00005/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00005/store.opengwasdb"
     ],
     "outputs": []
   }

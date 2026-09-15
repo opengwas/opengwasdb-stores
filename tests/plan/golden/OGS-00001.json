@@ -4,8 +4,8 @@
     "argv": [
       "opengwasdb",
       "build-ragged-besd",
-      "/data/opengwasdb/OGS-00001/source/pilot-10",
-      "/data/opengwasdb/OGS-00001/store.opengwasdb",
+      "/data/opengwasdb/stores/OGS-00001/source/pilot-10",
+      "/data/opengwasdb/stores/OGS-00001/store.opengwasdb",
       "--store-id",
       "eqtlgen-cis-pilot",
       "--release-id",
@@ -18,13 +18,13 @@
       "whole_blood"
     ],
     "inputs": [
-      "/data/opengwasdb/OGS-00001/source/pilot-10.esi",
-      "/data/opengwasdb/OGS-00001/source/pilot-10.epi",
-      "/data/opengwasdb/OGS-00001/source/pilot-10.besd",
+      "/data/opengwasdb/stores/OGS-00001/source/pilot-10.esi",
+      "/data/opengwasdb/stores/OGS-00001/source/pilot-10.epi",
+      "/data/opengwasdb/stores/OGS-00001/source/pilot-10.besd",
       "stores/OGS-00001/analyses.tsv"
     ],
     "outputs": [
-      "/data/opengwasdb/OGS-00001/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00001/store.opengwasdb"
     ]
   },
   {
@@ -32,13 +32,13 @@
     "argv": [
       "opengwasdb",
       "regenerate-overview",
-      "/data/opengwasdb/OGS-00001/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00001/store.opengwasdb"
     ],
     "inputs": [
-      "/data/opengwasdb/OGS-00001/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00001/store.opengwasdb"
     ],
     "outputs": [
-      "/data/opengwasdb/OGS-00001/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00001/store.opengwasdb"
     ]
   },
   {
@@ -46,10 +46,10 @@
     "argv": [
       "opengwasdb",
       "validate",
-      "/data/opengwasdb/OGS-00001/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00001/store.opengwasdb"
     ],
     "inputs": [
-      "/data/opengwasdb/OGS-00001/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00001/store.opengwasdb"
     ],
     "outputs": []
   }

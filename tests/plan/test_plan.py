@@ -300,7 +300,7 @@ class TestPlanDense(unittest.TestCase):
         steps = plan(bundle_with_rho)
         record_check()
         self.assertEqual([s.name for s in steps], ["build", "top-hits", "rho", "overview", "validate"])
-        store_p = Path("/data/opengwasdb/OGS-00003/store.opengwasdb")
+        store_p = Path("/data/opengwasdb/stores/OGS-00003/store.opengwasdb")
         record_check()
         self.assertEqual(
             steps[2],
@@ -360,7 +360,7 @@ class TestPlanDense(unittest.TestCase):
                 "completion_state": "unknown_state",
                 "build": {"command": "build-dense-vcf"},
                 "post": {},
-                "artifacts": {"root": "/data/opengwasdb"},
+                "artifacts": {"root": "/data/opengwasdb/stores"},
             },
             analyses_path=Path("stores/OGS-00003/analyses.tsv"),
         )
@@ -769,8 +769,8 @@ class TestPlanRagged(unittest.TestCase):
         record_check()
         self.assertEqual(build_step.argv[0], "opengwasdb")
         self.assertEqual(build_step.argv[1], "build-ragged-besd")
-        self.assertEqual(build_step.argv[2], "/data/opengwasdb/OGS-00001/source/pilot-10")
-        self.assertEqual(build_step.argv[3], "/data/opengwasdb/OGS-00001/store.opengwasdb")
+        self.assertEqual(build_step.argv[2], "/data/opengwasdb/stores/OGS-00001/source/pilot-10")
+        self.assertEqual(build_step.argv[3], "/data/opengwasdb/stores/OGS-00001/store.opengwasdb")
         self.assertIn("--store-id", build_step.argv)
         idx_store = build_step.argv.index("--store-id")
         self.assertEqual(build_step.argv[idx_store + 1], "eqtlgen-cis-pilot")
@@ -789,9 +789,9 @@ class TestPlanRagged(unittest.TestCase):
 
         # Explicit sibling inputs + analyses.tsv
         expected_inputs = [
-            Path("/data/opengwasdb/OGS-00001/source/pilot-10.esi"),
-            Path("/data/opengwasdb/OGS-00001/source/pilot-10.epi"),
-            Path("/data/opengwasdb/OGS-00001/source/pilot-10.besd"),
+            Path("/data/opengwasdb/stores/OGS-00001/source/pilot-10.esi"),
+            Path("/data/opengwasdb/stores/OGS-00001/source/pilot-10.epi"),
+            Path("/data/opengwasdb/stores/OGS-00001/source/pilot-10.besd"),
             Path("stores/OGS-00001/analyses.tsv"),
         ]
         self.assertEqual(build_step.inputs, expected_inputs)
@@ -813,17 +813,11 @@ class TestPlanRagged(unittest.TestCase):
         record_check()
         self.assertEqual(planned_source_build, source_snapshot.get("source_genome_build"))
 
-        # 3. Physical test evidence: check pre-migration source file exists as physical evidence
-        # while confirming planned argv uses clean post-migration path /data/opengwasdb/OGS-00001/source/pilot-10
-        pre_migration_epi = Path("/data/opengwasdb/eqtlgen-cis-pilot/releases/pilot-10/source/pilot-10.epi")
-        if not pre_migration_epi.exists():
-            pre_migration_epi = Path("/data/besd/eqtlgen-sparse.epi")
-        record_check()
-        self.assertTrue(pre_migration_epi.exists(), f"Physical test evidence must exist at {pre_migration_epi}")
-
-        # The planned path must NOT echo the pre-migration physical location
-        self.assertEqual(build_step.argv[2], "/data/opengwasdb/OGS-00001/source/pilot-10")
+        # 3. Syntactic prefix and sibling validation (portable CI semantics)
+        self.assertEqual(build_step.argv[2], "/data/opengwasdb/stores/OGS-00001/source/pilot-10")
         self.assertNotIn("eqtlgen-cis-pilot/releases", build_step.argv[2])
+        self.assertIn(Path("/data/opengwasdb/stores/OGS-00001/source/pilot-10.epi"), build_step.inputs)
+        record_check()
 
     def test_ragged_ssf_vs_besd_seam_separation(self) -> None:
         """Regressions separating SSF and BESD ragged observed-only planning semantics."""
@@ -840,13 +834,13 @@ class TestPlanRagged(unittest.TestCase):
         build_ssf = steps_ssf[0]
         record_check()
         self.assertEqual(build_besd.argv[1], "build-ragged-besd")
-        self.assertEqual(build_besd.argv[2], "/data/opengwasdb/OGS-00001/source/pilot-10")
-        self.assertEqual(build_besd.argv[3], "/data/opengwasdb/OGS-00001/store.opengwasdb")
+        self.assertEqual(build_besd.argv[2], "/data/opengwasdb/stores/OGS-00001/source/pilot-10")
+        self.assertEqual(build_besd.argv[3], "/data/opengwasdb/stores/OGS-00001/store.opengwasdb")
 
         self.assertEqual(build_ssf.argv[1], "build-ragged-ssf")
         self.assertEqual(build_ssf.argv[2], "stores/OGS-00006/analyses.tsv")
-        self.assertEqual(build_ssf.argv[3], "/data/opengwasdb/OGS-00006/source")
-        self.assertEqual(build_ssf.argv[4], "/data/opengwasdb/OGS-00006/store.opengwasdb")
+        self.assertEqual(build_ssf.argv[3], "/data/opengwasdb/stores/OGS-00006/source")
+        self.assertEqual(build_ssf.argv[4], "/data/opengwasdb/stores/OGS-00006/store.opengwasdb")
 
         # 3. BESD passes --analyses option for analytical metadata overlay; SSF takes manifest as positional 1
         self.assertIn("--analyses", build_besd.argv)
@@ -857,9 +851,9 @@ class TestPlanRagged(unittest.TestCase):
         self.assertEqual(
             build_besd.inputs,
             [
-                Path("/data/opengwasdb/OGS-00001/source/pilot-10.esi"),
-                Path("/data/opengwasdb/OGS-00001/source/pilot-10.epi"),
-                Path("/data/opengwasdb/OGS-00001/source/pilot-10.besd"),
+                Path("/data/opengwasdb/stores/OGS-00001/source/pilot-10.esi"),
+                Path("/data/opengwasdb/stores/OGS-00001/source/pilot-10.epi"),
+                Path("/data/opengwasdb/stores/OGS-00001/source/pilot-10.besd"),
                 Path("stores/OGS-00001/analyses.tsv"),
             ],
         )
@@ -884,7 +878,7 @@ class TestPlanRagged(unittest.TestCase):
                 "completion_state": "observed_only",
                 "build": {"command": "build-ragged-unknown"},
                 "post": {},
-                "artifacts": {"root": "/data/opengwasdb"},
+                "artifacts": {"root": "/data/opengwasdb/stores"},
             },
             analyses_path=self.bundle_00001.analyses_path,
         )
@@ -1043,7 +1037,7 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                     "completion_state": "reference_completed",
                     "complete": {"command": "complete-ragged"},
                     "post": {},
-                    "artifacts": {"root": "/data/opengwasdb"},
+                    "artifacts": {"root": "/data/opengwasdb/stores"},
                 },
                 analyses_path=Path("stores/OGS-00088/analyses.tsv"),
             )
@@ -1069,7 +1063,7 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                 "completion_state": "reference_completed",
                 "complete": {"command": "complete-ragged"},
                 "post": {},
-                "artifacts": {"root": "/data/opengwasdb"},
+                "artifacts": {"root": "/data/opengwasdb/stores"},
             },
             analyses_path=Path("stores/OGS-00088/analyses.tsv"),
         )
@@ -1104,7 +1098,7 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                     },
                 },
                 "post": {"top_hits": False, "rho": True, "overview": True, "validate": True},
-                "artifacts": {"root": "/data/opengwasdb"},
+                "artifacts": {"root": "/data/opengwasdb/stores"},
             },
             analyses_path=Path("stores/OGS-00030/analyses.tsv"),
         )
@@ -1118,8 +1112,8 @@ class TestPlanReferenceCompleted(unittest.TestCase):
             [
                 "opengwasdb",
                 "complete-dense",
-                "/data/opengwasdb/OGS-00003/store.opengwasdb",
-                "/data/opengwasdb/OGS-00030/store.opengwasdb",
+                "/data/opengwasdb/stores/OGS-00003/store.opengwasdb",
+                "/data/opengwasdb/stores/OGS-00030/store.opengwasdb",
                 "--release-id",
                 "OGS-00030",
                 "--ld-panel",
@@ -1135,10 +1129,10 @@ class TestPlanReferenceCompleted(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            complete_step.inputs, [Path("/data/opengwasdb/OGS-00003/store.opengwasdb")]
+            complete_step.inputs, [Path("/data/opengwasdb/stores/OGS-00003/store.opengwasdb")]
         )
         self.assertEqual(
-            complete_step.outputs, [Path("/data/opengwasdb/OGS-00030/store.opengwasdb")]
+            complete_step.outputs, [Path("/data/opengwasdb/stores/OGS-00030/store.opengwasdb")]
         )
 
         # Validate every planned step argv against real CLI
@@ -1171,7 +1165,7 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                     },
                 },
                 "post": {"top_hits": False, "rho": False, "overview": True, "validate": True},
-                "artifacts": {"root": "/data/opengwasdb"},
+                "artifacts": {"root": "/data/opengwasdb/stores"},
             },
             analyses_path=Path("stores/OGS-00040/analyses.tsv"),
         )
@@ -1185,8 +1179,8 @@ class TestPlanReferenceCompleted(unittest.TestCase):
             [
                 "opengwasdb",
                 "complete-hybrid",
-                "/data/opengwasdb/OGS-00004/store.opengwasdb",
-                "/data/opengwasdb/OGS-00040/store.opengwasdb",
+                "/data/opengwasdb/stores/OGS-00004/store.opengwasdb",
+                "/data/opengwasdb/stores/OGS-00040/store.opengwasdb",
                 "--release-id",
                 "OGS-00040",
                 "--ld-panel",
@@ -1202,10 +1196,10 @@ class TestPlanReferenceCompleted(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            complete_step.inputs, [Path("/data/opengwasdb/OGS-00004/store.opengwasdb")]
+            complete_step.inputs, [Path("/data/opengwasdb/stores/OGS-00004/store.opengwasdb")]
         )
         self.assertEqual(
-            complete_step.outputs, [Path("/data/opengwasdb/OGS-00040/store.opengwasdb")]
+            complete_step.outputs, [Path("/data/opengwasdb/stores/OGS-00040/store.opengwasdb")]
         )
 
         for step in steps:
@@ -1236,7 +1230,7 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                     },
                 },
                 "post": {"top_hits": False, "rho": False, "overview": True, "validate": True},
-                "artifacts": {"root": "/data/opengwasdb"},
+                "artifacts": {"root": "/data/opengwasdb/stores"},
             },
             analyses_path=Path("stores/OGS-00050/analyses.tsv"),
         )
@@ -1250,8 +1244,8 @@ class TestPlanReferenceCompleted(unittest.TestCase):
             [
                 "opengwasdb",
                 "complete-ragged",
-                "/data/opengwasdb/OGS-00006/store.opengwasdb",
-                "/data/opengwasdb/OGS-00050/store.opengwasdb",
+                "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
+                "/data/opengwasdb/stores/OGS-00050/store.opengwasdb",
                 "--release-id",
                 "OGS-00050",
                 "--ld-panel",
@@ -1265,10 +1259,10 @@ class TestPlanReferenceCompleted(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            complete_step.inputs, [Path("/data/opengwasdb/OGS-00006/store.opengwasdb")]
+            complete_step.inputs, [Path("/data/opengwasdb/stores/OGS-00006/store.opengwasdb")]
         )
         self.assertEqual(
-            complete_step.outputs, [Path("/data/opengwasdb/OGS-00050/store.opengwasdb")]
+            complete_step.outputs, [Path("/data/opengwasdb/stores/OGS-00050/store.opengwasdb")]
         )
 
         for step in steps:
@@ -1302,7 +1296,7 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                         "overview": True,
                         "validate": True,
                     },
-                    "artifacts": {"root": "/data/opengwasdb"},
+                    "artifacts": {"root": "/data/opengwasdb/stores"},
                 },
                 analyses_path=Path("stores/OGS-00060/analyses.tsv"),
             )
@@ -1340,7 +1334,7 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                         "overview": True,
                         "validate": True,
                     },
-                    "artifacts": {"root": "/data/opengwasdb"},
+                    "artifacts": {"root": "/data/opengwasdb/stores"},
                 },
                 analyses_path=Path("stores/OGS-00060/analyses.tsv"),
             )
@@ -1427,7 +1421,7 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                     "completion_state": "reference_completed",
                     "complete": {"command": state},
                     "post": {},
-                    "artifacts": {"root": "/data/opengwasdb"},
+                    "artifacts": {"root": "/data/opengwasdb/stores"},
                 },
                 analyses_path=Path("stores/OGS-00060/analyses.tsv"),
             )
@@ -1435,6 +1429,29 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                 plan(bad_bundle)
             record_check()
             self.assertIn("Unsupported", str(ctx.exception))
+
+    def test_plan_passes_when_host_source_paths_absent(self) -> None:
+        """Regression test for CI (PR #121): all 7 bundles plan successfully when host paths are absent."""
+        orig_exists = Path.exists
+
+        def absent_host_exists(self: Path) -> bool:
+            p_str = str(self)
+            if p_str.startswith("/data/besd") or p_str.startswith("/data/opengwasdb"):
+                return False
+            return orig_exists(self)
+
+        with mock.patch.object(Path, "exists", absent_host_exists):
+            # Assert physical path is reported absent under mock
+            self.assertFalse(Path("/data/besd/eqtlgen-sparse.epi").exists())
+            self.assertFalse(Path("/data/opengwasdb/eqtlgen-cis-pilot/releases/pilot-10/source/pilot-10.epi").exists())
+
+            # Verify plan() succeeds for all seven bundles without raising or requiring host existence
+            for i in range(1, 8):
+                sid = f"OGS-{i:05d}"
+                b = load(sid)
+                steps = plan(b)
+                record_check()
+                self.assertGreater(len(steps), 0, f"{sid} produced steps when host paths are absent")
 
 
 def main() -> None:

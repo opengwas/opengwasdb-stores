@@ -115,10 +115,28 @@ resolving a parent Store from `derived_from` needs no registry lookup:
 
 ```text
 <artifact-root>/<store-id>/
-  source/  work/  records/  store.opengwasdb
+  source/                   acquired or filtered source files
+  work/                     checkpoints, scratch, logs
+  records/<step>.json       one per executed step
+  store.opengwasdb          the Store Release
+  store.opengwasdb.partial  transient staged destination
+<artifact-root>/by-label/   generated symlinks
 ```
 
-For this server the artifact root is `/data/opengwasdb`.
+The canonical artifact root is `/data/opengwasdb/stores`, resolving built
+releases to `/data/opengwasdb/stores/<OGS-ID>/store.opengwasdb` with sibling
+`.partial`, `records/`, `logs/`, and artifact-side `by-label/` symlinks under
+`/data/opengwasdb/stores/by-label/`.
+
+## Pipeline Execution and Preflight
+
+- **Workflow tests (`tests/workflow/`) are fixture-scale**: they validate the Snakemake DAG, command-line assembly, staged `.partial` transactions, publication gating, and crash recovery using synthetic test bundles.
+- **Production builds require source/reference preflight**: real releases cannot build without their configured inputs (e.g. GWAS Catalog files, LD reference panels, frequency tables) present on disk.
+- **The all-seven release pipeline command**:
+  ```sh
+  pixi run release OGS-00001 OGS-00002 OGS-00003 OGS-00004 OGS-00005 OGS-00006 OGS-00007
+  ```
+  This command is recorded for production operations but **must not be run** until configured source and reference inputs exist on the host filesystem.
 
 ## Worked example
 

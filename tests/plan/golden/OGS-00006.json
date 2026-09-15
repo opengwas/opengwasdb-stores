@@ -5,8 +5,8 @@
       "opengwasdb",
       "build-ragged-ssf",
       "stores/OGS-00006/analyses.tsv",
-      "/data/opengwasdb/OGS-00006/source",
-      "/data/opengwasdb/OGS-00006/store.opengwasdb",
+      "/data/opengwasdb/stores/OGS-00006/source",
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
       "--store-id",
       "metabolome-plasma-2023",
       "--release-id",
@@ -18,7 +18,7 @@
       "stores/OGS-00006/analyses.tsv"
     ],
     "outputs": [
-      "/data/opengwasdb/OGS-00006/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
     ]
   },
   {
@@ -26,13 +26,13 @@
     "argv": [
       "opengwasdb",
       "build-ragged-top-hits",
-      "/data/opengwasdb/OGS-00006/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
     ],
     "inputs": [
-      "/data/opengwasdb/OGS-00006/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
     ],
     "outputs": [
-      "/data/opengwasdb/OGS-00006/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
     ]
   },
   {
@@ -40,13 +40,13 @@
     "argv": [
       "opengwasdb",
       "regenerate-overview",
-      "/data/opengwasdb/OGS-00006/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
     ],
     "inputs": [
-      "/data/opengwasdb/OGS-00006/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
     ],
     "outputs": [
-      "/data/opengwasdb/OGS-00006/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
     ]
   },
   {
@@ -54,10 +54,10 @@
     "argv": [
       "opengwasdb",
       "validate",
-      "/data/opengwasdb/OGS-00006/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
     ],
     "inputs": [
-      "/data/opengwasdb/OGS-00006/store.opengwasdb"
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
     ],
     "outputs": []
   }
