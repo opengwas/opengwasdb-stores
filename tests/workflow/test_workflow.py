@@ -356,7 +356,48 @@ class TestWorkflowSnakefileStaticProperties(unittest.TestCase):
 
 
 class TestWorkflowEndToEndAndResumption(unittest.TestCase):
-    """End-to-end execution, idempotency, and resumption tests with a fixture-scale Dense store."""
+    """End-to-end execution, idempotency, and resumption over one fixture-scale Dense build.
+
+    The workflow specification budgets *one* fixture-scale end-to-end run
+    ("Fixture-scale end-to-end runs stay, as one smoke test"). That run happens
+    once here, in `setUpClass`, and the tests that need a completed Store copy
+    its result rather than rebuilding. Rebuilding per test cost 68s to assert
+    three different things about the same built Store.
+
+    `test_interrupted_step_resumes_without_restarting` deliberately keeps its
+    own partial build: it needs a Store interrupted mid-way, and deriving that
+    by deleting records from a completed build would not exercise the same state.
+    """
+
+    STORE_ID = "OGS-00099"
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        """Build the one fixture-scale Store this class shares, with a single snakemake target."""
+        cls._class_tmp = tempfile.TemporaryDirectory()
+        root = Path(cls._class_tmp.name)
+        cls.template_stores = root / "stores"
+        cls.template_stores.mkdir()
+        cls.template_artifacts = root / "artifacts"
+        cls.template_artifacts.mkdir()
+
+        create_dense_fixture_store(
+            cls.template_stores,
+            store_id=cls.STORE_ID,
+            artifact_root=cls.template_artifacts,
+            post_top_hits=True,
+            post_overview=True,
+            post_validate=True,
+        )
+        cls.build_result = run_snakemake(
+            [cls.STORE_ID],
+            registry_root=cls.template_stores,
+            artifact_root=cls.template_artifacts,
+        )
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._class_tmp.cleanup()
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -369,30 +410,33 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
-    def test_dense_store_builds_end_to_end_with_one_command(self) -> None:
-        """A fixture Dense store builds and registers end-to-end with a single snakemake target."""
-        store_id = "OGS-00099"
-        create_dense_fixture_store(
-            self.stores_dir,
-            store_id=store_id,
-            artifact_root=self.artifact_root,
-            post_top_hits=True,
-            post_overview=True,
-            post_validate=True,
-        )
+    def use_completed_build(self) -> None:
+        """Copy the class's one completed build into this test's own directories.
 
-        res = run_snakemake(
-            [store_id],
-            registry_root=self.stores_dir,
-            artifact_root=self.artifact_root,
-        )
+        Each test may then mutate records and re-run snakemake freely without
+        disturbing the shared template or another test.
+        """
+        shutil.rmtree(self.stores_dir)
+        shutil.rmtree(self.artifact_root)
+        shutil.copytree(self.template_stores, self.stores_dir)
+        shutil.copytree(self.template_artifacts, self.artifact_root)
+
+    def test_dense_store_builds_end_to_end_with_one_command(self) -> None:
+        """A fixture Dense store builds and registers end-to-end with a single snakemake target.
+
+        This is the specification's one fixture-scale smoke test. The build it
+        asserts on is the class's shared build, performed with exactly one
+        snakemake invocation naming one target.
+        """
+        store_id = self.STORE_ID
+        res = self.build_result
         self.assertEqual(
             res.returncode,
             0,
             f"Snakemake failed (exit {res.returncode}):\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}",
         )
 
-        rec_dir = paths.records_dir(store_id, root=self.artifact_root)
+        rec_dir = paths.records_dir(store_id, root=self.template_artifacts)
         expected_records = ["build.json", "top-hits.json", "overview.json", "validate.json", "register.json"]
         for rec_name in expected_records:
             rec_p = rec_dir / rec_name
@@ -402,8 +446,8 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
             self.assertEqual(data.get("exit_code"), 0)
             self.assertEqual(data.get("store_id"), store_id)
 
-        final_store = paths.store_path(store_id, root=self.artifact_root)
-        partial_store = paths.partial_store_path(store_id, root=self.artifact_root)
+        final_store = paths.store_path(store_id, root=self.template_artifacts)
+        partial_store = paths.partial_store_path(store_id, root=self.template_artifacts)
         self.assertTrue(final_store.is_dir(), f"Published Store not found at {final_store}")
         self.assertFalse(partial_store.exists(), f"Transient partial store still exists at {partial_store}")
 
@@ -412,18 +456,12 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
 
     def test_rerun_after_success_is_idempotent_no_jobs(self) -> None:
         """Re-running snakemake over an already completed release re-runs 0 jobs."""
-        store_id = "OGS-00099"
-        create_dense_fixture_store(
-            self.stores_dir,
-            store_id=store_id,
-            artifact_root=self.artifact_root,
-        )
-
-        res1 = run_snakemake([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
-        self.assertEqual(res1.returncode, 0)
+        store_id = self.STORE_ID
+        self.use_completed_build()
 
         rec_dir = paths.records_dir(store_id, root=self.artifact_root)
         mtimes_before = {p: p.stat().st_mtime_ns for p in rec_dir.glob("*.json")}
+        self.assertTrue(mtimes_before, "copied build produced no records to compare")
 
         res2 = run_snakemake([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
         self.assertEqual(res2.returncode, 0)
@@ -502,15 +540,8 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
 
     def test_deleting_single_record_file_reruns_exact_step_and_downstream(self) -> None:
         """Deleting records/validate.json triggers only validate, register, and store target in dry-run."""
-        store_id = "OGS-00099"
-        create_dense_fixture_store(
-            self.stores_dir,
-            store_id=store_id,
-            artifact_root=self.artifact_root,
-        )
-
-        res1 = run_snakemake([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
-        self.assertEqual(res1.returncode, 0)
+        store_id = self.STORE_ID
+        self.use_completed_build()
 
         rec_dir = paths.records_dir(store_id, root=self.artifact_root)
         (rec_dir / "validate.json").unlink()
@@ -541,8 +572,14 @@ class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
-    def test_several_store_release_ids_in_one_invocation_build_end_to_end(self) -> None:
-        """Several Store Release IDs in one snakemake invocation build all targets to completion."""
+    def test_several_store_release_ids_in_one_invocation_schedule_every_step(self) -> None:
+        """Several Store Release IDs in one snakemake invocation schedule the full chain for each.
+
+        Asserted as a dry run. That one release really builds is the smoke test
+        in `TestWorkflowEndToEndAndResumption`; what is specific to several
+        targets in one invocation is that each gets its own complete step chain
+        scheduled, which the DAG answers without building.
+        """
         s1 = "OGS-00061"
         s2 = "OGS-00062"
         create_dense_fixture_store(self.stores_dir, store_id=s1, artifact_root=self.artifact_root)
@@ -552,19 +589,19 @@ class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):
             [s1, s2],
             registry_root=self.stores_dir,
             artifact_root=self.artifact_root,
+            dry_run=True,
         )
-        self.assertEqual(res.returncode, 0, f"Multi-target run failed:\n{res.stderr}")
+        self.assertEqual(res.returncode, 0, f"Multi-target dry run failed:\n{res.stderr}")
 
-        # Both releases produced complete records and valid stores
-        for sid in [s1, s2]:
-            self.assertTrue(paths.record_path(sid, "register", root=self.artifact_root).is_file())
-            self.assertTrue(paths.store_path(sid, root=self.artifact_root).is_dir())
-            val_res = subprocess.run(
-                ["opengwasdb", "validate", str(paths.store_path(sid, root=self.artifact_root))],
-                capture_output=True,
-                text=True,
+        scheduled = scheduled_targets(res.stdout)
+        for sid in (s1, s2):
+            self.assertIn(sid, scheduled, f"target alias for {sid} was not scheduled")
+        for step in ("build", "register"):
+            self.assertEqual(
+                scheduled.count(step),
+                2,
+                f"expected {step!r} scheduled once per release, got {scheduled.count(step)}: {scheduled}",
             )
-            self.assertEqual(val_res.returncode, 0)
 
     def test_multi_release_invocation_with_cross_store_lineage_ordering(self) -> None:
         """Multi-release invocation requesting child and independent release orders parent first."""
@@ -749,8 +786,12 @@ class TestWorkflowOperatorInterface(unittest.TestCase):
         self.assertIn(s1, res.stdout)
         self.assertIn(s2, res.stdout)
 
-    def test_family_target_builds_every_release_in_family_end_to_end(self) -> None:
-        """Targeting a Store Family physically builds and registers all releases in that family."""
+    def test_family_target_schedules_every_release_in_family(self) -> None:
+        """Targeting a Store Family schedules the full chain for every release in that family.
+
+        Asserted as a dry run, for the same reason as the multi-target case: the
+        family alias's job is to expand to its releases, and expansion is a DAG fact.
+        """
         family_name = "test-exec-fam"
         s1 = "OGS-00073"
         s2 = "OGS-00074"
@@ -761,18 +802,17 @@ class TestWorkflowOperatorInterface(unittest.TestCase):
             [family_name],
             registry_root=self.stores_dir,
             artifact_root=self.artifact_root,
+            dry_run=True,
         )
-        self.assertEqual(res.returncode, 0, f"Family target execution failed:\n{res.stderr}")
+        self.assertEqual(res.returncode, 0, f"Family target dry run failed:\n{res.stderr}")
 
-        for sid in [s1, s2]:
-            self.assertTrue(paths.record_path(sid, "register", root=self.artifact_root).is_file())
-            self.assertTrue(paths.store_path(sid, root=self.artifact_root).is_dir())
-            val_res = subprocess.run(
-                ["opengwasdb", "validate", str(paths.store_path(sid, root=self.artifact_root))],
-                capture_output=True,
-                text=True,
+        scheduled = scheduled_targets(res.stdout)
+        for step in ("build", "register"):
+            self.assertEqual(
+                scheduled.count(step),
+                2,
+                f"expected {step!r} scheduled once per family release, got {scheduled.count(step)}: {scheduled}",
             )
-            self.assertEqual(val_res.returncode, 0)
 
     def test_all_target_resolves_all_discovered_releases(self) -> None:
         """Default target (all) resolves all discovered stores in registry_root."""

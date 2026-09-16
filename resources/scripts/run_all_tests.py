@@ -13,10 +13,12 @@ from the data-intensive LD-panel acquisition/materialization tasks.
 """
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -53,34 +55,82 @@ SUITES: list[tuple[str, str, list[str]]] = [
 ]
 
 
-def run_suite(label: str, kind: str, script: list[str]) -> tuple[bool, float]:
+# Most suites get single-threaded BLAS. A suite that imports numpy, scipy or
+# opengwasdb otherwise spins up a thread pool per process: importing the Analysis
+# model alone measured 0.3s of wall clock against 17s of user time, and with
+# suites running concurrently that contention costs far more than the threads win.
+#
+# The exception is a suite that does real numerical work rather than just
+# importing the libraries. Pinning `workflow`, which builds fixture-scale Stores
+# through opengwasdb for real, took it from 43s to 122s. Measure before adding
+# to this set: for every other suite here, pinning is free.
+THREADED_SUITES: frozenset[str] = frozenset({"workflow"})
+
+# Rough per-suite cost in seconds, used only to schedule the long suites first
+# so they overlap with the short ones instead of starting last and running alone.
+# Wrong values cost a little wall clock, never correctness; unlisted suites are
+# assumed short.
+SUITE_COST: dict[str, float] = {
+    "workflow": 45.0,
+    "qc-panel-retention": 6.0,
+    "effect-scale-validation (R)": 6.0,
+    "run": 5.0,
+    "materialise-gwas-ssf-ragged": 4.0,
+    "schema-validation": 4.0,
+    "no-cis-region-policy": 3.5,
+    "plan": 2.5,
+    "opengwas-gwas-vcf-dense": 2.5,
+    "finngen-r13-pilot": 2.5,
+    "ld-panel-eigendecomposition": 2.0,
+}
+
+THREAD_ENV: dict[str, str] = {
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1",
+    "VECLIB_MAXIMUM_THREADS": "1",
+}
+
+DEFAULT_JOBS: int = min(8, os.cpu_count() or 1)
+
+
+def run_suite(label: str, kind: str, script: list[str]) -> tuple[bool, float, str]:
+    """Run one suite to completion, returning its verdict, elapsed time and output.
+
+    Output is captured rather than streamed because suites run concurrently and
+    interleaved output is unreadable. It is printed for failures only.
+    """
     if kind == "python":
         cmd = [sys.executable, *script]
     elif kind == "r":
         rscript = shutil.which("Rscript")
         if rscript is None:
-            print(f"==> {label}: SKIPPED (Rscript not found on PATH)")
-            return False, 0.0
+            return False, 0.0, f"{label}: SKIPPED (Rscript not found on PATH)"
         cmd = [rscript, *script]
     else:
         raise ValueError(f"unknown suite kind: {kind}")
 
-    print(f"==> {label}  ({' '.join(cmd)})")
+    env = dict(os.environ) if label in THREADED_SUITES else {**os.environ, **THREAD_ENV}
     start = time.monotonic()
-    result = subprocess.run(cmd, cwd=REPO_ROOT)
+    result = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True, env=env)
     elapsed = time.monotonic() - start
-    status = "PASS" if result.returncode == 0 else "FAIL"
-    print(f"<== {label}: {status} ({elapsed:.1f}s)\n")
-    return result.returncode == 0, elapsed
+    return result.returncode == 0, elapsed, result.stdout + result.stderr
 
 
 def main() -> int:
-    only = None
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "--only" and len(sys.argv) > 2:
-            only = sys.argv[2]
+    only: str | None = None
+    jobs: int = DEFAULT_JOBS
+
+    args = sys.argv[1:]
+    while args:
+        flag = args.pop(0)
+        if flag == "--only" and args:
+            only = args.pop(0)
+        elif flag == "--jobs" and args:
+            jobs = max(1, int(args.pop(0)))
         else:
-            print(f"usage: {sys.argv[0]} [--only python|r]", file=sys.stderr)
+            print(f"usage: {sys.argv[0]} [--only python|r] [--jobs N]", file=sys.stderr)
             return 2
 
     suites = [s for s in SUITES if only is None or s[1] == only]
@@ -88,15 +138,62 @@ def main() -> int:
         print(f"no suites match --only {only}", file=sys.stderr)
         return 2
 
-    results = [(label, *run_suite(label, kind, script)) for label, kind, script in suites]
+    # Suites are independent processes over their own fixtures, so they run
+    # concurrently. Wall clock is then bounded by the slowest single suite
+    # rather than by their sum.
+    # Two groups, because they want opposite things from the machine. The many
+    # short suites are mostly process startup, so they run concurrently. A
+    # threaded suite does real numerical work and wants every core: running
+    # `workflow` alongside seven others took it from 43s to 145s, which is
+    # slower than simply giving it the machine to itself.
+    shared = [s for s in suites if s[0] not in THREADED_SUITES]
+    exclusive = [s for s in suites if s[0] in THREADED_SUITES]
 
-    total_time = sum(elapsed for _, _, elapsed in results)
-    failed = [label for label, ok, _ in results if not ok]
+    results: list[tuple[str, bool, float, str]] = []
+
+    def record(label: str, outcome: tuple[bool, float, str]) -> None:
+        ok, elapsed, output = outcome
+        print(f"  {'PASS' if ok else 'FAIL':4s}  {label}  ({elapsed:.1f}s)", flush=True)
+        results.append((label, ok, elapsed, output))
+
+    started = time.monotonic()
+
+    if shared:
+        print(f"running {len(shared)} suites, {jobs} at a time\n")
+        # Longest first, so a slow suite overlaps with the short ones rather
+        # than starting last and running alone.
+        order = sorted(shared, key=lambda s: -SUITE_COST.get(s[0], 1.0))
+        with ThreadPoolExecutor(max_workers=jobs) as pool:
+            futures = {
+                pool.submit(run_suite, label, kind, script): label
+                for label, kind, script in order
+            }
+            for future in as_completed(futures):
+                record(futures[future], future.result())
+
+    for label, kind, script in exclusive:
+        print(f"\nrunning {label} with the machine to itself\n")
+        record(label, run_suite(label, kind, script))
+
+    wall = time.monotonic() - started
+
+    order = {label: n for n, (label, _, _) in enumerate(suites)}
+    results.sort(key=lambda r: order[r[0]])
+    failed = [(label, output) for label, ok, _, output in results if not ok]
+
+    for label, output in failed:
+        print("=" * 60)
+        print(f"FAILED: {label}")
+        print(output.rstrip())
 
     print("=" * 60)
-    for label, ok, elapsed in results:
+    for label, ok, elapsed, _ in results:
         print(f"  {'PASS' if ok else 'FAIL':4s}  {label}  ({elapsed:.1f}s)")
-    print(f"{len(results) - len(failed)}/{len(results)} suites passed in {total_time:.1f}s")
+    serial = sum(elapsed for _, _, elapsed, _ in results)
+    print(
+        f"{len(results) - len(failed)}/{len(results)} suites passed "
+        f"in {wall:.1f}s wall ({serial:.1f}s serial)"
+    )
 
     return 1 if failed else 0
 
