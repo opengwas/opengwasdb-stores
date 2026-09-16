@@ -22,9 +22,15 @@ Staged release transaction lifecycle (ADR 0022, ADR 0023):
   Store and `validation.yaml` completely untouched without needing whole-Store copying.
   A failed new release leaves no final Store.
 * Process group isolation: Commands launch in an isolated session/group
-  (`start_new_session=True`). On timeout, SIGINT, or nonzero exit, the process group PGID
-  is terminated and reaped to prevent orphaned workers from continuing to write
-  (external cgroups/containers required if processes escape via setsid).
+  (`start_new_session=True`) led by a small supervisor (`ogstores._pdeath_supervisor`).
+  On timeout, SIGINT, or nonzero exit, the process group PGID is terminated and
+  reaped to prevent orphaned workers from continuing to write; SIGTERM is followed
+  by a grace window before SIGKILL, and the supervisor absorbs the group's SIGTERM
+  rather than escalating so this module's sequence stays authoritative. The
+  supervisor also holds the read end of a parent-liveness pipe whose write end only
+  this process holds, so an abrupt death of this process (SIGKILL included) makes the
+  supervisor SIGKILL the detached group instead of leaving it running (external
+  cgroups/containers are still required if processes escape the group via setsid).
 * Step.name security: Step names are validated against an allowlist and strictly
   reject path separators ('/', '\\') or '..' traversal.
 * Preflight failure records: Safely representable errors during preflight write a failed
@@ -35,7 +41,7 @@ Staged release transaction lifecycle (ADR 0022, ADR 0023):
 
 It does not read a step's output back, interpret it, or re-validate it (ADR 0023).
 
-See docs/spec/store-release-workflow.md and ADRs 0022, 0023.
+See docs/spec/store-release-workflow.md and ADRs 0022, 0023, 0026.
 """
 
 from __future__ import annotations
@@ -49,6 +55,7 @@ import shutil
 import signal
 import stat
 import subprocess
+import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -71,6 +78,16 @@ VALID_STEP_NAMES: frozenset[str] = frozenset({
 })
 UNAVAILABLE: str = "unavailable"
 _HEX_40_OR_64: re.Pattern[str] = re.compile(r"\A(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})\Z")
+
+# Bootstrap for the isolated-group supervisor (ogstores._pdeath_supervisor).
+# argv layout after the code string: <src-dir> <liveness-fd> <exec-status-fd> <command...>.
+_SUPERVISOR_BOOTSTRAP: str = (
+    "import sys; "
+    "src, liveness_fd, exec_status_fd, *cmd = sys.argv[1:]; "
+    "sys.path.insert(0, src); "
+    "from ogstores._pdeath_supervisor import main; "
+    "raise SystemExit(main(cmd, int(liveness_fd), int(exec_status_fd)))"
+)
 
 
 class StoreExistsError(FileExistsError):
@@ -552,6 +569,52 @@ def publish_store(
     return target_p
 
 
+def _read_exec_status(fd: int) -> str:
+    """Read the supervisor's one-shot exec-status pipe to EOF.
+
+    Empty means the command was executed (the supervisor closes the pipe
+    without writing). A decimal errno means `subprocess.Popen` failed inside
+    the supervisor; the caller turns it back into the exception type the old
+    direct `Popen` would have raised.
+    """
+    chunks: list[bytes] = []
+    while True:
+        try:
+            chunk = os.read(fd, 64)
+        except OSError:
+            break
+        if not chunk:
+            break
+        chunks.append(chunk)
+    return b"".join(chunks).decode("ascii", "replace").strip()
+
+
+def _supervised_command(
+    executed_argv: list[str],
+    liveness_fd: int,
+    exec_status_fd: int,
+) -> list[str]:
+    """Return the argv that runs `executed_argv` under the isolated-group supervisor.
+
+    The supervisor is started with `start_new_session=True`, so it leads the
+    session/group, and it holds the read end of the parent-liveness pipe. If this
+    process dies abruptly, the write end closes and the supervisor SIGKILLs the
+    detached build group instead of leaving it running. It also holds the write
+    end of a one-shot exec-status pipe, so a failed exec is reported back with
+    its errno. See `ogstores._pdeath_supervisor`.
+    """
+    src_dir = str(Path(__file__).resolve().parent.parent)
+    return [
+        sys.executable,
+        "-c",
+        _SUPERVISOR_BOOTSTRAP,
+        src_dir,
+        str(liveness_fd),
+        str(exec_status_fd),
+        *executed_argv,
+    ]
+
+
 def execute_step(
     step: Step,
     store_id: str | None = None,
@@ -726,19 +789,40 @@ def execute_step(
     exit_code = 0
     interrupted = False
     proc_error: BaseException | None = None
+    exec_status_text = ""
     proc: subprocess.Popen[str] | None = None
     pgid: int | None = None
+    liveness_read: int | None = None
+    liveness_write: int | None = None
+    exec_status_read: int | None = None
+    exec_status_write: int | None = None
 
     try:
+        # The build runs under a supervisor that leads the isolated session and
+        # holds the read end of a parent-liveness pipe. The write end stays
+        # private to this process (non-inheritable), so an abrupt death of this
+        # process -- SIGKILL included -- closes it and the supervisor tears the
+        # detached group down before a retry can collide with it. A second pipe
+        # reports a failed exec (missing / non-executable command) back with its
+        # errno, so the exception type and record stay unchanged.
+        liveness_read, liveness_write = os.pipe()
+        exec_status_read, exec_status_write = os.pipe()
+        spawn_argv = _supervised_command(executed_argv, liveness_read, exec_status_write)
+
         proc = subprocess.Popen(
-            executed_argv,
+            spawn_argv,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             env=dict(env) if env is not None else None,
             cwd=str(cwd) if cwd is not None else None,
-            start_new_session=True,  # Isolate in new process group
+            start_new_session=True,  # Supervisor (and its build) lead a new process group
+            pass_fds=(liveness_read, exec_status_write),
         )
+        os.close(liveness_read)
+        liveness_read = None
+        os.close(exec_status_write)
+        exec_status_write = None
         pgid = os.getpgid(proc.pid)
         stdout_captured, stderr_captured = proc.communicate(timeout=timeout)
         exit_code = proc.returncode
@@ -776,9 +860,48 @@ def execute_step(
         stderr_captured = (stderr_captured or "") + f"\n{exc}"
         proc_error = exc
     finally:
+        # Drop our own copy of the exec-status write end first: if Popen itself
+        # raised, this process still holds it and reading the status pipe would
+        # otherwise block forever waiting for an EOF the supervisor never sends.
+        if exec_status_write is not None:
+            try:
+                os.close(exec_status_write)
+            except OSError:
+                pass
+            exec_status_write = None
+        # A written errno means the supervisor could not exec the real command.
+        # Empty (EOF) means it did, or was itself terminated first.
+        if exec_status_read is not None:
+            exec_status_text = _read_exec_status(exec_status_read)
+        # Closing the liveness write end lets the supervisor observe this
+        # process's exit; by here the build has already been reaped or terminated.
+        for fd in (exec_status_read, liveness_read, liveness_write):
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
         elapsed_seconds = round(time.monotonic() - t0, 3)
         end_dt = datetime.datetime.now(datetime.timezone.utc)
         end_time_iso = end_dt.isoformat().replace("+00:00", "Z")
+
+    # A failed exec inside the supervisor is reported by errno. Rebuild the
+    # exception the old direct Popen raised, so its class, exit code, stderr,
+    # and the resulting MissingCommandError / StepExecutionError are unchanged.
+    if exec_status_text and executed_argv:
+        try:
+            exec_err_no = int(exec_status_text)
+        except ValueError:
+            exec_err_no = 0
+        if exec_err_no:
+            exec_error = OSError(exec_err_no, os.strerror(exec_err_no), executed_argv[0])
+            proc_error = exec_error
+            if isinstance(exec_error, FileNotFoundError):
+                exit_code = 127
+                stderr_captured = f"Command not found: {executed_argv[0]} ({exec_error})"
+            else:
+                exit_code = 1
+                stderr_captured = (stderr_captured or "") + f"\n{exec_error}"
 
     success = (exit_code == 0 and not interrupted and proc_error is None)
     published_store_str: str | None = None

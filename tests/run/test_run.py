@@ -25,8 +25,14 @@ Covers:
      - Strictly rejects path separators ('/', '\\'), '..', and arbitrary names.
      - Writes preflight failure record to records/unknown.json on invalid step name.
   5. Process group isolation & failure cleanup:
-     - Commands launch in their own process session/group (start_new_session=True).
-     - On timeout, SIGINT, or nonzero exit code, terminates and kills the entire process group (leader-fails/child-survives test).
+     - Commands launch in their own process session/group (start_new_session=True), led by a supervisor.
+     - On timeout, SIGINT, or nonzero exit code, SIGTERM the group, wait out a grace window, then SIGKILL it.
+     - The supervisor absorbs SIGTERM so a command's own SIGTERM handler can finish during that grace window.
+     - Abrupt orchestrator death (SIGKILL) tears down the detached group via the supervisor's liveness pipe.
+     - The supervisor only signals a group it leads, and mirrors signal-death exit status (including -9).
+  5b. Command exec classification:
+     - A failed exec inside the supervisor is reported back by errno: ENOENT -> exit 127 / MissingCommandError,
+       EACCES / EISDIR -> exit 1 / StepExecutionError, exactly as the old direct Popen produced.
   6. Force timing:
      - Staging in .partial is allowed beside an existing final Store without force.
      - force=True is required only at terminal publication when replacing an existing final Store.
@@ -57,6 +63,7 @@ import os
 import shutil
 import signal
 import stat
+import subprocess
 import sys
 import tempfile
 import time
@@ -68,7 +75,7 @@ from unittest.mock import patch
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from ogstores import bundle, paths, plan, run
+from ogstores import _pdeath_supervisor, bundle, paths, plan, run
 from ogstores.bundle import Bundle
 from ogstores.plan import Step
 from ogstores.run import (
@@ -97,6 +104,28 @@ n_checks = 0
 def record_check() -> None:
     global n_checks
     n_checks += 1
+
+
+def proc_state(pid: int) -> str | None:
+    """Return the Linux /proc state letter for `pid`, or None if it is gone.
+
+    A zombie ('Z') is treated as gone: it can no longer write, so an orphan that
+    has already exited is not a live build.
+    """
+    try:
+        stat_text = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+    except (FileNotFoundError, ProcessLookupError, PermissionError, OSError):
+        return None
+    rparen = stat_text.rfind(")")
+    if rparen == -1 or rparen + 2 >= len(stat_text):
+        return None
+    return stat_text[rparen + 2]
+
+
+def pid_is_live(pid: int) -> bool:
+    """Return True only while `pid` is a running (not zombie/exit) process."""
+    state = proc_state(pid)
+    return state is not None and state not in ("Z", "X", "x")
 
 
 class TestStepClassificationAndArgvRewrite(unittest.TestCase):
@@ -612,6 +641,433 @@ while True:
         self.assertLess(elapsed, 10.0)
         record_check()
 
+    def test_signal_death_status_is_mirrored_not_masked(self) -> None:
+        """A command killed by a signal is still recorded with a negative exit code."""
+        mock_signal_script = self.root / "mock_signal.py"
+        mock_signal_script.write_text("""
+import os
+import signal
+
+os.kill(os.getpid(), signal.SIGTERM)
+""")
+
+        target_store = paths.store_path(self.store_id, root=self.root)
+        step = Step(
+            name="build",
+            argv=[sys.executable, str(mock_signal_script), str(target_store)],
+            inputs=[],
+            outputs=[target_store],
+        )
+
+        with self.assertRaises(StepExecutionError) as cm:
+            execute_step(step, store_id=self.store_id, artifact_root=self.root, check=True)
+        record_check()
+
+        err_res = cm.exception.result
+        self.assertEqual(err_res.exit_code, -signal.SIGTERM)
+        record_check()
+        self.assertFalse(err_res.success)
+        record_check()
+
+    def test_supervisor_spawn_failure_does_not_hang(self) -> None:
+        """A missing supervisor interpreter fails fast instead of blocking on the status pipe."""
+        target_store = paths.store_path(self.store_id, root=self.root)
+        step = Step(
+            name="validate",
+            argv=[sys.executable, "-c", "pass", str(target_store)],
+            inputs=[target_store],
+            outputs=[],
+        )
+
+        t0 = time.monotonic()
+        with patch.object(run.sys, "executable", "/no/such/python-interpreter"):
+            with self.assertRaises(MissingCommandError) as cm:
+                execute_step(step, store_id=self.store_id, artifact_root=self.root, check=True)
+        record_check()
+
+        self.assertLess(time.monotonic() - t0, 5.0)
+        record_check()
+        self.assertEqual(cm.exception.result.exit_code, 127)
+        record_check()
+
+    def test_sigterm_grace_completes_before_sigkill(self) -> None:
+        """The SIGTERM -> grace -> SIGKILL sequence lets a handler finish first.
+
+        This drives the same ``run._terminate_process_group`` the timeout and
+        KeyboardInterrupt paths call. An explicit readiness handshake removes
+        interpreter-startup timing from the test: the mock installs its SIGTERM
+        handler and only then publishes its pgid, and the test does not start
+        the termination sequence until it can see that readiness.
+        """
+        marker = self.root / "grace_marker.txt"
+        ready = self.root / "grace_ready.txt"
+        mock_grace_script = self.root / "mock_grace.py"
+        mock_grace_script.write_text(f'''
+import os
+import signal
+import sys
+import time
+from pathlib import Path
+
+marker = Path({str(marker)!r})
+ready = Path({str(ready)!r})
+
+def on_term(signum, frame):
+    time.sleep(0.4)
+    marker.write_text("handler ran")
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, on_term)
+ready.write_text(f"{{os.getpid()}} {{os.getpgid(0)}}")
+while True:
+    time.sleep(0.05)
+''')
+
+        liveness_read, liveness_write = os.pipe()
+        status_read, status_write = os.pipe()
+        supervisor_argv = [
+            sys.executable,
+            "-c",
+            run._SUPERVISOR_BOOTSTRAP,
+            str(REPO_ROOT / "src"),
+            str(liveness_read),
+            str(status_write),
+            sys.executable,
+            str(mock_grace_script),
+            str(marker),
+            str(ready),
+        ]
+        proc = subprocess.Popen(
+            supervisor_argv,
+            start_new_session=True,
+            pass_fds=(liveness_read, status_write),
+        )
+        os.close(liveness_read)
+        os.close(status_write)
+        try:
+            deadline = time.monotonic() + 10.0
+            while time.monotonic() < deadline and not ready.is_file():
+                time.sleep(0.02)
+            self.assertTrue(
+                ready.is_file(),
+                "mock never signalled that its SIGTERM handler was installed",
+            )
+            record_check()
+            # start_new_session makes the supervisor the leader of the group it
+            # was told to tear down.
+            self.assertEqual(int(ready.read_text().split()[1]), proc.pid)
+            record_check()
+
+            t0 = time.monotonic()
+            run._terminate_process_group(proc.pid, proc, timeout=2.0)
+            elapsed = time.monotonic() - t0
+
+            self.assertTrue(
+                marker.is_file(),
+                "SIGTERM handler was preempted; grace window did not complete before SIGKILL",
+            )
+            record_check()
+            self.assertEqual(marker.read_text(), "handler ran")
+            record_check()
+            # The command handled SIGTERM and exited 0; an immediate SIGKILL
+            # would have killed the supervisor itself and left -9 here.
+            self.assertEqual(proc.returncode, 0)
+            record_check()
+            self.assertLess(elapsed, 2.0)
+            record_check()
+        finally:
+            os.close(liveness_write)
+            os.close(status_read)
+            if proc.poll() is None:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except OSError:
+                    pass
+                proc.wait(timeout=10.0)
+
+    @unittest.skipUnless(
+        sys.platform.startswith("linux") and Path("/proc").is_dir(),
+        "requires Linux /proc process state to observe liveness",
+    )
+    def test_abrupt_parent_death_reaps_detached_build_group(self) -> None:
+        """SIGKILLing the orchestrator must not leave its detached build group alive.
+
+        Reproduces the Snakemake-rule failure directly: the runner launches
+        ``opengwasdb`` with ``start_new_session=True``, so if the orchestrator is
+        killed abruptly (no exception handler runs) its forked workers keep
+        writing to ``store.opengwasdb.partial`` and the next attempt collides
+        with them. The build here is a stand-in that forks one worker, exactly
+        as ``opengwasdb``'s ``ProcessPoolExecutor`` workers do, and then sleeps.
+        """
+        mock_build = self.root / "mock_long_build.py"
+        mock_build.write_text('''
+import os
+import sys
+import time
+from pathlib import Path
+
+target = Path(sys.argv[1])
+info = Path(sys.argv[2])
+target.mkdir(parents=True, exist_ok=True)
+(target / "building.dat").write_text("building")
+
+worker = os.fork()
+if worker == 0:
+    with open(info, "a") as handle:
+        handle.write(f"worker {os.getpid()} {os.getpgid(0)}\\n")
+    while True:
+        time.sleep(0.1)
+
+with open(info, "a") as handle:
+    handle.write(f"leader {os.getpid()} {os.getpgid(0)}\\n")
+while True:
+    time.sleep(0.1)
+''')
+
+        driver = self.root / "orphan_driver.py"
+        driver.write_text('''
+import sys
+from pathlib import Path
+
+repo, root, store_id, mock, info = sys.argv[1:6]
+sys.path.insert(0, str(Path(repo) / "src"))
+
+from ogstores import paths
+from ogstores.plan import Step
+from ogstores.run import execute_step
+
+target = paths.store_path(store_id, root=root)
+step = Step(
+    name="build",
+    argv=[sys.executable, mock, str(target), info],
+    inputs=[],
+    outputs=[target],
+)
+execute_step(step, store_id=store_id, artifact_root=root, check=False)
+''')
+
+        info = self.root / "build_pids.txt"
+        log_path = self.root / "orphan_driver.log"
+        leader: int | None = None
+        worker: int | None = None
+        with open(log_path, "w", encoding="utf-8") as log_file:
+            driver_proc = subprocess.Popen(
+                [sys.executable, str(driver), str(REPO_ROOT), str(self.root), self.store_id, str(mock_build), str(info)],
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            try:
+                # Wait, bounded, for the detached build group to come up.
+                deadline = time.monotonic() + 10.0
+                while time.monotonic() < deadline:
+                    if info.is_file():
+                        for line in info.read_text(encoding="utf-8").splitlines():
+                            fields = line.split()
+                            if len(fields) == 3 and fields[0] == "leader":
+                                leader = int(fields[1])
+                            elif len(fields) == 3 and fields[0] == "worker":
+                                worker = int(fields[1])
+                    if leader is not None and worker is not None:
+                        break
+                    time.sleep(0.05)
+
+                self.assertIsNotNone(
+                    leader,
+                    f"build leader never started; driver log:\n{log_path.read_text(encoding='utf-8')}",
+                )
+                record_check()
+                self.assertIsNotNone(
+                    worker,
+                    f"build worker never started; driver log:\n{log_path.read_text(encoding='utf-8')}",
+                )
+                record_check()
+
+                # Abrupt death: no Python handler in the orchestrator gets to run.
+                driver_proc.send_signal(signal.SIGKILL)
+                driver_proc.wait(timeout=10.0)
+
+                deadline = time.monotonic() + 5.0
+                while time.monotonic() < deadline and (pid_is_live(leader) or pid_is_live(worker)):
+                    time.sleep(0.05)
+
+                self.assertFalse(
+                    pid_is_live(leader),
+                    f"detached build leader {leader} survived abrupt orchestrator death",
+                )
+                record_check()
+                self.assertFalse(
+                    pid_is_live(worker),
+                    f"detached build worker {worker} survived abrupt orchestrator death",
+                )
+                record_check()
+            finally:
+                for pid in (leader, worker):
+                    if pid is not None:
+                        try:
+                            os.kill(pid, signal.SIGKILL)
+                        except (ProcessLookupError, OSError):
+                            pass
+                if driver_proc.poll() is None:
+                    driver_proc.kill()
+                    driver_proc.wait(timeout=10.0)
+
+
+class TestSupervisorGroupGuard(unittest.TestCase):
+    """The supervisor only signals a group it leads, and mirrors signal death faithfully."""
+
+    def test_refuses_to_signal_group_it_does_not_lead(self) -> None:
+        with patch("os.getpgid", return_value=os.getpid() + 1), patch("os.killpg") as mock_killpg:
+            _pdeath_supervisor._kill_own_group()
+        mock_killpg.assert_not_called()
+        record_check()
+
+    def test_signals_exactly_the_group_it_leads(self) -> None:
+        with patch("os.getpgid", return_value=os.getpid()), patch("os.killpg") as mock_killpg:
+            _pdeath_supervisor._kill_own_group()
+        mock_killpg.assert_called_once_with(os.getpid(), signal.SIGKILL)
+        record_check()
+
+    def test_group_lookup_failure_does_not_signal(self) -> None:
+        with patch("os.getpgid", side_effect=OSError("no such group")), patch("os.killpg") as mock_killpg:
+            _pdeath_supervisor._kill_own_group()
+        mock_killpg.assert_not_called()
+        record_check()
+
+    def test_supervisor_mirrors_sigkill_death_as_minus_nine(self) -> None:
+        """An uncatchable SIGKILL still reaches the orchestrator as Popen.returncode -9."""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        mock_long = Path(tmp.name) / "mock_long.py"
+        mock_long.write_text("import os, time\nprint(os.getpid(), flush=True)\nwhile True:\n    time.sleep(0.1)\n")
+
+        liveness_read, liveness_write = os.pipe()
+        status_read, status_write = os.pipe()
+        supervisor_argv = [
+            sys.executable,
+            "-c",
+            run._SUPERVISOR_BOOTSTRAP,
+            str(REPO_ROOT / "src"),
+            str(liveness_read),
+            str(status_write),
+            sys.executable,
+            str(mock_long),
+        ]
+        proc = subprocess.Popen(
+            supervisor_argv,
+            stdout=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
+            pass_fds=(liveness_read, status_write),
+        )
+        os.close(liveness_read)
+        os.close(status_write)
+        try:
+            assert proc.stdout is not None
+            command_pid = int(proc.stdout.readline())
+            os.kill(command_pid, signal.SIGKILL)
+            proc.wait(timeout=10.0)
+            self.assertEqual(proc.returncode, -signal.SIGKILL)
+            record_check()
+        finally:
+            os.close(liveness_write)
+            os.close(status_read)
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=10.0)
+
+
+class TestCommandExecClassification(unittest.TestCase):
+    """A supervisor-hidden exec failure keeps the old exception class and exit code."""
+
+    def setUp(self) -> None:
+        self.test_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.test_dir.name)
+        self.store_id = "OGS-00042"
+
+    def tearDown(self) -> None:
+        self.test_dir.cleanup()
+
+    def test_missing_command_raises_missing_command_error(self) -> None:
+        target_store = paths.store_path(self.store_id, root=self.root)
+        step = Step(
+            name="build",
+            argv=["/no/such/dir/opengwasdb", "build", str(target_store)],
+            inputs=[],
+            outputs=[target_store],
+        )
+
+        with self.assertRaises(MissingCommandError) as cm:
+            execute_step(step, store_id=self.store_id, artifact_root=self.root, check=True)
+        record_check()
+
+        res = cm.exception.result
+        self.assertEqual(res.exit_code, 127)
+        record_check()
+        self.assertIn("Command not found", res.stderr)
+        record_check()
+
+        record_data = load_record(self.store_id, "build", root=self.root)
+        self.assertIsNotNone(record_data)
+        record_check()
+        assert record_data is not None
+        self.assertEqual(record_data["exit_code"], 127)
+        record_check()
+        self.assertFalse(record_data["success"])
+        record_check()
+
+    def test_non_executable_command_is_not_reported_as_missing(self) -> None:
+        """EACCES keeps the old exit 1 / StepExecutionError, not missing / 127."""
+        not_executable = self.root / "not_executable.py"
+        not_executable.write_text("print('must not run')\n", encoding="utf-8")
+        not_executable.chmod(0o644)
+
+        target_store = paths.store_path(self.store_id, root=self.root)
+        step = Step(
+            name="build",
+            argv=[str(not_executable), str(target_store)],
+            inputs=[],
+            outputs=[target_store],
+        )
+
+        with self.assertRaises(StepExecutionError) as cm:
+            execute_step(step, store_id=self.store_id, artifact_root=self.root, check=True)
+        record_check()
+
+        self.assertNotIsInstance(cm.exception, MissingCommandError)
+        record_check()
+        self.assertEqual(cm.exception.result.exit_code, 1)
+        record_check()
+
+        record_data = load_record(self.store_id, "build", root=self.root)
+        self.assertIsNotNone(record_data)
+        record_check()
+        assert record_data is not None
+        self.assertEqual(record_data["exit_code"], 1)
+        record_check()
+
+    def test_directory_command_is_not_reported_as_missing(self) -> None:
+        """A directory argv[0] keeps the old exit 1 / StepExecutionError."""
+        a_directory = self.root / "a_directory"
+        a_directory.mkdir()
+
+        target_store = paths.store_path(self.store_id, root=self.root)
+        step = Step(
+            name="build",
+            argv=[str(a_directory), str(target_store)],
+            inputs=[],
+            outputs=[target_store],
+        )
+
+        with self.assertRaises(StepExecutionError) as cm:
+            execute_step(step, store_id=self.store_id, artifact_root=self.root, check=True)
+        record_check()
+
+        self.assertNotIsInstance(cm.exception, MissingCommandError)
+        record_check()
+        self.assertEqual(cm.exception.result.exit_code, 1)
+        record_check()
+
 
 class TestPublicationRollbackAndCrashRecovery(unittest.TestCase):
     """Test publication rollback, crash recovery, and backup cleanup resilience."""
@@ -936,6 +1392,8 @@ def main() -> None:
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestStepClassificationAndArgvRewrite))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestStagedReleaseTransactionAndPublicationGating))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestProcessGroupAndDescendantIsolation))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestSupervisorGroupGuard))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestCommandExecClassification))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPublicationRollbackAndCrashRecovery))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestProvenanceAndSequentialPlan))
     runner = unittest.TextTestRunner(verbosity=2)
