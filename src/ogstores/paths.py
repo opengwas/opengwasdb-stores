@@ -9,10 +9,17 @@ with no registry lookup.
     <artifact-root>/OGS-00042/
         source/                 acquired or filtered source files
         work/                   checkpoints, scratch
+        work/analyses.tsv       derived build manifest: the bundle's analyses.tsv
+                                with `exclude_from_build` rows removed
+        work/analyses.exclusions.json   audit sidecar naming the dropped rows
         records/<step>.json     one per executed step
         store.opengwasdb        the Store Release
         store.opengwasdb.partial    transient; renamed into place on success
     <artifact-root>/by-label/   generated symlinks
+
+The build manifest is derived, not authored: `manifest.py` materialises it and
+`plan()` points every build-phase command at it, so the builder never sees an
+excluded audit row (ADR 0025).
 
 See docs/spec/store-release-workflow.md and ADR 0022.
 """
@@ -60,6 +67,22 @@ def work_dir(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
     return store_dir(store_id, root=root) / "work"
 
 
+def build_manifest_path(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
+    """Derived build manifest: `<root>/<store_id>/work/analyses.tsv`.
+
+    The bundle's `analyses.tsv` filtered of `exclude_from_build` rows. Every
+    build-phase command consumes this path, never the bundle row (ADR 0025).
+    """
+    return work_dir(store_id, root=root) / "analyses.tsv"
+
+
+def build_manifest_sidecar_path(
+    store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT
+) -> Path:
+    """Exclusion audit sidecar: `<root>/<store_id>/work/analyses.exclusions.json`."""
+    return work_dir(store_id, root=root) / "analyses.exclusions.json"
+
+
 def records_dir(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
     """Directory for Step execution record JSON files: `<root>/<store_id>/records`."""
     return store_dir(store_id, root=root) / "records"
@@ -100,6 +123,8 @@ def parent_store_path(derived_from: str, root: Path | str = DEFAULT_ARTIFACT_ROO
 __all__ = [
     "DEFAULT_ARTIFACT_ROOT",
     "STORE_ID_PATTERN",
+    "build_manifest_path",
+    "build_manifest_sidecar_path",
     "by_label_dir",
     "by_label_link",
     "is_valid_store_id",

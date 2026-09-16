@@ -153,7 +153,10 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         )
         row = render_stores_row(b)
         self.assertTrue(row["build_command"].startswith("opengwasdb build-dense-vcf"))
-        self.assertIn("stores/OGS-00010/analyses.tsv", row["build_command"])
+        # The published command names the derived build manifest, not the bundle's
+        # audit analyses.tsv (ADR 0025).
+        self.assertIn("/data/opengwasdb/stores/OGS-00010/work/analyses.tsv", row["build_command"])
+        self.assertNotIn("stores/OGS-00010/analyses.tsv", row["build_command"])
         self.assertIn("--n-workers 16", row["build_command"])
         self.assertIn("--chunk-variants 5000", row["build_command"])
         self.assertIn("--source-assembly hg38", row["build_command"])

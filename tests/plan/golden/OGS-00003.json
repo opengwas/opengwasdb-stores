@@ -4,7 +4,7 @@
     "argv": [
       "opengwasdb",
       "build-dense-vcf",
-      "stores/OGS-00003/analyses.tsv",
+      "/data/opengwasdb/stores/OGS-00003/work/analyses.tsv",
       "/data/opengwasdb/stores/OGS-00003/store.opengwasdb",
       "--store-id",
       "finngen-r13",
@@ -18,7 +18,7 @@
       "10"
     ],
     "inputs": [
-      "stores/OGS-00003/analyses.tsv"
+      "/data/opengwasdb/stores/OGS-00003/work/analyses.tsv"
     ],
     "outputs": [
       "/data/opengwasdb/stores/OGS-00003/store.opengwasdb"

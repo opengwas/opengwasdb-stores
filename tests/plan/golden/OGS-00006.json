@@ -4,7 +4,7 @@
     "argv": [
       "opengwasdb",
       "build-ragged-ssf",
-      "stores/OGS-00006/analyses.tsv",
+      "/data/opengwasdb/stores/OGS-00006/work/analyses.tsv",
       "/data/opengwasdb/stores/OGS-00006/source",
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
       "--store-id",
@@ -15,7 +15,7 @@
       "sd"
     ],
     "inputs": [
-      "stores/OGS-00006/analyses.tsv"
+      "/data/opengwasdb/stores/OGS-00006/work/analyses.tsv"
     ],
     "outputs": [
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"

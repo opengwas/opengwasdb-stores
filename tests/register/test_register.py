@@ -34,7 +34,7 @@ SRC_DIR: Path = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from ogstores import bundle, paths, register, run
+from ogstores import bundle, manifest, paths, register, run
 from ogstores.bundle import Bundle
 from ogstores.plan import Step, plan
 from ogstores.register import (
@@ -216,6 +216,36 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
         reg_json = json.loads(reg_rec_p.read_text(encoding="utf-8"))
         self.assertEqual(reg_json["step"], "register")
         self.assertTrue(reg_json["success"])
+
+    def test_n_analyses_fallback_counts_built_manifest_not_audit_table(self) -> None:
+        """The n_analyses fallback counts the derived manifest, never the bundle's excluded rows (ADR 0025)."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00049")
+
+        # The bundle keeps an excluded audit row; the derived manifest drops it.
+        (b.root / "analyses.tsv").write_text(
+            "analysis_id\tsource_file\texclude_from_build\n"
+            "ana1\t/path/to/file1.vcf.gz\t\n"
+            "EXCLUDED\t/path/to/excluded.vcf.gz\ttrue\n"
+            "ana2\t/path/to/file2.vcf.gz\t\n",
+            encoding="utf-8",
+        )
+        manifest.materialise_build_manifest(
+            b.analyses_path,
+            paths.build_manifest_path("OGS-00049", root=artifact_root),
+            paths.build_manifest_sidecar_path("OGS-00049", root=artifact_root),
+        )
+
+        # Strip n_analyses from every record's stdout so the manifest fallback runs.
+        for step_name in ("build", "validate"):
+            rec_p = paths.record_path("OGS-00049", step_name, root=artifact_root)
+            rec = json.loads(rec_p.read_text(encoding="utf-8"))
+            payload = json.loads(rec["stdout"]) if rec.get("stdout", "").strip() else {}
+            payload.pop("n_analyses", None)
+            rec["stdout"] = json.dumps(payload) + "\n"
+            run._write_record_atomically(rec, rec_p)
+
+        val_data = register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+        self.assertEqual(val_data["observed"]["n_analyses"], 2)
 
     def test_observed_measurements_harvested_from_records(self) -> None:
         """Observed measurements are accurately harvested from stdout payloads across all steps."""

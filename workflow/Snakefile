@@ -15,9 +15,16 @@ Per ADR 0023 this file contains no Store Family name, no source column name,
 no manifest translation, and no layout branch. It asks `ogstores.plan` for the
 Step list and hands each Step to `ogstores.run`; the tracked output is always
 that step's record file, never the Store directory -- a half-written Store
-must not satisfy a rule.
+must not satisfy a rule. It also materialises the derived build manifest by
+calling `ogstores.manifest`; it carries no filtering logic itself (ADR 0025).
 
-    build (or complete) --> top_hits --> rho --> overview --> validate --> register
+    build_manifest --> build (or complete) --> top_hits --> rho --> overview --> validate --> register
+
+The `build_manifest` rule feeds every build-phase command: `plan()` resolves
+the `analyses` token to the derived path `<artifact-root>/<store_id>/work/
+analyses.tsv`, which is the first planned step's input, so Snakemake builds the
+filtered manifest before the builder sees it. Completion commands read only
+their parent Store, so they depend on no manifest step.
 
 Post-steps exist only when supported by the selected command: notably, Ragged
 Store envelopes exclude overview.html, so Ragged plans go directly to validate
@@ -45,7 +52,7 @@ for _src in _CANDIDATE_SRC_DIRS:
     if _src is not None and _src.is_dir() and str(_src) not in sys.path:
         sys.path.insert(0, str(_src))
 
-from ogstores import bundle, index, paths, register, run
+from ogstores import bundle, index, manifest, paths, register, run
 from ogstores.plan import plan
 
 REGISTRY_ROOT: Path = Path(config.get("registry_root", "stores"))
@@ -112,6 +119,20 @@ wildcard_constraints:
 rule all:
     input:
         [record(sid, "register") for sid in ALL_STORE_IDS]
+
+
+rule build_manifest:
+    input:
+        lambda wildcards: str(get_bundle(wildcards.store_id).analyses_path)
+    output:
+        manifest="{root}/{store_id}/work/analyses.tsv",
+        sidecar="{root}/{store_id}/work/analyses.exclusions.json",
+    run:
+        manifest.materialise_build_manifest(
+            Path(input[0]),
+            Path(output.manifest),
+            Path(output.sidecar),
+        )
 
 
 rule step:

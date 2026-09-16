@@ -20,7 +20,7 @@ stores/
     analyses.tsv                           membership; opengwasdb owns the schema
     validation.yaml          written back  merged evidence from the run
   by-label/                  generated     finngen-r13-pilot-20 -> ../OGS-00042
-src/ogstores/                              bundle.py plan.py paths.py run.py index.py
+src/ogstores/                              bundle.py plan.py paths.py manifest.py run.py index.py
 workflow/Snakefile                         Phase A: scans stores/, wires every release
 workflow/generate.smk                      Phase B: acquisition + generation (separate DAG)
 resources/families.yaml                    Store Family records (ADR 0024)
@@ -37,6 +37,9 @@ Artifacts live outside git, at a path that is a pure function of the store ID:
 /data/opengwasdb/stores/OGS-00042/
   source/                    acquired or filtered source files
   work/                      checkpoints, scratch, logs
+  work/analyses.tsv          derived build manifest: the bundle's analyses.tsv
+                             with exclude_from_build rows removed
+  work/analyses.exclusions.json   audit sidecar naming the dropped rows
   records/<step>.json        one per executed step
   store.opengwasdb           the Store Release
   store.opengwasdb.partial   transient staged destination
@@ -132,7 +135,7 @@ complete:
 
 An unrecognised or invalid flag fails in the CLI argument parser in milliseconds, before any expensive work. That is the intended validation mechanism: the schema is enforced once, where it is defined.
 
-`plan()` composes only the arguments that are the registry's own facts — store identity, the bundle's `analyses.tsv` path, and artifact paths. Everything else comes from `options`.
+`plan()` composes only the arguments that are the registry's own facts — store identity, the derived build manifest path, and artifact paths. Everything else comes from `options`.
 
 ### Retired: `builder.entrypoint`
 
@@ -161,7 +164,9 @@ Effect-scale validation is additionally an *acceptance* decision rather than a b
 
 Phase A keeps a cheap residual role: `bundle.check()` asserts these columns are present and vocabulary-valid, delegating to `opengwasdb.model.analyses`. Asserting presence is registry-side structural validation; recomputing the values is not.
 
-## `src/ogstores/` — four modules
+The one thing Phase A writes is the **derived build manifest** under the artifact root (`work/analyses.tsv`), which drops `exclude_from_build` audit rows. It is not the bundle's `analyses.tsv` and it writes no column back into the bundle: the accepted input stays byte-identical, and the derived file is a projection of the registry's own selection decision, not a recomputation of Analytical Metadata (ADR 0025).
+
+## `src/ogstores/` — five modules
 
 ### `bundle.py` (~150 lines)
 
@@ -199,7 +204,7 @@ Given the `build.yaml` above it returns four `Step`s, each holding an argv plus 
 
 ```python
 [Step(name="build",    argv=["opengwasdb", "build-dense-vcf",
-                             "stores/OGS-00042/analyses.tsv",
+                             "/data/opengwasdb/stores/OGS-00042/work/analyses.tsv",
                              "/data/opengwasdb/stores/OGS-00042/store.opengwasdb",
                              "--store-id", "finngen-r13", "--release-id", "OGS-00042",
                              "--source-reader-capability", "opengwasdb.finngen-r13",
@@ -216,7 +221,17 @@ It reads `build.yaml` and `release.yaml` and nothing else: no I/O beyond path co
 
 This is the entire adapter layer. It replaces `workflow/phase.py`, `workflow/model.py`, `release_plan.py`, `release_manifest.py`, `metadata_resolution.py` and `catalogue_coverage.py` (~4,100 lines on PR #105).
 
-### `paths.py` (~60 lines)
+`paths.py` also names the derived build manifest. The `analyses` token — positional for Dense/Hybrid/Ragged-SSF and the `--analyses` flag for Ragged BESD — resolves to `<artifact-root>/<store_id>/work/analyses.tsv`, and the step's declared `inputs` name it too, so the workflow builds the manifest before the builder runs. The bundle's own `analyses.tsv` never appears in a build argv. Completion (`complete-*`) commands consume only a parent Store and take no analyses manifest.
+
+### `manifest.py` (~150 lines)
+
+```python
+def materialise_build_manifest(source_path, manifest_path, sidecar_path) -> BuildManifestResult: ...
+```
+
+Materialises the derived build manifest: it reads the bundle's `analyses.tsv`, drops every row whose `exclude_from_build` is `true`, preserves every other column and the surviving row order, re-densifies `analysis_index` `0..n-1` when that column exists, and writes the manifest and its exclusion-audit sidecar atomically. It fails loudly on a malformed exclusion value, an all-excluded or header-only manifest, or a missing `analysis_id` column. Per ADR 0025 the registry enforces this decision here rather than teaching `opengwasdb` a registry-only audit column; the Snakefile calls this module and carries no filtering logic itself.
+
+### `paths.py` (~70 lines)
 
 Artifact layout as pure functions of the store ID. No other module constructs an artifact path.
 
@@ -239,8 +254,10 @@ One Snakefile for the whole registry, not one per release. It scans `stores/*/` 
 Dependency wiring only, per ADR 0023. It contains no family name, no source column name, no manifest translation, and no layout branch:
 
 ```text
-build ──> top_hits ──> rho ──> overview ──> validate ──> register
+build_manifest ──> build ──> top_hits ──> rho ──> overview ──> validate ──> register
 ```
+
+`build_manifest` is the derived build manifest's rule (ADR 0025). It runs before every observed-only build command, because `plan()` names the manifest it writes as the build step's first input. A Reference-Completed release substitutes `complete` for `build` and takes the supported tail; completion consumes only a parent Store, so it depends on no manifest step.
 
 Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. A Reference-Completed release substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
 
@@ -345,6 +362,7 @@ Exactly the four things this repository is responsible for:
 2. **Conditional branches and resumption.** Rho off, no completion child, partial record sets produce the right step set.
 3. **A failed step cannot damage a live store or a good `validation.yaml`.**
 4. **Records merge into `validation.yaml` correctly**, and `register` fails when a record's executed argv differs from the planned argv — except for the `complete-dense-resume` substitution, which it accepts and records.
+5. **The builder never sees an excluded row.** `tests/manifest/` asserts the regression directly: the manifest a planned build step consumes is the derived file, and an `exclude_from_build: true` `analysis_id` is absent from it while the bundle keeps the audit row. It also covers re-densified `analysis_index`, preserved columns and order, pass-through, and each loud failure mode.
 
 Fixture-scale end-to-end runs stay, as *one* smoke test. Source formats, store contents, layouts, queries and scientific invariants are tested once, in `opengwasdb`.
 

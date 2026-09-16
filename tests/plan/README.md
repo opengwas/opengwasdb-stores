@@ -8,8 +8,15 @@ Store and reads no `analyses.tsv` row, so its output is a string.
 This is also the review artifact for a change to the seam: a change to
 `plan()` shows up as a visible diff in every affected command line at once.
 
+Every build-phase command is pointed at the **derived build manifest**
+(`<artifact-root>/<store_id>/work/analyses.tsv`), not the bundle's audit
+`analyses.tsv`. The derived manifest is produced by `ogstores.manifest` and
+holds only rows the build is allowed to see, so an `exclude_from_build: true`
+audit row never reaches `opengwasdb` (ADR 0025). Reference-Completed
+(`complete-*`) commands consume only their parent Store and name no manifest.
+
 Covered by `tests/plan/test_plan.py`:
-- `OGS-00001` Ragged BESD observed-only golden test: exact step sequence (`build`, `validate`), argv with `--analyses` overlay and the bundle-recorded `source_snapshot.besd_prefix` BESD source prefix, sibling inputs (`.esi`, `.epi`, `.besd`, `analyses.tsv`), and outputs (`tests/plan/golden/OGS-00001.json`).
+- `OGS-00001` Ragged BESD observed-only golden test: exact step sequence (`build`, `validate`), argv with `--analyses` overlay (the derived build manifest) and the bundle-recorded `source_snapshot.besd_prefix` BESD source prefix, sibling inputs (`.esi`, `.epi`, `.besd`, derived build manifest), and outputs (`tests/plan/golden/OGS-00001.json`).
 - `OGS-00002` Ragged Reference-Completed golden test: exact step sequence (`complete`, `validate`), parent Store input derived solely from `release.yaml` `derived_from` (`OGS-00001`), `--release-id` identity, `--ld-panel` and `--ancestry` options, and outputs (`tests/plan/golden/OGS-00002.json`).
 - `OGS-00003` Dense observed-only golden test: exact step sequence (`build`, `top-hits`, `overview`, `validate`), argv, inputs, and outputs (`tests/plan/golden/OGS-00003.json`).
 - `OGS-00004` Hybrid observed-only golden test: exact step sequence (`build`, `overview`, `validate`), argv, inputs, and outputs (`tests/plan/golden/OGS-00004.json`).
@@ -29,6 +36,7 @@ Covered by `tests/plan/test_plan.py`:
 - Post-step filtering: conditional `top-hits` (dense / ragged SSF observed), `rho` (dense only), `overview` (Dense/Hybrid only), and `validate`.
 - Shared post-step builder mechanism parameterised by planner-specific commands.
 - Dispatch table keyed by `(layout, completion_state)` across all six valid pairs, plus command-keyed sub-dispatch table (`RAGGED_BUILD_DISPATCH`) for ragged layouts without branching or if/elif chains in shared code (ADR 0023).
+- Derived build manifest seam: `plan()` resolves the `analyses` token (positional for Dense/Hybrid/SSF, `--analyses` flag for BESD) and the step's declared inputs to `<artifact-root>/<store_id>/work/analyses.tsv`, so Snakemake builds the filtered manifest before the builder runs; the bundle's audit `analyses.tsv` never appears in a build argv. Completion commands consume no analyses manifest.
 - Verification of every planned step argv against the real pinned `opengwasdb` CLI.
 - Pure function execution with tripwire proof for no filesystem or network I/O beyond path construction.
 

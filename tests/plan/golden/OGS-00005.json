@@ -4,7 +4,7 @@
     "argv": [
       "opengwasdb",
       "build-hybrid",
-      "stores/OGS-00005/analyses.tsv",
+      "/data/opengwasdb/stores/OGS-00005/work/analyses.tsv",
       "/data/opengwasdb/stores/OGS-00005/store.opengwasdb",
       "--store-id",
       "gwas-catalog-eur-hybrid",
@@ -18,7 +18,7 @@
       "hg38"
     ],
     "inputs": [
-      "stores/OGS-00005/analyses.tsv"
+      "/data/opengwasdb/stores/OGS-00005/work/analyses.tsv"
     ],
     "outputs": [
       "/data/opengwasdb/stores/OGS-00005/store.opengwasdb"
