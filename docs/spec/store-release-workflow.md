@@ -34,7 +34,7 @@ tests/
 Artifacts live outside git, at a path that is a pure function of the store ID:
 
 ```text
-/data/opengwasdb/stores/OGS-00042/
+<artifact-root>/OGS-00042/
   source/                    acquired or filtered source files
   work/                      checkpoints, scratch, logs
   work/analyses.tsv          derived build manifest: the bundle's analyses.tsv
@@ -43,8 +43,10 @@ Artifacts live outside git, at a path that is a pure function of the store ID:
   records/<step>.json        one per executed step
   store.opengwasdb           the Store Release
   store.opengwasdb.partial   transient staged destination
-/data/opengwasdb/stores/by-label/   generated symlinks
+<artifact-root>/by-label/   generated symlinks
 ```
+
+`/data/opengwasdb/stores` is the built-in default root; the workflow resolves the real root from configuration (see "Artifact root comes from configuration").
 
 ## `release.yaml`
 
@@ -109,9 +111,6 @@ post:
   rho: false                        # dense only; opengwasdb rejects otherwise
   overview: true                   # Dense/Hybrid only; Ragged's envelope excludes overview.html
   validate: true
-
-artifacts:
-  root: /data/opengwasdb/stores
 ```
 
 A Reference-Completed release is the same file with a `complete` block instead of `build`. It carries no parent path: the parent is `release.yaml`'s `derived_from`, and its artifact path is a pure function of that ID.
@@ -128,6 +127,21 @@ complete:
     ancestry: EUR
     n-workers: 16
 ```
+
+### Artifact root comes from configuration
+
+The Build Recipe says *what* to build; configuration says *where* it lands. An accepted bundle is immutable, so an absolute artifact path inside one would bind that bundle to the machine that created it and hardcode that machine's filesystem into the master list's `build_command`.
+
+`paths.artifact_root()` therefore resolves the root in precedence order:
+
+```text
+1. workflow config override   pixi run release --config artifact_root=/path
+2. environment variable       OPENGWASDB_ARTIFACT_ROOT=/path
+3. repository config file     ogstores.yaml: artifact_root
+4. built-in default           paths.DEFAULT_ARTIFACT_ROOT
+```
+
+A workflow config override and the environment variable are per-invocation overrides for CI, a developer laptop, or a one-off run. The tracked `ogstores.yaml` names this deployment's default root and is the reviewed place to change it. `plan()` never reads the root from `build.yaml`: the workflow resolves it once and passes it in, and the build command published in the master list is rendered under the same resolved root.
 
 ### The passthrough rule
 
@@ -217,7 +231,7 @@ Given the `build.yaml` above it returns four `Step`s, each holding an argv plus 
 
 Internally it is a lookup table -- `("dense", "observed_only")` to `build-dense-vcf`, `("ragged", "reference_completed")` to `complete-ragged` -- plus about fifteen lines per entry assembling positional arguments, plus a renderer turning `options` into flags without reading them.
 
-It reads `build.yaml` and `release.yaml` and nothing else: no I/O beyond path construction, no store opened, no `analyses.tsv` row read. So it is deterministic and testable by string comparison, and it is the only place in this repository that knows how to invoke `opengwasdb` -- which is why the Snakefile's rules and the master list's `build_command` are two renderings of one thing and cannot disagree.
+It reads `build.yaml` and `release.yaml` and nothing else: no I/O beyond path construction, no store opened, no `analyses.tsv` row read. The artifact root is not one of those reads -- it is deployment configuration, resolved by the caller with `paths.artifact_root()` and passed in (issue #126). So it is deterministic and testable by string comparison, and it is the only place in this repository that knows how to invoke `opengwasdb` -- which is why the Snakefile's rules and the master list's `build_command` are two renderings of one thing and cannot disagree.
 
 This is the entire adapter layer. It replaces `workflow/phase.py`, `workflow/model.py`, `release_plan.py`, `release_manifest.py`, `metadata_resolution.py` and `catalogue_coverage.py` (~4,100 lines on PR #105).
 
@@ -233,7 +247,7 @@ Materialises the derived build manifest: it reads the bundle's `analyses.tsv`, d
 
 ### `paths.py` (~70 lines)
 
-Artifact layout as pure functions of the store ID. No other module constructs an artifact path.
+Artifact layout as pure functions of the store ID. No other module constructs an artifact path. `artifact_root()` resolves the deployment root from configuration -- workflow override, `OPENGWASDB_ARTIFACT_ROOT`, the tracked `ogstores.yaml`, then the built-in default -- and every path builder takes that root as an argument (issue #126).
 
 ### `run.py` (~120 lines)
 
@@ -251,7 +265,7 @@ Executes one `Step`: runs the argv, captures stdout/stderr/timing/exit status, w
 
 One Snakefile for the whole registry, not one per release. It scans `stores/*/` at parse time and wildcards on `store_id`, so Snakemake's own expansion *is* the multi-release runner -- there is no separate batch script.
 
-Dependency wiring only, per ADR 0023. It contains no family name, no source column name, no manifest translation, and no layout branch:
+Dependency wiring only, per ADR 0023. It contains no family name, no source column name, no manifest translation, and no layout branch. `get_artifact_root()` is the one configuration read: it resolves the artifact root through `paths.artifact_root()`, so the workflow never takes it from a Build Recipe (issue #126).
 
 ```text
 build_manifest ──> build ──> top_hits ──> rho ──> overview ──> validate ──> register

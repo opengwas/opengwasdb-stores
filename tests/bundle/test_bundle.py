@@ -17,6 +17,7 @@ Run from repository root:
 
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 import tempfile
@@ -148,8 +149,90 @@ class TestBundleAndPaths(unittest.TestCase):
             self.assertEqual(paths.parent_store_path(sid, root), root_p / sid / "store.opengwasdb")
 
 
+class TestArtifactRootResolution(unittest.TestCase):
+    """`paths.artifact_root()` resolves configuration, not the Release Bundle (issue #126)."""
+
+    def setUp(self) -> None:
+        self.tmp_dir = Path(tempfile.mkdtemp(prefix="ogstores_config_test_"))
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def _write_config(self, text: str) -> Path:
+        config_p = self.tmp_dir / paths.REPO_CONFIG_FILENAME
+        config_p.write_text(text, encoding="utf-8")
+        return config_p
+
+    def test_workflow_config_override_wins(self) -> None:
+        """A workflow config override beats the environment and the config file."""
+        self._write_config("artifact_root: /from/file\n")
+        resolved = paths.artifact_root(
+            config_override="/from/override",
+            env={paths.ARTIFACT_ROOT_ENV_VAR: "/from/env"},
+            repo_root=self.tmp_dir,
+        )
+        record_check()
+        self.assertEqual(resolved, Path("/from/override"))
+
+    def test_environment_variable_beats_repo_config_file(self) -> None:
+        """The environment variable beats the config file and the default."""
+        self._write_config("artifact_root: /from/file\n")
+        resolved = paths.artifact_root(
+            env={paths.ARTIFACT_ROOT_ENV_VAR: "/from/env"},
+            repo_root=self.tmp_dir,
+        )
+        record_check()
+        self.assertEqual(resolved, Path("/from/env"))
+
+    def test_repository_config_file_beats_default(self) -> None:
+        """With no override or environment variable, the config file wins."""
+        self._write_config("artifact_root: /from/file\n")
+        resolved = paths.artifact_root(env={}, repo_root=self.tmp_dir)
+        record_check()
+        self.assertEqual(resolved, Path("/from/file"))
+
+    def test_built_in_default_when_unconfigured(self) -> None:
+        """With no override, environment variable or config file, the default is used."""
+        resolved = paths.artifact_root(env={}, repo_root=self.tmp_dir)
+        record_check()
+        self.assertEqual(resolved, paths.DEFAULT_ARTIFACT_ROOT)
+
+    def test_environment_variable_reads_process_environment(self) -> None:
+        """When no mapping is supplied, the process environment is consulted."""
+        with mock.patch.dict(os.environ, {paths.ARTIFACT_ROOT_ENV_VAR: "/from/process"}, clear=False):
+            resolved = paths.artifact_root(repo_root=self.tmp_dir)
+        record_check()
+        self.assertEqual(resolved, Path("/from/process"))
+
+    def test_tracked_repo_config_is_the_production_root(self) -> None:
+        """The committed ogstores.yaml supplies the default production artifact root."""
+        record_check()
+        self.assertTrue(paths.repo_config_path(REPO_ROOT).is_file())
+        self.assertEqual(paths.artifact_root(env={}), paths.DEFAULT_ARTIFACT_ROOT)
+
+    def test_config_file_without_key_falls_back_to_default(self) -> None:
+        """A config file that names no artifact_root does not override the default."""
+        self._write_config("unrelated: true\n")
+        resolved = paths.artifact_root(env={}, repo_root=self.tmp_dir)
+        record_check()
+        self.assertEqual(resolved, paths.DEFAULT_ARTIFACT_ROOT)
+
+    def test_malformed_config_file_raises(self) -> None:
+        """A malformed config file fails loudly rather than building in the wrong place."""
+        self._write_config("- not\n- a\n- mapping\n")
+        with self.assertRaises(ValueError):
+            paths.artifact_root(env={}, repo_root=self.tmp_dir)
+        record_check()
+        self._write_config("artifact_root: 42\n")
+        with self.assertRaises(ValueError):
+            paths.artifact_root(env={}, repo_root=self.tmp_dir)
+        record_check()
+
+
 def main() -> None:
-    suite = unittest.defaultTestLoader.loadTestsFromTestCase(TestBundleAndPaths)
+    suite = unittest.TestSuite()
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestBundleAndPaths))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestArtifactRootResolution))
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     if not result.wasSuccessful():

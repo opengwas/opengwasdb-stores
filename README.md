@@ -130,6 +130,12 @@ releases to `/data/opengwasdb/stores/<OGS-ID>/store.opengwasdb` with sibling
 `.partial`, `records/`, `logs/`, and artifact-side `by-label/` symlinks under
 `/data/opengwasdb/stores/by-label/`.
 
+The root is deployment configuration, not part of a Release Bundle. It
+resolves, highest precedence first, from a workflow `--config artifact_root=`,
+the `OPENGWASDB_ARTIFACT_ROOT` environment variable, the repository's
+`ogstores.yaml`, then the built-in default above. One immutable bundle can
+therefore be built on CI, a laptop, or the production host without editing it.
+
 ## Pipeline Execution and Preflight
 
 - **Workflow tests (`tests/workflow/`) are fixture-scale**: they validate the Snakemake DAG, command-line assembly, staged `.partial` transactions, publication gating, and crash recovery using synthetic test bundles.

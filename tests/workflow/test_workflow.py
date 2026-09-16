@@ -229,6 +229,12 @@ class TestWorkflowSnakefileStaticProperties(unittest.TestCase):
         self.assertTrue(SNAKEFILE_PATH.is_file())
         self.assertGreater(len(self.snakefile_text), 100)
 
+    def test_artifact_root_comes_from_configuration_not_build_recipe(self) -> None:
+        """The Snakefile resolves the artifact root from configuration, never a Build Recipe (#126)."""
+        self.assertNotIn('build.get("artifacts")', self.code_text)
+        self.assertNotIn("build.get('artifacts')", self.code_text)
+        self.assertIn("paths.artifact_root(", self.code_text)
+
     def test_no_store_family_names_hardcoded(self) -> None:
         """Snakefile must not contain hardcoded Store Family names (ADR 0023)."""
         prohibited_families = [

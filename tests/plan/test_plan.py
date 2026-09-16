@@ -258,11 +258,10 @@ class TestPlanDense(unittest.TestCase):
                     "options": {"n-workers": 4},
                 },
                 "post": {"top_hits": False, "rho": False, "overview": False, "validate": False},
-                "artifacts": {"root": "/custom/artifact/root"},
             },
             analyses_path=Path("stores/OGS-00099/analyses.tsv"),
         )
-        steps = plan(synthetic_bundle)
+        steps = plan(synthetic_bundle, artifact_root="/custom/artifact/root")
         record_check()
         self.assertEqual(len(steps), 1)
         build_step = steps[0]
@@ -363,7 +362,6 @@ class TestPlanDense(unittest.TestCase):
                 "completion_state": "unknown_state",
                 "build": {"command": "build-dense-vcf"},
                 "post": {},
-                "artifacts": {"root": "/data/opengwasdb/stores"},
             },
             analyses_path=Path("stores/OGS-00003/analyses.tsv"),
         )
@@ -419,7 +417,7 @@ class TestPlanDense(unittest.TestCase):
             record_check()
 
     def test_override_artifact_root_parameter(self) -> None:
-        """Passing explicit artifact_root to plan() overrides build.yaml artifacts.root."""
+        """Passing explicit artifact_root to plan() overrides the built-in default."""
         steps = plan(self.bundle_00003, artifact_root="/temporary/scratch/root")
         expected_store_p = Path("/temporary/scratch/root/OGS-00003/store.opengwasdb")
         record_check()
@@ -491,7 +489,6 @@ class TestPlanHybrid(unittest.TestCase):
                     },
                 },
                 "post": {"top_hits": False, "rho": False, "overview": True, "validate": True},
-                "artifacts": {"root": "/custom/artifact/root"},
             },
             analyses_path=Path("stores/OGS-00094/analyses.tsv"),
         )
@@ -571,7 +568,7 @@ class TestPlanHybrid(unittest.TestCase):
         self.assertEqual([s.name for s in steps], ["build", "validate"])
 
     def test_hybrid_override_artifact_root(self) -> None:
-        """Passing explicit artifact_root to plan() overrides build.yaml artifacts.root for hybrid."""
+        """Passing explicit artifact_root to plan() overrides the built-in default for hybrid."""
         steps = plan(self.bundle_00004, artifact_root="/temporary/scratch/root")
         expected_store_p = Path("/temporary/scratch/root/OGS-00004/store.opengwasdb")
         record_check()
@@ -759,7 +756,7 @@ class TestPlanRagged(unittest.TestCase):
             self.assertEqual([s.name for s in steps], ["build", "validate"])
 
     def test_ragged_override_artifact_root(self) -> None:
-        """Passing explicit artifact_root to plan() overrides build.yaml artifacts.root for ragged."""
+        """Passing explicit artifact_root to plan() overrides the built-in default for ragged."""
         # Test SSF override
         steps_ssf = plan(self.bundle_00006, artifact_root="/temporary/scratch/root")
         expected_store_p_6 = Path("/temporary/scratch/root/OGS-00006/store.opengwasdb")
@@ -919,7 +916,6 @@ class TestPlanRagged(unittest.TestCase):
                 "completion_state": "observed_only",
                 "build": {"command": "build-ragged-unknown"},
                 "post": {},
-                "artifacts": {"root": "/data/opengwasdb/stores"},
             },
             analyses_path=self.bundle_00001.analyses_path,
         )
@@ -942,7 +938,6 @@ class TestPlanRagged(unittest.TestCase):
             "completion_state": "observed_only",
             "build": {"command": "build-ragged-besd"},
             "post": {"top_hits": False, "rho": False, "overview": False, "validate": True},
-            "artifacts": {"root": "/custom/artifact/root"},
         }
 
         no_snapshot = Bundle(
@@ -994,7 +989,6 @@ class TestPlanRagged(unittest.TestCase):
                     },
                 },
                 "post": {"top_hits": True, "rho": False, "overview": False, "validate": True},
-                "artifacts": {"root": "/custom/artifact/root"},
             },
             analyses_path=Path("stores/OGS-00096/analyses.tsv"),
         )
@@ -1081,11 +1075,10 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                     },
                 },
                 "post": {"top_hits": False, "rho": False, "overview": False, "validate": True},
-                "artifacts": {"root": "/custom/artifact/root"},
             },
             analyses_path=Path("stores/OGS-00088/analyses.tsv"),
         )
-        steps = plan(synthetic_bundle)
+        steps = plan(synthetic_bundle, artifact_root="/custom/artifact/root")
         complete_step = steps[0]
         record_check()
         self.assertEqual(complete_step.name, "complete")
@@ -1121,7 +1114,6 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                     "completion_state": "reference_completed",
                     "complete": {"command": "complete-ragged"},
                     "post": {},
-                    "artifacts": {"root": "/data/opengwasdb/stores"},
                 },
                 analyses_path=Path("stores/OGS-00088/analyses.tsv"),
             )
@@ -1147,7 +1139,6 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                 "completion_state": "reference_completed",
                 "complete": {"command": "complete-ragged"},
                 "post": {},
-                "artifacts": {"root": "/data/opengwasdb/stores"},
             },
             analyses_path=Path("stores/OGS-00088/analyses.tsv"),
         )
@@ -1182,7 +1173,6 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                     },
                 },
                 "post": {"top_hits": False, "rho": True, "overview": True, "validate": True},
-                "artifacts": {"root": "/data/opengwasdb/stores"},
             },
             analyses_path=Path("stores/OGS-00030/analyses.tsv"),
         )
@@ -1249,7 +1239,6 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                     },
                 },
                 "post": {"top_hits": False, "rho": False, "overview": True, "validate": True},
-                "artifacts": {"root": "/data/opengwasdb/stores"},
             },
             analyses_path=Path("stores/OGS-00040/analyses.tsv"),
         )
@@ -1314,7 +1303,6 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                     },
                 },
                 "post": {"top_hits": False, "rho": False, "overview": False, "validate": True},
-                "artifacts": {"root": "/data/opengwasdb/stores"},
             },
             analyses_path=Path("stores/OGS-00050/analyses.tsv"),
         )
@@ -1403,7 +1391,6 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                         "overview": True,
                         "validate": True,
                     },
-                    "artifacts": {"root": "/data/opengwasdb/stores"},
                 },
                 analyses_path=Path("stores/OGS-00060/analyses.tsv"),
             )
@@ -1441,7 +1428,6 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                         "overview": True,
                         "validate": True,
                     },
-                    "artifacts": {"root": "/data/opengwasdb/stores"},
                 },
                 analyses_path=Path("stores/OGS-00060/analyses.tsv"),
             )
@@ -1475,7 +1461,7 @@ class TestPlanReferenceCompleted(unittest.TestCase):
         self.assertEqual([s.name for s in steps], ["complete", "validate"])
 
     def test_reference_completed_override_artifact_root(self) -> None:
-        """Passing explicit artifact_root to plan() overrides build.yaml artifacts.root for completion."""
+        """Passing explicit artifact_root to plan() overrides the built-in default for completion."""
         steps = plan(self.bundle_00002, artifact_root="/temporary/scratch/root")
         expected_parent_p = Path("/temporary/scratch/root/OGS-00001/store.opengwasdb")
         expected_store_p = Path("/temporary/scratch/root/OGS-00002/store.opengwasdb")
@@ -1527,7 +1513,6 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                     "completion_state": "reference_completed",
                     "complete": {"command": state},
                     "post": {},
-                    "artifacts": {"root": "/data/opengwasdb/stores"},
                 },
                 analyses_path=Path("stores/OGS-00060/analyses.tsv"),
             )
@@ -1584,6 +1569,55 @@ class TestBuildManifestSeam(unittest.TestCase):
             self.assertNotIn("work/analyses.tsv", " ".join(step.argv))
 
 
+class TestArtifactRootConfiguration(unittest.TestCase):
+    """The Build Recipe carries no artifact root; plan() renders the configured one (issue #126)."""
+
+    def _bundle(self) -> Bundle:
+        return Bundle(
+            store_id="OGS-00071",
+            root=Path("stores/OGS-00071"),
+            release={
+                "store_id": "OGS-00071",
+                "family": "configured-root-family",
+                "status": "accepted",
+            },
+            build={
+                "store_id": "OGS-00071",
+                "layout": "dense",
+                "completion_state": "observed_only",
+                "build": {"command": "build-dense-vcf", "options": {}},
+                "post": {"top_hits": False, "rho": False, "overview": False, "validate": True},
+                # A stray block from an old bundle must never win over configuration.
+                "artifacts": {"root": "/should/be/ignored"},
+            },
+            analyses_path=Path("stores/OGS-00071/analyses.tsv"),
+        )
+
+    def test_planner_ignores_build_recipe_artifact_root(self) -> None:
+        """A stray artifacts.root in build.yaml is not consulted; plan() uses the passed root."""
+        steps = plan(self._bundle())
+        record_check()
+        self.assertEqual(
+            steps[0].outputs,
+            [paths.DEFAULT_ARTIFACT_ROOT / "OGS-00071" / "store.opengwasdb"],
+        )
+        self.assertEqual(
+            steps[0].inputs,
+            [paths.DEFAULT_ARTIFACT_ROOT / "OGS-00071" / "work" / "analyses.tsv"],
+        )
+
+    def test_configured_override_changes_rendered_command_line(self) -> None:
+        """Overriding the artifact root changes the rendered argv, not just the declared paths."""
+        default_steps = plan(self._bundle())
+        overridden_steps = plan(self._bundle(), artifact_root="/configured/stores")
+        default_store = str(paths.DEFAULT_ARTIFACT_ROOT / "OGS-00071" / "store.opengwasdb")
+        record_check()
+        self.assertIn(default_store, default_steps[0].argv)
+        self.assertNotIn(default_store, overridden_steps[0].argv)
+        self.assertIn("/configured/stores/OGS-00071/store.opengwasdb", overridden_steps[0].argv)
+        self.assertNotEqual(default_steps[0].argv, overridden_steps[0].argv)
+
+
 def main() -> None:
     suite = unittest.TestSuite()
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanDense))
@@ -1591,6 +1625,7 @@ def main() -> None:
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanRagged))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanReferenceCompleted))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestBuildManifestSeam))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestArtifactRootConfiguration))
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     if not result.wasSuccessful():

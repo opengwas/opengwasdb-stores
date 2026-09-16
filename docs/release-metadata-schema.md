@@ -329,12 +329,8 @@ to the release.
 | `reference_resources` | Optional | List of Reference Resource declarations used for completion, ancestry assignment, MAF lookup, or validation. See "Reference Resource declaration" below. |
 | `effect_scale_validation` | Optional | Reference-AF effect-scale validation configuration for this release. See "Effect-scale validation configuration" below. Absent or `enabled: false` means the release has not opted into empirical effect-scale validation, and `validation.yaml` `checks.effect_scale`/`checks.sd_estimation` should read `not_run` rather than imply a pass. |
 | `validation.required` | Yes | Whether validation is required before publishing the built store. |
-| `artifacts.artifact_root` | Optional | Configured root for large release artifacts outside this repository, such as `/data/opengwasdb`. |
-| `artifacts.release_subdir` | Optional | Release-specific artifact directory relative to `artifacts.artifact_root`, conventionally `<store-family-id>/releases/<family-release-id>`. |
-| `artifacts.filtered_dir` | Optional | Directory containing filtered source files used by the builder. |
-| `artifacts.work_dir` | Optional | Directory for transient build/download files. |
-| `artifacts.store_uri` | Optional | URI for the built store artifact. |
-| `artifacts.build_log_uri` | Optional | URI for detailed build logs. |
+
+> **Removed by issue #126.** The `artifacts.*` fields are no longer part of a Build Recipe. The artifact root is deployment configuration, resolved by `paths.artifact_root()` from a workflow config override, the `OPENGWASDB_ARTIFACT_ROOT` environment variable, the repository `ogstores.yaml`, then a built-in default. A bundle records *what* to build; where its artifacts land is not a bundle fact. See [ADR 0014](adr/0014-release-manifest-bundles.md) and [ADR 0015](adr/0015-registry-not-artifact-store.md).
 
 ### Reference Resource declaration
 

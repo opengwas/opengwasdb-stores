@@ -299,14 +299,10 @@ def register_release(
     store_id = b.store_id
     paths.require_valid_store_id(store_id)
 
-    if artifact_root is None:
-        build_artifacts = b.build.get("artifacts")
-        if isinstance(build_artifacts, dict) and "root" in build_artifacts:
-            resolved_root = Path(build_artifacts["root"])
-        else:
-            resolved_root = paths.DEFAULT_ARTIFACT_ROOT
-    else:
-        resolved_root = Path(artifact_root)
+    # Deployment configuration, not a Build Recipe fact (issue #126).
+    resolved_root = (
+        Path(artifact_root) if artifact_root is not None else paths.artifact_root()
+    )
 
     planned_steps = plan(b, artifact_root=resolved_root)
     step_records: dict[str, dict[str, Any]] = {}
