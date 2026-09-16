@@ -6,6 +6,7 @@ build:
   options:
     source-reader-capability: opengwasdb.finngen-r13
     source-assembly: hg38
+    n-workers: 10
 post:
   top_hits: true
   rho: false

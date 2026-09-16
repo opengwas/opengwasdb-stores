@@ -13,7 +13,9 @@
       "--source-reader-capability",
       "opengwasdb.finngen-r13",
       "--source-assembly",
-      "hg38"
+      "hg38",
+      "--n-workers",
+      "10"
     ],
     "inputs": [
       "stores/OGS-00003/analyses.tsv"
