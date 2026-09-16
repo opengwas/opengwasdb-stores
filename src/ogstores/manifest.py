@@ -20,8 +20,9 @@ produces, so no manifest translation logic lives in the Snakefile (ADR 0023) and
 no excluded row reaches the builder (ADR 0025).
 
 Fail loudly, never degrade silently: a malformed `exclude_from_build` value, a
-manifest with no data rows, an all-excluded manifest, or a missing `analysis_id`
-column raises rather than building something that looks complete.
+row whose field count differs from the header, a manifest with no data rows, an
+all-excluded manifest, or a missing `analysis_id` column raises rather than
+building something that looks complete.
 
 See docs/spec/store-release-workflow.md and ADR 0025.
 """
@@ -56,6 +57,15 @@ class MissingManifestColumnError(ManifestError):
 
 class MalformedExclusionError(ManifestError):
     """Raised when `exclude_from_build` holds a value other than blank/true/false."""
+
+
+class MalformedRowError(ManifestError):
+    """Raised when a data row's field count differs from the header's.
+
+    A short row would otherwise have its missing fields invented as blanks and
+    an overflowing row would have its extra fields silently discarded, producing
+    a well-formed-looking build manifest that does not match the bundle.
+    """
 
 
 class EmptyBuildManifestError(ManifestError):
@@ -152,24 +162,49 @@ def materialise_build_manifest(
 
     Drops every row whose `exclude_from_build` is `true`, keeps all columns and
     row order, and re-densifies `analysis_index` to 0..n-1 over the survivors
-    when that column exists. Atomic on both outputs.
+    when that column exists. Refuses a ragged row (field count differing from the
+    header) before writing anything. Atomic on both outputs.
     """
     source = Path(source_path)
     manifest = Path(manifest_path)
     sidecar = Path(sidecar_path)
 
     with open(source, "r", encoding="utf-8", newline="") as f:
-        reader = csv.DictReader(f, delimiter="\t")
-        columns = list(reader.fieldnames or [])
-        rows = list(reader)
+        raw_reader = csv.reader(f, delimiter="\t")
+        header = next(raw_reader, None)
+        columns = list(header) if header is not None else []
+        raw_rows = list(raw_reader)
 
     if ANALYSIS_ID_COLUMN not in columns:
         raise MissingManifestColumnError(
             f"{source} is missing required column {ANALYSIS_ID_COLUMN!r}; "
             f"present columns: {columns}"
         )
-    if not rows:
+    if not raw_rows:
         raise EmptyBuildManifestError(f"{source} has a header but no data rows")
+
+    # Refuse a ragged row before writing anything: a short row must not have its
+    # missing fields invented as blanks, and an overflowing row must not have its
+    # extra fields discarded. Either would yield a plausible manifest that does
+    # not match the bundle. A genuinely blank trailing field is a well-formed row
+    # whose field count still matches, so it is accepted.
+    analysis_id_col = columns.index(ANALYSIS_ID_COLUMN)
+    rows: list[dict[str, str]] = []
+    for row_index, fields in enumerate(raw_rows):
+        if len(fields) != len(columns):
+            readable_id = (
+                fields[analysis_id_col].strip()
+                if analysis_id_col < len(fields)
+                else ""
+            )
+            label = (
+                f"analysis_id {readable_id!r}" if readable_id else "analysis_id not readable"
+            )
+            raise MalformedRowError(
+                f"{source}: data row {row_index} ({label}) has {len(fields)} fields; "
+                f"expected {len(columns)}"
+            )
+        rows.append(dict(zip(columns, fields)))
 
     has_index = ANALYSIS_INDEX_COLUMN in columns
     kept: list[dict[str, Any]] = []
@@ -204,7 +239,6 @@ def materialise_build_manifest(
         fieldnames=columns,
         delimiter="\t",
         lineterminator="\n",
-        extrasaction="ignore",
     )
     writer.writeheader()
     for row in kept:
@@ -238,6 +272,7 @@ __all__ = [
     "DroppedAnalysis",
     "EmptyBuildManifestError",
     "MalformedExclusionError",
+    "MalformedRowError",
     "ManifestError",
     "MissingManifestColumnError",
     "materialise_build_manifest",

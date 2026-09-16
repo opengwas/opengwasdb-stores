@@ -40,8 +40,11 @@ AssertionError: PosixPath('.../stores/OGS-00077/analyses.tsv') == PosixPath('...
 6. **Pass-through**: a manifest with no excluded rows is written byte-for-byte
    unchanged; a manifest without the column has nothing to exclude.
 7. **Loud failure**: a malformed `exclude_from_build` value names the offending
-   row and value; an all-excluded manifest, a header-only manifest, and a
-   missing `analysis_id` column raise rather than writing a manifest.
+   row and value; a row whose field count differs from the header (too many or
+   too few) names the source, data-row index, readable `analysis_id`, and
+   expected versus actual field count; an all-excluded manifest, a header-only
+   manifest, and a missing `analysis_id` column raise rather than writing a
+   manifest. A genuinely blank trailing field in a well-formed row is accepted.
 8. **Atomicity**: writes leave no temp files behind.
 
 ## Running the suite

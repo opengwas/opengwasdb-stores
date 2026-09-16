@@ -41,6 +41,7 @@ from ogstores.manifest import (
     BuildManifestResult,
     EmptyBuildManifestError,
     MalformedExclusionError,
+    MalformedRowError,
     MissingManifestColumnError,
     materialise_build_manifest,
 )
@@ -394,6 +395,59 @@ class TestMaterialiseBuildManifest(unittest.TestCase):
         self.assertIn("data row 1", message)
         self.assertIn("B", message)
         self.assertIn("'maybe'", message)
+
+    def test_row_with_too_many_fields_raises(self) -> None:
+        """An overflowing row is refused rather than having its extra field discarded."""
+        self.source.write_text(
+            "analysis_index\tanalysis_id\tnote\n"
+            "0\tA1\tfine\n"
+            "1\tA2\textra\tSURPRISE_EXTRA_FIELD\n"
+            "2\tA3\tok\n",
+            encoding="utf-8",
+        )
+        with self.assertRaises(MalformedRowError) as ctx:
+            materialise_build_manifest(self.source, self.dest, self.sidecar)
+        message = str(ctx.exception)
+        self.assertIn(str(self.source), message)
+        self.assertIn("data row 1", message)
+        self.assertIn("A2", message)
+        self.assertIn("has 4 fields; expected 3", message)
+        self.assertFalse(self.dest.exists(), "no build manifest should be written")
+        self.assertFalse(self.sidecar.exists(), "no sidecar should be written")
+
+    def test_row_with_too_few_fields_raises(self) -> None:
+        """A short row is refused rather than having its missing field invented as blank."""
+        self.source.write_text(
+            "analysis_index\tanalysis_id\tnote\n"
+            "0\tA1\tfine\n"
+            "1\tA2\n"
+            "2\tA3\tok\n",
+            encoding="utf-8",
+        )
+        with self.assertRaises(MalformedRowError) as ctx:
+            materialise_build_manifest(self.source, self.dest, self.sidecar)
+        message = str(ctx.exception)
+        self.assertIn(str(self.source), message)
+        self.assertIn("data row 1", message)
+        self.assertIn("A2", message)
+        self.assertIn("has 2 fields; expected 3", message)
+        self.assertFalse(self.dest.exists(), "no build manifest should be written")
+        self.assertFalse(self.sidecar.exists(), "no sidecar should be written")
+
+    def test_blank_trailing_field_in_well_formed_row_is_accepted(self) -> None:
+        """A genuinely blank trailing field is well-formed and must still pass."""
+        self.source.write_text(
+            "analysis_index\tanalysis_id\tnote\n"
+            "0\tA1\tfine\n"
+            "1\tA2\t\n"
+            "2\tA3\tok\n",
+            encoding="utf-8",
+        )
+        result = materialise_build_manifest(self.source, self.dest, self.sidecar)
+        self.assertEqual(result.n_kept_rows, 3)
+        _, rows = read_tsv(self.dest)
+        self.assertEqual([r["analysis_id"] for r in rows], ["A1", "A2", "A3"])
+        self.assertEqual(rows[1]["note"], "")
 
     def test_all_excluded_raises(self) -> None:
         """An all-excluded manifest refuses to write an empty build manifest."""
