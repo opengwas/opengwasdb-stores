@@ -21,7 +21,6 @@ from __future__ import annotations
 import csv
 import io
 import os
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -100,18 +99,10 @@ def render_stores_row(
     else:
         generator_command = ""
 
-    # Ensure analyses_path in build_command is formatted relative to registry parent (stores/...)
-    b_for_plan = bundle_obj
-    try:
-        if len(bundle_obj.root.resolve().parents) > 1:
-            bundle_parent = bundle_obj.root.resolve().parents[1]
-            rel_analyses = bundle_obj.analyses_path.resolve().relative_to(bundle_parent)
-            b_for_plan = replace(bundle_obj, analyses_path=rel_analyses)
-    except (ValueError, IndexError, AttributeError):
-        pass
-
-    # build_command derived purely from plan()
-    steps = plan(b_for_plan, artifact_root=artifact_root)
+    # build_command derived purely from plan(). The `analyses` token resolves to
+    # the derived build manifest under the artifact root, so the rendered command
+    # already names the filtered manifest the builder consumes (ADR 0025).
+    steps = plan(bundle_obj, artifact_root=artifact_root)
     build_command = " ".join(steps[0].argv) if steps else ""
 
     # Observed columns extracted exclusively from validation.yaml in git

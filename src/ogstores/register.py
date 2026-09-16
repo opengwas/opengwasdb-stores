@@ -153,6 +153,7 @@ def harvest_observed_measurements(
     bundle_obj: Bundle,
     *,
     is_resumed: bool = False,
+    manifest_path: Path | None = None,
 ) -> dict[str, Any]:
     """Harvest observed measurements from step records without opening any Store (ADR 0023)."""
     total_elapsed = sum(
@@ -221,10 +222,13 @@ def harvest_observed_measurements(
             else:
                 validate_status = "passed"
 
-    # Fallback for n_analyses from bundle analyses table if not printed by tool
-    if n_analyses is None and bundle_obj.analyses_path.is_file():
+    # Fallback for n_analyses from the derived build manifest, if the builder did
+    # not print it. Count the built manifest, never the bundle's audit table:
+    # the bundle retains `exclude_from_build` rows that the build skipped, so
+    # counting it would over-count by exactly those rows (ADR 0025).
+    if n_analyses is None and manifest_path is not None and manifest_path.is_file():
         try:
-            with open(bundle_obj.analyses_path, "r", encoding="utf-8") as f:
+            with open(manifest_path, "r", encoding="utf-8") as f:
                 lines = [l for l in f if l.strip()]
                 n_analyses = max(0, len(lines) - 1)
         except Exception:
@@ -334,6 +338,7 @@ def register_release(
         step_records,
         b,
         is_resumed=any_resumed,
+        manifest_path=paths.build_manifest_path(store_id, root=resolved_root),
     )
 
     # 3. Assemble validation.yaml dictionary

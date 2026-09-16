@@ -14,8 +14,10 @@ gets the BESD argv shape whatever else it declares.
 
 `build.options` keys are `opengwasdb` flag names rendered verbatim -- this
 module never interprets one (ADR 0023). The only arguments it composes are the
-registry's own facts: Store identity, the bundle's `analyses.tsv` path,
-artifact paths.
+registry's own facts: Store identity, the derived build manifest path, artifact
+paths. The build manifest is derived, not authored: `manifest.py` writes it and
+the workflow builds it first, so an `exclude_from_build` audit row never reaches
+`opengwasdb` (ADR 0025).
 
 This is the only place in the repository that knows how to invoke
 `opengwasdb`, which is why the Snakefile's rules and the master list's
@@ -195,7 +197,9 @@ def _besd_prefix(bundle: Bundle) -> Path:
 def _resolve(token: str, bundle: Bundle, root: Path) -> list[Path]:
     """Resolve one positional/input token to concrete paths."""
     if token == "analyses":
-        return [bundle.analyses_path]
+        # The derived build manifest, not the bundle's audit `analyses.tsv`:
+        # `exclude_from_build` rows must never reach the builder (ADR 0025).
+        return [paths.build_manifest_path(bundle.store_id, root=root)]
     if token == "store":
         return [paths.store_path(bundle.store_id, root=root)]
     if token == "source":
@@ -333,7 +337,7 @@ def plan(
         argv.extend(["--store-id", bundle.family])  # type: ignore[list-item]
     argv.extend(["--release-id", bundle.store_id])
     if spec.analyses_flag:
-        argv.extend(["--analyses", str(bundle.analyses_path)])
+        argv.extend(["--analyses", str(paths.build_manifest_path(bundle.store_id, root=root))])
     argv.extend(render_options(options))
 
     inputs: list[Path] = []

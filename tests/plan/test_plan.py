@@ -789,7 +789,7 @@ class TestPlanRagged(unittest.TestCase):
                 Path(f"{expected_prefix_1}.esi"),
                 Path(f"{expected_prefix_1}.epi"),
                 Path(f"{expected_prefix_1}.besd"),
-                self.bundle_00001.analyses_path,
+                paths.build_manifest_path("OGS-00001", root="/temporary/scratch/root"),
             ],
         )
         self.assertEqual(steps_besd[1].argv[2], str(expected_store_p_1))
@@ -811,7 +811,10 @@ class TestPlanRagged(unittest.TestCase):
         self.assertEqual(build_step.argv[idx_rel + 1], "OGS-00001")
         self.assertIn("--analyses", build_step.argv)
         idx_ana = build_step.argv.index("--analyses")
-        self.assertEqual(build_step.argv[idx_ana + 1], "stores/OGS-00001/analyses.tsv")
+        self.assertEqual(
+            build_step.argv[idx_ana + 1],
+            str(paths.build_manifest_path("OGS-00001")),
+        )
         self.assertIn("--source-build", build_step.argv)
         idx_sb = build_step.argv.index("--source-build")
         self.assertEqual(build_step.argv[idx_sb + 1], "hg19")
@@ -819,12 +822,12 @@ class TestPlanRagged(unittest.TestCase):
         idx_tis = build_step.argv.index("--tissue")
         self.assertEqual(build_step.argv[idx_tis + 1], "whole_blood")
 
-        # Explicit sibling inputs + analyses.tsv
+        # Explicit sibling inputs + the derived build manifest
         expected_inputs = [
             Path("/data/opengwasdb/raw/eqtlgen/pilot-10.esi"),
             Path("/data/opengwasdb/raw/eqtlgen/pilot-10.epi"),
             Path("/data/opengwasdb/raw/eqtlgen/pilot-10.besd"),
-            Path("stores/OGS-00001/analyses.tsv"),
+            paths.build_manifest_path("OGS-00001"),
         ]
         self.assertEqual(build_step.inputs, expected_inputs)
 
@@ -872,7 +875,7 @@ class TestPlanRagged(unittest.TestCase):
         self.assertEqual(build_besd.argv[3], "/data/opengwasdb/stores/OGS-00001/store.opengwasdb")
 
         self.assertEqual(build_ssf.argv[1], "build-ragged-ssf")
-        self.assertEqual(build_ssf.argv[2], "stores/OGS-00006/analyses.tsv")
+        self.assertEqual(build_ssf.argv[2], str(paths.build_manifest_path("OGS-00006")))
         self.assertEqual(build_ssf.argv[3], "/data/opengwasdb/stores/OGS-00006/source")
         self.assertEqual(build_ssf.argv[4], "/data/opengwasdb/stores/OGS-00006/store.opengwasdb")
 
@@ -888,10 +891,10 @@ class TestPlanRagged(unittest.TestCase):
                 Path("/data/opengwasdb/raw/eqtlgen/pilot-10.esi"),
                 Path("/data/opengwasdb/raw/eqtlgen/pilot-10.epi"),
                 Path("/data/opengwasdb/raw/eqtlgen/pilot-10.besd"),
-                Path("stores/OGS-00001/analyses.tsv"),
+                paths.build_manifest_path("OGS-00001"),
             ],
         )
-        self.assertEqual(build_ssf.inputs, [Path("stores/OGS-00006/analyses.tsv")])
+        self.assertEqual(build_ssf.inputs, [paths.build_manifest_path("OGS-00006")])
 
     def test_ragged_build_subdispatch_table(self) -> None:
         """Both ragged observed-only build subcommands are configured with distinct argv shapes."""
@@ -1557,12 +1560,37 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                 self.assertGreater(len(steps), 0, f"{sid} produced steps when host paths are absent")
 
 
+class TestBuildManifestSeam(unittest.TestCase):
+    """plan() points every build-phase command at the derived build manifest (ADR 0025)."""
+
+    def test_build_commands_consume_derived_manifest_not_bundle_audit_table(self) -> None:
+        for sid in ("OGS-00001", "OGS-00003", "OGS-00004", "OGS-00005", "OGS-00006", "OGS-00007"):
+            b = load(sid)
+            build_step = plan(b)[0]
+            expected = paths.build_manifest_path(sid)
+            record_check()
+            self.assertNotEqual(b.analyses_path, expected)
+            self.assertNotIn(str(b.analyses_path), build_step.argv)
+            self.assertIn(str(expected), build_step.argv)
+            self.assertIn(expected, build_step.inputs)
+            if "--analyses" in build_step.argv:
+                idx = build_step.argv.index("--analyses")
+                self.assertEqual(build_step.argv[idx + 1], str(expected))
+
+    def test_completion_commands_consume_no_analyses_manifest(self) -> None:
+        for step in plan(load("OGS-00002")):
+            record_check()
+            self.assertFalse(any(p.name == "analyses.tsv" for p in step.inputs))
+            self.assertNotIn("work/analyses.tsv", " ".join(step.argv))
+
+
 def main() -> None:
     suite = unittest.TestSuite()
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanDense))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanHybrid))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanRagged))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanReferenceCompleted))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestBuildManifestSeam))
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     if not result.wasSuccessful():

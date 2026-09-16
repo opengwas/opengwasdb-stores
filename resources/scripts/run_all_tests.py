@@ -34,6 +34,7 @@ SUITES: list[tuple[str, str, list[str]]] = [
     ("index", "python", ["tests/index/test_index.py"]),
     ("ld-panel-eigendecomposition", "python", ["tests/ld-panel-eigendecomposition/run_tests.py"]),
     ("ld-panel-generation", "python", ["tests/ld-panel-generation/run_tests.py"]),
+    ("manifest", "python", ["tests/manifest/test_manifest.py"]),
     ("metadata-resolvers/gwas-catalog-ssf", "r", ["tests/metadata-resolvers/gwas-catalog-ssf/run_tests.R"]),
     ("metadata-resolvers/finngen-manifest", "r", ["tests/metadata-resolvers/finngen-manifest/run_tests.R"]),
     ("metadata-resolvers/opengwas-api", "r", ["tests/metadata-resolvers/opengwas-api/run_tests.R"]),

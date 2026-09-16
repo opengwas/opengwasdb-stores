@@ -39,7 +39,7 @@ SRC_DIR: Path = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from ogstores import bundle, paths, run
+from ogstores import bundle, manifest, paths, run
 from ogstores.plan import plan
 
 SNAKEFILE_PATH: Path = REPO_ROOT / "workflow" / "Snakefile"
@@ -301,8 +301,15 @@ class TestWorkflowSnakefileStaticProperties(unittest.TestCase):
                 f"Snakefile contains layout branch {branch!r}",
             )
 
-    def test_tracked_outputs_are_record_files_never_stores(self) -> None:
-        """All rule outputs must target records/<step>.json, never store.opengwasdb directories."""
+    def test_tracked_outputs_are_records_or_the_derived_manifest_never_stores(self) -> None:
+        """Rule outputs are records/<step>.json or the derived build manifest, never a Store directory."""
+        # The derived build manifest is the one non-record tracked output: it is
+        # a file, not a Store directory, and the build step consumes it (ADR 0025).
+        allowed_manifest_outputs = (
+            '"{root}/{store_id}/work/analyses.tsv",',
+            'manifest="{root}/{store_id}/work/analyses.tsv",',
+            'sidecar="{root}/{store_id}/work/analyses.exclusions.json",',
+        )
         in_output_block = False
         for line in self.code_lines:
             stripped = line.strip()
@@ -318,6 +325,9 @@ class TestWorkflowSnakefileStaticProperties(unittest.TestCase):
                     # input function can fail during DAG construction; it never
                     # materialises that sentinel output.
                     if stripped == '"{store_id,OGS-[0-9]{5}}"':
+                        continue
+                    if stripped in allowed_manifest_outputs:
+                        self.assertNotIn("store.opengwasdb", stripped)
                         continue
                     self.assertIn("records", stripped, f"Output line {stripped!r} missing 'records'")
                     self.assertIn(".json", stripped, f"Output line {stripped!r} missing '.json'")
@@ -442,6 +452,15 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         steps = plan(b, artifact_root=self.artifact_root)
         build_step = next(s for s in steps if s.name == "build")
         top_hits_step = next(s for s in steps if s.name == "top-hits")
+
+        # The build step consumes the derived build manifest. Snakemake's
+        # build_manifest rule would produce it first; running the step directly
+        # stands in for that rule here.
+        manifest.materialise_build_manifest(
+            b.analyses_path,
+            paths.build_manifest_path(store_id, root=self.artifact_root),
+            paths.build_manifest_sidecar_path(store_id, root=self.artifact_root),
+        )
 
         run.run_step(build_step, store_id=store_id, artifact_root=self.artifact_root)
         run.run_step(top_hits_step, store_id=store_id, artifact_root=self.artifact_root)

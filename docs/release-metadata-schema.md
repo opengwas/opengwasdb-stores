@@ -164,6 +164,10 @@ this lookup lives in this repo rather than OpenGWASDB.
 
 Builders may ignore registry-only columns after using them to locate inputs.
 Store-only columns must not be required before the build has run.
+`exclude_from_build` is the exception that is enforced rather than merely
+ignored: the registry materialises a derived build manifest with every excluded
+row removed and points the builder at it, so `opengwasdb` never sees an excluded
+row at all ([ADR 0025](adr/0025-registry-filters-excluded-analyses.md)).
 
 opengwasdb's [ADR 0034](https://github.com/explodecomputer/opengwasdb/blob/main/docs/adr/0034-unify-analysestsv-across-layouts-retire-phenotype-id.md)
 ("Unify `analyses.tsv` across layouts, retire `phenotype_id`, add Attribution
@@ -298,7 +302,7 @@ the source.
 | `n_controls` | Optional | Control count for binary traits, or non-event/comparison count for time-to-event traits when reported by the source. Required when `stored_effect_scale = log_or` or `log_hazard`. |
 | `analysis_group_id` | Optional | Grouping key for analyses sharing a publication, analyte panel, phenotype batch, or source bundle. |
 | `inclusion_reason` | Optional | Short family-specific reason this Analysis was selected. |
-| `exclude_from_build` | Optional | `true` only for rows retained for audit but intentionally skipped by the build. Accepted build inputs normally omit excluded rows. |
+| `exclude_from_build` | Optional | `true` only for rows retained for audit but intentionally skipped by the build. The registry honours it at build time: it materialises a derived build manifest (`<artifact-root>/<store-id>/work/analyses.tsv`) with every `true` row removed and points the builder at that, so `opengwasdb` never sees an excluded row. The row itself stays in the committed bundle, with its `inclusion_reason`, as the audit record of why the Analysis is absent. See [ADR 0025](adr/0025-registry-filters-excluded-analyses.md). |
 
 ## `build.yaml`
 
