@@ -120,7 +120,7 @@ threadpoolctl = ">=3.0"
 # to a `main` revision. Tracking a long-lived non-default branch is a temporary
 # accommodation for the current `main` freeze, not the intended steady state.
 # Issue #106 tracks this reversion.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "a9e8bc825af692cdb5bb7cba39d56d11654fcebe" }
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", branch = "dev" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"

@@ -1,5 +1,5 @@
 status: passed
-validated_at: '2026-09-15T23:32:07.895785Z'
+validated_at: '2026-09-16T09:20:45.626197Z'
 validator:
   name: opengwasdb validate
   version: opengwasdb@a9e8bc825af692cdb5bb7cba39d56d11654fcebe
@@ -14,7 +14,7 @@ observed:
   n_variants: 86376
   n_associations: 86373
   store_bytes: null
-  build_elapsed_s: 5.399
+  build_elapsed_s: 4.677
   validate_status: passed
 checks:
   schema: not_run

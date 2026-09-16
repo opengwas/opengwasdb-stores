@@ -1,16 +1,21 @@
-status: failed
-validated_at: 2026-08-31T20:50:09.645464+00:00
+status: passed
+validated_at: '2026-09-16T14:14:11.806844Z'
 validator:
-  name: resources/generators/opengwas-gwas-vcf-dense/build-store.py
-  version: null
+  name: opengwasdb validate
+  version: opengwasdb@987aec1baca9e218e062d468c948b410264a9341
 build_environment:
-  repo_commit: 7a1cba261bcdae4ca5df2b9eb53ba804c1223323
-  opengwasdb_version: 0.2.0
-  opengwasdb_commit: 6ef919e721d5b7368acad591264be50f79b77dfb
-  pixi_lock_sha256: f76211f9a1483fb35dd67f5961f97693e8c9c33c075dad82a80e8a885a6359aa
-  pixi_environment: default
-  platform: Linux-4.18.0-553.141.1.el8_10.x86_64-x86_64-with-glibc2.28
+  opengwasdb_version: 0.3.0
+  opengwasdb_commit: 987aec1baca9e218e062d468c948b410264a9341
   python_version: 3.11.15
+  platform: Linux-4.18.0-553.155.1.el8_10.x86_64-x86_64-with-glibc2.28
+observed:
+  format_version: '1.0'
+  n_analyses: 10
+  n_variants: 21230615
+  n_associations: 212306150
+  store_bytes: null
+  build_elapsed_s: 1730.458
+  validate_status: passed
 checks:
   schema: passed
   files: passed
@@ -29,5 +34,5 @@ reports:
   build_report: sidecars/build_report.tsv
   pilot_assessment: pilot_report.md
 warnings:
-  - finngen-r13-HEIGHT_IRN: empirical effect-scale status=failed
+- finngen-r13-HEIGHT_IRN: empirical effect-scale status=failed
 errors: []
