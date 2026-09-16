@@ -139,10 +139,12 @@ def render_stores_row(
         build_elapsed_s = val.get("build_elapsed_s", "")
     build_elapsed_s_str = str(build_elapsed_s) if build_elapsed_s != "" and build_elapsed_s is not None else ""
 
-    validate_status = obs.get("validate_status")
-    if not validate_status:
-        validate_status = val.get("checks", {}).get("store", val.get("status", ""))
-    validate_status_str = str(validate_status) if validate_status else ""
+    # The Validation Record's own `status` is the release-level verdict (issue
+    # #124). A per-check entry such as `checks.store` describes one check and
+    # must never override a record that failed overall -- a record can read
+    # `status: failed` while an individual check passed, and that is exactly
+    # what the record is for. Empty when there is no Validation Record.
+    validate_status_str = str(val.get("status") or "")
 
     return {
         "store_id": store_id,

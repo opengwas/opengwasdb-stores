@@ -466,6 +466,8 @@ Release-level acceptance and build validation summary.
 | `warnings` | Optional | List of non-blocking warnings. Reference-AF effect-scale warnings should name the Analysis and reason, for example low reference-AF overlap, an allele mismatch, unstable implied SD, a missing reference resource for the assigned ancestry, or scale inconsistency versus the declared effect scale. |
 | `errors` | Optional | List of blocking errors. |
 
+`status` is the release-level verdict and is the only value the generated master list (`stores.tsv`/`STORES.md`) publishes. A per-check entry such as `checks.store` describes one check and never overrides the record's own status; a release without a Validation Record publishes an empty verdict.
+
 ## Ancestry sidecar
 
 Suggested path: `sidecars/ancestry.tsv`.
