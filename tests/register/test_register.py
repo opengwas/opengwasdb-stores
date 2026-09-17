@@ -276,6 +276,21 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
         self.assertEqual(obs["validate_status"], "passed")
         self.assertGreater(obs["build_elapsed_s"], 10.0)
 
+    def test_written_record_matches_the_documented_register_shape(self) -> None:
+        """The written validation.yaml carries exactly the canonical register keys (issue #135).
+
+        The committed-record suite asserts each `stores/OGS-*/validation.yaml`
+        against these same constants, so the shape `register` produces and the
+        documented format cannot drift apart.
+        """
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00051")
+        register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+
+        written = yaml.safe_load((b.root / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(set(written["observed"]), set(register.OBSERVED_FIELDS))
+        self.assertEqual(set(written["build_environment"]), set(register.BUILD_ENVIRONMENT_FIELDS))
+        self.assertEqual(written["validator"]["name"], register.VALIDATOR_NAME)
+
 
 class TestArgvDriftAndResumptionDivergence(unittest.TestCase):
     """Argv drift detection, staging normalization, and complete-dense-resume divergence."""
