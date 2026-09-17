@@ -166,11 +166,22 @@ This also removes the "catalogue-routed" special case — `build-hybrid-from-cat
 ## Store identity passed to `opengwasdb`
 
 ```text
---store-id   <family>      finngen-r13
+--store-id   <store_id>    OGS-00042
 --release-id <store_id>    OGS-00042
 ```
 
-The built store's `manifest.json` then reads `store_id: finngen-r13, release_id: OGS-00042` — a human-readable family plus the globally unique registry key, so a store found on disk joins back to its registry record without a lookup table.
+An observed-only built store's `manifest.json` therefore reads
+`store_id: OGS-00042, release_id: OGS-00042`. The Store Release has one
+identifier and a store found on disk joins directly back to its registry record.
+`plan()` does not read Store Family for any purpose. Reference Completion takes
+only the child `--release-id` and preserves the source Store identity, as defined
+by the upstream completion interface.
+
+The Release Bundle's source-natural `label` is display/provenance metadata, not
+identity. The current `opengwasdb` CLI cannot populate the manifest's free-form
+provenance mapping with it; [opengwasdb#181](https://github.com/opengwas/opengwasdb/issues/181)
+tracks that upstream capability. Until it exists, the label stays in the Release
+Bundle and generated views rather than being placed in either identity field.
 
 ## Phase A never writes `analyses.tsv`
 
@@ -249,7 +260,7 @@ Given the `build.yaml` above it returns four `Step`s, each holding an argv plus 
 [Step(name="build",    argv=["opengwasdb", "build-dense-vcf",
                              "/data/opengwasdb/stores/OGS-00042/work/analyses.tsv",
                              "/data/opengwasdb/stores/OGS-00042/store.opengwasdb",
-                             "--store-id", "finngen-r13", "--release-id", "OGS-00042",
+                             "--store-id", "OGS-00042", "--release-id", "OGS-00042",
                              "--source-reader-capability", "opengwasdb.finngen-r13",
                              "--source-assembly", "hg38",
                              "--n-workers", "8", "--chunk-variants", "1000"], ...),

@@ -8,7 +8,7 @@
       "/data/opengwasdb/stores/OGS-00006/source",
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
       "--store-id",
-      "metabolome-plasma-2023",
+      "OGS-00006",
       "--release-id",
       "OGS-00006",
       "--stored-effect-scale",

@@ -7,7 +7,7 @@
       "/data/opengwasdb/stores/OGS-00003/work/analyses.tsv",
       "/data/opengwasdb/stores/OGS-00003/store.opengwasdb",
       "--store-id",
-      "finngen-r13",
+      "OGS-00003",
       "--release-id",
       "OGS-00003",
       "--source-reader-capability",

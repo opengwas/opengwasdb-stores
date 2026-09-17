@@ -14,10 +14,12 @@ gets the BESD argv shape whatever else it declares.
 
 `build.options` keys are `opengwasdb` flag names rendered verbatim -- this
 module never interprets one (ADR 0023). The only arguments it composes are the
-registry's own facts: Store identity, the derived build manifest path, artifact
-paths. The artifact root those paths hang from is deployment configuration,
-resolved by `paths.artifact_root()` and passed in; `plan()` never reads it from
-a Build Recipe (issue #126).
+registry's own facts: the Store Release's single `OGS-` identity, the derived
+build manifest path, and artifact paths. The same `OGS-` id is passed as both
+the `opengwasdb` Store identity and Release identity; Store Family is not read
+by the planner (issue #129). The artifact root those paths hang from is
+deployment configuration, resolved by `paths.artifact_root()` and passed in;
+`plan()` never reads it from a Build Recipe (issue #126).
 
 The build manifest is derived, not authored: `manifest.py` writes it and
 the workflow builds it first, so an `exclude_from_build` audit row never reaches
@@ -350,10 +352,6 @@ def plan(
                 f"Bundle {bundle.store_id} missing required 'derived_from' in release.yaml"
             )
         paths.require_valid_store_id(bundle.derived_from)
-    elif not bundle.family:
-        raise ValueError(
-            f"Bundle {bundle.store_id} missing required 'family' in release.yaml"
-        )
 
     root = _resolve_artifact_root(artifact_root)
     options = (bundle.build.get(spec.phase) or {}).get("options") or {}
@@ -363,7 +361,7 @@ def plan(
     for token in spec.positionals:
         argv.extend(str(p) for p in _resolve(token, bundle, root))
     if spec.identity:
-        argv.extend(["--store-id", bundle.family])  # type: ignore[list-item]
+        argv.extend(["--store-id", bundle.store_id])
     argv.extend(["--release-id", bundle.store_id])
     if spec.analyses_flag:
         argv.extend(["--analyses", str(paths.build_manifest_path(bundle.store_id, root=root))])

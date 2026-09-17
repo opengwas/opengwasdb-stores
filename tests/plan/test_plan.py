@@ -20,7 +20,8 @@ Verifies:
   - Uniform --no-<key> for False booleans.
   - List-valued option repetition.
   - Generic --reference-panel option flow from build.options with zero special handling.
-- Identity flags --store-id <family> --release-id <store-id>.
+- One Store Release identity: observed builds receive the `OGS-` id as both
+  --store-id and --release-id, without reading Store Family.
 - Dense-only rho enforcement (forbidden on Hybrid and other non-Dense layouts).
 - Shared post-step builder mechanism parameterised by each subcommand's CommandSpec.
 - Command table keyed on the opengwasdb subcommand, with (layout, completion_state)
@@ -240,13 +241,12 @@ class TestPlanDense(unittest.TestCase):
         self.assertEqual(render_options({"skipped": None, "active": "yes"}), ["--active", "yes"])
 
     def test_identity_flags_composition(self) -> None:
-        """Identity flags --store-id <family> --release-id <store_id> are composed from registry facts."""
+        """Both identity flags use store_id; planning does not require Store Family."""
         synthetic_bundle = Bundle(
             store_id="OGS-00099",
             root=Path("stores/OGS-00099"),
             release={
                 "store_id": "OGS-00099",
-                "family": "custom-family-name",
                 "label": "test-label",
                 "status": "accepted",
             },
@@ -268,12 +268,11 @@ class TestPlanDense(unittest.TestCase):
         build_step = steps[0]
         self.assertEqual(build_step.name, "build")
         self.assertIn("--store-id", build_step.argv)
-        self.assertIn("custom-family-name", build_step.argv)
         self.assertIn("--release-id", build_step.argv)
         self.assertIn("OGS-00099", build_step.argv)
 
         idx_store = build_step.argv.index("--store-id")
-        self.assertEqual(build_step.argv[idx_store + 1], "custom-family-name")
+        self.assertEqual(build_step.argv[idx_store + 1], "OGS-00099")
         idx_rel = build_step.argv.index("--release-id")
         self.assertEqual(build_step.argv[idx_rel + 1], "OGS-00099")
 
@@ -803,7 +802,7 @@ class TestPlanRagged(unittest.TestCase):
         self.assertEqual(build_step.argv[3], "/data/opengwasdb/stores/OGS-00001/store.opengwasdb")
         self.assertIn("--store-id", build_step.argv)
         idx_store = build_step.argv.index("--store-id")
-        self.assertEqual(build_step.argv[idx_store + 1], "eqtlgen-cis-pilot")
+        self.assertEqual(build_step.argv[idx_store + 1], "OGS-00001")
         self.assertIn("--release-id", build_step.argv)
         idx_rel = build_step.argv.index("--release-id")
         self.assertEqual(build_step.argv[idx_rel + 1], "OGS-00001")
