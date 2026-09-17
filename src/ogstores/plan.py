@@ -23,6 +23,9 @@ The build manifest is derived, not authored: `manifest.py` writes it and
 the workflow builds it first, so an `exclude_from_build` audit row never reaches
 `opengwasdb` (ADR 0025).
 
+`post` keys that are identical across every Release are defaults rather than
+restated values; see `POST_DEFAULTS` (issue #128).
+
 This is the only place in the repository that knows how to invoke
 `opengwasdb`, which is why the Snakefile's rules and the master list's
 `build_command` are two renderings of one thing and cannot disagree.
@@ -138,6 +141,20 @@ DEFAULT_COMMANDS: dict[tuple[str, str], str] = {
     ("ragged", "reference_completed"): "complete-ragged",
 }
 
+# Post-processing keys that are identical across every committed Release Bundle,
+# so a Build Recipe states only the ones it chooses differently from these
+# (issue #128). An explicit value in the recipe still wins.
+#
+# `top_hits` and `overview` are deliberately absent: both vary per Release, and
+# `overview` is a real per-layout choice -- Ragged's closed Store envelope
+# excludes `overview.html`, so defaulting it on would silently re-enable a step
+# the planner then refuses (commit 6092fee, "Reject overviews for Ragged store
+# releases").
+POST_DEFAULTS: dict[str, Any] = {
+    "rho": False,
+    "validate": True,
+}
+
 
 def render_options(options: dict[str, Any] | None) -> list[str]:
     """Render an options dict into CLI argv tokens without interpretation (ADR 0023).
@@ -220,7 +237,12 @@ def _resolve(token: str, bundle: Bundle, root: Path) -> list[Path]:
 
 
 def _post_steps(store_p: Path, post: dict[str, Any], spec: CommandSpec) -> list[Step]:
-    """Construct post-build steps, rejecting any the subcommand cannot support."""
+    """Construct post-build steps, rejecting any the subcommand cannot support.
+
+    Keys the Build Recipe omits fall back to `POST_DEFAULTS`; an explicit value
+    overrides the default (issue #128).
+    """
+    post = {**POST_DEFAULTS, **(post or {})}
     steps: list[Step] = []
 
     if post.get("top_hits") or post.get("top-hits"):
@@ -359,6 +381,7 @@ def plan(
 __all__ = [
     "COMMANDS",
     "DEFAULT_COMMANDS",
+    "POST_DEFAULTS",
     "CommandSpec",
     "Step",
     "plan",
