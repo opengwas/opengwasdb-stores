@@ -108,10 +108,16 @@ build:
 
 post:
   top_hits: true
-  rho: false                        # dense only; opengwasdb rejects otherwise
   overview: true                   # Dense/Hybrid only; Ragged's envelope excludes overview.html
-  validate: true
 ```
+
+`post` carries only the choices a Release makes differently from the defaults:
+`rho: false` and `validate: true`. `plan()` applies those defaults when a recipe
+omits them, and a recipe that states either key still wins. `top_hits` and
+`overview` are always explicit because they genuinely vary between releases --
+`overview` especially, since Ragged's closed Store envelope excludes
+`overview.html` and defaulting it on would re-enable a step the planner then
+refuses (ADR 0027, issue #128).
 
 A Reference-Completed release is the same file with a `complete` block instead of `build`. It carries no parent path: the parent is `release.yaml`'s `derived_from`, and its artifact path is a pure function of that ID.
 
@@ -273,7 +279,7 @@ build_manifest ──> build ──> top_hits ──> rho ──> overview ─�
 
 `build_manifest` is the derived build manifest's rule (ADR 0025). It runs before every observed-only build command, because `plan()` names the manifest it writes as the build step's first input. A Reference-Completed release substitutes `complete` for `build` and takes the supported tail; completion consumes only a parent Store, so it depends on no manifest step.
 
-Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. A Reference-Completed release substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
+Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. `rho` defaults off and `validate` defaults on, so a Build Recipe names only the steps it chooses differently (ADR 0027, issue #128). A Reference-Completed release substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
 
 **Lineage ordering is why the DAG spans every store rather than one.** A Reference-Completed release declares its parent's `register` record as an input, resolved from `release.yaml`'s `derived_from`. A per-release workflow driven by a batch loop would have to sequence parents before children by hand, and would get it wrong. Here it is a declared edge.
 

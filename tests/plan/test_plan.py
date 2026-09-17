@@ -50,6 +50,7 @@ from ogstores.bundle import Bundle, load
 from ogstores.plan import (
     COMMANDS,
     DEFAULT_COMMANDS,
+    POST_DEFAULTS,
     Step,
     plan,
     render_options,
@@ -1618,6 +1619,77 @@ class TestArtifactRootConfiguration(unittest.TestCase):
         self.assertNotEqual(default_steps[0].argv, overridden_steps[0].argv)
 
 
+class TestPostDefaults(unittest.TestCase):
+    """Post-processing keys constant across every Release are defaults (issue #128)."""
+
+    def _bundle(self, post: dict, store_id: str = "OGS-00072") -> Bundle:
+        return Bundle(
+            store_id=store_id,
+            root=Path("stores") / store_id,
+            release={"store_id": store_id, "family": "defaults-family", "status": "accepted"},
+            build={
+                "store_id": store_id,
+                "layout": "dense",
+                "completion_state": "observed_only",
+                "build": {"command": "build-dense-vcf", "options": {}},
+                "post": post,
+            },
+            analyses_path=Path("stores") / store_id / "analyses.tsv",
+        )
+
+    def test_default_values(self) -> None:
+        """Only rho and validate are defaults; top_hits and overview are not."""
+        record_check()
+        self.assertEqual(POST_DEFAULTS, {"rho": False, "validate": True})
+
+    def test_absence_falls_back_to_defaults(self) -> None:
+        """A recipe that omits rho/validate still plans validate and no rho."""
+        steps = plan(self._bundle({"top_hits": False, "overview": False}))
+        record_check()
+        self.assertEqual([s.name for s in steps], ["build", "validate"])
+
+    def test_explicit_value_overrides_default(self) -> None:
+        """A recipe that states rho: true and validate: false wins over the defaults."""
+        steps = plan(
+            self._bundle({"top_hits": False, "overview": False, "rho": True, "validate": False})
+        )
+        record_check()
+        self.assertEqual([s.name for s in steps], ["build", "rho"])
+        record_check()
+        self.assertNotIn("validate", [s.name for s in steps])
+
+    def test_committed_recipes_omit_defaulted_keys(self) -> None:
+        """All seven Build Recipes carry only the per-release choices in post."""
+        for i in range(1, 8):
+            sid = f"OGS-{i:05d}"
+            post = load(sid).build.get("post") or {}
+            record_check()
+            self.assertEqual(set(post), {"top_hits", "overview"}, f"{sid} post keys")
+            record_check()
+            self.assertNotIn("rho", post)
+            record_check()
+            self.assertNotIn("validate", post)
+
+    def test_committed_recipes_still_plan_validate_and_no_rho(self) -> None:
+        """Removing the defaulted keys from the recipes did not change planned steps."""
+        for i in range(1, 8):
+            sid = f"OGS-{i:05d}"
+            names = [s.name for s in plan(load(sid))]
+            record_check()
+            self.assertIn("validate", names, f"{sid} still plans validate")
+            record_check()
+            self.assertNotIn("rho", names, f"{sid} plans no rho")
+
+    def test_ragged_releases_keep_overview_explicit_and_unplanned(self) -> None:
+        """The four Ragged releases keep overview: false and plan no overview step."""
+        for sid in ("OGS-00001", "OGS-00002", "OGS-00006", "OGS-00007"):
+            b = load(sid)
+            record_check()
+            self.assertEqual((b.build.get("post") or {}).get("overview"), False)
+            record_check()
+            self.assertNotIn("overview", [s.name for s in plan(b)])
+
+
 def main() -> None:
     suite = unittest.TestSuite()
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanDense))
@@ -1626,6 +1698,7 @@ def main() -> None:
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanReferenceCompleted))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestBuildManifestSeam))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestArtifactRootConfiguration))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPostDefaults))
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     if not result.wasSuccessful():

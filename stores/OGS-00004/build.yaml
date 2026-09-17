@@ -9,6 +9,4 @@ build:
     source-assembly: hg38
 post:
   top_hits: false
-  rho: false
   overview: true
-  validate: true
