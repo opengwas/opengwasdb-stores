@@ -89,4 +89,43 @@ check(summary_dt$cis_rows[1] == 0, "cis_rows should be 0 for a no-target family"
 # failed every no-target family after the Store had already built -- now belongs
 # to opengwasdb's own read-back validation, not to a registry-side adapter.
 
+# The same fixture can exercise the target-resolving manifest path without
+# building a Store: give its one Analysis a deterministic Ensembl mapping and
+# emit into a temporary Release Bundle. OpenGWASDB ADR 0035 identity must be
+# reproducible from the generator, not only hand-migrated in OGS-00007.
+target_root <- tempfile("gene-target-release-")
+target_path <- tempfile("analysis-targets-", fileext = ".tsv")
+target_config <- cfg
+target_config$inputs$analysis_targets <- target_path
+target_config$selection$fail_if_target_unresolved <- TRUE
+target_config$output$release_dir <- target_root
+target_config$output$data_dir <- target_root
+fwrite(data.table(
+  source_analysis_id = "GCST900001",
+  chromosome = "1",
+  gene_start = 10000000L,
+  gene_end = 10010000L,
+  ensembl_gene_id = "ENSG00000123456",
+  gene_name = "FIXTURE1",
+  mapping_status = "mapped_to_ensembl",
+  trait_ontology_id = "http://purl.obolibrary.org/obo/fixture_0000001",
+  mhc = FALSE,
+  target_resolution_method = "fixture_external_authority"
+), target_path, sep = "\t")
+writeLines(as.yaml(target_config), tmp_config)
+run_mode("emit")
+
+target_analyses <- fread(file.path(target_root, "analyses.tsv"), sep = "\t", na.strings = "")
+check(!any(c("trait_id", "gene_id", "gene_name") %in% names(target_analyses)),
+      "gene-target manifest should omit retired Analysis columns")
+check(target_analyses$analysis_label[1] == "FIXTURE1",
+      "gene-target analysis_label should carry the resolved gene symbol")
+check(target_analyses$trait_ontology_id[1] == "ENSEMBL:ENSG00000123456",
+      "gene-target trait_ontology_id should carry the authority-qualified Ensembl ID")
+check(target_analyses$trait_ontology_label[1] == "Ensembl",
+      "gene-target trait_ontology_label should name the external authority")
+check(target_analyses$trait_ontology_mapping_method[1] == "external_authority_lookup",
+      "gene-target mapping provenance should report the external-authority lookup")
+unlink(c(target_root, target_path), recursive = TRUE)
+
 cat(sprintf("ALL %d CHECKS PASSED\n", n_checks))
