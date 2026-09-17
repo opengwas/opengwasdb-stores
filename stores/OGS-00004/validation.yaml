@@ -21,6 +21,7 @@ checks:
   files: passed_with_warnings
   reader_smoke_test: passed_with_warnings
 reports:
+  download_summary: sidecars/download_summary.tsv
   build_report: sidecars/build_report.tsv
 warnings:
   - "GCST003566: excluded from build -- excluded_2026-08-22: effect_allele_frequency reported against the other allele (r=-0.999 vs EUR panel and vs the other nine studies); opengwasdb#115"

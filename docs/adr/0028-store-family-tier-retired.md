@@ -40,3 +40,5 @@ Every field in `resources/families.yaml` resolves into one of four buckets -- al
 ---
 
 **Note on direct-read source identity (issue #134).** While source reading capability is encoded in build commands or declared null, monolithic direct-read BESD releases (`OGS-00001` and `OGS-00002`) currently record source identity only as an unverified host filesystem path prefix (`source_snapshot.besd_prefix` in `OGS-00001`; `OGS-00002` carries only `source_snapshot_id` with lineage via `derived_from`) without checksums, file lists, or sizes, and `bundle.check()` only asserts that `besd_prefix` is a non-empty string for `build-ragged-besd`. This is a known integrity gap tracked by open issue #134, not an equivalent alternative to checksum verification.
+
+**Amended by [0029](0029-release-identity-file-trimmed.md).** The evidence row above that cites `source_collection` as "already recorded — `release.yaml:source_collection_id`" is superseded: issue #136 removes `source_collection_id` from the identity file, since a string restated from the retired tier is not a fact that must survive its source. The Store Family tier itself remains retired.

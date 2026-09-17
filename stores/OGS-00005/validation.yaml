@@ -23,6 +23,8 @@ checks:
   effect_scale: passed
   sd_estimation: passed
 reports:
+  download_summary: sidecars/download_summary.tsv
+  sd_estimation: sidecars/sd_estimation.tsv
   build_report: sidecars/build_report.tsv
 warnings:
   - GCST002047: sample_size_kind present in the manifest but missing from the built store's analyses.tsv

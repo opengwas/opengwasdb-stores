@@ -57,20 +57,19 @@ store_id: OGS-00042
 label: r13-pilot-20                 # source-natural display name; not an identifier
 access_posture: public
 status: built                       # candidate|accepted|built|validated|superseded|withdrawn
-source_collection_id: finngen-r13
-association_coverage: full_gwas
 derived_from: ~                     # the parent's store_id for a completed release
 created_at: '2026-08-18T08:51:59Z'
+source_snapshot_id: finngen-r13-manifest-2026-05-12
 generator:                          # how the bundle was produced (Phase B)
-  command: Rscript resources/generators/finngen-r13/generate.R --config=config-pilot-20.yaml
   version: sha256:1800b9cf...
-build_environment:
-  repo_commit: ...
-  opengwasdb_rev: d6e5de7...
-  pixi_lock_sha256: ...
+  commands:                         # executed command log, in run order
+    - Rscript resources/generators/lib/source-formats/finngen-r13-dense/generate.R --config=resources/generators/finngen-r13/config-pilot-20.yaml --mode=emit
 notes: |
   ...
 ```
+
+The file trims to identity, lineage, Release Status, creation time, source
+snapshot identity, the generation command log, and prose (issue #136, ADR 0029).
 
 ### Status lifecycle and transitions
 
@@ -405,7 +404,7 @@ observed  format_version  n_variants  n_associations  store_bytes
           build_elapsed_s  validate_status
 ```
 
-Two commands per store matter, and they are different kinds of thing. The **generator command** (`inventory.tsv` + config to bundle) is recorded by the generator into `release.yaml`. The **build command** (bundle to store) is *derived by `plan()`*, the same function the workflow renders its rules from. A hand-maintained list would be wrong within a month.
+Two commands per store matter, and they are different kinds of thing. The **generator command log** (`inventory.tsv` + config to bundle) is recorded by the generator into `release.yaml` as `generator.commands`. The **build command** (bundle to store) is *derived by `plan()`*, the same function the workflow renders its rules from. A hand-maintained list would be wrong within a month.
 
 ### Planned and executed argv are different facts
 
@@ -501,7 +500,7 @@ Their outputs also live in different places and are reviewed differently. Phase 
 | Phase A | *derived* from a declarative `build.yaml` by `plan()` | regenerable, CI-checkable, verified against `records/` |
 | Phase B | *not derivable* -- family-specific imperative code calling several scripts in sequence | must be **recorded as it runs** |
 
-`release.yaml` currently holds `generator: {name, version, command}` -- a single command string, which is wrong as soon as generation calls acquire, select, assign-ancestry, estimate-SD and emit in turn. Phase B's design has to replace it with the executed sequence. That is the per-store script that Phase A does not need, and it is a log rather than a prediction.
+`release.yaml` now holds `generator: {version, commands}` -- an executed command log (a list), because generation calls acquire, select, assign-ancestry, estimate-SD and emit in turn and a single command string is wrong as soon as more than one step runs (issue #136). The previous `generator.name` path and the `--config=families/...` argument pointed at files that no longer exist and were corrected in the same change. That is the per-store script that Phase A does not need, and it is a log rather than a prediction.
 
 ### The four fixed rules
 

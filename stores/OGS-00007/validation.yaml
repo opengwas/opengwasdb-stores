@@ -25,6 +25,9 @@ checks:
   sd_estimation: not_run
   sparse_regions: passed
 reports:
+  analysis_targets: sidecars/analysis_targets.tsv
+  sparse_regions: sidecars/sparse_regions.tsv
+  filter_summary: sidecars/filter_summary.tsv
   build_report: sidecars/build_report.tsv
 warnings:
   - GCST005806: analysis_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)

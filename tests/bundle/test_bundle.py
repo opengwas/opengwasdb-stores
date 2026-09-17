@@ -53,14 +53,11 @@ class TestBundleContract(unittest.TestCase):
             "store_id": store_id,
             "label": "fixture",
             "status": status,
-            "source_collection_id": "fixture-source",
             "source_snapshot_id": "fixture-snapshot-v1",
-            "association_coverage": "full_gwas",
             "derived_from": None,
-            "release_kind": "one-off",
             "created_at": "2026-09-17T00:00:00Z",
             "description": "Fixture Release Bundle",
-            "generator": {"name": "fixtures/generate.py"},
+            "generator": {"commands": ["fixtures/generate.py"]},
         }
         if release:
             release_data.update(release)
@@ -147,7 +144,7 @@ class TestBundleContract(unittest.TestCase):
     def test_one_pass_accumulates_independent_errors(self) -> None:
         checked = self.make_bundle()
         bad_release = dict(checked.release)
-        for key in ("label", "source_collection_id", "generator"):
+        for key in ("label", "source_snapshot_id", "generator"):
             bad_release.pop(key)
         bad_release.update({"store_id": "OGS-99999", "status": "invented"})
         bad_build = dict(checked.build)
@@ -164,7 +161,7 @@ class TestBundleContract(unittest.TestCase):
         self.assertIsInstance(errors, list)
         for fragment in (
             "'label'",
-            "'source_collection_id'",
+            "'source_snapshot_id'",
             "'generator'",
             "invalid status",
             "release.yaml store_id",
@@ -204,6 +201,22 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         for key in bundle.RELEASE_REQUIRED_KEYS:
             self.assertTrue(any(repr(key) in error for error in errors), (key, errors))
+
+    def test_generator_requires_an_executed_command_log(self) -> None:
+        """The reshaped generation record is a command log, not a dead name path."""
+        checked = self.make_bundle()
+        for bad in (None, [], ["   "], ["one", 2], "not-a-list"):
+            errors = bundle.check(
+                replace(
+                    checked,
+                    release={**checked.release, "generator": {"commands": bad}},
+                ),
+                registry_root=self.tmp_dir,
+            )
+            record_check()
+            self.assertTrue(
+                any("commands" in error for error in errors), (bad, errors)
+            )
 
     def test_artifact_root_is_not_part_of_the_bundle_contract(self) -> None:
         checked = self.make_bundle()
@@ -584,9 +597,8 @@ class TestBundleContract(unittest.TestCase):
     def test_declared_bundle_files_checksum_syntax_and_shared_schema(self) -> None:
         checked = self.make_bundle(
             release={
-                "sidecars": {"evidence": "sidecars/missing.tsv"},
                 "source_snapshot": {"manifest_sha256": "not-a-checksum"},
-                "generator": {"name": "fixture", "version": "sha256:short"},
+                "generator": {"commands": ["fixture"], "version": "sha256:short"},
             },
             analyses=(
                 "analysis_id\tstored_effect_scale\tassigned_ancestry\t"
@@ -604,7 +616,6 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         delegated.assert_called_once()
         for fragment in (
-            "declared sidecar file",
             "manifest_sha256",
             "generator version",
             "missing required column(s)",

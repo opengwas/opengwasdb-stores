@@ -27,6 +27,7 @@ checks:
   metadata_resolution: passed
   store: passed
 reports:
+  selection: sidecars/selection.tsv
   metadata_resolution: sidecars/derivations.tsv
   downloads: sidecars/downloads.tsv
   ancestry: sidecars/ancestry.tsv

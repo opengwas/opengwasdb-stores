@@ -25,6 +25,10 @@ checks:
   sd_estimation: passed
   sparse_regions: passed_with_warnings
 reports:
+  sparse_regions: sidecars/sparse_regions.tsv
+  filter_summary: sidecars/filter_summary.tsv
+  sd_estimation: sidecars/sd_estimation.tsv
+  ancestry: sidecars/ancestry.tsv
   build_report: sidecars/build_report.tsv
 warnings:
   - store has 58053989 associations but filter summary records 58054205
