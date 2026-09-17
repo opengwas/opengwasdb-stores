@@ -37,15 +37,19 @@ than invoking a bare interpreter or a sibling checkout's virtualenv.
 
 ```text
 Source Collection
-  -> Manifest Generator            (Phase B, not yet designed)
+  -> Manifest Generator            (Phase B: resources/generators/)
   -> accepted Release Bundle       stores/OGS-00042/
   -> Store Release                 (Phase A)
 ```
 
 Two workflows, meeting at the accepted Release Bundle and sharing no DAG.
 Phase A is specified in
-[`docs/spec/store-release-workflow.md`](docs/spec/store-release-workflow.md);
-Phase B has four fixed boundary rules and is otherwise open.
+[`docs/spec/store-release-workflow.md`](docs/spec/store-release-workflow.md).
+Phase B generation runs today as per-source-format Manifest Generator scripts
+under `resources/generators/`, and each release records the commands it ran in
+`release.yaml:generator.commands`. What is still open is a Phase B Snakemake
+DAG (`workflow/generate.smk`), whose four boundary rules are fixed so Phase A
+is not built against a moving target.
 
 The single rule everything else follows from (ADR 0023):
 
