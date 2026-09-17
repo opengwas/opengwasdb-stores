@@ -20,3 +20,7 @@ is not placed in either manifest identity field.
 Release Lineage is expressed once, as `derived_from: OGS-00042` in the child's `release.yaml`. The previous convention of naming a Reference-Completed child `<parent>-completed` expressed the same fact a second time through string adjacency; two mechanisms for one fact is how they drift apart. Because the artifact layout is now uniform, a store's artifact path is a pure function of its identifier, so resolving a parent needs the identifier alone and never a registry lookup.
 
 Existing published releases are renamed rather than preserved. This is a one-time mechanical migration of twenty bundles and their artifacts, recorded in the master list; the prior IDs remain discoverable through each release's `label` and its migration note.
+
+---
+
+**Amended by [0028](0028-store-family-tier-retired.md).** Store Family is no longer a field on a Store Release; the tier is retired entirely.

@@ -1,6 +1,6 @@
 store_id: OGS-00001
 label: pilot-10
-family: eqtlgen-cis-pilot
+access_posture: public
 status: built
 source_collection_id: eqtlgen-cis
 association_coverage: cis

@@ -6,7 +6,7 @@ declared bundle files, checksum syntax, Release Status, lineage, and the shared
 Manifest Generator can report every defect from one pass. It does not resolve
 source files, construct artifact paths, or open a Store.
 
-See docs/spec/store-release-workflow.md and ADRs 0017, 0022, 0023, and 0024.
+See docs/spec/store-release-workflow.md and ADRs 0017, 0022, 0023, and 0028.
 """
 
 from __future__ import annotations
@@ -50,7 +50,6 @@ LEGAL_STATUS_TRANSITIONS: dict[str, frozenset[str]] = {
 RELEASE_REQUIRED_KEYS: tuple[str, ...] = (
     "store_id",
     "label",
-    "family",
     "status",
     "source_collection_id",
     "source_snapshot_id",
@@ -168,10 +167,6 @@ class Bundle:
     @property
     def label(self) -> str | None:
         return self.release.get("label")
-
-    @property
-    def family(self) -> str | None:
-        return self.release.get("family")
 
     @property
     def layout(self) -> str | None:

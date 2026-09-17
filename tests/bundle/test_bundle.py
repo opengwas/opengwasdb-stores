@@ -52,7 +52,6 @@ class TestBundleContract(unittest.TestCase):
         release_data: dict[str, Any] = {
             "store_id": store_id,
             "label": "fixture",
-            "family": "fixture-family",
             "status": status,
             "source_collection_id": "fixture-source",
             "source_snapshot_id": "fixture-snapshot-v1",
@@ -148,7 +147,7 @@ class TestBundleContract(unittest.TestCase):
     def test_one_pass_accumulates_independent_errors(self) -> None:
         checked = self.make_bundle()
         bad_release = dict(checked.release)
-        for key in ("label", "family", "source_collection_id", "generator"):
+        for key in ("label", "source_collection_id", "generator"):
             bad_release.pop(key)
         bad_release.update({"store_id": "OGS-99999", "status": "invented"})
         bad_build = dict(checked.build)
@@ -165,7 +164,6 @@ class TestBundleContract(unittest.TestCase):
         self.assertIsInstance(errors, list)
         for fragment in (
             "'label'",
-            "'family'",
             "'source_collection_id'",
             "'generator'",
             "invalid status",

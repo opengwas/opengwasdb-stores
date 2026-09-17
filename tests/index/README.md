@@ -1,6 +1,6 @@
 # Master list index test suite
 
-Test suite for `ogstores.index` (Issue #118), governed by [ADR 0022](../../docs/adr/0022-flat-opaque-store-ids.md), [ADR 0023](../../docs/adr/0023-the-registry-store-seam-is-a-command-line.md), and [ADR 0024](../../docs/adr/0024-one-family-record-no-source-collection-tier.md).
+Test suite for `ogstores.index` (Issue #118), governed by [ADR 0022](../../docs/adr/0022-flat-opaque-store-ids.md), [ADR 0023](../../docs/adr/0023-the-registry-store-seam-is-a-command-line.md), and [ADR 0028](../../docs/adr/0028-store-family-tier-retired.md).
 
 ## Contracts and invariants covered
 

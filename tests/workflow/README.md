@@ -1,6 +1,6 @@
 # Workflow behavior and orchestration test suite
 
-Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), governed by [ADR 0022](../../docs/adr/0022-flat-opaque-store-ids.md), [ADR 0023](../../docs/adr/0023-the-registry-store-seam-is-a-command-line.md), and [ADR 0024](../../docs/adr/0024-one-family-record-no-source-collection-tier.md).
+Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), governed by [ADR 0022](../../docs/adr/0022-flat-opaque-store-ids.md), [ADR 0023](../../docs/adr/0023-the-registry-store-seam-is-a-command-line.md), and [ADR 0028](../../docs/adr/0028-store-family-tier-retired.md).
 
 ## Contracts and invariants covered
 
@@ -25,8 +25,7 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
    - Snakemake wildcard expansion across `stores/` is the sole multi-release orchestrator; no external batch/loop runner script exists.
    - Several Store Release IDs requested in a single invocation build in correct dependency and lineage order.
    - Requesting only a Reference-Completed child release automatically builds its parent first via the lineage input edge (`child complete` depends on `parent register` record).
-   - Requesting a Store Family (e.g. `pixi run release-family <family>` or targeting `<family>`) resolves and builds every release in that family.
-   - The `index` target depends only on Release Bundle files (`release.yaml`, `build.yaml`), never on Store artifacts or record files, guaranteeing that refreshing the master list proposes 0 build jobs.
+   - The index target depends only on Release Bundle files (`release.yaml`, `build.yaml`), never on Store artifacts or record files, guaranteeing that refreshing the master list proposes 0 build jobs.
 
 6. **End-to-end execution, idempotency, and resumption**:
    - A fixture-scale Dense store builds and registers end to end with a single snakemake command.

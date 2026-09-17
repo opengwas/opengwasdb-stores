@@ -1,6 +1,6 @@
 store_id: OGS-00007
 label: 2018-sun-pilot-10
-family: pqtl-interval-2018
+access_posture: public
 status: built
 source_collection_id: gwas-catalog-ssf
 association_coverage: cis_plus_signals
