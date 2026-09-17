@@ -233,6 +233,46 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         self.assertEqual(row_cand["build_elapsed_s"], "")
         self.assertEqual(row_cand["validate_status"], "")
 
+    def test_observed_columns_ignore_legacy_top_level_values(self) -> None:
+        """Issue #135: observed columns come only from the register-written `observed` block.
+
+        A pre-seam record can carry `n_analyses`, `format_version` and friends
+        at the top level with no `observed` block. After the migration every
+        record has the block, so the indexer has no compatibility fallback:
+        these top-level values must be ignored rather than published as an
+        observed measurement.
+        """
+        val_data = {
+            "status": "passed",
+            "format_version": "0.1",
+            "n_analyses": 99,
+            "n_variants": 999,
+            "n_associations": 9999,
+            "store_bytes": 12345,
+            "build_elapsed_s": 1.5,
+        }
+        b = create_mock_bundle(
+            self.stores_dir,
+            "OGS-00014",
+            label="legacy-top-level",
+            family="test-fam",
+            validation_data=val_data,
+        )
+
+        row = render_stores_row(b)
+        self.assertEqual(row["format_version"], "")
+        self.assertEqual(
+            row["n_analyses"],
+            "1",
+            "membership-derived Analysis count must ignore the legacy observed value",
+        )
+        self.assertEqual(row["n_variants"], "")
+        self.assertEqual(row["n_associations"], "")
+        self.assertEqual(row["store_bytes"], "")
+        self.assertEqual(row["build_elapsed_s"], "")
+        # The record's own status is still the published verdict (issue #124).
+        self.assertEqual(row["validate_status"], "passed")
+
     def test_validate_status_is_record_status_not_a_per_check_entry(self) -> None:
         """Issue #124: an overall failure must survive a passing per-check entry.
 

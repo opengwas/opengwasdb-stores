@@ -7,8 +7,10 @@ illegal status transition -- and that it delegates the `analyses.tsv` contract
 to `opengwasdb.model.analyses` rather than reimplementing it.
 
 Also that Phase B's columns are asserted present and vocabulary-valid, and
-that `check()` accumulates all errors without raising and never opens a Store
-or inspects a Release Artifact. BESD source provenance is checked for the
+that every Analysis column retired by the pinned upstream model is rejected,
+naming both the column and Store Release without copying the upstream list into
+this repository. `check()` accumulates all errors without raising and never
+opens a Store or inspects a Release Artifact. BESD source provenance is checked for the
 bundle-recorded `source_snapshot.besd_prefix` required since `908797f`, without
 probing that external prefix. Current Ragged bundles use `post.overview: false`
 and pass unchanged under the contract fixed by `6092fee`. Build Recipes pass
@@ -20,6 +22,11 @@ Covered by `tests/bundle/test_bundle.py`:
   Store Releases (`OGS-00001`..`OGS-00007`) load and pass `check()`.
 - Every registry failure class is asserted: missing keys in `release.yaml`/`build.yaml`/`analyses.tsv`, `store_id`/directory mismatch, malformed ID format, absent declared file/sidecar, bad checksum format, unresolvable/self-referential `derived_from`, illegal status transitions.
 - Delegation of `analyses.tsv` validation to `opengwasdb.model.analyses`.
+- Retired-column rejection follows the pinned upstream
+  `RETIRED_ANALYSIS_COLUMNS`, including a patched sentinel that proves there is
+  no registry-owned duplicate list.
+- OGS-00007's gene symbols and Ensembl CURIEs match its tracked target-evidence
+  sidecar after the retired `trait_id`/`gene_id`/`gene_name` columns are removed.
 - Status-aware validation: `candidate` release without `validation.yaml` and with unresolved rows passes.
 - Artifact-root separation: `artifacts` is neither required nor allowed in a
   Build Recipe; `paths.artifact_root()` owns deployment placement.

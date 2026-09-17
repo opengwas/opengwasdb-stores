@@ -20,7 +20,7 @@ from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 import yaml
-from opengwasdb.model.analyses import AnalysesTable, read_analyses, validate_analyses
+from opengwasdb.model import analyses as opengwasdb_analyses
 
 from ogstores.paths import is_valid_store_id
 
@@ -175,7 +175,9 @@ class Bundle:
         return path if path.is_file() else None
 
 
-def _column_values(table: AnalysesTable, column: str) -> list[str] | None:
+def _column_values(
+    table: opengwasdb_analyses.AnalysesTable, column: str
+) -> list[str] | None:
     """Return complete raw values, or ``None`` when the column is sparse."""
     if column not in table.fieldnames or not table.rows:
         return None
@@ -185,7 +187,9 @@ def _column_values(table: AnalysesTable, column: str) -> list[str] | None:
     return values
 
 
-def _collapse_identifier(table: AnalysesTable, column: str) -> str:
+def _collapse_identifier(
+    table: opengwasdb_analyses.AnalysesTable, column: str
+) -> str:
     values = _column_values(table, column)
     if values is None:
         return "NA"
@@ -195,7 +199,9 @@ def _collapse_identifier(table: AnalysesTable, column: str) -> str:
     return f"mixed ({len(distinct)})"
 
 
-def _collapse_quantity(table: AnalysesTable, column: str) -> str:
+def _collapse_quantity(
+    table: opengwasdb_analyses.AnalysesTable, column: str
+) -> str:
     values = _column_values(table, column)
     if values is None:
         return "NA"
@@ -222,7 +228,7 @@ def _collapse_quantity(table: AnalysesTable, column: str) -> str:
     return f"{minimum}-{maximum}"
 
 
-def _collapse_url(table: AnalysesTable, column: str) -> str:
+def _collapse_url(table: opengwasdb_analyses.AnalysesTable, column: str) -> str:
     values = _column_values(table, column)
     if values is None:
         return "NA"
@@ -263,7 +269,7 @@ def summarise(bundle: Bundle) -> dict[str, str | int]:
     preserves absence as ``NA`` and raw constant values verbatim; it never
     substitutes metadata from ``release.yaml`` or a Build Recipe.
     """
-    table = read_analyses(bundle.analyses_path)
+    table = opengwasdb_analyses.read_analyses(bundle.analyses_path)
     summary: dict[str, str | int] = {"n_analyses": len(table.rows)}
     for column in _IDENTIFIER_SUMMARY_COLUMNS:
         summary[column] = _collapse_identifier(table, column)
@@ -625,7 +631,7 @@ def _check_analyses(bundle: Bundle) -> list[str]:
             return [f"analyses file must not be a symbolic link: {analyses_path}"]
         if not analyses_path.is_file():
             return [f"analyses file does not exist: {bundle.analyses_path}"]
-        table = read_analyses(bundle.analyses_path)
+        table = opengwasdb_analyses.read_analyses(bundle.analyses_path)
     except Exception as exc:
         return [f"failed to read analyses.tsv: {type(exc).__name__}: {exc}"]
 
@@ -635,9 +641,16 @@ def _check_analyses(bundle: Bundle) -> list[str]:
                 f"analyses.tsv is missing Phase B required column: {column!r}"
             )
 
+    for column in opengwasdb_analyses.RETIRED_ANALYSIS_COLUMNS:
+        if column in table.fieldnames:
+            errors.append(
+                f"Store Release {bundle.store_id} analyses.tsv contains retired "
+                f"Analysis column {column!r}"
+            )
+
     active_table = table
     if "exclude_from_build" in table.fieldnames:
-        active_table = AnalysesTable(
+        active_table = opengwasdb_analyses.AnalysesTable(
             fieldnames=table.fieldnames,
             rows=tuple(
                 row for row in table.rows
@@ -646,7 +659,7 @@ def _check_analyses(bundle: Bundle) -> list[str]:
         )
 
     try:
-        analysis_errors = validate_analyses(active_table)
+        analysis_errors = opengwasdb_analyses.validate_analyses(active_table)
     except Exception as exc:
         errors.append(f"failed to validate analyses.tsv: {type(exc).__name__}: {exc}")
         analysis_errors = []

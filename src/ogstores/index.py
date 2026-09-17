@@ -111,37 +111,32 @@ def render_stores_row(
     steps = plan(bundle_obj, artifact_root=artifact_root)
     build_command = " ".join(steps[0].argv) if steps else ""
 
-    # Observed columns extracted exclusively from validation.yaml in git
+    # Observed columns extracted exclusively from validation.yaml in git. The
+    # values live in the register-written `observed` block and nowhere else: a
+    # pre-seam record that kept them at the top level is not read (issue #135).
+    # Every record carries the block after migration, so no compatibility
+    # fallback remains and an unrecorded measurement is published as absent.
     val = bundle_obj.validation or {}
     obs = val.get("observed", {})
 
     format_version = obs.get("format_version")
-    if format_version is None:
-        format_version = val.get("format_version", "")
     format_version_str = str(format_version) if format_version else ""
 
     # Analysis count describes bundle membership, so it is derived from the
-    # table rather than copied from build-time observations.
+    # table rather than copied from build-time observations. Issue #135's
+    # observed-only contract still applies to every actual Store measurement.
     n_analyses_str = str(membership_summary["n_analyses"])
 
     n_variants = obs.get("n_variants")
-    if n_variants is None:
-        n_variants = val.get("n_variants", "")
     n_variants_str = str(n_variants) if n_variants != "" and n_variants is not None else ""
 
     n_associations = obs.get("n_associations")
-    if n_associations is None:
-        n_associations = val.get("n_associations", "")
     n_associations_str = str(n_associations) if n_associations != "" and n_associations is not None else ""
 
     store_bytes = obs.get("store_bytes")
-    if store_bytes is None:
-        store_bytes = val.get("store_bytes", "")
     store_bytes_str = str(store_bytes) if store_bytes != "" and store_bytes is not None else ""
 
     build_elapsed_s = obs.get("build_elapsed_s")
-    if build_elapsed_s is None:
-        build_elapsed_s = val.get("build_elapsed_s", "")
     build_elapsed_s_str = str(build_elapsed_s) if build_elapsed_s != "" and build_elapsed_s is not None else ""
 
     # The Validation Record's own `status` is the release-level verdict (issue

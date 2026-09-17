@@ -116,6 +116,35 @@ class TestBundleContract(unittest.TestCase):
             record_check()
             self.assertEqual(errors, [], f"{store_id}: {errors}")
 
+    def test_ogs_00007_uses_unified_gene_identity_columns(self) -> None:
+        release_root = REPO_ROOT / "stores" / "OGS-00007"
+        analyses = ogstores.bundle.opengwasdb_analyses.read_analyses(
+            release_root / "analyses.tsv"
+        )
+        targets = ogstores.bundle.opengwasdb_analyses.read_analyses(
+            release_root / "sidecars" / "analysis_targets.tsv"
+        )
+        targets_by_id = {row["source_analysis_id"]: row for row in targets.rows}
+
+        self.assertTrue(
+            set(analyses.fieldnames).isdisjoint(
+                ogstores.bundle.opengwasdb_analyses.RETIRED_ANALYSIS_COLUMNS
+            )
+        )
+        for row in analyses.rows:
+            target = targets_by_id[row["source_analysis_id"]]
+            record_check()
+            self.assertEqual(row["analysis_label"], target["gene_name"])
+            self.assertEqual(
+                row["trait_ontology_id"],
+                f"ENSEMBL:{target['ensembl_gene_id']}",
+            )
+            self.assertEqual(row["trait_ontology_label"], "Ensembl")
+            self.assertEqual(
+                row["trait_ontology_mapping_method"],
+                "external_authority_lookup",
+            )
+
     def test_one_pass_accumulates_independent_errors(self) -> None:
         checked = self.make_bundle()
         bad_release = dict(checked.release)
@@ -156,7 +185,9 @@ class TestBundleContract(unittest.TestCase):
             build="not a mapping",  # type: ignore[arg-type]
         )
         with mock.patch.object(
-            ogstores.bundle, "validate_analyses", side_effect=RuntimeError("validator exploded")
+            ogstores.bundle.opengwasdb_analyses,
+            "validate_analyses",
+            side_effect=RuntimeError("validator exploded"),
         ):
             errors = bundle.check(hostile, previous_status=hostile, registry_root=self.tmp_dir)
         record_check()
@@ -193,6 +224,47 @@ class TestBundleContract(unittest.TestCase):
         )
         record_check()
         self.assertTrue(any("must not declare 'artifacts'" in error for error in errors))
+
+    def test_retired_analysis_columns_come_from_upstream_and_name_the_release(self) -> None:
+        checked = self.make_bundle()
+        lines = checked.analyses_path.read_text(encoding="utf-8").splitlines()
+        retired = ogstores.bundle.opengwasdb_analyses.RETIRED_ANALYSIS_COLUMNS
+        retired_header = "\t".join(retired)
+        retired_values = "\t".join("retired" for _ in retired)
+        checked.analyses_path.write_text(
+            f"{lines[0]}\t{retired_header}\n"
+            f"{lines[1]}\t{retired_values}\n",
+            encoding="utf-8",
+        )
+
+        errors = bundle.check(checked, registry_root=self.tmp_dir)
+        record_check()
+        for column in retired:
+            self.assertIn(
+                f"Store Release {checked.store_id} analyses.tsv contains retired "
+                f"Analysis column {column!r}",
+                errors,
+            )
+
+        sentinel = "upstream_only_retired"
+        with mock.patch.object(
+            ogstores.bundle.opengwasdb_analyses,
+            "RETIRED_ANALYSIS_COLUMNS",
+            (sentinel,),
+        ):
+            sentinel_bundle = self.make_bundle(
+                store_id="OGS-00091",
+                analyses=f"{lines[0]}\t{sentinel}\n{lines[1]}\tretired\n",
+            )
+            sentinel_errors = bundle.check(
+                sentinel_bundle,
+                registry_root=self.tmp_dir,
+            )
+        self.assertIn(
+            f"Store Release OGS-00091 analyses.tsv contains retired "
+            f"Analysis column {sentinel!r}",
+            sentinel_errors,
+        )
 
     def test_store_id_must_match_format_directory_and_both_documents(self) -> None:
         checked = self.make_bundle()
@@ -330,9 +402,9 @@ class TestBundleContract(unittest.TestCase):
             ),
         )
         with mock.patch.object(
-            ogstores.bundle,
+            ogstores.bundle.opengwasdb_analyses,
             "validate_analyses",
-            wraps=ogstores.bundle.validate_analyses,
+            wraps=ogstores.bundle.opengwasdb_analyses.validate_analyses,
         ) as delegated:
             errors = bundle.check(checked, registry_root=self.tmp_dir)
         record_check()

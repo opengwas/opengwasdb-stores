@@ -158,12 +158,13 @@ window around) simply omits `inputs.analysis_targets` from its config. The
 generator then retains only the significant/suggestive regions above with
 zero cis rows, does not require `fail_if_target_unresolved`-style target
 resolution at all, and never emits the single-gene-target columns
-(`trait_id`, `gene_id`, `gene_name`, `trait_chr`, `trait_bp`, `n`, `mhc`,
+(`trait_chr`, `trait_bp`, `n`, `mhc`,
 `target_resolution_method`, `n_target_rows`) — see
 `docs/release-metadata-schema.md`'s `analyses.tsv` section and
-`tests/no-cis-region-policy/` for fixture coverage. The existing
-target-resolving families (pqtl-interval-2018) are unaffected; this is an
-additive configuration, not a behavioural change to the cis+signals policy.
+`tests/no-cis-region-policy/` for fixture coverage. A target-resolving family
+expresses gene identity through `analysis_label`, `trait_ontology_id`, and
+`trait_ontology_label`, following OpenGWASDB ADR 0035. The existing
+pqtl-interval-2018 family's cis+signals policy is otherwise unchanged.
 
 Large filtered files, transient downloads, and stores are written under the
 configured `output.artifact_root` plus `output.artifact_subdir`. The release

@@ -50,6 +50,12 @@ notes: 'Deliberately not a replacement for 2018-sun-pilot-100 -- same source, sa
   manifest supplying real values (filed as explodecomputer/opengwasdb#83). This is a real upstream gap,
   not a defect in this release; left failing rather than silently accepted.
 
+
+  Release Erratum (issue #130): the registry manifest was migrated from the retired trait_id/gene_id/gene_name
+  Analysis columns to analysis_label plus an Ensembl trait_ontology_id/trait_ontology_label, using the same
+  tracked analysis_targets.tsv evidence. No Store artifact was rebuilt or rewritten by this registry migration;
+  the existing validation warnings remain the truthful record of the earlier build.
+
   '
 migration:
   adr: '0022'
