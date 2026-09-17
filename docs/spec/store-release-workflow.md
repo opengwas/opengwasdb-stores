@@ -168,7 +168,7 @@ The one thing Phase A writes is the **derived build manifest** under the artifac
 
 ## `src/ogstores/` — five modules
 
-### `bundle.py` (~150 lines)
+### `bundle.py`
 
 ```python
 @dataclass(frozen=True)
@@ -180,10 +180,30 @@ class Bundle:
     analyses_path: Path
 
 def load(store_id: str, registry_root: Path) -> Bundle: ...
-def check(bundle: Bundle) -> list[str]: ...
+def check(
+    bundle: Bundle,
+    previous_status: str | Bundle | None = None,
+    registry_root: Path | str | None = None,
+) -> list[str]: ...
 ```
 
-`check` covers registry-side facts only: required keys, `store_id` matches the directory name, ID format, declared files exist, checksums match, `derived_from` resolves, status transitions are legal, and `analyses.tsv` parses via `opengwasdb.model.analyses.read_analyses`. It delegates the Analysis schema rather than reimplementing it, and it never opens a store.
+`check` covers registry-side facts only: required identity and provenance keys,
+`store_id` matches the directory name and both YAML documents, ID format,
+declared bundle files exist, checksum syntax, `derived_from` resolves to a
+registered Store Release, Release Status vocabulary and optional transitions,
+and `analyses.tsv` parses via `opengwasdb.model.analyses.read_analyses`. It
+delegates the Analysis schema rather than reimplementing it. For BESD builds,
+the non-empty `source_snapshot.besd_prefix` introduced by `908797f` is checked
+as frozen provenance metadata, but the referenced BESD files are not inspected.
+
+The return value is a list of every error found in one pass; an empty list means
+the bundle is valid. Invalid or malformed bundle content is diagnostic data and
+never makes `check` raise. It reads only files within Release Bundles (including
+a registered parent needed for lineage resolution), never opens a Store, never
+stats a source path, and never inspects any Release Artifact. The
+`pixi run bundle-check` task discovers and checks every directory under
+`stores/`, and CI runs that gate explicitly so a newly committed bundle cannot
+bypass the contract.
 
 ### `plan.py` (~200 lines)
 
@@ -356,13 +376,16 @@ Assembled by `register` from the step records: the JSON each build command alrea
 
 ## Tests
 
-Exactly the four things this repository is responsible for:
+The checks cover the things this repository is responsible for:
 
-1. **`plan()` argv is correct.** Golden argv per store, ~5 steps each, no fixture stores required.
-2. **Conditional branches and resumption.** Rho off, no completion child, partial record sets produce the right step set.
-3. **A failed step cannot damage a live store or a good `validation.yaml`.**
-4. **Records merge into `validation.yaml` correctly**, and `register` fails when a record's executed argv differs from the planned argv — except for the `complete-dense-resume` substitution, which it accepts and records.
-5. **The builder never sees an excluded row.** `tests/manifest/` asserts the regression directly: the manifest a planned build step consumes is the derived file, and an `exclude_from_build: true` `analysis_id` is absent from it while the bundle keeps the audit row. It also covers re-densified `analysis_index`, preserved columns and order, pass-through, and each loud failure mode.
+1. **Every Release Bundle satisfies `bundle.check()`.** The CI gate discovers
+   bundles dynamically, reports all errors per bundle, and accesses no Store or
+   Release Artifact.
+2. **`plan()` argv is correct.** Golden argv per store, ~5 steps each, no fixture stores required.
+3. **Conditional branches and resumption.** Rho off, no completion child, partial record sets produce the right step set.
+4. **A failed step cannot damage a live store or a good `validation.yaml`.**
+5. **Records merge into `validation.yaml` correctly**, and `register` fails when a record's executed argv differs from the planned argv — except for the `complete-dense-resume` substitution, which it accepts and records.
+6. **The builder never sees an excluded row.** `tests/manifest/` asserts the regression directly: the manifest a planned build step consumes is the derived file, and an `exclude_from_build: true` `analysis_id` is absent from it while the bundle keeps the audit row. It also covers re-densified `analysis_index`, preserved columns and order, pass-through, and each loud failure mode.
 
 Fixture-scale end-to-end runs stay, as *one* smoke test. Source formats, store contents, layouts, queries and scientific invariants are tested once, in `opengwasdb`.
 

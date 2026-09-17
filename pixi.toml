@@ -188,6 +188,7 @@ workflow = { features = ["python", "store-build", "workflow"], solve-group = "ma
 test = { cmd = "python3 resources/scripts/run_all_tests.py" }
 test-python = { cmd = "python3 resources/scripts/run_all_tests.py --only python" }
 test-r = { cmd = "python3 resources/scripts/run_all_tests.py --only r" }
+bundle-check = { cmd = "python3 resources/scripts/check_bundles.py" }
 env-check = { cmd = "python3 resources/scripts/env_check.py" }
 
 [feature.r.tasks]

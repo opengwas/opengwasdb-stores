@@ -279,11 +279,20 @@ Use the Pixi environments pinned by this repository:
 
 ```bash
 pixi run env-check
+pixi run bundle-check
 pixi run test
 pixi run test-python
 pixi run test-r
 pixi run --environment docs docs-smoke
 ```
+
+`bundle.check(bundle, registry_root=...)` is the executable Release Bundle
+contract. It returns a list of every registry-side error it can find (an empty
+list means valid) and never raises for invalid bundle content. It reads only
+files inside Release Bundles, plus a parent bundle when resolving
+`derived_from`; it never opens a Store or inspects a Release Artifact. The
+`bundle-check` task discovers every bundle under `stores/` and fails if any
+error is returned, and CI runs that task explicitly.
 
 Run the checks relevant to a change. A behavior change to a script needs a test
 that reproduces the failure it prevents. Assert that fixtures exercise the
