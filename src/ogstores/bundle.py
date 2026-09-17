@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from opengwasdb.model.analyses import AnalysesTable, read_analyses, validate_analyses
+from opengwasdb.model import analyses as opengwasdb_analyses
 
 from ogstores.paths import is_valid_store_id
 
@@ -505,7 +505,7 @@ def _check_analyses(bundle: Bundle) -> list[str]:
             return [f"analyses file must not be a symbolic link: {analyses_path}"]
         if not analyses_path.is_file():
             return [f"analyses file does not exist: {bundle.analyses_path}"]
-        table = read_analyses(bundle.analyses_path)
+        table = opengwasdb_analyses.read_analyses(bundle.analyses_path)
     except Exception as exc:
         return [f"failed to read analyses.tsv: {type(exc).__name__}: {exc}"]
 
@@ -515,9 +515,16 @@ def _check_analyses(bundle: Bundle) -> list[str]:
                 f"analyses.tsv is missing Phase B required column: {column!r}"
             )
 
+    for column in opengwasdb_analyses.RETIRED_ANALYSIS_COLUMNS:
+        if column in table.fieldnames:
+            errors.append(
+                f"Store Release {bundle.store_id} analyses.tsv contains retired "
+                f"Analysis column {column!r}"
+            )
+
     active_table = table
     if "exclude_from_build" in table.fieldnames:
-        active_table = AnalysesTable(
+        active_table = opengwasdb_analyses.AnalysesTable(
             fieldnames=table.fieldnames,
             rows=tuple(
                 row for row in table.rows
@@ -526,7 +533,7 @@ def _check_analyses(bundle: Bundle) -> list[str]:
         )
 
     try:
-        analysis_errors = validate_analyses(active_table)
+        analysis_errors = opengwasdb_analyses.validate_analyses(active_table)
     except Exception as exc:
         errors.append(f"failed to validate analyses.tsv: {type(exc).__name__}: {exc}")
         analysis_errors = []

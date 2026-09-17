@@ -150,7 +150,7 @@ The human-interpretable display name for an Analysis's subject, drawn from which
 _Avoid_: trait label, display name
 
 **Trait Ontology Mapping Method**:
-The controlled value describing how a Trait Ontology Mapping was produced, such as source-provided, canonical-table lookup, or unmapped.
+The controlled value describing how a Trait Ontology Mapping was produced, such as source-provided, canonical-table lookup, deterministic external-authority lookup, or unmapped.
 _Avoid_: mapping confidence, mapping status
 
 **Canonical Trait Mapping Table**:

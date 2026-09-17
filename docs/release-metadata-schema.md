@@ -139,7 +139,7 @@ separately. `resources/generators/lib/metadata_resolvers/canonical_trait_table.R
 | `resolution_status` | Yes | `resolved` or `unresolved`. |
 | `trait_ontology_id` | Optional | `NA` when `resolution_status = unresolved`. |
 | `trait_ontology_label` | Optional | `NA` when `resolution_status = unresolved`. |
-| `trait_ontology_mapping_method` | Yes | `source_provided`, `canonical_table_lookup`, or `unmapped`. |
+| `trait_ontology_mapping_method` | Yes | `source_provided`, `canonical_table_lookup`, `external_authority_lookup`, or `unmapped`. |
 | `resolution_notes` | Optional | Free-text reason when `unmapped`. |
 
 Resolution order: (1) if the Source Collection already supplies an ontology
@@ -151,6 +151,13 @@ against the curated Canonical Trait Mapping Table Reference Resource
 `trait_ontology_id`/`trait_ontology_label` blank rather than guessing. See
 `docs/adr/0021-trait-ontology-mapping-lookup-lives-in-registry.md` for why
 this lookup lives in this repo rather than OpenGWASDB.
+
+Gene-centric Analyses take a separate deterministic path: a resolved external
+gene authority supplies the symbol as `analysis_label`, an authority-qualified
+identifier such as `ENSEMBL:ENSG00000152256` as `trait_ontology_id`, and the
+authority name as `trait_ontology_label`. These rows record
+`external_authority_lookup`; they do not claim that the Source Collection
+provided the mapping or that the phenotype-oriented canonical table did.
 
 ## Column classes
 
@@ -236,27 +243,22 @@ Use empty strings for unknown optional values in TSV.
 
 Some generators add family-specific columns beyond this shared/registry
 table, such as the `gwas-ssf-ragged` generator's single-gene-target columns
-(`trait_id`, `gene_id`, `gene_name`, `trait_chr`, `trait_bp`, `n`, `mhc`,
+(`trait_chr`, `trait_bp`, `n`, `mhc`,
 `target_resolution_method`, `n_target_rows`) for proteomics Store Families
 whose Analyses each have one resolvable encoding gene. A Store Family with no
 such target (for example small-molecule metabolomics, issue #26) omits these
 columns entirely rather than filling them with placeholder or `NA` values —
 their absence is how a reviewer tells the two family shapes apart.
 
-ADR 0034 also promoted `gene_id`/`gene_name`/`trait_chr`/`trait_bp` (plus
-`tissue`/`context`, which this registry already emits unconditionally) into
-opengwasdb's shared "Analysis" model for *built stores*, since they are no
-longer Ragged-specific there. This registry still only emits them for
-gene-target families, per the paragraph above — opengwasdb's builder treats a
-missing column the same as a blank value, so no-target families build
-correctly either way, and this registry's family-shape convention (absence,
-not blank, distinguishes the two shapes) is an unrelated, still-deliberate
-choice. `trait_id`, `n`, `mhc`, `target_resolution_method`, and
-`n_target_rows` remain genuinely registry/family-specific with no shared-core
-equivalent — including this generator's own `trait_id` (a proteomics
-analyte-level identifier from its gene-target sidecar), which is unrelated to
-Ragged's now-retired SQLite `trait_id` lookup key that ADR 0034 removed from
-opengwasdb itself.
+OpenGWASDB ADR 0035 retired dedicated `gene_id`/`gene_name` Analysis columns:
+for a gene-centric Analysis the gene symbol is `analysis_label`, the Ensembl
+gene CURIE is `trait_ontology_id`, and `trait_ontology_label` is `Ensembl`.
+Its unified schema also lists `trait_id` as retired. `bundle.check()` consumes
+that upstream retired-column list directly, so a Release Manifest cannot drift
+back onto any of those names. The target-resolution sidecar retains the source
+trait mapping and raw Ensembl fields as evidence; they are not duplicate
+Analysis columns. `n`, `mhc`, `target_resolution_method`, and `n_target_rows`
+remain registry/family-specific with no shared-core equivalent.
 
 Accepted build rows must have usable sample-size metadata. Analyses with unknown
 sample size may appear in Source Inventories, candidate diagnostics, or review
@@ -273,10 +275,10 @@ the source.
 | `analysis_id` | Yes | Stable registry Analysis ID. Usually source-derived unless the source lacks stable IDs. |
 | `source_analysis_id` | Optional | Upstream analysis identifier, such as a GCST accession or OpenGWAS ID, when the Source Collection provides one. |
 | `source_label` | Yes | Upstream trait or phenotype label preserved as source provenance. Registry-only; kept separate from `analysis_label` even when both hold the same source text, since `source_label` is not carried into a built store. |
-| `analysis_label` | Yes | Free-text, non-unique display label for the Analysis, carried into the built store (shared core, ADR 0034). Typically the same source text as `source_label` when the Source Collection has no separate curated display name. |
-| `trait_ontology_label` | Optional | Ontology or controlled vocabulary that defines `trait_ontology_id`, such as EFO, MONDO, OBA, or a source-local analyte vocabulary. Named `trait_ontology_name` before ADR 0034. |
+| `analysis_label` | Yes | Free-text, non-unique display label for the Analysis, carried into the built store (shared core, ADR 0034). Typically the same source text as `source_label`; for gene-centric Analyses it is the resolved gene symbol (ADR 0035). |
+| `trait_ontology_label` | Optional | Ontology or controlled vocabulary that defines `trait_ontology_id`, such as EFO, MONDO, OBA, Ensembl, or a source-local analyte vocabulary. For a gene-centric Ensembl CURIE this is `Ensembl`, while the human-readable symbol is `analysis_label` (ADR 0035). Named `trait_ontology_name` before ADR 0034. |
 | `trait_ontology_id` | Optional | Ontology or controlled-vocabulary identifier for the analysed trait, when available. CURIE format, for example `EFO:0001073`; blank when unmapped. Not required to be unique — several Analyses may legitimately share one. |
-| `trait_ontology_mapping_method` | Yes | Controlled value describing how `trait_ontology_id`/`trait_ontology_label` were resolved: `source_provided`, `canonical_table_lookup`, or `unmapped`. Registry-only; OpenGWASDB's shared schema has no equivalent column yet (see `docs/adr/0021-trait-ontology-mapping-lookup-lives-in-registry.md`). |
+| `trait_ontology_mapping_method` | Yes | Controlled value describing how `trait_ontology_id`/`trait_ontology_label` were resolved: `source_provided`, `canonical_table_lookup`, `external_authority_lookup`, or `unmapped`. Registry-only; OpenGWASDB's shared schema has no equivalent column yet (see `docs/adr/0021-trait-ontology-mapping-lookup-lives-in-registry.md`). |
 | `source_file` | Yes | Source file or filtered source file consumed by the builder. |
 | `source_bundle_id` | Optional | Identifier for a multi-file Source Bundle when one file is insufficient. |
 | `checksum` | Yes | Checksum for `source_file` or source bundle manifest. |

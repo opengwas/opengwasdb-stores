@@ -206,7 +206,8 @@ def check(
 declared bundle files exist, checksum syntax, `derived_from` resolves to a
 registered Store Release, Release Status vocabulary and optional transitions,
 and `analyses.tsv` parses via `opengwasdb.model.analyses.read_analyses`. It
-delegates the Analysis schema rather than reimplementing it. For BESD builds,
+delegates the Analysis schema rather than reimplementing it, including rejecting
+every column named by the pinned upstream `RETIRED_ANALYSIS_COLUMNS` list. For BESD builds,
 the non-empty `source_snapshot.besd_prefix` introduced by `908797f` is checked
 as frozen provenance metadata, but the referenced BESD files are not inspected.
 An `artifacts` block is rejected: issue #126 made the artifact root deployment
@@ -399,7 +400,8 @@ The checks cover the things this repository is responsible for:
 
 1. **Every Release Bundle satisfies `bundle.check()`.** The CI gate discovers
    bundles dynamically, reports all errors per bundle, and accesses no Store or
-   Release Artifact.
+   Release Artifact. Retired Analysis columns are fixture-tested against the
+   pinned upstream list rather than a registry-owned copy.
 2. **`plan()` argv is correct.** Golden argv per store, ~5 steps each, no fixture stores required.
 3. **Conditional branches and resumption.** Rho off, no completion child, partial record sets produce the right step set.
 4. **A failed step cannot damage a live store or a good `validation.yaml`.**

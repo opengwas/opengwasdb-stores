@@ -20,7 +20,9 @@ columns, `release.yaml` has no `sidecars.analysis_targets` pointer, and
 `sidecars/sparse_regions.tsv` has zero `cis` rows and only the expected
 significant/suggestive regions.
 
-The existing pqtl-interval-2018 family (which does declare
-`inputs.analysis_targets`) is unaffected by this change — its
-`--mode=validate` output and committed `analyses.tsv` are unchanged; this
-policy is purely additive configuration for families with no gene target.
+The fixture also emits a temporary gene-target Release Bundle without building
+a Store, proving that the target path writes the resolved symbol and Ensembl
+CURIE through `analysis_label`/`trait_ontology_id`/`trait_ontology_label`, records
+`external_authority_lookup`, and omits the upstream-retired
+`trait_id`/`gene_id`/`gene_name` Analysis columns (issue #130). The existing
+pqtl-interval-2018 family's cis+signals selection policy remains unchanged.

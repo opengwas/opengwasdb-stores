@@ -178,7 +178,7 @@ has_gene_targets <- function(cfg) !is.null(cfg$inputs$analysis_targets)
 
 empty_target_summary <- function() {
   data.table(
-    source_analysis_id = character(), trait_id = character(), gene_id = character(),
+    source_analysis_id = character(), gene_id = character(),
     gene_name = character(), target_id = character(), target_label = character(),
     trait_chr = character(), trait_bp = integer(), mhc = logical(),
     target_resolution_method = character(), n_target_rows = integer()
@@ -251,7 +251,6 @@ summarise_targets <- function(targets, selected_ids, fail_unresolved = TRUE) {
   }
 
   mapped[, .(
-    trait_id = paste(unique(na.omit(trait_ontology_id)), collapse = ";"),
     gene_id = paste(unique(na.omit(ensembl_gene_id)), collapse = ";"),
     gene_name = paste(unique(na.omit(gene_name)), collapse = ";"),
     target_id = paste(unique(na.omit(ensembl_gene_id)), collapse = ";"),
@@ -319,15 +318,28 @@ manifest_rows <- function(cfg, selected, target_summary, paths, has_targets = TR
   x[, trait_ontology_id := ontology_resolved$trait_ontology_id]
   x[, trait_ontology_label := ontology_resolved$trait_ontology_label]
   x[, trait_ontology_mapping_method := ontology_resolved$trait_ontology_mapping_method]
-  if (has_targets) x[, n := sample_size]
+  x[, analysis_label := DISEASE.TRAIT]
+  if (has_targets) {
+    if (any(is.na(x$gene_id) | !nzchar(x$gene_id) | grepl(";", x$gene_id))) {
+      stop("Each gene-target Analysis must resolve to exactly one Ensembl gene ID")
+    }
+    if (any(is.na(x$gene_name) | !nzchar(x$gene_name) | grepl(";", x$gene_name))) {
+      stop("Each gene-target Analysis must resolve to exactly one gene symbol")
+    }
+    # opengwasdb ADR 0035 retires gene_id/gene_name: a gene-centric
+    # Analysis carries the same resolved identity in the shared Analysis
+    # columns instead of duplicating it in family-specific columns.
+    x[, analysis_label := gene_name]
+    x[, trait_ontology_id := paste0("ENSEMBL:", gene_id)]
+    x[, trait_ontology_label := "Ensembl"]
+    x[, trait_ontology_mapping_method := "external_authority_lookup"]
+    x[, n := sample_size]
+  }
 
-  # Single-gene-target columns (trait_id, gene_id/name, cis coordinates, MHC
-  # flag, resolution provenance) only exist for families with a resolvable
-  # per-Analysis gene target (issue #26). A no-cis family (e.g. metabolomics)
-  # never emits these rather than filling them with placeholder/NA values;
-  # everything else keeps the same column order regardless.
-  target_cols_after_trait_ontology <- if (has_targets) "trait_id" else character()
-  target_cols_after_exclude <- if (has_targets) c("gene_id", "gene_name", "trait_chr", "trait_bp", "n") else character()
+  # Cis coordinates, N, the MHC flag, and target-resolution provenance only
+  # exist for families with a resolvable per-Analysis gene target (issue #26).
+  # Gene identity itself uses the shared Analysis columns above (issue #130).
+  target_cols_after_exclude <- if (has_targets) c("trait_chr", "trait_bp", "n") else character()
   target_cols_after_context <- if (has_targets) c("mhc", "target_resolution_method", "n_target_rows") else character()
 
   out_cols <- c(
@@ -335,11 +347,10 @@ manifest_rows <- function(cfg, selected, target_summary, paths, has_targets = TR
     "analysis_id" = "STUDY.ACCESSION",
     "source_analysis_id" = "STUDY.ACCESSION",
     "source_label" = "DISEASE.TRAIT",
-    "analysis_label" = "DISEASE.TRAIT",
+    "analysis_label",
     "trait_ontology_label",
     "trait_ontology_id",
     "trait_ontology_mapping_method",
-    target_cols_after_trait_ontology,
     "source_file",
     "source_url",
     "source_bundle_id",
@@ -997,11 +1008,12 @@ validate_emit <- function(cfg, root) {
     "trait_ontology_mapping_method", "source_file",
     "source_genome_build", "license", "first_author", "filtered_file"
   )
-  # trait_id/gene_id/gene_name/trait_chr/trait_bp/n/mhc are single-gene-target
-  # columns (issue #26): required only for Store Families with a resolvable
-  # per-Analysis gene target, absent entirely (not NA-filled) otherwise.
+  # trait_chr/trait_bp/n/mhc are single-gene-target columns (issue #26):
+  # required only for Store Families with a resolvable per-Analysis gene
+  # target, absent entirely (not NA-filled) otherwise. Gene identity uses
+  # analysis_label/trait_ontology_id/trait_ontology_label (issue #130).
   if (has_targets) {
-    required <- c(required, "trait_id", "gene_id", "gene_name", "trait_chr", "trait_bp", "n", "mhc")
+    required <- c(required, "trait_chr", "trait_bp", "n", "mhc")
   }
   missing_cols <- setdiff(required, names(analyses))
   if (length(missing_cols)) stop("analyses.tsv missing columns: ", paste(missing_cols, collapse = ", "))
