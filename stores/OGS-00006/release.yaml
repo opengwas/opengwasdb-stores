@@ -2,8 +2,6 @@ store_id: OGS-00006
 label: 2023-chen-full-european
 access_posture: public
 status: built
-source_collection_id: gwas-catalog-ssf
-association_coverage: signals_only
 derived_from: null
 created_at: '2026-08-04T11:00:49Z'
 description: 'Full European-ancestry slice of the Chen et al. 2023 plasma metabolome atlas (PMID 36635386):
@@ -11,27 +9,11 @@ description: 'Full European-ancestry slice of the Chen et al. 2023 plasma metabo
 
   '
 source_snapshot_id: gwas-catalog-v1.0.3.1-r2026-07-10
-release_kind: full
 accepted_at: null
 generator:
-  name: resources/generators/gwas-ssf-ragged/generate.R
   version: sha256:d48e94f4170c4e91a8713c2891d4da46399ae53fed26867c2a40d86cc72b2dfe
-  command: Rscript resources/generators/gwas-ssf-ragged/generate.R --config=families/metabolome-plasma-2023/generators/config-european.yaml
-    --mode=emit
-source_defaults:
-  source_genome_build: GRCh38
-  license: EBI GWAS Catalog terms of use
-  original_effect_scale: sd
-  stored_effect_scale: sd
-  sample_size_kind: total
-  source_ancestry_label: European
-  assigned_ancestry: EUR
-sidecars:
-  sparse_regions: sidecars/sparse_regions.tsv
-  filter_summary: sidecars/filter_summary.tsv
-  build_report: sidecars/build_report.tsv
-  sd_estimation: sidecars/sd_estimation.tsv
-  ancestry: sidecars/ancestry.tsv
+  commands:
+    - Rscript resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R --config=resources/generators/metabolome-plasma-2023/config-european.yaml --mode=emit
 notes: 'Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), scaled up per-ancestry (issue
   #31''s "run the whole thing" follow-on): single-ancestry selection (ancestry_group: European, matching
   the candidates table''s own store_key partitioning) rather than the pilot''s mixed-ancestry-plus-AF-assignment
@@ -48,9 +30,8 @@ notes: 'Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), sc
   window (trait_chr/trait_bp), which this no-gene-target family has none of, so completion is a no-op
   (opengwasdb#102). No Reference-Completed sibling exists yet.
 
-  Release Erratum (issue #133): this source_defaults block recorded assigned_ancestry as the free-text
-  Source Ancestry Label "European" while the membership table already recorded the super-population code
-  "EUR"; normalised here. The quantitative Analyses also stored n_cases/n_controls as 0 where the counts
+  Release Erratum (issue #133): assigned_ancestry was recorded as the free-text Source Ancestry Label
+  "European" while the membership table already recorded the super-population code "EUR"; normalised here. The quantitative Analyses also stored n_cases/n_controls as 0 where the counts
   are not applicable; those cells are now empty (absence is distinct from zero). source_ancestry_label
   remains "European" as source provenance. No Store artifact was rebuilt or rewritten.
 

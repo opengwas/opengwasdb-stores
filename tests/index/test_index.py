@@ -64,14 +64,11 @@ def create_mock_bundle(
         "store_id": store_id,
         "label": label,
         "status": status,
-        "source_collection_id": "test-col",
-        "association_coverage": "full_gwas",
         "derived_from": derived_from,
         "created_at": "2026-08-18T08:51:59Z",
         "description": "Mock release",
         "source_snapshot_id": "mock-snap",
-        "release_kind": "pilot",
-        "generator": {"command": f"generate.py --config={label}.yaml"},
+        "generator": {"commands": [f"generate.py --config={label}.yaml"]},
     }
 
     bld_dict: dict[str, Any] = {

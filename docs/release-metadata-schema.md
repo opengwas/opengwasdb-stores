@@ -10,8 +10,8 @@ inputs, audit release selection, and rebuild a Store Release.
 
 The schema is intentionally simple:
 
-- `release.yaml` records store-level identity, source snapshot, release defaults,
-  and pointers to sidecars.
+- `release.yaml` records store-level identity, lineage, Release Status, creation
+  time, source snapshot identity, the generation command log, and prose.
 - `analyses.tsv` records one resolved row per Analysis. Store-level defaults may
   be repeated here after expansion, because builders and reviewers should be able
   to reason about each row without chasing YAML inheritance.
@@ -22,14 +22,14 @@ The schema is intentionally simple:
 Release bundles live at:
 
 ```text
-families/<store-family-id>/releases/<family-release-id>/
+stores/OGS-xxxxx/
 ```
 
-Large release artifacts live outside this repository and should mirror the
-Store Family and Release Bundle identity under the configured artifact root:
+Large release artifacts live outside this repository under the configured
+artifact root, one directory per Store Release id:
 
 ```text
-<artifact-root>/<store-family-id>/releases/<family-release-id>/
+<artifact-root>/OGS-xxxxx/
 ```
 
 ## Pipeline stages
@@ -198,38 +198,45 @@ unrelated and unaffected).
 
 ## `release.yaml`
 
-Store-level release metadata. Required fields are required for an accepted
-release bundle; candidate bundles may leave lifecycle timestamps null.
+Store-level identity and provenance. Required fields are required for an
+accepted release bundle; candidate bundles may leave lifecycle timestamps null.
+
+Issue #136 trimmed the identity file to identity, lineage, Release Status,
+creation time, source snapshot identity, the generation command log, and the
+prose that explains the Store Release. Each removed field was derived elsewhere
+or read by no code: Association Coverage (`association_coverage`) and release
+cadence (`release_kind`) — ADR 0028 already established that the coverage
+vocabulary cannot reach a built Store, and the Build Recipe carries the
+load-bearing shape; Source Collection (`source_collection_id`) — a string
+restated from the retired Store Family tier; source defaults (`source_defaults`)
+— materialised per row in `analyses.tsv`; the sidecar pointer map (`sidecars`) —
+duplicating both the directory listing and the Validation Record's `reports`
+map; and the standalone `build_environment` block — superseded by the Validation
+Record's register-written `build_environment`. Sidecar pointers that existed
+only in the removed `sidecars` map were folded into each release's
+`validation.yaml` `reports` map in the same commit, so no sidecar lost its only
+pointer.
 
 | Field | Required | Description |
 |---|---:|---|
-| `metadata_schema_version` | Yes | Schema version for this release bundle format. Start with `1`. |
-| `store_family_id` | Yes | Stable Store Family ID matching the family directory. |
-| `family_release_id` | Yes | Release ID unique within the Store Family, such as `2018-ieu`, `r2026-07-10`, or `phase-1`. |
+| `store_id` | Yes | Opaque `OGS-` 5-digit identifier (ADR 0022): the directory name under `stores/` and under the artifact root. |
+| `label` | Yes | Source-natural display name; provenance, never an identifier (ADR 0022). |
+| `access_posture` | Yes | Declared availability category: `public`, `controlled`, or `embargoed`. The one store-level fact the retired Store Family tier genuinely declared (ADR 0028). |
 | `status` | Yes | Registry lifecycle state: `candidate`, `accepted`, `built`, `validated`, `superseded`, or `withdrawn`. |
-| `source_collection_id` | Yes | Source Collection used by this Store Family. |
-| `source_snapshot_id` | Yes | Dated or provider-native source snapshot used for this release, for example a GWAS Catalog studies-table release date. |
-| `release_kind` | Yes | Release cadence kind, such as `source-natural`, `date-snapshot`, `one-off`, or `corrected`. |
-| `association_coverage` | Yes | Expected association coverage: `full_gwas`, `cis`, `trans`, `cis_plus_signals`, `signals_only`, `top_hits`, or `unknown`. `signals_only` is `cis_plus_signals` minus the cis window, for Store Families whose Analyses have no single encoding gene to derive a cis window from (for example small-molecule metabolomics, issue #26) — only significant-hit and suggestive-lead regions are retained. |
-| `description` | Yes | Short human-readable release description. |
-| `created_at` | Optional | Timestamp when the candidate bundle was generated. |
+| `derived_from` | Optional | Parent `store_id` when this release derives from another release. Required for a Reference-Completed release. |
+| `created_at` | Yes | Timestamp when the candidate bundle was generated. |
 | `accepted_at` | Optional | Timestamp when the bundle was accepted as the release input record. |
-| `generator.name` | Yes | Manifest Generator name or path. |
+| `source_snapshot_id` | Yes | Dated or provider-native source snapshot used for this release, for example a GWAS Catalog studies-table release date. |
+| `source_snapshot` | Optional | Source snapshot identity detail. For a monolithic BESD release: `besd_prefix` and `source_genome_build` (issue #134 records this as a known integrity gap, not a checksum equivalent). For a provider-manifest release: `manifest_url`, `manifest_sha256`, `manifest_size_bytes`, `manifest_etag`, `manifest_last_modified`. |
+| `generator` | Yes | How the bundle was produced. |
 | `generator.version` | Optional | Generator package version, git commit, or script hash. |
-| `generator.command` | Optional | Re-run command used to generate the bundle. |
-| `source_defaults.source_genome_build` | Yes | Default genome build for source files if not overridden in `analyses.tsv`. |
-| `source_defaults.license` | Yes | Default source licence if not overridden in `analyses.tsv`. |
-| `source_defaults.original_effect_scale` | Optional | Default original effect scale if constant across the release. |
-| `source_defaults.stored_effect_scale` | Yes when constant across the release | Default stored effect scale for OpenGWASDB when constant across the release: `sd`, `log_or`, or `log_hazard`. Omit (null) when a release genuinely mixes scales per Analysis (for example a Source Collection resolved per-Analysis via a metadata resolver, issue #49/#50) — `analyses.tsv`'s per-row `stored_effect_scale` is authoritative in that case. |
-| `source_defaults.sample_size_kind` | Optional | Default sample-size kind if constant across the release. |
-| `source_defaults.source_ancestry_label` | Optional | Default source ancestry label if constant across the release. |
-| `source_defaults.assigned_ancestry` | Optional | Default assigned ancestry if constant across the release. |
-| `lineage.derived_from` | Optional | Parent release ID or URI when this release derives from another release. |
-| `sidecars.ancestry` | Optional | Path to ancestry evidence sidecar. |
-| `sidecars.sd_estimation` | Optional | Path to phenotype-SD estimation evidence sidecar. |
-| `sidecars.sparse_regions` | Optional | Path to sparse-region sidecar. |
-| `sidecars.derivations` | Optional | Path to general derivation or curation sidecar. |
+| `generator.commands` | Yes | The executed command log: the commands that produced the bundle, in the order they ran. A log, not a prediction — a single command string was wrong as soon as generation ran several steps (issue #136). |
+| `description` | Yes | Short human-readable release description. |
 | `notes` | Optional | Free-text release notes. |
+| `migration` | Optional | One-time ADR 0022 migration provenance: `previous_identity`, `previous_bundle_path`, `previous_store_uri`, `artifact_move_pending`, and a migration note. |
+
+See [ADR 0029](adr/0029-release-identity-file-trimmed.md) for why each removed
+field is safe to drop and what supersedes it.
 
 ## `analyses.tsv`
 

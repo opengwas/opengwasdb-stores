@@ -45,16 +45,16 @@ LEGAL_STATUS_TRANSITIONS: dict[str, frozenset[str]] = {
 }
 
 # Release-level identity and provenance required by the current bundle contract.
-# ``build_environment`` remains optional because it is historical run evidence,
-# not provenance needed to identify or regenerate the accepted input.
+# The identity file trims to identity, lineage, status, creation time, source
+# snapshot identity, prose, and the generation command log (issue #136).
+# Coverage, cadence, Source Collection, source defaults, the sidecar pointer
+# map, and the standalone build_environment block were removed because they are
+# derived elsewhere or read by no code.
 RELEASE_REQUIRED_KEYS: tuple[str, ...] = (
     "store_id",
     "label",
     "status",
-    "source_collection_id",
     "source_snapshot_id",
-    "association_coverage",
-    "release_kind",
     "created_at",
     "description",
     "generator",
@@ -424,8 +424,19 @@ def _check_release(bundle: Bundle) -> list[str]:
     if generator is not None:
         if not isinstance(generator, Mapping):
             errors.append("release.yaml generator must be a mapping")
-        elif _is_missing(generator, "name"):
-            errors.append("release.yaml generator is missing required key: 'name'")
+        else:
+            commands = generator.get("commands")
+            if commands is None:
+                errors.append(
+                    "release.yaml generator is missing required key: 'commands'"
+                )
+            elif not isinstance(commands, list) or not commands or not all(
+                isinstance(command, str) and command.strip() for command in commands
+            ):
+                errors.append(
+                    "release.yaml generator commands must be a non-empty list "
+                    "of non-empty strings"
+                )
         version = generator.get("version") if isinstance(generator, Mapping) else None
         if isinstance(version, str) and version.startswith("sha256:"):
             checksum = version.removeprefix("sha256:")
@@ -445,36 +456,6 @@ def _check_release(bundle: Bundle) -> list[str]:
                 "release.yaml source_snapshot manifest_sha256 is invalid hex "
                 f"sha256: {checksum!r}"
             )
-
-    sidecars = release.get("sidecars")
-    if sidecars is not None and not isinstance(sidecars, Mapping):
-        errors.append("release.yaml sidecars must be a mapping")
-    elif isinstance(sidecars, Mapping):
-        for name, relative in sidecars.items():
-            if not isinstance(relative, str) or not relative.strip():
-                errors.append(f"declared sidecar {name!r} must be a relative path")
-                continue
-            path = Path(relative)
-            if path.is_absolute() or ".." in path.parts:
-                errors.append(
-                    f"declared sidecar {name!r} must stay inside the bundle: "
-                    f"{relative!r}"
-                )
-                continue
-            try:
-                sidecar_path = Path(bundle.root) / path
-                if sidecar_path.is_symlink():
-                    errors.append(
-                        f"declared sidecar file {name!r} must not be a symbolic link: "
-                        f"{sidecar_path}"
-                    )
-                elif not sidecar_path.is_file():
-                    errors.append(
-                        f"declared sidecar file {name!r} does not exist: "
-                        f"{sidecar_path}"
-                    )
-            except OSError as exc:
-                errors.append(f"declared sidecar file {name!r} could not be inspected: {exc}")
 
     return errors
 

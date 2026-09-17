@@ -88,16 +88,21 @@ def render_stores_row(
 
     created_at = str(bundle_obj.release.get("created_at") or "")
 
+    # The standalone build_environment block was removed from release.yaml
+    # (issue #136). The opengwasdb revision the master list publishes is the one
+    # the Validation Record's register-written build_environment names, so there
+    # is a single source rather than a hand-maintained generation-time copy.
     opengwasdb_rev = (
-        bundle_obj.release.get("build_environment", {}).get("opengwasdb_rev")
-        or bundle_obj.release.get("build_environment", {}).get("opengwasdb_commit")
-        or (bundle_obj.validation.get("build_environment", {}).get("opengwasdb_commit") if bundle_obj.validation else "")
+        (bundle_obj.validation.get("build_environment", {}).get("opengwasdb_commit") if bundle_obj.validation else "")
         or ""
     )
 
     gen = bundle_obj.release.get("generator")
     if isinstance(gen, dict):
-        generator_command = str(gen.get("command") or "")
+        commands = gen.get("commands") or []
+        generator_command = " ; ".join(
+            str(command) for command in commands if isinstance(command, str)
+        )
     elif isinstance(gen, str):
         generator_command = gen
     else:
