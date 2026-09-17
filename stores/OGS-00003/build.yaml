@@ -9,6 +9,4 @@ build:
     n-workers: 10
 post:
   top_hits: true
-  rho: false
   overview: true
-  validate: true

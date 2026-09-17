@@ -108,10 +108,16 @@ build:
 
 post:
   top_hits: true
-  rho: false                        # dense only; opengwasdb rejects otherwise
   overview: true                   # Dense/Hybrid only; Ragged's envelope excludes overview.html
-  validate: true
 ```
+
+`post` carries only the choices a Release makes differently from the defaults:
+`rho: false` and `validate: true`. `plan()` applies those defaults when a recipe
+omits them, and a recipe that states either key still wins. `top_hits` and
+`overview` are always explicit because they genuinely vary between releases --
+`overview` especially, since Ragged's closed Store envelope excludes
+`overview.html` and defaulting it on would re-enable a step the planner then
+refuses (ADR 0027, issue #128).
 
 A Reference-Completed release is the same file with a `complete` block instead of `build`. It carries no parent path: the parent is `release.yaml`'s `derived_from`, and its artifact path is a pure function of that ID.
 
@@ -160,11 +166,22 @@ This also removes the "catalogue-routed" special case — `build-hybrid-from-cat
 ## Store identity passed to `opengwasdb`
 
 ```text
---store-id   <family>      finngen-r13
+--store-id   <store_id>    OGS-00042
 --release-id <store_id>    OGS-00042
 ```
 
-The built store's `manifest.json` then reads `store_id: finngen-r13, release_id: OGS-00042` — a human-readable family plus the globally unique registry key, so a store found on disk joins back to its registry record without a lookup table.
+An observed-only built store's `manifest.json` therefore reads
+`store_id: OGS-00042, release_id: OGS-00042`. The Store Release has one
+identifier and a store found on disk joins directly back to its registry record.
+`plan()` does not read Store Family for any purpose. Reference Completion takes
+only the child `--release-id` and preserves the source Store identity, as defined
+by the upstream completion interface.
+
+The Release Bundle's source-natural `label` is display/provenance metadata, not
+identity. The current `opengwasdb` CLI cannot populate the manifest's free-form
+provenance mapping with it; [opengwasdb#181](https://github.com/opengwas/opengwasdb/issues/181)
+tracks that upstream capability. Until it exists, the label stays in the Release
+Bundle and generated views rather than being placed in either identity field.
 
 ## Phase A never writes `analyses.tsv`
 
@@ -244,7 +261,7 @@ Given the `build.yaml` above it returns four `Step`s, each holding an argv plus 
 [Step(name="build",    argv=["opengwasdb", "build-dense-vcf",
                              "/data/opengwasdb/stores/OGS-00042/work/analyses.tsv",
                              "/data/opengwasdb/stores/OGS-00042/store.opengwasdb",
-                             "--store-id", "finngen-r13", "--release-id", "OGS-00042",
+                             "--store-id", "OGS-00042", "--release-id", "OGS-00042",
                              "--source-reader-capability", "opengwasdb.finngen-r13",
                              "--source-assembly", "hg38",
                              "--n-workers", "8", "--chunk-variants", "1000"], ...),
@@ -297,7 +314,7 @@ build_manifest ──> build ──> top_hits ──> rho ──> overview ─�
 
 `build_manifest` is the derived build manifest's rule (ADR 0025). It runs before every observed-only build command, because `plan()` names the manifest it writes as the build step's first input. A Reference-Completed release substitutes `complete` for `build` and takes the supported tail; completion consumes only a parent Store, so it depends on no manifest step.
 
-Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. A Reference-Completed release substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
+Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. `rho` defaults off and `validate` defaults on, so a Build Recipe names only the steps it chooses differently (ADR 0027, issue #128). A Reference-Completed release substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
 
 **Lineage ordering is why the DAG spans every store rather than one.** A Reference-Completed release declares its parent's `register` record as an input, resolved from `release.yaml`'s `derived_from`. A per-release workflow driven by a batch loop would have to sequence parents before children by hand, and would get it wrong. Here it is a declared edge.
 
@@ -389,6 +406,10 @@ It was justified on portability -- rebuild without this repository -- but a scri
 A per-store command *log* is still wanted, but for Phase B rather than Phase A, and for the opposite reason -- see below.
 
 ## `validation.yaml`
+
+The field-by-field format is defined once in
+[`docs/release-metadata-schema.md`](../release-metadata-schema.md#validationyaml);
+this section records only how the workflow produces it.
 
 Assembled by `register` from the step records: the JSON each build command already prints, plus `opengwasdb validate`'s verdict. `register` also compares each record's executed argv against `plan()`'s planned argv and fails on drift, per "Planned and executed argv are different facts" above. It records; it does not judge. This repository does not decide whether a store is scientifically sound — it captures what `opengwasdb` reported and who accepted it.
 

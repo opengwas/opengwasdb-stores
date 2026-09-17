@@ -445,14 +445,31 @@ ascertainment problem emerges, but is not assumed by default.
 
 ## `validation.yaml`
 
-Release-level acceptance and build validation summary.
+Release-level acceptance and build validation summary. `register` is the only
+writer (issue #119); it assembles the record from the step records and the
+`opengwasdb validate` verdict. This table is the one definition of the format;
+the workflow specification explains how `register` produces it rather than
+restating the fields. A measurement the build did not report is written as
+`null` -- absence is recorded, never guessed or defaulted (issue #135; see also
+the stdout-scraping and multiplication defects in issue #122).
 
 | Field | Required | Description |
 |---|---:|---|
-| `status` | Yes | `not_run`, `passed`, `failed`, or `passed_with_warnings`. |
+| `status` | Yes | `not_run`, `passed`, `failed`, or `passed_with_warnings`. The release-level verdict. |
 | `validated_at` | Optional | Timestamp of the latest validation run. |
-| `validator.name` | Optional | Validator script, package, or workflow name. |
-| `validator.version` | Optional | Validator version, git commit, or script hash. |
+| `validator.name` | Optional | The validator that produced the verdict. `register` writes `opengwasdb validate`; a deleted generator adapter is never named (issue #135). |
+| `validator.version` | Optional | Validator version, git commit, or script hash. `register` writes `opengwasdb@<commit>`. |
+| `build_environment.opengwasdb_version` | Optional | `opengwasdb` package version the record was produced against. |
+| `build_environment.opengwasdb_commit` | Optional | `opengwasdb` revision the record was produced against. |
+| `build_environment.python_version` | Optional | Python version of the registering environment. |
+| `build_environment.platform` | Optional | Platform string of the registering environment. |
+| `observed.format_version` | Yes | OpenGWASDB store format version the build reported, or `null` when it was not recorded. |
+| `observed.n_analyses` | Yes | Analysis count the build reported, or `null` when it was not recorded. |
+| `observed.n_variants` | Yes | Variant count the build reported, or `null` when it was not recorded. |
+| `observed.n_associations` | Yes | Association count the build reported, or `null` when it was not recorded. |
+| `observed.store_bytes` | Yes | Store size in bytes the build reported, or `null` when it was not recorded. |
+| `observed.build_elapsed_s` | Yes | Summed step elapsed seconds, or `null` when it was not recorded. |
+| `observed.validate_status` | Yes | The validate verdict the release-level `status` is derived from. |
 | `checks.schema` | Yes | Whether required files and fields conform to OpenGWASDB's shared core schema and this registry's release-bundle requirements. |
 | `checks.files` | Yes | Whether referenced source or filtered files exist and match checksums. |
 | `checks.reader_smoke_test` | Optional | Whether OpenGWASDB can read a small sample from each source file or bundle. |
@@ -464,7 +481,7 @@ Release-level acceptance and build validation summary.
 | `warnings` | Optional | List of non-blocking warnings. Reference-AF effect-scale warnings should name the Analysis and reason, for example low reference-AF overlap, an allele mismatch, unstable implied SD, a missing reference resource for the assigned ancestry, or scale inconsistency versus the declared effect scale. |
 | `errors` | Optional | List of blocking errors. |
 
-`status` is the release-level verdict and is the only value the generated master list (`stores.tsv`/`STORES.md`) publishes. A per-check entry such as `checks.store` describes one check and never overrides the record's own status; a release without a Validation Record publishes an empty verdict.
+The field list above is the format. How `register` chooses `status` and how the generated master list publishes it is specified in [`docs/spec/store-release-workflow.md`](spec/store-release-workflow.md#validationyaml), so the verdict contract has one home and this table has the other.
 
 ## Ancestry sidecar
 
