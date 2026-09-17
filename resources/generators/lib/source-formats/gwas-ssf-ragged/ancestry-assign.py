@@ -45,20 +45,27 @@ from opengwasdb.variants.normalise import VariantNormalisationError, orient_to_c
 # Best-effort mapping from this registry's free-text source ancestry labels
 # (see resources/data/derived/store-candidates-analyses.tsv `ancestry_group`)
 # to the ancestry-mixture reference's super-population codes, used only to
-# flag a source/assigned disagreement. Deliberately conservative: ambiguous
-# labels (Multiple/Mixed, NR/Unknown, Other, Asian (unspecified)) are left
-# unmapped so no mismatch is fabricated from a label that isn't precise
-# enough to compare.
-SOURCE_LABEL_TO_SUPERPOP = {
-    "African": "AFR",
-    "East Asian": "EAS",
-    "European": "EUR",
-    "South Asian": "SAS",
-    "South East Asian": "EAS",
-    "Greater Middle Eastern": "MID",
-    "Hispanic or Latin American": "AMR",
-    "Native American": "AMR",
-}
+# flag a source/assigned disagreement. Read from the one tracked mapping the R
+# generators also use, so the R and Python vocabularies cannot drift apart
+# (issue #133). Deliberately conservative: ambiguous labels
+# (Multiple/Mixed, NR/Unknown, Other, Asian (unspecified)) are absent from the
+# map so no mismatch is fabricated from a label that isn't precise enough to
+# compare.
+_REPO_ROOT = Path(__file__).resolve().parents[5]
+_SOURCE_LABEL_MAP_PATH = (
+    _REPO_ROOT / "resources" / "reference-resources"
+    / "ukb-ancestry-mixture-hg38" / "source_label_map.tsv"
+)
+
+
+def load_source_label_to_superpop() -> dict[str, str]:
+    with _SOURCE_LABEL_MAP_PATH.open(newline="", encoding="utf-8") as handle:
+        rows = csv.DictReader(handle, delimiter="\t")
+        return {row["source_label"]: row["super_population"] for row in rows}
+
+
+SOURCE_LABEL_TO_SUPERPOP = load_source_label_to_superpop()
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()

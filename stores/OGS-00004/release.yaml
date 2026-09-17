@@ -33,7 +33,7 @@ source_defaults:
   stored_effect_scale: log_or
   sample_size_kind: case_control
   source_ancestry_label: European
-  assigned_ancestry: European
+  assigned_ancestry: EUR
 sidecars:
   download_summary: sidecars/download_summary.tsv
   build_report: sidecars/build_report.tsv
@@ -54,6 +54,11 @@ notes: 'Deliberately restricted to case-control Analyses (stored_effect_scale= l
   from the built store despite the manifest supplying real values, and fabricates ancestry_assignment_method=af_assigned
   regardless of the manifest''s actual (here: source_trusted_no_af) value. Filed as explodecomputer/opengwasdb#86.
   These are real upstream gaps, not defects in this release; left failing rather than silently accepted.
+
+  Release Erratum (issue #133): assigned_ancestry was recorded as the free-text Source Ancestry Label
+  "European" rather than the registry-normalised super-population code "EUR". Corrected in analyses.tsv
+  and in this source_defaults block; source_ancestry_label remains "European" as source provenance.
+  No Store artifact was rebuilt or rewritten by this registry metadata correction.
 
   '
 migration:

@@ -225,7 +225,14 @@ declared bundle files exist, checksum syntax, `derived_from` resolves to a
 registered Store Release, Release Status vocabulary and optional transitions,
 and `analyses.tsv` parses via `opengwasdb.model.analyses.read_analyses`. It
 delegates the Analysis schema rather than reimplementing it, including rejecting
-every column named by the pinned upstream `RETIRED_ANALYSIS_COLUMNS` list. For BESD builds,
+every column named by the pinned upstream `RETIRED_ANALYSIS_COLUMNS` list. Two
+registry-owned vocabularies are checked on top of that delegation: every
+non-empty `assigned_ancestry` must be one of the ancestry mixture's seven
+super-population codes (a free-text Source Ancestry Label is not an Assigned
+Ancestry), and `n_cases`/`n_controls` must be blank on a non-case-control
+Analysis rather than `0` (issue #133). Both were silent-failure classes found
+in the committed bundles; the checks make a reintroduction fail `bundle-check`
+rather than a summary. For BESD builds,
 the non-empty `source_snapshot.besd_prefix` introduced by `908797f` is checked
 as frozen provenance metadata, but the referenced BESD files are not inspected.
 An `artifacts` block is rejected: issue #126 made the artifact root deployment

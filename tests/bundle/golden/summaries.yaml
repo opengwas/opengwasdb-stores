@@ -31,7 +31,7 @@ OGS-00004:
   publication_pmid: mixed (8)
   tissue: NA
   context: NA
-  assigned_ancestry: European
+  assigned_ancestry: EUR
   sample_size: 6753-482730
   source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
 OGS-00005:
@@ -40,7 +40,7 @@ OGS-00005:
   publication_pmid: mixed (8)
   tissue: NA
   context: NA
-  assigned_ancestry: European
+  assigned_ancestry: EUR
   sample_size: 511-300447
   source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
 OGS-00006:
@@ -58,6 +58,6 @@ OGS-00007:
   publication_pmid: '29875488'
   tissue: plasma
   context: SomaScan
-  assigned_ancestry: European
+  assigned_ancestry: EUR
   sample_size: '3301'
   source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/

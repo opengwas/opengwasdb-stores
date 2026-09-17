@@ -16,3 +16,17 @@ Manifest Generators therefore resolve authoritative Analytical Metadata before a
 build starts, validate the emitted manifest against the OpenGWASDB shared core
 schema, and leave reusable source readers, SD estimation, ancestry assignment,
 and statistical validation logic in OpenGWASDB.
+
+## Registry-side vocabulary guards
+
+Some shared-core columns carry a vocabulary or an absence rule the registry owns
+but OpenGWASDB does not yet check. `assigned_ancestry` is normalised to the
+ancestry-mixture Reference Resource's seven super-population codes, so a
+free-text Source Ancestry Label is never stored there; and `n_cases`/
+`n_controls` must be blank rather than `0` on a non-case-control Analysis. The
+pinned `opengwasdb.model.analyses.validate_analyses()` accepts any
+`assigned_ancestry` string and a zero count on a `total` Analysis, so
+`bundle.check()` enforces both directly (issue #133). This guards
+registry-owned semantics rather than duplicating the OpenGWASDB column schema,
+and each check should be retired in favour of the upstream validator if
+OpenGWASDB ever validates it.

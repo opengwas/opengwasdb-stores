@@ -74,6 +74,22 @@ PHASE_B_REQUIRED_COLUMNS: tuple[str, ...] = (
     "original_sd_method",
 )
 
+# The controlled vocabulary for ``assigned_ancestry``: the seven super-population
+# codes the ancestry-mixture Reference Resource assigns (see
+# resources/reference-resources/ukb-ancestry-mixture-hg38/resource.yaml and
+# docs/release-metadata-schema.md). Free-text Source Ancestry Labels such as
+# "European" are provenance, not Assigned Ancestry, and are rejected here so the
+# two vocabularies cannot silently read as the same fact (issue #133).
+SUPERPOPULATIONS: tuple[str, ...] = (
+    "AFR",
+    "AMR",
+    "EAS",
+    "EUR",
+    "MID",
+    "NAF",
+    "SAS",
+)
+
 # Store-level descriptive metadata that is derived from the membership table.
 # Names intentionally match their source columns: in particular, ``context``
 # is not renamed to ``assay`` because the Analysis contract has no assay field.
@@ -643,6 +659,40 @@ def _check_analyses(bundle: Bundle) -> list[str]:
                 f"Analysis column {column!r}"
             )
 
+    # Assigned Ancestry is the registry-normalised super-population code, never a
+    # free-text Source Ancestry Label. Empty is the one valid way to record an
+    # Analysis that is unassigned; "European" is not a synonym for "EUR".
+    if "assigned_ancestry" in table.fieldnames:
+        for row in table.rows:
+            value = (row.get("assigned_ancestry") or "").strip()
+            if value and value not in SUPERPOPULATIONS:
+                analysis_id = row.get("analysis_id") or "<unknown analysis_id>"
+                errors.append(
+                    f"analysis {analysis_id!r} has assigned_ancestry {value!r}; "
+                    f"expected one of {list(SUPERPOPULATIONS)} or empty for "
+                    "unassigned"
+                )
+
+    # Case/control counts are required only for case-control semantics, and
+    # absence is distinct from zero. Storing 0 for a non-case-control Analysis
+    # fabricates an event count that the evidence does not support.
+    if "sample_size_kind" in table.fieldnames:
+        for row in table.rows:
+            kind = (row.get("sample_size_kind") or "").strip()
+            if not kind or kind == "case_control":
+                continue
+            analysis_id = row.get("analysis_id") or "<unknown analysis_id>"
+            for column in ("n_cases", "n_controls"):
+                if column not in table.fieldnames:
+                    continue
+                value = (row.get(column) or "").strip()
+                if value:
+                    errors.append(
+                        f"analysis {analysis_id!r} has {column}={value!r} but "
+                        f"sample_size_kind={kind!r} is not 'case_control'; "
+                        "case and control counts must be absent when not applicable"
+                    )
+
     active_table = table
     if "exclude_from_build" in table.fieldnames:
         active_table = opengwasdb_analyses.AnalysesTable(
@@ -730,6 +780,7 @@ __all__ = [
     "LEGAL_STATUS_TRANSITIONS",
     "PHASE_B_REQUIRED_COLUMNS",
     "RELEASE_REQUIRED_KEYS",
+    "SUPERPOPULATIONS",
     "VALID_STATUSES",
     "check",
     "is_legal_status_transition",
