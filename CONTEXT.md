@@ -90,7 +90,7 @@ A representative subset run within the production workflow for a Store Release t
 _Avoid_: pilot run, pilot phase, trial run
 
 **Release Artifact**:
-A large material file or directory produced or consumed while building a Store Release, such as filtered source files, transient work files, build logs, or the built OpenGWASDB store. Release Artifacts live outside the Store Registry repository and are identified by explicit Store Release id paths.
+A large material file or directory produced or consumed while building a Store Release, such as filtered source files, transient work files, build logs, or the built OpenGWASDB store. Release Artifacts live outside the Store Registry repository under the Artifact Root, one directory per Store Release, so a release's artifact path is the identifier-derived `<artifact-root>/<store-id>/` (ADRs 0022 and 0030).
 _Avoid_: release bundle, manifest
 
 **Artifact Root**:

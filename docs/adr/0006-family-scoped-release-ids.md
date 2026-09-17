@@ -4,4 +4,4 @@ Store Release identifiers are scoped to their Store Family and should use source
 
 ---
 
-**Superseded by [0022](0022-flat-opaque-store-ids.md).** Release IDs are now globally unique opaque `OGS-` identifiers; Store Family is a field, not a path level.
+**Superseded by [0022](0022-flat-opaque-store-ids.md).** Release IDs are now globally unique opaque `OGS-` identifiers. [0028](0028-store-family-tier-retired.md) subsequently retired the Store Family tier outright, so there is no Store Family field or Family Release ID either: the `OGS-` id is the only identifier.

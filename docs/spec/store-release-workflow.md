@@ -21,9 +21,9 @@ stores/
     summary.yaml              generated    review view derived from analyses.tsv
     validation.yaml          written back  merged evidence from the run
   by-label/                  generated     finngen-r13-pilot-20 -> ../OGS-00042
-src/ogstores/                              bundle.py plan.py paths.py manifest.py run.py index.py
+src/ogstores/                              bundle.py plan.py paths.py manifest.py run.py index.py register.py
 workflow/Snakefile                         Phase A: scans stores/, wires every release
-workflow/generate.smk                      Phase B: acquisition + generation (separate DAG)
+workflow/generate.smk         planned      Phase B: acquisition + generation (separate DAG, not yet wired)
 resources/reference-resources/<id>/        resource.yaml
 resources/annotations/                     post-release curated metadata
 resources/generators/<family-id>/          Phase B
@@ -196,7 +196,12 @@ Phase A keeps a cheap residual role: `bundle.check()` asserts these columns are 
 
 The one thing Phase A writes is the **derived build manifest** under the artifact root (`work/analyses.tsv`), which drops `exclude_from_build` audit rows. It is not the bundle's `analyses.tsv` and it writes no column back into the bundle: the accepted input stays byte-identical, and the derived file is a projection of the registry's own selection decision, not a recomputation of Analytical Metadata (ADR 0025).
 
-## `src/ogstores/` — five modules
+## `src/ogstores/` — the modules
+
+The package is shared by both phases. Its module surfaces are `bundle.py`,
+`plan.py`, `paths.py`, `manifest.py`, `run.py`, `index.py` and `register.py`;
+`_pdeath_supervisor.py` is an internal helper `run.py` uses to contain a
+detached build's process group (ADR 0026).
 
 ### `bundle.py`
 
@@ -208,8 +213,9 @@ class Bundle:
     release: dict           # release.yaml
     build: dict             # build.yaml
     analyses_path: Path
+    validation: dict | None # validation.yaml, or None when absent
 
-def load(store_id: str, registry_root: Path) -> Bundle: ...
+def load(store_id: str, registry_root: Path | str | None = None) -> Bundle: ...
 def check(
     bundle: Bundle,
     previous_status: str | Bundle | None = None,
@@ -264,7 +270,7 @@ BESD input provenance, not per-Analysis download metadata. Likewise,
 the `6092fee` rule that Ragged releases cannot generate `overview.html` remains
 unchanged.
 
-### `plan.py` (~200 lines)
+### `plan.py`
 
 ```python
 @dataclass(frozen=True)
@@ -274,7 +280,7 @@ class Step:
     inputs: list[Path]
     outputs: list[Path]
 
-def plan(bundle: Bundle) -> list[Step]: ...
+def plan(bundle: Bundle, artifact_root: Path | str | None = None) -> list[Step]: ...
 ```
 
 A pure function that turns one release's `build.yaml` into the command lines needed to build it. Nothing more.
@@ -302,7 +308,7 @@ This is the entire adapter layer. It replaces `workflow/phase.py`, `workflow/mod
 
 `paths.py` also names the derived build manifest. The `analyses` token — positional for Dense/Hybrid/Ragged-SSF and the `--analyses` flag for Ragged BESD — resolves to `<artifact-root>/<store_id>/work/analyses.tsv`, and the step's declared `inputs` name it too, so the workflow builds the manifest before the builder runs. The bundle's own `analyses.tsv` never appears in a build argv. Completion (`complete-*`) commands consume only a parent Store and take no analyses manifest.
 
-### `manifest.py` (~150 lines)
+### `manifest.py`
 
 ```python
 def materialise_build_manifest(source_path, manifest_path, sidecar_path) -> BuildManifestResult: ...
@@ -310,13 +316,35 @@ def materialise_build_manifest(source_path, manifest_path, sidecar_path) -> Buil
 
 Materialises the derived build manifest: it reads the bundle's `analyses.tsv`, drops every row whose `exclude_from_build` is `true`, preserves every other column and the surviving row order, re-densifies `analysis_index` `0..n-1` when that column exists, and writes the manifest and its exclusion-audit sidecar atomically. It fails loudly on a malformed exclusion value, an all-excluded or header-only manifest, or a missing `analysis_id` column. Per ADR 0025 the registry enforces this decision here rather than teaching `opengwasdb` a registry-only audit column; the Snakefile calls this module and carries no filtering logic itself.
 
-### `paths.py` (~70 lines)
+### `paths.py`
 
 Artifact layout as pure functions of the store ID. No other module constructs an artifact path. `artifact_root()` resolves the deployment root from configuration -- workflow override, `OPENGWASDB_ARTIFACT_ROOT`, the tracked `ogstores.yaml`, then the built-in default -- and every path builder takes that root as an argument (issue #126).
 
-### `run.py` (~120 lines)
+### `run.py`
 
-Executes one `Step`: runs the argv, captures stdout/stderr/timing/exit status, writes `records/<step>.json`, and enforces the two safety rules below. It does not read the step's output back, interpret it, or re-validate it.
+Executes one `Step`: `execute_step()` runs the argv, captures
+stdout/stderr/timing/exit status, writes `records/<step>.json`, and enforces the
+two safety rules below; `run_step()` and `run_plan()` drive one and many steps.
+It does not read the step's output back, interpret it, or re-validate it.
+
+### `index.py`
+
+Renders the generated views. `generate_index()` discovers every valid bundle
+under `stores/`, writes each bundle's `summary.yaml`, regenerates `stores.tsv`
+and `STORES.md`, and refreshes the tracked `stores/by-label/` symlink tree (and
+the artifact-side `by-label/` tree when an artifact root is configured). It
+reads git, `analyses.tsv`, and `validation.yaml`, never a Store or a Release
+Artifact: it resolves the artifact root only to render derived paths
+(`store_uri` from `paths.store_path()`, `build_command` from `plan()`), so the
+two renderings cannot drift (ADRs 0022, 0030).
+
+### `register.py`
+
+`register_release()` assembles `validation.yaml` from the step records plus the
+`opengwasdb validate` verdict, compares each record's executed argv against
+`plan()`'s planned argv, harvests the observed measurements, and publishes the
+staged Store. It is the only writer of `validation.yaml` (issues #119, #135;
+ADR 0023).
 
 ## Safety
 
@@ -326,7 +354,7 @@ Executes one `Step`: runs the argv, captures stdout/stderr/timing/exit status, w
 
 **`validation.yaml` is written only by the terminal `register` step.** A failed run leaves the previous one intact.
 
-## `workflow/Snakefile` (~110 lines)
+## `workflow/Snakefile`
 
 One Snakefile for the whole registry, not one per release. It scans `stores/*/` at parse time and wildcards on `store_id`, so Snakemake's own expansion *is* the multi-release runner -- there is no separate batch script.
 
@@ -389,7 +417,7 @@ copied from that record: it is derived from the membership table with the rest
 of the summary. The numbers become reviewable in a pull request diff rather
 than being whatever the disk said last time.
 
-This subsumes `docs/store-catalog.md`, which today says of itself that its per-store numbers are a stale compilation from a date months earlier. A generated `STORES.md` cannot be stale.
+This subsumes the deleted `docs/store-catalog.md`, whose per-store numbers were a stale compilation from a date months earlier and which `generate_index()` removes when it is present. A generated `STORES.md` cannot be stale.
 
 The only thing deliberately excluded is anything whose answer changes without a commit -- whether a store still exists on disk, whether it is still readable. That is monitoring, not registry.
 
@@ -485,7 +513,7 @@ All layouts (Dense, Hybrid, Ragged SSF, and BESD) are unblocked on `opengwasdb@d
 
 ## Phase B — what produces a bundle
 
-Not designed yet. Four rules fix its boundary now, so Phase A is not built against a moving target; everything inside that boundary is open.
+Phase B generation runs today as per-source-format Manifest Generator scripts under `resources/generators/`, and each Release Bundle records the commands it ran in `release.yaml:generator.commands`. What does not exist yet is a Phase B Snakemake DAG (`workflow/generate.smk`). Four rules fix that DAG's boundary now, so Phase A is not built against a moving target; everything inside that boundary is open.
 
 ### Phase A and Phase B are separate workflows
 
@@ -528,7 +556,7 @@ resources/generators/lib/                  shared helpers
 resources/generators/lib/source-formats/   Source-Format-scoped generation code
 ```
 
-The entry point is family-scoped, matching `CONTEXT.md`'s definition of a Manifest Generator; the library is source-format-scoped, so families sharing a Source Collection share selection code without a configuration system by accident. This resolves the old `resources/generators/<source-format>-<layout>/` naming collision, where one directory served two families and grew a configuration system to tell them apart.
+The entry-point directory is scoped to the generator's historical family slug (ADR 0028), while the library is source-format-scoped, so families sharing a Source Collection share selection code without a configuration system by accident. This resolves the old `resources/generators/<source-format>-<layout>/` naming collision, where one directory served two families and grew a configuration system to tell them apart.
 
 A generator has the same shape as the build workflow: discover upstream, select rows, shell out to `opengwasdb` for the statistics, write the bundle.
 

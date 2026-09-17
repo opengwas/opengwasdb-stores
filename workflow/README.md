@@ -5,7 +5,7 @@ Two workflows, deliberately separate, meeting at the accepted Release Bundle.
 | | | |
 |---|---|---|
 | `Snakefile` | Phase A | accepted bundle -> validated Store Release |
-| `generate.smk` | Phase B | raw sources -> candidate bundle (not yet designed) |
+| `generate.smk` | Phase B | raw sources -> candidate bundle (planned; Phase B generation currently runs as `resources/generators/` scripts) |
 
 They share no DAG. The reason is not that one graph would be complex: the
 accepted bundle is a boundary *only because a human froze it*. Span both
