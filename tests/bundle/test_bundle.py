@@ -52,7 +52,6 @@ class TestBundleContract(unittest.TestCase):
         release_data: dict[str, Any] = {
             "store_id": store_id,
             "label": "fixture",
-            "family": "fixture-family",
             "status": status,
             "source_collection_id": "fixture-source",
             "source_snapshot_id": "fixture-snapshot-v1",
@@ -148,7 +147,7 @@ class TestBundleContract(unittest.TestCase):
     def test_one_pass_accumulates_independent_errors(self) -> None:
         checked = self.make_bundle()
         bad_release = dict(checked.release)
-        for key in ("label", "family", "source_collection_id", "generator"):
+        for key in ("label", "source_collection_id", "generator"):
             bad_release.pop(key)
         bad_release.update({"store_id": "OGS-99999", "status": "invented"})
         bad_build = dict(checked.build)
@@ -165,7 +164,6 @@ class TestBundleContract(unittest.TestCase):
         self.assertIsInstance(errors, list)
         for fragment in (
             "'label'",
-            "'family'",
             "'source_collection_id'",
             "'generator'",
             "invalid status",
@@ -334,6 +332,132 @@ class TestBundleContract(unittest.TestCase):
         self.assertEqual(
             bundle.LEGACY_BLANK_ANALYSIS_RELEASES,
             frozenset({"OGS-00001", "OGS-00002"}),
+        )
+
+    def test_assigned_ancestry_must_use_the_super_population_vocabulary(self) -> None:
+        header = (
+            "analysis_id\tstored_effect_scale\tsample_size_kind\t"
+            "sample_size_scope\tsample_size\toriginal_effect_scale\t"
+            "original_sd_method\tassigned_ancestry\t"
+            "ancestry_assignment_method\tchecksum\tchecksum_algorithm\t"
+            "source_file\n"
+        )
+
+        def analyses_with(ancestry: str) -> str:
+            return header + (
+                "FIXTURE_1\tsd\ttotal\tanalysis_level\t1000\tsd\t"
+                f"declared_standardised\t{ancestry}\taf_assigned\t"
+                f"{'a' * 64}\tsha256\t/data/source/fixture.tsv\n"
+            )
+
+        # A free-text Source Ancestry Label is not an Assigned Ancestry. The
+        # two vocabularies are related but distinct, so "European" is rejected
+        # in exactly the same way an unknown string would be.
+        for source_label in ("European", "eur", "Finnish"):
+            checked = self.make_bundle(analyses=analyses_with(source_label))
+            errors = bundle.check(checked, registry_root=self.tmp_dir)
+            record_check()
+            self.assertTrue(
+                any(
+                    f"has assigned_ancestry {source_label!r}" in error
+                    for error in errors
+                ),
+                (source_label, errors),
+            )
+
+        # The super-population code, and empty for unassigned, are both valid.
+        for valid in ("EUR", "AFR", ""):
+            checked = self.make_bundle(analyses=analyses_with(valid))
+            errors = bundle.check(checked, registry_root=self.tmp_dir)
+            record_check()
+            self.assertFalse(
+                any("assigned_ancestry" in error for error in errors), errors
+            )
+
+    def test_non_case_control_counts_must_be_absent_not_zero(self) -> None:
+        header = (
+            "analysis_id\tstored_effect_scale\tsample_size_kind\t"
+            "sample_size_scope\tsample_size\tn_cases\tn_controls\t"
+            "original_effect_scale\toriginal_sd_method\tassigned_ancestry\t"
+            "ancestry_assignment_method\tchecksum\tchecksum_algorithm\t"
+            "source_file\n"
+        )
+
+        def analyses_row(scale: str, kind: str, cases: str, controls: str,
+                         sd_method: str) -> str:
+            return header + (
+                f"FIXTURE_1\t{scale}\t{kind}\tanalysis_level\t1000\t{cases}\t"
+                f"{controls}\tsd\t{sd_method}\tEUR\taf_assigned\t"
+                f"{'a' * 64}\tsha256\t/data/source/fixture.tsv\n"
+            )
+
+        # Zero is a fabricated case count on a non-case-control Analysis.
+        zeroed = self.make_bundle(
+            analyses=analyses_row("sd", "total", "0", "0", "declared_standardised")
+        )
+        errors = bundle.check(zeroed, registry_root=self.tmp_dir)
+        record_check()
+        self.assertTrue(any("n_cases='0'" in error for error in errors), errors)
+        self.assertTrue(any("n_controls='0'" in error for error in errors), errors)
+
+        # Blank is the honest value when the counts do not apply...
+        blank = self.make_bundle(
+            analyses=analyses_row("sd", "total", "", "", "declared_standardised")
+        )
+        blank_errors = bundle.check(blank, registry_root=self.tmp_dir)
+        record_check()
+        self.assertFalse(
+            any("n_cases" in error or "n_controls" in error for error in blank_errors),
+            blank_errors,
+        )
+
+        # ...and a real case-control Analysis keeps its counts.
+        case_control = self.make_bundle(
+            analyses=analyses_row("log_or", "case_control", "10", "20", "binary_trait")
+        )
+        case_control_errors = bundle.check(case_control, registry_root=self.tmp_dir)
+        record_check()
+        self.assertFalse(
+            any(
+                "n_cases" in error or "n_controls" in error
+                for error in case_control_errors
+            ),
+            case_control_errors,
+        )
+
+    def test_super_populations_match_the_tracked_ancestry_reference_resource(self) -> None:
+        resource = yaml.safe_load(
+            (
+                REPO_ROOT
+                / "resources"
+                / "reference-resources"
+                / "ukb-ancestry-mixture-hg38"
+                / "resource.yaml"
+            ).read_text(encoding="utf-8")
+        )
+        record_check()
+        self.assertEqual(
+            set(ogstores.bundle.SUPERPOPULATIONS), set(resource["super_populations"])
+        )
+
+    def test_source_ancestry_label_map_targets_only_super_populations(self) -> None:
+        map_path = (
+            REPO_ROOT
+            / "resources"
+            / "reference-resources"
+            / "ukb-ancestry-mixture-hg38"
+            / "source_label_map.tsv"
+        )
+        with map_path.open(newline="", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        record_check()
+        self.assertTrue(rows, "the source-label map is the tracked vocabulary evidence")
+        self.assertTrue(
+            all(row["super_population"] in ogstores.bundle.SUPERPOPULATIONS for row in rows),
+            rows,
+        )
+        self.assertIn(
+            {"source_label": "European", "super_population": "EUR"}, rows
         )
 
     def test_store_id_must_match_format_directory_and_both_documents(self) -> None:

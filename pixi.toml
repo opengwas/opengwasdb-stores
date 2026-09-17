@@ -201,7 +201,6 @@ materialise-gwas-ssf-ragged = { cmd = "Rscript resources/scripts/materialise-gwa
 # by hand. `index` regenerates the master list from the bundles alone.
 release = { cmd = "snakemake --snakefile workflow/Snakefile --cores all --" }
 release-dry = { cmd = "snakemake --snakefile workflow/Snakefile --dry-run --" }
-release-family = { cmd = "snakemake --snakefile workflow/Snakefile --cores all --" }
 index = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
 [feature.reporting.tasks]

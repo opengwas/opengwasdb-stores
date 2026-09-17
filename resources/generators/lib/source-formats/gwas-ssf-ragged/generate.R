@@ -263,7 +263,7 @@ summarise_targets <- function(targets, selected_ids, fail_unresolved = TRUE) {
   ), by = source_analysis_id]
 }
 
-manifest_rows <- function(cfg, selected, target_summary, paths, has_targets = TRUE, canonical_table = NULL) {
+manifest_rows <- function(cfg, selected, target_summary, paths, has_targets = TRUE, canonical_table = NULL, ancestry_map = NULL) {
   x <- merge(
     selected,
     target_summary,
@@ -281,12 +281,24 @@ manifest_rows <- function(cfg, selected, target_summary, paths, has_targets = TR
   x[, source_url := ssf_url(STUDY.ACCESSION, cfg$source$ftp_base)]
   x[, source_bundle_id := ""]
   x[, source_ancestry_label := ancestry_group]
-  x[, assigned_ancestry := ancestry_group]
+  # Assigned Ancestry is the registry-normalised super-population code, not the
+  # free-text Source Ancestry Label (docs/release-metadata-schema.md; issue
+  # #133). A family that names one `ancestry_group` in its config gets that
+  # label translated here; an AF-based assignment pass may overwrite it later.
+  x[, assigned_ancestry := normalise_assigned_ancestry(ancestry_group, ancestry_map)]
   x[, ancestry_assignment_method := cfg$defaults$ancestry_assignment_method %||% "source_trusted_no_af"]
   x[, original_effect_scale := cfg$defaults$original_effect_scale %||% "sd"]
   x[, original_sd := ""]
   x[, original_sd_method := cfg$defaults$original_sd_method %||% "declared_standardised"]
   x[, stored_effect_scale := cfg$defaults$stored_effect_scale %||% "sd"]
+  # The candidates table represents "not a case-control study" as n_cases=0/
+  # n_controls=0, not NA. Honest here is blank (the schema makes these counts
+  # required only for stored_effect_scale = log_or/log_hazard), never a
+  # fabricated zero case count (issue #133; mirrors gwas-ssf-hybrid).
+  x[, n_cases := as.numeric(n_cases)]
+  x[, n_controls := as.numeric(n_controls)]
+  x[, n_cases := fifelse(stored_effect_scale %in% c("log_or", "log_hazard"), n_cases, NA_real_)]
+  x[, n_controls := fifelse(stored_effect_scale %in% c("log_or", "log_hazard"), n_controls, NA_real_)]
   x[, sample_size_kind := ifelse(study_design == "case-control", "case_control", "total")]
   x[, sample_size_scope := cfg$defaults$sample_size_scope %||% "analysis_level"]
   x[, license := cfg$defaults$license]
@@ -480,7 +492,8 @@ emit_bundle <- function(cfg, root) {
   }
   paths <- artifact_paths(cfg, root)
   canonical_table <- load_canonical_trait_table_from_cfg(cfg$reference_resources, root)
-  analyses <- manifest_rows(cfg, selected, target_summary, paths, has_targets = has_targets, canonical_table = canonical_table)
+  ancestry_map <- read_source_label_map(root)
+  analyses <- manifest_rows(cfg, selected, target_summary, paths, has_targets = has_targets, canonical_table = canonical_table, ancestry_map = ancestry_map)
 
   release_dir <- path_abs(root, cfg$output$release_dir)
   sidecar_dir <- file.path(release_dir, "sidecars")
@@ -529,7 +542,7 @@ emit_bundle <- function(cfg, root) {
       stored_effect_scale = cfg$defaults$stored_effect_scale,
       sample_size_kind = "total",
       source_ancestry_label = cfg$selection$ancestry_group,
-      assigned_ancestry = cfg$selection$ancestry_group
+      assigned_ancestry = normalise_config_assigned_ancestry(cfg, ancestry_map)
     ),
     lineage = list(derived_from = NULL),
     sidecars = sidecars_list,
@@ -1111,6 +1124,7 @@ refresh_build_mode <- function(cfg, root) {
 args <- parse_args(commandArgs(trailingOnly = TRUE))
 root <- repo_root()
 source(path_abs(root, "resources/generators/lib/gwas_catalog_ssf_url.R"))
+source(path_abs(root, "resources/generators/lib/ancestry.R"))
 source(path_abs(root, "resources/generators/lib/effect_scale_validation.R"))
 source(path_abs(root, "resources/generators/lib/effect_scale_stage_yaml.R"))
 source(path_abs(root, "resources/generators/lib/build_environment.R"))

@@ -104,7 +104,7 @@ GitHub keeps `refs/pull/<n>/head` after the branch is deleted.
 
 The repository tracks small, reviewable definitions and evidence:
 
-- Source Collection, Store Family, and Reference Resource metadata;
+- Source Collection and Reference Resource metadata;
 - accepted Release Manifest bundles (`release.yaml`, `analyses.tsv`,
   `build.yaml`, and `validation.yaml`);
 - Store-specific input-generation helpers and shared orchestration;
@@ -126,7 +126,6 @@ stores/            accepted Release Bundles, one per Store Release
 workflow/          Phase A: accepted bundle -> validated Store Release
 src/ogstores/      the Python package both phases use
 resources/         everything on the input side
-  families.yaml        Store Family records
   reference-resources/ auxiliary build-time inputs
   annotations/         curated metadata that outlives a release
   generators/          Phase B: sources -> candidate bundle
@@ -155,7 +154,7 @@ Analytical Metadata after publication is a Release Erratum.
 ### `workflow/`
 
 Phase A. `Snakefile` scans `stores/` and wires dependencies; nothing else.
-Per ADR 0023 it contains no Store Family name, no source column name, no
+Per ADR 0023 it contains no source column name, no
 manifest translation, and no layout branch -- each rule asks `ogstores.plan`
 for a Step and hands it to `ogstores.run`.
 
@@ -172,28 +171,10 @@ because it is not Phase A's: a generator validates what it emits with
 `bundle.check()`, so Phase B depends on it too. `workflow/` is also Snakemake's
 own namespace (`Snakefile`, `rules/`, `scripts/`, `envs/`).
 
-### `resources/families.yaml`
-
-One entry per Store Family: label, provider, access posture, default licence,
-Source Reader Capability, Source Collection, query promise, build priority.
-
-A Store Family is a product identity, not a format (ADR 0024). Three families
-here share one Source Collection and one Source Format -- all EBI GWAS Catalog
-GWAS-SSF -- and promise `full-gwas`, `signals_only` and `cis_and_signals`. The
-format is what a builder sees; the family is what a query user sees. A family
-is also the unit of continuity across releases, which is why the promise cannot
-be a field restated on each one.
-
-`source_reader_capability` is the only field that becomes argv. There is no
-separate `source_format`, and no `source-collections/` directory: the Source
-Collection is a grouping string. A real Source Inventory, when acquisition
-produces one, returns as `resources/inventories/<id>.tsv` -- rows, not a
-metadata tier.
-
 ### `resources/reference-resources/`
 
 Auxiliary build-time inputs that are **not** the Source Collection of any
-family (ADR 0011): LD reference panels, reference allele-frequency panels,
+Store Release (ADR 0011): LD reference panels, reference allele-frequency panels,
 ancestry-mixture references, QC panels, the Canonical Trait Mapping Table, and
 the SomaScan target tables. Each carries a `resource.yaml` declaring kind,
 ancestry, genome build, variant ID convention, and location.

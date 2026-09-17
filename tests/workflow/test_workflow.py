@@ -3,7 +3,7 @@
 
 Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
 1. Snakefile wires dependencies only (ADR 0023):
-   - No Store Family name hardcoded.
+   - No Store Family name or target alias hardcoded.
    - No source column name hardcoded.
    - No manifest translation.
    - No layout branch in rule execution logic.
@@ -16,7 +16,6 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
 6. Multi-release DAG expansion (Issue #116):
    - Multiple store IDs in one invocation build in correct order.
    - Requesting only a Reference-Completed child also builds its parent first via lineage input edge.
-   - Requesting a family builds every release in that family.
    - The index target proposes 0 build jobs (depends only on bundle files).
 7. End-to-end fixture build, idempotency, interruption resumption, and record deletion.
 """
@@ -110,7 +109,6 @@ def create_dense_fixture_store(
     stores_dir: Path,
     store_id: str = "OGS-00099",
     *,
-    family: str = "test-fam",
     vcf_path: Path | None = None,
     artifact_root: Path | None = None,
     post_top_hits: bool = True,
@@ -131,7 +129,6 @@ def create_dense_fixture_store(
     release_yaml = {
         "store_id": store_id,
         "label": f"fixture-dense-{store_id}",
-        "family": family,
         "status": "candidate",
         "source_collection_id": "test-collection",
         "association_coverage": "full_gwas",
@@ -623,7 +620,6 @@ class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):
         rel_yaml = {
             "store_id": child_id,
             "label": "child-release",
-            "family": "test-fam",
             "status": "candidate",
             "source_collection_id": "test-collection",
             "association_coverage": "full_gwas",
@@ -685,7 +681,6 @@ class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):
         rel_yaml = {
             "store_id": child_id,
             "label": "completed-child",
-            "family": "test-fam",
             "status": "candidate",
             "source_collection_id": "test-collection",
             "association_coverage": "full_gwas",
@@ -739,7 +734,7 @@ class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):
 
 
 class TestWorkflowOperatorInterface(unittest.TestCase):
-    """Operator interface: rule all, store_id target, family target, and index target (Issue #116)."""
+    """Operator interface: rule all, store_id target, and index target (Issue #116)."""
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -772,53 +767,6 @@ class TestWorkflowOperatorInterface(unittest.TestCase):
         output = res.stdout + res.stderr
         self.assertIn("Unknown Store Release ID 'OGS-00042'", output)
         self.assertIn(f"Registered IDs: {known_id}", output)
-
-    def test_family_target_rule_resolves_all_family_releases(self) -> None:
-        """Targeting a Store Family resolves and builds every release of that family."""
-        family_name = "test-pilot-fam"
-        s1 = "OGS-00071"
-        s2 = "OGS-00072"
-        create_dense_fixture_store(self.stores_dir, store_id=s1, family=family_name, artifact_root=self.artifact_root)
-        create_dense_fixture_store(self.stores_dir, store_id=s2, family=family_name, artifact_root=self.artifact_root)
-
-        res = run_snakemake(
-            [family_name],
-            registry_root=self.stores_dir,
-            artifact_root=self.artifact_root,
-            dry_run=True,
-        )
-        self.assertEqual(res.returncode, 0, f"Family target dry run failed:\n{res.stderr}")
-        self.assertIn(f"rule {family_name}:", res.stdout)
-        self.assertIn(s1, res.stdout)
-        self.assertIn(s2, res.stdout)
-
-    def test_family_target_schedules_every_release_in_family(self) -> None:
-        """Targeting a Store Family schedules the full chain for every release in that family.
-
-        Asserted as a dry run, for the same reason as the multi-target case: the
-        family alias's job is to expand to its releases, and expansion is a DAG fact.
-        """
-        family_name = "test-exec-fam"
-        s1 = "OGS-00073"
-        s2 = "OGS-00074"
-        create_dense_fixture_store(self.stores_dir, store_id=s1, family=family_name, artifact_root=self.artifact_root)
-        create_dense_fixture_store(self.stores_dir, store_id=s2, family=family_name, artifact_root=self.artifact_root)
-
-        res = run_snakemake(
-            [family_name],
-            registry_root=self.stores_dir,
-            artifact_root=self.artifact_root,
-            dry_run=True,
-        )
-        self.assertEqual(res.returncode, 0, f"Family target dry run failed:\n{res.stderr}")
-
-        scheduled = scheduled_targets(res.stdout)
-        for step in ("build", "register"):
-            self.assertEqual(
-                scheduled.count(step),
-                2,
-                f"expected {step!r} scheduled once per family release, got {scheduled.count(step)}: {scheduled}",
-            )
 
     def test_all_target_resolves_all_discovered_releases(self) -> None:
         """Default target (all) resolves all discovered stores in registry_root."""

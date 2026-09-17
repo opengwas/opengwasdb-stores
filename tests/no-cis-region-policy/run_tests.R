@@ -49,6 +49,8 @@ run_mode("validate")
 run_mode("filter")
 
 analyses <- fread(file.path(output_dir, "analyses.tsv"), sep = "\t", na.strings = "")
+check(all(analyses$assigned_ancestry == "EUR"),
+      "emitted assigned_ancestry should be the super-population code EUR, not the source label European")
 release <- read_yaml(file.path(output_dir, "release.yaml"))
 regions <- fread(file.path(output_dir, "sidecars", "sparse_regions.tsv"), sep = "\t", na.strings = "")
 

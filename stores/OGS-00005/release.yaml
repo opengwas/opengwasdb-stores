@@ -1,6 +1,6 @@
 store_id: OGS-00005
 label: eur-hybrid-quant-pilot-10
-family: gwas-catalog-eur-hybrid
+access_posture: public
 status: built
 source_collection_id: gwas-catalog-ssf
 association_coverage: full_gwas
@@ -36,7 +36,7 @@ source_defaults:
   stored_effect_scale: sd
   sample_size_kind: total
   source_ancestry_label: European
-  assigned_ancestry: European
+  assigned_ancestry: EUR
 sidecars:
   download_summary: sidecars/download_summary.tsv
   build_report: sidecars/build_report.tsv
@@ -65,6 +65,11 @@ notes: 'original_sd_method starts at `unavailable` (never `declared_standardised
   well before the OS''s own ARG_MAX. Worked around here by sampling a bounded 2,000-variant subset per
   Analysis before estimation (generate.R''s thin_for_sd_estimation()); the underlying engine itself was
   not changed. Tracked as opengwasdb-stores#71.
+
+  Release Erratum (issue #133): assigned_ancestry was recorded as the free-text Source Ancestry Label
+  "European" rather than the registry-normalised super-population code "EUR". Corrected in analyses.tsv
+  and in this source_defaults block; source_ancestry_label remains "European" as source provenance.
+  No Store artifact was rebuilt or rewritten by this registry metadata correction.
 
   '
 migration:

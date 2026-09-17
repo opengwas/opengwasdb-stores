@@ -268,7 +268,11 @@ sidecars, but should not be included as buildable rows in an accepted
 Case/control-style counts are required when `stored_effect_scale = log_or` or
 `stored_effect_scale = log_hazard`. For time-to-event traits, `n_cases` is the
 event count and `n_controls` is the non-event or comparison count reported by
-the source.
+the source. When the Analysis is not case-control (`sample_size_kind` is not
+`case_control`), both counts must be blank rather than `0`: zero is a real
+count, and writing it where the counts do not apply is exactly the absence-vs-
+zero confusion CONTRIBUTING.md rules out. `bundle.check()` rejects a non-empty
+count on a non-case-control Analysis.
 
 | Field | Required | Description |
 |---|---:|---|
@@ -291,7 +295,7 @@ the source.
 | `consortium` | Optional | Consortium or provider label when DOI/PMID is not enough for provenance. Attribution Metadata (shared core, ADR 0034). |
 | `first_author` | Optional | First author for compact bibliographic/attribution provenance. Attribution Metadata (shared core, ADR 0034); new column, no equivalent before it. |
 | `source_ancestry_label` | Optional | Upstream ancestry/population label. |
-| `assigned_ancestry` | Optional | Registry-normalised ancestry used for store inclusion and routing. Empty means unassigned. |
+| `assigned_ancestry` | Optional | Registry-normalised ancestry used for store inclusion and routing, from the ancestry mixture's super-population vocabulary (`AFR`, `AMR`, `EAS`, `EUR`, `MID`, `NAF`, `SAS`). Empty means unassigned. A free-text Source Ancestry Label such as `European` is not valid here; `source_ancestry_label` preserves that provenance separately. `bundle.check()` rejects any other value. |
 | `ancestry_assignment_method` | Yes | Controlled value: `af_assigned`, `source_fallback`, `source_trusted_no_af`, or `unassigned`. |
 | `original_effect_scale` | Yes | Controlled value for upstream effect units, such as `sd`, `cm`, `logOR`, or another approved vocabulary item. |
 | `original_sd` | Optional | Source-provided or estimated phenotype SD on the original scale. Empty for binary traits or unavailable values. |
@@ -300,8 +304,8 @@ the source.
 | `sample_size_kind` | Yes | `total`, `case_control`, `effective`, or `variant_level`. Accepted build rows must not use `unknown`. |
 | `sample_size_scope` | Yes | `analysis_level` or `variant_level`. Use `variant_level` when N differs per SNP in the source file. |
 | `sample_size` | Yes | Scalar study N for this Analysis. When source N differs per SNP, use the study's maximum N. |
-| `n_cases` | Optional | Case count for binary traits, or event count for time-to-event traits. Required when `stored_effect_scale = log_or` or `log_hazard`. |
-| `n_controls` | Optional | Control count for binary traits, or non-event/comparison count for time-to-event traits when reported by the source. Required when `stored_effect_scale = log_or` or `log_hazard`. |
+| `n_cases` | Optional | Case count for binary traits, or event count for time-to-event traits. Required when `stored_effect_scale = log_or` or `log_hazard`; blank (not `0`) when the Analysis is not case-control. |
+| `n_controls` | Optional | Control count for binary traits, or non-event/comparison count for time-to-event traits when reported by the source. Required when `stored_effect_scale = log_or` or `log_hazard`; blank (not `0`) when the Analysis is not case-control. |
 | `analysis_group_id` | Optional | Grouping key for analyses sharing a publication, analyte panel, phenotype batch, or source bundle. |
 | `inclusion_reason` | Optional | Short family-specific reason this Analysis was selected. |
 | `exclude_from_build` | Optional | `true` only for rows retained for audit but intentionally skipped by the build. The registry honours it at build time: it materialises a derived build manifest (`<artifact-root>/<store-id>/work/analyses.tsv`) with every `true` row removed and points the builder at that, so `opengwasdb` never sees an excluded row. The row itself stays in the committed bundle, with its `inclusion_reason`, as the audit record of why the Analysis is absent. See [ADR 0025](adr/0025-registry-filters-excluded-analyses.md). |
@@ -403,12 +407,20 @@ gate, `ancestry_assignment_method` becomes `unassigned` (not left at its
 prior value), because the prior value would otherwise misleadingly imply
 validation was never attempted.
 
-`assigned_ancestry` for an `af_assigned` Analysis is one of the ancestry-mixture
-reference's super-population codes (for example `AFR`, `AMR`, `EAS`, `EUR`,
-`MID`, `NAF`, `SAS`), not this registry's free-text source ancestry labels
-(`European`, `East Asian`, and so on) — the two vocabularies are related but
-distinct, and a reviewer comparing them should expect a translation, recorded
-per-Analysis in the ancestry sidecar's `source_assigned_mismatch`.
+`assigned_ancestry` uses one controlled vocabulary on every Analysis,
+regardless of `ancestry_assignment_method`: the ancestry-mixture reference's
+super-population codes (`AFR`, `AMR`, `EAS`, `EUR`, `MID`, `NAF`, `SAS`) or
+empty for unassigned. It is never this registry's free-text Source Ancestry
+Labels (`European`, `East Asian`, and so on) — the two vocabularies are related
+but distinct, and a reviewer comparing them should expect a translation,
+recorded per-Analysis in the ancestry sidecar's `source_assigned_mismatch`. A
+Source-Trusted Analysis without source AF therefore still records a normalised
+Assigned Ancestry. The tracked translation from the candidates table's
+free-text labels to these codes is
+`resources/reference-resources/ukb-ancestry-mixture-hg38/source_label_map.tsv`,
+read by both the Ancestry Assignment stage and the manifest generators so the
+two cannot drift apart. `bundle.check()` rejects any value outside the
+vocabulary, so the split cannot silently reappear.
 
 ### QC panel configuration
 

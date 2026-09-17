@@ -30,7 +30,11 @@ description: >
   A1 = min(a0, a1)), and orients every fine group's frequency to that
   canonical A1. `fine_group_map` records which of the 21 fine groups
   aggregate to which of the 7 super-populations (AFR, AMR, EAS, EUR, MID,
-  NAF, SAS) for routing-level composition.
+  NAF, SAS) for routing-level composition. The tracked
+  `source_label_map.tsv` beside this file translates free-text Source Ancestry
+  Labels from the candidates table to these codes; both the Ancestry
+  Assignment stage and the manifest generators read it so Assigned Ancestry
+  stays in one vocabulary across every Release Bundle (issue #133).
 
   This is a distinct resource from `ukb-hg38-eur-af`: that one is a
   single-ancestry LD/AF panel used for reference-MAF effect-scale

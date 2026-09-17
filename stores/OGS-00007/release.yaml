@@ -1,6 +1,6 @@
 store_id: OGS-00007
 label: 2018-sun-pilot-10
-family: pqtl-interval-2018
+access_posture: public
 status: built
 source_collection_id: gwas-catalog-ssf
 association_coverage: cis_plus_signals
@@ -33,7 +33,7 @@ source_defaults:
   stored_effect_scale: sd
   sample_size_kind: total
   source_ancestry_label: European
-  assigned_ancestry: European
+  assigned_ancestry: EUR
 sidecars:
   analysis_targets: sidecars/analysis_targets.tsv
   sparse_regions: sidecars/sparse_regions.tsv
@@ -55,6 +55,12 @@ notes: 'Deliberately not a replacement for 2018-sun-pilot-100 -- same source, sa
   Analysis columns to analysis_label plus an Ensembl trait_ontology_id/trait_ontology_label, using the same
   tracked analysis_targets.tsv evidence. No Store artifact was rebuilt or rewritten by this registry migration;
   the existing validation warnings remain the truthful record of the earlier build.
+
+  Release Erratum (issue #133): assigned_ancestry was recorded as the free-text Source Ancestry Label
+  "European" rather than the registry-normalised super-population code "EUR". Corrected in analyses.tsv
+  and in this source_defaults block. The quantitative Analyses also stored n_cases/n_controls as 0 where
+  the counts are not applicable; those cells are now empty (absence is distinct from zero).
+  source_ancestry_label remains "European" as source provenance. No Store artifact was rebuilt or rewritten.
 
   '
 migration:

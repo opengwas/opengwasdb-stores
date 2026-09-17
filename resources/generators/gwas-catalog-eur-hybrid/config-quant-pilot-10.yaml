@@ -71,7 +71,7 @@ reference_resources:
     location_kind: external_file
   - resource_id: ukb-hg38-eur-af
     kind: reference_af
-    ancestry: European
+    ancestry: EUR
     genome_build: GRCh38
     variant_id_convention: "chr:pos_ref_alt"
     allele_columns:
@@ -91,5 +91,5 @@ effect_scale_validation:
   warning_multiplier: 2.0
   dispersion_max: 0.5
   reference_resources:
-    - ancestry: European
+    - ancestry: EUR
       resource_id: ukb-hg38-eur-af

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for generated registry views (issues #118 and #131).
 
-Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
+Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0028:
 1. `stores.tsv`, `STORES.md`, bundle summaries, and symlinks generate from bundles alone.
 2. `build_command` is derived purely by `plan(bundle)`, never stored or hand-maintained.
 3. Observed columns are extracted exclusively from `validation.yaml` in git, never from the artifact root.
@@ -49,7 +49,6 @@ def create_mock_bundle(
     store_id: str,
     *,
     label: str,
-    family: str,
     layout: str = "dense",
     completion_state: str = "observed_only",
     status: str = "built",
@@ -64,7 +63,6 @@ def create_mock_bundle(
     rel_dict = {
         "store_id": store_id,
         "label": label,
-        "family": family,
         "status": status,
         "source_collection_id": "test-col",
         "association_coverage": "full_gwas",
@@ -117,11 +115,10 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
 
     def test_canonical_columns_present_in_order(self) -> None:
         """stores.tsv contains exactly the canonical columns in defined order."""
-        self.assertEqual(len(COLUMNS), 26)
+        self.assertEqual(len(COLUMNS), 25)
         expected = (
             "store_id",
             "label",
-            "family",
             "layout",
             "completion_state",
             "status",
@@ -154,7 +151,6 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
             self.stores_dir,
             "OGS-00010",
             label="custom-options-pilot",
-            family="test-fam",
             options={"source-assembly": "hg38", "n-workers": 16, "chunk-variants": 5000},
         )
         row = render_stores_row(b)
@@ -173,7 +169,6 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
             self.stores_dir,
             "OGS-00013",
             label="configured-root",
-            family="test-fam",
         )
         row = render_stores_row(b, artifact_root="/configured/stores")
         self.assertTrue(
@@ -202,7 +197,6 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
             self.stores_dir,
             "OGS-00011",
             label="built-release",
-            family="test-fam",
             status="built",
             validation_data=val_data,
         )
@@ -210,7 +204,6 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
             self.stores_dir,
             "OGS-00012",
             label="candidate-release",
-            family="test-fam",
             status="candidate",
             validation_data=None,  # No validation.yaml
         )
@@ -255,7 +248,6 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
             self.stores_dir,
             "OGS-00014",
             label="legacy-top-level",
-            family="test-fam",
             validation_data=val_data,
         )
 
@@ -293,7 +285,6 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
             self.stores_dir,
             "OGS-00013",
             label="contradictory-record",
-            family="test-fam",
             status="built",
             validation_data=val_data,
         )
@@ -313,8 +304,8 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         store_cat_p.write_text("# Stale Store Catalog\n")
         self.assertTrue(store_cat_p.is_file())
 
-        b1 = create_mock_bundle(self.stores_dir, "OGS-00001", label="pilot-1", family="fam-a")
-        b2 = create_mock_bundle(self.stores_dir, "OGS-00002", label="pilot-2", family="fam-b")
+        b1 = create_mock_bundle(self.stores_dir, "OGS-00001", label="pilot-1")
+        b2 = create_mock_bundle(self.stores_dir, "OGS-00002", label="pilot-2")
 
         mock_artifact_root = self.td / "artifacts"
         mock_artifact_root.mkdir()
@@ -349,8 +340,8 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         # Verify STORES.md content
         md_text = md_p.read_text(encoding="utf-8")
         self.assertIn("# OpenGWASDB Store Releases", md_text)
-        self.assertIn("| `OGS-00001` | pilot-1 | fam-a |", md_text)
-        self.assertIn("| `OGS-00002` | pilot-2 | fam-b |", md_text)
+        self.assertIn("| `OGS-00001` | pilot-1 | dense |", md_text)
+        self.assertIn("| `OGS-00002` | pilot-2 | dense |", md_text)
         self.assertIn("## Derived membership summaries", md_text)
 
         # Verify stores/by-label/ symlinks
@@ -385,7 +376,7 @@ class TestIndexStrictSeamAndTripwires(unittest.TestCase):
 
     def test_tripwire_index_opens_no_artifact_root_files_or_store(self) -> None:
         """Strict seam proof (ADR 0023): index reads git only, opening zero artifact files."""
-        create_mock_bundle(self.stores_dir, "OGS-00021", label="seam-pilot", family="fam-seam")
+        create_mock_bundle(self.stores_dir, "OGS-00021", label="seam-pilot")
 
         artifact_root = self.td / "fake_data_opengwasdb"
         artifact_root.mkdir()
