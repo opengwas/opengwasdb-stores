@@ -1,7 +1,7 @@
 resource_id: ukb-hg38-eur-af
 label: UKB hg38 EUR reference allele frequencies
 kind: reference_af
-ancestry: European
+ancestry: EUR
 genome_build: GRCh38
 variant_id_convention: "chr:pos_ref_alt"
 allele_columns:

@@ -23,7 +23,7 @@ Every value below is derived from the Release Bundle's `analyses.tsv`; `NA` mean
 | `OGS-00001` | NA | NA | whole_blood | NA | NA | NA | NA |
 | `OGS-00002` | NA | NA | whole_blood | NA | NA | NA | NA |
 | `OGS-00003` | NA | NA | NA | NA | EUR | 362216-500186 | https://storage.googleapis.com/finngen-public-data-r13/summary_stats/ |
-| `OGS-00004` | mixed (8) | mixed (8) | NA | NA | European | 6753-482730 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
-| `OGS-00005` | mixed (8) | mixed (8) | NA | NA | European | 511-300447 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
+| `OGS-00004` | mixed (8) | mixed (8) | NA | NA | EUR | 6753-482730 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
+| `OGS-00005` | mixed (8) | mixed (8) | NA | NA | EUR | 511-300447 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
 | `OGS-00006` | Chen Y | 36635386 | plasma | metabolomics | EUR | 3441-8299 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
-| `OGS-00007` | Sun BB | 29875488 | plasma | SomaScan | European | 3301 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
+| `OGS-00007` | Sun BB | 29875488 | plasma | SomaScan | EUR | 3301 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |

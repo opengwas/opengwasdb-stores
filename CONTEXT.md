@@ -166,7 +166,7 @@ The ancestry or population label supplied by the upstream Source Collection and 
 _Avoid_: assigned ancestry
 
 **Assigned Ancestry**:
-The registry-normalised ancestry label used for store inclusion, routing, grouping, and ancestry-specific build choices.
+The registry-normalised ancestry label used for store inclusion, routing, grouping, and ancestry-specific build choices. It is one controlled vocabulary on every Analysis — one of the ancestry mixture's super-population codes (AFR, AMR, EAS, EUR, MID, NAF, SAS) or empty when unassigned — so a free-text Source Ancestry Label such as European is never stored here.
 _Avoid_: source ancestry label
 
 **Ancestry Assignment Method**:

@@ -50,7 +50,10 @@ candidates <- data.table(
   ancestry_fraction = 1, is_molecular = TRUE, molecular_subtype = "metabolomics",
   store_type = "ragged", store_key = "ragged__pmid-99999999__European",
   molecular_type = "metabolomics", study_design = "quantitative",
-  n_cases = NA_integer_, n_controls = NA_integer_, sample_size = 5000L,
+  # Deliberately 0, not NA: the candidates table represents "not a
+  # case-control study" as zero counts, and the generator must emit blank
+  # Assigned Metadata rather than a fabricated zero (issue #133).
+  n_cases = 0L, n_controls = 0L, sample_size = 5000L,
   n_variants = nrow(full), association_count = nrow(full[p_value <= 5e-8]),
   MAPPED_TRAIT_URI = "http://purl.obolibrary.org/obo/fixture_0000001"
 )
