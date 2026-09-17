@@ -34,13 +34,3 @@ notes: 'Quantitative endpoints are ordered by phenocode. For each binary categor
   deliberately retained rather than silently rescaling the endpoint.
 
   '
-migration:
-  adr: '0022'
-  previous_identity:
-    store_family_id: finngen-r13
-    family_release_id: r13-pilot-20
-  previous_bundle_path: families/finngen-r13/releases/r13-pilot-20
-  previous_store_uri: /data/opengwasdb/finngen-r13/releases/r13-pilot-20/store.opengwasdb
-  artifact_move_pending: true
-  note: Registry identity migrated to a flat OGS id. The built Store artifact has NOT yet moved to <artifact-root>/<store_id>/;
-    until it does, previous_store_uri is where it actually lives.

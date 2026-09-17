@@ -175,6 +175,37 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         self.assertIn("/configured/stores/OGS-00013/work/analyses.tsv", row["build_command"])
         self.assertEqual(row["store_uri"], "/configured/stores/OGS-00013/store.opengwasdb")
 
+    def test_store_uri_is_pure_function_of_identifier_ignoring_migration_note(self) -> None:
+        """Issue #137: store_uri derives from the identifier alone, never a migration note.
+
+        A bundle carrying a top-level `store_uri` or a `migration.previous_store_uri`
+        must still publish `<artifact-root>/<store-id>/store.opengwasdb`. The
+        migration-note fallback is removed, so the master list cannot quietly
+        point at a legacy family-first path from the superseded layout.
+        """
+        b = create_mock_bundle(
+            self.stores_dir,
+            "OGS-00015",
+            label="migration-fallback",
+        )
+        rel_path = b.root / "release.yaml"
+        rel = yaml.safe_load(rel_path.read_text(encoding="utf-8"))
+        rel["store_uri"] = "/data/opengwasdb/legacy-family/releases/pilot/store.opengwasdb"
+        rel["migration"] = {
+            "previous_store_uri": "/data/opengwasdb/legacy-family/releases/pilot/store.opengwasdb",
+            "note": "legacy",
+        }
+        rel_path.write_text(yaml.safe_dump(rel), encoding="utf-8")
+        b = bundle.load("OGS-00015", registry_root=self.stores_dir)
+
+        row = render_stores_row(b, artifact_root="/data/opengwasdb/stores")
+        self.assertEqual(
+            row["store_uri"],
+            "/data/opengwasdb/stores/OGS-00015/store.opengwasdb",
+            "store_uri must be the pure function of the identifier, ignoring "
+            "any migration note or top-level store_uri (issue #137)",
+        )
+
     def test_observed_columns_and_membership_count_have_distinct_sources(self) -> None:
         """Store measurements use validation; Analysis count uses membership."""
         val_data = {

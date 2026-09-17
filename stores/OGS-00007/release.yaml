@@ -40,13 +40,3 @@ notes: 'Deliberately not a replacement for 2018-sun-pilot-100 -- same source, sa
   source_ancestry_label remains "European" as source provenance. No Store artifact was rebuilt or rewritten.
 
   '
-migration:
-  adr: '0022'
-  previous_identity:
-    store_family_id: pqtl-interval-2018
-    family_release_id: 2018-sun-pilot-10
-  previous_bundle_path: families/pqtl-interval-2018/releases/2018-sun-pilot-10
-  previous_store_uri: /data/opengwasdb/pqtl-interval-2018/releases/2018-sun-pilot-10/store/ragged__pmid-29875488__European__pilot10
-  artifact_move_pending: true
-  note: Registry identity migrated to a flat OGS id. The built Store artifact has NOT yet moved to <artifact-root>/<store_id>/;
-    until it does, previous_store_uri is where it actually lives.

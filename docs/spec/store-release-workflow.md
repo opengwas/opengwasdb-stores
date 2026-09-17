@@ -404,6 +404,8 @@ observed  format_version  n_variants  n_associations  store_bytes
           build_elapsed_s  validate_status
 ```
 
+`store_uri` is a pure function of the identifier (`<artifact-root>/<store-id>/store.opengwasdb`, ADRs 0022 and 0030). The one-time migration-note fallback that previously preferred a legacy family-first path is removed (issue #137), so the published location is where a Store must live, resolved from deployment configuration, never a stale note.
+
 Two commands per store matter, and they are different kinds of thing. The **generator command log** (`inventory.tsv` + config to bundle) is recorded by the generator into `release.yaml` as `generator.commands`. The **build command** (bundle to store) is *derived by `plan()`*, the same function the workflow renders its rules from. A hand-maintained list would be wrong within a month.
 
 ### Planned and executed argv are different facts

@@ -12,9 +12,11 @@ measurements and the validate verdict into `validation.yaml`. Git records both,
 so only facts that change without a commit stay out.
 
 The `build_command` column is derived by `plan()`, so the published command
-is derived rather than maintained.
+is derived rather than maintained. `store_uri` is likewise derived: it is the
+pure function of the identifier `<artifact-root>/<store-id>/store.opengwasdb`
+(ADR 0022), with no migration-note fallback (ADR 0030).
 
-See docs/spec/store-release-workflow.md and ADRs 0022, 0023, 0028.
+See docs/spec/store-release-workflow.md and ADRs 0022, 0023, 0028, 0030.
 """
 
 from __future__ import annotations
@@ -78,13 +80,17 @@ def render_stores_row(
     derived_from = bundle_obj.derived_from or ""
     membership_summary = bundle.summarise(bundle_obj)
 
-    # store_uri from release.yaml or artifact function
-    store_uri = bundle_obj.release.get("store_uri")
-    if not store_uri:
-        store_uri = bundle_obj.release.get("migration", {}).get("previous_store_uri")
-    if not store_uri:
-        art_root = Path(artifact_root) if artifact_root else paths.artifact_root()
-        store_uri = str(paths.store_path(store_id, root=art_root))
+    # store_uri is a pure function of the identifier: <artifact-root>/<store-id>/
+    # store.opengwasdb (ADRs 0022 and 0030). The one-time migration-note
+    # fallback (release.yaml `store_uri` and `migration.previous_store_uri`) is
+    # removed: a Store's published location is where it must live under the flat
+    # opaque-id layout, resolved from deployment configuration, never a legacy
+    # family-first path from a superseded layout (issue #137). Whether the bytes
+    # on disk have been physically moved yet is a separate operational fact
+    # tracked by its own issue and is not something this derived column may
+    # paper over.
+    art_root = Path(artifact_root) if artifact_root else paths.artifact_root()
+    store_uri = str(paths.store_path(store_id, root=art_root))
 
     created_at = str(bundle_obj.release.get("created_at") or "")
 

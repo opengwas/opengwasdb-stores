@@ -50,13 +50,3 @@ notes: 'original_sd_method starts at `unavailable` (never `declared_standardised
   No Store artifact was rebuilt or rewritten by this registry metadata correction.
 
   '
-migration:
-  adr: '0022'
-  previous_identity:
-    store_family_id: gwas-catalog-eur-hybrid
-    family_release_id: eur-hybrid-quant-pilot-10
-  previous_bundle_path: families/gwas-catalog-eur-hybrid/releases/eur-hybrid-quant-pilot-10
-  previous_store_uri: /data/opengwasdb/gwas-catalog-eur-hybrid/releases/eur-hybrid-quant-pilot-10/store/hybrid__European__pilot10-quant
-  artifact_move_pending: true
-  note: Registry identity migrated to a flat OGS id. The built Store artifact has NOT yet moved to <artifact-root>/<store_id>/;
-    until it does, previous_store_uri is where it actually lives.
