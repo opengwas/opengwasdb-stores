@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Tests for ogstores.index: stores.tsv master list, STORES.md, and by-label symlinks (Issue #118).
+"""Tests for generated registry views (issues #118 and #131).
 
 Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
-1. `stores.tsv`, `STORES.md`, and `by-label/` symlink trees generate correctly from bundles alone.
+1. `stores.tsv`, `STORES.md`, bundle summaries, and symlinks generate from bundles alone.
 2. `build_command` is derived purely by `plan(bundle)`, never stored or hand-maintained.
 3. Observed columns are extracted exclusively from `validation.yaml` in git, never from the artifact root.
 4. Strict seam compliance: index reads git, never opening or inspecting artifact roots (proven via tripwires).
 5. `docs/store-catalog.md` is deleted and subsumed by the generated views.
-6. CI clean tree check: regenerating index against repository matches committed files with no drift.
+6. CI clean tree check: regenerating every view matches committed files with no drift.
 """
 
 from __future__ import annotations
@@ -102,7 +102,7 @@ def create_mock_bundle(
 
 
 class TestIndexGenerationAndColumns(unittest.TestCase):
-    """Test 19-column stores.tsv, STORES.md, and by-label generation."""
+    """Test stores.tsv, STORES.md, bundle summary, and by-label generation."""
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -115,9 +115,9 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
-    def test_canonical_19_columns_present_in_order(self) -> None:
-        """stores.tsv contains exactly the 19 canonical columns in defined order."""
-        self.assertEqual(len(COLUMNS), 19)
+    def test_canonical_columns_present_in_order(self) -> None:
+        """stores.tsv contains exactly the canonical columns in defined order."""
+        self.assertEqual(len(COLUMNS), 26)
         expected = (
             "store_id",
             "label",
@@ -138,6 +138,13 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
             "store_bytes",
             "build_elapsed_s",
             "validate_status",
+            "first_author",
+            "publication_pmid",
+            "tissue",
+            "context",
+            "assigned_ancestry",
+            "sample_size",
+            "source_url",
         )
         self.assertEqual(COLUMNS, expected)
 
@@ -176,8 +183,8 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         self.assertIn("/configured/stores/OGS-00013/work/analyses.tsv", row["build_command"])
         self.assertEqual(row["store_uri"], "/configured/stores/OGS-00013/store.opengwasdb")
 
-    def test_observed_columns_extracted_from_validation_yaml_only(self) -> None:
-        """Observed columns come from validation.yaml; unbuilt releases have empty observed columns."""
+    def test_observed_columns_and_membership_count_have_distinct_sources(self) -> None:
+        """Store measurements use validation; Analysis count uses membership."""
         val_data = {
             "status": "passed",
             "validated_at": "2026-09-14T12:00:00Z",
@@ -210,7 +217,7 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
 
         row_built = render_stores_row(b_built)
         self.assertEqual(row_built["format_version"], "1.0")
-        self.assertEqual(row_built["n_analyses"], "20")
+        self.assertEqual(row_built["n_analyses"], "1")
         self.assertEqual(row_built["n_variants"], "10000")
         self.assertEqual(row_built["n_associations"], "200000")
         self.assertEqual(row_built["store_bytes"], "5242880")
@@ -219,7 +226,7 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
 
         row_cand = render_stores_row(b_cand)
         self.assertEqual(row_cand["format_version"], "")
-        self.assertEqual(row_cand["n_analyses"], "")
+        self.assertEqual(row_cand["n_analyses"], "1")
         self.assertEqual(row_cand["n_variants"], "")
         self.assertEqual(row_cand["n_associations"], "")
         self.assertEqual(row_cand["store_bytes"], "")
@@ -260,7 +267,7 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         )
 
     def test_stores_tsv_and_md_and_by_label_generation_end_to_end(self) -> None:
-        """generate_index creates stores.tsv, STORES.md, by-label symlinks, and deletes store-catalog.md."""
+        """generate_index creates every committed view and removes the old catalogue."""
         # Create mock store-catalog.md in docs/
         store_cat_p = self.docs_dir / "store-catalog.md"
         store_cat_p.write_text("# Stale Store Catalog\n")
@@ -280,6 +287,12 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
 
         self.assertTrue(tsv_p.is_file())
         self.assertTrue(md_p.is_file())
+        self.assertTrue((b1.root / "summary.yaml").is_file())
+        self.assertTrue((b2.root / "summary.yaml").is_file())
+        self.assertEqual(
+            yaml.safe_load((b1.root / "summary.yaml").read_text(encoding="utf-8")),
+            bundle.summarise(b1),
+        )
 
         # Assert store-catalog.md was deleted
         self.assertFalse(store_cat_p.exists(), "docs/store-catalog.md must be deleted by generate_index")
@@ -298,6 +311,7 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         self.assertIn("# OpenGWASDB Store Releases", md_text)
         self.assertIn("| `OGS-00001` | pilot-1 | fam-a |", md_text)
         self.assertIn("| `OGS-00002` | pilot-2 | fam-b |", md_text)
+        self.assertIn("## Derived membership summaries", md_text)
 
         # Verify stores/by-label/ symlinks
         by_label_dir = self.stores_dir / "by-label"
@@ -387,10 +401,10 @@ class TestIndexStrictSeamAndTripwires(unittest.TestCase):
 
 
 class TestRepoIndexCleanTree(unittest.TestCase):
-    """Verify regenerating index on the current repository matches committed stores.tsv and STORES.md."""
+    """Verify every generated index view matches the committed files."""
 
     def test_current_repo_index_matches_committed_files_with_clean_tree(self) -> None:
-        """Regenerating index on repo matches stores.tsv, STORES.md, and by-label symlinks exactly."""
+        """Regenerating index matches master files, summaries, and symlinks exactly."""
         tsv_path = REPO_ROOT / "stores.tsv"
         md_path = REPO_ROOT / "STORES.md"
         by_label_dir = REPO_ROOT / "stores" / "by-label"
@@ -416,6 +430,17 @@ class TestRepoIndexCleanTree(unittest.TestCase):
                 gen_md.read_text(encoding="utf-8"),
                 md_path.read_text(encoding="utf-8"),
                 "STORES.md is dirty or out of date. Run 'pixi run index' to regenerate.",
+            )
+
+        for store_dir in sorted((REPO_ROOT / "stores").glob("OGS-*")):
+            if not paths.is_valid_store_id(store_dir.name):
+                continue
+            summary_path = store_dir / "summary.yaml"
+            self.assertTrue(summary_path.is_file(), f"{summary_path} must be committed")
+            self.assertEqual(
+                yaml.safe_load(summary_path.read_text(encoding="utf-8")),
+                bundle.summarise(bundle.load(store_dir.name, registry_root=REPO_ROOT / "stores")),
+                f"{summary_path} is dirty or out of date. Run 'pixi run index'.",
             )
 
         # Verify all bundles in repo stores/ have matching symlinks in stores/by-label/

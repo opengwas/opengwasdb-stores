@@ -18,6 +18,7 @@ stores/
     release.yaml                           identity, label, family, status, lineage, provenance
     build.yaml                             the recipe
     analyses.tsv                           membership; opengwasdb owns the schema
+    summary.yaml              generated    review view derived from analyses.tsv
     validation.yaml          written back  merged evidence from the run
   by-label/                  generated     finngen-r13-pilot-20 -> ../OGS-00042
 src/ogstores/                              bundle.py plan.py paths.py manifest.py run.py index.py
@@ -199,6 +200,7 @@ def check(
     previous_status: str | Bundle | None = None,
     registry_root: Path | str | None = None,
 ) -> list[str]: ...
+def summarise(bundle: Bundle) -> dict[str, str | int]: ...
 ```
 
 `check` covers registry-side facts only: required identity and provenance keys,
@@ -221,6 +223,23 @@ stats a source path, and never inspects any Release Artifact. The
 `pixi run bundle-check` task discovers and checks every directory under
 `stores/`, and CI runs that gate explicitly so a newly committed bundle cannot
 bypass the contract.
+
+`summarise` reads only the loaded bundle's `analyses.tsv` and derives Analysis
+count, first author, publication PMID, tissue, context, assigned ancestry,
+sample size, and download source. Constants remain verbatim, varying
+identifiers become `mixed (n)`, varying quantities become `min-max`, and
+varying URLs become their common host/path prefix. A missing column, an empty
+table, or any empty value renders as `NA`; zero is not absence. The index rule
+writes the result to `summary.yaml` in every bundle and publishes the same
+values in the master list. CI runs the rule and rejects any resulting dirty
+tree.
+
+The summary does not fill a missing `source_url` from
+`release.yaml:source_snapshot.besd_prefix`: `908797f` made that prefix frozen
+BESD input provenance, not per-Analysis download metadata. Likewise,
+`summary.yaml` is a registry review view, not an `opengwasdb` Store overview;
+the `6092fee` rule that Ragged releases cannot generate `overview.html` remains
+unchanged.
 
 ### `plan.py` (~200 lines)
 
@@ -310,7 +329,7 @@ Scanning every store means DAG construction is proportional to the registry, whi
 pixi run release OGS-00003             # one registered release, plus any parent it depends on
 pixi run release OGS-00003 OGS-00004   # several registered releases; lineage order is resolved
 pixi run release-family finngen-r13    # every release of one family
-pixi run index                         # regenerate stores.tsv, STORES.md, by-label/
+pixi run index                         # regenerate master list, summaries, by-label/
 ```
 
 A release target must be an ID currently registered under `stores/`; the
@@ -325,7 +344,11 @@ targets, not placeholders. All four are targets of the same Snakefile.
 
 ## The master list
 
-`stores.tsv`, `STORES.md` and both `by-label/` trees are **generated** by the `index` rule, committed, and verified in CI by regenerating them and failing if the tree is dirty. Authority stays with each store directory, which is self-describing; everything else is a view that cannot go stale.
+`stores.tsv`, `STORES.md`, every bundle's `summary.yaml`, and both `by-label/`
+trees are **generated** by the `index` rule, committed, and verified in CI by
+regenerating them and failing if the tree is dirty. `analyses.tsv` remains the
+authority for summary values; the generated files are views that cannot go
+stale.
 
 **`index` reads git, never the artifact root.** That is the whole constraint, and it is narrower than it first appears. It does not mean the master list is limited to bookkeeping; measurements are welcome, they just have to land in the bundle when the build happens rather than be scraped off disk whenever someone runs the indexer.
 
@@ -333,10 +356,16 @@ Two kinds of column, and they are not in tension:
 
 | | examples | drifts? | so |
 |---|---|---|---|
-| derived | `store_id`, `label`, `family`, `layout`, `status`, `build_command` | yes, if hand-maintained | regenerate from bundles; CI checks |
-| observed | `n_variants`, `n_analyses`, `n_associations`, store size, `format_version`, elapsed, validate verdict | no -- facts about an event that happened once | `register` writes them into the bundle at build time |
+| derived | `store_id`, `label`, `family`, `layout`, `status`, `build_command`, `n_analyses`, membership summary fields | yes, if hand-maintained | regenerate from bundles; CI checks |
+| observed | `n_variants`, `n_associations`, store size, `format_version`, elapsed, validate verdict | no -- facts about an event that happened once | `register` writes them into the bundle at build time |
 
-Observed values cost nothing to collect: `build-dense-vcf` already prints `{n_variants, n_analyses}` and `complete-dense` already prints `{n_imputed, elapsed_s}`. `register` puts them in `validation.yaml`, git records them, and `index` reads them from there -- so CI can still regenerate the entire file, observed columns included. The numbers also become reviewable in a pull request diff rather than being whatever the disk said last time.
+Observed values cost nothing to collect: builders already print Store
+measurements and completion timing. `register` puts them in `validation.yaml`,
+git records them, and `index` reads them from there -- so CI can still
+regenerate the entire file, observed columns included. Analysis count is not
+copied from that record: it is derived from the membership table with the rest
+of the summary. The numbers become reviewable in a pull request diff rather
+than being whatever the disk said last time.
 
 This subsumes `docs/store-catalog.md`, which today says of itself that its per-store numbers are a stale compilation from a date months earlier. A generated `STORES.md` cannot be stale.
 
@@ -347,7 +376,9 @@ The only thing deliberately excluded is anything whose answer changes without a 
 ```text
 derived   store_id  label  family  layout  completion_state  status  derived_from
           store_uri  created_at  opengwasdb_rev  generator_command  build_command
-observed  format_version  n_analyses  n_variants  n_associations  store_bytes
+          n_analyses  first_author  publication_pmid  tissue  context
+          assigned_ancestry  sample_size  source_url
+observed  format_version  n_variants  n_associations  store_bytes
           build_elapsed_s  validate_status
 ```
 

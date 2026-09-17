@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Executable Release Bundle contract tests for issue #127."""
+"""Executable Release Bundle contract and summary tests (#127 and #131)."""
 
 from __future__ import annotations
 
 import builtins
+import csv
 import os
 import shutil
 import sys
@@ -409,6 +410,180 @@ class TestBundleContract(unittest.TestCase):
         finally:
             for patch in helper_patches:
                 patch.stop()
+
+
+class TestBundleSummary(unittest.TestCase):
+    """Value-level collapse rules for the issue #131 bundle summary."""
+
+    def setUp(self) -> None:
+        self.tmp_dir = Path(tempfile.mkdtemp(prefix="ogstores_summary_"))
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def make_bundle(self, fieldnames: list[str], rows: list[dict[str, str]]) -> bundle.Bundle:
+        analyses_path = self.tmp_dir / "analyses.tsv"
+        with analyses_path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(
+                handle,
+                fieldnames=fieldnames,
+                delimiter="\t",
+                lineterminator="\n",
+            )
+            writer.writeheader()
+            writer.writerows(rows)
+        return bundle.Bundle(
+            store_id="OGS-00990",
+            root=self.tmp_dir,
+            release={},
+            build={},
+            analyses_path=analyses_path,
+        )
+
+    def test_constant_values_are_preserved_verbatim(self) -> None:
+        checked = self.make_bundle(
+            list(bundle.SUMMARY_COLUMNS),
+            [
+                {column: "recorded value" for column in bundle.SUMMARY_COLUMNS},
+                {column: "recorded value" for column in bundle.SUMMARY_COLUMNS},
+            ],
+        )
+        summary = bundle.summarise(checked)
+        record_check()
+        self.assertEqual(summary["n_analyses"], 2)
+        for column in bundle.SUMMARY_COLUMNS:
+            self.assertEqual(summary[column], "recorded value")
+
+    def test_varying_identifiers_are_mixed_counts_never_ranges(self) -> None:
+        checked = self.make_bundle(
+            ["publication_pmid"],
+            [
+                {"publication_pmid": "100"},
+                {"publication_pmid": "300"},
+                {"publication_pmid": "300"},
+            ],
+        )
+        summary = bundle.summarise(checked)
+        record_check()
+        self.assertEqual(summary["publication_pmid"], "mixed (2)")
+        self.assertNotIn("100-300", str(summary["publication_pmid"]))
+
+    def test_varying_quantity_uses_numeric_minimum_and_maximum(self) -> None:
+        checked = self.make_bundle(
+            ["sample_size"],
+            [{"sample_size": "100"}, {"sample_size": "9"}, {"sample_size": "20"}],
+        )
+        record_check()
+        self.assertEqual(bundle.summarise(checked)["sample_size"], "9-100")
+
+    def test_varying_urls_use_common_host_and_component_prefix(self) -> None:
+        checked = self.make_bundle(
+            ["source_url"],
+            [
+                {"source_url": "https://example.org/releases/a/one.tsv"},
+                {"source_url": "https://example.org/releases/a/two.tsv"},
+            ],
+        )
+        record_check()
+        self.assertEqual(
+            bundle.summarise(checked)["source_url"],
+            "https://example.org/releases/a/",
+        )
+
+    def test_urls_without_a_common_authority_are_mixed(self) -> None:
+        checked = self.make_bundle(
+            ["source_url"],
+            [
+                {"source_url": "https://one.example/a.tsv"},
+                {"source_url": "https://two.example/b.tsv"},
+            ],
+        )
+        record_check()
+        self.assertEqual(bundle.summarise(checked)["source_url"], "mixed (2)")
+
+    def test_absent_empty_and_header_only_metadata_are_na(self) -> None:
+        absent = self.make_bundle(["analysis_id"], [{"analysis_id": "one"}])
+        self.assertEqual(bundle.summarise(absent)["first_author"], "NA")
+
+        sparse = self.make_bundle(
+            ["first_author"],
+            [{"first_author": "One A"}, {"first_author": ""}],
+        )
+        self.assertEqual(bundle.summarise(sparse)["first_author"], "NA")
+
+        empty = self.make_bundle(list(bundle.SUMMARY_COLUMNS), [])
+        summary = bundle.summarise(empty)
+        record_check()
+        self.assertEqual(summary["n_analyses"], 0)
+        self.assertTrue(all(summary[column] == "NA" for column in bundle.SUMMARY_COLUMNS))
+
+    def test_zero_is_not_treated_as_absence(self) -> None:
+        checked = self.make_bundle(["sample_size"], [{"sample_size": "0"}])
+        record_check()
+        self.assertEqual(bundle.summarise(checked)["sample_size"], "0")
+
+    def test_invalid_quantity_and_url_fail_instead_of_being_coerced(self) -> None:
+        bad_quantity = self.make_bundle(
+            ["sample_size"],
+            [{"sample_size": "10"}, {"sample_size": "unknown"}],
+        )
+        with self.assertRaisesRegex(ValueError, "non-numeric sample_size"):
+            bundle.summarise(bad_quantity)
+
+        bad_url = self.make_bundle(
+            ["source_url"],
+            [{"source_url": "https://example.org/a"}, {"source_url": "not-a-url"}],
+        )
+        record_check()
+        with self.assertRaisesRegex(ValueError, "invalid source_url URL"):
+            bundle.summarise(bad_url)
+
+    def test_pooled_publications_remain_visibly_mixed(self) -> None:
+        checked = self.make_bundle(
+            ["first_author", "publication_pmid"],
+            [
+                {"first_author": "One A", "publication_pmid": "111"},
+                {"first_author": "Two B", "publication_pmid": "222"},
+            ],
+        )
+        summary = bundle.summarise(checked)
+        record_check()
+        self.assertEqual(summary["first_author"], "mixed (2)")
+        self.assertEqual(summary["publication_pmid"], "mixed (2)")
+
+    def test_all_seven_trial_release_summaries_match_regression_golden(self) -> None:
+        expected = yaml.safe_load(
+            (REPO_ROOT / "tests" / "bundle" / "golden" / "summaries.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+        actual = {
+            path.name: bundle.summarise(
+                bundle.load(path.name, registry_root=REPO_ROOT / "stores")
+            )
+            for path in sorted((REPO_ROOT / "stores").glob("OGS-*"))
+            if paths.is_valid_store_id(path.name)
+        }
+        record_check()
+        self.assertEqual(actual, expected)
+        self.assertGreaterEqual(
+            sum(value == "NA" for value in actual["OGS-00001"].values()),
+            5,
+            "missing Analytical Metadata must remain visibly sparse",
+        )
+
+    def test_summarise_opens_only_the_membership_table(self) -> None:
+        checked = self.make_bundle(["analysis_id"], [{"analysis_id": "one"}])
+        real_open = builtins.open
+
+        def guarded_open(path: object, *args: Any, **kwargs: Any) -> Any:
+            self.assertEqual(Path(path), checked.analyses_path)
+            return real_open(path, *args, **kwargs)
+
+        with mock.patch("builtins.open", side_effect=guarded_open):
+            summary = bundle.summarise(checked)
+        record_check()
+        self.assertEqual(summary["n_analyses"], 1)
 
 
 class TestArtifactPaths(unittest.TestCase):

@@ -10,6 +10,7 @@ OGS-00042/
   release.yaml      identity, label, family, status, lineage, provenance
   build.yaml        the recipe: an opengwasdb subcommand and its flags
   analyses.tsv      membership; opengwasdb owns the schema
+  summary.yaml       generated description derived only from analyses.tsv
   validation.yaml   evidence, written back by the run
 ```
 
@@ -34,5 +35,6 @@ artifact actually lives until then.
 | `OGS-00006` | metabolome-plasma-2023 | 2023-chen-full-european |
 | `OGS-00007` | pqtl-interval-2018 | 2018-sun-pilot-10 |
 
-`stores.tsv` and `STORES.md` are generated from these bundles by
-`pixi run index` once `src/ogstores/index.py` is implemented.
+`summary.yaml`, `stores.tsv`, and `STORES.md` are generated from these bundles
+by `pixi run index`. A summary preserves absent or empty Analysis metadata as
+`NA`; it is a review view, not another declared source of metadata.
