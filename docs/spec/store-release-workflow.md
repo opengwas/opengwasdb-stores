@@ -15,7 +15,7 @@ stores.tsv                      generated  master list, one row per Store Releas
 STORES.md                       generated  human view of the same
 stores/
   OGS-00042/
-    release.yaml                           identity, label, family, status, lineage, provenance
+    release.yaml                           identity, label, status, lineage, provenance
     build.yaml                             the recipe
     analyses.tsv                           membership; opengwasdb owns the schema
     summary.yaml              generated    review view derived from analyses.tsv
@@ -24,7 +24,6 @@ stores/
 src/ogstores/                              bundle.py plan.py paths.py manifest.py run.py index.py
 workflow/Snakefile                         Phase A: scans stores/, wires every release
 workflow/generate.smk                      Phase B: acquisition + generation (separate DAG)
-resources/families.yaml                    Store Family records (ADR 0024)
 resources/reference-resources/<id>/        resource.yaml
 resources/annotations/                     post-release curated metadata
 resources/generators/<family-id>/          Phase B
@@ -56,7 +55,7 @@ Registry identity and provenance. Never read by `opengwasdb`.
 ```yaml
 store_id: OGS-00042
 label: r13-pilot-20                 # source-natural display name; not an identifier
-family: finngen-r13
+access_posture: public
 status: built                       # candidate|accepted|built|validated|superseded|withdrawn
 source_collection_id: finngen-r13
 association_coverage: full_gwas
@@ -325,7 +324,7 @@ Executes one `Step`: runs the argv, captures stdout/stderr/timing/exit status, w
 
 One Snakefile for the whole registry, not one per release. It scans `stores/*/` at parse time and wildcards on `store_id`, so Snakemake's own expansion *is* the multi-release runner -- there is no separate batch script.
 
-Dependency wiring only, per ADR 0023. It contains no family name, no source column name, no manifest translation, and no layout branch. `get_artifact_root()` is the one configuration read: it resolves the artifact root through `paths.artifact_root()`, so the workflow never takes it from a Build Recipe (issue #126).
+Dependency wiring only, per ADR 0023. It contains no source column name, no manifest translation, and no layout branch. `get_artifact_root()` is the one configuration read: it resolves the artifact root through `paths.artifact_root()`, so the workflow never takes it from a Build Recipe (issue #126).
 
 ```text
 build_manifest ──> build ──> top_hits ──> rho ──> overview ──> validate ──> register
@@ -346,13 +345,12 @@ Scanning every store means DAG construction is proportional to the registry, whi
 ```sh
 pixi run release OGS-00003             # one registered release, plus any parent it depends on
 pixi run release OGS-00003 OGS-00004   # several registered releases; lineage order is resolved
-pixi run release-family finngen-r13    # every release of one family
 pixi run index                         # regenerate master list, summaries, by-label/
 ```
 
 A release target must be an ID currently registered under `stores/`; the
 operator finds valid IDs in `stores.tsv`. IDs in these commands are real
-targets, not placeholders. All four are targets of the same Snakefile.
+targets, not placeholders. All three are targets of the same Snakefile.
 
 > **Production note**: Workflow tests (`tests/workflow/`) are fixture-scale and run
 > in temporary environments. Full production runs (such as building all seven Trial
@@ -374,7 +372,7 @@ Two kinds of column, and they are not in tension:
 
 | | examples | drifts? | so |
 |---|---|---|---|
-| derived | `store_id`, `label`, `family`, `layout`, `status`, `build_command`, `n_analyses`, membership summary fields | yes, if hand-maintained | regenerate from bundles; CI checks |
+| derived | `store_id`, `label`, `layout`, `status`, `build_command`, `n_analyses`, membership summary fields | yes, if hand-maintained | regenerate from bundles; CI checks |
 | observed | `n_variants`, `n_associations`, store size, `format_version`, elapsed, validate verdict | no -- facts about an event that happened once | `register` writes them into the bundle at build time |
 
 Observed values cost nothing to collect: builders already print Store
@@ -392,7 +390,7 @@ The only thing deliberately excluded is anything whose answer changes without a 
 `stores.tsv` columns:
 
 ```text
-derived   store_id  label  family  layout  completion_state  status  derived_from
+derived   store_id  label  layout  completion_state  status  derived_from
           store_uri  created_at  opengwasdb_rev  generator_command  build_command
           n_analyses  first_author  publication_pmid  tissue  context
           assigned_ancestry  sample_size  source_url
@@ -506,12 +504,9 @@ Their outputs also live in different places and are reviewed differently. Phase 
 
 **A generator's only output is a bundle directory. It never builds a store.** The four copy-pasted `resources/generators/lib/source-formats/*/build-store.py` adapters exist only because nothing else could reach a builder; under ADR 0023 nothing but the workflow may.
 
-**Acquisition is separate from selection.** Acquisition is per Source Collection, shared across families, and is the expensive resumable part. Selection is per Store Release. The Source Collection is a grouping string on the family record, not a directory (ADR 0024).
+**Acquisition is separate from selection.** Acquisition is per Source Collection and is the expensive resumable part. Selection is per Store Release. The Source Collection is a grouping string recorded on the release, not a directory (ADR 0028).
 
 ```text
-resources/families.yaml        one entry per family; names the Source Reader
-                               Capability and the Source Collection
-
 resources/inventories/<id>.tsv discovered upstream analyses, once acquisition
                                produces one at scale (ADR 0024). Does not exist
                                yet -- every collection's inventory was null.

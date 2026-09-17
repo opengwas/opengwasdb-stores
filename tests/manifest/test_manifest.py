@@ -80,7 +80,6 @@ def create_bundle(
     release = {
         "store_id": store_id,
         "label": f"fixture-{store_id}",
-        "family": "fixture-family",
         "status": "candidate",
         "source_collection_id": "fixture-collection",
         "association_coverage": "full_gwas",

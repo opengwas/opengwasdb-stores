@@ -17,3 +17,7 @@ ADR 0010's rule that a Store Family is built from exactly one Source Collection 
 A real Source Inventory would reopen this. When acquisition enumerates a collection at scale -- the GWAS Catalog download is 2.35 TB across 17,300 files -- the result cannot be a line in a YAML file. It returns as a data file, `resources/inventories/<collection-id>.tsv`, referenced from the family entry. That is a place to put rows, not a metadata tier, and it does not restore `source-collections/`.
 
 A **Candidate Store Family** needs no home of its own. Its concrete expression is a candidate Store Release: `stores/<id>/` with `status: candidate`, which the Release Status vocabulary already carries. What is under consideration and what has been built then appear in one generated master list. A proposal with no candidate release attached is a roadmap item and belongs in an issue tracker; `families/_candidates/` held nothing but a README for the life of the repository.
+
+---
+
+**Superseded by [0028](0028-store-family-tier-retired.md).** The Store Family record tier is deleted outright rather than folded further: every family field resolves to already-recorded, descriptive, or false on the evidence cited there; `access_posture` becomes a descriptive `release.yaml` field; and build priority moves to the issue tracker per this ADR's own Candidate-Store-Family argument.

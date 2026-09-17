@@ -1,6 +1,6 @@
 store_id: OGS-00006
 label: 2023-chen-full-european
-family: metabolome-plasma-2023
+access_posture: public
 status: built
 source_collection_id: gwas-catalog-ssf
 association_coverage: signals_only
