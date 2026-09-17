@@ -14,8 +14,10 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import yaml
 from opengwasdb.model import analyses as opengwasdb_analyses
@@ -71,6 +73,27 @@ PHASE_B_REQUIRED_COLUMNS: tuple[str, ...] = (
     "ancestry_assignment_method",
     "stored_effect_scale",
     "original_sd_method",
+)
+
+# Store-level descriptive metadata that is derived from the membership table.
+# Names intentionally match their source columns: in particular, ``context``
+# is not renamed to ``assay`` because the Analysis contract has no assay field.
+SUMMARY_COLUMNS: tuple[str, ...] = (
+    "first_author",
+    "publication_pmid",
+    "tissue",
+    "context",
+    "assigned_ancestry",
+    "sample_size",
+    "source_url",
+)
+
+_IDENTIFIER_SUMMARY_COLUMNS: tuple[str, ...] = (
+    "first_author",
+    "publication_pmid",
+    "tissue",
+    "context",
+    "assigned_ancestry",
 )
 
 _HEX_PATTERNS: dict[int, re.Pattern[str]] = {
@@ -150,6 +173,109 @@ class Bundle:
     def validation_path(self) -> Path | None:
         path = self.root / "validation.yaml"
         return path if path.is_file() else None
+
+
+def _column_values(
+    table: opengwasdb_analyses.AnalysesTable, column: str
+) -> list[str] | None:
+    """Return complete raw values, or ``None`` when the column is sparse."""
+    if column not in table.fieldnames or not table.rows:
+        return None
+    values = [row.get(column, "") for row in table.rows]
+    if any(not isinstance(value, str) or not value.strip() for value in values):
+        return None
+    return values
+
+
+def _collapse_identifier(
+    table: opengwasdb_analyses.AnalysesTable, column: str
+) -> str:
+    values = _column_values(table, column)
+    if values is None:
+        return "NA"
+    distinct = tuple(dict.fromkeys(values))
+    if len(distinct) == 1:
+        return distinct[0]
+    return f"mixed ({len(distinct)})"
+
+
+def _collapse_quantity(
+    table: opengwasdb_analyses.AnalysesTable, column: str
+) -> str:
+    values = _column_values(table, column)
+    if values is None:
+        return "NA"
+    distinct = tuple(dict.fromkeys(values))
+    if len(distinct) == 1:
+        return distinct[0]
+
+    parsed: list[tuple[Decimal, str]] = []
+    for raw in distinct:
+        try:
+            number = Decimal(raw)
+        except InvalidOperation as exc:
+            raise ValueError(
+                f"cannot summarise non-numeric {column} value {raw!r}"
+            ) from exc
+        if not number.is_finite():
+            raise ValueError(
+                f"cannot summarise non-finite {column} value {raw!r}"
+            )
+        parsed.append((number, raw))
+
+    minimum = min(parsed, key=lambda item: item[0])[1]
+    maximum = max(parsed, key=lambda item: item[0])[1]
+    return f"{minimum}-{maximum}"
+
+
+def _collapse_url(table: opengwasdb_analyses.AnalysesTable, column: str) -> str:
+    values = _column_values(table, column)
+    if values is None:
+        return "NA"
+    distinct = tuple(dict.fromkeys(values))
+    if len(distinct) == 1:
+        return distinct[0]
+
+    parsed = [urlsplit(value) for value in distinct]
+    for raw, parts in zip(distinct, parsed, strict=True):
+        if not parts.scheme or not parts.netloc:
+            raise ValueError(f"cannot summarise invalid {column} URL {raw!r}")
+
+    authorities = {(parts.scheme.lower(), parts.netloc.lower()) for parts in parsed}
+    if len(authorities) != 1:
+        return f"mixed ({len(distinct)})"
+
+    first = parsed[0]
+    path_parts = [parts.path.split("/") for parts in parsed]
+    common: list[str] = []
+    for components in zip(*path_parts, strict=False):
+        if len(set(components)) != 1:
+            break
+        common.append(components[0])
+
+    common_path = "/".join(common)
+    # A common path component without a trailing slash may be a whole file
+    # (for example URLs differing only by query). Otherwise publish a directory
+    # prefix, never a partial filename.
+    if any(parts.path != common_path for parts in parsed):
+        common_path = common_path.rstrip("/") + "/"
+    return urlunsplit((first.scheme, first.netloc, common_path or "/", "", ""))
+
+
+def summarise(bundle: Bundle) -> dict[str, str | int]:
+    """Derive a Store Release summary solely from its Analysis membership.
+
+    The function reads ``analyses.tsv`` and no Store or Release Artifact. It
+    preserves absence as ``NA`` and raw constant values verbatim; it never
+    substitutes metadata from ``release.yaml`` or a Build Recipe.
+    """
+    table = opengwasdb_analyses.read_analyses(bundle.analyses_path)
+    summary: dict[str, str | int] = {"n_analyses": len(table.rows)}
+    for column in _IDENTIFIER_SUMMARY_COLUMNS:
+        summary[column] = _collapse_identifier(table, column)
+    summary["sample_size"] = _collapse_quantity(table, "sample_size")
+    summary["source_url"] = _collapse_url(table, "source_url")
+    return summary
 
 
 def _read_yaml(path: Path) -> dict[str, Any] | None:

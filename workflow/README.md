@@ -21,7 +21,7 @@ Phase A is driven by `workflow/Snakefile`:
 pixi run release OGS-00003                                 # one registered release, plus any parent it needs
 pixi run release OGS-00003 OGS-00004                       # several registered releases; lineage order is resolved
 pixi run release-family finngen-r13                        # every release of one family
-pixi run index                                             # regenerate stores.tsv, STORES.md, by-label/
+pixi run index                                             # regenerate master list, summaries, by-label/
 ```
 
 A release target must be an ID currently registered under `stores/`; use

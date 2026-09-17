@@ -30,5 +30,17 @@ jobs:
       - name: Check every Release Bundle
         run: pixi run --environment dev bundle-check
 
+      - name: Regenerate master list and Release Bundle summaries
+        run: pixi run --environment dev index-ci
+
+      - name: Require a clean tree after regeneration
+        shell: bash
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git status --short
+            git diff
+            exit 1
+          fi
+
       - name: Documentation smoke test
         run: pixi run --environment dev docs-smoke

@@ -1,0 +1,8 @@
+n_analyses: 10
+first_author: Sun BB
+publication_pmid: '29875488'
+tissue: plasma
+context: SomaScan
+assigned_ancestry: European
+sample_size: '3301'
+source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/

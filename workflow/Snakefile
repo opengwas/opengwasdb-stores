@@ -3,7 +3,7 @@
     pixi run release OGS-00003             one release, plus any parent it needs
     pixi run release OGS-00003 OGS-00004   several; lineage order is resolved
     pixi run release-family finngen-r13    every release of one family
-    pixi run index                         regenerate the master list
+    pixi run index                         regenerate master list and summaries
 
 One Snakefile for the whole registry rather than one per release, so
 Snakemake's own wildcard expansion is the multi-release runner and a
@@ -207,6 +207,7 @@ rule index:
     input:
         [str(REGISTRY_ROOT / sid / "release.yaml") for sid in ALL_STORE_IDS],
         [str(REGISTRY_ROOT / sid / "build.yaml") for sid in ALL_STORE_IDS],
+        [str(REGISTRY_ROOT / sid / "analyses.tsv") for sid in ALL_STORE_IDS],
     run:
         index.generate_index(
             registry_root=REGISTRY_ROOT,

@@ -61,8 +61,8 @@ layer here.
 ## Repository Layout
 
 ```text
-stores/<store-id>/       accepted Release Bundles, one per Store Release
-stores.tsv  STORES.md    generated master list
+stores/<store-id>/       accepted Release Bundles plus generated summary.yaml
+stores.tsv  STORES.md    generated master list and human view
 workflow/                Snakefile (Phase A), generate.smk (Phase B)
 src/ogstores/            bundle.py  plan.py  paths.py  run.py  index.py
 resources/

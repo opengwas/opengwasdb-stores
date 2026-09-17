@@ -1,14 +1,15 @@
 """Render the master list from Release Bundles.
 
-`stores.tsv`, `STORES.md` and both `by-label/` symlink trees are generated,
-committed, and verified in CI by regenerating and failing on a dirty tree.
+`stores.tsv`, `STORES.md`, each bundle's `summary.yaml`, and both `by-label/`
+symlink trees are generated, committed, and verified in CI by regenerating and
+failing on a dirty tree.
 
 This module reads git, never the artifact root -- which is the whole
 constraint, and a narrower one than it sounds. Measurements are welcome in
-the index; they just have to reach it through the bundle. `register` writes
-`n_variants`, `n_analyses`, elapsed and the validate verdict into
-`validation.yaml` at build time, git records them, and this module reads them
-from there. Only facts that change without a commit stay out.
+the index; they just have to reach it through the bundle. Analysis count and
+descriptive fields come from `analyses.tsv`; `register` writes Store
+measurements and the validate verdict into `validation.yaml`. Git records both,
+so only facts that change without a commit stay out.
 
 The `build_command` column is derived by `plan()`, so the published command
 is derived rather than maintained.
@@ -23,6 +24,8 @@ import io
 import os
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from ogstores import bundle, paths
 from ogstores.bundle import Bundle
@@ -50,6 +53,13 @@ COLUMNS: tuple[str, ...] = (
     "store_bytes",
     "build_elapsed_s",
     "validate_status",
+    "first_author",
+    "publication_pmid",
+    "tissue",
+    "context",
+    "assigned_ancestry",
+    "sample_size",
+    "source_url",
 )
 
 
@@ -68,6 +78,7 @@ def render_stores_row(
     completion_state = bundle_obj.completion_state or ""
     status = bundle_obj.status or ""
     derived_from = bundle_obj.derived_from or ""
+    membership_summary = bundle.summarise(bundle_obj)
 
     # store_uri from release.yaml or artifact function
     store_uri = bundle_obj.release.get("store_uri")
@@ -111,8 +122,10 @@ def render_stores_row(
     format_version = obs.get("format_version")
     format_version_str = str(format_version) if format_version else ""
 
-    n_analyses = obs.get("n_analyses")
-    n_analyses_str = str(n_analyses) if n_analyses != "" and n_analyses is not None else ""
+    # Analysis count describes bundle membership, so it is derived from the
+    # table rather than copied from build-time observations. Issue #135's
+    # observed-only contract still applies to every actual Store measurement.
+    n_analyses_str = str(membership_summary["n_analyses"])
 
     n_variants = obs.get("n_variants")
     n_variants_str = str(n_variants) if n_variants != "" and n_variants is not None else ""
@@ -153,6 +166,13 @@ def render_stores_row(
         "store_bytes": store_bytes_str,
         "build_elapsed_s": build_elapsed_s_str,
         "validate_status": validate_status_str,
+        "first_author": str(membership_summary["first_author"]),
+        "publication_pmid": str(membership_summary["publication_pmid"]),
+        "tissue": str(membership_summary["tissue"]),
+        "context": str(membership_summary["context"]),
+        "assigned_ancestry": str(membership_summary["assigned_ancestry"]),
+        "sample_size": str(membership_summary["sample_size"]),
+        "source_url": str(membership_summary["source_url"]),
     }
 
 
@@ -161,7 +181,7 @@ def render_stores_tsv(
     artifact_root: Path | str | None = None,
     repo_root: Path | str | None = None,
 ) -> str:
-    """Render 19-column stores.tsv from a list of bundles."""
+    """Render the canonical stores.tsv from a list of bundles."""
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=COLUMNS, delimiter="\t", lineterminator="\n")
     writer.writeheader()
@@ -212,8 +232,45 @@ def render_stores_md(
 
         lines.append(f"| {sid} | {lbl} | {fam} | {lay} | {comp} | {st} | {fmt} | {n_ana} | {n_var} | {n_assoc} | {val_st} |")
 
+    lines.extend([
+        "",
+        "## Derived membership summaries",
+        "",
+        "Every value below is derived from the Release Bundle's `analyses.tsv`; `NA` means the column is absent or has an empty value.",
+        "",
+        "| Store ID | Author | Publication PMID | Tissue | Context | Population | Sample size | Download source |",
+        "|:---|:---|:---|:---|:---|:---|:---|:---|",
+    ])
+    for row in rows:
+        lines.append(
+            "| "
+            + " | ".join([
+                f"`{row['store_id']}`",
+                row["first_author"],
+                row["publication_pmid"],
+                row["tissue"],
+                row["context"],
+                row["assigned_ancestry"],
+                row["sample_size"],
+                row["source_url"],
+            ])
+            + " |"
+        )
+
     lines.append("")
     return "\n".join(lines)
+
+
+def write_bundle_summary(bundle_obj: Bundle) -> Path:
+    """Write the generated summary beside the membership table."""
+    summary_path = bundle_obj.root / "summary.yaml"
+    content = yaml.safe_dump(
+        bundle.summarise(bundle_obj),
+        sort_keys=False,
+        allow_unicode=True,
+    )
+    summary_path.write_text(content, encoding="utf-8")
+    return summary_path
 
 
 def generate_by_label_symlinks(
@@ -264,7 +321,7 @@ def generate_index(
     repo_root: Path | str | None = None,
     artifact_root: Path | str | None = None,
 ) -> tuple[Path, Path]:
-    """Generate stores.tsv, STORES.md, and by-label symlinks, and remove docs/store-catalog.md.
+    """Generate master views, bundle summaries, and by-label symlinks.
 
     Strict seam compliance: reads git, never opens or inspects the artifact root.
     """
@@ -282,6 +339,8 @@ def generate_index(
     ]) if resolved_registry_root.is_dir() else []
 
     bundles = [bundle.load(sid, registry_root=resolved_registry_root) for sid in store_ids]
+    for bundle_obj in bundles:
+        write_bundle_summary(bundle_obj)
     # Resolve the artifact root once, from configuration rather than any Build
     # Recipe (issue #126), and render both derived views under it.
     resolved_artifact_root = Path(artifact_root) if artifact_root else paths.artifact_root()
@@ -324,4 +383,5 @@ __all__ = [
     "render_stores_md",
     "render_stores_row",
     "render_stores_tsv",
+    "write_bundle_summary",
 ]
