@@ -24,3 +24,5 @@ Existing published releases are renamed rather than preserved. This is a one-tim
 ---
 
 **Amended by [0028](0028-store-family-tier-retired.md).** Store Family is no longer a field on a Store Release; the tier is retired entirely.
+
+**Amended by [0030](0030-artifact-path-is-the-identifier-migration-retired.md).** The one-time migration note recorded in each bundle is retired (issue #137): the published artifact path is now the pure function `<artifact-root>/<store-id>/` with no migration fallback, and the physical relocation of existing artifacts is tracked by a separate follow-up issue.

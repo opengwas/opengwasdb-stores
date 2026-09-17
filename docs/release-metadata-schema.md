@@ -233,10 +233,12 @@ pointer.
 | `generator.commands` | Yes | The executed command log: the commands that produced the bundle, in the order they ran. A log, not a prediction — a single command string was wrong as soon as generation ran several steps (issue #136). |
 | `description` | Yes | Short human-readable release description. |
 | `notes` | Optional | Free-text release notes. |
-| `migration` | Optional | One-time ADR 0022 migration provenance: `previous_identity`, `previous_bundle_path`, `previous_store_uri`, `artifact_move_pending`, and a migration note. |
 
 See [ADR 0029](adr/0029-release-identity-file-trimmed.md) for why each removed
-field is safe to drop and what supersedes it.
+field is safe to drop and what supersedes it. The one-time `migration`
+provenance block was removed by issue #137 (see
+[ADR 0030](adr/0030-artifact-path-is-the-identifier-migration-retired.md)):
+the published artifact path is now a pure function of the identifier.
 
 ## `analyses.tsv`
 

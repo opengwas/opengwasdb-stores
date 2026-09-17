@@ -32,13 +32,3 @@ notes: 'Probes chosen for well-characterised cis-eQTL signal and biological fami
   pending external study-level metadata and upstream schema resolution.
 
   '
-migration:
-  adr: '0022'
-  previous_identity:
-    store_family_id: eqtlgen-cis-pilot
-    family_release_id: pilot-10
-  previous_bundle_path: families/eqtlgen-cis-pilot/releases/pilot-10
-  previous_store_uri: /data/opengwasdb/eqtlgen-cis-pilot/releases/pilot-10/store/ragged__eqtlgen-cis-pilot__pilot-10
-  artifact_move_pending: true
-  note: Registry identity migrated to a flat OGS id. The built Store artifact has NOT yet moved to <artifact-root>/<store_id>/;
-    until it does, previous_store_uri is where it actually lives.

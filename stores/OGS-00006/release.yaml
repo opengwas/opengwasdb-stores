@@ -36,13 +36,3 @@ notes: 'Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), sc
   remains "European" as source provenance. No Store artifact was rebuilt or rewritten.
 
   '
-migration:
-  adr: '0022'
-  previous_identity:
-    store_family_id: metabolome-plasma-2023
-    family_release_id: 2023-chen-full-european
-  previous_bundle_path: families/metabolome-plasma-2023/releases/2023-chen-full-european
-  previous_store_uri: /data/opengwasdb/metabolome-plasma-2023/releases/2023-chen-full-european/store/ragged__pmid-36635386__European
-  artifact_move_pending: true
-  note: Registry identity migrated to a flat OGS id. The built Store artifact has NOT yet moved to <artifact-root>/<store_id>/;
-    until it does, previous_store_uri is where it actually lives.

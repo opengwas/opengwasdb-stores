@@ -17,13 +17,23 @@ OGS-00042/
 Nothing may resolve a release by its `label`. The label exists for display and
 for the generated `by-label/` symlinks; identity is the id.
 
-## Migration in progress
+## Artifact location
 
-The seven Trial Store Releases have moved here. Thirteen further bundles are
-still under `families/*/releases/` awaiting triage, and the built Store
-artifacts have **not** yet moved to `<artifact-root>/<store-id>/` -- each
-`release.yaml` records its `migration.previous_store_uri`, which is where the
-artifact actually lives until then.
+A Store Release's published artifact path is a pure function of its identifier:
+`<artifact-root>/<store-id>/store.opengwasdb` (ADRs 0022 and 0030). The master
+list derives `store_uri` from the identifier alone; there is no migration-note
+fallback.
+
+The built Store artifacts have **not** yet been physically moved to that
+location. The seven Trial Store Releases' bytes still sit at the legacy
+family-first paths they were originally built at, so the published path is
+where a Store *should* live and will not match the on-disk location until the
+separate relocation completes (issue #139). That gap
+is operational, not a registry fact: the derived path is what a build would
+produce, and what a Store found at `<artifact-root>/<store-id>/` joins back to.
+
+Thirteen further bundles are still under `families/*/releases/` awaiting
+triage.
 
 | | label |
 |---|---|
