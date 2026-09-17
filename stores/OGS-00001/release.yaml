@@ -33,7 +33,19 @@ notes: 'Probes chosen for well-characterised cis-eQTL signal and biological fami
   immune response, tumour suppression), spanning 8 chromosomes and including one MHC-adjacent locus (TNF).
   Gene symbols for each Ensembl probe ID: ENSG00000175445=LPL, ENSG00000134243=SORT1, ENSG00000130203=APOE,
   ENSG00000073605=GSDMB, ENSG00000164308=ERAP2, ENSG00000232810=TNF, ENSG00000141510=TP53, ENSG00000136244=IL6,
-  ENSG00000087237=CETP, ENSG00000136997=MYC.'
+  ENSG00000087237=CETP, ENSG00000136997=MYC.
+
+
+  Release Erratum (issue #134): the 10 Analysis rows leave stored_effect_scale,
+  sample_size_kind, sample_size_scope, sample_size, original_effect_scale,
+  original_sd_method, and ancestry_assignment_method blank. The source BESD format
+  does not carry sample size, effect scale, or ancestry metadata per probe or association,
+  and this metadata is not resolvable from tracked evidence inside this repository.
+  In accordance with the project principle that a wrong answer that looks like a right
+  answer is the worst outcome, values are left blank rather than defaulted or fabricated
+  pending external study-level metadata and upstream schema resolution.
+
+  '
 migration:
   adr: '0022'
   previous_identity:

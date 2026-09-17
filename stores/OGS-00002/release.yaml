@@ -41,6 +41,17 @@ notes: 'Completion adds no new Analyses -- analyses.tsv here is unchanged from p
   14,735 left missing (no correlated on-panel neighbour clearing min_cor). `opengwasdb validate` reports
   valid.
 
+
+  Release Erratum (issue #134): the 10 Analysis rows leave stored_effect_scale,
+  sample_size_kind, sample_size_scope, sample_size, original_effect_scale,
+  original_sd_method, and ancestry_assignment_method blank, inherited from parent
+  release OGS-00001. The source BESD format does not carry sample size, effect scale,
+  or ancestry metadata per probe or association, and this metadata is not resolvable
+  from tracked evidence inside this repository. In accordance with the project principle
+  that a wrong answer that looks like a right answer is the worst outcome, values are left
+  blank rather than defaulted or fabricated pending external study-level metadata and upstream
+  schema resolution.
+
   '
 migration:
   adr: '0022'

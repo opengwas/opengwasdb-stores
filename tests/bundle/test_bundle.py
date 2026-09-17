@@ -264,6 +264,76 @@ class TestBundleContract(unittest.TestCase):
             sentinel_errors,
         )
 
+    def test_check_enforces_required_analysis_values_on_standard_releases(self) -> None:
+        """Required Analysis columns must carry values, not merely exist in the header."""
+        checked = self.make_bundle()
+        blank_row = (
+            "analysis_id\tstored_effect_scale\tsample_size_kind\t"
+            "sample_size_scope\tsample_size\toriginal_effect_scale\t"
+            "original_sd_method\tassigned_ancestry\t"
+            "ancestry_assignment_method\tchecksum\tchecksum_algorithm\t"
+            "source_file\n"
+            "FIXTURE_1\t\ttotal\tanalysis_level\t\tsd\t"
+            "declared_standardised\tEUR\taf_assigned\t"
+            f"{'a' * 64}\tsha256\t/data/source/fixture.tsv\n"
+        )
+        checked.analyses_path.write_text(blank_row, encoding="utf-8")
+        errors = bundle.check(checked, registry_root=self.tmp_dir)
+        record_check()
+        self.assertIn(
+            "analysis 'FIXTURE_1' has no value for required column 'stored_effect_scale'",
+            errors,
+        )
+        self.assertIn(
+            "analysis 'FIXTURE_1' has no value for required column 'sample_size'",
+            errors,
+        )
+
+    def test_new_ragged_besd_bundle_with_blank_required_values_is_rejected(self) -> None:
+        """A new ragged-BESD release cannot silently inherit blank required values."""
+        blank_analyses = (
+            "analysis_id\tstored_effect_scale\tsample_size_kind\t"
+            "sample_size_scope\tsample_size\toriginal_effect_scale\t"
+            "original_sd_method\tassigned_ancestry\t"
+            "ancestry_assignment_method\n"
+            "FIXTURE_1\t\t\t\t\t\t\t\t\n"
+        )
+        new_besd = self.make_bundle(
+            store_id="OGS-00095",
+            release={
+                "source_snapshot": {
+                    "besd_prefix": "/data/test/pilot",
+                    "source_genome_build": "hg19",
+                }
+            },
+            build={
+                "layout": "ragged",
+                "completion_state": "observed_only",
+                "build": {"command": "build-ragged-besd", "options": {}},
+                "post": {
+                    "top_hits": False,
+                    "rho": False,
+                    "overview": False,
+                    "validate": True,
+                },
+            },
+            analyses=blank_analyses,
+        )
+        errors = bundle.check(new_besd, registry_root=self.tmp_dir)
+        record_check()
+        self.assertIn(
+            "analysis 'FIXTURE_1' has no value for required column 'stored_effect_scale'",
+            errors,
+        )
+        self.assertIn(
+            "analysis 'FIXTURE_1' has no value for required column 'sample_size'",
+            errors,
+        )
+        self.assertEqual(
+            bundle.LEGACY_BLANK_ANALYSIS_RELEASES,
+            frozenset({"OGS-00001", "OGS-00002"}),
+        )
+
     def test_assigned_ancestry_must_use_the_super_population_vocabulary(self) -> None:
         header = (
             "analysis_id\tstored_effect_scale\tsample_size_kind\t"

@@ -36,3 +36,7 @@ Every field in `resources/families.yaml` resolves into one of four buckets -- al
 - `bundle.check()` no longer requires or reads a `family` key.
 - The master list has one fewer derived column; the family column no longer invites a hand-maintained second identity to rot.
 - Phase A's operator interface has no family target. Phase B's generator directories are still named by their historical slugs; they are rename-or-rehome work for Phase B's design, not part of this decision.
+
+---
+
+**Note on direct-read source identity (issue #134).** While source reading capability is encoded in build commands or declared null, monolithic direct-read BESD releases (`OGS-00001` and `OGS-00002`) currently record source identity only as an unverified host filesystem path prefix (`source_snapshot.besd_prefix` in `OGS-00001`; `OGS-00002` carries only `source_snapshot_id` with lineage via `derived_from`) without checksums, file lists, or sizes, and `bundle.check()` only asserts that `besd_prefix` is a non-empty string for `build-ragged-besd`. This is a known integrity gap tracked by open issue #134, not an equivalent alternative to checksum verification.

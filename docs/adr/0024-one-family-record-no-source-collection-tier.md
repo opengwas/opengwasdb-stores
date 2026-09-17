@@ -21,3 +21,7 @@ A **Candidate Store Family** needs no home of its own. Its concrete expression i
 ---
 
 **Superseded by [0028](0028-store-family-tier-retired.md).** The Store Family record tier is deleted outright rather than folded further: every family field resolves to already-recorded, descriptive, or false on the evidence cited there; `access_posture` becomes a descriptive `release.yaml` field; and build priority moves to the issue tracker per this ADR's own Candidate-Store-Family argument.
+
+---
+
+**Amended by issue #134.** Monolithic direct-read BESD releases (`source_reader_capability: null`, `OGS-00001` and `OGS-00002`) currently record source identity only as an unverified host filesystem path prefix (`source_snapshot.besd_prefix` in `OGS-00001`; `OGS-00002` carries only `source_snapshot_id` with lineage via `derived_from`) without checksums, file lists, or sizes, and `bundle.check()` only asserts that `besd_prefix` is a non-empty string for `build-ragged-besd`. This is a known integrity gap tracked by open issue #134, not an equivalent alternative to the checksum and source-identity verification enforced for per-Analysis formats.
