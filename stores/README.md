@@ -7,7 +7,7 @@ a Store found on disk joins back to its registry record without a lookup table.
 
 ```text
 OGS-00042/
-  release.yaml      identity, label, family, status, lineage, provenance
+  release.yaml      identity, label, status, lineage, provenance
   build.yaml        the recipe: an opengwasdb subcommand and its flags
   analyses.tsv      membership; opengwasdb owns the schema
   summary.yaml       generated description derived only from analyses.tsv
@@ -25,15 +25,15 @@ artifacts have **not** yet moved to `<artifact-root>/<store-id>/` -- each
 `release.yaml` records its `migration.previous_store_uri`, which is where the
 artifact actually lives until then.
 
-| | family | label |
-|---|---|---|
-| `OGS-00001` | eqtlgen-cis-pilot | pilot-10 |
-| `OGS-00002` | eqtlgen-cis-pilot | pilot-10-completed |
-| `OGS-00003` | finngen-r13 | r13-pilot-20 |
-| `OGS-00004` | gwas-catalog-eur-hybrid | eur-hybrid-pilot-10 |
-| `OGS-00005` | gwas-catalog-eur-hybrid | eur-hybrid-quant-pilot-10 |
-| `OGS-00006` | metabolome-plasma-2023 | 2023-chen-full-european |
-| `OGS-00007` | pqtl-interval-2018 | 2018-sun-pilot-10 |
+| | label |
+|---|---|
+| `OGS-00001` | pilot-10 |
+| `OGS-00002` | pilot-10-completed |
+| `OGS-00003` | r13-pilot-20 |
+| `OGS-00004` | eur-hybrid-pilot-10 |
+| `OGS-00005` | eur-hybrid-quant-pilot-10 |
+| `OGS-00006` | 2023-chen-full-european |
+| `OGS-00007` | 2018-sun-pilot-10 |
 
 `summary.yaml`, `stores.tsv`, and `STORES.md` are generated from these bundles
 by `pixi run index`. A summary preserves absent or empty Analysis metadata as

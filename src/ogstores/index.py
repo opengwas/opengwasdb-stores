@@ -14,7 +14,7 @@ so only facts that change without a commit stay out.
 The `build_command` column is derived by `plan()`, so the published command
 is derived rather than maintained.
 
-See docs/spec/store-release-workflow.md and ADRs 0022, 0023, 0024.
+See docs/spec/store-release-workflow.md and ADRs 0022, 0023, 0028.
 """
 
 from __future__ import annotations
@@ -36,7 +36,6 @@ REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 COLUMNS: tuple[str, ...] = (
     "store_id",
     "label",
-    "family",
     "layout",
     "completion_state",
     "status",
@@ -73,7 +72,6 @@ def render_stores_row(
 
     store_id = bundle_obj.store_id
     label = bundle_obj.label or ""
-    family = bundle_obj.family or ""
     layout = bundle_obj.layout or ""
     completion_state = bundle_obj.completion_state or ""
     status = bundle_obj.status or ""
@@ -149,7 +147,6 @@ def render_stores_row(
     return {
         "store_id": store_id,
         "label": label,
-        "family": family,
         "layout": layout,
         "completion_state": completion_state,
         "status": status,
@@ -213,14 +210,13 @@ def render_stores_md(
         "",
         "> Generated from Release Bundles in `stores/`. Do not edit by hand; regenerate with `pixi run index`.",
         "",
-        "| Store ID | Label | Family | Layout | Completion | Status | Format | Analyses | Variants | Associations | Validated |",
+        "| Store ID | Label | Layout | Completion | Status | Format | Analyses | Variants | Associations | Validated |",
         "|:---|:---|:---|:---|:---|:---|:---|---:|---:|---:|:---|",
     ]
 
     for row in rows:
         sid = f"`{row['store_id']}`"
         lbl = row["label"] or "-"
-        fam = row["family"] or "-"
         lay = row["layout"] or "-"
         comp = row["completion_state"] or "-"
         st = row["status"] or "-"
@@ -230,7 +226,7 @@ def render_stores_md(
         n_assoc = _format_cell(row["n_associations"])
         val_st = row["validate_status"] or "-"
 
-        lines.append(f"| {sid} | {lbl} | {fam} | {lay} | {comp} | {st} | {fmt} | {n_ana} | {n_var} | {n_assoc} | {val_st} |")
+        lines.append(f"| {sid} | {lbl} | {lay} | {comp} | {st} | {fmt} | {n_ana} | {n_var} | {n_assoc} | {val_st} |")
 
     lines.extend([
         "",

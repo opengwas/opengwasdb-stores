@@ -72,7 +72,6 @@ def create_test_bundle_and_records(
     rel_dict = {
         "store_id": store_id,
         "label": f"test-{store_id}",
-        "family": "test-fam",
         "status": "candidate",
         "source_collection_id": "test-collection",
         "association_coverage": "full_gwas",

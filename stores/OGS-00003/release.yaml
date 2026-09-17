@@ -1,6 +1,6 @@
 store_id: OGS-00003
 label: r13-pilot-20
-family: finngen-r13
+access_posture: public
 status: built
 source_collection_id: finngen-r13
 association_coverage: full_gwas
