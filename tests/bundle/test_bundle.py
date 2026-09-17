@@ -291,6 +291,51 @@ class TestBundleContract(unittest.TestCase):
             errors,
         )
 
+    def test_new_ragged_besd_bundle_with_blank_required_values_is_rejected(self) -> None:
+        """A new ragged-BESD release cannot silently inherit blank required values."""
+        blank_analyses = (
+            "analysis_id\tstored_effect_scale\tsample_size_kind\t"
+            "sample_size_scope\tsample_size\toriginal_effect_scale\t"
+            "original_sd_method\tassigned_ancestry\t"
+            "ancestry_assignment_method\n"
+            "FIXTURE_1\t\t\t\t\t\t\t\t\n"
+        )
+        new_besd = self.make_bundle(
+            store_id="OGS-00095",
+            release={
+                "source_snapshot": {
+                    "besd_prefix": "/data/test/pilot",
+                    "source_genome_build": "hg19",
+                }
+            },
+            build={
+                "layout": "ragged",
+                "completion_state": "observed_only",
+                "build": {"command": "build-ragged-besd", "options": {}},
+                "post": {
+                    "top_hits": False,
+                    "rho": False,
+                    "overview": False,
+                    "validate": True,
+                },
+            },
+            analyses=blank_analyses,
+        )
+        errors = bundle.check(new_besd, registry_root=self.tmp_dir)
+        record_check()
+        self.assertIn(
+            "analysis 'FIXTURE_1' has no value for required column 'stored_effect_scale'",
+            errors,
+        )
+        self.assertIn(
+            "analysis 'FIXTURE_1' has no value for required column 'sample_size'",
+            errors,
+        )
+        self.assertEqual(
+            bundle.LEGACY_BLANK_ANALYSIS_RELEASES,
+            frozenset({"OGS-00001", "OGS-00002"}),
+        )
+
     def test_store_id_must_match_format_directory_and_both_documents(self) -> None:
         checked = self.make_bundle()
         for malformed in ("OGS-1", "ogs-00090", "OGS-00090\n"):

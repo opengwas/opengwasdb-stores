@@ -75,6 +75,13 @@ PHASE_B_REQUIRED_COLUMNS: tuple[str, ...] = (
     "original_sd_method",
 )
 
+# Legacy Trial Store Releases where required Analysis metadata is unpopulated
+# in upstream BESD sources and cannot be resolved without external study metadata
+# (issue #134). Blank required values are tolerated strictly for these two named
+# releases; any new release (including any future ragged-BESD or completed release)
+# must provide valid required values or fail check().
+LEGACY_BLANK_ANALYSIS_RELEASES: frozenset[str] = frozenset({"OGS-00001", "OGS-00002"})
+
 # Store-level descriptive metadata that is derived from the membership table.
 # Names intentionally match their source columns: in particular, ``context``
 # is not renamed to ``assay`` because the Analysis contract has no assay field.
@@ -665,22 +672,15 @@ def _check_analyses(bundle: Bundle) -> list[str]:
         analysis_errors = []
 
     release = bundle.release if isinstance(bundle.release, Mapping) else {}
-    build = bundle.build if isinstance(bundle.build, Mapping) else {}
-    completion_state = build.get("completion_state")
-    block_name = "complete" if completion_state == "reference_completed" else "build"
-    block = build.get(block_name)
-    command = block.get("command") if isinstance(block, Mapping) else None
-    # For candidate releases, Analytical Metadata may legitimately be pending
-    # resolution. For monolithic BESD direct-read builds (build-ragged-besd /
-    # complete-ragged: OGS-00001 and OGS-00002), source BESD data carries no
-    # sample-size, effect-scale, or ancestry metadata (issue #134). Rather than
-    # fabricating values, blank required values are tolerated for these legacy
-    # trial releases until external study metadata and upstream schema support
-    # (opengwasdb) become available. For all other releases, validate_analyses
-    # strictly enforces non-blank required values.
+    # Candidate releases may legitimately leave values blank pending resolution.
+    # Legacy trial releases OGS-00001 and OGS-00002 are tolerated pending external
+    # study metadata and upstream schema resolution (issue #134).
+    # This exemption is strictly scoped to these two named releases so that any
+    # new release (including any future ragged-BESD build) fails loudly if required
+    # Analysis values are blank.
     allow_blank_overlay_values = (
         release.get("status") == "candidate"
-        or command in {"build-ragged-besd", "complete-ragged"}
+        or bundle.store_id in LEGACY_BLANK_ANALYSIS_RELEASES
     )
     for error in analysis_errors:
         if allow_blank_overlay_values and "has no value for required column" in error:
@@ -740,6 +740,7 @@ def check(
 __all__ = [
     "BUILD_REQUIRED_KEYS",
     "Bundle",
+    "LEGACY_BLANK_ANALYSIS_RELEASES",
     "LEGAL_STATUS_TRANSITIONS",
     "PHASE_B_REQUIRED_COLUMNS",
     "RELEASE_REQUIRED_KEYS",

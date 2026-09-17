@@ -279,9 +279,9 @@ the source.
 | `trait_ontology_label` | Optional | Ontology or controlled vocabulary that defines `trait_ontology_id`, such as EFO, MONDO, OBA, Ensembl, or a source-local analyte vocabulary. For a gene-centric Ensembl CURIE this is `Ensembl`, while the human-readable symbol is `analysis_label` (ADR 0035). Named `trait_ontology_name` before ADR 0034. |
 | `trait_ontology_id` | Optional | Ontology or controlled-vocabulary identifier for the analysed trait, when available. CURIE format, for example `EFO:0001073`; blank when unmapped. Not required to be unique — several Analyses may legitimately share one. |
 | `trait_ontology_mapping_method` | Yes | Controlled value describing how `trait_ontology_id`/`trait_ontology_label` were resolved: `source_provided`, `canonical_table_lookup`, `external_authority_lookup`, or `unmapped`. Registry-only; OpenGWASDB's shared schema has no equivalent column yet (see `docs/adr/0021-trait-ontology-mapping-lookup-lives-in-registry.md`). |
-| `source_file` | Yes | Source file or filtered source file consumed by the builder. Omitted in monolithic direct-read formats (such as BESD, ADR 0024) where source snapshot identity is recorded at the release level in `release.yaml:source_snapshot`. |
+| `source_file` | Yes | Source file or filtered source file consumed by the builder. Omitted in legacy monolithic BESD releases (OGS-00001 and OGS-00002), where source identity is currently recorded only as an unverified path prefix (a known integrity gap tracked in issue #134). |
 | `source_bundle_id` | Optional | Identifier for a multi-file Source Bundle when one file is insufficient. |
-| `checksum` | Yes | Checksum for `source_file` or source bundle manifest. Omitted in monolithic direct-read formats where source snapshot identity is recorded in `release.yaml:source_snapshot`. |
+| `checksum` | Yes | Checksum for `source_file` or source bundle manifest. Omitted in legacy monolithic BESD releases (OGS-00001 and OGS-00002; known integrity gap tracked in issue #134). |
 | `checksum_algorithm` | Yes | Algorithm used for `checksum`, for example `sha256`. |
 | `size_bytes` | Optional | File size in bytes. |
 | `source_genome_build` | Yes | Genome build of source coordinates for this Analysis. |

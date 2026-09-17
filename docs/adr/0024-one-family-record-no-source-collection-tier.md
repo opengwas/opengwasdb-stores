@@ -20,5 +20,5 @@ A **Candidate Store Family** needs no home of its own. Its concrete expression i
 
 ---
 
-**Amended by issue #134.** Monolithic multi-Analysis source collections read directly by the builder (`source_reader_capability: null`, such as BESD triples) record source identity and provenance at the release level via `source_snapshot` in `release.yaml` (for example `besd_prefix`), rather than per-row `source_file`, `checksum`, and `size_bytes` columns in `analyses.tsv`. `bundle.check()` verifies the non-empty presence of this snapshot metadata without inspecting external source artifacts.
+**Amended by issue #134.** Monolithic direct-read BESD releases (`source_reader_capability: null`, `OGS-00001` and `OGS-00002`) currently record source identity only as an unverified host filesystem path prefix (`source_snapshot.besd_prefix` in `OGS-00001`; `OGS-00002` carries only `source_snapshot_id` with lineage via `derived_from`) without checksums, file lists, or sizes, and `bundle.check()` only asserts that `besd_prefix` is a non-empty string for `build-ragged-besd`. This is a known integrity gap tracked by open issue #134, not an equivalent alternative to the checksum and source-identity verification enforced for per-Analysis formats.
 

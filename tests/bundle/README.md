@@ -23,7 +23,8 @@ Covered by `tests/bundle/test_bundle.py`:
 - Every registry failure class is asserted: missing keys in `release.yaml`/`build.yaml`/`analyses.tsv`, `store_id`/directory mismatch, malformed ID format, absent declared file/sidecar, bad checksum format, unresolvable/self-referential `derived_from`, illegal status transitions.
 - Delegation of `analyses.tsv` validation to `opengwasdb.model.analyses`.
 - Required Analysis columns are asserted to enforce non-blank values on standard
-  releases rather than merely checking column presence.
+  and new ragged-BESD releases, with blank-overlay tolerance strictly scoped to
+  named legacy releases OGS-00001 and OGS-00002.
 - Retired-column rejection follows the pinned upstream
   `RETIRED_ANALYSIS_COLUMNS`, including a patched sentinel that proves there is
   no registry-owned duplicate list.
