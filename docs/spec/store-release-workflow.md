@@ -406,6 +406,10 @@ A per-store command *log* is still wanted, but for Phase B rather than Phase A, 
 
 ## `validation.yaml`
 
+The field-by-field format is defined once in
+[`docs/release-metadata-schema.md`](../release-metadata-schema.md#validationyaml);
+this section records only how the workflow produces it.
+
 Assembled by `register` from the step records: the JSON each build command already prints, plus `opengwasdb validate`'s verdict. `register` also compares each record's executed argv against `plan()`'s planned argv and fails on drift, per "Planned and executed argv are different facts" above. It records; it does not judge. This repository does not decide whether a store is scientifically sound — it captures what `opengwasdb` reported and who accepted it.
 
 The record's top-level `status` is the release-level verdict, and the generated master list publishes that value and no other. A per-check entry in `checks` describes one check and cannot override the record: a record reads `status: failed` precisely when a check failed, and publishing the passing check in its place is the "wrong answer that looks like a right answer" CONTRIBUTING names as the worst outcome. A release with no Validation Record publishes an empty verdict.

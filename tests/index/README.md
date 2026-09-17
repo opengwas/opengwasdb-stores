@@ -13,7 +13,7 @@ Test suite for `ogstores.index` (Issue #118), governed by [ADR 0022](../../docs/
    - The artifact root those paths hang from is resolved from configuration (`paths.artifact_root()`), never from a Build Recipe (issue #126).
 
 3. **Observed measurements from git metadata**:
-   - Observed columns are extracted exclusively from `validation.yaml` in git, never scraped from disk or artifact roots. Unbuilt or candidate releases have empty/null observed fields.
+   - Observed columns are extracted exclusively from the register-written `observed` block in `validation.yaml`, never scraped from disk or artifact roots, and never from a legacy top-level key (issue #135). Unbuilt or candidate releases have empty/null observed fields.
    - `validate_status` is the Validation Record's own top-level `status`, never a per-check `checks.store` entry and never `observed.validate_status`; a record that failed overall reports `failed` even when an individual check passed (issue #124). A missing Validation Record reports an empty verdict.
 
 4. **Human-readable `STORES.md`**:

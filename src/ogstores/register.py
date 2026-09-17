@@ -39,6 +39,30 @@ from ogstores import bundle, paths, run
 from ogstores.bundle import Bundle
 from ogstores.plan import Step, plan
 
+# The Validation Record shape `register` writes. Every record it writes carries
+# every `OBSERVED_FIELDS` and `BUILD_ENVIRONMENT_FIELDS` key, with a measurement
+# it could not harvest recorded as None rather than omitted, defaulted or
+# guessed (issues #122, #135). The `validation-record` tests assert both the
+# committed records and the `register` output against these tuples and against
+# `VALIDATOR_NAME`, so the format documented in `docs/release-metadata-schema.md`
+# and the format produced here cannot drift apart.
+VALIDATOR_NAME = "opengwasdb validate"
+OBSERVED_FIELDS: tuple[str, ...] = (
+    "format_version",
+    "n_analyses",
+    "n_variants",
+    "n_associations",
+    "store_bytes",
+    "build_elapsed_s",
+    "validate_status",
+)
+BUILD_ENVIRONMENT_FIELDS: tuple[str, ...] = (
+    "opengwasdb_version",
+    "opengwasdb_commit",
+    "python_version",
+    "platform",
+)
+
 
 class RegisterError(RuntimeError):
     """Base error for release registration failures."""
@@ -359,7 +383,7 @@ def register_release(
         "status": overall_status,
         "validated_at": now_iso,
         "validator": {
-            "name": "opengwasdb validate",
+            "name": VALIDATOR_NAME,
             "version": f"opengwasdb@{ogdb_rev}" if ogdb_rev != run.UNAVAILABLE else f"opengwasdb v{ogdb_ver}",
         },
         "build_environment": {
@@ -427,6 +451,9 @@ def register_release(
 
 
 __all__ = [
+    "BUILD_ENVIRONMENT_FIELDS",
+    "OBSERVED_FIELDS",
+    "VALIDATOR_NAME",
     "ArgvDriftError",
     "MissingRecordError",
     "RegisterError",
