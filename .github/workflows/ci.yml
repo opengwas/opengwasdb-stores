@@ -27,5 +27,8 @@ jobs:
       - name: Run all lightweight test suites
         run: pixi run --environment dev test
 
+      - name: Check every Release Bundle
+        run: pixi run --environment dev bundle-check
+
       - name: Documentation smoke test
         run: pixi run --environment dev docs-smoke
