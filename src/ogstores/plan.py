@@ -15,7 +15,11 @@ gets the BESD argv shape whatever else it declares.
 `build.options` keys are `opengwasdb` flag names rendered verbatim -- this
 module never interprets one (ADR 0023). The only arguments it composes are the
 registry's own facts: Store identity, the derived build manifest path, artifact
-paths. The build manifest is derived, not authored: `manifest.py` writes it and
+paths. The artifact root those paths hang from is deployment configuration,
+resolved by `paths.artifact_root()` and passed in; `plan()` never reads it from
+a Build Recipe (issue #126).
+
+The build manifest is derived, not authored: `manifest.py` writes it and
 the workflow builds it first, so an `exclude_from_build` audit row never reaches
 `opengwasdb` (ADR 0025).
 
@@ -160,15 +164,16 @@ def render_options(options: dict[str, Any] | None) -> list[str]:
     return argv
 
 
-def _resolve_artifact_root(
-    bundle: Bundle, artifact_root: Path | str | None = None
-) -> Path:
-    """Determine the artifact root for path construction."""
+def _resolve_artifact_root(artifact_root: Path | str | None = None) -> Path:
+    """Determine the artifact root for path construction.
+
+    The Build Recipe no longer carries an artifact root: it is deployment
+    configuration (issue #126). Callers pass the root resolved by
+    `paths.artifact_root()`; without one, fall back to the built-in default so
+    `plan()` remains a pure function of its inputs.
+    """
     if artifact_root is not None:
         return Path(artifact_root)
-    build_artifacts = bundle.build.get("artifacts")
-    if isinstance(build_artifacts, dict) and "root" in build_artifacts:
-        return Path(build_artifacts["root"])
     return paths.DEFAULT_ARTIFACT_ROOT
 
 
@@ -298,8 +303,10 @@ def plan(
     """Generate the sequence of Steps needed to build a Store Release.
 
     A pure function: reads bundle metadata and returns a list of Step objects
-    holding exact opengwasdb argv and explicit inputs/outputs. Performs no I/O
-    beyond path construction.
+    holding exact opengwasdb argv and explicit inputs/outputs. `artifact_root`
+    is the deployment-resolved root from `paths.artifact_root()`; the Build
+    Recipe is not consulted for it (issue #126). Performs no I/O beyond path
+    construction.
     """
     if not bundle.layout or not bundle.completion_state:
         raise ValueError(
@@ -326,7 +333,7 @@ def plan(
             f"Bundle {bundle.store_id} missing required 'family' in release.yaml"
         )
 
-    root = _resolve_artifact_root(bundle, artifact_root)
+    root = _resolve_artifact_root(artifact_root)
     options = (bundle.build.get(spec.phase) or {}).get("options") or {}
     store_p = paths.store_path(bundle.store_id, root=root)
 

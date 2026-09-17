@@ -652,17 +652,12 @@ def execute_step(
 
     paths.require_valid_store_id(store_id)
 
-    if artifact_root is None:
-        if bundle is not None:
-            build_artifacts = bundle.build.get("artifacts")
-            if isinstance(build_artifacts, dict) and "root" in build_artifacts:
-                resolved_root = Path(build_artifacts["root"])
-            else:
-                resolved_root = paths.DEFAULT_ARTIFACT_ROOT
-        else:
-            resolved_root = paths.DEFAULT_ARTIFACT_ROOT
-    else:
-        resolved_root = Path(artifact_root)
+    # The artifact root is deployment configuration, never a Build Recipe fact
+    # (issue #126). Callers normally pass the root resolved by
+    # `paths.artifact_root()`; without one, resolve it here.
+    resolved_root = (
+        Path(artifact_root) if artifact_root is not None else paths.artifact_root()
+    )
 
     # 1. Validate step.name security and write preflight record if invalid
     try:

@@ -246,6 +246,11 @@ when it empties.
 - Keep Release Bundles self-contained. A Store Release's artifact path is a
   pure function of its identifier, `<artifact-root>/<store-id>/` (ADRs 0014 and
   0022; 0018's family-first layout is superseded).
+- The artifact root is deployment configuration, not a bundle field. Resolve it
+  with `paths.artifact_root()`: a workflow config override, then
+  `OPENGWASDB_ARTIFACT_ROOT`, then the tracked `ogstores.yaml`, then the
+  built-in default. Never commit an artifact root into a Release Bundle, so one
+  immutable bundle can be built on CI, a laptop, or the production host.
 - A committed `analyses.tsv` is an exact release selection. Do not silently add
   every file found in a directory at build time.
 - Record source file names and checksums. Fail if a selected file is missing or

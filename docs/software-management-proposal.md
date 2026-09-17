@@ -80,9 +80,15 @@ commit, `pixi.lock` hash, task name, arguments, and external artifact root.
 Use explicit data variables with repository defaults documented in one place:
 
 ```text
-OPENGWASDB_ARTIFACT_ROOT=/data/opengwasdb
+OPENGWASDB_ARTIFACT_ROOT=/data/opengwasdb/stores
 OPENGWASDB_REFERENCE_ROOT=/data/opengwasdb/reference
 ```
+
+`OPENGWASDB_ARTIFACT_ROOT` is the directory that contains one directory per
+Store Release id (`<artifact-root>/OGS-00042/`), per ADR 0022. It is now
+actually read by `paths.artifact_root()`, which resolves it after a workflow
+`--config artifact_root=` override and before the committed `ogstores.yaml`
+and the built-in default (issue #126).
 
 Software lives in Pixi's workspace/cache, not beneath either data root. Remove
 hard-coded sibling `.venv` discovery and the LD materializer's

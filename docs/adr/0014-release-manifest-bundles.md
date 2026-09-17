@@ -1,3 +1,5 @@
 # Release manifest bundles
 
 A Release Manifest is represented as a small directory bundle rather than one large file. Release-level identity and status live in YAML, the concrete Analysis table lives in TSV, and every release bundle includes its own concrete `analyses.tsv` and `build.yaml` so large Store Releases remain readable, diffable, streamable, self-contained, and reproducible.
+
+**Amended by issue #126.** "Self-contained" means a bundle carries everything needed to determine *what* to build: identity, membership, and the Build Recipe's `opengwasdb` subcommand and flags. It does not carry *where* the artifacts land. The artifact root is deployment configuration, resolved by `paths.artifact_root()` from a workflow config override, then the `OPENGWASDB_ARTIFACT_ROOT` environment variable, then the repository's `ogstores.yaml`, then a built-in default. A bundle is immutable once accepted, so an absolute path committed into it would bind that bundle to one machine and hardcode that machine's filesystem into the generated master list.

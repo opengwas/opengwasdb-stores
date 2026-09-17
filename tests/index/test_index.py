@@ -81,7 +81,6 @@ def create_mock_bundle(
         "layout": layout,
         "completion_state": completion_state,
         "post": {"top_hits": False, "rho": False, "overview": True, "validate": True},
-        "artifacts": {"root": "/data/opengwasdb/stores"},
     }
     if completion_state == "reference_completed":
         bld_dict["complete"] = {"command": "complete-dense", "options": options or {"ancestry": "EUR"}}
@@ -160,6 +159,22 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         self.assertIn("--n-workers 16", row["build_command"])
         self.assertIn("--chunk-variants 5000", row["build_command"])
         self.assertIn("--source-assembly hg38", row["build_command"])
+
+    def test_configured_artifact_root_renders_build_command_and_store_uri(self) -> None:
+        """The master list derives artifact paths from configuration, not the Build Recipe (issue #126)."""
+        b = create_mock_bundle(
+            self.stores_dir,
+            "OGS-00013",
+            label="configured-root",
+            family="test-fam",
+        )
+        row = render_stores_row(b, artifact_root="/configured/stores")
+        self.assertTrue(
+            row["build_command"].startswith("opengwasdb build-dense-vcf"),
+            row["build_command"],
+        )
+        self.assertIn("/configured/stores/OGS-00013/work/analyses.tsv", row["build_command"])
+        self.assertEqual(row["store_uri"], "/configured/stores/OGS-00013/store.opengwasdb")
 
     def test_observed_columns_extracted_from_validation_yaml_only(self) -> None:
         """Observed columns come from validation.yaml; unbuilt releases have empty observed columns."""
