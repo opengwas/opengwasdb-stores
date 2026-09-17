@@ -1,0 +1,18 @@
+# Repository configuration for OpenGWASDB Store Release tooling (issue #126).
+#
+# `artifact_root` is deployment configuration, not a Release Bundle fact. The
+# root contains one directory per Store Release, named by its `OGS-` id:
+#
+#   <artifact_root>/OGS-00042/store.opengwasdb
+#
+# `paths.artifact_root()` resolves the root in this precedence order, highest
+# first:
+#
+#   1. workflow config override   pixi run release --config artifact_root=/path
+#   2. environment variable       OPENGWASDB_ARTIFACT_ROOT=/path
+#   3. this file's artifact_root
+#   4. built-in default           src/ogstores/paths.py DEFAULT_ARTIFACT_ROOT
+#
+# The override exists so CI, a developer laptop, and the production host each
+# get the right answer without editing or rebuilding an immutable Release Bundle.
+artifact_root: /data/opengwasdb/stores

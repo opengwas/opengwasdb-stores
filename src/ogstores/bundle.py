@@ -64,7 +64,6 @@ BUILD_REQUIRED_KEYS: tuple[str, ...] = (
     "layout",
     "completion_state",
     "post",
-    "artifacts",
 )
 
 PHASE_B_REQUIRED_COLUMNS: tuple[str, ...] = (
@@ -378,10 +377,14 @@ def _check_build(bundle: Bundle) -> list[str]:
         elif _is_missing(block, "command"):
             errors.append(f"build.yaml {block_name} block is missing required key: 'command'")
 
-    for key in ("post", "artifacts"):
-        value = build.get(key)
-        if value is not None and not isinstance(value, Mapping):
-            errors.append(f"build.yaml {key} must be a mapping")
+    post = build.get("post")
+    if post is not None and not isinstance(post, Mapping):
+        errors.append("build.yaml post must be a mapping")
+    if "artifacts" in build:
+        errors.append(
+            "build.yaml must not declare 'artifacts'; the artifact root is "
+            "deployment configuration resolved by paths.artifact_root() (issue #126)"
+        )
 
     # 908797f made the BESD prefix a frozen bundle provenance fact. Validate
     # the value, but deliberately do not stat the external BESD artifacts.

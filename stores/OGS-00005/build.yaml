@@ -12,5 +12,3 @@ post:
   rho: false
   overview: true
   validate: true
-artifacts:
-  root: /data/opengwasdb/stores

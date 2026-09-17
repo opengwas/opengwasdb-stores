@@ -37,6 +37,7 @@ Covered by `tests/plan/test_plan.py`:
 - Shared post-step builder mechanism parameterised by planner-specific commands.
 - Dispatch table keyed by `(layout, completion_state)` across all six valid pairs, plus command-keyed sub-dispatch table (`RAGGED_BUILD_DISPATCH`) for ragged layouts without branching or if/elif chains in shared code (ADR 0023).
 - Derived build manifest seam: `plan()` resolves the `analyses` token (positional for Dense/Hybrid/SSF, `--analyses` flag for BESD) and the step's declared inputs to `<artifact-root>/<store_id>/work/analyses.tsv`, so Snakemake builds the filtered manifest before the builder runs; the bundle's audit `analyses.tsv` never appears in a build argv. Completion commands consume no analyses manifest.
+- Artifact-root configuration: the Build Recipe carries no `artifacts` block; `plan()` renders the root its caller resolved through `paths.artifact_root()` (workflow config, environment variable, `ogstores.yaml`, built-in default). A stray `artifacts.root` is ignored, and overriding the root changes the rendered command line (issue #126).
 - Verification of every planned step argv against the real pinned `opengwasdb` CLI.
 - Pure function execution with tripwire proof for no filesystem or network I/O beyond path construction.
 

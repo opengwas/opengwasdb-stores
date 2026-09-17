@@ -81,7 +81,6 @@ def create_mock_bundle(
         "layout": layout,
         "completion_state": completion_state,
         "post": {"top_hits": False, "rho": False, "overview": True, "validate": True},
-        "artifacts": {"root": "/data/opengwasdb/stores"},
     }
     if completion_state == "reference_completed":
         bld_dict["complete"] = {"command": "complete-dense", "options": options or {"ancestry": "EUR"}}
@@ -161,6 +160,22 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         self.assertIn("--chunk-variants 5000", row["build_command"])
         self.assertIn("--source-assembly hg38", row["build_command"])
 
+    def test_configured_artifact_root_renders_build_command_and_store_uri(self) -> None:
+        """The master list derives artifact paths from configuration, not the Build Recipe (issue #126)."""
+        b = create_mock_bundle(
+            self.stores_dir,
+            "OGS-00013",
+            label="configured-root",
+            family="test-fam",
+        )
+        row = render_stores_row(b, artifact_root="/configured/stores")
+        self.assertTrue(
+            row["build_command"].startswith("opengwasdb build-dense-vcf"),
+            row["build_command"],
+        )
+        self.assertIn("/configured/stores/OGS-00013/work/analyses.tsv", row["build_command"])
+        self.assertEqual(row["store_uri"], "/configured/stores/OGS-00013/store.opengwasdb")
+
     def test_observed_columns_extracted_from_validation_yaml_only(self) -> None:
         """Observed columns come from validation.yaml; unbuilt releases have empty observed columns."""
         val_data = {
@@ -210,6 +225,39 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         self.assertEqual(row_cand["store_bytes"], "")
         self.assertEqual(row_cand["build_elapsed_s"], "")
         self.assertEqual(row_cand["validate_status"], "")
+
+    def test_validate_status_is_record_status_not_a_per_check_entry(self) -> None:
+        """Issue #124: an overall failure must survive a passing per-check entry.
+
+        A pre-seam Validation Record can carry `status: failed` alongside a
+        passing `checks.store` (and a stale `observed.validate_status`). The
+        record's own status is the release-level verdict and must win; no
+        current Release Bundle exercises this shape, so it is covered
+        synthetically. Publishing `passed` here is the worst outcome the
+        project can produce (CONTRIBUTING).
+        """
+        val_data = {
+            "status": "failed",
+            "validated_at": "2026-09-14T12:00:00Z",
+            "observed": {"validate_status": "passed"},
+            "checks": {"store": "passed", "files": "passed"},
+        }
+        b = create_mock_bundle(
+            self.stores_dir,
+            "OGS-00013",
+            label="contradictory-record",
+            family="test-fam",
+            status="built",
+            validation_data=val_data,
+        )
+
+        row = render_stores_row(b)
+        self.assertEqual(
+            row["validate_status"],
+            "failed",
+            "the Validation Record's own status must override a passing "
+            "per-check entry (issue #124)",
+        )
 
     def test_stores_tsv_and_md_and_by_label_generation_end_to_end(self) -> None:
         """generate_index creates stores.tsv, STORES.md, by-label symlinks, and deletes store-catalog.md."""

@@ -246,6 +246,11 @@ when it empties.
 - Keep Release Bundles self-contained. A Store Release's artifact path is a
   pure function of its identifier, `<artifact-root>/<store-id>/` (ADRs 0014 and
   0022; 0018's family-first layout is superseded).
+- The artifact root is deployment configuration, not a bundle field. Resolve it
+  with `paths.artifact_root()`: a workflow config override, then
+  `OPENGWASDB_ARTIFACT_ROOT`, then the tracked `ogstores.yaml`, then the
+  built-in default. Never commit an artifact root into a Release Bundle, so one
+  immutable bundle can be built on CI, a laptop, or the production host.
 - A committed `analyses.tsv` is an exact release selection. Do not silently add
   every file found in a directory at build time.
 - Record source file names and checksums. Fail if a selected file is missing or
@@ -292,7 +297,9 @@ list means valid) and never raises for invalid bundle content. It reads only
 files inside Release Bundles, plus a parent bundle when resolving
 `derived_from`; it never opens a Store or inspects a Release Artifact. The
 `bundle-check` task discovers every bundle under `stores/` and fails if any
-error is returned, and CI runs that task explicitly.
+error is returned, and CI runs that task explicitly. In particular, it rejects
+a Build Recipe `artifacts` block because issue #126 moved the artifact root to
+deployment configuration.
 
 Run the checks relevant to a change. A behavior change to a script needs a test
 that reproduces the failure it prevents. Assert that fixtures exercise the

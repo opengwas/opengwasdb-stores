@@ -74,12 +74,7 @@ def render_stores_row(
     if not store_uri:
         store_uri = bundle_obj.release.get("migration", {}).get("previous_store_uri")
     if not store_uri:
-        build_art = bundle_obj.build.get("artifacts")
-        art_root = (
-            Path(build_art["root"])
-            if isinstance(build_art, dict) and "root" in build_art
-            else (Path(artifact_root) if artifact_root else paths.DEFAULT_ARTIFACT_ROOT)
-        )
+        art_root = Path(artifact_root) if artifact_root else paths.artifact_root()
         store_uri = str(paths.store_path(store_id, root=art_root))
 
     created_at = str(bundle_obj.release.get("created_at") or "")
@@ -139,10 +134,12 @@ def render_stores_row(
         build_elapsed_s = val.get("build_elapsed_s", "")
     build_elapsed_s_str = str(build_elapsed_s) if build_elapsed_s != "" and build_elapsed_s is not None else ""
 
-    validate_status = obs.get("validate_status")
-    if not validate_status:
-        validate_status = val.get("checks", {}).get("store", val.get("status", ""))
-    validate_status_str = str(validate_status) if validate_status else ""
+    # The Validation Record's own `status` is the release-level verdict (issue
+    # #124). A per-check entry such as `checks.store` describes one check and
+    # must never override a record that failed overall -- a record can read
+    # `status: failed` while an individual check passed, and that is exactly
+    # what the record is for. Empty when there is no Validation Record.
+    validate_status_str = str(val.get("status") or "")
 
     return {
         "store_id": store_id,
@@ -293,10 +290,13 @@ def generate_index(
     ]) if resolved_registry_root.is_dir() else []
 
     bundles = [bundle.load(sid, registry_root=resolved_registry_root) for sid in store_ids]
-    rows = [render_stores_row(b, artifact_root=artifact_root, repo_root=resolved_repo_root) for b in bundles]
+    # Resolve the artifact root once, from configuration rather than any Build
+    # Recipe (issue #126), and render both derived views under it.
+    resolved_artifact_root = Path(artifact_root) if artifact_root else paths.artifact_root()
+    rows = [render_stores_row(b, artifact_root=resolved_artifact_root, repo_root=resolved_repo_root) for b in bundles]
 
     # Write stores.tsv
-    tsv_content = render_stores_tsv(bundles, artifact_root=artifact_root, repo_root=resolved_repo_root)
+    tsv_content = render_stores_tsv(bundles, artifact_root=resolved_artifact_root, repo_root=resolved_repo_root)
     stores_tsv_path = resolved_repo_root / "stores.tsv"
     stores_tsv_path.write_text(tsv_content, encoding="utf-8")
 
