@@ -253,8 +253,14 @@ when it empties.
   immutable bundle can be built on CI, a laptop, or the production host.
 - A committed `analyses.tsv` is an exact release selection. Do not silently add
   every file found in a directory at build time.
-- Record source file names and checksums. Fail if a selected file is missing or
-  its identity no longer matches.
+- Record source file names and checksums for per-Analysis source files (such as
+  GWAS-SSF or GWAS-VCF). Fail if a selected file is missing or its identity no
+  longer matches. Monolithic or multi-Analysis source collections read directly
+  by the builder without per-Analysis files (such as BESD triples where
+  `source_reader_capability` is null) record source identity and provenance at the
+  release level via `source_snapshot` in `release.yaml` (for example
+  `source_snapshot.besd_prefix`, ADRs 0009, 0024) instead of per-row `source_file`,
+  `checksum`, and `size_bytes` columns in `analyses.tsv`.
 - Do not copy OpenGWASDB builder logic into this repository. Invoke a documented
   OpenGWASDB CLI subcommand with explicit arguments; `build.options` keys are
   flag names passed through verbatim, never interpreted here (ADR 0023).

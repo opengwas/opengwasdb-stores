@@ -266,6 +266,31 @@ class TestBundleContract(unittest.TestCase):
             sentinel_errors,
         )
 
+    def test_check_enforces_required_analysis_values_on_standard_releases(self) -> None:
+        """Required Analysis columns must carry values, not merely exist in the header."""
+        checked = self.make_bundle()
+        blank_row = (
+            "analysis_id\tstored_effect_scale\tsample_size_kind\t"
+            "sample_size_scope\tsample_size\toriginal_effect_scale\t"
+            "original_sd_method\tassigned_ancestry\t"
+            "ancestry_assignment_method\tchecksum\tchecksum_algorithm\t"
+            "source_file\n"
+            "FIXTURE_1\t\ttotal\tanalysis_level\t\tsd\t"
+            "declared_standardised\tEUR\taf_assigned\t"
+            f"{'a' * 64}\tsha256\t/data/source/fixture.tsv\n"
+        )
+        checked.analyses_path.write_text(blank_row, encoding="utf-8")
+        errors = bundle.check(checked, registry_root=self.tmp_dir)
+        record_check()
+        self.assertIn(
+            "analysis 'FIXTURE_1' has no value for required column 'stored_effect_scale'",
+            errors,
+        )
+        self.assertIn(
+            "analysis 'FIXTURE_1' has no value for required column 'sample_size'",
+            errors,
+        )
+
     def test_store_id_must_match_format_directory_and_both_documents(self) -> None:
         checked = self.make_bundle()
         for malformed in ("OGS-1", "ogs-00090", "OGS-00090\n"):

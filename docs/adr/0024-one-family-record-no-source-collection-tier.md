@@ -17,3 +17,8 @@ ADR 0010's rule that a Store Family is built from exactly one Source Collection 
 A real Source Inventory would reopen this. When acquisition enumerates a collection at scale -- the GWAS Catalog download is 2.35 TB across 17,300 files -- the result cannot be a line in a YAML file. It returns as a data file, `resources/inventories/<collection-id>.tsv`, referenced from the family entry. That is a place to put rows, not a metadata tier, and it does not restore `source-collections/`.
 
 A **Candidate Store Family** needs no home of its own. Its concrete expression is a candidate Store Release: `stores/<id>/` with `status: candidate`, which the Release Status vocabulary already carries. What is under consideration and what has been built then appear in one generated master list. A proposal with no candidate release attached is a roadmap item and belongs in an issue tracker; `families/_candidates/` held nothing but a README for the life of the repository.
+
+---
+
+**Amended by issue #134.** Monolithic multi-Analysis source collections read directly by the builder (`source_reader_capability: null`, such as BESD triples) record source identity and provenance at the release level via `source_snapshot` in `release.yaml` (for example `besd_prefix`), rather than per-row `source_file`, `checksum`, and `size_bytes` columns in `analyses.tsv`. `bundle.check()` verifies the non-empty presence of this snapshot metadata without inspecting external source artifacts.
+

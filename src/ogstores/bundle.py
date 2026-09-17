@@ -670,6 +670,14 @@ def _check_analyses(bundle: Bundle) -> list[str]:
     block_name = "complete" if completion_state == "reference_completed" else "build"
     block = build.get(block_name)
     command = block.get("command") if isinstance(block, Mapping) else None
+    # For candidate releases, Analytical Metadata may legitimately be pending
+    # resolution. For monolithic BESD direct-read builds (build-ragged-besd /
+    # complete-ragged: OGS-00001 and OGS-00002), source BESD data carries no
+    # sample-size, effect-scale, or ancestry metadata (issue #134). Rather than
+    # fabricating values, blank required values are tolerated for these legacy
+    # trial releases until external study metadata and upstream schema support
+    # (opengwasdb) become available. For all other releases, validate_analyses
+    # strictly enforces non-blank required values.
     allow_blank_overlay_values = (
         release.get("status") == "candidate"
         or command in {"build-ragged-besd", "complete-ragged"}
