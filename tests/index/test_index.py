@@ -211,6 +211,39 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         self.assertEqual(row_cand["build_elapsed_s"], "")
         self.assertEqual(row_cand["validate_status"], "")
 
+    def test_validate_status_is_record_status_not_a_per_check_entry(self) -> None:
+        """Issue #124: an overall failure must survive a passing per-check entry.
+
+        A pre-seam Validation Record can carry `status: failed` alongside a
+        passing `checks.store` (and a stale `observed.validate_status`). The
+        record's own status is the release-level verdict and must win; no
+        current Release Bundle exercises this shape, so it is covered
+        synthetically. Publishing `passed` here is the worst outcome the
+        project can produce (CONTRIBUTING).
+        """
+        val_data = {
+            "status": "failed",
+            "validated_at": "2026-09-14T12:00:00Z",
+            "observed": {"validate_status": "passed"},
+            "checks": {"store": "passed", "files": "passed"},
+        }
+        b = create_mock_bundle(
+            self.stores_dir,
+            "OGS-00013",
+            label="contradictory-record",
+            family="test-fam",
+            status="built",
+            validation_data=val_data,
+        )
+
+        row = render_stores_row(b)
+        self.assertEqual(
+            row["validate_status"],
+            "failed",
+            "the Validation Record's own status must override a passing "
+            "per-check entry (issue #124)",
+        )
+
     def test_stores_tsv_and_md_and_by_label_generation_end_to_end(self) -> None:
         """generate_index creates stores.tsv, STORES.md, by-label symlinks, and deletes store-catalog.md."""
         # Create mock store-catalog.md in docs/
