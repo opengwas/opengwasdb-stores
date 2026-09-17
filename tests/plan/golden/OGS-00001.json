@@ -7,7 +7,7 @@
       "/data/opengwasdb/raw/eqtlgen/pilot-10",
       "/data/opengwasdb/stores/OGS-00001/store.opengwasdb",
       "--store-id",
-      "eqtlgen-cis-pilot",
+      "OGS-00001",
       "--release-id",
       "OGS-00001",
       "--analyses",
