@@ -71,6 +71,19 @@ artifact_paths <- function(cfg, root) {
 
 clean_chr <- function(x) sub("^chr", "", as.character(x), ignore.case = TRUE)
 
+# The number of distinct member symbols a GWAS Catalog SomaScan trait label
+# enumerates before its SeqId: one for "PDK1.5227.60.3", seven for
+# "YWHAB.YWHAE.YWHAG.YWHAH.YWHAQ.YWHAZ.SFN.4707.50.2". A label that names more
+# than one member measures a family, not one protein, and must not have one
+# arbitrary member promoted to the Analysis identity (issue #141).
+source_target_symbol_count <- function(source_label) {
+  inner <- sub("^[^(]*\\(([^)]*)\\).*$", "\\1", source_label)
+  if (length(inner) != 1L || is.na(inner) || identical(inner, source_label)) return(1L)
+  tokens <- strsplit(inner, ".", fixed = TRUE)[[1]]
+  tokens <- tokens[nzchar(tokens) & !grepl("^[0-9]+$", tokens)]
+  length(unique(tokens))
+}
+
 slugify <- function(x) {
   x <- gsub("[^A-Za-z0-9]+", "-", x)
   x <- gsub("(^-+|-+$)", "", x)
@@ -181,7 +194,8 @@ empty_target_summary <- function() {
     source_analysis_id = character(), gene_id = character(),
     gene_name = character(), target_id = character(), target_label = character(),
     trait_chr = character(), trait_bp = integer(), mhc = logical(),
-    target_resolution_method = character(), n_target_rows = integer()
+    target_resolution_method = character(), n_target_rows = integer(),
+    assay_seqid = character(), is_multi_target = logical()
   )
 }
 
@@ -201,7 +215,15 @@ load_inputs <- function(cfg, root) {
   } else {
     empty_targets_sidecar()
   }
-  list(candidates = candidates, targets = targets)
+  # The shared SomaScan target resource records SomaLogic's own
+  # somascan_is_multiple flag (issue #141). Optional so a family whose target
+  # sidecar does not come from SomaScan resolves exactly as before.
+  somascan_targets <- if (!is.null(cfg$inputs$somascan_targets)) {
+    fread(path_abs(root, cfg$inputs$somascan_targets), sep = "\t", na.strings = "")
+  } else {
+    NULL
+  }
+  list(candidates = candidates, targets = targets, somascan_targets = somascan_targets)
 }
 
 select_analyses <- function(cfg, candidates) {
@@ -233,7 +255,8 @@ select_analyses <- function(cfg, candidates) {
   selected[]
 }
 
-summarise_targets <- function(targets, selected_ids, fail_unresolved = TRUE) {
+summarise_targets <- function(targets, selected_ids, fail_unresolved = TRUE,
+                              somascan_targets = NULL) {
   target_subset <- targets[source_analysis_id %in% selected_ids]
   target_subset[, chromosome := clean_chr(chromosome)]
   target_subset[, source_analysis_id := as.character(source_analysis_id)]
@@ -250,7 +273,7 @@ summarise_targets <- function(targets, selected_ids, fail_unresolved = TRUE) {
     )
   }
 
-  mapped[, .(
+  summarised <- mapped[, .(
     gene_id = paste(unique(na.omit(ensembl_gene_id)), collapse = ";"),
     gene_name = paste(unique(na.omit(gene_name)), collapse = ";"),
     target_id = paste(unique(na.omit(ensembl_gene_id)), collapse = ";"),
@@ -261,6 +284,65 @@ summarise_targets <- function(targets, selected_ids, fail_unresolved = TRUE) {
     target_resolution_method = paste(unique(na.omit(target_resolution_method)), collapse = ";"),
     n_target_rows = .N
   ), by = source_analysis_id]
+
+  # Assay identity (SeqId) and multi-target status travel with the target
+  # summary so manifest_rows can keep the Trait, the assay and the target
+  # distinct (issue #141). A non-SomaScan target sidecar may carry neither a
+  # SeqId nor a member list; those rows are treated as single-target and fall
+  # back to the gene symbol exactly as before.
+  seqid_cols <- intersect(c("matched_seqid", "source_seqid"), names(target_subset))
+  assay_identity <- if (length(seqid_cols)) {
+    target_subset[, .(
+      assay_seqid = {
+        ids <- unique(na.omit(unlist(.SD, use.names = FALSE)))
+        if (length(ids)) ids[[1]] else NA_character_
+      }
+    ), by = source_analysis_id, .SDcols = seqid_cols]
+  } else {
+    target_subset[, .(assay_seqid = NA_character_), by = source_analysis_id]
+  }
+  if ("source_label" %in% names(target_subset)) {
+    symbol_counts <- target_subset[, .(
+      n_source_target_symbols = max(
+        vapply(source_label, source_target_symbol_count, integer(1)),
+        na.rm = TRUE
+      )
+    ), by = source_analysis_id]
+  } else {
+    symbol_counts <- target_subset[, .(n_source_target_symbols = 1L),
+                                  by = source_analysis_id]
+  }
+  assay_identity <- merge(
+    assay_identity, symbol_counts,
+    by = "source_analysis_id", all.x = TRUE, sort = FALSE
+  )
+  summarised <- merge(
+    summarised, assay_identity,
+    by = "source_analysis_id", all.x = TRUE, sort = FALSE
+  )
+
+  multiple <- if (is.null(somascan_targets)) {
+    data.table(assay_seqid = character(), somascan_is_multiple = logical())
+  } else {
+    unique(
+      somascan_targets[, .(
+        assay_seqid = as.character(seqid),
+        somascan_is_multiple = somascan_is_multiple
+      )],
+      by = "assay_seqid"
+    )
+  }
+  summarised <- merge(
+    summarised, multiple,
+    by = "assay_seqid", all.x = TRUE, sort = FALSE
+  )
+  # SomaLogic's flag is authoritative where present; the source label's own
+  # member list is the tracked evidence for an aggregate SomaLogic did not
+  # flag (GCST90240123, issue #141).
+  summarised[, is_multi_target :=
+    (somascan_is_multiple %in% c(TRUE, "TRUE", "true", "1")) |
+      (!is.na(n_source_target_symbols) & n_source_target_symbols > 1)]
+  summarised[]
 }
 
 manifest_rows <- function(cfg, selected, target_summary, paths, has_targets = TRUE, canonical_table = NULL, ancestry_map = NULL) {
@@ -332,19 +414,26 @@ manifest_rows <- function(cfg, selected, target_summary, paths, has_targets = TR
   x[, trait_ontology_mapping_method := ontology_resolved$trait_ontology_mapping_method]
   x[, analysis_label := DISEASE.TRAIT]
   if (has_targets) {
-    if (any(is.na(x$gene_id) | !nzchar(x$gene_id) | grepl(";", x$gene_id))) {
-      stop("Each gene-target Analysis must resolve to exactly one Ensembl gene ID")
+    # The Trait Ontology Mapping resolved above is the source-provided EFO/
+    # OBA term and its trait label, and it stays there. #130 overwrote it with
+    # the target gene's authority identity (ENSEMBL:ENSG... plus the label
+    # "Ensembl"), collapsing trait, assay and target into one field; issue
+    # #141 separates them again. The gene remains target annotation
+    # (trait_chr/trait_bp, the sidecar, and somascan-targets.tsv).
+    single_target <- !(x$is_multi_target %in% TRUE)
+    if (any(single_target & (is.na(x$gene_id) | !nzchar(x$gene_id) | grepl(";", x$gene_id)))) {
+      stop("Each single-target Analysis must resolve to exactly one Ensembl gene ID")
     }
-    if (any(is.na(x$gene_name) | !nzchar(x$gene_name) | grepl(";", x$gene_name))) {
-      stop("Each gene-target Analysis must resolve to exactly one gene symbol")
+    if (any(single_target & (is.na(x$gene_name) | !nzchar(x$gene_name) | grepl(";", x$gene_name)))) {
+      stop("Each single-target Analysis must resolve to exactly one gene symbol")
     }
-    # opengwasdb ADR 0035 retires gene_id/gene_name: a gene-centric
-    # Analysis carries the same resolved identity in the shared Analysis
-    # columns instead of duplicating it in family-specific columns.
+    # A single-target Analysis is displayed by its resolved gene symbol. An
+    # aggregate assay has no single honest gene symbol, so the SomaScan SeqId
+    # -- SomaLogic's stable assay identifier -- is the assay identity instead.
     x[, analysis_label := gene_name]
-    x[, trait_ontology_id := paste0("ENSEMBL:", gene_id)]
-    x[, trait_ontology_label := "Ensembl"]
-    x[, trait_ontology_mapping_method := "external_authority_lookup"]
+    x[is_multi_target %in% TRUE, analysis_label := assay_seqid]
+    x[is_multi_target %in% TRUE & (is.na(analysis_label) | !nzchar(analysis_label)),
+      analysis_label := DISEASE.TRAIT]
     x[, n := sample_size]
   }
 
@@ -485,7 +574,8 @@ emit_bundle <- function(cfg, root) {
     summarise_targets(
       inputs$targets,
       selected$STUDY.ACCESSION,
-      cfg$selection$fail_if_target_unresolved %||% TRUE
+      cfg$selection$fail_if_target_unresolved %||% TRUE,
+      somascan_targets = inputs$somascan_targets
     )
   } else {
     empty_target_summary()
@@ -1023,8 +1113,9 @@ validate_emit <- function(cfg, root) {
   )
   # trait_chr/trait_bp/n/mhc are single-gene-target columns (issue #26):
   # required only for Store Families with a resolvable per-Analysis gene
-  # target, absent entirely (not NA-filled) otherwise. Gene identity uses
-  # analysis_label/trait_ontology_id/trait_ontology_label (issue #130).
+  # target, absent entirely (not NA-filled) otherwise. Trait identity is the
+  # source-provided ontology term (issue #141); a single-target Analysis is
+  # labelled by its gene symbol and an aggregate by its SomaScan SeqId.
   if (has_targets) {
     required <- c(required, "trait_chr", "trait_bp", "n", "mhc")
   }

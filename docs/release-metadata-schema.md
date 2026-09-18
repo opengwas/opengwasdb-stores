@@ -224,10 +224,13 @@ that a `candidate` release and the two legacy trial releases `OGS-00001` and
 `bundle.check()` **rejects** any column named by the pinned upstream
 `RETIRED_ANALYSIS_COLUMNS` list: `phenotype_id`, `phenotype_label`, `trait_id`,
 `gene_id`, `gene_name`. The upstream schema is the single retired-column
-contract; the registry does not keep its own copy. Gene-centric identity uses
-`analysis_label` for the gene symbol, `trait_ontology_id` for the
-authority-qualified identifier, and `trait_ontology_label` for the authority
-name (OpenGWASDB ADR 0035).
+contract; the registry does not keep its own copy. A Trait Ontology Mapping
+carries an ontology term and its trait label, never a gene identifier with an
+authority name standing in for the label: gene/target identity is annotation
+(`analysis_label` for a single-target Analysis; `trait_chr`/`trait_bp` and the
+target sidecar for the target itself). `bundle.check()` rejects a gene- or
+protein-shaped `trait_ontology_id` (Ensembl, HGNC, Entrez/NCBI Gene, UniProt)
+and the matching authority name in `trait_ontology_label` (issue #141).
 
 ### Column reference
 
@@ -236,10 +239,10 @@ name (OpenGWASDB ADR 0035).
 | `analysis_id` | Yes | Stable registry Analysis ID. Usually source-derived unless the source lacks stable IDs. |
 | `source_analysis_id` | No | Upstream analysis identifier, such as a GCST accession or OpenGWAS ID, when the Source Collection provides one. |
 | `source_label` | Yes | Upstream trait or phenotype label preserved as source provenance. Registry-only; kept separate from `analysis_label` even when both hold the same source text. |
-| `analysis_label` | Yes | Free-text, non-unique display label for the Analysis, carried into the built store. Typically the same source text as `source_label`; for gene-centric Analyses it is the resolved gene symbol (OpenGWASDB ADR 0035). |
-| `trait_ontology_label` | No | Ontology or controlled vocabulary that defines `trait_ontology_id`, such as EFO, MONDO, OBA, Ensembl, or a source-local analyte vocabulary. For a gene-centric Ensembl CURIE this is `Ensembl`, while the human-readable symbol is `analysis_label`. Named `trait_ontology_name` before OpenGWASDB ADR 0034. |
-| `trait_ontology_id` | No | Ontology or controlled-vocabulary identifier for the analysed trait, when available. CURIE format, for example `EFO:0001073`; blank when unmapped. Not required to be unique. |
-| `trait_ontology_mapping_method` | Yes | Controlled value describing how `trait_ontology_id`/`trait_ontology_label` were resolved: `source_provided`, `canonical_table_lookup`, `external_authority_lookup`, or `unmapped`. Registry-only. |
+| `analysis_label` | Yes | Free-text, non-unique display label for the Analysis, carried into the built store. Typically the same source text as `source_label`; for a single-target gene-centric Analysis it is the resolved gene symbol, and for an aggregate assay it is the SomaScan SeqId, SomaLogic's stable assay identifier (issue #141). |
+| `trait_ontology_label` | No | Human-readable trait label from the ontology that defines `trait_ontology_id`, such as an EFO/MONDO/OBA/GO term name or a source-local analyte vocabulary term. Never an identifier-authority name such as `Ensembl`: an authority name describes the vocabulary, not the Trait. Named `trait_ontology_name` before OpenGWASDB ADR 0034. |
+| `trait_ontology_id` | No | Ontology or controlled-vocabulary identifier for the analysed Trait, when available. CURIE format, for example `EFO:0001073`; blank when unmapped. Never a gene or protein identifier: `bundle.check()` rejects Ensembl, HGNC, Entrez/NCBI Gene, and UniProt identifiers, bare or authority-qualified (issue #141). Not required to be unique. |
+| `trait_ontology_mapping_method` | Yes | Controlled value describing how `trait_ontology_id`/`trait_ontology_label` were resolved: `source_provided`, `canonical_table_lookup`, or `unmapped`. The #130 `external_authority_lookup` value is retired: gene/target identity is annotation, not a Trait Ontology Mapping (issue #141). Registry-only. |
 | `source_file` | Yes | Source file or filtered source file consumed by the builder. Omitted in legacy monolithic BESD releases (`OGS-00001` and `OGS-00002`), where source identity is currently recorded only as an unverified path prefix (a known integrity gap tracked in issue #134). |
 | `source_bundle_id` | No | Identifier for a multi-file Source Bundle when one file is insufficient. |
 | `checksum` | Yes | Checksum for `source_file` or source bundle manifest. Omitted in legacy monolithic BESD releases (`OGS-00001` and `OGS-00002`; known integrity gap tracked in issue #134). When both `checksum` and `checksum_algorithm` are present, `bundle.check()` validates the digest length for `md5` (32), `sha1` (40), or `sha256` (64) hex; an unsupported algorithm is rejected. |
@@ -664,7 +667,7 @@ different output shape. `resources/generators/lib/metadata_resolvers/canonical_t
 | `resolution_status` | Yes | `resolved` or `unresolved`. |
 | `trait_ontology_id` | No | `NA` when `resolution_status = unresolved`. |
 | `trait_ontology_label` | No | `NA` when `resolution_status = unresolved`. |
-| `trait_ontology_mapping_method` | Yes | `source_provided`, `canonical_table_lookup`, `external_authority_lookup`, or `unmapped`. |
+| `trait_ontology_mapping_method` | Yes | `source_provided`, `canonical_table_lookup`, or `unmapped`. |
 | `resolution_notes` | No | Free-text reason when `unmapped`. |
 
 Resolution order: (1) if the Source Collection already supplies an ontology
@@ -673,17 +676,15 @@ ID (e.g. GWAS Catalog's `MAPPED_TRAIT_URI`), pass it through as
 against the curated Canonical Trait Mapping Table Reference Resource
 (`resources/reference-resources/canonical-trait-mapping-efo/`) as
 `canonical_table_lookup`; (3) otherwise `unmapped`, leaving
-`trait_ontology_id`/`trait_ontology_label` blank rather than guessing. See
+`trait_ontology_id`/`trait_ontology_label` blank rather than guessing. There is
+no gene-authority path: a gene's Ensembl ID is not a Trait Ontology Mapping, so
+a gene-centric Analysis whose source supplies no ontology term stays
+`unmapped`/blank rather than being given a gene id (issue #141). A
+source-provided term is kept even when the ontology has deprecated it, and is
+recorded as `source_provided`; a plausible-looking invented replacement would be
+worse than the genuine obsolete term. See
 [ADR 0021](adr/0021-trait-ontology-mapping-lookup-lives-in-registry.md) for why
 this lookup lives in this repo rather than OpenGWASDB.
-
-Gene-centric Analyses take a separate deterministic path: a resolved external
-gene authority supplies the symbol as `analysis_label`, an authority-qualified
-identifier such as `ENSEMBL:ENSG00000152256` as `trait_ontology_id`, and the
-authority name as `trait_ontology_label`. These rows record
-`external_authority_lookup`; they do not claim that the Source Collection
-provided the mapping or that the phenotype-oriented canonical table did
-(issue #130, OpenGWASDB ADR 0035).
 
 ### Reference Resource declaration
 

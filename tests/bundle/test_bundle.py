@@ -112,7 +112,21 @@ class TestBundleContract(unittest.TestCase):
             record_check()
             self.assertEqual(errors, [], f"{store_id}: {errors}")
 
-    def test_ogs_00007_uses_unified_gene_identity_columns(self) -> None:
+    def test_ogs_00007_trait_ontology_is_source_provided_not_a_gene(self) -> None:
+        """Issue #141: the Trait columns carry the source EFO term and label.
+
+        The target gene's Ensembl identity must not appear in
+        trait_ontology_id, and the authority name must not appear in
+        trait_ontology_label. GCST90240123 is an aggregate over the
+        seven-member 14-3-3 family and is identified by its SomaScan SeqId, not
+        by one arbitrary member gene.
+        """
+
+        def curie(uri: str) -> str:
+            segment = uri.rstrip("/").rsplit("/", 1)[-1]
+            prefix, _, local = segment.rpartition("_")
+            return f"{prefix.upper()}:{local}" if prefix else uri
+
         release_root = REPO_ROOT / "stores" / "OGS-00007"
         analyses = ogstores.bundle.opengwasdb_analyses.read_analyses(
             release_root / "analyses.tsv"
@@ -130,16 +144,86 @@ class TestBundleContract(unittest.TestCase):
         for row in analyses.rows:
             target = targets_by_id[row["source_analysis_id"]]
             record_check()
-            self.assertEqual(row["analysis_label"], target["gene_name"])
-            self.assertEqual(
-                row["trait_ontology_id"],
-                f"ENSEMBL:{target['ensembl_gene_id']}",
+            self.assertEqual(row["trait_ontology_id"], curie(target["trait_ontology_id"]))
+            self.assertEqual(row["trait_ontology_label"], target["trait_ontology_name"])
+            self.assertEqual(row["trait_ontology_mapping_method"], "source_provided")
+            self.assertFalse(row["trait_ontology_id"].upper().startswith("ENSEMBL:"))
+            self.assertNotEqual(row["trait_ontology_label"], "Ensembl")
+
+        aggregate = next(
+            row for row in analyses.rows if row["analysis_id"] == "GCST90240123"
+        )
+        target = targets_by_id["GCST90240123"]
+        record_check()
+        self.assertEqual(aggregate["trait_ontology_id"], "EFO:0020109")
+        self.assertEqual(
+            aggregate["trait_ontology_label"], "14-3-3 protein family measurement"
+        )
+        # The assay is the identity; the SomaScan SeqId is SomaLogic's stable
+        # assay identifier. The protein that SomaScan.db maps the probe to is
+        # target annotation, not the seven-member family's identity (the
+        # tracked sidecar even disagrees with itself: source_target_symbol is
+        # YWHAB while gene_name is YWHAH).
+        record_check()
+        self.assertEqual(aggregate["analysis_label"], "4707-50")
+        self.assertNotEqual(aggregate["analysis_label"], target["gene_name"])
+        self.assertEqual(aggregate["trait_chr"], target["chromosome"])
+        self.assertEqual(aggregate["trait_bp"], target["gene_start"])
+
+    def test_gene_shaped_trait_ontology_id_is_rejected(self) -> None:
+        """Issue #141: a gene identifier in trait_ontology_id must not validate."""
+        base = (
+            "analysis_id\tstored_effect_scale\tsample_size_kind\t"
+            "sample_size_scope\tsample_size\toriginal_effect_scale\t"
+            "original_sd_method\tassigned_ancestry\t"
+            "ancestry_assignment_method\tchecksum\tchecksum_algorithm\t"
+            "source_file"
+        )
+
+        def analyses_with(ontology_id: str, label: str) -> str:
+            return (
+                f"{base}\ttrait_ontology_id\ttrait_ontology_label\n"
+                "FIXTURE_1\tsd\ttotal\tanalysis_level\t1000\tsd\t"
+                "declared_standardised\tEUR\taf_assigned\t"
+                f"{'a' * 64}\tsha256\t/data/source/fixture.tsv\t{ontology_id}\t{label}\n"
             )
-            self.assertEqual(row["trait_ontology_label"], "Ensembl")
-            self.assertEqual(
-                row["trait_ontology_mapping_method"],
-                "external_authority_lookup",
+
+        for gene_shaped in (
+            "ENSEMBL:ENSG00000128245",
+            "ENSG00000128245",
+            "ENSG00000128245.14",
+            "HGNC:7533",
+            "UNIPROT:P61981",
+        ):
+            checked = self.make_bundle(
+                analyses=analyses_with(gene_shaped, "14-3-3 protein eta measurement")
             )
+            errors = bundle.check(checked, registry_root=self.tmp_dir)
+            record_check()
+            self.assertTrue(
+                any("gene-shaped trait_ontology_id" in error for error in errors),
+                (gene_shaped, errors),
+            )
+
+        authority_label = self.make_bundle(
+            store_id="OGS-00092",
+            analyses=analyses_with("EFO:0020109", "Ensembl"),
+        )
+        label_errors = bundle.check(authority_label, registry_root=self.tmp_dir)
+        record_check()
+        self.assertTrue(
+            any(
+                "trait_ontology_label" in error and "authority" in error
+                for error in label_errors
+            ),
+            label_errors,
+        )
+
+        ok = self.make_bundle(
+            store_id="OGS-00093",
+            analyses=analyses_with("EFO:0020109", "14-3-3 protein family measurement"),
+        )
+        self.assertEqual(bundle.check(ok, registry_root=self.tmp_dir), [])
 
     def test_one_pass_accumulates_independent_errors(self) -> None:
         checked = self.make_bundle()

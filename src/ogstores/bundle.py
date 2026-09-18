@@ -97,6 +97,29 @@ SUPERPOPULATIONS: tuple[str, ...] = (
     "SAS",
 )
 
+# ``trait_ontology_id`` is a controlled-vocabulary term for a Trait, never a
+# gene or protein identifier. Issue #130 wrote an authority-qualified Ensembl
+# gene id (``ENSEMBL:ENSG...``) into it and named the authority in
+# ``trait_ontology_label``, silently asserting that a gene *is* the trait
+# (issue #141). ``RETIRED_ANALYSIS_COLUMNS`` cannot catch this: the column is
+# legitimate and only its vocabulary was wrong. This rejects the identifier
+# authorities a gene or protein target would carry -- Ensembl (bare or
+# authority-qualified), HGNC, Entrez/NCBI Gene, and UniProt -- so the class
+# cannot recur. A gene symbol in ``analysis_label`` and coordinates in
+# ``trait_chr``/``trait_bp``/the target sidecar remain the gene's real home.
+_GENE_SHAPED_TRAIT_ONTOLOGY_ID: re.Pattern[str] = re.compile(
+    r"\A(?:ENSEMBL:|ENS[A-Z]*[GT]\d+(?:\.\d+)?|HGNC:|ENTREZ:|ENTREZGENE:|"
+    r"NCBIGENE:|UNIPROT:)",
+    re.IGNORECASE,
+)
+
+# Authority names that describe the identifier's vocabulary rather than the
+# Trait it identifies. #130 stored ``Ensembl`` here; a trait label belongs in
+# the field instead (issue #141).
+_TRAIT_ONTOLOGY_AUTHORITY_LABELS: frozenset[str] = frozenset(
+    {"ensembl", "hgnc", "entrez", "entrezgene", "entrez gene", "ncbigene", "uniprot"}
+)
+
 # Store-level descriptive metadata that is derived from the membership table.
 # Names intentionally match their source columns: in particular, ``context``
 # is not renamed to ``assay`` because the Analysis contract has no assay field.
@@ -646,6 +669,29 @@ def _check_analyses(bundle: Bundle) -> list[str]:
                 f"Store Release {bundle.store_id} analyses.tsv contains retired "
                 f"Analysis column {column!r}"
             )
+
+    # A Trait Ontology Mapping is an ontology term plus its trait label. It is
+    # never a gene identifier with an authority name standing in for the label:
+    # that asserts a gene is the Trait (issue #141). Empty is the correct
+    # answer where no acceptable term exists.
+    if "trait_ontology_id" in table.fieldnames:
+        for row in table.rows:
+            analysis_id = row.get("analysis_id") or "<unknown analysis_id>"
+            ontology_id = (row.get("trait_ontology_id") or "").strip()
+            if ontology_id and _GENE_SHAPED_TRAIT_ONTOLOGY_ID.match(ontology_id):
+                errors.append(
+                    f"analysis {analysis_id!r} has gene-shaped trait_ontology_id "
+                    f"{ontology_id!r}; trait_ontology_id must be an ontology term "
+                    "(or empty), never a gene or protein identifier"
+                )
+            ontology_label = (row.get("trait_ontology_label") or "").strip().lower()
+            if ontology_label in _TRAIT_ONTOLOGY_AUTHORITY_LABELS:
+                errors.append(
+                    f"analysis {analysis_id!r} has trait_ontology_label "
+                    f"{row.get('trait_ontology_label')!r}, which names an identifier "
+                    "authority rather than a Trait; use the trait label or leave it "
+                    "empty"
+                )
 
     # Assigned Ancestry is the registry-normalised super-population code, never a
     # free-text Source Ancestry Label. Empty is the one valid way to record an

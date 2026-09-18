@@ -39,4 +39,12 @@ notes: 'Completion adds no new Analyses -- analyses.tsv here is unchanged from p
   blank rather than defaulted or fabricated pending external study-level metadata and upstream
   schema resolution.
 
+  Release Erratum (issue #141): trait_ontology_id held "ENSEMBL:<gene>" and
+  trait_ontology_label held "Ensembl" on all 10 Analysis rows (inherited from
+  parent release OGS-00001) -- a gene identifier where a Trait Ontology term
+  belongs, and an authority name where a trait label belongs. The eQTLGen BESD
+  source supplies no controlled-vocabulary Trait term, so
+  both fields are now empty rather than carrying a gene id or a guess: the absence
+  is the visible, correct answer. The gene identity remains target annotation in
+  trait_chr/trait_bp and analysis_label. No Store artifact was rebuilt or rewritten.
   '
