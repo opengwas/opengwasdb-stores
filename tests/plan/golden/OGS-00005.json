@@ -7,7 +7,7 @@
       "/data/opengwasdb/stores/OGS-00005/work/analyses.tsv",
       "/data/opengwasdb/stores/OGS-00005/store.opengwasdb",
       "--store-id",
-      "gwas-catalog-eur-hybrid",
+      "OGS-00005",
       "--release-id",
       "OGS-00005",
       "--reference-panel",

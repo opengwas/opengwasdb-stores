@@ -14,10 +14,19 @@ gets the BESD argv shape whatever else it declares.
 
 `build.options` keys are `opengwasdb` flag names rendered verbatim -- this
 module never interprets one (ADR 0023). The only arguments it composes are the
-registry's own facts: Store identity, the derived build manifest path, artifact
-paths. The build manifest is derived, not authored: `manifest.py` writes it and
+registry's own facts: the Store Release's single `OGS-` identity, the derived
+build manifest path, and artifact paths. The same `OGS-` id is passed as both
+the `opengwasdb` Store identity and Release identity; Store Family is not read
+by the planner (issue #129). The artifact root those paths hang from is
+deployment configuration, resolved by `paths.artifact_root()` and passed in;
+`plan()` never reads it from a Build Recipe (issue #126).
+
+The build manifest is derived, not authored: `manifest.py` writes it and
 the workflow builds it first, so an `exclude_from_build` audit row never reaches
 `opengwasdb` (ADR 0025).
+
+`post` keys that are identical across every Release are defaults rather than
+restated values; see `POST_DEFAULTS` (issue #128).
 
 This is the only place in the repository that knows how to invoke
 `opengwasdb`, which is why the Snakefile's rules and the master list's
@@ -134,6 +143,20 @@ DEFAULT_COMMANDS: dict[tuple[str, str], str] = {
     ("ragged", "reference_completed"): "complete-ragged",
 }
 
+# Post-processing keys that are identical across every committed Release Bundle,
+# so a Build Recipe states only the ones it chooses differently from these
+# (issue #128). An explicit value in the recipe still wins.
+#
+# `top_hits` and `overview` are deliberately absent: both vary per Release, and
+# `overview` is a real per-layout choice -- Ragged's closed Store envelope
+# excludes `overview.html`, so defaulting it on would silently re-enable a step
+# the planner then refuses (commit 6092fee, "Reject overviews for Ragged store
+# releases").
+POST_DEFAULTS: dict[str, Any] = {
+    "rho": False,
+    "validate": True,
+}
+
 
 def render_options(options: dict[str, Any] | None) -> list[str]:
     """Render an options dict into CLI argv tokens without interpretation (ADR 0023).
@@ -160,15 +183,16 @@ def render_options(options: dict[str, Any] | None) -> list[str]:
     return argv
 
 
-def _resolve_artifact_root(
-    bundle: Bundle, artifact_root: Path | str | None = None
-) -> Path:
-    """Determine the artifact root for path construction."""
+def _resolve_artifact_root(artifact_root: Path | str | None = None) -> Path:
+    """Determine the artifact root for path construction.
+
+    The Build Recipe no longer carries an artifact root: it is deployment
+    configuration (issue #126). Callers pass the root resolved by
+    `paths.artifact_root()`; without one, fall back to the built-in default so
+    `plan()` remains a pure function of its inputs.
+    """
     if artifact_root is not None:
         return Path(artifact_root)
-    build_artifacts = bundle.build.get("artifacts")
-    if isinstance(build_artifacts, dict) and "root" in build_artifacts:
-        return Path(build_artifacts["root"])
     return paths.DEFAULT_ARTIFACT_ROOT
 
 
@@ -215,7 +239,12 @@ def _resolve(token: str, bundle: Bundle, root: Path) -> list[Path]:
 
 
 def _post_steps(store_p: Path, post: dict[str, Any], spec: CommandSpec) -> list[Step]:
-    """Construct post-build steps, rejecting any the subcommand cannot support."""
+    """Construct post-build steps, rejecting any the subcommand cannot support.
+
+    Keys the Build Recipe omits fall back to `POST_DEFAULTS`; an explicit value
+    overrides the default (issue #128).
+    """
+    post = {**POST_DEFAULTS, **(post or {})}
     steps: list[Step] = []
 
     if post.get("top_hits") or post.get("top-hits"):
@@ -298,8 +327,10 @@ def plan(
     """Generate the sequence of Steps needed to build a Store Release.
 
     A pure function: reads bundle metadata and returns a list of Step objects
-    holding exact opengwasdb argv and explicit inputs/outputs. Performs no I/O
-    beyond path construction.
+    holding exact opengwasdb argv and explicit inputs/outputs. `artifact_root`
+    is the deployment-resolved root from `paths.artifact_root()`; the Build
+    Recipe is not consulted for it (issue #126). Performs no I/O beyond path
+    construction.
     """
     if not bundle.layout or not bundle.completion_state:
         raise ValueError(
@@ -321,12 +352,8 @@ def plan(
                 f"Bundle {bundle.store_id} missing required 'derived_from' in release.yaml"
             )
         paths.require_valid_store_id(bundle.derived_from)
-    elif not bundle.family:
-        raise ValueError(
-            f"Bundle {bundle.store_id} missing required 'family' in release.yaml"
-        )
 
-    root = _resolve_artifact_root(bundle, artifact_root)
+    root = _resolve_artifact_root(artifact_root)
     options = (bundle.build.get(spec.phase) or {}).get("options") or {}
     store_p = paths.store_path(bundle.store_id, root=root)
 
@@ -334,7 +361,7 @@ def plan(
     for token in spec.positionals:
         argv.extend(str(p) for p in _resolve(token, bundle, root))
     if spec.identity:
-        argv.extend(["--store-id", bundle.family])  # type: ignore[list-item]
+        argv.extend(["--store-id", bundle.store_id])
     argv.extend(["--release-id", bundle.store_id])
     if spec.analyses_flag:
         argv.extend(["--analyses", str(paths.build_manifest_path(bundle.store_id, root=root))])
@@ -352,6 +379,7 @@ def plan(
 __all__ = [
     "COMMANDS",
     "DEFAULT_COMMANDS",
+    "POST_DEFAULTS",
     "CommandSpec",
     "Step",
     "plan",

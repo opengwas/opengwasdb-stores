@@ -34,6 +34,7 @@ from opengwasdb.readers import (
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
+from resources.generators.lib.ancestry_sidecar import format_sidecar_float  # noqa: E402
 from resources.generators.lib.release_yaml import (  # noqa: E402
     get,
     merge_validation_yaml,
@@ -201,9 +202,9 @@ def annotate_one(row: dict[str, str], context: AnnotationContext) -> AnnotationR
         "ancestry_reference_id": context.resource_id,
         "af_overlap": assignment.af_overlap,
         "dominant_superpop": assignment.dominant_superpop or "",
-        "dominant_proportion": assignment.dominant_proportion,
-        "runner_up_margin": assignment.runner_up_margin,
-        "nnls_residual": assignment.residual,
+        "dominant_proportion": format_sidecar_float(assignment.dominant_proportion),
+        "runner_up_margin": format_sidecar_float(assignment.runner_up_margin),
+        "nnls_residual": format_sidecar_float(assignment.residual),
         "gate_reason": assignment.gate_reason,
         "source_assigned_mismatch": "",
         "ancestry_notes": f"one-pass {capability} AF/SE extraction",
@@ -211,7 +212,7 @@ def annotate_one(row: dict[str, str], context: AnnotationContext) -> AnnotationR
     for superpop in context.reference.superpops:
         column = f"ancestry_prop_{superpop}"
         proportion = assignment.superpop_composition.get(superpop, 0.0)
-        ancestry_row[column] = proportion
+        ancestry_row[column] = format_sidecar_float(proportion)
         # The sidecar records the assignment evidence; the Release Manifest
         # must carry the same composition so the Store builder can preserve it
         # as Analytical Metadata.

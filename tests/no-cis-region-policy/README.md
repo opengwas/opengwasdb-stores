@@ -20,7 +20,14 @@ columns, `release.yaml` has no `sidecars.analysis_targets` pointer, and
 `sidecars/sparse_regions.tsv` has zero `cis` rows and only the expected
 significant/suggestive regions.
 
-The existing pqtl-interval-2018 family (which does declare
-`inputs.analysis_targets`) is unaffected by this change — its
-`--mode=validate` output and committed `analyses.tsv` are unchanged; this
-policy is purely additive configuration for families with no gene target.
+The fixture also emits a temporary gene-target Release Bundle without building
+a Store, proving that the target path writes the source-provided ontology term
+and trait label through `trait_ontology_id`/`trait_ontology_label`, records
+`source_provided`, keeps the gene as target annotation (`trait_chr`/`trait_bp`),
+and omits the upstream-retired `trait_id`/`gene_id`/`gene_name` Analysis columns
+(issues #130 and #141). It covers three Analyses: a single-target Analysis
+labelled by its gene symbol; an aggregate whose source label enumerates several
+member symbols and is therefore labelled by its SomaScan SeqId; and an assay
+flagged `somascan_is_multiple` in the shared target resource. Neither aggregate
+promotes one member gene to the Trait identity. The existing pqtl-interval-2018
+family's cis+signals selection policy remains unchanged.

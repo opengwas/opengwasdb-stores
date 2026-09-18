@@ -5,3 +5,5 @@ Each Store Family is built from one Source Collection, and all analyses in a Sou
 ---
 
 **Amended by [0024](0024-one-family-record-no-source-collection-tier.md).** The Source Collection is a field on the family record, not a directory, so this rule now holds by construction.
+
+**Superseded by [0028](0028-store-family-tier-retired.md).** The Store Family tier is retired; a Store Release is built from one Source Collection.

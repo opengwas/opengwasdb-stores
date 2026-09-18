@@ -8,5 +8,5 @@ variants, full-ancestry siblings, and rebuild bundles.
 Each is either migrated to `stores/<store-id>/` or marked `superseded` /
 `withdrawn` and retired. This directory goes when it empties.
 
-Store Family records moved to `resources/families.yaml`; family-specific
+The Store Family record tier was retired (ADR 0028); family-specific
 generator code moved to `resources/generators/<family-id>/`.

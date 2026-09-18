@@ -177,7 +177,7 @@ select_analyses <- function(cfg, candidates) {
   selected[]
 }
 
-manifest_rows <- function(cfg, selected, paths, canonical_table = NULL) {
+manifest_rows <- function(cfg, selected, paths, canonical_table = NULL, ancestry_map = NULL) {
   x <- copy(selected)
   setorder(x, analysis_index)
 
@@ -186,7 +186,11 @@ manifest_rows <- function(cfg, selected, paths, canonical_table = NULL) {
   x[, source_url := ssf_url(STUDY.ACCESSION, cfg$source$ftp_base)]
   x[, source_bundle_id := ""]
   x[, source_ancestry_label := ancestry_group]
-  x[, assigned_ancestry := ancestry_group]
+  # Assigned Ancestry is the registry-normalised super-population code, not the
+  # free-text Source Ancestry Label (docs/release-metadata-schema.md; issue
+  # #133). A family that names one `ancestry_group` in its config gets that
+  # label translated here; an AF-based assignment pass may overwrite it later.
+  x[, assigned_ancestry := normalise_assigned_ancestry(ancestry_group, ancestry_map)]
   x[, ancestry_assignment_method := cfg$defaults$ancestry_assignment_method %||% "source_trusted_no_af"]
   x[, original_effect_scale := cfg$defaults$original_effect_scale]
   x[, original_sd := ""]
@@ -307,7 +311,9 @@ emit_bundle <- function(cfg, root) {
   selected <- select_analyses(cfg, candidates)
   paths <- artifact_paths(cfg, root)
   canonical_table <- load_canonical_trait_table_from_cfg(cfg$reference_resources, root)
-  analyses <- manifest_rows(cfg, selected, paths, canonical_table = canonical_table)
+  ancestry_map <- read_source_label_map(root)
+  analyses <- manifest_rows(cfg, selected, paths, canonical_table = canonical_table,
+                            ancestry_map = ancestry_map)
 
   release_dir <- path_abs(root, cfg$output$release_dir)
   sidecar_dir <- file.path(release_dir, "sidecars")
@@ -342,7 +348,7 @@ emit_bundle <- function(cfg, root) {
       stored_effect_scale = cfg$defaults$stored_effect_scale,
       sample_size_kind = cfg$defaults$sample_size_kind,
       source_ancestry_label = cfg$selection$ancestry_group,
-      assigned_ancestry = cfg$selection$ancestry_group
+      assigned_ancestry = normalise_config_assigned_ancestry(cfg, ancestry_map)
     ),
     lineage = list(derived_from = NULL),
     sidecars = list(
@@ -649,6 +655,7 @@ effect_scale_stage <- function(cfg, root) {
 args <- parse_args(commandArgs(trailingOnly = TRUE))
 root <- repo_root()
 source(path_abs(root, "resources/generators/lib/gwas_catalog_ssf_url.R"))
+source(path_abs(root, "resources/generators/lib/ancestry.R"))
 source(path_abs(root, "resources/generators/lib/effect_scale_validation.R"))
 source(path_abs(root, "resources/generators/lib/effect_scale_stage_yaml.R"))
 source(path_abs(root, "resources/generators/lib/build_environment.R"))

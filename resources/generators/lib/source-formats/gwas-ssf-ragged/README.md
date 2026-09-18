@@ -117,7 +117,9 @@ The sparse policy implemented here is:
 
 - cis windows: every target gene span plus/minus `cis_flank_bp`, retained in
   full. Only applies to Store Families that declare `inputs.analysis_targets`
-  (a resolvable single encoding gene per Analysis, e.g. SomaScan proteomics).
+  (a resolvable encoding gene per Analysis, e.g. SomaScan proteomics). A
+  multi-gene/aggregate assay keeps its mapped spans as target annotation and is
+  not forced to a single arbitrary gene (issue #141).
 - significant trans: non-cis variants with `p_value <= significant_p`, expanded
   plus/minus `trans_flank_bp`, merged per chromosome, retained in full.
 - suggestive trans: non-cis and non-significant-trans variants with
@@ -158,12 +160,17 @@ window around) simply omits `inputs.analysis_targets` from its config. The
 generator then retains only the significant/suggestive regions above with
 zero cis rows, does not require `fail_if_target_unresolved`-style target
 resolution at all, and never emits the single-gene-target columns
-(`trait_id`, `gene_id`, `gene_name`, `trait_chr`, `trait_bp`, `n`, `mhc`,
+(`trait_chr`, `trait_bp`, `n`, `mhc`,
 `target_resolution_method`, `n_target_rows`) — see
 `docs/release-metadata-schema.md`'s `analyses.tsv` section and
-`tests/no-cis-region-policy/` for fixture coverage. The existing
-target-resolving families (pqtl-interval-2018) are unaffected; this is an
-additive configuration, not a behavioural change to the cis+signals policy.
+`tests/no-cis-region-policy/` for fixture coverage. A target-resolving family
+expresses the Trait through the source-provided `trait_ontology_id` and
+`trait_ontology_label`; a single-target Analysis is displayed by its gene symbol
+in `analysis_label`, while an aggregate assay (SomaScan `somascan_is_multiple`,
+or a source label enumerating more than one member) is displayed by its SeqId.
+The gene/Ensembl identity is Target annotation in `trait_chr`/`trait_bp` and the
+target sidecar, never the Trait mapping (issue #141). The existing
+pqtl-interval-2018 family's cis+signals policy is otherwise unchanged.
 
 Large filtered files, transient downloads, and stores are written under the
 configured `output.artifact_root` plus `output.artifact_subdir`. The release

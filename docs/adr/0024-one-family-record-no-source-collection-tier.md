@@ -17,3 +17,11 @@ ADR 0010's rule that a Store Family is built from exactly one Source Collection 
 A real Source Inventory would reopen this. When acquisition enumerates a collection at scale -- the GWAS Catalog download is 2.35 TB across 17,300 files -- the result cannot be a line in a YAML file. It returns as a data file, `resources/inventories/<collection-id>.tsv`, referenced from the family entry. That is a place to put rows, not a metadata tier, and it does not restore `source-collections/`.
 
 A **Candidate Store Family** needs no home of its own. Its concrete expression is a candidate Store Release: `stores/<id>/` with `status: candidate`, which the Release Status vocabulary already carries. What is under consideration and what has been built then appear in one generated master list. A proposal with no candidate release attached is a roadmap item and belongs in an issue tracker; `families/_candidates/` held nothing but a README for the life of the repository.
+
+---
+
+**Superseded by [0028](0028-store-family-tier-retired.md).** The Store Family record tier is deleted outright rather than folded further: every family field resolves to already-recorded, descriptive, or false on the evidence cited there; `access_posture` becomes a descriptive `release.yaml` field; and build priority moves to the issue tracker per this ADR's own Candidate-Store-Family argument.
+
+---
+
+**Amended by issue #134.** Monolithic direct-read BESD releases (`source_reader_capability: null`, `OGS-00001` and `OGS-00002`) currently record source identity only as an unverified host filesystem path prefix (`source_snapshot.besd_prefix` in `OGS-00001`; `OGS-00002` carries only `source_snapshot_id` with lineage via `derived_from`) without checksums, file lists, or sizes, and `bundle.check()` only asserts that `besd_prefix` is a non-empty string for `build-ragged-besd`. This is a known integrity gap tracked by open issue #134, not an equivalent alternative to the checksum and source-identity verification enforced for per-Analysis formats.

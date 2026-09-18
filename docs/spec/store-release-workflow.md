@@ -15,15 +15,15 @@ stores.tsv                      generated  master list, one row per Store Releas
 STORES.md                       generated  human view of the same
 stores/
   OGS-00042/
-    release.yaml                           identity, label, family, status, lineage, provenance
+    release.yaml                           identity, label, status, lineage, provenance
     build.yaml                             the recipe
     analyses.tsv                           membership; opengwasdb owns the schema
+    summary.yaml              generated    review view derived from analyses.tsv
     validation.yaml          written back  merged evidence from the run
   by-label/                  generated     finngen-r13-pilot-20 -> ../OGS-00042
-src/ogstores/                              bundle.py plan.py paths.py manifest.py run.py index.py
+src/ogstores/                              bundle.py plan.py paths.py manifest.py run.py index.py register.py
 workflow/Snakefile                         Phase A: scans stores/, wires every release
-workflow/generate.smk                      Phase B: acquisition + generation (separate DAG)
-resources/families.yaml                    Store Family records (ADR 0024)
+workflow/generate.smk         planned      Phase B: acquisition + generation (separate DAG, not yet wired)
 resources/reference-resources/<id>/        resource.yaml
 resources/annotations/                     post-release curated metadata
 resources/generators/<family-id>/          Phase B
@@ -34,7 +34,7 @@ tests/
 Artifacts live outside git, at a path that is a pure function of the store ID:
 
 ```text
-/data/opengwasdb/stores/OGS-00042/
+<artifact-root>/OGS-00042/
   source/                    acquired or filtered source files
   work/                      checkpoints, scratch, logs
   work/analyses.tsv          derived build manifest: the bundle's analyses.tsv
@@ -43,8 +43,10 @@ Artifacts live outside git, at a path that is a pure function of the store ID:
   records/<step>.json        one per executed step
   store.opengwasdb           the Store Release
   store.opengwasdb.partial   transient staged destination
-/data/opengwasdb/stores/by-label/   generated symlinks
+<artifact-root>/by-label/   generated symlinks
 ```
+
+`/data/opengwasdb/stores` is the built-in default root; the workflow resolves the real root from configuration (see "Artifact root comes from configuration").
 
 ## `release.yaml`
 
@@ -53,22 +55,21 @@ Registry identity and provenance. Never read by `opengwasdb`.
 ```yaml
 store_id: OGS-00042
 label: r13-pilot-20                 # source-natural display name; not an identifier
-family: finngen-r13
+access_posture: public
 status: built                       # candidate|accepted|built|validated|superseded|withdrawn
-source_collection_id: finngen-r13
-association_coverage: full_gwas
 derived_from: ~                     # the parent's store_id for a completed release
 created_at: '2026-08-18T08:51:59Z'
+source_snapshot_id: finngen-r13-manifest-2026-05-12
 generator:                          # how the bundle was produced (Phase B)
-  command: Rscript resources/generators/finngen-r13/generate.R --config=config-pilot-20.yaml
   version: sha256:1800b9cf...
-build_environment:
-  repo_commit: ...
-  opengwasdb_rev: d6e5de7...
-  pixi_lock_sha256: ...
+  commands:                         # executed command log, in run order
+    - Rscript resources/generators/lib/source-formats/finngen-r13-dense/generate.R --config=resources/generators/finngen-r13/config-pilot-20.yaml --mode=emit
 notes: |
   ...
 ```
+
+The file trims to identity, lineage, Release Status, creation time, source
+snapshot identity, the generation command log, and prose (issue #136, ADR 0029).
 
 ### Status lifecycle and transitions
 
@@ -106,13 +107,16 @@ build:
 
 post:
   top_hits: true
-  rho: false                        # dense only; opengwasdb rejects otherwise
   overview: true                   # Dense/Hybrid only; Ragged's envelope excludes overview.html
-  validate: true
-
-artifacts:
-  root: /data/opengwasdb/stores
 ```
+
+`post` carries only the choices a Release makes differently from the defaults:
+`rho: false` and `validate: true`. `plan()` applies those defaults when a recipe
+omits them, and a recipe that states either key still wins. `top_hits` and
+`overview` are always explicit because they genuinely vary between releases --
+`overview` especially, since Ragged's closed Store envelope excludes
+`overview.html` and defaulting it on would re-enable a step the planner then
+refuses (ADR 0027, issue #128).
 
 A Reference-Completed release is the same file with a `complete` block instead of `build`. It carries no parent path: the parent is `release.yaml`'s `derived_from`, and its artifact path is a pure function of that ID.
 
@@ -128,6 +132,21 @@ complete:
     ancestry: EUR
     n-workers: 16
 ```
+
+### Artifact root comes from configuration
+
+The Build Recipe says *what* to build; configuration says *where* it lands. An accepted bundle is immutable, so an absolute artifact path inside one would bind that bundle to the machine that created it and hardcode that machine's filesystem into the master list's `build_command`.
+
+`paths.artifact_root()` therefore resolves the root in precedence order:
+
+```text
+1. workflow config override   pixi run release --config artifact_root=/path
+2. environment variable       OPENGWASDB_ARTIFACT_ROOT=/path
+3. repository config file     ogstores.yaml: artifact_root
+4. built-in default           paths.DEFAULT_ARTIFACT_ROOT
+```
+
+A workflow config override and the environment variable are per-invocation overrides for CI, a developer laptop, or a one-off run. The tracked `ogstores.yaml` names this deployment's default root and is the reviewed place to change it. `plan()` never reads the root from `build.yaml`: the workflow resolves it once and passes it in, and the build command published in the master list is rendered under the same resolved root.
 
 ### The passthrough rule
 
@@ -146,11 +165,22 @@ This also removes the "catalogue-routed" special case — `build-hybrid-from-cat
 ## Store identity passed to `opengwasdb`
 
 ```text
---store-id   <family>      finngen-r13
+--store-id   <store_id>    OGS-00042
 --release-id <store_id>    OGS-00042
 ```
 
-The built store's `manifest.json` then reads `store_id: finngen-r13, release_id: OGS-00042` — a human-readable family plus the globally unique registry key, so a store found on disk joins back to its registry record without a lookup table.
+An observed-only built store's `manifest.json` therefore reads
+`store_id: OGS-00042, release_id: OGS-00042`. The Store Release has one
+identifier and a store found on disk joins directly back to its registry record.
+`plan()` does not read Store Family for any purpose. Reference Completion takes
+only the child `--release-id` and preserves the source Store identity, as defined
+by the upstream completion interface.
+
+The Release Bundle's source-natural `label` is display/provenance metadata, not
+identity. The current `opengwasdb` CLI cannot populate the manifest's free-form
+provenance mapping with it; [opengwasdb#181](https://github.com/opengwas/opengwasdb/issues/181)
+tracks that upstream capability. Until it exists, the label stays in the Release
+Bundle and generated views rather than being placed in either identity field.
 
 ## Phase A never writes `analyses.tsv`
 
@@ -166,9 +196,14 @@ Phase A keeps a cheap residual role: `bundle.check()` asserts these columns are 
 
 The one thing Phase A writes is the **derived build manifest** under the artifact root (`work/analyses.tsv`), which drops `exclude_from_build` audit rows. It is not the bundle's `analyses.tsv` and it writes no column back into the bundle: the accepted input stays byte-identical, and the derived file is a projection of the registry's own selection decision, not a recomputation of Analytical Metadata (ADR 0025).
 
-## `src/ogstores/` — five modules
+## `src/ogstores/` — the modules
 
-### `bundle.py` (~150 lines)
+The package is shared by both phases. Its module surfaces are `bundle.py`,
+`plan.py`, `paths.py`, `manifest.py`, `run.py`, `index.py` and `register.py`;
+`_pdeath_supervisor.py` is an internal helper `run.py` uses to contain a
+detached build's process group (ADR 0026).
+
+### `bundle.py`
 
 ```python
 @dataclass(frozen=True)
@@ -178,14 +213,64 @@ class Bundle:
     release: dict           # release.yaml
     build: dict             # build.yaml
     analyses_path: Path
+    validation: dict | None # validation.yaml, or None when absent
 
-def load(store_id: str, registry_root: Path) -> Bundle: ...
-def check(bundle: Bundle) -> list[str]: ...
+def load(store_id: str, registry_root: Path | str | None = None) -> Bundle: ...
+def check(
+    bundle: Bundle,
+    previous_status: str | Bundle | None = None,
+    registry_root: Path | str | None = None,
+) -> list[str]: ...
+def summarise(bundle: Bundle) -> dict[str, str | int]: ...
 ```
 
-`check` covers registry-side facts only: required keys, `store_id` matches the directory name, ID format, declared files exist, checksums match, `derived_from` resolves, status transitions are legal, and `analyses.tsv` parses via `opengwasdb.model.analyses.read_analyses`. It delegates the Analysis schema rather than reimplementing it, and it never opens a store.
+`check` covers registry-side facts only: required identity and provenance keys,
+`store_id` matches the directory name and both YAML documents, ID format,
+declared bundle files exist, checksum syntax, `derived_from` resolves to a
+registered Store Release, Release Status vocabulary and optional transitions,
+and `analyses.tsv` parses via `opengwasdb.model.analyses.read_analyses`. It
+delegates the Analysis schema rather than reimplementing it, including rejecting
+every column named by the pinned upstream `RETIRED_ANALYSIS_COLUMNS` list. Two
+registry-owned vocabularies are checked on top of that delegation: every
+non-empty `assigned_ancestry` must be one of the ancestry mixture's seven
+super-population codes (a free-text Source Ancestry Label is not an Assigned
+Ancestry), and `n_cases`/`n_controls` must be blank on a non-case-control
+Analysis rather than `0` (issue #133). Both were silent-failure classes found
+in the committed bundles; the checks make a reintroduction fail `bundle-check`
+rather than a summary. For BESD builds,
+the non-empty `source_snapshot.besd_prefix` introduced by `908797f` is checked
+as frozen provenance metadata, but the referenced BESD files are not inspected.
+An `artifacts` block is rejected: issue #126 made the artifact root deployment
+configuration resolved by `paths.artifact_root()`, not part of a valid immutable
+Release Bundle.
 
-### `plan.py` (~200 lines)
+The return value is a list of every error found in one pass; an empty list means
+the bundle is valid. Invalid or malformed bundle content is diagnostic data and
+never makes `check` raise. It reads only files within Release Bundles (including
+a registered parent needed for lineage resolution), never opens a Store, never
+stats a source path, and never inspects any Release Artifact. The
+`pixi run bundle-check` task discovers and checks every directory under
+`stores/`, and CI runs that gate explicitly so a newly committed bundle cannot
+bypass the contract.
+
+`summarise` reads only the loaded bundle's `analyses.tsv` and derives Analysis
+count, first author, publication PMID, tissue, context, assigned ancestry,
+sample size, and download source. Constants remain verbatim, varying
+identifiers become `mixed (n)`, varying quantities become `min-max`, and
+varying URLs become their common host/path prefix. A missing column, an empty
+table, or any empty value renders as `NA`; zero is not absence. The index rule
+writes the result to `summary.yaml` in every bundle and publishes the same
+values in the master list. CI runs the rule and rejects any resulting dirty
+tree.
+
+The summary does not fill a missing `source_url` from
+`release.yaml:source_snapshot.besd_prefix`: `908797f` made that prefix frozen
+BESD input provenance, not per-Analysis download metadata. Likewise,
+`summary.yaml` is a registry review view, not an `opengwasdb` Store overview;
+the `6092fee` rule that Ragged releases cannot generate `overview.html` remains
+unchanged.
+
+### `plan.py`
 
 ```python
 @dataclass(frozen=True)
@@ -195,7 +280,7 @@ class Step:
     inputs: list[Path]
     outputs: list[Path]
 
-def plan(bundle: Bundle) -> list[Step]: ...
+def plan(bundle: Bundle, artifact_root: Path | str | None = None) -> list[Step]: ...
 ```
 
 A pure function that turns one release's `build.yaml` into the command lines needed to build it. Nothing more.
@@ -206,7 +291,7 @@ Given the `build.yaml` above it returns four `Step`s, each holding an argv plus 
 [Step(name="build",    argv=["opengwasdb", "build-dense-vcf",
                              "/data/opengwasdb/stores/OGS-00042/work/analyses.tsv",
                              "/data/opengwasdb/stores/OGS-00042/store.opengwasdb",
-                             "--store-id", "finngen-r13", "--release-id", "OGS-00042",
+                             "--store-id", "OGS-00042", "--release-id", "OGS-00042",
                              "--source-reader-capability", "opengwasdb.finngen-r13",
                              "--source-assembly", "hg38",
                              "--n-workers", "8", "--chunk-variants", "1000"], ...),
@@ -217,13 +302,13 @@ Given the `build.yaml` above it returns four `Step`s, each holding an argv plus 
 
 Internally it is a lookup table -- `("dense", "observed_only")` to `build-dense-vcf`, `("ragged", "reference_completed")` to `complete-ragged` -- plus about fifteen lines per entry assembling positional arguments, plus a renderer turning `options` into flags without reading them.
 
-It reads `build.yaml` and `release.yaml` and nothing else: no I/O beyond path construction, no store opened, no `analyses.tsv` row read. So it is deterministic and testable by string comparison, and it is the only place in this repository that knows how to invoke `opengwasdb` -- which is why the Snakefile's rules and the master list's `build_command` are two renderings of one thing and cannot disagree.
+It reads `build.yaml` and `release.yaml` and nothing else: no I/O beyond path construction, no store opened, no `analyses.tsv` row read. The artifact root is not one of those reads -- it is deployment configuration, resolved by the caller with `paths.artifact_root()` and passed in (issue #126). So it is deterministic and testable by string comparison, and it is the only place in this repository that knows how to invoke `opengwasdb` -- which is why the Snakefile's rules and the master list's `build_command` are two renderings of one thing and cannot disagree.
 
 This is the entire adapter layer. It replaces `workflow/phase.py`, `workflow/model.py`, `release_plan.py`, `release_manifest.py`, `metadata_resolution.py` and `catalogue_coverage.py` (~4,100 lines on PR #105).
 
 `paths.py` also names the derived build manifest. The `analyses` token — positional for Dense/Hybrid/Ragged-SSF and the `--analyses` flag for Ragged BESD — resolves to `<artifact-root>/<store_id>/work/analyses.tsv`, and the step's declared `inputs` name it too, so the workflow builds the manifest before the builder runs. The bundle's own `analyses.tsv` never appears in a build argv. Completion (`complete-*`) commands consume only a parent Store and take no analyses manifest.
 
-### `manifest.py` (~150 lines)
+### `manifest.py`
 
 ```python
 def materialise_build_manifest(source_path, manifest_path, sidecar_path) -> BuildManifestResult: ...
@@ -231,13 +316,35 @@ def materialise_build_manifest(source_path, manifest_path, sidecar_path) -> Buil
 
 Materialises the derived build manifest: it reads the bundle's `analyses.tsv`, drops every row whose `exclude_from_build` is `true`, preserves every other column and the surviving row order, re-densifies `analysis_index` `0..n-1` when that column exists, and writes the manifest and its exclusion-audit sidecar atomically. It fails loudly on a malformed exclusion value, an all-excluded or header-only manifest, or a missing `analysis_id` column. Per ADR 0025 the registry enforces this decision here rather than teaching `opengwasdb` a registry-only audit column; the Snakefile calls this module and carries no filtering logic itself.
 
-### `paths.py` (~70 lines)
+### `paths.py`
 
-Artifact layout as pure functions of the store ID. No other module constructs an artifact path.
+Artifact layout as pure functions of the store ID. No other module constructs an artifact path. `artifact_root()` resolves the deployment root from configuration -- workflow override, `OPENGWASDB_ARTIFACT_ROOT`, the tracked `ogstores.yaml`, then the built-in default -- and every path builder takes that root as an argument (issue #126).
 
-### `run.py` (~120 lines)
+### `run.py`
 
-Executes one `Step`: runs the argv, captures stdout/stderr/timing/exit status, writes `records/<step>.json`, and enforces the two safety rules below. It does not read the step's output back, interpret it, or re-validate it.
+Executes one `Step`: `execute_step()` runs the argv, captures
+stdout/stderr/timing/exit status, writes `records/<step>.json`, and enforces the
+two safety rules below; `run_step()` and `run_plan()` drive one and many steps.
+It does not read the step's output back, interpret it, or re-validate it.
+
+### `index.py`
+
+Renders the generated views. `generate_index()` discovers every valid bundle
+under `stores/`, writes each bundle's `summary.yaml`, regenerates `stores.tsv`
+and `STORES.md`, and refreshes the tracked `stores/by-label/` symlink tree (and
+the artifact-side `by-label/` tree when an artifact root is configured). It
+reads git, `analyses.tsv`, and `validation.yaml`, never a Store or a Release
+Artifact: it resolves the artifact root only to render derived paths
+(`store_uri` from `paths.store_path()`, `build_command` from `plan()`), so the
+two renderings cannot drift (ADRs 0022, 0030).
+
+### `register.py`
+
+`register_release()` assembles `validation.yaml` from the step records plus the
+`opengwasdb validate` verdict, compares each record's executed argv against
+`plan()`'s planned argv, harvests the observed measurements, and publishes the
+staged Store. It is the only writer of `validation.yaml` (issues #119, #135;
+ADR 0023).
 
 ## Safety
 
@@ -247,11 +354,11 @@ Executes one `Step`: runs the argv, captures stdout/stderr/timing/exit status, w
 
 **`validation.yaml` is written only by the terminal `register` step.** A failed run leaves the previous one intact.
 
-## `workflow/Snakefile` (~110 lines)
+## `workflow/Snakefile`
 
 One Snakefile for the whole registry, not one per release. It scans `stores/*/` at parse time and wildcards on `store_id`, so Snakemake's own expansion *is* the multi-release runner -- there is no separate batch script.
 
-Dependency wiring only, per ADR 0023. It contains no family name, no source column name, no manifest translation, and no layout branch:
+Dependency wiring only, per ADR 0023. It contains no source column name, no manifest translation, and no layout branch. `get_artifact_root()` is the one configuration read: it resolves the artifact root through `paths.artifact_root()`, so the workflow never takes it from a Build Recipe (issue #126).
 
 ```text
 build_manifest ──> build ──> top_hits ──> rho ──> overview ──> validate ──> register
@@ -259,7 +366,7 @@ build_manifest ──> build ──> top_hits ──> rho ──> overview ─�
 
 `build_manifest` is the derived build manifest's rule (ADR 0025). It runs before every observed-only build command, because `plan()` names the manifest it writes as the build step's first input. A Reference-Completed release substitutes `complete` for `build` and takes the supported tail; completion consumes only a parent Store, so it depends on no manifest step.
 
-Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. A Reference-Completed release substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
+Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. `rho` defaults off and `validate` defaults on, so a Build Recipe names only the steps it chooses differently (ADR 0027, issue #128). A Reference-Completed release substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
 
 **Lineage ordering is why the DAG spans every store rather than one.** A Reference-Completed release declares its parent's `register` record as an input, resolved from `release.yaml`'s `derived_from`. A per-release workflow driven by a batch loop would have to sequence parents before children by hand, and would get it wrong. Here it is a declared edge.
 
@@ -272,13 +379,12 @@ Scanning every store means DAG construction is proportional to the registry, whi
 ```sh
 pixi run release OGS-00003             # one registered release, plus any parent it depends on
 pixi run release OGS-00003 OGS-00004   # several registered releases; lineage order is resolved
-pixi run release-family finngen-r13    # every release of one family
-pixi run index                         # regenerate stores.tsv, STORES.md, by-label/
+pixi run index                         # regenerate master list, summaries, by-label/
 ```
 
 A release target must be an ID currently registered under `stores/`; the
 operator finds valid IDs in `stores.tsv`. IDs in these commands are real
-targets, not placeholders. All four are targets of the same Snakefile.
+targets, not placeholders. All three are targets of the same Snakefile.
 
 > **Production note**: Workflow tests (`tests/workflow/`) are fixture-scale and run
 > in temporary environments. Full production runs (such as building all seven Trial
@@ -288,7 +394,11 @@ targets, not placeholders. All four are targets of the same Snakefile.
 
 ## The master list
 
-`stores.tsv`, `STORES.md` and both `by-label/` trees are **generated** by the `index` rule, committed, and verified in CI by regenerating them and failing if the tree is dirty. Authority stays with each store directory, which is self-describing; everything else is a view that cannot go stale.
+`stores.tsv`, `STORES.md`, every bundle's `summary.yaml`, and both `by-label/`
+trees are **generated** by the `index` rule, committed, and verified in CI by
+regenerating them and failing if the tree is dirty. `analyses.tsv` remains the
+authority for summary values; the generated files are views that cannot go
+stale.
 
 **`index` reads git, never the artifact root.** That is the whole constraint, and it is narrower than it first appears. It does not mean the master list is limited to bookkeeping; measurements are welcome, they just have to land in the bundle when the build happens rather than be scraped off disk whenever someone runs the indexer.
 
@@ -296,25 +406,35 @@ Two kinds of column, and they are not in tension:
 
 | | examples | drifts? | so |
 |---|---|---|---|
-| derived | `store_id`, `label`, `family`, `layout`, `status`, `build_command` | yes, if hand-maintained | regenerate from bundles; CI checks |
-| observed | `n_variants`, `n_analyses`, `n_associations`, store size, `format_version`, elapsed, validate verdict | no -- facts about an event that happened once | `register` writes them into the bundle at build time |
+| derived | `store_id`, `label`, `layout`, `status`, `build_command`, `n_analyses`, membership summary fields | yes, if hand-maintained | regenerate from bundles; CI checks |
+| observed | `n_variants`, `n_associations`, store size, `format_version`, elapsed, validate verdict | no -- facts about an event that happened once | `register` writes them into the bundle at build time |
 
-Observed values cost nothing to collect: `build-dense-vcf` already prints `{n_variants, n_analyses}` and `complete-dense` already prints `{n_imputed, elapsed_s}`. `register` puts them in `validation.yaml`, git records them, and `index` reads them from there -- so CI can still regenerate the entire file, observed columns included. The numbers also become reviewable in a pull request diff rather than being whatever the disk said last time.
+Observed values cost nothing to collect: builders already print Store
+measurements and completion timing. `register` puts them in `validation.yaml`,
+git records them, and `index` reads them from there -- so CI can still
+regenerate the entire file, observed columns included. Analysis count is not
+copied from that record: it is derived from the membership table with the rest
+of the summary. The numbers become reviewable in a pull request diff rather
+than being whatever the disk said last time.
 
-This subsumes `docs/store-catalog.md`, which today says of itself that its per-store numbers are a stale compilation from a date months earlier. A generated `STORES.md` cannot be stale.
+This subsumes the deleted `docs/store-catalog.md`, whose per-store numbers were a stale compilation from a date months earlier and which `generate_index()` removes when it is present. A generated `STORES.md` cannot be stale.
 
 The only thing deliberately excluded is anything whose answer changes without a commit -- whether a store still exists on disk, whether it is still readable. That is monitoring, not registry.
 
 `stores.tsv` columns:
 
 ```text
-derived   store_id  label  family  layout  completion_state  status  derived_from
+derived   store_id  label  layout  completion_state  status  derived_from
           store_uri  created_at  opengwasdb_rev  generator_command  build_command
-observed  format_version  n_analyses  n_variants  n_associations  store_bytes
+          n_analyses  first_author  publication_pmid  tissue  context
+          assigned_ancestry  sample_size  source_url
+observed  format_version  n_variants  n_associations  store_bytes
           build_elapsed_s  validate_status
 ```
 
-Two commands per store matter, and they are different kinds of thing. The **generator command** (`inventory.tsv` + config to bundle) is recorded by the generator into `release.yaml`. The **build command** (bundle to store) is *derived by `plan()`*, the same function the workflow renders its rules from. A hand-maintained list would be wrong within a month.
+`store_uri` is a pure function of the identifier (`<artifact-root>/<store-id>/store.opengwasdb`, ADRs 0022 and 0030). The one-time migration-note fallback that previously preferred a legacy family-first path is removed (issue #137), so the published location is where a Store must live, resolved from deployment configuration, never a stale note.
+
+Two commands per store matter, and they are different kinds of thing. The **generator command log** (`inventory.tsv` + config to bundle) is recorded by the generator into `release.yaml` as `generator.commands`. The **build command** (bundle to store) is *derived by `plan()`*, the same function the workflow renders its rules from. A hand-maintained list would be wrong within a month.
 
 ### Planned and executed argv are different facts
 
@@ -352,17 +472,27 @@ A per-store command *log* is still wanted, but for Phase B rather than Phase A, 
 
 ## `validation.yaml`
 
+The field-by-field format is defined once in
+[`docs/release-metadata-schema.md`](../release-metadata-schema.md#validationyaml);
+this section records only how the workflow produces it.
+
 Assembled by `register` from the step records: the JSON each build command already prints, plus `opengwasdb validate`'s verdict. `register` also compares each record's executed argv against `plan()`'s planned argv and fails on drift, per "Planned and executed argv are different facts" above. It records; it does not judge. This repository does not decide whether a store is scientifically sound — it captures what `opengwasdb` reported and who accepted it.
+
+The record's top-level `status` is the release-level verdict, and the generated master list publishes that value and no other. A per-check entry in `checks` describes one check and cannot override the record: a record reads `status: failed` precisely when a check failed, and publishing the passing check in its place is the "wrong answer that looks like a right answer" CONTRIBUTING names as the worst outcome. A release with no Validation Record publishes an empty verdict.
 
 ## Tests
 
-Exactly the four things this repository is responsible for:
+The checks cover the things this repository is responsible for:
 
-1. **`plan()` argv is correct.** Golden argv per store, ~5 steps each, no fixture stores required.
-2. **Conditional branches and resumption.** Rho off, no completion child, partial record sets produce the right step set.
-3. **A failed step cannot damage a live store or a good `validation.yaml`.**
-4. **Records merge into `validation.yaml` correctly**, and `register` fails when a record's executed argv differs from the planned argv — except for the `complete-dense-resume` substitution, which it accepts and records.
-5. **The builder never sees an excluded row.** `tests/manifest/` asserts the regression directly: the manifest a planned build step consumes is the derived file, and an `exclude_from_build: true` `analysis_id` is absent from it while the bundle keeps the audit row. It also covers re-densified `analysis_index`, preserved columns and order, pass-through, and each loud failure mode.
+1. **Every Release Bundle satisfies `bundle.check()`.** The CI gate discovers
+   bundles dynamically, reports all errors per bundle, and accesses no Store or
+   Release Artifact. Retired Analysis columns are fixture-tested against the
+   pinned upstream list rather than a registry-owned copy.
+2. **`plan()` argv is correct.** Golden argv per store, ~5 steps each, no fixture stores required.
+3. **Conditional branches and resumption.** Rho off, no completion child, partial record sets produce the right step set.
+4. **A failed step cannot damage a live store or a good `validation.yaml`.**
+5. **Records merge into `validation.yaml` correctly**, and `register` fails when a record's executed argv differs from the planned argv — except for the `complete-dense-resume` substitution, which it accepts and records.
+6. **The builder never sees an excluded row.** `tests/manifest/` asserts the regression directly: the manifest a planned build step consumes is the derived file, and an `exclude_from_build: true` `analysis_id` is absent from it while the bundle keeps the audit row. It also covers re-densified `analysis_index`, preserved columns and order, pass-through, and each loud failure mode.
 
 Fixture-scale end-to-end runs stay, as *one* smoke test. Source formats, store contents, layouts, queries and scientific invariants are tested once, in `opengwasdb`.
 
@@ -383,7 +513,7 @@ All layouts (Dense, Hybrid, Ragged SSF, and BESD) are unblocked on `opengwasdb@d
 
 ## Phase B — what produces a bundle
 
-Not designed yet. Four rules fix its boundary now, so Phase A is not built against a moving target; everything inside that boundary is open.
+Phase B generation runs today as per-source-format Manifest Generator scripts under `resources/generators/`, and each Release Bundle records the commands it ran in `release.yaml:generator.commands`. What does not exist yet is a Phase B Snakemake DAG (`workflow/generate.smk`). Four rules fix that DAG's boundary now, so Phase A is not built against a moving target; everything inside that boundary is open.
 
 ### Phase A and Phase B are separate workflows
 
@@ -400,7 +530,7 @@ Their outputs also live in different places and are reviewed differently. Phase 
 | Phase A | *derived* from a declarative `build.yaml` by `plan()` | regenerable, CI-checkable, verified against `records/` |
 | Phase B | *not derivable* -- family-specific imperative code calling several scripts in sequence | must be **recorded as it runs** |
 
-`release.yaml` currently holds `generator: {name, version, command}` -- a single command string, which is wrong as soon as generation calls acquire, select, assign-ancestry, estimate-SD and emit in turn. Phase B's design has to replace it with the executed sequence. That is the per-store script that Phase A does not need, and it is a log rather than a prediction.
+`release.yaml` now holds `generator: {version, commands}` -- an executed command log (a list), because generation calls acquire, select, assign-ancestry, estimate-SD and emit in turn and a single command string is wrong as soon as more than one step runs (issue #136). The previous `generator.name` path and the `--config=families/...` argument pointed at files that no longer exist and were corrected in the same change. That is the per-store script that Phase A does not need, and it is a log rather than a prediction.
 
 ### The four fixed rules
 
@@ -410,12 +540,9 @@ Their outputs also live in different places and are reviewed differently. Phase 
 
 **A generator's only output is a bundle directory. It never builds a store.** The four copy-pasted `resources/generators/lib/source-formats/*/build-store.py` adapters exist only because nothing else could reach a builder; under ADR 0023 nothing but the workflow may.
 
-**Acquisition is separate from selection.** Acquisition is per Source Collection, shared across families, and is the expensive resumable part. Selection is per Store Release. The Source Collection is a grouping string on the family record, not a directory (ADR 0024).
+**Acquisition is separate from selection.** Acquisition is per Source Collection and is the expensive resumable part. Selection is per Store Release. The Source Collection is a grouping string recorded on the release, not a directory (ADR 0028).
 
 ```text
-resources/families.yaml        one entry per family; names the Source Reader
-                               Capability and the Source Collection
-
 resources/inventories/<id>.tsv discovered upstream analyses, once acquisition
                                produces one at scale (ADR 0024). Does not exist
                                yet -- every collection's inventory was null.
@@ -429,7 +556,7 @@ resources/generators/lib/                  shared helpers
 resources/generators/lib/source-formats/   Source-Format-scoped generation code
 ```
 
-The entry point is family-scoped, matching `CONTEXT.md`'s definition of a Manifest Generator; the library is source-format-scoped, so families sharing a Source Collection share selection code without a configuration system by accident. This resolves the old `resources/generators/<source-format>-<layout>/` naming collision, where one directory served two families and grew a configuration system to tell them apart.
+The entry-point directory is scoped to the generator's historical family slug (ADR 0028), while the library is source-format-scoped, so families sharing a Source Collection share selection code without a configuration system by accident. This resolves the old `resources/generators/<source-format>-<layout>/` naming collision, where one directory served two families and grew a configuration system to tell them apart.
 
 A generator has the same shape as the build workflow: discover upstream, select rows, shell out to `opengwasdb` for the statistics, write the bundle.
 

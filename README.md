@@ -37,15 +37,19 @@ than invoking a bare interpreter or a sibling checkout's virtualenv.
 
 ```text
 Source Collection
-  -> Manifest Generator            (Phase B, not yet designed)
+  -> Manifest Generator            (Phase B: resources/generators/)
   -> accepted Release Bundle       stores/OGS-00042/
   -> Store Release                 (Phase A)
 ```
 
 Two workflows, meeting at the accepted Release Bundle and sharing no DAG.
 Phase A is specified in
-[`docs/spec/store-release-workflow.md`](docs/spec/store-release-workflow.md);
-Phase B has four fixed boundary rules and is otherwise open.
+[`docs/spec/store-release-workflow.md`](docs/spec/store-release-workflow.md).
+Phase B generation runs today as per-source-format Manifest Generator scripts
+under `resources/generators/`, and each release records the commands it ran in
+`release.yaml:generator.commands`. What is still open is a Phase B Snakemake
+DAG (`workflow/generate.smk`), whose four boundary rules are fixed so Phase A
+is not built against a moving target.
 
 The single rule everything else follows from (ADR 0023):
 
@@ -61,12 +65,11 @@ layer here.
 ## Repository Layout
 
 ```text
-stores/<store-id>/       accepted Release Bundles, one per Store Release
-stores.tsv  STORES.md    generated master list
+stores/<store-id>/       accepted Release Bundles plus generated summary.yaml
+stores.tsv  STORES.md    generated master list and human view
 workflow/                Snakefile (Phase A), generate.smk (Phase B)
 src/ogstores/            bundle.py  plan.py  paths.py  run.py  index.py
 resources/
-  families.yaml            Store Family records
   reference-resources/     LD panels, reference AF, trait mappings, QC panels
   annotations/             curated metadata that evolves after release
   generators/              Phase B: bundle producers
@@ -84,7 +87,8 @@ inputs and the things that make inputs. `CONTRIBUTING.md` documents each one.
 Every Store Release has one globally unique opaque identifier, `OGS-` plus
 five digits, allocated sequentially (ADR 0022). It names the registry
 directory, the artifact directory, and the `release_id` in the built Store's
-manifest. Store Family is a field on the release, not a path level.
+manifest. There is no Store Family tier: the `OGS-` id is the only identifier,
+and access posture survives as descriptive `release.yaml` metadata (ADR 0028).
 
 Identifiers are opaque so that metadata cannot be stuffed into them and go
 stale, and so the generated master list is the only way to find a release --
@@ -96,7 +100,7 @@ nothing resolves a release by label.
 
 ```text
 stores/<store-id>/
-  release.yaml      identity, label, family, status, lineage, provenance
+  release.yaml      identity, label, status, lineage, provenance
   build.yaml        the recipe: an opengwasdb subcommand and its flags
   analyses.tsv      membership; opengwasdb owns the schema
   validation.yaml   evidence, written back by the run
@@ -130,6 +134,12 @@ releases to `/data/opengwasdb/stores/<OGS-ID>/store.opengwasdb` with sibling
 `.partial`, `records/`, `logs/`, and artifact-side `by-label/` symlinks under
 `/data/opengwasdb/stores/by-label/`.
 
+The root is deployment configuration, not part of a Release Bundle. It
+resolves, highest precedence first, from a workflow `--config artifact_root=`,
+the `OPENGWASDB_ARTIFACT_ROOT` environment variable, the repository's
+`ogstores.yaml`, then the built-in default above. One immutable bundle can
+therefore be built on CI, a laptop, or the production host without editing it.
+
 ## Pipeline Execution and Preflight
 
 - **Workflow tests (`tests/workflow/`) are fixture-scale**: they validate the Snakemake DAG, command-line assembly, staged `.partial` transactions, publication gating, and crash recovery using synthetic test bundles.
@@ -144,8 +154,7 @@ releases to `/data/opengwasdb/stores/<OGS-ID>/store.opengwasdb` with sibling
 
 ```text
 stores/OGS-00003/                  finngen-r13 / r13-pilot-20, dense observed-only
-resources/generators/finngen-r13/  the family's Phase B entry point
-resources/families.yaml            the finngen-r13 family record
+resources/generators/finngen-r13/  the finngen-r13 Phase B generator
 ```
 
 `stores/README.md` lists all seven migrated Trial Store Releases. A further

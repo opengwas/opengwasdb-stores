@@ -57,6 +57,10 @@ run_release("config-without-panel.yaml")
 # --- With the QC panel enabled: exactly the 15 panel positions retained ---
 regions_with <- fread(file.path(output_with, "sidecars", "sparse_regions.tsv"), sep = "\t", na.strings = "")
 analyses_with <- fread(file.path(output_with, "analyses.tsv"), sep = "\t", na.strings = "")
+check(all(analyses_with$assigned_ancestry == "EUR"),
+      "assigned_ancestry should be the super-population code EUR, not the source label European")
+check(all(is.na(analyses_with$n_cases)) && all(is.na(analyses_with$n_controls)),
+      "a non-case-control Analysis must leave n_cases/n_controls blank, not 0")
 filtered_with <- fread(file.path(output_with, "filtered", analyses_with$filtered_file[1]), sep = "\t")
 summary_with <- fread(file.path(output_with, "sidecars", "filter_summary.tsv"), sep = "\t", na.strings = "")
 
@@ -95,5 +99,23 @@ check(summary_without$retained_rows[1] == 0, "filter_summary.retained_rows shoul
 
 build_without <- read_yaml(file.path(output_without, "build.yaml"))
 check(is.null(build_without$qc_panel), "build.yaml qc_panel should be absent when not configured")
+
+# --- Source Ancestry Label -> super-population mapping (issue #133) ---
+source("resources/generators/lib/ancestry.R")
+ancestry_map <- read_source_label_map(normalizePath("."))
+check(
+  identical(
+    unname(ancestry_map[c("European", "African", "East Asian", "South Asian")]),
+    c("EUR", "AFR", "EAS", "SAS")
+  ),
+  "the tracked source-label map should translate common labels to super-population codes"
+)
+check(
+  inherits(
+    try(normalise_assigned_ancestry("Asian (unspecified)", ancestry_map), silent = TRUE),
+    "try-error"
+  ),
+  "an unmapped source label must fail loudly rather than pass through as an Assigned Ancestry"
+)
 
 cat(sprintf("ALL %d CHECKS PASSED\n", n_checks))

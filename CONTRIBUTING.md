@@ -104,7 +104,7 @@ GitHub keeps `refs/pull/<n>/head` after the branch is deleted.
 
 The repository tracks small, reviewable definitions and evidence:
 
-- Source Collection, Store Family, and Reference Resource metadata;
+- Source Collection and Reference Resource metadata;
 - accepted Release Manifest bundles (`release.yaml`, `analyses.tsv`,
   `build.yaml`, and `validation.yaml`);
 - Store-specific input-generation helpers and shared orchestration;
@@ -126,7 +126,6 @@ stores/            accepted Release Bundles, one per Store Release
 workflow/          Phase A: accepted bundle -> validated Store Release
 src/ogstores/      the Python package both phases use
 resources/         everything on the input side
-  families.yaml        Store Family records
   reference-resources/ auxiliary build-time inputs
   annotations/         curated metadata that outlives a release
   generators/          Phase B: sources -> candidate bundle
@@ -155,7 +154,7 @@ Analytical Metadata after publication is a Release Erratum.
 ### `workflow/`
 
 Phase A. `Snakefile` scans `stores/` and wires dependencies; nothing else.
-Per ADR 0023 it contains no Store Family name, no source column name, no
+Per ADR 0023 it contains no source column name, no
 manifest translation, and no layout branch -- each rule asks `ogstores.plan`
 for a Step and hands it to `ogstores.run`.
 
@@ -172,28 +171,10 @@ because it is not Phase A's: a generator validates what it emits with
 `bundle.check()`, so Phase B depends on it too. `workflow/` is also Snakemake's
 own namespace (`Snakefile`, `rules/`, `scripts/`, `envs/`).
 
-### `resources/families.yaml`
-
-One entry per Store Family: label, provider, access posture, default licence,
-Source Reader Capability, Source Collection, query promise, build priority.
-
-A Store Family is a product identity, not a format (ADR 0024). Three families
-here share one Source Collection and one Source Format -- all EBI GWAS Catalog
-GWAS-SSF -- and promise `full-gwas`, `signals_only` and `cis_and_signals`. The
-format is what a builder sees; the family is what a query user sees. A family
-is also the unit of continuity across releases, which is why the promise cannot
-be a field restated on each one.
-
-`source_reader_capability` is the only field that becomes argv. There is no
-separate `source_format`, and no `source-collections/` directory: the Source
-Collection is a grouping string. A real Source Inventory, when acquisition
-produces one, returns as `resources/inventories/<id>.tsv` -- rows, not a
-metadata tier.
-
 ### `resources/reference-resources/`
 
 Auxiliary build-time inputs that are **not** the Source Collection of any
-family (ADR 0011): LD reference panels, reference allele-frequency panels,
+Store Release (ADR 0011): LD reference panels, reference allele-frequency panels,
 ancestry-mixture references, QC panels, the Canonical Trait Mapping Table, and
 the SomaScan target tables. Each carries a `resource.yaml` declaring kind,
 ancestry, genome build, variant ID convention, and location.
@@ -246,10 +227,21 @@ when it empties.
 - Keep Release Bundles self-contained. A Store Release's artifact path is a
   pure function of its identifier, `<artifact-root>/<store-id>/` (ADRs 0014 and
   0022; 0018's family-first layout is superseded).
+- The artifact root is deployment configuration, not a bundle field. Resolve it
+  with `paths.artifact_root()`: a workflow config override, then
+  `OPENGWASDB_ARTIFACT_ROOT`, then the tracked `ogstores.yaml`, then the
+  built-in default. Never commit an artifact root into a Release Bundle, so one
+  immutable bundle can be built on CI, a laptop, or the production host.
 - A committed `analyses.tsv` is an exact release selection. Do not silently add
   every file found in a directory at build time.
 - Record source file names and checksums. Fail if a selected file is missing or
-  its identity no longer matches.
+  its identity no longer matches. For the legacy monolithic BESD Store Releases
+  (`OGS-00001` and `OGS-00002`), source identity is currently recorded only as an
+  unverified path prefix on a single deployment host (`source_snapshot.besd_prefix`
+  in `OGS-00001`; `OGS-00002` carries only `source_snapshot_id` and inherits lineage
+  via `derived_from`), with no checksum, file list, or size recorded or checked.
+  This is a known integrity gap tracked by open issue #134, not an equivalent
+  alternative to checksums.
 - Do not copy OpenGWASDB builder logic into this repository. Invoke a documented
   OpenGWASDB CLI subcommand with explicit arguments; `build.options` keys are
   flag names passed through verbatim, never interpreted here (ADR 0023).
@@ -279,11 +271,26 @@ Use the Pixi environments pinned by this repository:
 
 ```bash
 pixi run env-check
+pixi run bundle-check
 pixi run test
 pixi run test-python
 pixi run test-r
 pixi run --environment docs docs-smoke
 ```
+
+`bundle.check(bundle, registry_root=...)` is the executable Release Bundle
+contract. It returns a list of every registry-side error it can find (an empty
+list means valid) and never raises for invalid bundle content. The returned
+list also carries a second channel, `.tolerated`, naming the suppressions the
+#134 legacy exemption (and candidate status) deliberately tolerate -- with
+their count and citation -- so a caller can surface the gap rather than read a
+clean `[]` that silently erased it (issue #142). It reads only
+files inside Release Bundles, plus a parent bundle when resolving
+`derived_from`; it never opens a Store or inspects a Release Artifact. The
+`bundle-check` task discovers every bundle under `stores/` and fails if any
+error is returned, and CI runs that task explicitly. In particular, it rejects
+a Build Recipe `artifacts` block because issue #126 moved the artifact root to
+deployment configuration.
 
 Run the checks relevant to a change. A behavior change to a script needs a test
 that reproduces the failure it prevents. Assert that fixtures exercise the

@@ -1,16 +1,21 @@
 status: passed
 validated_at: 2026-08-31T19:32:29.846057+00:00
 validator:
-  name: resources/generators/gwas-ssf-ragged/build-store.py
-  version: null
+  name: opengwasdb validate
+  version: opengwasdb@6ef919e721d5b7368acad591264be50f79b77dfb
 build_environment:
-  repo_commit: 7a1cba261bcdae4ca5df2b9eb53ba804c1223323
   opengwasdb_version: 0.2.0
   opengwasdb_commit: 6ef919e721d5b7368acad591264be50f79b77dfb
-  pixi_lock_sha256: f76211f9a1483fb35dd67f5961f97693e8c9c33c075dad82a80e8a885a6359aa
-  pixi_environment: default
-  platform: Linux-4.18.0-553.141.1.el8_10.x86_64-x86_64-with-glibc2.28
   python_version: 3.11.15
+  platform: Linux-4.18.0-553.141.1.el8_10.x86_64-x86_64-with-glibc2.28
+observed:
+  format_version: null
+  n_analyses: null
+  n_variants: null
+  n_associations: null
+  store_bytes: null
+  build_elapsed_s: null
+  validate_status: passed
 checks:
   schema: passed
   files: passed
@@ -20,6 +25,9 @@ checks:
   sd_estimation: not_run
   sparse_regions: passed
 reports:
+  analysis_targets: sidecars/analysis_targets.tsv
+  sparse_regions: sidecars/sparse_regions.tsv
+  filter_summary: sidecars/filter_summary.tsv
   build_report: sidecars/build_report.tsv
 warnings:
   - GCST005806: analysis_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)

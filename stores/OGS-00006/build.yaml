@@ -7,8 +7,4 @@ build:
     stored-effect-scale: sd
 post:
   top_hits: true
-  rho: false
   overview: false
-  validate: true
-artifacts:
-  root: /data/opengwasdb/stores

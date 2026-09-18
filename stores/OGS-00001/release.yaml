@@ -1,9 +1,7 @@
 store_id: OGS-00001
 label: pilot-10
-family: eqtlgen-cis-pilot
+access_posture: public
 status: built
-source_collection_id: eqtlgen-cis
-association_coverage: cis
 derived_from: null
 created_at: '2026-08-18T15:44:32.579882+00:00'
 description: 10 well-known genes' cis-eQTL summary statistics from the eQTLGen Consortium's 2019 whole-blood
@@ -14,33 +12,31 @@ source_snapshot_id: eqtlgen-2019-cis-full
 source_snapshot:
   besd_prefix: /data/opengwasdb/raw/eqtlgen/pilot-10
   source_genome_build: hg19
-release_kind: one-off
 generator:
-  name: resources/generators/eqtlgen-besd-ragged/generate.py
-  command: python3 resources/generators/eqtlgen-besd-ragged/generate.py --config=families/eqtlgen-cis-pilot/generators/config-pilot-10.yaml
-build_environment:
-  repo_commit: 03701f9b182e9f2e0d430f2afc7399435fe68ef1
-  opengwasdb_version: 0.1.0
-  opengwasdb_commit: abc02640b73550006d4a58e0fe89558e5ef4cfdf
-  pixi_lock_sha256: 89d840eaaf4b4620e523010be59c1ea30296fc15efcdb0ba0040849f633c89c5
-  pixi_environment: default
-  platform: Linux-4.18.0-553.141.1.el8_10.x86_64-x86_64-with-glibc2.28
-  python_version: 3.11.15
-sidecars:
-  selection: sidecars/selection.tsv
-  build_report: sidecars/build_report.tsv
+  commands:
+    - python3 resources/generators/lib/source-formats/eqtlgen-besd-ragged/generate.py --config=resources/generators/eqtlgen-cis-pilot/config-pilot-10.yaml
 notes: 'Probes chosen for well-characterised cis-eQTL signal and biological familiarity (lipid metabolism,
   immune response, tumour suppression), spanning 8 chromosomes and including one MHC-adjacent locus (TNF).
   Gene symbols for each Ensembl probe ID: ENSG00000175445=LPL, ENSG00000134243=SORT1, ENSG00000130203=APOE,
   ENSG00000073605=GSDMB, ENSG00000164308=ERAP2, ENSG00000232810=TNF, ENSG00000141510=TP53, ENSG00000136244=IL6,
-  ENSG00000087237=CETP, ENSG00000136997=MYC.'
-migration:
-  adr: '0022'
-  previous_identity:
-    store_family_id: eqtlgen-cis-pilot
-    family_release_id: pilot-10
-  previous_bundle_path: families/eqtlgen-cis-pilot/releases/pilot-10
-  previous_store_uri: /data/opengwasdb/eqtlgen-cis-pilot/releases/pilot-10/store/ragged__eqtlgen-cis-pilot__pilot-10
-  artifact_move_pending: true
-  note: Registry identity migrated to a flat OGS id. The built Store artifact has NOT yet moved to <artifact-root>/<store_id>/;
-    until it does, previous_store_uri is where it actually lives.
+  ENSG00000087237=CETP, ENSG00000136997=MYC.
+
+
+  Release Erratum (issue #134): the 10 Analysis rows leave stored_effect_scale,
+  sample_size_kind, sample_size_scope, sample_size, original_effect_scale,
+  original_sd_method, and ancestry_assignment_method blank. The source BESD format
+  does not carry sample size, effect scale, or ancestry metadata per probe or association,
+  and this metadata is not resolvable from tracked evidence inside this repository.
+  In accordance with the project principle that a wrong answer that looks like a right
+  answer is the worst outcome, values are left blank rather than defaulted or fabricated
+  pending external study-level metadata and upstream schema resolution.
+
+  Release Erratum (issue #141): trait_ontology_id held "ENSEMBL:<gene>" and
+  trait_ontology_label held "Ensembl" on all 10 Analysis rows -- a gene identifier
+  where a Trait Ontology term belongs, and an authority name where a trait label
+  belongs. The eQTLGen BESD source supplies no
+  controlled-vocabulary Trait term, so both fields are now empty rather than
+  carrying a gene id or a guess: the absence is the visible, correct answer. The
+  gene identity remains target annotation in trait_chr/trait_bp and
+  analysis_label. No Store artifact was rebuilt or rewritten.
+  '

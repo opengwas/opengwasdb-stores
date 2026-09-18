@@ -2,8 +2,7 @@
 
     pixi run release OGS-00003             one release, plus any parent it needs
     pixi run release OGS-00003 OGS-00004   several; lineage order is resolved
-    pixi run release-family finngen-r13    every release of one family
-    pixi run index                         regenerate the master list
+    pixi run index                         regenerate master list and summaries
 
 One Snakefile for the whole registry rather than one per release, so
 Snakemake's own wildcard expansion is the multi-release runner and a
@@ -11,7 +10,7 @@ Reference-Completed release can declare its parent's `register` record as a
 real input edge. A batch loop would have to sequence parents before children
 by hand.
 
-Per ADR 0023 this file contains no Store Family name, no source column name,
+Per ADR 0023 this file contains no source column name,
 no manifest translation, and no layout branch. It asks `ogstores.plan` for the
 Step list and hands each Step to `ogstores.run`; the tracked output is always
 that step's record file, never the Store directory -- a half-written Store
@@ -72,24 +71,24 @@ def get_bundle(store_id: str) -> bundle.Bundle:
     return bundle.load(store_id, registry_root=REGISTRY_ROOT)
 
 
-def get_artifact_root(store_id: str) -> Path:
-    """Resolve artifact root for store_id from config override or build.yaml."""
-    if "artifact_root" in config:
-        return Path(config["artifact_root"])
-    build_artifacts = get_bundle(store_id).build.get("artifacts")
-    if isinstance(build_artifacts, dict) and "root" in build_artifacts:
-        return Path(build_artifacts["root"])
-    return paths.DEFAULT_ARTIFACT_ROOT
+def get_artifact_root() -> Path:
+    """Resolve the artifact root from configuration, never from a Build Recipe.
+
+    Precedence is the workflow `--config artifact_root=`, the
+    `OPENGWASDB_ARTIFACT_ROOT` environment variable, the repository
+    `ogstores.yaml`, then the built-in default (issue #126).
+    """
+    return paths.artifact_root(config.get("artifact_root"))
 
 
 def get_steps(store_id: str, root: Path | str | None = None):
     """Derive the planned Step list for store_id without layout branching (ADR 0023)."""
-    return plan(get_bundle(store_id), artifact_root=root or get_artifact_root(store_id))
+    return plan(get_bundle(store_id), artifact_root=root or get_artifact_root())
 
 
 def record(store_id: str, step: str, root: Path | str | None = None) -> str:
     """Tracked record file for one step of one release."""
-    return str(paths.record_path(store_id, step, root=root or get_artifact_root(store_id)))
+    return str(paths.record_path(store_id, step, root=root or get_artifact_root()))
 
 
 def step_input(wildcards) -> list[str]:
@@ -105,8 +104,7 @@ def step_input(wildcards) -> list[str]:
 
     parent = get_bundle(wildcards.store_id).derived_from
     if parent:
-        parent_root = wildcards.root if "artifact_root" in config else get_artifact_root(parent)
-        return [record(parent, "register", parent_root)]
+        return [record(parent, "register", wildcards.root)]
     return [str(p) for p in get_steps(wildcards.store_id, wildcards.root)[0].inputs]
 
 
@@ -172,21 +170,11 @@ rule register:
         )
 
 
-# Target aliases, so an operator names a release or a family rather than a path.
-FAMILIES: dict[str, list[str]] = {}
+# Target aliases, so an operator names a release rather than a path.
 for sid in ALL_STORE_IDS:
     rule:
         name: sid
         input: record(sid, "register")
-    fam = get_bundle(sid).family
-    if fam:
-        FAMILIES.setdefault(fam, []).append(sid)
-
-for fam, sids in FAMILIES.items():
-    if fam not in ALL_STORE_IDS:
-        rule:
-            name: fam
-            input: [record(s, "register") for s in sids]
 
 
 def reject_unknown_store_id(wildcards):
@@ -208,6 +196,7 @@ rule index:
     input:
         [str(REGISTRY_ROOT / sid / "release.yaml") for sid in ALL_STORE_IDS],
         [str(REGISTRY_ROOT / sid / "build.yaml") for sid in ALL_STORE_IDS],
+        [str(REGISTRY_ROOT / sid / "analyses.tsv") for sid in ALL_STORE_IDS],
     run:
         index.generate_index(
             registry_root=REGISTRY_ROOT,

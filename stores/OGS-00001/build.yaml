@@ -8,8 +8,4 @@ build:
     tissue: whole_blood
 post:
   top_hits: false
-  rho: false
   overview: false
-  validate: true
-artifacts:
-  root: /data/opengwasdb/stores

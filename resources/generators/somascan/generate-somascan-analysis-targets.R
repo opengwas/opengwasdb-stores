@@ -29,11 +29,11 @@ args <- parse_args(commandArgs(trailingOnly = TRUE))
 candidate_path <- args$input %||%
   file.path(repo_root, "resources/data/derived/store-candidates-analyses.tsv")
 somascan_targets_path <- args$somascan_targets %||%
-  file.path(repo_root, "resources/somascan/somascan-targets.tsv")
+  file.path(repo_root, "resources/reference-resources/somascan/somascan-targets.tsv")
 pubmed_id <- args$pubmed_id %||% "29875488"
 selected_store_key <- args$store_key %||% NA_character_
 out_path <- args$output %||%
-  file.path(repo_root, "resources/somascan/sun-2018-analysis-targets.tsv")
+  file.path(repo_root, "resources/reference-resources/somascan/sun-2018-analysis-targets.tsv")
 dir.create(dirname(out_path), recursive = TRUE, showWarnings = FALSE)
 
 if (!file.exists(candidate_path)) {

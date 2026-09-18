@@ -5,7 +5,7 @@ Two workflows, deliberately separate, meeting at the accepted Release Bundle.
 | | | |
 |---|---|---|
 | `Snakefile` | Phase A | accepted bundle -> validated Store Release |
-| `generate.smk` | Phase B | raw sources -> candidate bundle (not yet designed) |
+| `generate.smk` | Phase B | raw sources -> candidate bundle (planned; Phase B generation currently runs as `resources/generators/` scripts) |
 
 They share no DAG. The reason is not that one graph would be complex: the
 accepted bundle is a boundary *only because a human froze it*. Span both
@@ -20,8 +20,7 @@ Phase A is driven by `workflow/Snakefile`:
 ```sh
 pixi run release OGS-00003                                 # one registered release, plus any parent it needs
 pixi run release OGS-00003 OGS-00004                       # several registered releases; lineage order is resolved
-pixi run release-family finngen-r13                        # every release of one family
-pixi run index                                             # regenerate stores.tsv, STORES.md, by-label/
+pixi run index                                             # regenerate master list, summaries, by-label/
 ```
 
 A release target must be an ID currently registered under `stores/`; use

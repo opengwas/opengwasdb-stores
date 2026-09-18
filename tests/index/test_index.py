@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Tests for ogstores.index: stores.tsv master list, STORES.md, and by-label symlinks (Issue #118).
+"""Tests for generated registry views (issues #118 and #131).
 
-Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
-1. `stores.tsv`, `STORES.md`, and `by-label/` symlink trees generate correctly from bundles alone.
+Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0028:
+1. `stores.tsv`, `STORES.md`, bundle summaries, and symlinks generate from bundles alone.
 2. `build_command` is derived purely by `plan(bundle)`, never stored or hand-maintained.
 3. Observed columns are extracted exclusively from `validation.yaml` in git, never from the artifact root.
 4. Strict seam compliance: index reads git, never opening or inspecting artifact roots (proven via tripwires).
 5. `docs/store-catalog.md` is deleted and subsumed by the generated views.
-6. CI clean tree check: regenerating index against repository matches committed files with no drift.
+6. CI clean tree check: regenerating every view matches committed files with no drift.
 """
 
 from __future__ import annotations
@@ -49,7 +49,6 @@ def create_mock_bundle(
     store_id: str,
     *,
     label: str,
-    family: str,
     layout: str = "dense",
     completion_state: str = "observed_only",
     status: str = "built",
@@ -64,16 +63,12 @@ def create_mock_bundle(
     rel_dict = {
         "store_id": store_id,
         "label": label,
-        "family": family,
         "status": status,
-        "source_collection_id": "test-col",
-        "association_coverage": "full_gwas",
         "derived_from": derived_from,
         "created_at": "2026-08-18T08:51:59Z",
         "description": "Mock release",
         "source_snapshot_id": "mock-snap",
-        "release_kind": "pilot",
-        "generator": {"command": f"generate.py --config={label}.yaml"},
+        "generator": {"commands": [f"generate.py --config={label}.yaml"]},
     }
 
     bld_dict: dict[str, Any] = {
@@ -81,7 +76,6 @@ def create_mock_bundle(
         "layout": layout,
         "completion_state": completion_state,
         "post": {"top_hits": False, "rho": False, "overview": True, "validate": True},
-        "artifacts": {"root": "/data/opengwasdb/stores"},
     }
     if completion_state == "reference_completed":
         bld_dict["complete"] = {"command": "complete-dense", "options": options or {"ancestry": "EUR"}}
@@ -103,7 +97,7 @@ def create_mock_bundle(
 
 
 class TestIndexGenerationAndColumns(unittest.TestCase):
-    """Test 19-column stores.tsv, STORES.md, and by-label generation."""
+    """Test stores.tsv, STORES.md, bundle summary, and by-label generation."""
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -116,13 +110,12 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
-    def test_canonical_19_columns_present_in_order(self) -> None:
-        """stores.tsv contains exactly the 19 canonical columns in defined order."""
-        self.assertEqual(len(COLUMNS), 19)
+    def test_canonical_columns_present_in_order(self) -> None:
+        """stores.tsv contains exactly the canonical columns in defined order."""
+        self.assertEqual(len(COLUMNS), 25)
         expected = (
             "store_id",
             "label",
-            "family",
             "layout",
             "completion_state",
             "status",
@@ -139,6 +132,13 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
             "store_bytes",
             "build_elapsed_s",
             "validate_status",
+            "first_author",
+            "publication_pmid",
+            "tissue",
+            "context",
+            "assigned_ancestry",
+            "sample_size",
+            "source_url",
         )
         self.assertEqual(COLUMNS, expected)
 
@@ -148,7 +148,6 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
             self.stores_dir,
             "OGS-00010",
             label="custom-options-pilot",
-            family="test-fam",
             options={"source-assembly": "hg38", "n-workers": 16, "chunk-variants": 5000},
         )
         row = render_stores_row(b)
@@ -161,8 +160,54 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         self.assertIn("--chunk-variants 5000", row["build_command"])
         self.assertIn("--source-assembly hg38", row["build_command"])
 
-    def test_observed_columns_extracted_from_validation_yaml_only(self) -> None:
-        """Observed columns come from validation.yaml; unbuilt releases have empty observed columns."""
+    def test_configured_artifact_root_renders_build_command_and_store_uri(self) -> None:
+        """The master list derives artifact paths from configuration, not the Build Recipe (issue #126)."""
+        b = create_mock_bundle(
+            self.stores_dir,
+            "OGS-00013",
+            label="configured-root",
+        )
+        row = render_stores_row(b, artifact_root="/configured/stores")
+        self.assertTrue(
+            row["build_command"].startswith("opengwasdb build-dense-vcf"),
+            row["build_command"],
+        )
+        self.assertIn("/configured/stores/OGS-00013/work/analyses.tsv", row["build_command"])
+        self.assertEqual(row["store_uri"], "/configured/stores/OGS-00013/store.opengwasdb")
+
+    def test_store_uri_is_pure_function_of_identifier_ignoring_migration_note(self) -> None:
+        """Issue #137: store_uri derives from the identifier alone, never a migration note.
+
+        A bundle carrying a top-level `store_uri` or a `migration.previous_store_uri`
+        must still publish `<artifact-root>/<store-id>/store.opengwasdb`. The
+        migration-note fallback is removed, so the master list cannot quietly
+        point at a legacy family-first path from the superseded layout.
+        """
+        b = create_mock_bundle(
+            self.stores_dir,
+            "OGS-00015",
+            label="migration-fallback",
+        )
+        rel_path = b.root / "release.yaml"
+        rel = yaml.safe_load(rel_path.read_text(encoding="utf-8"))
+        rel["store_uri"] = "/data/opengwasdb/legacy-family/releases/pilot/store.opengwasdb"
+        rel["migration"] = {
+            "previous_store_uri": "/data/opengwasdb/legacy-family/releases/pilot/store.opengwasdb",
+            "note": "legacy",
+        }
+        rel_path.write_text(yaml.safe_dump(rel), encoding="utf-8")
+        b = bundle.load("OGS-00015", registry_root=self.stores_dir)
+
+        row = render_stores_row(b, artifact_root="/data/opengwasdb/stores")
+        self.assertEqual(
+            row["store_uri"],
+            "/data/opengwasdb/stores/OGS-00015/store.opengwasdb",
+            "store_uri must be the pure function of the identifier, ignoring "
+            "any migration note or top-level store_uri (issue #137)",
+        )
+
+    def test_observed_columns_and_membership_count_have_distinct_sources(self) -> None:
+        """Store measurements use validation; Analysis count uses membership."""
         val_data = {
             "status": "passed",
             "validated_at": "2026-09-14T12:00:00Z",
@@ -180,7 +225,6 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
             self.stores_dir,
             "OGS-00011",
             label="built-release",
-            family="test-fam",
             status="built",
             validation_data=val_data,
         )
@@ -188,14 +232,13 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
             self.stores_dir,
             "OGS-00012",
             label="candidate-release",
-            family="test-fam",
             status="candidate",
             validation_data=None,  # No validation.yaml
         )
 
         row_built = render_stores_row(b_built)
         self.assertEqual(row_built["format_version"], "1.0")
-        self.assertEqual(row_built["n_analyses"], "20")
+        self.assertEqual(row_built["n_analyses"], "1")
         self.assertEqual(row_built["n_variants"], "10000")
         self.assertEqual(row_built["n_associations"], "200000")
         self.assertEqual(row_built["store_bytes"], "5242880")
@@ -204,22 +247,93 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
 
         row_cand = render_stores_row(b_cand)
         self.assertEqual(row_cand["format_version"], "")
-        self.assertEqual(row_cand["n_analyses"], "")
+        self.assertEqual(row_cand["n_analyses"], "1")
         self.assertEqual(row_cand["n_variants"], "")
         self.assertEqual(row_cand["n_associations"], "")
         self.assertEqual(row_cand["store_bytes"], "")
         self.assertEqual(row_cand["build_elapsed_s"], "")
         self.assertEqual(row_cand["validate_status"], "")
 
+    def test_observed_columns_ignore_legacy_top_level_values(self) -> None:
+        """Issue #135: observed columns come only from the register-written `observed` block.
+
+        A pre-seam record can carry `n_analyses`, `format_version` and friends
+        at the top level with no `observed` block. After the migration every
+        record has the block, so the indexer has no compatibility fallback:
+        these top-level values must be ignored rather than published as an
+        observed measurement.
+        """
+        val_data = {
+            "status": "passed",
+            "format_version": "0.1",
+            "n_analyses": 99,
+            "n_variants": 999,
+            "n_associations": 9999,
+            "store_bytes": 12345,
+            "build_elapsed_s": 1.5,
+        }
+        b = create_mock_bundle(
+            self.stores_dir,
+            "OGS-00014",
+            label="legacy-top-level",
+            validation_data=val_data,
+        )
+
+        row = render_stores_row(b)
+        self.assertEqual(row["format_version"], "")
+        self.assertEqual(
+            row["n_analyses"],
+            "1",
+            "membership-derived Analysis count must ignore the legacy observed value",
+        )
+        self.assertEqual(row["n_variants"], "")
+        self.assertEqual(row["n_associations"], "")
+        self.assertEqual(row["store_bytes"], "")
+        self.assertEqual(row["build_elapsed_s"], "")
+        # The record's own status is still the published verdict (issue #124).
+        self.assertEqual(row["validate_status"], "passed")
+
+    def test_validate_status_is_record_status_not_a_per_check_entry(self) -> None:
+        """Issue #124: an overall failure must survive a passing per-check entry.
+
+        A pre-seam Validation Record can carry `status: failed` alongside a
+        passing `checks.store` (and a stale `observed.validate_status`). The
+        record's own status is the release-level verdict and must win; no
+        current Release Bundle exercises this shape, so it is covered
+        synthetically. Publishing `passed` here is the worst outcome the
+        project can produce (CONTRIBUTING).
+        """
+        val_data = {
+            "status": "failed",
+            "validated_at": "2026-09-14T12:00:00Z",
+            "observed": {"validate_status": "passed"},
+            "checks": {"store": "passed", "files": "passed"},
+        }
+        b = create_mock_bundle(
+            self.stores_dir,
+            "OGS-00013",
+            label="contradictory-record",
+            status="built",
+            validation_data=val_data,
+        )
+
+        row = render_stores_row(b)
+        self.assertEqual(
+            row["validate_status"],
+            "failed",
+            "the Validation Record's own status must override a passing "
+            "per-check entry (issue #124)",
+        )
+
     def test_stores_tsv_and_md_and_by_label_generation_end_to_end(self) -> None:
-        """generate_index creates stores.tsv, STORES.md, by-label symlinks, and deletes store-catalog.md."""
+        """generate_index creates every committed view and removes the old catalogue."""
         # Create mock store-catalog.md in docs/
         store_cat_p = self.docs_dir / "store-catalog.md"
         store_cat_p.write_text("# Stale Store Catalog\n")
         self.assertTrue(store_cat_p.is_file())
 
-        b1 = create_mock_bundle(self.stores_dir, "OGS-00001", label="pilot-1", family="fam-a")
-        b2 = create_mock_bundle(self.stores_dir, "OGS-00002", label="pilot-2", family="fam-b")
+        b1 = create_mock_bundle(self.stores_dir, "OGS-00001", label="pilot-1")
+        b2 = create_mock_bundle(self.stores_dir, "OGS-00002", label="pilot-2")
 
         mock_artifact_root = self.td / "artifacts"
         mock_artifact_root.mkdir()
@@ -232,6 +346,12 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
 
         self.assertTrue(tsv_p.is_file())
         self.assertTrue(md_p.is_file())
+        self.assertTrue((b1.root / "summary.yaml").is_file())
+        self.assertTrue((b2.root / "summary.yaml").is_file())
+        self.assertEqual(
+            yaml.safe_load((b1.root / "summary.yaml").read_text(encoding="utf-8")),
+            bundle.summarise(b1),
+        )
 
         # Assert store-catalog.md was deleted
         self.assertFalse(store_cat_p.exists(), "docs/store-catalog.md must be deleted by generate_index")
@@ -248,8 +368,9 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         # Verify STORES.md content
         md_text = md_p.read_text(encoding="utf-8")
         self.assertIn("# OpenGWASDB Store Releases", md_text)
-        self.assertIn("| `OGS-00001` | pilot-1 | fam-a |", md_text)
-        self.assertIn("| `OGS-00002` | pilot-2 | fam-b |", md_text)
+        self.assertIn("| `OGS-00001` | pilot-1 | dense |", md_text)
+        self.assertIn("| `OGS-00002` | pilot-2 | dense |", md_text)
+        self.assertIn("## Derived membership summaries", md_text)
 
         # Verify stores/by-label/ symlinks
         by_label_dir = self.stores_dir / "by-label"
@@ -283,7 +404,7 @@ class TestIndexStrictSeamAndTripwires(unittest.TestCase):
 
     def test_tripwire_index_opens_no_artifact_root_files_or_store(self) -> None:
         """Strict seam proof (ADR 0023): index reads git only, opening zero artifact files."""
-        create_mock_bundle(self.stores_dir, "OGS-00021", label="seam-pilot", family="fam-seam")
+        create_mock_bundle(self.stores_dir, "OGS-00021", label="seam-pilot")
 
         artifact_root = self.td / "fake_data_opengwasdb"
         artifact_root.mkdir()
@@ -339,10 +460,10 @@ class TestIndexStrictSeamAndTripwires(unittest.TestCase):
 
 
 class TestRepoIndexCleanTree(unittest.TestCase):
-    """Verify regenerating index on the current repository matches committed stores.tsv and STORES.md."""
+    """Verify every generated index view matches the committed files."""
 
     def test_current_repo_index_matches_committed_files_with_clean_tree(self) -> None:
-        """Regenerating index on repo matches stores.tsv, STORES.md, and by-label symlinks exactly."""
+        """Regenerating index matches master files, summaries, and symlinks exactly."""
         tsv_path = REPO_ROOT / "stores.tsv"
         md_path = REPO_ROOT / "STORES.md"
         by_label_dir = REPO_ROOT / "stores" / "by-label"
@@ -368,6 +489,17 @@ class TestRepoIndexCleanTree(unittest.TestCase):
                 gen_md.read_text(encoding="utf-8"),
                 md_path.read_text(encoding="utf-8"),
                 "STORES.md is dirty or out of date. Run 'pixi run index' to regenerate.",
+            )
+
+        for store_dir in sorted((REPO_ROOT / "stores").glob("OGS-*")):
+            if not paths.is_valid_store_id(store_dir.name):
+                continue
+            summary_path = store_dir / "summary.yaml"
+            self.assertTrue(summary_path.is_file(), f"{summary_path} must be committed")
+            self.assertEqual(
+                yaml.safe_load(summary_path.read_text(encoding="utf-8")),
+                bundle.summarise(bundle.load(store_dir.name, registry_root=REPO_ROOT / "stores")),
+                f"{summary_path} is dirty or out of date. Run 'pixi run index'.",
             )
 
         # Verify all bundles in repo stores/ have matching symlinks in stores/by-label/

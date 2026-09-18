@@ -19,7 +19,8 @@ source:
 
 inputs:
   candidates: resources/data/derived/store-candidates-analyses.tsv
-  analysis_targets: resources/somascan/sun-2018-analysis-targets.tsv
+  analysis_targets: resources/reference-resources/somascan/sun-2018-analysis-targets.tsv
+  somascan_targets: resources/reference-resources/somascan/somascan-targets.tsv
 
 selection:
   pubmed_id: 29875488
@@ -67,7 +68,7 @@ output:
 reference_resources:
   - resource_id: ukb-hg38-eur-af
     kind: reference_af
-    ancestry: European
+    ancestry: EUR
     genome_build: GRCh38
     variant_id_convention: "chr:pos_ref_alt"
     allele_columns:
@@ -87,5 +88,5 @@ effect_scale_validation:
   warning_multiplier: 2.0
   dispersion_max: 0.5
   reference_resources:
-    - ancestry: European
+    - ancestry: EUR
       resource_id: ukb-hg38-eur-af
