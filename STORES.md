@@ -13,6 +13,9 @@ Generated master list of Store Releases in this registry.
 | `OGS-00005` | eur-hybrid-quant-pilot-10 | hybrid | observed_only | built | - | 10 | - | - | passed_with_warnings |
 | `OGS-00006` | 2023-chen-full-european | ragged | observed_only | built | - | 1,400 | - | - | passed_with_warnings |
 | `OGS-00007` | 2018-sun-pilot-10 | ragged | observed_only | built | - | 10 | - | - | passed |
+| `OGS-00008` | ukb-b-pilot-10 | dense | observed_only | candidate | - | 10 | - | - | - |
+| `OGS-00009` | ukb-b-full-observed | dense | observed_only | candidate | - | 2,024 | - | - | - |
+| `OGS-00010` | ukb-b-full-completed | dense | reference_completed | candidate | - | 2,024 | - | - | - |
 
 ## Derived membership summaries
 
@@ -27,6 +30,9 @@ Every value below is derived from the Release Bundle's `analyses.tsv`; `NA` mean
 | `OGS-00005` | mixed (8) | mixed (8) | NA | NA | EUR | 511-300447 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
 | `OGS-00006` | Chen Y | 36635386 | plasma | metabolomics | EUR | 3441-8299 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
 | `OGS-00007` | Sun BB | 29875488 | plasma | SomaScan | EUR | 3301 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
+| `OGS-00008` | Ben Elsworth | NA | NA | NA | EUR | 352094-462933 | NA |
+| `OGS-00009` | Ben Elsworth | NA | NA | NA | EUR | 10339-463010 | NA |
+| `OGS-00010` | Ben Elsworth | NA | NA | NA | EUR | 10339-463010 | NA |
 
 ## Tolerated gaps
 

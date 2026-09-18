@@ -1,0 +1,11 @@
+store_id: OGS-00010
+layout: dense
+completion_state: reference_completed
+complete:
+  command: complete-dense
+  options:
+    ld-panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+    ancestry: EUR
+post:
+  top_hits: false
+  overview: true

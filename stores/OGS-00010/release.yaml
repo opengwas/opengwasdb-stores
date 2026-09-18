@@ -1,0 +1,16 @@
+store_id: OGS-00010
+label: ukb-b-full-completed
+access_posture: public
+status: candidate
+derived_from: OGS-00009
+created_at: '2026-09-18T16:00:00Z'
+source_snapshot_id: opengwas-gwas-vcf-ukb-b
+description: Reference-Completed dense Store Release containing all 2,024 UK Biobank
+  (ukb-b) GWAS-VCF traits, reference-completed against the HGDP+1kGP hg38 EUR LD panel.
+generator:
+  commands:
+  - opengwasdb complete-dense /data/opengwasdb/stores/OGS-00009/store.opengwasdb /data/opengwasdb/stores/OGS-00010/store.opengwasdb
+    --release-id OGS-00010 --ld-panel /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+    --ancestry EUR
+notes: Reference-completed dense store derived from OGS-00009 using the HGDP+1kGP
+  hg38 EUR LD panel.

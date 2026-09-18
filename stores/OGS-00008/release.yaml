@@ -1,0 +1,17 @@
+store_id: OGS-00008
+label: ukb-b-pilot-10
+access_posture: public
+status: candidate
+derived_from: null
+created_at: '2026-09-18T16:00:00Z'
+source_snapshot_id: opengwas-gwas-vcf-ukb-b
+description: Pilot dense observed-only Store Release containing 10 diverse UK Biobank
+  (ukb-b) GWAS-VCF traits (5 continuous and 5 binary endpoints) from the OpenGWAS
+  collection.
+generator:
+  commands:
+  - Rscript resources/generators/ukb-b/generate.R --config=resources/generators/ukb-b/config-pilot-10.yaml
+    --mode=emit
+notes: Pilot dataset comprising 10 representative UK Biobank GWAS-VCF traits selected
+  from /data/opengwasdb/raw/gwas-vcf/ukb-b to demonstrate dense VCF store construction
+  across continuous and case-control endpoints.

@@ -103,7 +103,7 @@ class TestBundleContract(unittest.TestCase):
             for path in registry.iterdir()
             if path.is_dir() and paths.is_valid_store_id(path.name)
         )
-        self.assertEqual(store_ids, [f"OGS-{number:05d}" for number in range(1, 8)])
+        self.assertEqual(store_ids, [f"OGS-{number:05d}" for number in range(1, 11)])
         for store_id in store_ids:
             errors = bundle.check(
                 bundle.load(store_id, registry_root=registry),

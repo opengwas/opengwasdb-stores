@@ -114,7 +114,7 @@ def test_reconcile_stores() -> None:
     stores_dir = REPO_ROOT / "stores"
     verified_executable: dict[str, bool] = {}
 
-    for i in range(1, 8):
+    for i in range(1, 11):
         store_id = f"OGS-{i:05d}"
         store_path = stores_dir / store_id
         check(store_path.is_dir(), f"Store directory {store_path} exists")
@@ -256,12 +256,12 @@ def test_reconcile_stores() -> None:
             )
             analyses_valid = manifest_ids == expected_ids
 
-        elif cmd == "complete-ragged":
+        elif cmd in ("complete-ragged", "complete-dense", "complete-hybrid"):
             # Child release derived from parent
             parent_id = rel_cfg.get("derived_from")
-            check(parent_id == "OGS-00001", f"{store_id} derived_from is {parent_id}")
-            check("ld-panel" in options, f"{store_id} complete-ragged specifies ld-panel")
-            check("ancestry" in options, f"{store_id} complete-ragged specifies ancestry")
+            check(parent_id is not None, f"{store_id} derived_from is {parent_id}")
+            check("ld-panel" in options, f"{store_id} {cmd} specifies ld-panel")
+            check("ancestry" in options, f"{store_id} {cmd} specifies ancestry")
             # Verify ld-panel is the root panel directory, not ending with /EUR
             ld_panel_val = options.get("ld-panel", "")
             check(not ld_panel_val.endswith("/EUR"), f"{store_id} ld-panel {ld_panel_val!r} is panel root without trailing /EUR")
