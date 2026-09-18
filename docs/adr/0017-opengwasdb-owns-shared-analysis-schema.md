@@ -30,3 +30,12 @@ pinned `opengwasdb.model.analyses.validate_analyses()` accepts any
 registry-owned semantics rather than duplicating the OpenGWASDB column schema,
 and each check should be retired in favour of the upstream validator if
 OpenGWASDB ever validates it.
+
+A third registry-owned guard covers `trait_ontology_id`/`trait_ontology_label`
+(issue #141). The upstream validator accepts any string in those columns, so
+`bundle.check()` rejects a gene- or protein-authority identifier in
+`trait_ontology_id` (Ensembl, HGNC, Entrez/NCBI Gene, UniProt) and the matching
+authority name in `trait_ontology_label`. Issue #130 had written
+`ENSEMBL:ENSG...` plus `Ensembl` there, silently asserting that a gene is the
+Trait; the column is legitimate, only its vocabulary was wrong, so the
+retired-column contract could not catch it.

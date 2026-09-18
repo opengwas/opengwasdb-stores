@@ -126,19 +126,19 @@ Metadata that affects the interpretation of association statistics in a Store Re
 _Avoid_: trait annotation, display metadata
 
 **Trait Ontology Mapping**:
-The association between an Analysis's Trait and a controlled-vocabulary identifier appropriate to that Trait's kind — an EFO or MONDO term for phenotype-centric Traits, an Ensembl gene ID for gene-centric Traits — resolved before build and frozen into the Release Manifest as Analytical Metadata. Source-provided when the Source Collection already supplies one; otherwise resolved against a Canonical Trait Mapping Table, or left unmapped. A wrong mapping is corrected the same way any other Analytical Metadata error is: via a Release Erratum, not a silent edit.
+The association between an Analysis's Trait and a controlled-vocabulary identifier appropriate to that Trait — an EFO, MONDO, OBA, or GO term — resolved before build and frozen into the Release Manifest as Analytical Metadata. Source-provided when the Source Collection already supplies one; otherwise resolved against a Canonical Trait Mapping Table, or left unmapped. Where no acceptable term exists it is left empty rather than backfilled with an identifier of another kind: a gene's Ensembl ID is Target annotation, not a Trait identity, and belongs in the target sidecar and the cis coordinates. A wrong mapping is corrected the same way any other Analytical Metadata error is: via a Release Erratum, not a silent edit.
 _Avoid_: trait annotation, ontology term
 
 **Analysis Label**:
-The human-interpretable display name for an Analysis's subject, drawn from whichever identity concept is native to the Store Release — a trait name for phenotype-centric Analyses, a gene symbol for gene-centric Analyses.
+The human-interpretable display name for an Analysis's subject, drawn from whichever identity concept is native to the Store Release — a trait name for phenotype-centric Analyses, a gene symbol for single-target gene-centric Analyses, and the assay identifier (a SomaScan SeqId) for an aggregate assay that measures several targets at once and therefore has no single honest gene symbol.
 _Avoid_: trait label, display name
 
 **Trait Ontology Mapping Method**:
-The controlled value describing how a Trait Ontology Mapping was produced, such as source-provided, canonical-table lookup, deterministic external-authority lookup, or unmapped.
+The controlled value describing how a Trait Ontology Mapping was produced, such as source-provided, canonical-table lookup, or unmapped.
 _Avoid_: mapping confidence, mapping status
 
 **Canonical Trait Mapping Table**:
-A curated, versioned Reference Resource that maps phenotype trait labels to ontology terms such as EFO or MONDO, produced by a candidate-generation-and-review process outside any single Manifest Generator, and consulted by generators as a deterministic, offline, build-time lookup rather than a live external call. Gene-centric Trait Ontology Mapping does not use this table: it resolves against an external gene authority (Ensembl/HGNC) by direct deterministic join, since gene symbol to Ensembl ID carries no comparable semantic ambiguity.
+A curated, versioned Reference Resource that maps trait labels to ontology terms such as EFO or MONDO, produced by a candidate-generation-and-review process outside any single Manifest Generator, and consulted by generators as a deterministic, offline, build-time lookup rather than a live external call. It maps Trait labels only; gene, transcript, and UniProt identity is carried as Target annotation and the assay identifier, never as a Trait Ontology Mapping.
 _Avoid_: ontology snapshot, mapping service
 
 **Effect Scale**:

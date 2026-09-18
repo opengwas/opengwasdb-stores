@@ -28,8 +28,11 @@ Covered by `tests/bundle/test_bundle.py`:
 - Retired-column rejection follows the pinned upstream
   `RETIRED_ANALYSIS_COLUMNS`, including a patched sentinel that proves there is
   no registry-owned duplicate list.
-- OGS-00007's gene symbols and Ensembl CURIEs match its tracked target-evidence
-  sidecar after the retired `trait_id`/`gene_id`/`gene_name` columns are removed.
+- OGS-00007's Trait Ontology Mapping is the source-provided EFO term and trait
+  label from its tracked target-evidence sidecar, never a gene identifier; the
+  seven-member 14-3-3 aggregate `GCST90240123` is identified by its SomaScan
+  SeqId. A gene-shaped `trait_ontology_id` and an Ensembl authority name in
+  `trait_ontology_label` are rejected.
 - Status-aware validation: `candidate` release without `validation.yaml` and with unresolved rows passes.
 - Artifact-root separation: `artifacts` is neither required nor allowed in a
   Build Recipe; `paths.artifact_root()` owns deployment placement.

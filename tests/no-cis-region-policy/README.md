@@ -21,8 +21,13 @@ columns, `release.yaml` has no `sidecars.analysis_targets` pointer, and
 significant/suggestive regions.
 
 The fixture also emits a temporary gene-target Release Bundle without building
-a Store, proving that the target path writes the resolved symbol and Ensembl
-CURIE through `analysis_label`/`trait_ontology_id`/`trait_ontology_label`, records
-`external_authority_lookup`, and omits the upstream-retired
-`trait_id`/`gene_id`/`gene_name` Analysis columns (issue #130). The existing
-pqtl-interval-2018 family's cis+signals selection policy remains unchanged.
+a Store, proving that the target path writes the source-provided ontology term
+and trait label through `trait_ontology_id`/`trait_ontology_label`, records
+`source_provided`, keeps the gene as target annotation (`trait_chr`/`trait_bp`),
+and omits the upstream-retired `trait_id`/`gene_id`/`gene_name` Analysis columns
+(issues #130 and #141). It covers three Analyses: a single-target Analysis
+labelled by its gene symbol; an aggregate whose source label enumerates several
+member symbols and is therefore labelled by its SomaScan SeqId; and an assay
+flagged `somascan_is_multiple` in the shared target resource. Neither aggregate
+promotes one member gene to the Trait identity. The existing pqtl-interval-2018
+family's cis+signals selection policy remains unchanged.

@@ -39,4 +39,20 @@ notes: 'Deliberately not a replacement for 2018-sun-pilot-100 -- same source, sa
   the counts are not applicable; those cells are now empty (absence is distinct from zero).
   source_ancestry_label remains "European" as source provenance. No Store artifact was rebuilt or rewritten.
 
+  Release Erratum (issue #141): trait_ontology_id held "ENSEMBL:<gene>" and
+  trait_ontology_label held "Ensembl" on all 10 Analysis rows, replacing the
+  source-provided EFO terms -- a gene identifier where a Trait Ontology term
+  belongs, and an authority name where a trait label belongs (introduced by issue
+  #130). The source-supplied EFO term and its trait label from the tracked SomaScan
+  target sidecar are restored, with trait_ontology_mapping_method=source_provided.
+  GCST005806''s restored term EFO:0021984 is the genuine source term and is obsolete;
+  it is recorded as source_provided rather than replaced with an invented
+  non-obsolete term. GCST90240123 is an aggregate assay over the seven-member
+  14-3-3 family: its restored term is the source''s EFO:0020109 "14-3-3 protein
+  family measurement", and its analysis_label is now the SomaScan SeqId 4707-50
+  rather than the single member gene YWHAH that SomaScan.db maps the probe to
+  (somascan_is_multiple is 0 for this SeqId, so the source label''s own seven-member
+  list is the tracked evidence that identifies the aggregate). The gene/Ensembl
+  identity remains target annotation in trait_chr/trait_bp and the sidecar. No
+  Store artifact was rebuilt or rewritten.
   '
