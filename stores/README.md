@@ -24,13 +24,31 @@ A Store Release's published artifact path is a pure function of its identifier:
 list derives `store_uri` from the identifier alone; there is no migration-note
 fallback.
 
-The built Store artifacts have **not** yet been physically moved to that
-location. The seven Trial Store Releases' bytes still sit at the legacy
-family-first paths they were originally built at, so the published path is
-where a Store *should* live and will not match the on-disk location until the
-separate relocation completes (issue #139). That gap
-is operational, not a registry fact: the derived path is what a build would
-produce, and what a Store found at `<artifact-root>/<store-id>/` joins back to.
+The artifact root is deployment configuration (issue #126), not a bundle fact,
+so where a built Store's bytes actually sit is an operational fact this
+repository can only record for the host it is running on, never assert for
+every deployment. The physical relocation of the seven Trial Store Releases is
+tracked by #139; what is verified on this host is recorded below, not a blanket
+claim about the state of every deployment.
+
+Verified on this host (artifact root `/data/opengwasdb/stores` from the
+tracked `ogstores.yaml`):
+
+| Store | At published target | At legacy path |
+|---|---|---|
+| OGS-00001 | yes | no |
+| OGS-00002 | yes | no |
+| OGS-00003 | yes | no |
+| OGS-00004 | no | no |
+| OGS-00005 | no | no |
+| OGS-00006 | no | no |
+| OGS-00007 | no | no |
+
+On this host, three of the seven releases are already at their published
+target (`<artifact-root>/<store-id>/store.opengwasdb`) and their legacy paths
+no longer exist; the other four are at neither location. The derived path is
+still what a build would produce and what a Store found at
+`<artifact-root>/<store-id>/` joins back to.
 
 Thirteen further bundles are still under `families/*/releases/` awaiting
 triage.

@@ -27,3 +27,12 @@ Every value below is derived from the Release Bundle's `analyses.tsv`; `NA` mean
 | `OGS-00005` | mixed (8) | mixed (8) | NA | NA | EUR | 511-300447 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
 | `OGS-00006` | Chen Y | 36635386 | plasma | metabolomics | EUR | 3441-8299 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
 | `OGS-00007` | Sun BB | 29875488 | plasma | SomaScan | EUR | 3301 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
+
+## Tolerated gaps
+
+These bundles pass the Release Bundle gate only because a named exemption tolerates known-missing required Analysis values. The values are genuinely unavailable and left blank rather than fabricated (issue #134); the tolerance is the visible remainder, not a clean pass.
+
+| Store ID | Tolerated gap |
+|:---|:---|
+| `OGS-00001` | 70 blank required Analysis values (tolerated under #134) |
+| `OGS-00002` | 70 blank required Analysis values (tolerated under #134) |

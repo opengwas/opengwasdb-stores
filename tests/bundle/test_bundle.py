@@ -431,6 +431,48 @@ class TestBundleContract(unittest.TestCase):
             frozenset({"OGS-00001", "OGS-00002"}),
         )
 
+    def test_legacy_blank_analysis_exemption_is_reported_not_silently_dropped(self) -> None:
+        """Issue #142: the #134 exemption's tolerated count must be surfaced, never zero.
+
+        The exemption itself is unchanged (still exactly OGS-00001 and OGS-00002,
+        still suppressing only blank required Analysis values, still no fabricated
+        value). What must not happen is a clean ``[]`` that erases the 70 tolerated
+        blank required values, so the gate's second channel reports the count.
+        """
+        registry = REPO_ROOT / "stores"
+        for store_id in ("OGS-00001", "OGS-00002"):
+            result = bundle.check(
+                bundle.load(store_id, registry_root=registry),
+                registry_root=registry,
+            )
+            record_check()
+            # Primary channel: the exemption still yields a clean pass.
+            self.assertEqual(result, [], f"{store_id}: {result}")
+            # Second channel: the tolerated gap is reported, not silently zero.
+            self.assertEqual(len(result.tolerated), 1, result.tolerated)
+            gap = result.tolerated[0]
+            self.assertEqual(gap.store_id, store_id)
+            self.assertEqual(gap.count, 70)
+            self.assertEqual(gap.citation, "#134")
+            self.assertEqual(gap.detail, "blank required Analysis values")
+
+    def test_candidate_blank_analysis_exemption_is_reported_on_second_channel(self) -> None:
+        """Candidate releases also surface their tolerated blanks, cited by status not #134."""
+        unresolved = (
+            "analysis_id\tstored_effect_scale\tsample_size_kind\t"
+            "sample_size_scope\tsample_size\toriginal_effect_scale\t"
+            "original_sd_method\tassigned_ancestry\t"
+            "ancestry_assignment_method\n"
+            "FIXTURE_1\t\t\t\t\t\t\t\t\n"
+        )
+        checked = self.make_bundle(status="candidate", analyses=unresolved)
+        result = bundle.check(checked, registry_root=self.tmp_dir)
+        record_check()
+        self.assertEqual(result, [])
+        self.assertEqual(len(result.tolerated), 1, result.tolerated)
+        self.assertEqual(result.tolerated[0].citation, "candidate status")
+        self.assertGreater(result.tolerated[0].count, 0)
+
     def test_assigned_ancestry_must_use_the_super_population_vocabulary(self) -> None:
         header = (
             "analysis_id\tstored_effect_scale\tsample_size_kind\t"
