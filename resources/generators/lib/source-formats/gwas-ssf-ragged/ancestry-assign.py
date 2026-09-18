@@ -29,6 +29,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
+from resources.generators.lib.ancestry_sidecar import format_sidecar_float  # noqa: E402
 from resources.generators.lib.release_yaml import (  # noqa: E402
     get,
     merge_validation_yaml,
@@ -160,15 +161,23 @@ def sidecar_row(
         "ancestry_reference_id": resource_id if gate_reason != "no_usable_source_af" else "",
         "af_overlap": af_overlap if af_overlap is not None else "",
         "dominant_superpop": dominant_superpop or "",
-        "dominant_proportion": f"{dominant_proportion:.6g}" if dominant_proportion is not None else "",
-        "runner_up_margin": f"{runner_up_margin:.6g}" if runner_up_margin is not None else "",
-        "nnls_residual": f"{residual:.6g}" if residual is not None and residual == residual else "",
+        "dominant_proportion": (
+            format_sidecar_float(dominant_proportion) if dominant_proportion is not None else ""
+        ),
+        "runner_up_margin": (
+            format_sidecar_float(runner_up_margin) if runner_up_margin is not None else ""
+        ),
+        "nnls_residual": (
+            format_sidecar_float(residual) if residual is not None and residual == residual else ""
+        ),
         "gate_reason": gate_reason,
         "source_assigned_mismatch": mismatch,
         "ancestry_notes": notes,
     }
     for sp in superpops:
-        out[f"ancestry_prop_{sp}"] = f"{composition.get(sp, 0.0):.6g}" if composition else ""
+        out[f"ancestry_prop_{sp}"] = (
+            format_sidecar_float(composition.get(sp, 0.0)) if composition else ""
+        )
     return out
 
 
