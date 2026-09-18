@@ -1,0 +1,58 @@
+store_id: OGS-00007
+label: 2018-sun-pilot-10
+access_posture: public
+status: built
+derived_from: null
+created_at: '2026-08-17T14:32:13Z'
+description: 'First 10 Sun et al. INTERVAL SomaScan plasma-proteome pQTL analyses (PMID 29875488) -- a
+  deterministic prefix of the 100-analysis 2018-sun-pilot-100 selection, built end-to-end through OpenGWASDB''s
+  real ragged builder as a small, current, grounded proof that this Store Family''s pipeline (Trait Ontology
+  Mapping, CURIE-normalised trait_ontology_id, analysis_label) actually produces a working store.
+
+  '
+source_snapshot_id: gwas-catalog-v1.0.3.1-r2026-07-10
+accepted_at: '2026-08-17T14:37:45Z'
+generator:
+  version: sha256:ef0c8437171493bc205dfbb32156ce2c37209cf9de94edea99be53cefb825d94
+  commands:
+    - Rscript resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R --config=resources/generators/pqtl-interval-2018/config-pilot-10.yaml --mode=emit
+notes: 'Deliberately not a replacement for 2018-sun-pilot-100 -- same source, same selection basis, just
+  a small independent slice used to prove the build end-to-end without re-running the full 100-analysis
+  pipeline.
+
+
+  Status is `built`, not `validated`: the store built successfully and reads back correctly, but validation.yaml
+  correctly reports passed_with_warnings -- opengwasdb''s Ragged builder (opengwasdb.layouts.ragged.build_ssf)
+  silently drops analysis_label/trait_ontology_id/trait_ontology_label into the built store despite the
+  manifest supplying real values (filed as explodecomputer/opengwasdb#83). This is a real upstream gap,
+  not a defect in this release; left failing rather than silently accepted.
+
+
+  Release Erratum (issue #130): the registry manifest was migrated from the retired trait_id/gene_id/gene_name
+  Analysis columns to analysis_label plus an Ensembl trait_ontology_id/trait_ontology_label, using the same
+  tracked analysis_targets.tsv evidence. No Store artifact was rebuilt or rewritten by this registry migration;
+  the existing validation warnings remain the truthful record of the earlier build.
+
+  Release Erratum (issue #133): assigned_ancestry was recorded as the free-text Source Ancestry Label
+  "European" rather than the registry-normalised super-population code "EUR". Corrected in analyses.tsv.
+  The quantitative Analyses also stored n_cases/n_controls as 0 where
+  the counts are not applicable; those cells are now empty (absence is distinct from zero).
+  source_ancestry_label remains "European" as source provenance. No Store artifact was rebuilt or rewritten.
+
+  Release Erratum (issue #141): trait_ontology_id held "ENSEMBL:<gene>" and
+  trait_ontology_label held "Ensembl" on all 10 Analysis rows, replacing the
+  source-provided EFO terms -- a gene identifier where a Trait Ontology term
+  belongs, and an authority name where a trait label belongs (introduced by issue
+  #130). The source-supplied EFO term and its trait label from the tracked SomaScan
+  target sidecar are restored, with trait_ontology_mapping_method=source_provided.
+  GCST005806''s restored term EFO:0021984 is the genuine source term and is obsolete;
+  it is recorded as source_provided rather than replaced with an invented
+  non-obsolete term. GCST90240123 is an aggregate assay over the seven-member
+  14-3-3 family: its restored term is the source''s EFO:0020109 "14-3-3 protein
+  family measurement", and its analysis_label is now the SomaScan SeqId 4707-50
+  rather than the single member gene YWHAH that SomaScan.db maps the probe to
+  (somascan_is_multiple is 0 for this SeqId, so the source label''s own seven-member
+  list is the tracked evidence that identifies the aggregate). The gene/Ensembl
+  identity remains target annotation in trait_chr/trait_bp and the sidecar. No
+  Store artifact was rebuilt or rewritten.
+  '

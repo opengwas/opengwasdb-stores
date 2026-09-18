@@ -1,0 +1,23 @@
+resource_id: canonical-trait-mapping-efo
+label: Canonical trait label to ontology-term mapping table
+kind: trait_ontology_mapping
+version: 1
+location: resources/reference-resources/canonical-trait-mapping-efo/mapping.tsv
+location_kind: tracked_file
+description: >
+  A curated trait_label -> trait_ontology_id/trait_ontology_label lookup,
+  consulted by Manifest Generators when a Source Collection does not supply
+  its own trait ontology mapping (see CONTEXT.md, "Canonical Trait Mapping
+  Table", and docs/adr/0021-trait-ontology-mapping-lookup-lives-in-registry.md).
+  Exact-match only, keyed on a normalised (trimmed, lowercased) trait_label;
+  no fuzzy or semantic matching. Rows are added by hand as specific traits are
+  curated -- there is no automated candidate-generation pipeline behind this
+  table yet.
+status: available
+notes: >
+  Starts empty (header only): no currently-built gwas-ssf-ragged bundle has an
+  unmapped trait to seed a row from, and opengwas-gwas-vcf-dense (ukb-b) has
+  thousands of free-text field labels too messy for hand curation at this
+  table's exact-match granularity -- that needs real candidate-generation and
+  review tooling, tracked separately, not fabricated rows here. Add a row only
+  when a real trait needs one.

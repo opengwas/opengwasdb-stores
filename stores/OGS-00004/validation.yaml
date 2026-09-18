@@ -1,0 +1,73 @@
+status: passed_with_warnings
+validated_at: 2026-08-31T20:21:16.987087+00:00
+validator:
+  name: opengwasdb validate
+  version: opengwasdb@6ef919e721d5b7368acad591264be50f79b77dfb
+build_environment:
+  opengwasdb_version: 0.2.0
+  opengwasdb_commit: 6ef919e721d5b7368acad591264be50f79b77dfb
+  python_version: 3.11.15
+  platform: Linux-4.18.0-553.141.1.el8_10.x86_64-x86_64-with-glibc2.28
+observed:
+  format_version: null
+  n_analyses: null
+  n_variants: null
+  n_associations: null
+  store_bytes: null
+  build_elapsed_s: null
+  validate_status: passed_with_warnings
+checks:
+  schema: passed
+  files: passed_with_warnings
+  reader_smoke_test: passed_with_warnings
+reports:
+  download_summary: sidecars/download_summary.tsv
+  build_report: sidecars/build_report.tsv
+warnings:
+  - "GCST003566: excluded from build -- excluded_2026-08-22: effect_allele_frequency reported against the other allele (r=-0.999 vs EUR panel and vs the other nine studies); opengwasdb#115"
+  - GCST005076: n_cases present in the manifest but missing from the built store's analyses.tsv
+  - GCST005076: n_controls present in the manifest but missing from the built store's analyses.tsv
+  - GCST005076: sample_size_kind present in the manifest but missing from the built store's analyses.tsv
+  - GCST005076: sample_size_scope present in the manifest but missing from the built store's analyses.tsv
+  - GCST005076: original_effect_scale present in the manifest but missing from the built store's analyses.tsv
+  - GCST006465: n_cases present in the manifest but missing from the built store's analyses.tsv
+  - GCST006465: n_controls present in the manifest but missing from the built store's analyses.tsv
+  - GCST006465: sample_size_kind present in the manifest but missing from the built store's analyses.tsv
+  - GCST006465: sample_size_scope present in the manifest but missing from the built store's analyses.tsv
+  - GCST006465: original_effect_scale present in the manifest but missing from the built store's analyses.tsv
+  - GCST007320: n_cases present in the manifest but missing from the built store's analyses.tsv
+  - GCST007320: n_controls present in the manifest but missing from the built store's analyses.tsv
+  - GCST007320: sample_size_kind present in the manifest but missing from the built store's analyses.tsv
+  - GCST007320: sample_size_scope present in the manifest but missing from the built store's analyses.tsv
+  - GCST007320: original_effect_scale present in the manifest but missing from the built store's analyses.tsv
+  - GCST007435: n_cases present in the manifest but missing from the built store's analyses.tsv
+  - GCST007435: n_controls present in the manifest but missing from the built store's analyses.tsv
+  - GCST007435: sample_size_kind present in the manifest but missing from the built store's analyses.tsv
+  - GCST007435: sample_size_scope present in the manifest but missing from the built store's analyses.tsv
+  - GCST007435: original_effect_scale present in the manifest but missing from the built store's analyses.tsv
+  - GCST009324: n_cases present in the manifest but missing from the built store's analyses.tsv
+  - GCST009324: n_controls present in the manifest but missing from the built store's analyses.tsv
+  - GCST009324: sample_size_kind present in the manifest but missing from the built store's analyses.tsv
+  - GCST009324: sample_size_scope present in the manifest but missing from the built store's analyses.tsv
+  - GCST009324: original_effect_scale present in the manifest but missing from the built store's analyses.tsv
+  - GCST009325: n_cases present in the manifest but missing from the built store's analyses.tsv
+  - GCST009325: n_controls present in the manifest but missing from the built store's analyses.tsv
+  - GCST009325: sample_size_kind present in the manifest but missing from the built store's analyses.tsv
+  - GCST009325: sample_size_scope present in the manifest but missing from the built store's analyses.tsv
+  - GCST009325: original_effect_scale present in the manifest but missing from the built store's analyses.tsv
+  - GCST009758: n_cases present in the manifest but missing from the built store's analyses.tsv
+  - GCST009758: n_controls present in the manifest but missing from the built store's analyses.tsv
+  - GCST009758: sample_size_kind present in the manifest but missing from the built store's analyses.tsv
+  - GCST009758: sample_size_scope present in the manifest but missing from the built store's analyses.tsv
+  - GCST009758: original_effect_scale present in the manifest but missing from the built store's analyses.tsv
+  - GCST009925: n_cases present in the manifest but missing from the built store's analyses.tsv
+  - GCST009925: n_controls present in the manifest but missing from the built store's analyses.tsv
+  - GCST009925: sample_size_kind present in the manifest but missing from the built store's analyses.tsv
+  - GCST009925: sample_size_scope present in the manifest but missing from the built store's analyses.tsv
+  - GCST009925: original_effect_scale present in the manifest but missing from the built store's analyses.tsv
+  - GCST009926: n_cases present in the manifest but missing from the built store's analyses.tsv
+  - GCST009926: n_controls present in the manifest but missing from the built store's analyses.tsv
+  - GCST009926: sample_size_kind present in the manifest but missing from the built store's analyses.tsv
+  - GCST009926: sample_size_scope present in the manifest but missing from the built store's analyses.tsv
+  - GCST009926: original_effect_scale present in the manifest but missing from the built store's analyses.tsv
+errors: []

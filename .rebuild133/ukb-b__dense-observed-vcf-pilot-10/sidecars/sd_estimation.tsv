@@ -1,0 +1,11 @@
+analysis_id	source_analysis_id	status	skip_reason	af_source	ancestry_reference_id	original_sd	original_sd_method	n_variants_considered	n_variants_overlapping	n_variants_excluded_ambiguous	n_variants_excluded_mismatch	n_variants_excluded_missing_af	n_variants_excluded_maf	n_variants_retained	maf_min	maf_max	implied_sd_median	sd_dispersion	sd_notes	estimator_version
+ukb-b-10001	ukb-b-10001	failed		source			declared_standardised	19991	14677			5314	0	14677	0.01	0.5	0.11941822711479862	0.00029148834089133546	one-pass source-AF estimate	opengwasdb:0.1.0
+ukb-b-10002	ukb-b-10002	failed		source			declared_standardised	19991	12184			7807	0	12184	0.01	0.5	0.30272527085721235	0.0010872790429128365	one-pass source-AF estimate	opengwasdb:0.1.0
+ukb-b-10003	ukb-b-10003	failed		source			declared_standardised	19991	11552			8439	0	11552	0.01	0.5	0.07789925397015077	0.00018455533224636528	one-pass source-AF estimate	opengwasdb:0.1.0
+ukb-b-10008	ukb-b-10008	failed		source			declared_standardised	19991	16211			3780	0	16211	0.01	0.5	0.17051711014143764	0.00043183454757025896	one-pass source-AF estimate	opengwasdb:0.1.0
+ukb-b-10011	ukb-b-10011	passed		source			declared_standardised	19991	17553			2438	0	17553	0.01	0.5	0.9765473925263809	0.002670936652158007	one-pass source-AF estimate	opengwasdb:0.1.0
+ukb-b-1004	ukb-b-1004	failed		source			declared_standardised	19991	17356			2635	0	17356	0.01	0.5	0.1483276925242431	0.0004700641330572797	one-pass source-AF estimate	opengwasdb:0.1.0
+ukb-b-10054	ukb-b-10054	failed		source			declared_standardised	19991	17078			2913	0	17078	0.01	0.5	0.4990138757194911	0.0015548349731457356	one-pass source-AF estimate	opengwasdb:0.1.0
+ukb-b-10787	ukb-b-10787	failed		source			declared_standardised	19991	17553			2438	0	17553	0.01	0.5	0.6249696292191035	0.0017056254807649163	one-pass source-AF estimate	opengwasdb:0.1.0
+ukb-b-11842	ukb-b-11842	warning		source			declared_standardised	19991	17553			2438	0	17553	0.01	0.5	0.8329170134238311	0.0022751660917913474	one-pass source-AF estimate	opengwasdb:0.1.0
+ukb-b-19953	ukb-b-19953	passed		source			declared_standardised	19991	17553			2438	0	17553	0.01	0.5	0.9493473200614361	0.002591554437475385	one-pass source-AF estimate	opengwasdb:0.1.0

@@ -1,0 +1,24 @@
+store_family_id: eqtlgen-cis-pilot
+family_release_id: pilot-10
+store_layout: ragged-observed
+completion_state: observed-only
+builder:
+  package: opengwasdb
+  entrypoint: "opengwasdb.layouts.ragged.build_besd:build_ragged_from_besd"
+source:
+  source_format: besd
+  source_reader_capability: null
+normalisation:
+  target_reference_assembly: GRCh38
+  liftover: hg19-to-hg38
+effects:
+  stored_effect_scale: null
+shape:
+  association_coverage: cis
+validation:
+  required: true
+artifacts:
+  artifact_root: /data/opengwasdb/wip/rebuild-133/artifacts
+  release_subdir: eqtlgen-cis-pilot
+  source_dir: /data/opengwasdb/wip/rebuild-133/artifacts/eqtlgen-cis-pilot/source
+  store_uri: /data/opengwasdb/wip/rebuild-133/artifacts/eqtlgen-cis-pilot/store/ragged__eqtlgen-cis-pilot__pilot-10

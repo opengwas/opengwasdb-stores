@@ -1,0 +1,21 @@
+selection_rank	analysis_id	phenocode	trait_type	source_category	n_cases	n_controls	selection_rule
+1	finngen-r13-BMI_IRN	BMI_IRN	quantitative	Quantitative endpoints			all FinnGen R13 inverse-rank-normalised quantitative endpoints
+2	finngen-r13-HEIGHT_IRN	HEIGHT_IRN	quantitative	Quantitative endpoints			all FinnGen R13 inverse-rank-normalised quantitative endpoints
+3	finngen-r13-WEIGHT_IRN	WEIGHT_IRN	quantitative	Quantitative endpoints			all FinnGen R13 inverse-rank-normalised quantitative endpoints
+4	finngen-r13-RX_PARACETAMOL_NSAID	RX_PARACETAMOL_NSAID	case_control	Drug purchase endpoints	434037	66149	largest-case endpoint in its category; category retained among the 17 largest winners
+5	finngen-r13-K11_ORAL	K11_ORAL	case_control	XI Diseases of the digestive system (K11_)	296147	204039	largest-case endpoint in its category; category retained among the 17 largest winners
+6	finngen-r13-FG_CVD	FG_CVD	case_control	Cardiometabolic endpoints	258917	241269	largest-case endpoint in its category; category retained among the 17 largest winners
+7	finngen-r13-PAIN	PAIN	case_control	Miscellaneous, not yet classified endpoints	246393	252806	largest-case endpoint in its category; category retained among the 17 largest winners
+8	finngen-r13-AB1_INFECT_PARASIT_WIDE	AB1_INFECT_PARASIT_WIDE	case_control	I Certain infectious and parasitic diseases (AB1_)	244545	255641	largest-case endpoint in its category; category retained among the 17 largest winners
+9	finngen-r13-RX_STATIN	RX_STATIN	case_control	IX Diseases of the circulatory system (I9_)	203299	296887	largest-case endpoint in its category; category retained among the 17 largest winners
+10	finngen-r13-M13_ARTHROPATHIES	M13_ARTHROPATHIES	case_control	XIII Diseases of the musculoskeletal system and connective tissue (M13_)	191339	308847	largest-case endpoint in its category; category retained among the 17 largest winners
+11	finngen-r13-PULM_INFECTIONS	PULM_INFECTIONS	case_control	Interstitial lung disease endpoints	168980	331206	largest-case endpoint in its category; category retained among the 17 largest winners
+12	finngen-r13-N14_FEMALEGENNONINF	N14_FEMALEGENNONINF	case_control	XIV Diseases of the genitourinary system (N14_)	159287	122622	largest-case endpoint in its category; category retained among the 17 largest winners
+13	finngen-r13-ANTIDEPRESSANTS	ANTIDEPRESSANTS	case_control	Comorbidities of Neurological endpoints	157103	102913	largest-case endpoint in its category; category retained among the 17 largest winners
+14	finngen-r13-O15_DELIV_SPONT	O15_DELIV_SPONT	case_control	XV Pregnancy, childbirth and the puerperium (O15_)	146565	117666	largest-case endpoint in its category; category retained among the 17 largest winners
+15	finngen-r13-KRA_PSY_ANYMENTAL	KRA_PSY_ANYMENTAL	case_control	Psychiatric endpoints from Katri Räikkönen	144890	355296	largest-case endpoint in its category; category retained among the 17 largest winners
+16	finngen-r13-CD2_BENIGN	CD2_BENIGN	case_control	II Neoplasms from hospital discharges (CD2_)	142938	357248	largest-case endpoint in its category; category retained among the 17 largest winners
+17	finngen-r13-G6_EPIPAROX	G6_EPIPAROX	case_control	VI Diseases of the nervous system (G6_)	133630	366556	largest-case endpoint in its category; category retained among the 17 largest winners
+18	finngen-r13-AUTOIMMUNE	AUTOIMMUNE	case_control	Diseases marked as autimmune origin	131428	368758	largest-case endpoint in its category; category retained among the 17 largest winners
+19	finngen-r13-J10_UPPERDIS	J10_UPPERDIS	case_control	X Diseases of the respiratory system (J10_)	131136	369050	largest-case endpoint in its category; category retained among the 17 largest winners
+20	finngen-r13-C3_CANCER_WIDE	C3_CANCER_WIDE	case_control	II Neoplasms, from cancer register (ICD-O-3)	128001	372185	largest-case endpoint in its category; category retained among the 17 largest winners

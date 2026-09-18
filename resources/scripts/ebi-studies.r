@@ -83,9 +83,9 @@ parse_variant_count <- function(platform) {
 
 ## Case-control/quantitative detection and sample-size counts are resolved by
 ## the shared `gwas-catalog-ssf` metadata resolver (issue #48), not parsed
-## inline here -- see resources/lib/metadata_resolvers/gwas_catalog_ssf.R for
+## inline here -- see resources/generators/lib/metadata_resolvers/gwas_catalog_ssf.R for
 ## the resolver contract shared with other Source Collections' resolvers.
-source("resources/lib/metadata_resolvers/gwas_catalog_ssf.R")
+source("resources/generators/lib/metadata_resolvers/gwas_catalog_ssf.R")
 
 ## Adapts the resolver's generic {resolution_status, stored_effect_scale,
 ## sample_size_kind, sample_size, n_cases, n_controls} record onto this

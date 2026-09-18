@@ -80,7 +80,7 @@ def test_canonical_effect_allele_ld_orientation() -> None:
 
 
 def test_mapping() -> None:
-    path = ROOT / "reference-resources/hgdp1kgp-hg38-ld/populations_to_superpop.tsv"
+    path = ROOT / "resources/reference-resources/hgdp1kgp-hg38-ld/populations_to_superpop.tsv"
     rows = list(csv.DictReader(path.open(), delimiter="\t")); by_pop = {r["population"]: r for r in rows}
     check(len(rows) == len(by_pop) == 79, "population labels are missing or duplicated")
     check(all((r["status"] == "included" and r["panel"] in {"AFR","EAS","SAS","EUR"}) or

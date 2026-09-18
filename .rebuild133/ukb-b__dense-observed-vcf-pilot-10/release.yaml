@@ -1,0 +1,37 @@
+metadata_schema_version: 1.0
+store_family_id: ukb-b
+family_release_id: dense-observed-vcf-pilot-10
+status: built
+source_collection_id: opengwas-gwas-vcf
+source_snapshot_id: opengwas-api-r2026-08-10
+release_kind: one-off
+association_coverage: full_gwas
+description: |
+  10 ukb-b GWAS-VCF analyses, resolved via a real OpenGWAS API call and built end-to-end through OpenGWASDB's real dense builder, as a small, current, grounded proof that this Store Family's pipeline (issue #49/#50 resolution, analysis_label, this session's Trait Ontology Mapping work) actually produces a working store -- distinct from the full 2,514-analysis dense-observed-vcf-c128-resolved release, which stays at status: candidate until someone wants to build the whole batch.
+created_at: '2026-08-17T14:43:13Z'
+accepted_at: ~
+generator:
+  name: resources/generators/opengwas-gwas-vcf-dense/generate.R
+  version: sha256:3e0225f6c8e41f6a705797f1b651f0ffaa0dbd07c5c55978c41bae9d1b977984
+  command: Rscript resources/generators/opengwas-gwas-vcf-dense/generate.R --config=families/ukb-b/generators/config-pilot-10.yaml
+    --mode=emit
+build_environment:
+  repo_commit: 273c1fd62897b317adb7cfba39c4bbaf3d351a69
+  pixi_lock_sha256: 2dc6c2d59dd4c11647fde3876c242010b658b5a16c05192f7ade9c53bbf4ea2d
+  pixi_environment: unavailable
+  platform: x86_64-conda-linux-gnu
+  r_version: R version 4.5.3 (2026-03-11)
+source_defaults:
+  source_genome_build: GRCh37
+  license: ~
+  sample_size_kind: ~
+lineage:
+  derived_from: ~
+sidecars:
+  derivations: sidecars/derivations.tsv
+  ancestry: sidecars/ancestry.tsv
+  sd_estimation: sidecars/sd_estimation.tsv
+notes: |
+  Selected via --only-analysis-id: 7 deterministically chosen buildable IDs plus the 3 IDs already used as this generator's own README smoke-test example (ukb-b-10787, ukb-b-11842, ukb-b-19953), so their source VCFs were already available locally.
+
+  Status is `built`, not `validated`: the store built successfully and reads back correctly (see sidecars/build_report.tsv), but validation.yaml's effect_scale/sd_estimation checks genuinely failed for several analyses (implied phenotype SD far from 1 despite original_sd_method=declared_standardised) -- likely because several of these UKB-b fields (procedure codes, symptom checklists) aren't truly continuous SD-standardised traits. That is a real finding about this batch's declared metadata, not a pipeline defect, and is deliberately left failing rather than silently accepted.

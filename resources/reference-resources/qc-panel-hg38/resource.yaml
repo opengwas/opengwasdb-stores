@@ -1,0 +1,32 @@
+resource_id: qc-panel-hg38
+label: Fixed ancestry/effect-scale QC variant panel
+kind: qc_panel
+version: 1
+ancestry: multi
+genome_build: GRCh38
+variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+allele_columns:
+  effect: effect_allele
+  other: other_allele
+location: resources/reference-resources/qc-panel-hg38/qc_panel.tsv
+location_kind: tracked_file
+derived_from_resource_id: ukb-ancestry-mixture-hg38
+description: >
+  A fixed list of 10,000 variants derived from ukb-ancestry-mixture-hg38
+  (issue #28/#29), common (minimum allele frequency >= 0.05) in every one of
+  that panel's 7 super-populations (AFR, AMR, EAS, EUR, MID, NAF, SAS) and
+  spaced at least 250,000bp apart per chromosome. Retained unconditionally
+  by Store Families that opt in via `filter.qc_panel` (issue #30), so AF-based
+  ancestry assignment and reference-AF effect-scale validation have a stable
+  variant backbone even for Analyses with few or no genome-wide-significant
+  hits, rather than depending entirely on whatever survives the signal-driven
+  sparse-region filter. See `build_qc_panel.py` in this directory for the
+  reproducible selection procedure and its parameters.
+status: available
+notes: >
+  Unlike the multi-GB panels this is derived from, the panel itself
+  (~450 KB, 10,000 rows) is small enough to track directly in this
+  repository — `location` is a repo-relative path, not an external one.
+  Regenerate with `build_qc_panel.py` after ukb-ancestry-mixture-hg38 is
+  rebuilt; bump `version` here if the regenerated panel's variant set
+  changes materially.

@@ -1,0 +1,28 @@
+metadata_schema_version: 1
+store_family_id: eqtlgen-cis-pilot
+family_release_id: pilot-10
+status: built
+source_collection_id: eqtlgen-cis
+source_snapshot_id: eqtlgen-2019-cis-full
+source_snapshot:
+  besd_prefix: /data/besd/eqtlgen-sparse
+  source_genome_build: hg19
+release_kind: one-off
+association_coverage: cis
+description: 10 well-known genes' cis-eQTL summary statistics from the eQTLGen Consortium's 2019 whole-blood cis-eQTL meta-analysis (31,684 samples), built into a real Ragged Observed-Only Store via opengwasdb's existing build_ragged_from_besd(). Proves the BESD -> Ragged pipeline end to end; not the full eQTLGen cis-eQTL catalogue (19,250 genes).
+created_at: "2026-09-05T14:16:16.135606+00:00"
+generator:
+  name: resources/generators/eqtlgen-besd-ragged/generate.py
+  command: python3 resources/generators/eqtlgen-besd-ragged/generate.py --config=.rebuild133/eqtlgen-config-pilot-10.yaml
+build_environment:
+  repo_commit: 7a1cba261bcdae4ca5df2b9eb53ba804c1223323
+  opengwasdb_version: 0.2.0
+  opengwasdb_commit: 6ef919e721d5b7368acad591264be50f79b77dfb
+  pixi_lock_sha256: f76211f9a1483fb35dd67f5961f97693e8c9c33c075dad82a80e8a885a6359aa
+  pixi_environment: unavailable
+  platform: Linux-4.18.0-553.155.1.el8_10.x86_64-x86_64-with-glibc2.28
+  python_version: 3.11.15
+sidecars:
+  selection: sidecars/selection.tsv
+  build_report: sidecars/build_report.tsv
+notes: "Probes chosen for well-characterised cis-eQTL signal and biological familiarity (lipid metabolism, immune response, tumour suppression), spanning 8 chromosomes and including one MHC-adjacent locus (TNF). Gene symbols for each Ensembl probe ID: ENSG00000175445=LPL, ENSG00000134243=SORT1, ENSG00000130203=APOE, ENSG00000073605=GSDMB, ENSG00000164308=ERAP2, ENSG00000232810=TNF, ENSG00000141510=TP53, ENSG00000136244=IL6, ENSG00000087237=CETP, ENSG00000136997=MYC."

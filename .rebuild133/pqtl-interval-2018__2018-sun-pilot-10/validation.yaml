@@ -1,0 +1,55 @@
+status: passed
+validated_at: 2026-09-05T15:02:44.473007+00:00
+validator:
+  name: resources/generators/gwas-ssf-ragged/build-store.py
+  version: null
+build_environment:
+  repo_commit: 7a1cba261bcdae4ca5df2b9eb53ba804c1223323
+  opengwasdb_version: 0.2.0
+  opengwasdb_commit: 6ef919e721d5b7368acad591264be50f79b77dfb
+  pixi_lock_sha256: f76211f9a1483fb35dd67f5961f97693e8c9c33c075dad82a80e8a885a6359aa
+  pixi_environment: unavailable
+  platform: Linux-4.18.0-553.155.1.el8_10.x86_64-x86_64-with-glibc2.28
+  python_version: 3.11.15
+checks:
+  schema: passed
+  files: passed
+  reader_smoke_test: passed
+  ancestry: not_run
+  effect_scale: not_run
+  sd_estimation: not_run
+  sparse_regions: passed
+reports:
+  build_report: sidecars/build_report.tsv
+warnings:
+  - GCST005806: analysis_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST005806: trait_ontology_id present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST005806: trait_ontology_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240120: analysis_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240120: trait_ontology_id present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240120: trait_ontology_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240121: analysis_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240121: trait_ontology_id present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240121: trait_ontology_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240122: analysis_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240122: trait_ontology_id present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240122: trait_ontology_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240123: analysis_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240123: trait_ontology_id present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240123: trait_ontology_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240124: analysis_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240124: trait_ontology_id present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240124: trait_ontology_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240125: analysis_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240125: trait_ontology_id present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240125: trait_ontology_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240126: analysis_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240126: trait_ontology_id present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240126: trait_ontology_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240127: analysis_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240127: trait_ontology_id present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240127: trait_ontology_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240128: analysis_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240128: trait_ontology_id present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+  - GCST90240128: trait_ontology_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83)
+errors: []

@@ -1,0 +1,26 @@
+status: passed
+validated_at: 2026-09-07T14:59:33.689137+00:00
+validator:
+  name: resources/generators/opengwas-gwas-vcf-dense/build-store.py
+  version: null
+build_environment:
+  repo_commit: 8bd722b4185a5702e73c6582af1f4eedca9a5e62
+  opengwasdb_version: 0.2.0
+  opengwasdb_commit: unavailable
+  pixi_lock_sha256: f76211f9a1483fb35dd67f5961f97693e8c9c33c075dad82a80e8a885a6359aa
+  pixi_environment: dev
+  platform: Linux-4.18.0-553.155.1.el8_10.x86_64-x86_64-with-glibc2.28
+  python_version: 3.11.15
+checks:
+  schema: passed
+  files: passed
+  reader_smoke_test: passed
+  ancestry: not_run
+  effect_scale: not_run
+  sd_estimation: not_run
+  store: passed
+reports:
+  metadata_resolution: sidecars/derivations.tsv
+  build_report: sidecars/build_report.tsv
+warnings: []
+errors: []

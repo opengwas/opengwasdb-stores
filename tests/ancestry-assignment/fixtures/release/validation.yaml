@@ -1,27 +1,16 @@
-status: passed_with_warnings
-validated_at: 2026-08-07T12:40:00.291335+00:00
+status: not_run
+validated_at: ~
 validator:
-  name: resources/generators/gwas-ssf-ragged/ancestry-assign.py
-  version: null
-build_environment:
-  repo_commit: 8aa630d6edc1e873f47b879209f483dc749165c9
-  opengwasdb_version: 0.1.0
-  opengwasdb_commit: fad80f216365eb14bb990805a70d6b8908213c56
-  pixi_lock_sha256: 9d26f18a4e04d3ef87cf60399ac18ac4a0b78027bdc309076dfab833eebbf0ad
-  pixi_environment: dev
-  platform: Linux-4.18.0-553.141.1.el8_10.x86_64-x86_64-with-glibc2.28
-  python_version: 3.11.15
+  name: ~
+  version: ~
 checks:
   schema: not_run
   files: not_run
   reader_smoke_test: not_run
-  ancestry: passed_with_warnings
+  ancestry: not_run
   effect_scale: not_run
   sd_estimation: not_run
   sparse_regions: not_run
 reports: {}
-warnings:
-  - FIXT_MIXED: ancestry gate failed (margin)
-  - FIXT_LOW_OVERLAP: ancestry gate failed (overlap)
-  - FIXT_MISMATCH: source_ancestry_label='European' disagrees with AF-based dominant_superpop='AFR'
+warnings: []
 errors: []

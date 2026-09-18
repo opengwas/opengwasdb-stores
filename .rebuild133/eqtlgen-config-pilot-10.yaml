@@ -1,0 +1,41 @@
+store_family_id: eqtlgen-cis-pilot
+family_release_id: pilot-10
+source_collection_id: eqtlgen-cis
+release_kind: one-off
+association_coverage: cis
+description: "10 well-known genes' cis-eQTL summary statistics from the eQTLGen Consortium's 2019 whole-blood cis-eQTL meta-analysis (31,684 samples), built into a real Ragged Observed-Only Store via opengwasdb's existing build_ragged_from_besd(). Proves the BESD -> Ragged pipeline end to end; not the full eQTLGen cis-eQTL catalogue (19,250 genes)."
+notes: "Probes chosen for well-characterised cis-eQTL signal and biological familiarity (lipid metabolism, immune response, tumour suppression), spanning 8 chromosomes and including one MHC-adjacent locus (TNF). Gene symbols for each Ensembl probe ID: ENSG00000175445=LPL, ENSG00000134243=SORT1, ENSG00000130203=APOE, ENSG00000073605=GSDMB, ENSG00000164308=ERAP2, ENSG00000232810=TNF, ENSG00000141510=TP53, ENSG00000136244=IL6, ENSG00000087237=CETP, ENSG00000136997=MYC."
+
+source:
+  source_snapshot_id: eqtlgen-2019-cis-full
+  besd_prefix: /data/besd/eqtlgen-sparse
+  source_genome_build: hg19
+  tissue: whole_blood
+
+selection:
+  probe_ids:
+    # LPL -- lipoprotein lipase, chr8
+    - ENSG00000175445
+    # SORT1 -- chr1, classic LDL-cholesterol eQTL locus
+    - ENSG00000134243
+    # APOE -- chr19
+    - ENSG00000130203
+    # GSDMB -- chr17, asthma-associated
+    - ENSG00000073605
+    # ERAP2 -- chr5, classic strong eQTL
+    - ENSG00000164308
+    # TNF -- chr6, MHC-adjacent, immune
+    - ENSG00000232810
+    # TP53 -- chr17, tumour suppressor
+    - ENSG00000141510
+    # IL6 -- chr7, immune
+    - ENSG00000136244
+    # CETP -- chr16, lipid metabolism
+    - ENSG00000087237
+    # MYC -- chr8, oncogene
+    - ENSG00000136997
+
+output:
+  release_dir: .rebuild133/eqtlgen-cis-pilot__pilot-10
+  artifact_root: /data/opengwasdb/wip/rebuild-133/artifacts
+  artifact_subdir: eqtlgen-cis-pilot

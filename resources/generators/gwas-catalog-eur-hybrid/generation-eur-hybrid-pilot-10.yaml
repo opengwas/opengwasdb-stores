@@ -1,0 +1,25 @@
+store_id: OGS-00004
+family: gwas-catalog-eur-hybrid
+label: eur-hybrid-pilot-10
+_note: Lifted verbatim from the pre-ADR-0022 build.yaml. These are Phase B inputs -- source reading, effect-scale
+  resolution, ancestry assignment, QC panel -- not Store build parameters. Retained for provenance; the
+  Phase B design has not yet been written.
+source:
+  source_format: gwas-ssf
+  source_reader_capability: opengwasdb.gwas-ssf
+  source_genome_build: GRCh38
+normalisation:
+  target_reference_assembly: GRCh38
+  liftover: null
+  source_assembly: hg38
+effects:
+  stored_effect_scale: log_or
+shape:
+  association_coverage: full_gwas
+reference_resources:
+- resource_id: hybrid-ieua-dense-panel
+  kind: hybrid_dense_panel
+  genome_build: GRCh38
+  variant_id_convention: chr:pos:A1:A2 (A1 = min(allele1, allele2))
+  location: /data/opengwasdb/wip/hybrid-ieua/panel_alids.txt
+  location_kind: external_file

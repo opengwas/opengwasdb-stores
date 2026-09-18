@@ -1,0 +1,35 @@
+status: passed_with_warnings
+validated_at: 2026-08-31T19:47:07.738910+00:00
+validator:
+  name: opengwasdb validate
+  version: opengwasdb@6ef919e721d5b7368acad591264be50f79b77dfb
+build_environment:
+  opengwasdb_version: 0.2.0
+  opengwasdb_commit: 6ef919e721d5b7368acad591264be50f79b77dfb
+  python_version: 3.11.15
+  platform: Linux-4.18.0-553.141.1.el8_10.x86_64-x86_64-with-glibc2.28
+observed:
+  format_version: null
+  n_analyses: null
+  n_variants: null
+  n_associations: null
+  store_bytes: null
+  build_elapsed_s: null
+  validate_status: passed_with_warnings
+checks:
+  schema: passed
+  files: passed
+  reader_smoke_test: passed
+  ancestry: passed
+  effect_scale: passed
+  sd_estimation: passed
+  sparse_regions: passed_with_warnings
+reports:
+  sparse_regions: sidecars/sparse_regions.tsv
+  filter_summary: sidecars/filter_summary.tsv
+  sd_estimation: sidecars/sd_estimation.tsv
+  ancestry: sidecars/ancestry.tsv
+  build_report: sidecars/build_report.tsv
+warnings:
+  - store has 58053989 associations but filter summary records 58054205
+errors: []

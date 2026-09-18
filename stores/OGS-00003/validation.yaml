@@ -1,0 +1,39 @@
+status: passed
+validated_at: '2026-09-16T14:14:11.806844Z'
+validator:
+  name: opengwasdb validate
+  version: opengwasdb@987aec1baca9e218e062d468c948b410264a9341
+build_environment:
+  opengwasdb_version: 0.3.0
+  opengwasdb_commit: 987aec1baca9e218e062d468c948b410264a9341
+  python_version: 3.11.15
+  platform: Linux-4.18.0-553.155.1.el8_10.x86_64-x86_64-with-glibc2.28
+observed:
+  format_version: '1.0'
+  n_analyses: 10
+  n_variants: 21230615
+  n_associations: 212306150
+  store_bytes: null
+  build_elapsed_s: 1730.458
+  validate_status: passed
+checks:
+  schema: passed
+  files: passed
+  reader_smoke_test: passed
+  ancestry: passed
+  effect_scale: failed
+  sd_estimation: failed
+  selection: passed
+  metadata_resolution: passed
+  store: passed
+reports:
+  selection: sidecars/selection.tsv
+  metadata_resolution: sidecars/derivations.tsv
+  downloads: sidecars/downloads.tsv
+  ancestry: sidecars/ancestry.tsv
+  sd_estimation: sidecars/sd_estimation.tsv
+  build_report: sidecars/build_report.tsv
+  pilot_assessment: pilot_report.md
+warnings:
+- finngen-r13-HEIGHT_IRN: empirical effect-scale status=failed
+errors: []

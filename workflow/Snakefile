@@ -1,0 +1,205 @@
+"""Phase A: every accepted Release Bundle in stores/, wired by dependency only.
+
+    pixi run release OGS-00003             one release, plus any parent it needs
+    pixi run release OGS-00003 OGS-00004   several; lineage order is resolved
+    pixi run index                         regenerate master list and summaries
+
+One Snakefile for the whole registry rather than one per release, so
+Snakemake's own wildcard expansion is the multi-release runner and a
+Reference-Completed release can declare its parent's `register` record as a
+real input edge. A batch loop would have to sequence parents before children
+by hand.
+
+Per ADR 0023 this file contains no source column name,
+no manifest translation, and no layout branch. It asks `ogstores.plan` for the
+Step list and hands each Step to `ogstores.run`; the tracked output is always
+that step's record file, never the Store directory -- a half-written Store
+must not satisfy a rule. It also materialises the derived build manifest by
+calling `ogstores.manifest`; it carries no filtering logic itself (ADR 0025).
+
+    build_manifest --> build (or complete) --> top_hits --> rho --> overview --> validate --> register
+
+The `build_manifest` rule feeds every build-phase command: `plan()` resolves
+the `analyses` token to the derived path `<artifact-root>/<store_id>/work/
+analyses.tsv`, which is the first planned step's input, so Snakemake builds the
+filtered manifest before the builder sees it. Completion commands read only
+their parent Store, so they depend on no manifest step.
+
+Post-steps exist only when supported by the selected command: notably, Ragged
+Store envelopes exclude overview.html, so Ragged plans go directly to validate
+after their final supported index step.
+
+Every execution step is one rule over a `{step}` wildcard, because the rules
+differed only in which name they looked up. The chain's shape lives in
+`plan()`, so `step_input` reads the planned order rather than restating it.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+from snakemake.exceptions import WorkflowError
+
+# Ensure src/ is on sys.path when invoked via snakemake CLI
+_CANDIDATE_SRC_DIRS = [
+    Path(workflow.basedir).parent / "src" if hasattr(workflow, "basedir") else None,
+    Path(workflow.snakefile).resolve().parents[1] / "src" if hasattr(workflow, "snakefile") and workflow.snakefile else None,
+    Path.cwd() / "src",
+]
+for _src in _CANDIDATE_SRC_DIRS:
+    if _src is not None and _src.is_dir() and str(_src) not in sys.path:
+        sys.path.insert(0, str(_src))
+
+from ogstores import bundle, index, manifest, paths, register, run
+from ogstores.plan import plan
+
+REGISTRY_ROOT: Path = Path(config.get("registry_root", "stores"))
+if not REGISTRY_ROOT.is_dir() and (Path.cwd() / "stores").is_dir():
+    REGISTRY_ROOT = Path.cwd() / "stores"
+
+ALL_STORE_IDS: list[str] = sorted([
+    d.name for d in REGISTRY_ROOT.iterdir()
+    if d.is_dir() and paths.is_valid_store_id(d.name) and (d / "release.yaml").is_file()
+]) if REGISTRY_ROOT.is_dir() else []
+
+EXECUTION_STEPS = ["build", "complete", "top-hits", "rho", "overview", "validate"]
+
+
+def get_bundle(store_id: str) -> bundle.Bundle:
+    """Load bundle for store_id from active REGISTRY_ROOT."""
+    return bundle.load(store_id, registry_root=REGISTRY_ROOT)
+
+
+def get_artifact_root() -> Path:
+    """Resolve the artifact root from configuration, never from a Build Recipe.
+
+    Precedence is the workflow `--config artifact_root=`, the
+    `OPENGWASDB_ARTIFACT_ROOT` environment variable, the repository
+    `ogstores.yaml`, then the built-in default (issue #126).
+    """
+    return paths.artifact_root(config.get("artifact_root"))
+
+
+def get_steps(store_id: str, root: Path | str | None = None):
+    """Derive the planned Step list for store_id without layout branching (ADR 0023)."""
+    return plan(get_bundle(store_id), artifact_root=root or get_artifact_root())
+
+
+def record(store_id: str, step: str, root: Path | str | None = None) -> str:
+    """Tracked record file for one step of one release."""
+    return str(paths.record_path(store_id, step, root=root or get_artifact_root()))
+
+
+def step_input(wildcards) -> list[str]:
+    """Predecessor of a step: the prior record, the parent's register, or raw sources.
+
+    The first planned step of a derived release takes its parent's `register`
+    record, which is what sequences a lineage without a hand-written batch order.
+    """
+    names = [s.name for s in get_steps(wildcards.store_id, wildcards.root)]
+    idx = names.index(wildcards.step)
+    if idx > 0:
+        return [record(wildcards.store_id, names[idx - 1], wildcards.root)]
+
+    parent = get_bundle(wildcards.store_id).derived_from
+    if parent:
+        return [record(parent, "register", wildcards.root)]
+    return [str(p) for p in get_steps(wildcards.store_id, wildcards.root)[0].inputs]
+
+
+wildcard_constraints:
+    root=".+",
+    store_id=r"OGS-\d{5}",
+    step="|".join(EXECUTION_STEPS)
+
+
+rule all:
+    input:
+        [record(sid, "register") for sid in ALL_STORE_IDS]
+
+
+rule build_manifest:
+    input:
+        lambda wildcards: str(get_bundle(wildcards.store_id).analyses_path)
+    output:
+        manifest="{root}/{store_id}/work/analyses.tsv",
+        sidecar="{root}/{store_id}/work/analyses.exclusions.json",
+    run:
+        manifest.materialise_build_manifest(
+            Path(input[0]),
+            Path(output.manifest),
+            Path(output.sidecar),
+        )
+
+
+rule step:
+    input:
+        step_input
+    output:
+        "{root}/{store_id}/records/{step}.json"
+    run:
+        step = next(
+            s for s in get_steps(wildcards.store_id, wildcards.root)
+            if s.name == wildcards.step
+        )
+        run.run_step(
+            step,
+            store_id=wildcards.store_id,
+            artifact_root=wildcards.root,
+            resume=(step.name == "complete"),
+        )
+
+
+rule register:
+    input:
+        lambda wildcards: record(
+            wildcards.store_id,
+            [s.name for s in get_steps(wildcards.store_id, wildcards.root)][-1],
+            wildcards.root,
+        )
+    output:
+        "{root}/{store_id}/records/register.json"
+    run:
+        register.register_release(
+            get_bundle(wildcards.store_id),
+            registry_root=REGISTRY_ROOT,
+            artifact_root=wildcards.root,
+            force=False,
+            publish=True,
+        )
+
+
+# Target aliases, so an operator names a release rather than a path.
+for sid in ALL_STORE_IDS:
+    rule:
+        name: sid
+        input: record(sid, "register")
+
+
+def reject_unknown_store_id(wildcards):
+    """Replace Snakemake's generic missing-rule error with registry guidance."""
+    registered = ", ".join(ALL_STORE_IDS) or "(none)"
+    raise WorkflowError(
+        f"Unknown Store Release ID {wildcards.store_id!r}. Registered IDs: {registered}"
+    )
+
+
+rule unknown_store_release:
+    input:
+        reject_unknown_store_id
+    output:
+        "{store_id,OGS-[0-9]{5}}"
+
+
+rule index:
+    input:
+        [str(REGISTRY_ROOT / sid / "release.yaml") for sid in ALL_STORE_IDS],
+        [str(REGISTRY_ROOT / sid / "build.yaml") for sid in ALL_STORE_IDS],
+        [str(REGISTRY_ROOT / sid / "analyses.tsv") for sid in ALL_STORE_IDS],
+    run:
+        index.generate_index(
+            registry_root=REGISTRY_ROOT,
+            repo_root=Path(workflow.basedir).parent if hasattr(workflow, "basedir") else Path.cwd(),
+            artifact_root=config.get("artifact_root"),
+        )

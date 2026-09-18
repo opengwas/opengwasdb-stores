@@ -1,0 +1,21 @@
+analysis_id	source_analysis_id	status	skip_reason	af_source	ancestry_reference_id	original_sd	original_sd_method	n_variants_considered	n_variants_overlapping	n_variants_excluded_ambiguous	n_variants_excluded_mismatch	n_variants_excluded_missing_af	n_variants_excluded_maf	n_variants_retained	maf_min	maf_max	implied_sd_median	sd_dispersion	sd_notes	estimator_version
+finngen-r13-BMI_IRN	BMI_IRN	passed		source			declared_standardised	19991	18277			1714	0	18277	0.01	0.5	0.9312106786768978	0.001488974706129964	one-pass source-AF estimate	opengwasdb:0.1.0
+finngen-r13-HEIGHT_IRN	HEIGHT_IRN	failed		source			declared_standardised	19991	18277			1714	0	18277	0.01	0.5	0.6649811756323274	0.0010619916096658022	one-pass source-AF estimate	opengwasdb:0.1.0
+finngen-r13-WEIGHT_IRN	WEIGHT_IRN	passed		source			declared_standardised	19991	18277			1714	0	18277	0.01	0.5	0.8772049893375151	0.001397930362989186	one-pass source-AF estimate	opengwasdb:0.1.0
+finngen-r13-RX_PARACETAMOL_NSAID	RX_PARACETAMOL_NSAID	skipped	non_quantitative_effect_scale				binary_trait	19991	18277			1714	0	18277	0.01	0.5			non_quantitative_effect_scale	opengwasdb:0.1.0
+finngen-r13-K11_ORAL	K11_ORAL	skipped	non_quantitative_effect_scale				binary_trait	19991	18277			1714	0	18277	0.01	0.5			non_quantitative_effect_scale	opengwasdb:0.1.0
+finngen-r13-FG_CVD	FG_CVD	skipped	non_quantitative_effect_scale				binary_trait	19991	18277			1714	0	18277	0.01	0.5			non_quantitative_effect_scale	opengwasdb:0.1.0
+finngen-r13-PAIN	PAIN	skipped	non_quantitative_effect_scale				binary_trait	19991	18277			1714	0	18277	0.01	0.5			non_quantitative_effect_scale	opengwasdb:0.1.0
+finngen-r13-AB1_INFECT_PARASIT_WIDE	AB1_INFECT_PARASIT_WIDE	skipped	non_quantitative_effect_scale				binary_trait	19991	18277			1714	0	18277	0.01	0.5			non_quantitative_effect_scale	opengwasdb:0.1.0
+finngen-r13-RX_STATIN	RX_STATIN	skipped	non_quantitative_effect_scale				binary_trait	19991	18277			1714	0	18277	0.01	0.5			non_quantitative_effect_scale	opengwasdb:0.1.0
+finngen-r13-M13_ARTHROPATHIES	M13_ARTHROPATHIES	skipped	non_quantitative_effect_scale				binary_trait	19991	18277			1714	0	18277	0.01	0.5			non_quantitative_effect_scale	opengwasdb:0.1.0
+finngen-r13-PULM_INFECTIONS	PULM_INFECTIONS	skipped	non_quantitative_effect_scale				binary_trait	19991	18277			1714	0	18277	0.01	0.5			non_quantitative_effect_scale	opengwasdb:0.1.0
+finngen-r13-N14_FEMALEGENNONINF	N14_FEMALEGENNONINF	skipped	non_quantitative_effect_scale				binary_trait	19991	18277			1714	0	18277	0.01	0.5			non_quantitative_effect_scale	opengwasdb:0.1.0
+finngen-r13-ANTIDEPRESSANTS	ANTIDEPRESSANTS	skipped	non_quantitative_effect_scale				binary_trait	19991	18277			1714	0	18277	0.01	0.5			non_quantitative_effect_scale	opengwasdb:0.1.0
+finngen-r13-O15_DELIV_SPONT	O15_DELIV_SPONT	skipped	non_quantitative_effect_scale				binary_trait	19991	18277			1714	0	18277	0.01	0.5			non_quantitative_effect_scale	opengwasdb:0.1.0
+finngen-r13-KRA_PSY_ANYMENTAL	KRA_PSY_ANYMENTAL	skipped	non_quantitative_effect_scale				binary_trait	19991	18277			1714	0	18277	0.01	0.5			non_quantitative_effect_scale	opengwasdb:0.1.0
+finngen-r13-CD2_BENIGN	CD2_BENIGN	skipped	non_quantitative_effect_scale				binary_trait	19991	18277			1714	0	18277	0.01	0.5			non_quantitative_effect_scale	opengwasdb:0.1.0
+finngen-r13-G6_EPIPAROX	G6_EPIPAROX	skipped	non_quantitative_effect_scale				binary_trait	19991	18277			1714	0	18277	0.01	0.5			non_quantitative_effect_scale	opengwasdb:0.1.0
+finngen-r13-AUTOIMMUNE	AUTOIMMUNE	skipped	non_quantitative_effect_scale				binary_trait	19991	18277			1714	0	18277	0.01	0.5			non_quantitative_effect_scale	opengwasdb:0.1.0
+finngen-r13-J10_UPPERDIS	J10_UPPERDIS	skipped	non_quantitative_effect_scale				binary_trait	19991	18277			1714	0	18277	0.01	0.5			non_quantitative_effect_scale	opengwasdb:0.1.0
+finngen-r13-C3_CANCER_WIDE	C3_CANCER_WIDE	skipped	non_quantitative_effect_scale				binary_trait	19991	18277			1714	0	18277	0.01	0.5			non_quantitative_effect_scale	opengwasdb:0.1.0

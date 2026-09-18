@@ -39,3 +39,34 @@ __pycache__/
 # opengwas_api.R's fetch_opengwas_gwasinfo()); never committed.
 .Renviron
 .env
+# Throwaway workflow-prototype runtime state.
+.prototype-state/
+.snakemake/
+
+# Per-run outputs of the LD-panel eigendecomposition suite (the committed
+# fixtures are the sequential .ldeig.npz; -par/-seq are comparison artifacts).
+tests/ld-panel-eigendecomposition/fixtures/panel/**/*.ldeig-par.npz
+tests/ld-panel-eigendecomposition/fixtures/panel/**/*.ldeig-seq.npz
+
+# Test-suite outputs (issue #125).
+#
+# These are written by each suite's own `generate_fixtures` script on every run,
+# which unlinks and rewrites them, so the committed copies were destroyed before
+# they could ever be read. Tracking them meant every test run dirtied the working
+# tree, which would make the "regenerate and fail on a dirty tree" CI gates in
+# #124 and #131 flaky.
+#
+# Only the generated files are listed. The generator scripts, configs,
+# candidates tables, `source/` and `reference-af/` inputs stay tracked -- and so
+# do `release/build.yaml` and `release/release.yaml`, which sit alongside
+# generated files in the same directory but are inputs.
+tests/ancestry-assignment/fixtures/reference/ref_freqs.hg38.tsv.gz
+tests/ancestry-assignment/fixtures/release/filtered/
+tests/effect-scale-validation/fixtures/release/analyses.tsv
+tests/effect-scale-validation/fixtures/release/validation.yaml
+tests/effect-scale-validation/fixtures/release/filtered/
+tests/effect-scale-validation/fixtures/release/sidecars/
+tests/ld-panel-eigendecomposition/fixtures/panel/
+tests/no-cis-region-policy/fixtures/output/
+tests/qc-panel-retention/fixtures/output-with-panel/
+tests/qc-panel-retention/fixtures/output-without-panel/

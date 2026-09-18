@@ -1,0 +1,38 @@
+store_id: OGS-00006
+label: 2023-chen-full-european
+access_posture: public
+status: built
+derived_from: null
+created_at: '2026-08-04T11:00:49Z'
+description: 'Full European-ancestry slice of the Chen et al. 2023 plasma metabolome atlas (PMID 36635386):
+  every candidate analysis for this ancestry, no cap, as a single-ancestry no-cis ragged GWAS-SSF release.
+
+  '
+source_snapshot_id: gwas-catalog-v1.0.3.1-r2026-07-10
+accepted_at: null
+generator:
+  version: sha256:d48e94f4170c4e91a8713c2891d4da46399ae53fed26867c2a40d86cc72b2dfe
+  commands:
+    - Rscript resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R --config=resources/generators/metabolome-plasma-2023/config-european.yaml --mode=emit
+notes: 'Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), scaled up per-ancestry (issue
+  #31''s "run the whole thing" follow-on): single-ancestry selection (ancestry_group: European, matching
+  the candidates table''s own store_key partitioning) rather than the pilot''s mixed-ancestry-plus-AF-assignment
+  approach, since each store here is already known single-ancestry from the source label. ancestry_assignment
+  stays enabled with the fixed QC panel (issue #28/#29/#30) as a source/AF mislabel QC check, not for
+  splitting.
+
+
+  Built (opengwasdb#100/#101 fixes; opengwasdb@1ecfd1e): 1,400 analyses, 12,086,426 variants, 58,053,989
+  associations. 108 duplicate (analysis, variant) pairs had conflicting z-scores across two source rows
+  and were dropped entirely for those cells (opengwasdb#101) -- see validation.yaml''s warning; one of
+  these is what originally surfaced the opengwasdb#101 bug (a top-hit index violation before the fix).
+  Reference completion is currently blocked: complete_ragged_store only enumerates LD blocks via a cis
+  window (trait_chr/trait_bp), which this no-gene-target family has none of, so completion is a no-op
+  (opengwasdb#102). No Reference-Completed sibling exists yet.
+
+  Release Erratum (issue #133): assigned_ancestry was recorded as the free-text Source Ancestry Label
+  "European" while the membership table already recorded the super-population code "EUR"; normalised here. The quantitative Analyses also stored n_cases/n_controls as 0 where the counts
+  are not applicable; those cells are now empty (absence is distinct from zero). source_ancestry_label
+  remains "European" as source provenance. No Store artifact was rebuilt or rewritten.
+
+  '

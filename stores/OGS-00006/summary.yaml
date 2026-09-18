@@ -1,0 +1,8 @@
+n_analyses: 1400
+first_author: Chen Y
+publication_pmid: '36635386'
+tissue: plasma
+context: metabolomics
+assigned_ancestry: EUR
+sample_size: 3441-8299
+source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/

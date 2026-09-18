@@ -1,0 +1,36 @@
+store_id: OGS-00003
+label: r13-pilot-20
+access_posture: public
+status: built
+derived_from: null
+created_at: '2026-08-18T08:51:59Z'
+description: 'Bounded FinnGen R13 onboarding trial containing all three inverse-rank-normalised quantitative
+  endpoints and 17 case-control endpoints selected deterministically across distinct manifest categories.
+  This is not the full FinnGen collection.
+
+  '
+source_snapshot_id: finngen-r13-manifest-2026-05-12
+source_snapshot:
+  manifest_url: https://storage.googleapis.com/finngen-public-data-r13/summary_stats/finngen_R13_manifest.tsv
+  manifest_sha256: c9caafa9b98ee5ef050a705766bd1c451fc2154fb8e81b069022012a2f75ae20
+  manifest_size_bytes: 820805
+  manifest_etag: a70f4ecb57acf7c23e8f5d71be11d936
+  manifest_last_modified: '2026-05-12T12:48:15Z'
+accepted_at: null
+generator:
+  version: sha256:1800b9cfa92a03fb48d4f666bdc376be4b31cce7ed50851c3491bbc5ba7fd5e3
+  commands:
+    - Rscript resources/generators/lib/source-formats/finngen-r13-dense/generate.R --config=resources/generators/finngen-r13/config-pilot-20.yaml --mode=emit
+notes: 'Quantitative endpoints are ordered by phenocode. For each binary category, the endpoint with the
+  largest case count wins (phenocode breaks ties); the 17 category winners with the largest case counts
+  are retained (category and phenocode break ties). The frozen provider manifest checksum makes the resulting
+  20-Analysis order reproducible.
+
+
+  Status is `built`, not `validated`: the 20-Analysis Store built and passed OpenGWASDB validation and
+  binary/quantitative read-back probes, but effect-scale validation genuinely failed for finngen-r13-HEIGHT_IRN
+  (implied phenotype SD 0.665 despite declared-standardised provenance). The pilot assessment therefore
+  recommends NO-GO for the complete R13 collection until that discrepancy is resolved; the failure is
+  deliberately retained rather than silently rescaling the endpoint.
+
+  '

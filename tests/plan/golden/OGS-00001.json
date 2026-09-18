@@ -1,0 +1,42 @@
+[
+  {
+    "name": "build",
+    "argv": [
+      "opengwasdb",
+      "build-ragged-besd",
+      "/data/opengwasdb/raw/eqtlgen/pilot-10",
+      "/data/opengwasdb/stores/OGS-00001/store.opengwasdb",
+      "--store-id",
+      "OGS-00001",
+      "--release-id",
+      "OGS-00001",
+      "--analyses",
+      "/data/opengwasdb/stores/OGS-00001/work/analyses.tsv",
+      "--source-build",
+      "hg19",
+      "--tissue",
+      "whole_blood"
+    ],
+    "inputs": [
+      "/data/opengwasdb/raw/eqtlgen/pilot-10.esi",
+      "/data/opengwasdb/raw/eqtlgen/pilot-10.epi",
+      "/data/opengwasdb/raw/eqtlgen/pilot-10.besd",
+      "/data/opengwasdb/stores/OGS-00001/work/analyses.tsv"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00001/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "validate",
+    "argv": [
+      "opengwasdb",
+      "validate",
+      "/data/opengwasdb/stores/OGS-00001/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00001/store.opengwasdb"
+    ],
+    "outputs": []
+  }
+]

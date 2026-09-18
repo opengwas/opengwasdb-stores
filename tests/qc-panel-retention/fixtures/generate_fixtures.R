@@ -50,14 +50,17 @@ candidates <- data.table(
   ancestry_fraction = 1, is_molecular = TRUE, molecular_subtype = "metabolomics",
   store_type = "ragged", store_key = "ragged__pmid-99999999__European",
   molecular_type = "metabolomics", study_design = "quantitative",
-  n_cases = NA_integer_, n_controls = NA_integer_, sample_size = 5000L,
+  # Deliberately 0, not NA: the candidates table represents "not a
+  # case-control study" as zero counts, and the generator must emit blank
+  # Assigned Metadata rather than a fabricated zero (issue #133).
+  n_cases = 0L, n_controls = 0L, sample_size = 5000L,
   n_variants = nrow(full), association_count = nrow(full[p_value <= 5e-8]),
   MAPPED_TRAIT_URI = "http://purl.obolibrary.org/obo/fixture_0000001"
 )
 fwrite(candidates, file.path(fixtures_dir, "candidates.tsv"), sep = "\t", na = "")
 
 # Fixture QC panel: exactly the 15 "panel" positions above, distinct from the
-# real reference-resources/qc-panel-hg38/qc_panel.tsv (this is a tiny
+# real resources/reference-resources/qc-panel-hg38/qc_panel.tsv (this is a tiny
 # deterministic panel for testing the wiring, not real biology).
 qc_panel <- data.table(
   alid = sprintf("1:%d:A:G", panel_positions),

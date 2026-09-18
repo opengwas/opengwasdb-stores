@@ -1,0 +1,35 @@
+[
+  {
+    "name": "complete",
+    "argv": [
+      "opengwasdb",
+      "complete-ragged",
+      "/data/opengwasdb/stores/OGS-00001/store.opengwasdb",
+      "/data/opengwasdb/stores/OGS-00002/store.opengwasdb",
+      "--release-id",
+      "OGS-00002",
+      "--ld-panel",
+      "/data/opengwasdb/reference/hgdp1kgp-hg38/panel",
+      "--ancestry",
+      "EUR"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00001/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00002/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "validate",
+    "argv": [
+      "opengwasdb",
+      "validate",
+      "/data/opengwasdb/stores/OGS-00002/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00002/store.opengwasdb"
+    ],
+    "outputs": []
+  }
+]

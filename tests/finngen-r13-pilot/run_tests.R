@@ -82,7 +82,7 @@ writeLines(as.yaml(config), config_path)
 
 result <- system2(
   "Rscript",
-  c("resources/generators/finngen-r13-dense/generate.R", paste0("--config=", config_path), "--mode=emit"),
+  c("resources/generators/lib/source-formats/finngen-r13-dense/generate.R", paste0("--config=", config_path), "--mode=emit"),
   stdout = TRUE,
   stderr = TRUE
 )
@@ -128,7 +128,7 @@ bad[, sample_size_scope := NULL]
 fwrite(bad, file.path(release_dir, "analyses.tsv"), sep = "\t", na = "")
 bad_result <- suppressWarnings(system2(
   "Rscript",
-  c("resources/generators/finngen-r13-dense/generate.R", paste0("--config=", config_path), "--mode=validate"),
+  c("resources/generators/lib/source-formats/finngen-r13-dense/generate.R", paste0("--config=", config_path), "--mode=validate"),
   stdout = TRUE,
   stderr = TRUE
 ))
@@ -147,7 +147,7 @@ writeLines(as.yaml(bad_checksum_config), bad_checksum_path)
 checksum_result <- suppressWarnings(system2(
   "Rscript",
   c(
-    "resources/generators/finngen-r13-dense/generate.R",
+    "resources/generators/lib/source-formats/finngen-r13-dense/generate.R",
     paste0("--config=", bad_checksum_path),
     "--mode=emit"
   ),

@@ -1,0 +1,42 @@
+store_id: OGS-00004
+label: eur-hybrid-pilot-10
+access_posture: public
+status: built
+derived_from: null
+created_at: '2026-08-17T19:38:49Z'
+description: 'First 10 case-control Analyses from the hybrid__European candidate pool (resources/data/derived/store-candidates-analyses.tsv,
+  6,035 Analyses across 1,007 publications) -- a small, current, grounded proof that GWAS-Catalog-SSF
+  sources build into a real Hybrid OpenGWASDB store via opengwasdb''s GWAS-SSF Source Reader Capability
+  (opengwasdb#84) and its Dense/Hybrid liftover fix (opengwasdb#85).
+
+  '
+source_snapshot_id: gwas-catalog-v1.0.3.1-r2026-07-10
+accepted_at: '2026-08-17T21:20:00Z'
+generator:
+  version: sha256:582e81b22059ddd5f7a6df9e336951a026e02d2774d98cfcbff98a899a0761d3
+  commands:
+    - Rscript resources/generators/lib/source-formats/gwas-ssf-hybrid/generate.R --config=resources/generators/gwas-catalog-eur-hybrid/config-pilot-10.yaml --mode=emit
+notes: 'Deliberately restricted to case-control Analyses (stored_effect_scale= log_or, original_sd_method=binary_trait):
+  this multi-publication pool has no single-family curated effect-scale method the way a single-paper
+  Store Family does, so a quantitative Analysis''s original_sd_method would need real reference-AF phenotype-SD
+  estimation (issue #16''s engine) to be honestly populated rather than assumed. Deferred to a follow-up
+  release (opengwasdb-stores#70) rather than fabricated here. This pilot proves the Hybrid layout and
+  the GWAS-SSF Source Reader Capability end-to-end; it does not yet prove quantitative-trait effect-scale
+  coverage for this pool.
+
+
+  Status is `built`, not `validated`: the store built successfully (10 Analyses, 20,531,956 shared variants
+  -- 9,847,807 on-panel + 10,684,149 off-panel -- and 27,810,834 Ragged Overflow associations, confirming
+  both Hybrid components were genuinely exercised) and reads back correctly, but validation.yaml correctly
+  reports passed_with_warnings. Confirmed directly against this build: opengwasdb.layouts.dense.build_vcf._manifest_row_to_analysis
+  (shared by the Dense and Hybrid builders) drops n_cases/n_controls/sample_size_kind/sample_size_scope/original_effect_scale
+  from the built store despite the manifest supplying real values, and fabricates ancestry_assignment_method=af_assigned
+  regardless of the manifest''s actual (here: source_trusted_no_af) value. Filed as explodecomputer/opengwasdb#86.
+  These are real upstream gaps, not defects in this release; left failing rather than silently accepted.
+
+  Release Erratum (issue #133): assigned_ancestry was recorded as the free-text Source Ancestry Label
+  "European" rather than the registry-normalised super-population code "EUR". Corrected in analyses.tsv;
+  source_ancestry_label remains "European" as source provenance.
+  No Store artifact was rebuilt or rewritten by this registry metadata correction.
+
+  '

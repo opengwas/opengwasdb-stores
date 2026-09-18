@@ -1,0 +1,50 @@
+store_id: OGS-00002
+label: pilot-10-completed
+access_posture: public
+status: validated
+derived_from: OGS-00001
+created_at: '2026-08-18T16:48:16Z'
+description: 'Reference-Completed sibling of pilot-10: the same 10-gene cis-eQTL Ragged Observed-Only
+  Store, reference-completed against the real HGDP+1kGP hg38 EUR LD panel via opengwasdb''s complete_ragged_store().
+  Proves the Ragged Reference-Completion pipeline end to end with real data, satisfying opengwasdb#89''s
+  "at least one Reference-Completed Ragged release" checklist item.
+
+  '
+source_snapshot_id: eqtlgen-2019-cis-full
+accepted_at: '2026-08-18T16:48:16Z'
+generator:
+  version: opengwasdb@553aee3a5ef32ac4f23ffed142808807cf350fd7
+  commands:
+    - opengwasdb complete-ragged /data/opengwasdb/eqtlgen-cis-pilot/releases/pilot-10/store/ragged__eqtlgen-cis-pilot__pilot-10 /data/opengwasdb/eqtlgen-cis-pilot/releases/pilot-10/store/ragged__eqtlgen-cis-pilot__pilot-10-completed --ld-panel /data/opengwasdb/reference/hgdp1kgp-hg38/panel --ancestry EUR --n-workers 32
+notes: 'Completion adds no new Analyses -- analyses.tsv here is unchanged from pilot-10, repeated per
+  the release-bundle convention (self-contained bundles). LD reference completion parameters: min_cor
+  0.7, pca_thresh 0.9 (opengwasdb defaults), ancestry EUR (a direct match -- eqtlgen''s donors are the
+  eQTLGen Consortium''s whole-blood EUR meta-analysis cohort, no ancestry-approximation caveat needed
+  here, unlike finngen-r13-completed).
+
+
+  From the built manifest''s completion provenance: 207,764 total variants across the completed union
+  (121,388 newly added by the LD panel beyond the 86,376-variant build panel), 106,653 imputed cells,
+  14,735 left missing (no correlated on-panel neighbour clearing min_cor). `opengwasdb validate` reports
+  valid.
+
+
+  Release Erratum (issue #134): the 10 Analysis rows leave stored_effect_scale,
+  sample_size_kind, sample_size_scope, sample_size, original_effect_scale,
+  original_sd_method, and ancestry_assignment_method blank, inherited from parent
+  release OGS-00001. The source BESD format does not carry sample size, effect scale,
+  or ancestry metadata per probe or association, and this metadata is not resolvable
+  from tracked evidence inside this repository. In accordance with the project principle
+  that a wrong answer that looks like a right answer is the worst outcome, values are left
+  blank rather than defaulted or fabricated pending external study-level metadata and upstream
+  schema resolution.
+
+  Release Erratum (issue #141): trait_ontology_id held "ENSEMBL:<gene>" and
+  trait_ontology_label held "Ensembl" on all 10 Analysis rows (inherited from
+  parent release OGS-00001) -- a gene identifier where a Trait Ontology term
+  belongs, and an authority name where a trait label belongs. The eQTLGen BESD
+  source supplies no controlled-vocabulary Trait term, so
+  both fields are now empty rather than carrying a gene id or a guess: the absence
+  is the visible, correct answer. The gene identity remains target annotation in
+  trait_chr/trait_bp and analysis_label. No Store artifact was rebuilt or rewritten.
+  '

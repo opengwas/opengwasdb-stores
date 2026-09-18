@@ -15,6 +15,7 @@ Run from the repository root:
 from __future__ import annotations
 
 import struct
+import subprocess
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -23,9 +24,9 @@ import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
-sys.path.insert(0, str(REPO_ROOT / "resources" / "generators" / "eqtlgen-besd-ragged"))
+sys.path.insert(0, str(REPO_ROOT / "resources" / "generators" / "lib" / "source-formats" / "eqtlgen-besd-ragged"))
 
-from subset_besd import write_besd_subset  # noqa: E402
+from subset_besd import write_besd_subset, write_besd_subset_from_analyses  # noqa: E402
 
 from opengwasdb.layouts.ragged.besd_reader import BESDReader, read_epi, read_esi  # noqa: E402
 
@@ -115,9 +116,18 @@ def main() -> None:
         source = tmp_path / "source"
         _write_synthetic_besd(source)
 
-        # --- reproduces source associations for selected probes ---
+        analyses = tmp_path / "analyses.tsv"
+        analyses.write_text(
+            "analysis_id\texclude_from_build\n"
+            "PROBE_A::whole_blood\t\n"
+            "PROBE_B::whole_blood\tfalse\n"
+            "PROBE_C::whole_blood\ttrue\n",
+            encoding="utf-8",
+        )
+
+        # --- accepted analyses.tsv selects probes in manifest order ---
         dest = tmp_path / "subset_ab"
-        result = write_besd_subset(source, dest, probe_ids=["PROBE_A", "PROBE_B"])
+        result = write_besd_subset_from_analyses(analyses, source, dest)
         check(result.n_probes == 2, "n_probes should count only selected probes")
         check(result.n_snps == 3, "n_snps should be rs1/rs2/rs3 -- rs4 is unreferenced")
         check(result.n_associations == 4, "n_associations should sum both probes' association counts")
@@ -126,6 +136,25 @@ def main() -> None:
                 _read_associations(dest, probe_id) == _read_associations(source, probe_id),
                 f"{probe_id}: subset associations must exactly match source associations",
             )
+        check(
+            [p.probe_id for p in read_epi(f"{dest}.epi")] == ["PROBE_A", "PROBE_B"],
+            "analysis_id tissue suffixes must be removed and excluded rows skipped",
+        )
+
+        # --- command-line interface takes analyses.tsv, input, and output ---
+        cli_dest = tmp_path / "subset_cli"
+        script = REPO_ROOT / "resources/generators/lib/source-formats/eqtlgen-besd-ragged/subset_besd.py"
+        cli = subprocess.run(
+            [sys.executable, str(script), str(analyses), str(source), str(cli_dest)],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        check(cli.returncode == 0, f"subset CLI failed: {cli.stderr}")
+        check(
+            [p.probe_id for p in read_epi(f"{cli_dest}.epi")] == ["PROBE_A", "PROBE_B"],
+            "CLI subset must follow analyses.tsv",
+        )
 
         # --- drops unreferenced SNPs ---
         dest_a = tmp_path / "subset_a"
