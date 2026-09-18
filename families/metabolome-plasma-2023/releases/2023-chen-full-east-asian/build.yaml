@@ -33,7 +33,7 @@ reference_resources:
   genome_build: GRCh38
   variant_id_convention: chr:pos:A1:A2 (A1 = min(allele1, allele2))
   allele_columns: ~
-  location: reference-resources/qc-panel-hg38/qc_panel.tsv
+  location: resources/reference-resources/qc-panel-hg38/qc_panel.tsv
   location_kind: tracked_file
   fine_group_map: ~
 effect_scale_validation:

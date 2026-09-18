@@ -1,7 +1,12 @@
-# Store Families
+# Unmigrated Release Bundles
 
-Store Families describe intended OpenGWASDB analytical products. Each family owns its Manifest Generator, accepted Release Manifests, Build Recipes, validation records, Store Releases, and Release Errata.
+Not part of the repository layout -- see `CONTRIBUTING.md`. What remains here
+is the thirteen Release Bundles that have not yet been given a Store Release id
+under ADR 0022: superseded releases, `-resolved` and `-completed-issue34`
+variants, full-ancestry siblings, and rebuild bundles.
 
-Use `_candidates/` for proposed Store Families that are still being assessed and have not yet received a permanent Store Family ID.
+Each is either migrated to `stores/<store-id>/` or marked `superseded` /
+`withdrawn` and retired. This directory goes when it empties.
 
-Within an accepted Store Family, `releases/<family-release-id>/` may contain candidate release bundles once they have a Family Release ID. Unreviewed generator output should stay outside the curated `releases/` tree.
+The Store Family record tier was retired (ADR 0028); family-specific
+generator code moved to `resources/generators/<family-id>/`.

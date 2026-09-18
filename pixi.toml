@@ -82,7 +82,8 @@ threadpoolctl = ">=3.0"
 # at production scale (up to 107/108 duplicate pairs genuinely conflicting in
 # one release). Now resolved (identical duplicates collapse, conflicting ones
 # drop) rather than silently kept.
-# Bumped for issue #76/opengwasdb#114: `z` is now stored as `int16` fixed point
+#
+# Previously bumped for issue #76/opengwasdb#114: `z` is now stored as `int16` fixed point
 # at scale 1/1024 with a sparse exact overflow table, not `float16`, and the
 # store format moves to `format_version` 1.0 (ADR 0037 §1, ADR 0038). This is a
 # breaking store-format change, so it is the first pin bump that changes what a
@@ -100,7 +101,26 @@ threadpoolctl = ">=3.0"
 #     but they can no longer be reference-completed by it, and they do not gain
 #     the accuracy: a 0.1 store's p-value at |z| = 47.8 is still wrong by 1.82x.
 #     Rebuilding them is opengwasdb#117, tracked in docs/store-catalog.md.
-opengwasdb = { git = "https://github.com/explodecomputer/opengwasdb", rev = "6ef919e721d5b7368acad591264be50f79b77dfb" }
+#
+# Bumped for issue #106: repin to canonical repository URL
+# (https://github.com/opengwas/opengwasdb) and an immutable dev revision.
+# Pinned to `dev` because opengwasdb `main` is temporarily frozen while
+# dependent work is in flight, whereas all current opengwasdb development is
+# on `dev` (the repository's default branch). This immutable dev commit
+# (a9e8bc825af692cdb5bb7cba39d56d11654fcebe) provides the store-orchestration
+# rewrite prerequisites: canonical analyses.tsv column consumption in dense,
+# hybrid, and ragged-ssf builders (opengwasdb#170, #172), --analyses metadata overlay
+# in build-ragged-besd (opengwasdb#173), per-release CLI defaults
+# --source-reader-capability and --source-assembly (opengwasdb#174), structured
+# JSON output in info/validate (opengwasdb#175), estimate-phenotype-sd CLI
+# (opengwasdb#176), and format 0.1.0 alignment / v0.3.0 (opengwasdb#143, #171, #177, #178).
+#
+# REVERT CONDITION:
+# Once `dev` merges to `main` and `main` is canonical again, move this pin back
+# to a `main` revision. Tracking a long-lived non-default branch is a temporary
+# accommodation for the current `main` freeze, not the intended steady state.
+# Issue #106 tracks this reversion.
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", branch = "dev" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"
@@ -109,11 +129,12 @@ r-yaml = "*"
 # data.table::fread() shells out to R.utils to read .gz files directly; never
 # library()'d explicitly, so it's easy to miss auditing only `library()` calls.
 "r-r.utils" = "*"
-# Needed by resources/lib/metadata_resolvers/opengwas_api.R's
+# Needed by resources/generators/lib/metadata_resolvers/opengwas_api.R's
 # fetch_opengwas_gwasinfo() (issue #49) to call the live OpenGWAS API; the
 # tested resolve_opengwas_api_metadata() itself has no network dependency.
 r-httr = "*"
 r-jsonlite = "*"
+r-openssl = "*"
 r-ieugwasr = ">=1.1.0,<2"
 
 [feature.reporting.dependencies]
@@ -138,10 +159,11 @@ curl = "*"
 git = "*"
 gh = "*"
 sqlite = "*"
+snakemake-minimal = ">=9,<10"
 
-[feature.workflow-prototype.dependencies]
-# PROTOTYPE ONLY: used to test whether a release-centric Snakemake DAG makes
-# the Store Release architecture and resume behavior tangible.
+[feature.workflow.dependencies]
+# Phase A orchestration. The DAG only wires dependencies and resource requests;
+# every semantic step is an `opengwasdb` subcommand (ADR 0023).
 snakemake-minimal = ">=9,<10"
 
 # ---------------------------------------------------------------------------
@@ -156,7 +178,7 @@ default = { features = ["python", "store-build", "r"], solve-group = "main" }
 docs = { features = ["r", "reporting"], solve-group = "main" }
 ld-panel = { features = ["python", "ld-panel"], solve-group = "main" }
 dev = { features = ["python", "store-build", "r", "reporting", "ld-panel", "dev"], solve-group = "main" }
-workflow-prototype = { features = ["python", "workflow-prototype"], solve-group = "prototype" }
+workflow = { features = ["python", "store-build", "workflow"], solve-group = "main" }
 
 # ---------------------------------------------------------------------------
 # Tasks
@@ -166,10 +188,20 @@ workflow-prototype = { features = ["python", "workflow-prototype"], solve-group 
 test = { cmd = "python3 resources/scripts/run_all_tests.py" }
 test-python = { cmd = "python3 resources/scripts/run_all_tests.py --only python" }
 test-r = { cmd = "python3 resources/scripts/run_all_tests.py --only r" }
+bundle-check = { cmd = "python3 resources/scripts/check_bundles.py" }
 env-check = { cmd = "python3 resources/scripts/env_check.py" }
+index-ci = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
-[feature.workflow-prototype.tasks]
-prototype-release-pipeline = { cmd = "python3 resources/prototypes/snakemake-release-pipeline/tui.py" }
+[feature.r.tasks]
+materialise-gwas-ssf-ragged = { cmd = "Rscript resources/scripts/materialise-gwas-ssf-ragged.R" }
+
+[feature.workflow.tasks]
+# Phase A. `release` takes one or more Store Release ids; lineage order is
+# resolved by the DAG, so a Reference-Completed child never needs sequencing
+# by hand. `index` regenerates the master list from the bundles alone.
+release = { cmd = "snakemake --snakefile workflow/Snakefile --cores all --" }
+release-dry = { cmd = "snakemake --snakefile workflow/Snakefile --dry-run --" }
+index = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
 [feature.reporting.tasks]
 docs = { cmd = "bash resources/scripts/build-site.sh" }

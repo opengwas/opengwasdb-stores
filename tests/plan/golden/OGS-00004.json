@@ -1,0 +1,53 @@
+[
+  {
+    "name": "build",
+    "argv": [
+      "opengwasdb",
+      "build-hybrid",
+      "/data/opengwasdb/stores/OGS-00004/work/analyses.tsv",
+      "/data/opengwasdb/stores/OGS-00004/store.opengwasdb",
+      "--store-id",
+      "OGS-00004",
+      "--release-id",
+      "OGS-00004",
+      "--reference-panel",
+      "/data/opengwasdb/reference/alid-panel/EUR-variants.tsv.gz",
+      "--source-reader-capability",
+      "opengwasdb.gwas-ssf",
+      "--source-assembly",
+      "hg38"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00004/work/analyses.tsv"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00004/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "overview",
+    "argv": [
+      "opengwasdb",
+      "regenerate-overview",
+      "/data/opengwasdb/stores/OGS-00004/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00004/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00004/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "validate",
+    "argv": [
+      "opengwasdb",
+      "validate",
+      "/data/opengwasdb/stores/OGS-00004/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00004/store.opengwasdb"
+    ],
+    "outputs": []
+  }
+]

@@ -1,0 +1,52 @@
+store_id: OGS-00005
+label: eur-hybrid-quant-pilot-10
+access_posture: public
+status: built
+derived_from: null
+created_at: '2026-08-18T00:50:57Z'
+description: 'First 10 quantitative-trait Analyses from the hybrid__European candidate pool (resources/data/derived/store-candidates-analyses.tsv)
+  with a usable phenotype-SD estimate -- the follow-up opengwasdb-stores#70 promised: eur-hybrid-pilot-10
+  proved the Hybrid layout and GWAS-SSF Source Reader Capability on case-control Analyses (no SD estimation
+  needed, binary_trait); this release proves the same pipeline for quantitative Analyses, whose original_sd_method
+  has to be established empirically via resources/lib/effect_scale_validation.R''s reference-AF engine
+  (already proven end-to-end by gwas-ssf-ragged) rather than assumed, since this multi-publication pool
+  has no single-family curated effect-scale method.
+
+  '
+source_snapshot_id: gwas-catalog-v1.0.3.1-r2026-07-10
+accepted_at: '2026-08-18T01:20:00Z'
+generator:
+  version: sha256:b264d40e4af51da5033abfe56f3161d91273d6b26ec18bd5fa9f8be9720b3947
+  commands:
+    - Rscript resources/generators/lib/source-formats/gwas-ssf-hybrid/generate.R --config=resources/generators/gwas-catalog-eur-hybrid/config-quant-pilot-10.yaml --mode=emit
+notes: 'original_sd_method starts at `unavailable` (never `declared_standardised` -- this pool has no
+  evidence any of these papers'' betas are already phenotype-SD-standardised) and is overwritten only
+  where empirical estimation actually passes/warns. Any Analysis where estimation is skipped or fails
+  is excluded from the build (exclude_from_build=true) rather than crashing the whole batch over one unresolved
+  row or silently defaulting -- see generate.R''s effect_scale_stage(). All 10 Analyses here passed (8
+  via source-provided AF, 2 via the ukb-hg38-eur-af reference-AF fallback), so none were excluded this
+  run.
+
+
+  Status is `built`, not `validated`: the store built successfully (10 Analyses, 14,763,864 shared variants
+  -- 9,847,807 on-panel + 4,916,057 off-panel -- and 6,562,223 Ragged Overflow associations, confirming
+  both Hybrid components were genuinely exercised again on a different Analysis mix) and reads back correctly,
+  but validation.yaml correctly reports passed_with_warnings for the same confirmed opengwasdb#86 gap
+  as eur-hybrid-pilot-10 (sample_size_kind/sample_size_scope/original_effect_scale dropped, ancestry_assignment_method
+  fabricated as af_assigned). Left failing rather than silently accepted.
+
+
+  Also surfaced here: resources/lib/effect_scale_validation.R''s phenotype-SD estimator shells out to
+  a Python bridge with every retained variant''s se/af serialised as a command-line JSON array (estimate_phenotype_sd())
+  -- built and proven against gwas-ssf-ragged''s sparse per-Analysis files (hundreds to low-thousands
+  of variants), it fails ("cannot popen") against this generator''s full genome-wide harmonised files
+  well before the OS''s own ARG_MAX. Worked around here by sampling a bounded 2,000-variant subset per
+  Analysis before estimation (generate.R''s thin_for_sd_estimation()); the underlying engine itself was
+  not changed. Tracked as opengwasdb-stores#71.
+
+  Release Erratum (issue #133): assigned_ancestry was recorded as the free-text Source Ancestry Label
+  "European" rather than the registry-normalised super-population code "EUR". Corrected in analyses.tsv;
+  source_ancestry_label remains "European" as source provenance.
+  No Store artifact was rebuilt or rewritten by this registry metadata correction.
+
+  '

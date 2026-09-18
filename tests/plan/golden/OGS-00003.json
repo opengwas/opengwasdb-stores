@@ -1,0 +1,67 @@
+[
+  {
+    "name": "build",
+    "argv": [
+      "opengwasdb",
+      "build-dense-vcf",
+      "/data/opengwasdb/stores/OGS-00003/work/analyses.tsv",
+      "/data/opengwasdb/stores/OGS-00003/store.opengwasdb",
+      "--store-id",
+      "OGS-00003",
+      "--release-id",
+      "OGS-00003",
+      "--source-reader-capability",
+      "opengwasdb.finngen-r13",
+      "--source-assembly",
+      "hg38",
+      "--n-workers",
+      "10"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00003/work/analyses.tsv"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00003/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "top-hits",
+    "argv": [
+      "opengwasdb",
+      "build-dense-top-hits",
+      "/data/opengwasdb/stores/OGS-00003/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00003/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00003/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "overview",
+    "argv": [
+      "opengwasdb",
+      "regenerate-overview",
+      "/data/opengwasdb/stores/OGS-00003/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00003/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00003/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "validate",
+    "argv": [
+      "opengwasdb",
+      "validate",
+      "/data/opengwasdb/stores/OGS-00003/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00003/store.opengwasdb"
+    ],
+    "outputs": []
+  }
+]

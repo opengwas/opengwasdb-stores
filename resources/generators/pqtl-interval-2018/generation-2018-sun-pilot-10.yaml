@@ -1,0 +1,43 @@
+store_id: OGS-00007
+family: pqtl-interval-2018
+label: 2018-sun-pilot-10
+_note: Lifted verbatim from the pre-ADR-0022 build.yaml. These are Phase B inputs -- source reading, effect-scale
+  resolution, ancestry assignment, QC panel -- not Store build parameters. Retained for provenance; the
+  Phase B design has not yet been written.
+source:
+  source_format: gwas-ssf
+  source_reader_capability: opengwasdb.gwas-ssf
+  source_genome_build: GRCh38
+normalisation:
+  target_reference_assembly: GRCh38
+  liftover: null
+effects:
+  stored_effect_scale: sd
+shape:
+  association_coverage: cis_plus_signals
+  ragged_region_policy: cis-1mb_sig-trans-1mb_suggestive-leads
+reference_resources:
+- resource_id: ukb-hg38-eur-af
+  kind: reference_af
+  ancestry: European
+  genome_build: GRCh38
+  variant_id_convention: chr:pos_ref_alt
+  allele_columns:
+    effect: EA
+    other: OA
+    freq: EAF
+  location: /data/opengwasdb/reference/ukb-hg38
+  location_kind: external_directory
+  fine_group_map: null
+effect_scale_validation:
+  enabled: true
+  reference_resources:
+  - ancestry: European
+    resource_id: ukb-hg38-eur-af
+  thresholds:
+    maf_min: 0.01
+    maf_max: 0.5
+    min_overlap_variants: 20
+    sd_tolerance: 0.15
+    warning_multiplier: 2.0
+    dispersion_max: 0.5

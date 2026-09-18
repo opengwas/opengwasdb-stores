@@ -1,0 +1,10 @@
+store_id: OGS-00006
+layout: ragged
+completion_state: observed_only
+build:
+  command: build-ragged-ssf
+  options:
+    stored-effect-scale: sd
+post:
+  top_hits: true
+  overview: false

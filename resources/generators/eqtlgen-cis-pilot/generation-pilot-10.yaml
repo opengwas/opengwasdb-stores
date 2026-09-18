@@ -1,0 +1,16 @@
+store_id: OGS-00001
+family: eqtlgen-cis-pilot
+label: pilot-10
+_note: Lifted verbatim from the pre-ADR-0022 build.yaml. These are Phase B inputs -- source reading, effect-scale
+  resolution, ancestry assignment, QC panel -- not Store build parameters. Retained for provenance; the
+  Phase B design has not yet been written.
+source:
+  source_format: besd
+  source_reader_capability: null
+normalisation:
+  target_reference_assembly: GRCh38
+  liftover: hg19-to-hg38
+effects:
+  stored_effect_scale: null
+shape:
+  association_coverage: cis

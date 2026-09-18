@@ -1,0 +1,50 @@
+resource_id: ukb-ancestry-mixture-hg38
+label: UK Biobank ancestry-mixture reference allele frequencies (Privé 2022)
+kind: ancestry_mixture
+ancestry: multi
+super_populations:
+  - AFR
+  - AMR
+  - EAS
+  - EUR
+  - MID
+  - NAF
+  - SAS
+genome_build: GRCh38
+variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+allele_columns:
+  effect: effect_allele
+  other: other_allele
+  freq: one column per fine ancestry group (see fine_group_map)
+location: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
+location_kind: external_file
+fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+description: >
+  Privé (2022) UK Biobank-derived reference allele frequencies across 21 fine
+  ancestry groups, used by opengwasdb.ancestry.assign_ancestry to fit an
+  NNLS mixture per Analysis and gate a dominant super-population call
+  (issue #23). Built from bigsnpr's ref_freqs.csv.gz (figshare file
+  31620968, originally GRCh37) via opengwasdb's
+  scripts/build_ancestry_reference.py, which lifts to GRCh38, re-keys each
+  variant to the canonical ALID convention (chr:pos:A1:A2 with
+  A1 = min(a0, a1)), and orients every fine group's frequency to that
+  canonical A1. `fine_group_map` records which of the 21 fine groups
+  aggregate to which of the 7 super-populations (AFR, AMR, EAS, EUR, MID,
+  NAF, SAS) for routing-level composition. The tracked
+  `source_label_map.tsv` beside this file translates free-text Source Ancestry
+  Labels from the candidates table to these codes; both the Ancestry
+  Assignment stage and the manifest generators read it so Assigned Ancestry
+  stays in one vocabulary across every Release Bundle (issue #133).
+
+  This is a distinct resource from `ukb-hg38-eur-af`: that one is a
+  single-ancestry LD/AF panel used for reference-MAF effect-scale
+  validation (issue #16); this one is a multi-ancestry mixture-frequency
+  panel used for AF-based ancestry assignment. They share a genome build
+  but nothing else.
+status: available
+notes: >
+  Both the raw downloaded ref_freqs.csv.gz (~890 MB, cached for
+  re-derivation) and the built ref_freqs.hg38.tsv.gz (~470 MB) live outside
+  this repository under the configured reference root. Only this resource
+  declaration and the release evidence it produces (the ancestry sidecar)
+  are tracked.

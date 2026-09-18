@@ -1,0 +1,95 @@
+store_family_id: gwas-catalog-eur-hybrid
+family_release_id: eur-hybrid-quant-pilot-10
+store_key: hybrid__European__pilot10-quant
+source_collection_id: gwas-catalog-ssf
+release_kind: one-off
+association_coverage: full_gwas
+description: >
+  First 10 quantitative-trait Analyses from the hybrid__European candidate
+  pool (resources/data/derived/store-candidates-analyses.tsv) with a
+  usable phenotype-SD estimate -- the follow-up opengwasdb-stores#70
+  promised: eur-hybrid-pilot-10 proved the Hybrid layout and GWAS-SSF
+  Source Reader Capability on case-control Analyses (no SD estimation
+  needed, binary_trait); this release proves the same pipeline for
+  quantitative Analyses, whose original_sd_method has to be established
+  empirically via resources/generators/lib/effect_scale_validation.R's reference-AF
+  engine (already proven end-to-end by gwas-ssf-ragged) rather than
+  assumed, since this multi-publication pool has no single-family curated
+  effect-scale method.
+notes: >
+  original_sd_method starts at `unavailable` (never `declared_standardised`
+  -- this pool has no evidence any of these papers' betas are already
+  phenotype-SD-standardised) and is overwritten only where empirical
+  estimation actually passes/warns. Any Analysis where estimation is
+  skipped or fails is excluded from the build (exclude_from_build=true)
+  rather than crashing the whole batch over one unresolved row or silently
+  defaulting -- see generate.R's effect_scale_stage().
+
+source:
+  source_snapshot_id: gwas-catalog-v1.0.3.1-r2026-07-10
+  ftp_base: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics
+
+inputs:
+  candidates: resources/data/derived/store-candidates-analyses.tsv
+
+selection:
+  store_key: hybrid__European
+  ancestry_group: European
+  study_design: quantitative
+  n_analyses: 10
+
+defaults:
+  source_genome_build: GRCh38
+  license: EBI GWAS Catalog terms of use
+  original_effect_scale: sd
+  original_sd_method: unavailable
+  stored_effect_scale: sd
+  sample_size_kind: total
+  sample_size_scope: analysis_level
+  ancestry_assignment_method: source_trusted_no_af
+  analysis_group_id: gwas-catalog-eur-hybrid-quant-pilot10
+  inclusion_reason: first_10_quantitative_eur_hybrid_pilot
+
+download:
+  timeout_seconds: 3600
+
+output:
+  release_dir: families/gwas-catalog-eur-hybrid/releases/eur-hybrid-quant-pilot-10
+  artifact_root: /data/opengwasdb
+  artifact_subdir: gwas-catalog-eur-hybrid/releases/eur-hybrid-quant-pilot-10
+
+hybrid:
+  source_reader_capability: opengwasdb.gwas-ssf
+  source_assembly: hg38
+
+reference_resources:
+  - resource_id: hybrid-ieua-dense-panel
+    kind: hybrid_dense_panel
+    genome_build: GRCh38
+    variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+    root: /data/opengwasdb/wip/hybrid-ieua/panel_alids.txt
+    location_kind: external_file
+  - resource_id: ukb-hg38-eur-af
+    kind: reference_af
+    ancestry: EUR
+    genome_build: GRCh38
+    variant_id_convention: "chr:pos_ref_alt"
+    allele_columns:
+      effect: EA
+      other: OA
+      freq: EAF
+    root: /data/opengwasdb/reference/ukb-hg38
+    ancestry_dir: EUR
+    location_kind: external_directory
+
+effect_scale_validation:
+  enabled: true
+  maf_min: 0.01
+  maf_max: 0.5
+  min_overlap_variants: 20
+  sd_tolerance: 0.15
+  warning_multiplier: 2.0
+  dispersion_max: 0.5
+  reference_resources:
+    - ancestry: EUR
+      resource_id: ukb-hg38-eur-af
