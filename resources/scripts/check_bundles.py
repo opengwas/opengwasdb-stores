@@ -20,20 +20,33 @@ def main() -> int:
         if path.is_dir() and (path / "release.yaml").is_file()
     )
     failures = 0
+    tolerated_bundles = 0
     for root in bundle_dirs:
-        errors = bundle.check(
+        result = bundle.check(
             bundle.load(root.name, registry_root=registry),
             registry_root=registry,
         )
-        if not errors:
-            print(f"PASS {root.name}")
+        if not result:
+            gaps = result.tolerated
+            if gaps:
+                tolerated_bundles += 1
+                notes = "; ".join(
+                    f"{gap.count} {gap.detail} tolerated under {gap.citation}"
+                    for gap in gaps
+                )
+                print(f"PASS {root.name} ({notes})")
+            else:
+                print(f"PASS {root.name}")
             continue
         failures += 1
         print(f"FAIL {root.name}")
-        for error in errors:
+        for error in result:
             print(f"  - {error}")
 
-    print(f"{len(bundle_dirs) - failures}/{len(bundle_dirs)} Release Bundles passed")
+    summary = f"{len(bundle_dirs) - failures}/{len(bundle_dirs)} Release Bundles passed"
+    if tolerated_bundles:
+        summary += f", {tolerated_bundles} with tolerated gaps"
+    print(summary)
     return 1 if failures else 0
 
 

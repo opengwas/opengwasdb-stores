@@ -12,7 +12,7 @@ See docs/spec/store-release-workflow.md and ADRs 0017, 0022, 0023, and 0028.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -214,6 +214,48 @@ class Bundle:
     def validation_path(self) -> Path | None:
         path = self.root / "validation.yaml"
         return path if path.is_file() else None
+
+
+@dataclass(frozen=True)
+class ToleratedGap:
+    """Errors ``check()`` tolerated rather than reporting on its primary channel.
+
+    ``count`` is how many individual error strings were suppressed; ``detail``
+    names what they were; ``citation`` is the issue (or status) that justifies
+    tolerating them. One record per release, aggregated rather than per-error,
+    so the disclosure is a count a reviewer can quote -- "70 blank required
+    Analysis values" -- not a 70-line echo of the exemption (issue #142).
+    """
+
+    store_id: str
+    count: int
+    detail: str
+    citation: str
+
+
+class CheckResult(list[str]):
+    """``check()``'s two return channels: errors plus tolerated suppressions.
+
+    A ``list`` subclass so the primary channel stays a plain errors list and no
+    existing caller that compares ``== []``, iterates, or tests membership
+    breaks. ``.tolerated`` is the second channel -- a tuple of
+    :class:`ToleratedGap` naming what ``check()`` deliberately did not report,
+    so a caller can surface the gap instead of a clean ``[]`` silently erasing
+    it (issue #142).
+    """
+
+    def __init__(
+        self,
+        errors: Iterable[str] = (),
+        tolerated: Iterable[ToleratedGap] = (),
+    ) -> None:
+        super().__init__(errors)
+        self.tolerated = tuple(tolerated)
+
+    def __repr__(self) -> str:
+        return (
+            f"CheckResult(errors={list(self)!r}, tolerated={self.tolerated!r})"
+        )
 
 
 def _column_values(
@@ -645,17 +687,18 @@ def _check_validation(bundle: Bundle) -> list[str]:
     return errors
 
 
-def _check_analyses(bundle: Bundle) -> list[str]:
+def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
     errors: list[str] = []
+    tolerated: list[ToleratedGap] = []
     try:
         analyses_path = Path(bundle.analyses_path)
         if analyses_path.is_symlink():
-            return [f"analyses file must not be a symbolic link: {analyses_path}"]
+            return [f"analyses file must not be a symbolic link: {analyses_path}"], []
         if not analyses_path.is_file():
-            return [f"analyses file does not exist: {bundle.analyses_path}"]
+            return [f"analyses file does not exist: {bundle.analyses_path}"], []
         table = opengwasdb_analyses.read_analyses(bundle.analyses_path)
     except Exception as exc:
-        return [f"failed to read analyses.tsv: {type(exc).__name__}: {exc}"]
+        return [f"failed to read analyses.tsv: {type(exc).__name__}: {exc}"], []
 
     for column in PHASE_B_REQUIRED_COLUMNS:
         if column not in table.fieldnames:
@@ -754,10 +797,29 @@ def _check_analyses(bundle: Bundle) -> list[str]:
         release.get("status") == "candidate"
         or bundle.store_id in LEGACY_BLANK_ANALYSIS_RELEASES
     )
+    suppressed_blank_values = 0
     for error in analysis_errors:
         if allow_blank_overlay_values and "has no value for required column" in error:
+            suppressed_blank_values += 1
             continue
         errors.append(error)
+    # Surface the exemption on check()'s second channel instead of silently
+    # discarding it: a clean error list must not erase 70 interpretation-bearing
+    # values (issue #142). The suppressed strings are all one form, so the
+    # disclosure is the count, not a 70-line echo.
+    if suppressed_blank_values:
+        tolerated.append(
+            ToleratedGap(
+                store_id=bundle.store_id,
+                count=suppressed_blank_values,
+                detail="blank required Analysis values",
+                citation=(
+                    "#134"
+                    if bundle.store_id in LEGACY_BLANK_ANALYSIS_RELEASES
+                    else "candidate status"
+                ),
+            )
+        )
 
     if {"checksum", "checksum_algorithm"}.issubset(table.fieldnames):
         lengths = {"md5": 32, "sha1": 40, "sha256": 64}
@@ -777,46 +839,62 @@ def _check_analyses(bundle: Bundle) -> list[str]:
                     f"analysis {analysis_id!r} has invalid {algorithm} "
                     f"checksum {checksum!r}"
                 )
-    return errors
+    return errors, tolerated
 
 
 def check(
     bundle: Bundle,
     previous_status: str | Bundle | None = None,
     registry_root: Path | str | None = None,
-) -> list[str]:
+) -> CheckResult:
     """Return every registry-side error found in ``bundle``; never raise.
+
+    The primary return channel is the errors list itself (empty means valid),
+    kept a plain ``list`` by making :class:`CheckResult` a ``list`` subclass, so
+    every existing caller comparing ``== []``, iterating, or testing membership
+    is unchanged. The second channel is ``CheckResult.tolerated``: the
+    suppressions the #134 legacy exemption (and candidate status) deliberately
+    tolerate, each with its count and citation, so a caller can surface the gap
+    instead of a clean ``[]`` silently erasing it (issue #142).
 
     The check reads files contained in the Release Bundle and other registered
     bundles needed to resolve lineage. It never resolves source paths, uses an
     artifact-root helper, or opens/inspects a built Store.
     """
     errors: list[str] = []
-    stages: tuple[tuple[str, Callable[[], list[str]]], ...] = (
-        ("bundle identity", lambda: _check_identity(bundle)),
-        ("release.yaml", lambda: _check_release(bundle)),
-        ("build.yaml", lambda: _check_build(bundle)),
-        ("Release Status transition", lambda: _check_previous_status(bundle, previous_status)),
-        ("Release Lineage", lambda: _check_lineage(bundle, registry_root)),
-        ("validation.yaml", lambda: _check_validation(bundle)),
+    tolerated: list[ToleratedGap] = []
+    stages: tuple[
+        tuple[str, Callable[[], tuple[list[str], list[ToleratedGap]]]], ...
+    ] = (
+        ("bundle identity", lambda: (_check_identity(bundle), [])),
+        ("release.yaml", lambda: (_check_release(bundle), [])),
+        ("build.yaml", lambda: (_check_build(bundle), [])),
+        ("Release Status transition", lambda: (_check_previous_status(bundle, previous_status), [])),
+        ("Release Lineage", lambda: (_check_lineage(bundle, registry_root), [])),
+        ("validation.yaml", lambda: (_check_validation(bundle), [])),
         ("analyses.tsv", lambda: _check_analyses(bundle)),
     )
     for label, stage in stages:
         try:
-            errors.extend(stage())
+            stage_errors, stage_tolerated = stage()
         except Exception as exc:  # The public contract is diagnostic, never exceptional.
             errors.append(f"{label} could not be checked: {type(exc).__name__}: {exc}")
-    return errors
+            continue
+        errors.extend(stage_errors)
+        tolerated.extend(stage_tolerated)
+    return CheckResult(errors, tolerated)
 
 
 __all__ = [
     "BUILD_REQUIRED_KEYS",
     "Bundle",
+    "CheckResult",
     "LEGACY_BLANK_ANALYSIS_RELEASES",
     "LEGAL_STATUS_TRANSITIONS",
     "PHASE_B_REQUIRED_COLUMNS",
     "RELEASE_REQUIRED_KEYS",
     "SUPERPOPULATIONS",
+    "ToleratedGap",
     "VALID_STATUSES",
     "check",
     "is_legal_status_transition",

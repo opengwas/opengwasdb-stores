@@ -19,7 +19,9 @@ The flat opaque Store id made a Store's artifact path a pure function of its ide
 
 ## Consequences
 
-The registry now publishes where a Store *should* live under the flat opaque-id layout. Until the separate relocation happens, that published location will not match where the seven Trial Store Releases' bytes currently sit on disk. This gap is recorded honestly rather than papered over: the derived `store_uri` states the truth of the layout, and the on-disk mismatch is an operational fact owned by the follow-up relocation issue, not a registry fact this column may silently re-encode.
+The registry now publishes where a Store *should* live under the flat opaque-id layout. Whether a particular Trial Store Release's bytes match that published location is an operational fact of the deployment it is running on, not a registry fact: the derived `store_uri` states the truth of the layout, and any on-disk mismatch is owned by the relocation follow-up issue, not a registry fact this column may silently re-encode.
+
+This ADR originally stated the seven releases still sat at their legacy family-first paths. That blanket claim was itself wrong: re-verification on the production host (issue #142) found OGS-00001, OGS-00002, and OGS-00003 already present at `<artifact-root>/<store-id>/store.opengwasdb` with their legacy paths gone, and OGS-00004 through OGS-00007 at neither location there. Because the artifact root is deployment configuration (issue #126), this repository cannot verify every deployment, so the per-release, per-host state is recorded in `stores/README.md` rather than re-asserted here as a general truth.
 
 The legacy family-first paths remain discoverable through the follow-up issue and git history, not through a metadata field that the indexer would otherwise prefer forever.
 

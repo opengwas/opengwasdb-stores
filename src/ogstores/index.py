@@ -209,9 +209,29 @@ def _format_cell(val: Any) -> str:
         return str(val)
 
 
+def tolerated_gaps_by_store(
+    bundles: list[Bundle],
+    registry_root: Path | str,
+) -> dict[str, tuple[bundle.ToleratedGap, ...]]:
+    """Compute each bundle's tolerated suppressions via check()'s second channel.
+
+    The index reads git and Release Bundle files only; ``check()`` honours the
+    same seam (it never opens a Store), so running it here adds no artifact
+    access. Only bundles with a non-empty tolerated gap are returned, so a
+    registry with none renders no gap section (issue #142).
+    """
+    gaps: dict[str, tuple[bundle.ToleratedGap, ...]] = {}
+    for b in bundles:
+        tolerated = tuple(bundle.check(b, registry_root=registry_root).tolerated)
+        if tolerated:
+            gaps[b.store_id] = tolerated
+    return gaps
+
+
 def render_stores_md(
     bundles: list[Bundle],
     rows: list[dict[str, str]],
+    tolerated_gaps: dict[str, tuple[bundle.ToleratedGap, ...]] | None = None,
 ) -> str:
     """Render human-readable STORES.md table."""
     lines: list[str] = [
@@ -263,6 +283,30 @@ def render_stores_md(
             ])
             + " |"
         )
+
+    if tolerated_gaps:
+        lines.extend([
+            "",
+            "## Tolerated gaps",
+            "",
+            "These bundles pass the Release Bundle gate only because a named "
+            "exemption tolerates known-missing required Analysis values. The "
+            "values are genuinely unavailable and left blank rather than "
+            "fabricated (issue #134); the tolerance is the visible remainder, "
+            "not a clean pass.",
+            "",
+            "| Store ID | Tolerated gap |",
+            "|:---|:---|",
+        ])
+        for row in rows:
+            gaps = (tolerated_gaps or {}).get(row["store_id"])
+            if not gaps:
+                continue
+            for gap in gaps:
+                lines.append(
+                    f"| `{row['store_id']}` | {gap.count} {gap.detail} "
+                    f"(tolerated under {gap.citation}) |"
+                )
 
     lines.append("")
     return "\n".join(lines)
@@ -348,6 +392,7 @@ def generate_index(
     bundles = [bundle.load(sid, registry_root=resolved_registry_root) for sid in store_ids]
     for bundle_obj in bundles:
         write_bundle_summary(bundle_obj)
+    tolerated = tolerated_gaps_by_store(bundles, resolved_registry_root)
     # Resolve the artifact root once, from configuration rather than any Build
     # Recipe (issue #126), and render both derived views under it.
     resolved_artifact_root = Path(artifact_root) if artifact_root else paths.artifact_root()
@@ -359,7 +404,7 @@ def generate_index(
     stores_tsv_path.write_text(tsv_content, encoding="utf-8")
 
     # Write STORES.md
-    md_content = render_stores_md(bundles, rows)
+    md_content = render_stores_md(bundles, rows, tolerated_gaps=tolerated)
     stores_md_path = resolved_repo_root / "STORES.md"
     stores_md_path.write_text(md_content, encoding="utf-8")
 
@@ -390,5 +435,6 @@ __all__ = [
     "render_stores_md",
     "render_stores_row",
     "render_stores_tsv",
+    "tolerated_gaps_by_store",
     "write_bundle_summary",
 ]

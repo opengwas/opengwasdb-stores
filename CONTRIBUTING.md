@@ -280,7 +280,11 @@ pixi run --environment docs docs-smoke
 
 `bundle.check(bundle, registry_root=...)` is the executable Release Bundle
 contract. It returns a list of every registry-side error it can find (an empty
-list means valid) and never raises for invalid bundle content. It reads only
+list means valid) and never raises for invalid bundle content. The returned
+list also carries a second channel, `.tolerated`, naming the suppressions the
+#134 legacy exemption (and candidate status) deliberately tolerate -- with
+their count and citation -- so a caller can surface the gap rather than read a
+clean `[]` that silently erased it (issue #142). It reads only
 files inside Release Bundles, plus a parent bundle when resolving
 `derived_from`; it never opens a Store or inspects a Release Artifact. The
 `bundle-check` task discovers every bundle under `stores/` and fails if any
