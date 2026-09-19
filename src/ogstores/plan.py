@@ -28,6 +28,13 @@ the workflow builds it first, so an `exclude_from_build` audit row never reaches
 `post` keys that are identical across every Release are defaults rather than
 restated values; see `POST_DEFAULTS` (issue #128).
 
+A Build Recipe may declare an optional `variant_reference` pre-build block for
+the Dense-VCF and Hybrid builders. When declared, `plan()` prepends an
+`extract-variant-reference` Step ahead of the build and appends the declared
+artifact to the build step's inputs. The declared destination must equal the
+build option's `--variant-reference` path, and existence is a runtime fact: the
+planner stays pure and never touches the filesystem (#145/#147).
+
 This is the only place in the repository that knows how to invoke
 `opengwasdb`, which is why the Snakefile's rules and the master list's
 `build_command` are two renderings of one thing and cannot disagree.
@@ -37,6 +44,7 @@ See docs/spec/store-release-workflow.md and ADRs 0022, 0023, 0024.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -133,6 +141,16 @@ COMMANDS: dict[str, CommandSpec] = {
         identity=False,
     ),
 }
+
+# Build-phase subcommands that accept `--variant-reference`, and therefore may
+# be preceded by an `extract-variant-reference` pre-build step (#145/#147).
+VARIANT_REFERENCE_COMMANDS: frozenset[str] = frozenset({"build-dense-vcf", "build-hybrid"})
+
+# The optional Build Recipe block that declares the pre-stage, and the keys it
+# may use to name the destination path. A bare string is also accepted as
+# shorthand for `{output: <string>}`.
+VARIANT_REFERENCE_BLOCK_KEYS: tuple[str, ...] = ("variant_reference", "variant-reference")
+VARIANT_REFERENCE_OUTPUT_KEYS: tuple[str, ...] = ("output", "path", "output_path", "output-path")
 
 DEFAULT_COMMANDS: dict[tuple[str, str], str] = {
     ("dense", "observed_only"): "build-dense-vcf",
@@ -303,6 +321,85 @@ def _post_steps(store_p: Path, post: dict[str, Any], spec: CommandSpec) -> list[
     return steps
 
 
+def _variant_reference_declaration(
+    phase_block: Mapping[str, Any],
+    command: str,
+    options: Mapping[str, Any],
+    store_id: str,
+) -> tuple[Path, dict[str, Any]] | None:
+    """Parse an optional `variant_reference` pre-build declaration.
+
+    Returns the declared destination path and its verbatim-rendered extract
+    options, or None when the Build Recipe does not declare a pre-stage. The
+    declaration is only valid for build commands that accept
+    `--variant-reference`, and its destination must equal the path the build
+    step passes as `--variant-reference`; a mismatch is a recipe error rather
+    than a second, silently divergent source of truth (#145/#147).
+    """
+    raw: Any = None
+    for block_key in VARIANT_REFERENCE_BLOCK_KEYS:
+        if block_key in phase_block:
+            raw = phase_block[block_key]
+            break
+    if raw is None:
+        return None
+
+    if command not in VARIANT_REFERENCE_COMMANDS:
+        raise ValueError(
+            f"Bundle {store_id}: a variant_reference pre-build stage is declared for "
+            f"command {command!r}, which does not accept --variant-reference. "
+            f"Supported commands: {sorted(VARIANT_REFERENCE_COMMANDS)}"
+        )
+
+    extract_options: dict[str, Any] = {}
+    if isinstance(raw, str):
+        declared_output = raw
+    elif isinstance(raw, Mapping):
+        present = [(key, raw[key]) for key in VARIANT_REFERENCE_OUTPUT_KEYS if key in raw]
+        if not present:
+            raise ValueError(
+                f"Bundle {store_id}: variant_reference must name its destination with "
+                f"one of {list(VARIANT_REFERENCE_OUTPUT_KEYS)}"
+            )
+        declared_output = present[0][1]
+        if any(value != declared_output for _, value in present[1:]):
+            raise ValueError(
+                f"Bundle {store_id}: variant_reference declares conflicting destination "
+                f"paths: {present}"
+            )
+        raw_options = raw.get("options")
+        if raw_options is not None:
+            if not isinstance(raw_options, Mapping):
+                raise ValueError(
+                    f"Bundle {store_id}: variant_reference 'options' must be a mapping"
+                )
+            extract_options = dict(raw_options)
+    else:
+        raise ValueError(
+            f"Bundle {store_id}: variant_reference must be a path string or a mapping, "
+            f"not {type(raw).__name__}"
+        )
+
+    if not isinstance(declared_output, str) or not declared_output.strip():
+        raise ValueError(
+            f"Bundle {store_id}: variant_reference destination must be a non-empty string"
+        )
+
+    option_value = options.get("variant-reference")
+    if not isinstance(option_value, str) or not option_value.strip():
+        raise ValueError(
+            f"Bundle {store_id}: variant_reference is declared but build.options does "
+            f"not declare a 'variant-reference' path"
+        )
+    if Path(declared_output) != Path(option_value):
+        raise ValueError(
+            f"Bundle {store_id}: variant_reference output {declared_output!r} does not "
+            f"match build.options 'variant-reference' {option_value!r}"
+        )
+
+    return Path(declared_output), extract_options
+
+
 def _select_spec(bundle: Bundle, key: tuple[str, str]) -> tuple[str, CommandSpec]:
     """Resolve the declared subcommand and its spec, or raise NotImplementedError."""
     phase = "complete" if bundle.completion_state == "reference_completed" else "build"
@@ -354,7 +451,8 @@ def plan(
         paths.require_valid_store_id(bundle.derived_from)
 
     root = _resolve_artifact_root(artifact_root)
-    options = (bundle.build.get(spec.phase) or {}).get("options") or {}
+    phase_block = bundle.build.get(spec.phase) or {}
+    options = phase_block.get("options") or {}
     store_p = paths.store_path(bundle.store_id, root=root)
 
     argv = ["opengwasdb", command]
@@ -371,7 +469,34 @@ def plan(
     for token in spec.inputs:
         inputs.extend(_resolve(token, bundle, root))
 
-    steps = [Step(name=spec.phase, argv=argv, inputs=inputs, outputs=[store_p])]
+    steps: list[Step] = []
+    declaration = _variant_reference_declaration(
+        phase_block, command, options, bundle.store_id
+    )
+    if declaration is not None:
+        ref_output, ref_options = declaration
+        manifest_p = paths.build_manifest_path(bundle.store_id, root=root)
+        ref_argv = [
+            "opengwasdb",
+            "extract-variant-reference",
+            str(manifest_p),
+            "--output-path",
+            str(ref_output),
+        ]
+        ref_argv.extend(render_options(ref_options))
+        steps.append(
+            Step(
+                name="variant-reference",
+                argv=ref_argv,
+                inputs=[manifest_p],
+                outputs=[ref_output],
+            )
+        )
+        # The build step consumes the artifact the pre-stage produces, so the
+        # planned Step graph shows the dependency (acceptance criterion #147).
+        inputs.append(ref_output)
+
+    steps.append(Step(name=spec.phase, argv=argv, inputs=inputs, outputs=[store_p]))
     steps.extend(_post_steps(store_p, bundle.build.get("post") or {}, spec))
     return steps
 
@@ -380,6 +505,9 @@ __all__ = [
     "COMMANDS",
     "DEFAULT_COMMANDS",
     "POST_DEFAULTS",
+    "VARIANT_REFERENCE_BLOCK_KEYS",
+    "VARIANT_REFERENCE_COMMANDS",
+    "VARIANT_REFERENCE_OUTPUT_KEYS",
     "CommandSpec",
     "Step",
     "plan",

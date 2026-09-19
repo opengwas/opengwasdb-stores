@@ -115,6 +115,8 @@ def create_dense_fixture_store(
     post_rho: bool = False,
     post_overview: bool = True,
     post_validate: bool = True,
+    variant_reference_output: str | None = None,
+    variant_reference_options: dict | None = None,
 ) -> Path:
     """Create a complete fixture Release Bundle under stores_dir/<store_id>."""
     store_dir = stores_dir / store_id
@@ -140,18 +142,27 @@ def create_dense_fixture_store(
         "generator": {"command": "test-generator"},
     }
 
+    build_options: dict = {
+        "source-reader-capability": "opengwasdb.gwas-vcf",
+        "source-assembly": "hg38",
+        "allow-unverified-eaf": True,
+    }
+    build_block: dict = {
+        "command": "build-dense-vcf",
+        "options": build_options,
+    }
+    if variant_reference_output is not None:
+        build_options["variant-reference"] = variant_reference_output
+        declaration: dict = {"output": variant_reference_output}
+        if variant_reference_options:
+            declaration["options"] = variant_reference_options
+        build_block["variant_reference"] = declaration
+
     build_yaml = {
         "store_id": store_id,
         "layout": "dense",
         "completion_state": "observed_only",
-        "build": {
-            "command": "build-dense-vcf",
-            "options": {
-                "source-reader-capability": "opengwasdb.gwas-vcf",
-                "source-assembly": "hg38",
-                "allow-unverified-eaf": True,
-            },
-        },
+        "build": build_block,
         "post": {
             "top_hits": post_top_hits,
             "rho": post_rho,
@@ -731,6 +742,75 @@ class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):
         self.assertEqual(res2.returncode, 0)
         self.assertNotIn(f"wildcards: root={self.artifact_root}, store_id={parent_id}", res2.stdout)
 
+
+
+class TestWorkflowVariantReferenceDAG(unittest.TestCase):
+    """The optional variant-reference pre-stage is sequenced before the build (#145/#147)."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.td = Path(self.temp_dir.name)
+        self.stores_dir = self.td / "stores"
+        self.stores_dir.mkdir()
+        self.artifact_root = self.td / "artifacts"
+        self.artifact_root.mkdir()
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def test_declared_pre_stage_is_sequenced_before_build(self) -> None:
+        """Dry-run DAG orders manifest derivation, extraction, build, validate, register."""
+        store_id = "OGS-00060"
+        ref = str(self.artifact_root / store_id / "work" / "variant-ref.tsv.gz")
+        create_dense_fixture_store(
+            self.stores_dir,
+            store_id=store_id,
+            artifact_root=self.artifact_root,
+            variant_reference_output=ref,
+            variant_reference_options={"n-workers": 2},
+        )
+
+        res = run_snakemake(
+            [store_id],
+            registry_root=self.stores_dir,
+            artifact_root=self.artifact_root,
+            dry_run=True,
+        )
+        self.assertEqual(res.returncode, 0, f"Dry run failed:\n{res.stderr}")
+
+        scheduled = scheduled_targets(res.stdout)
+        for step in ("variant-reference", "build", "validate", "register"):
+            self.assertIn(step, scheduled, f"{step!r} was not scheduled: {scheduled}")
+        self.assertLess(
+            scheduled.index("variant-reference"),
+            scheduled.index("build"),
+            f"extraction must precede the build: {scheduled}",
+        )
+        self.assertLess(scheduled.index("build"), scheduled.index("validate"))
+        self.assertLess(scheduled.index("validate"), scheduled.index("register"))
+        if "analyses.exclusions" in scheduled:
+            self.assertLess(
+                scheduled.index("analyses.exclusions"),
+                scheduled.index("variant-reference"),
+                f"manifest derivation must precede extraction: {scheduled}",
+            )
+
+    def test_undeclared_recipe_plans_no_variant_reference_step(self) -> None:
+        """A recipe without a declaration schedules no extraction job."""
+        store_id = "OGS-00061"
+        create_dense_fixture_store(
+            self.stores_dir,
+            store_id=store_id,
+            artifact_root=self.artifact_root,
+        )
+        res = run_snakemake(
+            [store_id],
+            registry_root=self.stores_dir,
+            artifact_root=self.artifact_root,
+            dry_run=True,
+        )
+        self.assertEqual(res.returncode, 0, f"Dry run failed:\n{res.stderr}")
+        self.assertNotIn("variant-reference", scheduled_targets(res.stdout))
 
 
 class TestWorkflowOperatorInterface(unittest.TestCase):

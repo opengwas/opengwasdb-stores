@@ -93,9 +93,11 @@ from ogstores.run import (
     load_record,
     publish_store,
     rewrite_argv_for_staging,
+    rewrite_argv_for_variant_reference,
     run_plan,
     run_step,
     validate_step_name,
+    variant_reference_partial_path,
 )
 
 n_checks = 0
@@ -1387,9 +1389,233 @@ elif action == "step3":
         record_check()
 
 
+class TestVariantReferenceExecution(unittest.TestCase):
+    """Optional variant-reference pre-build step: skip, extract, and atomicity (#145/#147)."""
+
+    def setUp(self) -> None:
+        self.test_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.test_dir.name)
+        self.store_id = "OGS-00042"
+        self.manifest = self.root / "OGS-00042" / "work" / "analyses.tsv"
+        self.manifest.parent.mkdir(parents=True, exist_ok=True)
+        self.manifest.write_text("analysis_id\tsource_file\n")
+
+    def tearDown(self) -> None:
+        self.test_dir.cleanup()
+
+    def _script(self, body: str, name: str = "mock_extract.py") -> Path:
+        script = self.root / name
+        script.write_text(body, encoding="utf-8")
+        return script
+
+    def _step(self, target: Path, script: Path) -> Step:
+        return Step(
+            name="variant-reference",
+            argv=[
+                sys.executable,
+                str(script),
+                str(self.manifest),
+                "--output-path",
+                str(target),
+            ],
+            inputs=[self.manifest],
+            outputs=[target],
+        )
+
+    def test_step_name_valid_and_not_store_producing(self) -> None:
+        """'variant-reference' is an allowed step name and never store-producing."""
+        self.assertEqual(validate_step_name("variant-reference"), "variant-reference")
+        record_check()
+        step = Step(name="variant-reference", argv=["opengwasdb", "extract-variant-reference"], inputs=[], outputs=[])
+        self.assertFalse(is_store_producing_step(step))
+        record_check()
+
+    def test_rewrite_requires_exactly_one_output_path(self) -> None:
+        """A missing or ambiguous --output-path is rejected before execution."""
+        target = self.root / "ref.tsv.gz"
+        partial = variant_reference_partial_path(target)
+        self.assertEqual(partial.name, "ref.tsv.gz.partial")
+        record_check()
+
+        no_dest = Step(name="variant-reference", argv=["opengwasdb", "extract-variant-reference"], inputs=[], outputs=[target])
+        with self.assertRaises(ValueError):
+            rewrite_argv_for_variant_reference(no_dest, target)
+        record_check()
+
+        twice = Step(
+            name="variant-reference",
+            argv=["opengwasdb", "extract-variant-reference", "--output-path", str(target), "--output-path=x"],
+            inputs=[],
+            outputs=[target],
+        )
+        with self.assertRaises(ValueError):
+            rewrite_argv_for_variant_reference(twice, target)
+        record_check()
+
+        spaced = Step(name="variant-reference", argv=["opengwasdb", "extract-variant-reference", "--output-path", str(target)], inputs=[], outputs=[target])
+        self.assertEqual(
+            rewrite_argv_for_variant_reference(spaced, target),
+            ["opengwasdb", "extract-variant-reference", "--output-path", str(partial)],
+        )
+        record_check()
+        equals = Step(name="variant-reference", argv=["opengwasdb", "-", f"--output-path={target}"], inputs=[], outputs=[target])
+        self.assertEqual(rewrite_argv_for_variant_reference(equals, target)[-1], f"--output-path={partial}")
+        record_check()
+
+    def test_skip_if_provided_launches_nothing(self) -> None:
+        """An existing artifact is used as-is: success record with skipped=True, no subprocess."""
+        target = self.root / "refs" / "provided.tsv.gz"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("PROVIDED")
+        sentinel = self.root / "launched.sentinel"
+        script = self._script(
+            "import sys\n"
+            "from pathlib import Path\n"
+            f"Path({str(sentinel)!r}).write_text('ran')\n"
+        )
+
+        res = execute_step(self._step(target, script), store_id=self.store_id, artifact_root=self.root)
+        self.assertTrue(res.success)
+        record_check()
+        self.assertTrue(res.skipped)
+        record_check()
+        self.assertEqual(res.skip_reason, "provided")
+        record_check()
+        self.assertEqual(res.exit_code, 0)
+        record_check()
+        self.assertEqual(res.elapsed_seconds, 0.0)
+        record_check()
+        self.assertFalse(sentinel.exists())
+        record_check()
+        self.assertEqual(target.read_text(), "PROVIDED")
+        record_check()
+
+        rec = load_record(self.store_id, "variant-reference", root=self.root)
+        self.assertIsNotNone(rec)
+        record_check()
+        if rec:
+            self.assertTrue(rec["success"])
+            record_check()
+            self.assertTrue(rec["skipped"])
+            record_check()
+            self.assertEqual(rec["skip_reason"], "provided")
+            record_check()
+            self.assertEqual(rec["argv"], rec["planned_argv"])
+            record_check()
+
+    def test_absent_artifact_runs_extraction_atomically(self) -> None:
+        """An absent artifact runs the extraction and renames the staged file into place."""
+        target = self.root / "refs" / "extracted.tsv.gz"
+        script = self._script(
+            "import sys\n"
+            "from pathlib import Path\n"
+            "argv = sys.argv[1:]\n"
+            "out = Path(argv[argv.index('--output-path') + 1])\n"
+            "out.parent.mkdir(parents=True, exist_ok=True)\n"
+            "out.write_text('EXTRACTED')\n"
+            "print('extracted')\n"
+        )
+
+        res = execute_step(self._step(target, script), store_id=self.store_id, artifact_root=self.root)
+        self.assertTrue(res.success)
+        record_check()
+        self.assertFalse(res.skipped)
+        record_check()
+        self.assertEqual(target.read_text(), "EXTRACTED")
+        record_check()
+        self.assertFalse(variant_reference_partial_path(target).exists())
+        record_check()
+        record_check()
+        # The executed argv names the staged sibling; the planned argv names the destination.
+        idx = res.argv.index("--output-path")
+        self.assertEqual(res.argv[idx + 1], str(variant_reference_partial_path(target)))
+        record_check()
+        self.assertIn(str(target), res.planned_argv)
+        record_check()
+        self.assertGreaterEqual(res.elapsed_seconds, 0.0)
+        record_check()
+
+    def test_failed_extraction_leaves_no_target_or_staged_file(self) -> None:
+        """A nonzero extraction removes its staged file and never writes the target."""
+        target = self.root / "refs" / "failed.tsv.gz"
+        script = self._script(
+            "import sys\n"
+            "from pathlib import Path\n"
+            "argv = sys.argv[1:]\n"
+            "out = Path(argv[argv.index('--output-path') + 1])\n"
+            "out.parent.mkdir(parents=True, exist_ok=True)\n"
+            "out.write_text('PARTIAL')\n"
+            "sys.exit(4)\n",
+            name="mock_extract_fail.py",
+        )
+
+        with self.assertRaises(StepExecutionError):
+            execute_step(self._step(target, script), store_id=self.store_id, artifact_root=self.root)
+        record_check()
+        self.assertFalse(target.exists())
+        record_check()
+        self.assertFalse(variant_reference_partial_path(target).exists())
+        record_check()
+        rec = load_record(self.store_id, "variant-reference", root=self.root)
+        self.assertIsNotNone(rec)
+        record_check()
+        if rec:
+            self.assertFalse(rec["success"])
+            record_check()
+
+    def test_killed_extraction_leaves_no_target_or_staged_file(self) -> None:
+        """An extraction killed by a signal still leaves no incomplete artifact behind."""
+        target = self.root / "refs" / "killed.tsv.gz"
+        script = self._script(
+            "import os, signal, sys\n"
+            "from pathlib import Path\n"
+            "argv = sys.argv[1:]\n"
+            "out = Path(argv[argv.index('--output-path') + 1])\n"
+            "out.parent.mkdir(parents=True, exist_ok=True)\n"
+            "out.write_text('PARTIAL')\n"
+            "os.kill(os.getpid(), signal.SIGKILL)\n",
+            name="mock_extract_kill.py",
+        )
+
+        with self.assertRaises(StepExecutionError):
+            execute_step(self._step(target, script), store_id=self.store_id, artifact_root=self.root)
+        record_check()
+        self.assertFalse(target.exists())
+        record_check()
+        self.assertFalse(variant_reference_partial_path(target).exists())
+        record_check()
+
+    def test_run_plan_continues_past_skipped_pre_stage(self) -> None:
+        """A skipped pre-stage is a success, so a later step still runs."""
+        target = self.root / "refs" / "shared.tsv.gz"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("SHARED")
+        script = self._script("import sys; sys.exit(9)\n", name="mock_extract_boom.py")
+        store_target = paths.store_path(self.store_id, root=self.root)
+        validate_script = self._script(
+            "from pathlib import Path\n"
+            f"Path({str(self.root / 'validated.sentinel')!r}).write_text('ok')\n",
+            name="mock_validate.py",
+        )
+        steps = [
+            self._step(target, script),
+            Step(name="validate", argv=[sys.executable, str(validate_script), str(store_target)], inputs=[store_target], outputs=[]),
+        ]
+        results = run_plan(steps, store_id=self.store_id, artifact_root=self.root, publish=False, check=True)
+        self.assertEqual(len(results), 2)
+        record_check()
+        self.assertTrue(results[0].skipped)
+        record_check()
+        self.assertTrue(results[1].success)
+        record_check()
+        self.assertTrue((self.root / "validated.sentinel").is_file())
+        record_check()
+
+
 def main() -> None:
     suite = unittest.TestSuite()
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestStepClassificationAndArgvRewrite))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestVariantReferenceExecution))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestStagedReleaseTransactionAndPublicationGating))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestProcessGroupAndDescendantIsolation))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestSupervisorGroupGuard))

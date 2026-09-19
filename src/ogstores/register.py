@@ -109,6 +109,22 @@ def normalize_executed_argv_for_staging(
     return normalized
 
 
+def normalize_executed_argv_for_variant_reference(
+    argv: list[str], planned_step: Step,
+) -> list[str]:
+    """Normalize a variant-reference step's staged `--output-path` back to its destination.
+
+    The executor writes the artifact to a staged sibling and renames it into
+    place, so its record carries the staged path while the planned argv names
+    the declared destination. Everything else about the argv must match exactly.
+    """
+    if planned_step.name != run.VARIANT_REFERENCE_STEP or not planned_step.outputs:
+        return list(argv)
+    target = str(planned_step.outputs[0])
+    staged = str(run.variant_reference_partial_path(planned_step.outputs[0]))
+    return [token.replace(staged, target) if staged in token else token for token in argv]
+
+
 def check_argv_drift(
     planned_step: Step,
     executed_record: dict[str, Any],
@@ -139,6 +155,9 @@ def check_argv_drift(
         executed_argv,
         store_id,
         artifact_root=artifact_root,
+    )
+    norm_executed = normalize_executed_argv_for_variant_reference(
+        norm_executed, planned_step
     )
 
     if norm_executed != planned_argv:
@@ -461,5 +480,6 @@ __all__ = [
     "check_argv_drift",
     "harvest_observed_measurements",
     "normalize_executed_argv_for_staging",
+    "normalize_executed_argv_for_variant_reference",
     "register_release",
 ]

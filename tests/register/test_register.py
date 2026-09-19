@@ -59,6 +59,7 @@ def create_test_bundle_and_records(
     derived_from: str | None = None,
     options: dict[str, Any] | None = None,
     post: dict[str, Any] | None = None,
+    variant_reference: object = None,
     custom_records: dict[str, dict[str, Any]] | None = None,
 ) -> tuple[Bundle, Path, Path]:
     """Helper to create a test bundle with staged artifact directories and valid execution records."""
@@ -99,6 +100,9 @@ def create_test_bundle_and_records(
         bld_dict["complete"] = {"command": command, "options": options or {"ancestry": "EUR"}}
     else:
         bld_dict["build"] = {"command": command, "options": options or {"source-assembly": "hg38"}}
+    if variant_reference is not None:
+        block_key = "complete" if completion_state == "reference_completed" else "build"
+        bld_dict[block_key]["variant_reference"] = variant_reference
 
     with open(store_bundle_dir / "release.yaml", "w", encoding="utf-8") as f:
         yaml.safe_dump(rel_dict, f)
@@ -124,6 +128,12 @@ def create_test_bundle_and_records(
                 token.replace(str(paths.store_path(store_id, root=artifact_root)), str(partial_p))
                 for token in step.argv
             ]
+            if step.name == "variant-reference" and step.outputs:
+                staged = str(run.variant_reference_partial_path(step.outputs[0]))
+                executed_argv = [
+                    staged if token == str(step.outputs[0]) else token
+                    for token in executed_argv
+                ]
             stdout_payload = ""
             if step.name in ("build", "complete"):
                 stdout_payload = json.dumps({"n_variants": 1000, "n_analyses": 2, "format_version": "1.0"}) + "\n"
@@ -426,6 +436,79 @@ class TestRegisterStrictSeamAndTripwires(unittest.TestCase):
 
         self.assertEqual(store_read_attempts, [], "Register attempted to read Store internal files")
         self.assertEqual(subprocess_attempts, [], "Register attempted to spawn subprocesses")
+
+
+class TestVariantReferenceRegistration(unittest.TestCase):
+    """Register validates the variant-reference step argv with staged-path normalization (#145/#147)."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.td = Path(self.temp_dir.name)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def _declaring_bundle(self) -> tuple[Bundle, Path, Path, str]:
+        ref = str(self.td / "refs" / "panel.tsv.gz")
+        b, stores_root, artifact_root = create_test_bundle_and_records(
+            self.td,
+            "OGS-00042",
+            options={"variant-reference": ref, "source-assembly": "hg38"},
+            variant_reference={"output": ref, "options": {"n-workers": 4}},
+        )
+        return b, stores_root, artifact_root, ref
+
+    def test_normalization_maps_staged_output_path_back(self) -> None:
+        """The staged `--output-path` normalizes to the declared destination."""
+        target = Path("/refs/panel.tsv.gz")
+        planned = Step(
+            name="variant-reference",
+            argv=["opengwasdb", "extract-variant-reference", "/m.tsv", "--output-path", str(target)],
+            inputs=[],
+            outputs=[target],
+        )
+        staged = str(run.variant_reference_partial_path(target))
+        executed = ["opengwasdb", "extract-variant-reference", "/m.tsv", "--output-path", staged]
+        self.assertEqual(
+            register.normalize_executed_argv_for_variant_reference(executed, planned),
+            planned.argv,
+        )
+
+    def test_planned_extraction_record_registers_without_drift(self) -> None:
+        """A staged extraction record registers cleanly against the planned argv."""
+        b, stores_root, artifact_root, ref = self._declaring_bundle()
+        rec = run.load_record(b.store_id, "variant-reference", root=artifact_root)
+        self.assertIsNotNone(rec)
+        self.assertIn(str(run.variant_reference_partial_path(Path(ref))), rec["argv"])
+
+        val = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+        self.assertEqual(val["status"], "passed")
+
+    def test_skipped_extraction_record_registers_without_drift(self) -> None:
+        """A skipped record carries the planned argv and registers cleanly."""
+        b, stores_root, artifact_root, _ref = self._declaring_bundle()
+        rec_p = paths.record_path(b.store_id, "variant-reference", root=artifact_root)
+        rec = json.loads(rec_p.read_text(encoding="utf-8"))
+        rec["argv"] = list(rec["planned_argv"])
+        rec["skipped"] = True
+        rec["skip_reason"] = "provided"
+        rec["elapsed_seconds"] = 0.0
+        run._write_record_atomically(rec, rec_p)
+
+        val = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+        self.assertEqual(val["status"], "passed")
+
+    def test_drifted_extraction_record_raises(self) -> None:
+        """A changed extract flag is caught as argv drift."""
+        b, stores_root, artifact_root, _ref = self._declaring_bundle()
+        rec_p = paths.record_path(b.store_id, "variant-reference", root=artifact_root)
+        rec = json.loads(rec_p.read_text(encoding="utf-8"))
+        idx = rec["argv"].index("--n-workers")
+        rec["argv"][idx + 1] = "8"
+        run._write_record_atomically(rec, rec_p)
+
+        with self.assertRaises(ArgvDriftError):
+            register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
 
 
 if __name__ == "__main__":

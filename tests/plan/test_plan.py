@@ -20,6 +20,9 @@ Verifies:
   - Uniform --no-<key> for False booleans.
   - List-valued option repetition.
   - Generic --variant-reference option flow from build.options with zero special handling.
+- Optional variant-reference pre-build stage (#145/#147): supported-command and
+  destination-match validation, ordering before the build step, the artifact path
+  among the build step's inputs, verbatim extract options, and planner purity.
 - One Store Release identity: observed builds receive the `OGS-` id as both
   --store-id and --release-id, without reading Store Family.
 - Dense-only rho enforcement (forbidden on Hybrid and other non-Dense layouts).
@@ -1689,6 +1692,221 @@ class TestPostDefaults(unittest.TestCase):
             self.assertNotIn("overview", [s.name for s in plan(b)])
 
 
+class TestVariantReferencePreStage(unittest.TestCase):
+    """The optional variant-reference pre-build stage (#145/#147)."""
+
+    REF = "/root/reference/eur.variant-ref.tsv.gz"
+    MANIFEST = Path("/root/OGS-00094/work/analyses.tsv")
+
+    def _bundle(
+        self,
+        *,
+        layout: str = "dense",
+        command: str = "build-dense-vcf",
+        options: dict | None = None,
+        declaration: object = None,
+        post: dict | None = None,
+    ) -> Bundle:
+        build_block: dict[str, object] = {
+            "command": command,
+            "options": options if options is not None else {},
+        }
+        if declaration is not None:
+            build_block["variant_reference"] = declaration
+        return Bundle(
+            store_id="OGS-00094",
+            root=Path("stores/OGS-00094"),
+            release={
+                "store_id": "OGS-00094",
+                "label": "variant-ref-test",
+                "status": "accepted",
+                "derived_from": None,
+            },
+            build={
+                "store_id": "OGS-00094",
+                "layout": layout,
+                "completion_state": "observed_only",
+                "build": build_block,
+                "post": post
+                if post is not None
+                else {"top_hits": False, "overview": False, "validate": True},
+            },
+            analyses_path=Path("stores/OGS-00094/analyses.tsv"),
+        )
+
+    def test_dense_declared_pre_stage_precedes_build(self) -> None:
+        """A dense declaration plans extraction first and feeds the build step."""
+        b = self._bundle(
+            options={"variant-reference": self.REF, "source-assembly": "hg38"},
+            declaration={
+                "output": self.REF,
+                "options": {"n-workers": 8, "source-assembly": "hg38"},
+            },
+        )
+        steps = plan(b, artifact_root="/root")
+        record_check()
+        self.assertEqual([s.name for s in steps], ["variant-reference", "build", "validate"])
+
+        pre, build = steps[0], steps[1]
+        self.assertEqual(
+            pre.argv,
+            [
+                "opengwasdb",
+                "extract-variant-reference",
+                str(self.MANIFEST),
+                "--output-path",
+                self.REF,
+                "--n-workers",
+                "8",
+                "--source-assembly",
+                "hg38",
+            ],
+        )
+        record_check()
+        self.assertEqual(pre.inputs, [self.MANIFEST])
+        record_check()
+        self.assertEqual(pre.outputs, [Path(self.REF)])
+        record_check()
+        # The build step names the artifact among its inputs.
+        self.assertIn(Path(self.REF), build.inputs)
+        record_check()
+        self.assertIn(self.MANIFEST, build.inputs)
+        record_check()
+
+        validate_step_argv_against_cli(self, pre)
+        validate_step_argv_against_cli(self, build)
+
+    def test_hybrid_declared_pre_stage_and_path_key(self) -> None:
+        """A hybrid declaration also accepts the `path` key and keeps its post steps."""
+        ref = "/root/reference/eur-alids.txt"
+        b = self._bundle(
+            layout="hybrid",
+            command="build-hybrid",
+            options={"variant-reference": ref},
+            declaration={"path": ref},
+            post={"top_hits": False, "overview": True, "validate": True},
+        )
+        steps = plan(b, artifact_root="/root")
+        record_check()
+        self.assertEqual(
+            [s.name for s in steps],
+            ["variant-reference", "build", "overview", "validate"],
+        )
+        self.assertEqual(steps[0].outputs, [Path(ref)])
+        record_check()
+        validate_step_argv_against_cli(self, steps[0])
+
+    def test_string_shorthand_declaration(self) -> None:
+        """A bare string destination is shorthand for {output: <string>}."""
+        ref = "/root/reference/shorthand.tsv.gz"
+        b = self._bundle(options={"variant-reference": ref}, declaration=ref)
+        steps = plan(b, artifact_root="/root")
+        record_check()
+        self.assertEqual(steps[0].name, "variant-reference")
+        record_check()
+        self.assertEqual(steps[0].outputs, [Path(ref)])
+        record_check()
+
+    def test_no_declaration_plans_no_pre_stage(self) -> None:
+        """Declaring only the build option does not by itself plan extraction."""
+        b = self._bundle(options={"variant-reference": self.REF})
+        names = [s.name for s in plan(b, artifact_root="/root")]
+        record_check()
+        self.assertNotIn("variant-reference", names)
+        record_check()
+
+    def test_mismatched_destination_rejected(self) -> None:
+        """A declaration whose destination disagrees with the build option is an error."""
+        b = self._bundle(
+            options={"variant-reference": "/root/a.tsv.gz"},
+            declaration={"output": "/root/b.tsv.gz"},
+        )
+        with self.assertRaises(ValueError) as cm:
+            plan(b, artifact_root="/root")
+        record_check()
+        self.assertIn("does not match", str(cm.exception))
+        record_check()
+
+    def test_missing_build_option_rejected(self) -> None:
+        """A declaration without a matching build option is an error."""
+        b = self._bundle(
+            options={"source-assembly": "hg38"},
+            declaration={"output": "/root/a.tsv.gz"},
+        )
+        with self.assertRaises(ValueError) as cm:
+            plan(b, artifact_root="/root")
+        record_check()
+        self.assertIn("does not declare a 'variant-reference'", str(cm.exception))
+        record_check()
+
+    def test_unsupported_build_command_rejected(self) -> None:
+        """A declaration on a build command without --variant-reference is an error."""
+        ref = "/root/a.tsv.gz"
+        b = self._bundle(
+            layout="ragged",
+            command="build-ragged-ssf",
+            options={"variant-reference": ref},
+            declaration={"output": ref},
+        )
+        with self.assertRaises(ValueError) as cm:
+            plan(b, artifact_root="/root")
+        record_check()
+        self.assertIn("does not accept --variant-reference", str(cm.exception))
+        record_check()
+
+    def test_completion_command_declaration_rejected(self) -> None:
+        """A declaration under a completion block is rejected (unsupported command)."""
+        ref = "/root/a.tsv.gz"
+        b = Bundle(
+            store_id="OGS-00094",
+            root=Path("stores/OGS-00094"),
+            release={
+                "store_id": "OGS-00094",
+                "label": "variant-ref-completed",
+                "status": "accepted",
+                "derived_from": "OGS-00093",
+            },
+            build={
+                "store_id": "OGS-00094",
+                "layout": "dense",
+                "completion_state": "reference_completed",
+                "complete": {
+                    "command": "complete-dense",
+                    "options": {"variant-reference": ref, "ld-panel": "/root/ld"},
+                    "variant_reference": {"output": ref},
+                },
+                "post": {"top_hits": False, "overview": False, "validate": True},
+            },
+            analyses_path=Path("stores/OGS-00094/analyses.tsv"),
+        )
+        with self.assertRaises(ValueError):
+            plan(b, artifact_root="/root")
+        record_check()
+
+    def test_declared_plan_is_pure(self) -> None:
+        """plan() with a declaration performs no filesystem existence checks."""
+
+        def forbidden_io(*args, **kwargs):
+            raise AssertionError(f"Forbidden I/O called with args={args}, kwargs={kwargs}")
+
+        b = self._bundle(
+            options={"variant-reference": self.REF},
+            declaration={"output": self.REF, "options": {"n-workers": 4}},
+        )
+        with mock.patch("builtins.open", side_effect=forbidden_io):
+            with mock.patch.object(Path, "open", side_effect=forbidden_io):
+                with mock.patch.object(Path, "exists", side_effect=forbidden_io):
+                    with mock.patch.object(Path, "is_file", side_effect=forbidden_io):
+                        with mock.patch.object(Path, "is_dir", side_effect=forbidden_io):
+                            with mock.patch.object(Path, "stat", side_effect=forbidden_io):
+                                with mock.patch("os.path.exists", side_effect=forbidden_io):
+                                    with mock.patch("os.stat", side_effect=forbidden_io):
+                                        steps = plan(b, artifact_root="/root")
+                                        record_check()
+                                        self.assertEqual(steps[0].name, "variant-reference")
+                                        record_check()
+
+
 def main() -> None:
     suite = unittest.TestSuite()
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanDense))
@@ -1698,6 +1916,7 @@ def main() -> None:
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestBuildManifestSeam))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestArtifactRootConfiguration))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPostDefaults))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestVariantReferencePreStage))
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     if not result.wasSuccessful():
