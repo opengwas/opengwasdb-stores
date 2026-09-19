@@ -1,0 +1,72 @@
+[
+  {
+    "name": "variant-reference",
+    "argv": [
+      "opengwasdb",
+      "extract-variant-reference",
+      "/data/opengwasdb/stores/OGS-00095/work/analyses.tsv",
+      "--output-path",
+      "/data/opengwasdb/stores/OGS-00095/work/panel-alids.txt",
+      "--n-workers",
+      "4"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00095/work/analyses.tsv"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00095/work/panel-alids.txt"
+    ]
+  },
+  {
+    "name": "build",
+    "argv": [
+      "opengwasdb",
+      "build-hybrid",
+      "/data/opengwasdb/stores/OGS-00095/work/analyses.tsv",
+      "/data/opengwasdb/stores/OGS-00095/store.opengwasdb",
+      "--store-id",
+      "OGS-00095",
+      "--release-id",
+      "OGS-00095",
+      "--variant-reference",
+      "/data/opengwasdb/stores/OGS-00095/work/panel-alids.txt",
+      "--source-reader-capability",
+      "opengwasdb.gwas-ssf",
+      "--source-assembly",
+      "hg38"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00095/work/analyses.tsv",
+      "/data/opengwasdb/stores/OGS-00095/work/panel-alids.txt"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00095/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "overview",
+    "argv": [
+      "opengwasdb",
+      "regenerate-overview",
+      "/data/opengwasdb/stores/OGS-00095/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00095/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00095/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "validate",
+    "argv": [
+      "opengwasdb",
+      "validate",
+      "/data/opengwasdb/stores/OGS-00095/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00095/store.opengwasdb"
+    ],
+    "outputs": []
+  }
+]

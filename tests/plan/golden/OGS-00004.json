@@ -10,7 +10,7 @@
       "OGS-00004",
       "--release-id",
       "OGS-00004",
-      "--reference-panel",
+      "--variant-reference",
       "/data/opengwasdb/reference/alid-panel/EUR-variants.tsv.gz",
       "--source-reader-capability",
       "opengwasdb.gwas-ssf",

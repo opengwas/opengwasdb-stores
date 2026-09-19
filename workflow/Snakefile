@@ -63,7 +63,7 @@ ALL_STORE_IDS: list[str] = sorted([
     if d.is_dir() and paths.is_valid_store_id(d.name) and (d / "release.yaml").is_file()
 ]) if REGISTRY_ROOT.is_dir() else []
 
-EXECUTION_STEPS = ["build", "complete", "top-hits", "rho", "overview", "validate"]
+EXECUTION_STEPS = ["variant-reference", "build", "complete", "top-hits", "rho", "overview", "validate"]
 
 
 def get_bundle(store_id: str) -> bundle.Bundle:

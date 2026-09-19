@@ -10,7 +10,7 @@
       "OGS-00005",
       "--release-id",
       "OGS-00005",
-      "--reference-panel",
+      "--variant-reference",
       "/data/opengwasdb/wip/hybrid-ieua/panel_alids.txt",
       "--source-reader-capability",
       "opengwasdb.gwas-ssf",

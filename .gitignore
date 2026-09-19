@@ -61,7 +61,10 @@ tests/ld-panel-eigendecomposition/fixtures/panel/**/*.ldeig-seq.npz
 # do `release/build.yaml` and `release/release.yaml`, which sit alongside
 # generated files in the same directory but are inputs.
 tests/ancestry-assignment/fixtures/reference/ref_freqs.hg38.tsv.gz
+tests/ancestry-assignment/fixtures/release/analyses.tsv
+tests/ancestry-assignment/fixtures/release/validation.yaml
 tests/ancestry-assignment/fixtures/release/filtered/
+tests/ancestry-assignment/fixtures/release/sidecars/
 tests/effect-scale-validation/fixtures/release/analyses.tsv
 tests/effect-scale-validation/fixtures/release/validation.yaml
 tests/effect-scale-validation/fixtures/release/filtered/
