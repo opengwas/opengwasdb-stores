@@ -1539,8 +1539,8 @@ class TestPlanReferenceCompleted(unittest.TestCase):
             self.assertFalse(Path("/data/besd/eqtlgen-sparse.epi").exists())
             self.assertFalse(Path("/data/opengwasdb/eqtlgen-cis-pilot/releases/pilot-10/source/pilot-10.epi").exists())
 
-            # Verify plan() succeeds for all seven bundles without raising or requiring host existence
-            for i in range(1, 8):
+            # Verify plan() succeeds for all registered bundles without raising or requiring host existence
+            for i in range(1, 11):
                 sid = f"OGS-{i:05d}"
                 b = load(sid)
                 steps = plan(b)
@@ -1661,8 +1661,8 @@ class TestPostDefaults(unittest.TestCase):
         self.assertNotIn("validate", [s.name for s in steps])
 
     def test_committed_recipes_omit_defaulted_keys(self) -> None:
-        """All seven Build Recipes carry only the per-release choices in post."""
-        for i in range(1, 8):
+        """All committed Build Recipes carry only the per-release choices in post."""
+        for i in range(1, 11):
             sid = f"OGS-{i:05d}"
             post = load(sid).build.get("post") or {}
             record_check()
@@ -1674,7 +1674,7 @@ class TestPostDefaults(unittest.TestCase):
 
     def test_committed_recipes_still_plan_validate_and_no_rho(self) -> None:
         """Removing the defaulted keys from the recipes did not change planned steps."""
-        for i in range(1, 8):
+        for i in range(1, 11):
             sid = f"OGS-{i:05d}"
             names = [s.name for s in plan(load(sid))]
             record_check()

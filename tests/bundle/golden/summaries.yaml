@@ -61,3 +61,30 @@ OGS-00007:
   assigned_ancestry: EUR
   sample_size: '3301'
   source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
+OGS-00008:
+  n_analyses: 10
+  first_author: Ben Elsworth
+  publication_pmid: NA
+  tissue: NA
+  context: NA
+  assigned_ancestry: EUR
+  sample_size: 352094-462933
+  source_url: NA
+OGS-00009:
+  n_analyses: 2024
+  first_author: Ben Elsworth
+  publication_pmid: NA
+  tissue: NA
+  context: NA
+  assigned_ancestry: EUR
+  sample_size: 10339-463010
+  source_url: NA
+OGS-00010:
+  n_analyses: 2024
+  first_author: Ben Elsworth
+  publication_pmid: NA
+  tissue: NA
+  context: NA
+  assigned_ancestry: EUR
+  sample_size: 10339-463010
+  source_url: NA

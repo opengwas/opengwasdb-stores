@@ -1,0 +1,15 @@
+store_id: OGS-00009
+label: ukb-b-full-observed
+access_posture: public
+status: candidate
+derived_from: null
+created_at: '2026-09-18T16:00:00Z'
+source_snapshot_id: opengwas-gwas-vcf-ukb-b
+description: Full dense observed-only Store Release containing all 2,024 UK Biobank
+  (ukb-b) GWAS-VCF traits available in the OpenGWAS raw collection.
+generator:
+  commands:
+  - Rscript resources/generators/ukb-b/generate.R --config=resources/generators/ukb-b/config.yaml
+    --mode=emit
+notes: Comprehensive UK Biobank GWAS-VCF observed-only store containing all 2,024
+  traits with raw data in /data/opengwasdb/raw/gwas-vcf/ukb-b.
