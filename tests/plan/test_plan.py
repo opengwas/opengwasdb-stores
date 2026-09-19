@@ -19,7 +19,7 @@ Verifies:
   - Exact preservation of keys (no underscore conversion, no semantic stripping of no- prefix).
   - Uniform --no-<key> for False booleans.
   - List-valued option repetition.
-  - Generic --reference-panel option flow from build.options with zero special handling.
+  - Generic --variant-reference option flow from build.options with zero special handling.
 - One Store Release identity: observed builds receive the `OGS-` id as both
   --store-id and --release-id, without reading Store Family.
 - Dense-only rho enforcement (forbidden on Hybrid and other non-Dense layouts).
@@ -464,8 +464,8 @@ class TestPlanHybrid(unittest.TestCase):
             for step in steps:
                 validate_step_argv_against_cli(self, step)
 
-    def test_reference_panel_flows_generically(self) -> None:
-        """--reference-panel flows generically from build.options with zero special handling."""
+    def test_variant_reference_flows_generically(self) -> None:
+        """--variant-reference flows generically from build.options with zero special handling."""
         synthetic_bundle = Bundle(
             store_id="OGS-00094",
             root=Path("stores/OGS-00094"),
@@ -481,7 +481,7 @@ class TestPlanHybrid(unittest.TestCase):
                 "build": {
                     "command": "build-hybrid",
                     "options": {
-                        "reference-panel": "/custom/path/to/panel_alids.txt",
+                        "variant-reference": "/custom/path/to/panel_alids.txt",
                         "source-reader-capability": "opengwasdb.gwas-ssf",
                         "source-assembly": "hg38",
                         "chunk-variants": 2000,
@@ -495,8 +495,8 @@ class TestPlanHybrid(unittest.TestCase):
         steps = plan(synthetic_bundle)
         build_step = steps[0]
         record_check()
-        self.assertIn("--reference-panel", build_step.argv)
-        idx = build_step.argv.index("--reference-panel")
+        self.assertIn("--variant-reference", build_step.argv)
+        idx = build_step.argv.index("--variant-reference")
         self.assertEqual(build_step.argv[idx + 1], "/custom/path/to/panel_alids.txt")
 
         # Verify against CLI parser too
