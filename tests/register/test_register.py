@@ -510,6 +510,50 @@ class TestVariantReferenceRegistration(unittest.TestCase):
         with self.assertRaises(ArgvDriftError):
             register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
 
+    def test_observed_records_extracted_when_the_pre_stage_ran(self) -> None:
+        """A declared pre-stage that executed records variant_reference=extracted."""
+        b, stores_root, artifact_root, _ref = self._declaring_bundle()
+        val = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+        self.assertEqual(val["observed"]["variant_reference"], "extracted")
+
+        written = yaml.safe_load((b.root / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(written["observed"]["variant_reference"], "extracted")
+
+    def test_observed_records_provided_when_the_pre_stage_was_skipped(self) -> None:
+        """A skipped pre-stage records variant_reference=provided."""
+        b, stores_root, artifact_root, _ref = self._declaring_bundle()
+        rec_p = paths.record_path(b.store_id, "variant-reference", root=artifact_root)
+        rec = json.loads(rec_p.read_text(encoding="utf-8"))
+        rec["argv"] = list(rec["planned_argv"])
+        rec["skipped"] = True
+        rec["skip_reason"] = "provided"
+        run._write_record_atomically(rec, rec_p)
+
+        val = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+        self.assertEqual(val["observed"]["variant_reference"], "provided")
+
+        written = yaml.safe_load((b.root / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(written["observed"]["variant_reference"], "provided")
+
+    def test_observed_records_provided_when_only_the_build_option_names_a_panel(self) -> None:
+        """A build option naming a panel with no declared pre-stage (OGS-00004/5) is provided."""
+        ref = str(self.td / "refs" / "shared-panel.txt")
+        b, stores_root, artifact_root = create_test_bundle_and_records(
+            self.td,
+            "OGS-00043",
+            options={"variant-reference": ref, "source-assembly": "hg38"},
+        )
+        self.assertNotIn("variant-reference", [s.name for s in plan(b, artifact_root=artifact_root)])
+
+        val = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+        self.assertEqual(val["observed"]["variant_reference"], "provided")
+
+    def test_observed_records_no_variant_reference_key_when_unused(self) -> None:
+        """A release that uses no variant reference carries no provenance key."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00044")
+        val = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+        self.assertNotIn("variant_reference", val["observed"])
+
 
 if __name__ == "__main__":
     unittest.main()

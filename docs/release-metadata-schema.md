@@ -449,6 +449,7 @@ is one of `not_run`, `passed`, `passed_with_warnings`, or `failed`;
 | `observed.store_bytes` | Yes | Store size in bytes the build reported, or `null` when it was not recorded. |
 | `observed.build_elapsed_s` | Yes | Summed step elapsed seconds, or `null` when it was not recorded. |
 | `observed.validate_status` | Yes | The validate verdict the release-level `status` is derived from. |
+| `observed.variant_reference` | No | Variant-reference provenance (issue #148): `provided` when the artifact already existed (a skipped `variant-reference` pre-stage, or a build option naming an existing panel with no declared pre-stage, as OGS-00004/OGS-00005 do), `extracted` when the workflow ran `extract-variant-reference`, and absent when the release uses no variant reference. |
 | `checks.schema` | Yes | Whether required files and fields conform to OpenGWASDB's shared core schema and this registry's release-bundle requirements. |
 | `checks.files` | Yes | Whether referenced source or filtered files exist and match checksums. |
 | `checks.reader_smoke_test` | No | Whether OpenGWASDB can read a small sample from each source file or bundle. |

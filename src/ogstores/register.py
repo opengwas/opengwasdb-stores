@@ -291,6 +291,23 @@ def harvest_observed_measurements(
         "build_elapsed_s": round(total_elapsed, 3),
         "validate_status": validate_status,
     }
+
+    # Variant-reference provenance (issue #148). A declared pre-stage records
+    # whether this run extracted the artifact or found it already provided; a
+    # build option naming an artifact with no declared pre-stage (OGS-00004/5)
+    # records it as provided. A release that uses no variant reference carries
+    # no key at all, matching the existing conditional `resumed` note.
+    variant_reference_record = step_records.get("variant-reference")
+    if variant_reference_record is not None:
+        observed["variant_reference"] = (
+            "provided" if variant_reference_record.get("skipped") is True else "extracted"
+        )
+    else:
+        phase = "complete" if bundle_obj.completion_state == "reference_completed" else "build"
+        phase_options = (bundle_obj.build.get(phase) or {}).get("options") or {}
+        if "variant-reference" in phase_options:
+            observed["variant_reference"] = "provided"
+
     if is_resumed:
         observed["resumed"] = True
 

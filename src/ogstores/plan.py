@@ -142,9 +142,14 @@ COMMANDS: dict[str, CommandSpec] = {
     ),
 }
 
-# Build-phase subcommands that accept `--variant-reference`, and therefore may
-# be preceded by an `extract-variant-reference` pre-build step (#145/#147).
-VARIANT_REFERENCE_COMMANDS: frozenset[str] = frozenset({"build-dense-vcf", "build-hybrid"})
+# Build-phase layouts that accept `--variant-reference`, and the single build
+# command each may run, and therefore may be preceded by an
+# `extract-variant-reference` pre-build step (#145/#147/#148).
+VARIANT_REFERENCE_LAYOUT_COMMANDS: dict[str, str] = {
+    "dense": "build-dense-vcf",
+    "hybrid": "build-hybrid",
+}
+VARIANT_REFERENCE_COMMANDS: frozenset[str] = frozenset(VARIANT_REFERENCE_LAYOUT_COMMANDS.values())
 
 # The optional Build Recipe block that declares the pre-stage, and the keys it
 # may use to name the destination path. A bare string is also accepted as
@@ -323,6 +328,7 @@ def _post_steps(store_p: Path, post: dict[str, Any], spec: CommandSpec) -> list[
 
 def _variant_reference_declaration(
     phase_block: Mapping[str, Any],
+    layout: str,
     command: str,
     options: Mapping[str, Any],
     store_id: str,
@@ -331,10 +337,10 @@ def _variant_reference_declaration(
 
     Returns the declared destination path and its verbatim-rendered extract
     options, or None when the Build Recipe does not declare a pre-stage. The
-    declaration is only valid for build commands that accept
-    `--variant-reference`, and its destination must equal the path the build
-    step passes as `--variant-reference`; a mismatch is a recipe error rather
-    than a second, silently divergent source of truth (#145/#147).
+    declaration is only valid for a Dense-VCF build on a Dense layout or a
+    Hybrid build on a Hybrid layout, and its destination must equal the path the
+    build step passes as `--variant-reference`; a mismatch is a recipe error
+    rather than a second, silently divergent source of truth (#145/#147/#148).
     """
     raw: Any = None
     for block_key in VARIANT_REFERENCE_BLOCK_KEYS:
@@ -344,11 +350,13 @@ def _variant_reference_declaration(
     if raw is None:
         return None
 
-    if command not in VARIANT_REFERENCE_COMMANDS:
+    supported_command = VARIANT_REFERENCE_LAYOUT_COMMANDS.get(str(layout))
+    if supported_command != command:
         raise ValueError(
             f"Bundle {store_id}: a variant_reference pre-build stage is declared for "
-            f"command {command!r}, which does not accept --variant-reference. "
-            f"Supported commands: {sorted(VARIANT_REFERENCE_COMMANDS)}"
+            f"layout {layout!r} command {command!r}, which does not accept "
+            f"--variant-reference. Supported layout/command pairs: "
+            f"{sorted(VARIANT_REFERENCE_LAYOUT_COMMANDS.items())}"
         )
 
     extract_options: dict[str, Any] = {}
@@ -471,7 +479,7 @@ def plan(
 
     steps: list[Step] = []
     declaration = _variant_reference_declaration(
-        phase_block, command, options, bundle.store_id
+        phase_block, bundle.layout or "", command, options, bundle.store_id
     )
     if declaration is not None:
         ref_output, ref_options = declaration
@@ -507,6 +515,7 @@ __all__ = [
     "POST_DEFAULTS",
     "VARIANT_REFERENCE_BLOCK_KEYS",
     "VARIANT_REFERENCE_COMMANDS",
+    "VARIANT_REFERENCE_LAYOUT_COMMANDS",
     "VARIANT_REFERENCE_OUTPUT_KEYS",
     "CommandSpec",
     "Step",

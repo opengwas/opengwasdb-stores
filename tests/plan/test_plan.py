@@ -1693,10 +1693,12 @@ class TestPostDefaults(unittest.TestCase):
 
 
 class TestVariantReferencePreStage(unittest.TestCase):
-    """The optional variant-reference pre-build stage (#145/#147)."""
+    """The optional variant-reference pre-build stage (#145/#147/#148)."""
 
     REF = "/root/reference/eur.variant-ref.tsv.gz"
     MANIFEST = Path("/root/OGS-00094/work/analyses.tsv")
+    DENSE_GOLDEN = REPO_ROOT / "tests" / "plan" / "golden" / "dense_with_variant_reference.json"
+    HYBRID_GOLDEN = REPO_ROOT / "tests" / "plan" / "golden" / "hybrid_with_variant_reference.json"
 
     def _bundle(
         self,
@@ -1733,6 +1735,87 @@ class TestVariantReferencePreStage(unittest.TestCase):
             },
             analyses_path=Path("stores/OGS-00094/analyses.tsv"),
         )
+
+    def _golden_bundle(
+        self,
+        store_id: str,
+        layout: str,
+        command: str,
+        declaration: dict,
+        options: dict,
+        post: dict,
+    ) -> Bundle:
+        return Bundle(
+            store_id=store_id,
+            root=Path(f"stores/{store_id}"),
+            release={
+                "store_id": store_id,
+                "label": f"variant-ref-{layout}",
+                "status": "accepted",
+                "derived_from": None,
+            },
+            build={
+                "store_id": store_id,
+                "layout": layout,
+                "completion_state": "observed_only",
+                "build": {
+                    "command": command,
+                    "options": options,
+                    "variant_reference": declaration,
+                },
+                "post": post,
+            },
+            analyses_path=Path(f"stores/{store_id}/analyses.tsv"),
+        )
+
+    def test_dense_variant_reference_matches_golden(self) -> None:
+        """A declaring dense recipe matches golden/dense_with_variant_reference.json."""
+        ref = "/data/opengwasdb/stores/OGS-00094/work/variant-ref.tsv.gz"
+        b = self._golden_bundle(
+            "OGS-00094",
+            "dense",
+            "build-dense-vcf",
+            {
+                "output": ref,
+                "options": {
+                    "n-workers": 8,
+                    "source-reader-capability": "opengwasdb.gwas-vcf",
+                    "source-assembly": "hg38",
+                },
+            },
+            {
+                "variant-reference": ref,
+                "source-reader-capability": "opengwasdb.gwas-vcf",
+                "source-assembly": "hg38",
+            },
+            {"top_hits": False, "rho": False, "overview": False, "validate": True},
+        )
+        assert_steps_match_golden(self, plan(b), self.DENSE_GOLDEN)
+
+    def test_hybrid_variant_reference_matches_golden(self) -> None:
+        """A declaring hybrid recipe matches golden/hybrid_with_variant_reference.json."""
+        ref = "/data/opengwasdb/stores/OGS-00095/work/panel-alids.txt"
+        b = self._golden_bundle(
+            "OGS-00095",
+            "hybrid",
+            "build-hybrid",
+            {"path": ref, "options": {"n-workers": 4}},
+            {
+                "variant-reference": ref,
+                "source-reader-capability": "opengwasdb.gwas-ssf",
+                "source-assembly": "hg38",
+            },
+            {"top_hits": False, "overview": True, "validate": True},
+        )
+        assert_steps_match_golden(self, plan(b), self.HYBRID_GOLDEN)
+
+    def test_undeclared_dense_and_hybrid_goldens_unchanged(self) -> None:
+        """The undeclared dense/hybrid goldens still plan without a pre-stage."""
+        for sid, golden in (("OGS-00003", "OGS-00003.json"), ("OGS-00004", "OGS-00004.json")):
+            assert_steps_match_golden(
+                self, plan(load(sid)), REPO_ROOT / "tests" / "plan" / "golden" / golden
+            )
+            self.assertNotIn("variant-reference", [s.name for s in plan(load(sid))])
 
     def test_dense_declared_pre_stage_precedes_build(self) -> None:
         """A dense declaration plans extraction first and feeds the build step."""
@@ -1845,6 +1928,21 @@ class TestVariantReferencePreStage(unittest.TestCase):
         b = self._bundle(
             layout="ragged",
             command="build-ragged-ssf",
+            options={"variant-reference": ref},
+            declaration={"output": ref},
+        )
+        with self.assertRaises(ValueError) as cm:
+            plan(b, artifact_root="/root")
+        record_check()
+        self.assertIn("does not accept --variant-reference", str(cm.exception))
+        record_check()
+
+    def test_layout_command_mismatch_rejected(self) -> None:
+        """A Dense build command on a Ragged layout is not a supported pairing."""
+        ref = "/root/a.tsv.gz"
+        b = self._bundle(
+            layout="ragged",
+            command="build-dense-vcf",
             options={"variant-reference": ref},
             declaration={"output": ref},
         )
