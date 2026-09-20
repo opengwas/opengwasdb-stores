@@ -6,6 +6,7 @@ complete:
   options:
     ld-panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
     ancestry: EUR
+    n-workers: 32
 post:
   top_hits: false
   overview: true
