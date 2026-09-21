@@ -23,7 +23,7 @@ stores/
   by-label/                  generated     finngen-r13-pilot-20 -> ../OGS-00042
 src/ogstores/                              bundle.py plan.py paths.py manifest.py run.py index.py register.py
 workflow/Snakefile                         Phase A: scans stores/, wires every release
-workflow/generate.smk         planned      Phase B: acquisition + generation (separate DAG, not yet wired)
+workflow/generate.smk                      Phase B: coarse wiring for one candidate (issue #153)
 resources/reference-resources/<id>/        resource.yaml
 resources/annotations/                     post-release curated metadata
 resources/generators/<family-id>/          Phase B
@@ -515,11 +515,11 @@ All layouts (Dense, Hybrid, Ragged SSF, and BESD) are unblocked on `opengwasdb@d
 
 ## Phase B — what produces a bundle
 
-Phase B generation runs today as per-source-format Manifest Generator scripts under `resources/generators/`, and each Release Bundle records the commands it ran in `release.yaml:generator.commands`. What does not exist yet is a Phase B Snakemake DAG (`workflow/generate.smk`). Four rules fix that DAG's boundary now, so Phase A is not built against a moving target; everything inside that boundary is open.
+Phase B generation runs as per-source-format Manifest Generator scripts under `resources/generators/`, and each Release Bundle records the commands it ran in `release.yaml:generator.commands`. The GWAS Catalog eur-hybrid family now has an implemented, resumable candidate workflow (`resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py`, issue #153); `workflow/generate.smk` wires its stages as an optional coarse DAG. The four rules below fix that boundary; everything inside it is open.
 
 ### Phase A and Phase B are separate workflows
 
-They meet at the accepted Release Bundle and share no DAG. Phase B may well use Snakemake too -- acquisition is genuinely DAG-shaped, with per-file downloads, checksums and filtering -- but as `workflow/generate.smk` with its own entry point.
+They meet at the accepted Release Bundle and share no DAG. Phase B may well use Snakemake too -- acquisition is genuinely DAG-shaped, with per-file downloads, checksums and filtering -- but as `workflow/generate.smk` with its own entry point; the GWAS Catalog candidate workflow uses it only for coarse stage wiring, and its operator entry point is `pixi run generate-candidate` (issue #153).
 
 The reason is not that one graph would be complex. It is that **the accepted bundle is a boundary only because a human froze it.** Span both phases with one DAG and Snakemake will correctly, silently, regenerate a bundle and rebuild a 71 GB store because a generator config changed upstream. The acceptance gate stops existing, and with it the property the whole of Phase A rests on: that its inputs are fixed.
 
@@ -594,3 +594,117 @@ There is no catch-22 requiring a Store to exist first. `opengwasdb.readers.inter
 Deferring instead -- building first and correcting the Store afterwards -- is not available. `stored_se = original_se / original_sd` is applied at write time, so a Store built without the SD holds wrong standard errors, and there is no rescale operation: Stores are immutable (ADR 0004, ADR 0007) and Reference Completion writes a new one. It would also mean building every candidate to discover which are unusable, when `GCST002047`'s odds-ratio beta column and `GCST003566`'s inverted EAF are both detectable from the source.
 
 That CLI wiring is provided upstream by `estimate-phenotype-sd` ([opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176)), now available on `dev` and active via #106; Phase B must invoke the upstream CLI command rather than keeping local estimation shims or per-family connectors. The previous `resources/generators/lib/phenotype_sd_estimate.py` was a 47-line shim taking JSON arrays on the command line, which forced each family to open source files and extract `se`/`af`/`beta` itself; that is how `resources/generators/lib/effect_scale_validation.R` grew to 562 lines, of which roughly 60 are the acceptance policy that genuinely belongs here and the rest re-implements reference-panel access and allele harmonisation `opengwasdb` already owns.
+
+### The resumable candidate workflow (issue #153)
+
+The first implemented Phase B workflow is the EBI GWAS Catalog `hybrid__European`
+candidate generator. It is deliberately thin: it turns the frozen Source
+Inventory into a candidate Release Bundle by invoking OpenGWASDB for the
+statistics, and it never builds, validates or registers a Store (ADR 0012,
+ADR 0017). One operator entry point runs every stage:
+
+```sh
+pixi run generate-candidate OGS-00011 \
+  --config resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
+  --cores 64 \
+  --resume
+```
+
+The stages, and what they do not do:
+
+| Stage | Reads | Writes | Never does |
+|---|---|---|---|
+| `preflight` | frozen inventory, provenance, config, filesystem metadata | `<work-root>/<id>/preflight/<snapshot>.json` | open an association body; checksum the corpus |
+| `prepare` | frozen inventory, candidate metadata table | `<work-root>/<id>/resolver/analyses.tsv` | reconstruct a source path or re-select membership |
+| `resolve` | the resolver manifest | `records/<analysis_id>.json`, `index.json`, `resolve.log` | load a reference, fork a worker, or compute ancestry/SD here |
+| `verify` | the resolver records | nothing | accept a missing, stale, duplicate or extra record |
+| `emit` | inventory, records, config | a staged bundle, then `stores/<id>/` | build, validate or accept a Store; write a non-`candidate` status |
+
+The resolver subprocess is `opengwasdb resolve-analyses` (opengwasdb#208). It
+owns the process pool, the single genome-scale reference load, and the atomic,
+fingerprint-aware per-Analysis checkpoints; `--resume` is passed to it, so a
+second run reuses every successful record whose fingerprint still matches and
+re-runs the rest. The registry pins that resolver by immutable commit in
+`pixi.toml` rather than vendoring it (ADR 0023).
+
+**Canonical resolver manifest.** The manifest is derived from the frozen
+inventory's *exact* `data_file` paths — no filename is reconstructed from an
+accession — with the per-design method tier from `defaults.by_study_design` and
+the resolved total N from the candidate table the freeze already checksums. The
+candidate table is the metadata resolver's output (`resources/scripts/ebi-studies.r`),
+so reading it is a join on an already-frozen selection, never a second selection:
+membership is still the inventory's.
+
+**Record accounting.** Finalisation fails before anything replaces a prior
+candidate when a selected Analysis has no record, when a record names an
+Analysis the manifest does not, when a record appears twice, when a record
+declares a `record_schema_version` this registry does not finalise, or when a
+record's source checksum/size/file, method tier and reader capability no longer
+match the manifest that was resolved. The fingerprint digest is recomputed over
+the record's own inputs, and the source file's recorded size/mtime are re-checked
+against disk, so an edited, replaced or stale record is caught. This is the
+"wrong answer that looks like a right answer" guard applied to membership.
+
+**Resolution receipt.** A record's self-digest only proves it is internally
+consistent. A record produced under different gates, ancestry reference or
+fine-group map, extraction panel, reference-AF resources or resolver revision
+still recomputes a valid self-digest, so a standalone `verify`/`emit` that only
+recomputed it could freeze a stale Analysis. After a successful resolver
+invocation the `resolve` stage therefore atomically writes
+`<work-root>/<id>/resolver/resolution_receipt.json`: the resolver manifest's
+checksum, the registry-recomputable slice of the resolution contract (declared
+gates, MAF floor, reader capability, extraction panel, ancestry
+reference/group-map and reference-AF resource content fingerprints), the
+installed resolver's content identity, the actual `opengwasdb resolve-analyses`
+argv, and every `analysis_id` bound to the fingerprint digest the resolver wrote
+for it. Standalone `verify`/`emit` recompute the contract from the current
+config, references and installed tool and require it to equal the receipt, and
+require every record digest to match the receipt; a `--stage emit` without a
+prior successful `resolve` fails rather than trusting hand-assembled records.
+The registry never re-derives the resolver's statistics; it binds and re-checks
+the inputs that determine them. Core count and `--resume` are recorded as
+evidence but are not part of the contract, so neither changes it.
+
+**Release policy and controlled exclusions (issue #152).** The registry, not the
+resolver, decides membership. A ready Analysis whose Assigned Ancestry is not
+the release's target (`EUR`), is unassigned, or was gated out on an EAF
+orientation failure is excluded; a quantitative Analysis on the computable
+`estimated_from_source_maf` tier whose phenotype SD is unavailable is excluded;
+a resolver `controlled_failure` is excluded. Each excluded row stays in
+`analyses.tsv` with `exclude_from_build: true` and a machine-checkable reason in
+`inclusion_reason`, and is explained in `sidecars/exclusions.tsv`. Case-control
+rows are included on `log_or`/`binary_trait` with their case/control counts and
+an explicit SD skip; duplicate-content accessions are reported and never
+collapsed. Because the candidate is a Candidate Bundle, no exclusion blocks the
+bundle's existence — it is review material.
+
+**Candidate output.**
+
+```text
+stores/OGS-00011/
+  release.yaml              # status: candidate; frozen-snapshot evidence and executed command log
+  build.yaml                # observed-only Hybrid Build Recipe (opengwasdb subcommand + flags)
+  analyses.tsv              # membership: included rows plus exclude_from_build audit rows
+  validation.yaml           # Phase B checks; observed Store measurements are null
+  sidecars/
+    source_readiness.tsv    # every frozen inventory row, with membership + duplicate group
+    ancestry.tsv            # one row per selected Analysis
+    sd_estimation.tsv       # one row per selected Analysis
+    exclusions.tsv          # one row per excluded selected Analysis, with its reason
+```
+
+**Determinism and atomicity.** Aggregation is ordered by the frozen inventory,
+not by completion order or worker count, and every numeric sidecar value is
+formatted through the issue-#143 sub-tolerance formatter, so 1 worker and 64
+workers produce byte-identical tables and sidecars. The bundle is written under
+`stores/.staging/<id>/` (hidden, so `bundle-check`/`index` cannot see a
+half-written candidate), `bundle.check()` and the pinned OpenGWASDB Analysis
+schema are run against it, and only then is it renamed into `stores/<id>/`, with
+any previous candidate restored if the rename fails. A killed resolver or a
+failed finalisation leaves the previous candidate untouched.
+
+The command log in `release.yaml` records the operator invocation and the exact
+`opengwasdb resolve-analyses` argv that ran; the candidate remains `status:
+candidate` until a human accepts it (see the family README's human-review
+section).
+
