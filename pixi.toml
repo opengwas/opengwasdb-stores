@@ -191,11 +191,13 @@ workflow = { features = ["python", "store-build", "workflow"], solve-group = "ma
 # default environment.
 inventory-freeze = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/inventory.py freeze" }
 preflight = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/inventory.py preflight" }
+concordance-sample = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/sample_concordance.py" }
 
 [feature.dev.tasks]
 test = { cmd = "python3 resources/scripts/run_all_tests.py" }
 test-python = { cmd = "python3 resources/scripts/run_all_tests.py --only python" }
 test-r = { cmd = "python3 resources/scripts/run_all_tests.py --only r" }
+concordance-run = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/run_concordance_study.py" }
 bundle-check = { cmd = "python3 resources/scripts/check_bundles.py" }
 env-check = { cmd = "python3 resources/scripts/env_check.py" }
 index-ci = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }

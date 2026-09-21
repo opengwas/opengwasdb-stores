@@ -52,33 +52,61 @@ pixi run python resources/generators/gwas-catalog-eur-hybrid/inventory.py freeze
 Re-freezing does not change which Analyses an earlier snapshot selected; it
 creates a new snapshot that the config must then be pointed at.
 
-## What Phase B has not decided
+## Settled Decisions (issue #152)
 
-Two decisions this release depends on belong to other tickets, and
-`config-full.yaml` states the current fact rather than guessing:
+Both Reference Resource decisions required before Phase B candidate generation (issue #153)
+are finalized and ratified on empirical concordance evidence:
 
-- whether a bounded 10,000-site extraction panel
-  (`resources/reference-resources/qc-panel-hg38/`) may replace the full
-  ancestry-mixture reference for ancestry assignment (issue #152, on recorded
-  concordance evidence). Until it does, `config-full.yaml` fits the full
-  reference;
-- what happens when a quantitative Analysis has no usable source allele
-  frequency (issue #152). No reference-AF fallback is declared, because the
-  panel this registry declares for one
-  (`resources/reference-resources/ukb-hg38-eur-af/`) is absent on this host, so
-  those rows get an explicit `no_reference_resource_for_ancestry` skip rather
-  than an estimate against a panel that is not there. Preflight reports the
-  absent resource, and every declared one, so the decision is made on evidence.
+1. **Ancestry Extraction Method:** Retain Method A (full reference scan `ref_freqs.hg38.tsv.gz`,
+   `extraction_panel: null`). `qc-panel-hg38` was evaluated on the preregistered 106-Analysis sample
+   and rejected due to failing the genome-wide concordance gate (95.1% < 98.0% threshold) caused
+   by overlap drop on non-standard arrays. Full evidence is in `docs/qc-panel-concordance-report.md`.
+2. **Reference-AF Fallback Policy:** Adopt Option 3 (**Source-AF-Only**). `config-full.yaml` sets
+   `effect_scale_validation.reference_resources: []`. Quantitative Analyses lacking usable source AF
+   receive an explicit `skipped` resolution (`no_reference_resource_for_ancestry`) and are excluded from
+   candidate release membership rather than estimated against an absent panel.
 
 The earlier ten-Analysis pilots live in this directory as
 `config-pilot-10.yaml` (case-control) and `config-quant-pilot-10.yaml`
 (quantitative), and their Release Bundles are `stores/OGS-00004` and
 `stores/OGS-00005`.
 
+## QC Panel Concordance Study (issue #152)
+
+The study was preregistered at `docs/spec/qc-panel-concordance-preregistration.md`
+and the ratified final decision report is at `docs/qc-panel-concordance-report.md`.
+
+```sh
+# 1. Generate / re-generate the frozen stratified sample manifest (106 Analyses):
+pixi run concordance-sample
+
+# 2. Run the concordance study in a Herdr pane using up to 64 cores:
+pixi run --environment dev concordance-run --cores 64 \
+  --out-dir /data/opengwasdb/work/gwas-catalog-eur-hybrid/concordance
+
+# 3. Review the generated comparison artifacts:
+#    - /data/opengwasdb/work/gwas-catalog-eur-hybrid/concordance/concordance_results.json
+#    - /data/opengwasdb/work/gwas-catalog-eur-hybrid/concordance/concordance_comparison.tsv
+#    - /data/opengwasdb/work/gwas-catalog-eur-hybrid/concordance/concordance_report.md
+```
+
+### Reference-AF Fallback Policy
+
+This release adopts an explicit **Source-AF-Only** policy:
+- `config-full.yaml` sets `effect_scale_validation.reference_resources: []`.
+- Quantitative Analyses lacking usable source AF receive an explicit `skipped`
+  resolution with reason `no_reference_resource_for_ancestry` and are excluded
+  from the candidate manifest.
+- The absent panel `/data/opengwasdb/reference/ukb-hg38` is never treated as usable evidence.
+
 ## Pieces
 
-- `resources/inventories/` — the frozen snapshot and what its columns mean;
+- `resources/inventories/` — the frozen snapshot, sample manifest, and what their columns mean;
 - `resources/generators/lib/source_inventory.py` — the freeze merge rule, the
   readiness vocabulary, and preflight;
+- `resources/generators/lib/concordance_sampling.py` — deterministic stratified sampling;
+- `resources/generators/lib/qc_panel_concordance.py` — concordance comparison engine & metrics;
+- `docs/spec/qc-panel-concordance-preregistration.md` — locked preregistration document;
+- `docs/qc-panel-concordance-report.md` — finalized decision & empirical concordance evidence report;
 - `resources/scripts/download-ebi-gwas-catalog-eur-hybrid.py` — acquisition,
   which writes the status manifests the freeze merges.

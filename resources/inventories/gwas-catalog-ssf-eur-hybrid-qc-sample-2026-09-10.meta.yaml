@@ -1,0 +1,40 @@
+sample_snapshot_id: gwas-catalog-ssf-eur-hybrid-qc-sample-2026-09-10
+source_inventory:
+  path: resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-10.tsv
+  sha256: d22e857c5c2880438cf3659c865c375755dcccb95e86d141f0b5df31b9a252f7
+created_at: '2026-09-21T00:00:00Z'
+total_sample_analyses: 106
+study_design_counts:
+  quantitative: 54
+  case-control: 52
+strata_counts:
+  explicit_edge_case: 6
+  quant_decile_1: 5
+  quant_decile_2: 5
+  quant_decile_5: 5
+  quant_decile_10: 5
+  case_control_decile_1: 5
+  case_control_decile_3: 5
+  quant_decile_3: 5
+  case_control_decile_6: 5
+  case_control_decile_8: 5
+  quant_decile_4: 5
+  quant_decile_6: 5
+  case_control_decile_4: 5
+  case_control_decile_5: 5
+  quant_decile_9: 5
+  case_control_decile_9: 5
+  quant_decile_7: 5
+  case_control_decile_7: 5
+  case_control_decile_2: 5
+  quant_decile_8: 5
+  case_control_decile_10: 5
+explicit_edge_cases:
+- GCST000553
+- GCST90446781
+- GCST90565871
+- GCST90565872
+- GCST90624704
+- GCST90624705
+sample_tsv_sha256: 962618a5f72e0fa6027173e7b0b102cba472c9b4c9ff460f7bada04f17c2d557
+sample_tsv_bytes: 75314
