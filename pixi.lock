@@ -171,7 +171,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2026c-h151e31d_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/wheel-0.47.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zarr-2.18.7-pyhd8ed1ab_0.conda
-      - pypi: git+https://github.com/opengwas/opengwasdb?branch=dev#f8125322f9d9b71db8b05d1c18d507612bf654e2
+      - pypi: git+https://github.com/opengwas/opengwasdb?rev=0408e4122662c218a83b6ec3e2260ef9d2692ca0#0408e4122662c218a83b6ec3e2260ef9d2692ca0
       - pypi: https://files.pythonhosted.org/packages/13/6d/2e2a80cda66b152ec143ceb1784e56d8abc6abeeeb65f8ef6aa52c731038/pysam-0.24.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
   dev:
     channels:
@@ -509,7 +509,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/wheel-0.47.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/yte-1.9.4-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zarr-2.18.7-pyhd8ed1ab_0.conda
-      - pypi: git+https://github.com/opengwas/opengwasdb?branch=dev#f8125322f9d9b71db8b05d1c18d507612bf654e2
+      - pypi: git+https://github.com/opengwas/opengwasdb?rev=0408e4122662c218a83b6ec3e2260ef9d2692ca0#0408e4122662c218a83b6ec3e2260ef9d2692ca0
       - pypi: https://files.pythonhosted.org/packages/13/6d/2e2a80cda66b152ec143ceb1784e56d8abc6abeeeb65f8ef6aa52c731038/pysam-0.24.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
   docs:
     channels:
@@ -933,7 +933,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/wheel-0.47.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/yte-1.9.4-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zarr-2.18.7-pyhd8ed1ab_0.conda
-      - pypi: git+https://github.com/opengwas/opengwasdb?branch=dev#f8125322f9d9b71db8b05d1c18d507612bf654e2
+      - pypi: git+https://github.com/opengwas/opengwasdb?rev=0408e4122662c218a83b6ec3e2260ef9d2692ca0#0408e4122662c218a83b6ec3e2260ef9d2692ca0
       - pypi: https://files.pythonhosted.org/packages/13/6d/2e2a80cda66b152ec143ceb1784e56d8abc6abeeeb65f8ef6aa52c731038/pysam-0.24.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
 packages:
 - conda: https://conda.anaconda.org/bioconda/linux-64/bcftools-1.24-h487d631_1.conda
@@ -6073,7 +6073,7 @@ packages:
   run_exports: {}
   size: 160679
   timestamp: 1744263184163
-- pypi: git+https://github.com/opengwas/opengwasdb?branch=dev#f8125322f9d9b71db8b05d1c18d507612bf654e2
+- pypi: git+https://github.com/opengwas/opengwasdb?rev=0408e4122662c218a83b6ec3e2260ef9d2692ca0#0408e4122662c218a83b6ec3e2260ef9d2692ca0
   name: opengwasdb
   version: 0.3.0
   requires_dist:

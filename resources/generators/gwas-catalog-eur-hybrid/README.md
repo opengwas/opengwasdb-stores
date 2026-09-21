@@ -52,6 +52,99 @@ pixi run python resources/generators/gwas-catalog-eur-hybrid/inventory.py freeze
 Re-freezing does not change which Analyses an earlier snapshot selected; it
 creates a new snapshot that the config must then be pointed at.
 
+## Candidate generation (issue #153)
+
+The Phase B candidate workflow turns the frozen Source Inventory into a
+**candidate** Release Bundle (`stores/OGS-xxxxx/`, `status: candidate`). It runs
+preflight, derives the canonical resolver manifest, invokes
+`opengwasdb resolve-analyses`, accounts every resolver record, applies the
+registry's membership/exclusion policy, validates the staged bundle and renames
+it into place atomically. It never builds, validates or accepts a Store, and it
+never invokes Phase A.
+
+```sh
+# Preflight + resolve + verify + finalise in one resumable run:
+pixi run generate-candidate OGS-00011 \
+  --config resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
+  --cores 64 \
+  --resume
+```
+
+The resolver owns the worker pool and the per-Analysis checkpoints, so
+`--cores` is passed to `opengwasdb resolve-analyses` and a resumed run reuses
+every successful record whose fingerprint still matches (source checksum/size,
+tool revision, reference, extraction panel, gates and method tier). `--resume`
+is safe to use after an interruption; without it, every record is recomputed.
+
+### Stages
+
+Pass `--stage <name>` to run one stage against the records already under the
+work root (also how `workflow/generate.smk` wires the coarse DAG):
+
+| Stage | What it proves / produces |
+|---|---|
+| `preflight` | The frozen inventory still matches the mirror, the declared Reference Resources exist, and every study design has a method tier. Writes `<work-root>/OGS-xxxxx/preflight/<snapshot>.json`. |
+| `prepare` | The canonical resolver manifest from the frozen exact `data_file` paths and the per-design method tiers. |
+| `resolve` | Invokes `opengwasdb resolve-analyses`; writes records, `index.json` and `resolve.log`. |
+| `verify` | Accounts every record; refuses a missing, stale, duplicate or extra one. |
+| `emit` | Applies release policy, checks the pinned schema and `bundle.check()`, and atomically publishes `stores/OGS-xxxxx/`. |
+| `all` | Default: every stage in order. |
+
+Useful options: `--registry-root` (default `stores/`), `--work-root` (default
+`output.work_root`), `--inventory` / `--provenance` / `--candidates` overrides,
+and `--resume`.
+
+### Candidate output and controlled exclusions
+
+```text
+stores/OGS-xxxxx/
+  release.yaml    build.yaml    analyses.tsv    validation.yaml
+  sidecars/ source_readiness.tsv ancestry.tsv sd_estimation.tsv exclusions.tsv
+```
+
+* `analyses.tsv` holds every selected ready Analysis. Non-member rows stay in it
+  with `exclude_from_build: true` and a controlled reason in `inclusion_reason`.
+* Membership is the frozen inventory's; the candidate metadata table
+  (`resources/data/derived/store-candidates-analyses.tsv`) is joined only for
+  resolved labels, publication identity, total N and the case/control counts the
+  OpenGWASDB schema needs for `log_or` rows.
+* Issue #152's policy is encoded here: full-reference AF ancestry assignment;
+  source-AF-only quantitative estimation; case-control rows on
+  `log_or`/`binary_trait`; and controlled exclusions (with the reason recorded in
+  `sidecars/exclusions.tsv`) for non-target or unassigned ancestry, EAF
+  orientation failures, unusable source AF, incomplete metadata and ordinary
+  resolution failures.
+* Duplicate-content accessions (`GCST90565871`/`GCST90565872` and
+  `GCST90624704`/`GCST90624705`) are surfaced in `sidecars/source_readiness.tsv`
+  and a warning; they are never silently collapsed.
+
+### Human review before acceptance
+
+A successful run leaves `status: candidate`. Nothing in this workflow accepts,
+registers or builds it. A human reviewer should:
+
+1. read `release.yaml` (the frozen inventory checksum, the executed resolver
+   argv, the inclusion/exclusion counts) and `validation.yaml`;
+2. review every row of `sidecars/exclusions.tsv` and decide whether each reason
+   is acceptable for this release (a non-`EUR` assignment or an orientation
+   failure is expected evidence, not necessarily a defect);
+3. resolve the duplicate-content groups in `sidecars/source_readiness.tsv`;
+4. inspect the dense-axis / `--variant-reference` choice for the Hybrid Recipe,
+   which `config-full.yaml` deliberately leaves undeclared (see below);
+5. only then accept the bundle, set `accepted_at`, and let Phase A build it.
+
+A generated candidate is a reviewed git change like any other: commit
+`stores/OGS-xxxxx/`, regenerate the master list (`pixi run index`) so
+`stores.tsv`/`STORES.md` include it, and open a pull request. `index` also writes
+the bundle's generated `summary.yaml`, so `bundle-check` and the CI clean-tree
+gate stay green.
+
+`config-full.yaml`'s `build` block declares the reader capability and assembly
+but no `variant-reference`/`reference-panel`: the full release's Dense-Component
+axis is a Reference Resource decision for acceptance, and inventing a host path
+would bind the candidate to one machine. The candidate is schema-valid and
+plannable without it; acceptance may add one before the Store is built.
+
 ## Settled Decisions (issue #152)
 
 Both Reference Resource decisions required before Phase B candidate generation (issue #153)

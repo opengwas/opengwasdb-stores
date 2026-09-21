@@ -120,7 +120,19 @@ threadpoolctl = ">=3.0"
 # to a `main` revision. Tracking a long-lived non-default branch is a temporary
 # accommodation for the current `main` freeze, not the intended steady state.
 # Issue #106 tracks this reversion.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", branch = "dev" }
+#
+# Bumped for issue #153: the Phase B candidate workflow invokes the canonical
+# `opengwasdb resolve-analyses` subcommand, which lands in opengwasdb#208 and is
+# not yet merged to `dev`. Pinning the immutable feature commit keeps the
+# resolver's atomic per-Analysis records and resume semantics under the
+# registry's control without vendoring its code (ADR 0012/0017); this commit is
+# a descendant of the #106 dev revision above, so every capability it names is
+# still present.
+#
+# REVERT CONDITION (#153): once opengwasdb#208 is merged to `dev`, move this pin
+# back to the `dev` revision (or `main` after the #106 reversion), and re-run
+# `pixi lock`.
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "0408e4122662c218a83b6ec3e2260ef9d2692ca0" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"
@@ -183,6 +195,19 @@ workflow = { features = ["python", "store-build", "workflow"], solve-group = "ma
 # ---------------------------------------------------------------------------
 # Tasks
 # ---------------------------------------------------------------------------
+
+[feature.store-build.tasks]
+# Phase B candidate generation (issue #153). One operator entry point runs
+# preflight, invokes `opengwasdb resolve-analyses`, accounts every record, and
+# atomically emits a candidate Release Bundle. It needs `opengwasdb` (the
+# resolver) and `ogstores` (bundle.check()), so it lives in the store-build
+# environment.
+#
+#   pixi run generate-candidate OGS-00011 \
+#     --config resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
+#     --cores 64 --resume
+#
+generate-candidate = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py" }
 
 [feature.python.tasks]
 # Phase B: freeze the Source Inventory a release selects from, then prove the

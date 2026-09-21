@@ -542,6 +542,41 @@ reference resource for its assigned ancestry, or a non-quantitative
 | `estimator_version` | No | Estimator package version, git commit, or script hash. |
 | `sd_notes` | No | Free-text notes for audit or review dashboards, including the reason for a `warning`/`failed` status. |
 
+### Source-readiness sidecar
+
+Suggested path: `sidecars/source_readiness.tsv`. Written by the resumable
+candidate workflow (issue #153). One row per **frozen Source Inventory** row —
+all of them, not only release members — with the inventory's columns plus two
+derived ones. It is the audit that keeps the inventory's readiness evidence
+distinct from successfully selected membership: a reviewer can see that a
+non-ready input stayed a discovery fact, and why each ready input is or is not a
+release member.
+
+| Field | Required | Description |
+|---|---:|---|
+| *(inventory columns)* | Yes | The frozen Source Inventory's own columns (`analysis_id`, `readiness_status`, `data_file`, `sha256`, ...); see `resources/inventories/README.md`. |
+| `duplicate_content_group` | No | When two or more ready accessions share one source checksum, their accession ids joined by `+`; empty otherwise. Duplicates are reported, never collapsed. |
+| `candidate_membership` | Yes | `included`, `excluded` (ready but a controlled exclusion), or `not_ready` (never selected). |
+
+### Exclusions sidecar
+
+Suggested path: `sidecars/exclusions.tsv`. Written by the candidate workflow
+(issue #153). One row per ready Analysis excluded from a candidate by the
+registry's membership policy, so an absence has exactly one machine-checkable
+reason. The same reason is carried in the excluded `analyses.tsv` row's
+`inclusion_reason` and `exclude_from_build`.
+
+| Field | Required | Description |
+|---|---:|---|
+| `analysis_id` | Yes | Registry Analysis ID matching `analyses.tsv`. |
+| `source_analysis_id` | No | Upstream analysis identifier. |
+| `study_design` | No | The frozen inventory's `study_design`. |
+| `category` | Yes | `ancestry`, `orientation`, `effect_scale`, `resolution`, or `metadata`. |
+| `reason` | Yes | Controlled vocabulary: `resolution_failed`, `ancestry_unassigned`, `ancestry_not_eur`, `orientation_failure`, `sd_no_reference_resource_for_ancestry`, `sd_no_qualifying_evidence`, `sd_no_usable_sample_size`, `sd_failed`, `missing_sample_size`, or `missing_case_control_counts`. |
+| `detail` | No | The concrete evidence (assigned ancestry, gate reason, resolver error, missing field). |
+| `resolver_status` | No | The resolver record's status (`success`, `controlled_failure`, or `missing`). |
+| `exclude_from_build` | Yes | Always `true`; the exclusion is enforced at build time per [ADR 0025](adr/0025-registry-filters-excluded-analyses.md). |
+
 ### Sparse-region sidecar
 
 Suggested path: `sidecars/sparse_regions.tsv`. One row per retained region for
