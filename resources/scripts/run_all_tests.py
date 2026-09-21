@@ -51,6 +51,7 @@ SUITES: list[tuple[str, str, list[str]]] = [
     ("register", "python", ["tests/register/test_register.py"]),
     ("run", "python", ["tests/run/test_run.py"]),
     ("schema-validation", "r", ["tests/schema-validation/run_tests.R"]),
+    ("source-inventory", "python", ["tests/source-inventory/test_source_inventory.py"]),
     ("validation-record", "python", ["tests/validation-record/test_validation_record.py"]),
     ("workflow", "python", ["tests/workflow/test_workflow.py"]),
 ]

@@ -583,8 +583,54 @@ specialised sidecar.
 The blocks below are **Phase B generator configuration**, not Release Bundle
 fields. They are recorded here because they determine the sidecar and
 `validation.yaml` evidence a generator writes into a bundle. A generator's
-config also carries its selection and output settings; the four blocks that
-affect release metadata are documented here.
+config also carries its selection and output settings; the blocks that affect
+release metadata are documented here.
+
+### Source Inventory selection
+
+Phase B selects release membership from a **frozen Source Inventory** rather
+than from a glob over an acquisition mirror (issue #151). That directory's
+[README](../resources/inventories/README.md) is the authority on the inventory's
+columns, its readiness vocabulary and the freeze/preflight commands. A generator
+config names the snapshot it selects from and the acquisition output that
+snapshot was frozen from:
+
+| Field | Required | Description |
+|---|---:|---|
+| `source.source_collection_id` | Yes | The Source Collection string recorded on the release, `gwas-catalog-ssf` for the GWAS Catalog GWAS-SSF collection. |
+| `source.store_key` | Yes | The candidate-pool key this release's Analyses were selected from. Every inventory row must belong to it. |
+| `source.ancestry_group` | Yes | The source-declared ancestry group the pool is scoped to. Provenance, never a substitute for Assigned Ancestry. |
+| `source.candidates` | Yes | The candidate table the pool came from. Generated and not tracked in git, so the freeze records its checksum to pin the selection scope. |
+| `source.inventory.snapshot_id` | Yes | The snapshot's identity. Must equal the inventory file's stem and the provenance sidecar's `snapshot_id`. |
+| `source.inventory.path` | Yes | `resources/inventories/<snapshot-id>.tsv`. |
+| `source.inventory.provenance_path` | Yes | `resources/inventories/<snapshot-id>.meta.yaml`, the sidecar whose `inventory_tsv_sha256` binds the TSV to the bytes that were frozen. |
+| `source.inventory.freeze_inputs.base_manifest` / `.retry_manifest` | Yes | The acquisition status manifests `freeze` merges, base first and retry authoritative. |
+
+Which `readiness_status` values count as a usable source is **not** a config
+key: it is owned by `resources/generators/lib/source_inventory.py`
+(`READY_STATUSES`: `ok` and `already_present`), so the vocabulary has one
+spelling rather than one per generator config. An unknown status fails rather
+than defaulting to unavailable.
+
+### Method tiers per study design
+
+A release whose pool mixes study designs cannot carry one release-wide
+`stored_effect_scale`: a quantitative trait on the SD scale and a case-control
+trait on the log-OR scale need different tiers. `defaults.by_study_design`
+declares one tier per `study_design` value the inventory may carry:
+
+| Field | Required | Description |
+|---|---:|---|
+| `defaults.by_study_design.<study_design>.stored_effect_scale` | Yes | Controlled `analyses.tsv` vocabulary: `sd`, `log_or`, or `log_hazard`. |
+| `defaults.by_study_design.<study_design>.original_effect_scale` | Yes | The source's own scale before OpenGWASDB rescaling. |
+| `defaults.by_study_design.<study_design>.original_sd_method` | Yes | The phenotype-SD tier: an estimable method for a quantitative design, or `binary_trait`/`unavailable` where SD estimation does not apply. |
+| `defaults.by_study_design.<study_design>.sample_size_kind` | Yes | `total`, `case_control`, `effective`, or `variant_level`. |
+
+A ready Analysis whose `study_design` has no declared tier fails preflight,
+naming the design and the number of Analyses affected: guessing a tier is the
+silent-failure class this repository exists to prevent. `runtime.cores` (the
+planned worker count, capped per release) and `runtime.min_free_gb` (the free
+space preflight requires under `output.work_root`) are checked the same way.
 
 ### Metadata resolvers
 

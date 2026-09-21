@@ -184,6 +184,14 @@ workflow = { features = ["python", "store-build", "workflow"], solve-group = "ma
 # Tasks
 # ---------------------------------------------------------------------------
 
+[feature.python.tasks]
+# Phase B: freeze the Source Inventory a release selects from, then prove the
+# frozen snapshot before the resolution run reads a single association row
+# (issue #151). Both are pure Python (no opengwasdb, no R), so they run in the
+# default environment.
+inventory-freeze = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/inventory.py freeze" }
+preflight = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/inventory.py preflight" }
+
 [feature.dev.tasks]
 test = { cmd = "python3 resources/scripts/run_all_tests.py" }
 test-python = { cmd = "python3 resources/scripts/run_all_tests.py --only python" }

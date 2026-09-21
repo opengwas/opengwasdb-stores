@@ -86,7 +86,7 @@ A deliberately small Store Release used to exercise a distinct Source Collection
 _Avoid_: pilot store, pilot release
 
 **Preflight Run**:
-A representative subset run within the production workflow for a Store Release that produces stage reports for one explicit human review gate before the full build proceeds.
+A representative subset run within the production workflow for a Store Release that produces stage reports for one explicit human review gate before the full build proceeds. Distinct from the Phase B `preflight` inventory-readiness gate command, which proves a frozen Source Inventory before candidate selection and reads no association rows.
 _Avoid_: pilot run, pilot phase, trial run
 
 **Release Artifact**:
