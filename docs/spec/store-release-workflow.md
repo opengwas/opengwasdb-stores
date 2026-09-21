@@ -546,12 +546,16 @@ Their outputs also live in different places and are reviewed differently. Phase 
 
 ```text
 resources/inventories/<id>.tsv discovered upstream analyses, once acquisition
-                               produces one at scale (ADR 0024). Does not exist
-                               yet -- every collection's inventory was null.
+                               produces one at scale (ADR 0024). The contract,
+                               the readiness vocabulary and the freeze/preflight
+                               commands are in resources/inventories/README.md;
+                               the code is
+                               resources/generators/lib/source_inventory.py.
 
 resources/generators/<family-id>/
     README.md                  the exact commands
     config-<label>.yaml
+    inventory.py               freeze a Source Inventory, then preflight it
     generate.R|py              inventory + config -> stores/OGS-xxxxx/
 
 resources/generators/lib/                  shared helpers
@@ -561,6 +565,17 @@ resources/generators/lib/source-formats/   Source-Format-scoped generation code
 The entry-point directory is scoped to the generator's historical family slug (ADR 0028), while the library is source-format-scoped, so families sharing a Source Collection share selection code without a configuration system by accident. This resolves the old `resources/generators/<source-format>-<layout>/` naming collision, where one directory served two families and grew a configuration system to tell them apart.
 
 A generator has the same shape as the build workflow: discover upstream, select rows, shell out to `opengwasdb` for the statistics, write the bundle.
+
+### The Source Inventory seam
+
+Selection starts at a **frozen Source Inventory**, not at a glob over an acquisition mirror (issue #151). Acquisition writes a status manifest per pass; freezing merges the retry pass over the base pass, accounts every row against the candidate pool, and writes one row per discovered Analysis with its readiness status and the exact local source path. `resources/inventories/README.md` is the contract; `resources/generators/lib/source_inventory.py` owns the merge rule and the readiness vocabulary (`ok` and `already_present` are ready, nothing else is).
+
+Two operator commands sit at this seam, and both are cheap:
+
+- `pixi run inventory-freeze` turns acquisition output into the frozen snapshot plus a provenance sidecar recording the inputs' checksums, the per-status counts of each pass, and the duplicate-content groups awaiting review;
+- `pixi run preflight` re-derives the plan from a frozen snapshot and the release config — per-status counts, ready count/bytes and design split, planned method tier per study design, expected exclusions, duplicate groups, Reference Resource presence, requested cores, work root and free space — reading only the inventory, small per-Analysis metadata and filesystem metadata. It never opens an association body and never checksums the source corpus.
+
+A snapshot is frozen so membership cannot move underneath a proposal: re-freezing after further acquisition creates a new snapshot, and the config is repointed deliberately. Duplicate source content across accessions is reported for a human decision rather than collapsed.
 
 ### Who implements the statistics
 
