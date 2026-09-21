@@ -1,8 +1,9 @@
 # Preregistration: QC Panel Concordance Study & Reference-AF Fallback Policy
 
-**Document status:** Locked / Preregistered before interpreting real-data concordance results.  
+**Document status:** Locked / Preregistered (Final report and decision recorded in [`docs/qc-panel-concordance-report.md`](../qc-panel-concordance-report.md)).  
 **Issue:** [opengwasdb-stores#152](https://github.com/opengwas/opengwasdb-stores/issues/152)  
 **Parent:** [opengwasdb-stores#150](https://github.com/opengwas/opengwasdb-stores/issues/150)  
+**Next Step:** [opengwasdb-stores#153](https://github.com/opengwas/opengwasdb-stores/issues/153) (Phase B candidate generation)  
 **Seam dependencies:** opengwasdb#207 (`opengwasdb.build.resolve.resolve_analysis`), opengwasdb-stores#151 (Frozen Source Inventory `gwas-catalog-ssf-eur-hybrid-2026-09-10`).
 
 ---

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import csv
 import gzip
+import json
 import tempfile
 import unittest
 import sys
@@ -70,6 +71,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SAMPLE_TSV = REPO_ROOT / "resources" / "inventories" / "gwas-catalog-ssf-eur-hybrid-qc-sample-2026-09-10.tsv"
 SAMPLE_META = REPO_ROOT / "resources" / "inventories" / "gwas-catalog-ssf-eur-hybrid-qc-sample-2026-09-10.meta.yaml"
 CONFIG_YAML = REPO_ROOT / "resources" / "generators" / "gwas-catalog-eur-hybrid" / "config-full.yaml"
+DURABLE_REPORT_MD = REPO_ROOT / "docs" / "qc-panel-concordance-report.md"
+PREREGISTRATION_MD = REPO_ROOT / "docs" / "spec" / "qc-panel-concordance-preregistration.md"
+CONCORDANCE_WORK_DIR = Path("/data/opengwasdb/work/gwas-catalog-eur-hybrid/concordance")
 
 
 class TestSampleManifestIntegrity(unittest.TestCase):
@@ -695,6 +699,109 @@ class TestSyntheticConcordanceStudyEndToEnd(unittest.TestCase):
         self.assertIn("# QC Panel Concordance Study Report", report)
         self.assertIn("Total Analyses Evaluated:** 2", report)
         self.assertIn("ADOPT_QC_PANEL", report)
+
+
+class TestFinalizedConcordanceOutputs(unittest.TestCase):
+    """Assert completeness, integrity, and pinned checksums of the #152 study outputs."""
+
+    @unittest.skipUnless(CONCORDANCE_WORK_DIR.is_dir(), "Concordance output directory not present on this host")
+    def test_concordance_output_artifacts_match_pinned_checksums(self) -> None:
+        json_path = CONCORDANCE_WORK_DIR / "concordance_results.json"
+        tsv_path = CONCORDANCE_WORK_DIR / "concordance_comparison.tsv"
+        report_path = CONCORDANCE_WORK_DIR / "concordance_report.md"
+
+        self.assertTrue(json_path.is_file(), f"Missing {json_path}")
+        self.assertTrue(tsv_path.is_file(), f"Missing {tsv_path}")
+        self.assertTrue(report_path.is_file(), f"Missing {report_path}")
+
+        self.assertEqual(
+            sha256_file(json_path),
+            "609fff779ad148a37af4aa397af801505ea54578aa295b11f9c434a48dcafb23",
+            "concordance_results.json sha256 mismatch",
+        )
+        self.assertEqual(
+            sha256_file(tsv_path),
+            "7fef76ed842a45ef789ede313a339a8ea12eb64ed2f823fe92a8ac898d103ce9",
+            "concordance_comparison.tsv sha256 mismatch",
+        )
+        self.assertEqual(
+            sha256_file(report_path),
+            "af3527d87f7d9c1c580290e69b59c6e6ee6be322e087f730c4f6b7f6714cb3da",
+            "concordance_report.md sha256 mismatch",
+        )
+
+    @unittest.skipUnless(CONCORDANCE_WORK_DIR.is_dir(), "Concordance output directory not present on this host")
+    def test_concordance_results_completeness_and_verdict(self) -> None:
+        json_path = CONCORDANCE_WORK_DIR / "concordance_results.json"
+        with open(json_path, encoding="utf-8") as fh:
+            data = json.load(fh)
+
+        summary = data["summary"]
+        self.assertEqual(summary["total_analyses"], 106)
+        self.assertEqual(summary["quantitative_count"], 54)
+        self.assertEqual(summary["case_control_count"], 52)
+        self.assertEqual(summary["false_positive_eur_count"], 0)
+        self.assertEqual(summary["orientation_sensitivity_rate"], 1.0)
+        self.assertEqual(summary["total_disagreements"], 14)
+        self.assertFalse(summary["criteria_evaluation"]["genome_wide_concordance_ge_98pct"])
+        self.assertTrue(summary["criteria_evaluation"]["zero_false_positive_eur"])
+        self.assertTrue(summary["criteria_evaluation"]["complete_orientation_sensitivity"])
+        self.assertTrue(summary["criteria_evaluation"]["zero_execution_errors"])
+        self.assertIn("RETAIN_FULL_REFERENCE", summary["recommendation"])
+
+        results = data["results"]
+        self.assertEqual(len(results), 106)
+        for r in results:
+            self.assertIsNone(r.get("error"), f"Unexpected error in {r.get('analysis_id')}: {r.get('error')}")
+
+
+class TestShippedPolicyAndConfig(unittest.TestCase):
+    """Verify that config-full.yaml encodes the ratified #152 policies."""
+
+    def test_config_declares_null_extraction_panel_and_source_af_only(self) -> None:
+        self.assertTrue(CONFIG_YAML.is_file(), f"Missing config YAML at {CONFIG_YAML}")
+        with open(CONFIG_YAML, encoding="utf-8") as fh:
+            config = yaml.safe_load(fh)
+
+        ancestry = config.get("ancestry_assignment", {})
+        self.assertTrue(ancestry.get("enabled"))
+        self.assertEqual(ancestry.get("reference_resource_id"), "ukb-ancestry-mixture-hg38")
+        # Retaining full reference scan
+        self.assertIsNone(ancestry.get("extraction_panel"))
+
+        effect = config.get("effect_scale_validation", {})
+        self.assertTrue(effect.get("enabled"))
+        # Source-AF-only policy: no fallback reference declared
+        self.assertEqual(effect.get("reference_resources"), [])
+
+
+class TestDurableReportIntegrity(unittest.TestCase):
+    """Verify that durable report and preregistration links are present and consistent."""
+
+    def test_durable_report_exists_and_records_checksums(self) -> None:
+        self.assertTrue(DURABLE_REPORT_MD.is_file(), f"Missing report at {DURABLE_REPORT_MD}")
+        content = DURABLE_REPORT_MD.read_text(encoding="utf-8")
+
+        # Pinned input checksums
+        self.assertIn("067914e0c21fe2f0d464f8489e7d91bd4eeafdbf71bc0b93e895a2117ddc0925", content)
+        self.assertIn("005093f9a8f74cc792e6ee4e828f7f4fa1ca7508e92c2d1dd463f320bac3834d", content)
+        self.assertIn("0bfe49c9f8083b7f8a3c9bb79b40b7540e8eb47f3e5e9524dbd0d591dc5bca88", content)
+        self.assertIn("d22e857c5c2880438cf3659c865c375755dcccb95e86d141f0b5df31b9a252f7", content)
+        self.assertIn("962618a5f72e0fa6027173e7b0b102cba472c9b4c9ff460f7bada04f17c2d557", content)
+
+        # Output artifact checksums
+        self.assertIn("609fff779ad148a37af4aa397af801505ea54578aa295b11f9c434a48dcafb23", content)
+        self.assertIn("7fef76ed842a45ef789ede313a339a8ea12eb64ed2f823fe92a8ac898d103ce9", content)
+        self.assertIn("af3527d87f7d9c1c580290e69b59c6e6ee6be322e087f730c4f6b7f6714cb3da", content)
+
+        # Decision keywords
+        self.assertIn("REJECT `qc-panel-hg38`", content)
+        self.assertIn("Source-AF-Only", content)
+
+    def test_preregistration_cross_links_to_final_report(self) -> None:
+        self.assertTrue(PREREGISTRATION_MD.is_file(), f"Missing preregistration at {PREREGISTRATION_MD}")
+        content = PREREGISTRATION_MD.read_text(encoding="utf-8")
+        self.assertIn("docs/qc-panel-concordance-report.md", content)
 
 
 if __name__ == "__main__":

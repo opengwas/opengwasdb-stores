@@ -102,11 +102,12 @@ ancestry_assignment:
   enabled: true
   reference_resource_id: ukb-ancestry-mixture-hg38
   maf_floor: 0.01
-  # The full-GWAS sources in this pool overlap the reference at millions of
-  # sites, so the standard gates apply unchanged. Whether a bounded 10,000-site
-  # extraction panel (resources/reference-resources/qc-panel-hg38/) may replace
-  # the full reference here is issue #152's decision, to be taken on recorded
-  # concordance evidence and then reflected in this block.
+  # Extraction method decision (issue #152, docs/qc-panel-concordance-report.md):
+  # Method A (full 5.8M reference scan, `extraction_panel: null`) is retained.
+  # The 10k panel (`qc-panel-hg38`) failed the preregistered genome-wide
+  # concordance gate (95.1% < 98.0%) due to overlap drop on non-standard arrays;
+  # under the preregistered rule without gate tuning, qc-panel-hg38 was rejected.
+  extraction_panel: null
   gates:
     tau: 0.50
     delta: 0.20
@@ -121,15 +122,11 @@ effect_scale_validation:
   sd_tolerance: 0.15
   warning_multiplier: 2.0
   dispersion_max: 0.5
-  # Source-AF only, stated as a fact rather than left implicit. No ancestry-keyed
-  # reference-AF fallback is declared because the resource this registry declares
-  # for one (resources/reference-resources/ukb-hg38-eur-af/resource.yaml,
-  # /data/opengwasdb/reference/ukb-hg38) is absent on this host, and estimating
-  # against a panel that is not there would be a fabricated result. A
-  # quantitative Analysis whose source AF is unusable therefore gets an explicit
-  # `no_reference_resource_for_ancestry` skip. Whether this release materialises
-  # that panel, substitutes an approved one, or stays source-AF only is issue
-  # #152's decision; adding a resource is a config edit here, not a code change.
+  # Source-AF-only policy settled under issue #152 (Option 3). No ancestry-keyed
+  # reference-AF fallback panel is declared because /data/opengwasdb/reference/ukb-hg38
+  # is absent on this host. Quantitative Analyses lacking usable source AF receive
+  # an explicit `no_reference_resource_for_ancestry` skip and are excluded from the
+  # candidate release manifest.
   reference_resources: []
 
 runtime:
