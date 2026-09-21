@@ -42,12 +42,15 @@ for extra in (str(REPO_ROOT), str(REPO_ROOT / "src")):
 
 from resources.generators.lib.candidate_workflow import (  # noqa: E402
     DEFAULT_RESOLVER_BIN,
+    RECEIPT_FILENAME,
     STAGING_DIRNAME,
     CandidateConfiguration,
     CandidateError,
     CandidateFiles,
+    account_records,
     apply_release_policy,
     build_candidate_tables,
+    build_resolution_receipt,
     check_staged_candidate,
     cleanup_staging,
     derive_resolver_manifest,
@@ -55,16 +58,19 @@ from resources.generators.lib.candidate_workflow import (  # noqa: E402
     now_utc,
     publish_candidate,
     read_candidate_metadata,
+    read_resolution_receipt,
     render_build_yaml,
     render_release_yaml,
     render_resolver_manifest,
     render_validation_yaml,
     resolver_argv,
     run_resolver,
+    sha256_file,
     sha256_text,
     stage_candidate,
     validate_candidate_analyses,
     verify_records,
+    write_resolution_receipt,
 )
 from resources.generators.lib.source_inventory import (  # noqa: E402
     InventoryError,
@@ -120,7 +126,7 @@ class Pipeline:
         self.records_dir = self.run_root / "resolver" / "records"
         self.resolver_manifest_path = self.run_root / "resolver" / "analyses.tsv"
         self.resolver_log_path = self.run_root / "resolver" / "resolve.log"
-        self.resolver_argv_path = self.run_root / "resolver" / "resolve.argv"
+        self.receipt_path = self.run_root / "resolver" / RECEIPT_FILENAME
         self.preflight_report_path = (
             self.run_root / "preflight" / f"{self.config.base.inventory_snapshot_id}.json"
         )
@@ -213,8 +219,6 @@ def stage_resolve(pipeline: Pipeline, manifest: list) -> None:
         resume=pipeline.args.resume,
     )
     pipeline.commands.append(" ".join(argv))
-    pipeline.resolver_argv_path.parent.mkdir(parents=True, exist_ok=True)
-    pipeline.resolver_argv_path.write_text(" ".join(argv) + "\n", encoding="utf-8")
     print("Running: " + " ".join(argv))
     run = run_resolver(argv, cwd=pipeline.repo_root, log_path=pipeline.resolver_log_path)
     if run.returncode != 0:
@@ -223,9 +227,37 @@ def stage_resolve(pipeline: Pipeline, manifest: list) -> None:
         )
     print(f"Resolver log: {run.log_path}")
 
+    # A successful exit is not enough: account the records, then bind them to the
+    # contract they were resolved under. A later standalone verify/emit is only
+    # trustworthy against this receipt.
+    records, failures = account_records(manifest, pipeline.records_dir)
+    if failures:
+        raise CandidateError(
+            f"resolver exited 0 but {len(failures)} record(s) are not accountable; refusing "
+            "to bind a receipt:\n  - " + "\n  - ".join(failures)
+        )
+    index_path = pipeline.records_dir / "index.json"
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    receipt = build_resolution_receipt(
+        manifest_rows=manifest,
+        config=pipeline.config,
+        manifest_path=pipeline.resolver_manifest_path,
+        records_dir=pipeline.records_dir,
+        argv=argv,
+        index=index,
+    )
+    write_resolution_receipt(pipeline.receipt_path, receipt)
+    print(f"Resolution receipt: {pipeline.receipt_path} ({len(records)} records bound)")
+
 
 def stage_verify(pipeline: Pipeline, manifest: list) -> tuple[list, dict]:
-    records, failures = verify_records(manifest, pipeline.records_dir)
+    records, failures = verify_records(
+        manifest,
+        pipeline.records_dir,
+        config=pipeline.config,
+        manifest_path=pipeline.resolver_manifest_path,
+        receipt_path=pipeline.receipt_path,
+    )
     if failures:
         raise CandidateError(
             f"{len(failures)} resolver accounting failure(s); refusing to finalise:\n  - "
@@ -266,10 +298,18 @@ def stage_emit(
         (pipeline.repo_root / FAMILY_DIR / "generate_candidate.py").read_bytes()
     )
     commands = list(dict.fromkeys(pipeline.commands))
-    if pipeline.resolver_argv_path.is_file():
-        recorded = pipeline.resolver_argv_path.read_text(encoding="utf-8").strip()
-        if recorded:
-            commands = list(dict.fromkeys([*commands, recorded]))
+    try:
+        receipt = read_resolution_receipt(pipeline.receipt_path)
+    except CandidateError:
+        receipt = None
+    if isinstance(receipt, dict):
+        resolver_block = receipt.get("resolver")
+        recorded_argv = resolver_block.get("argv") if isinstance(resolver_block, dict) else None
+        if isinstance(recorded_argv, list) and recorded_argv:
+            commands = list(dict.fromkeys([*commands, " ".join(str(t) for t in recorded_argv)]))
+    receipt_sha256 = (
+        sha256_file(pipeline.receipt_path) if pipeline.receipt_path.is_file() else None
+    )
 
     files = CandidateFiles(
         release_yaml=render_release_yaml(
@@ -282,6 +322,8 @@ def stage_emit(
             preflight_report=pipeline.preflight_report_path,
             index_summary=index,
             generator_version=generator_version,
+            resolver_receipt_path=pipeline.receipt_path,
+            resolver_receipt_sha256=receipt_sha256,
         ),
         build_yaml=render_build_yaml(pipeline.store_id, pipeline.config),
         analyses_tsv=tables.analyses_tsv,

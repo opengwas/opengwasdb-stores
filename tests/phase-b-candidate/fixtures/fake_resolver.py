@@ -18,12 +18,25 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import importlib.metadata
 import json
 import os
 import sys
 from pathlib import Path
 
 RECORD_SCHEMA_VERSION = 1
+
+
+def _opengwasdb_version() -> str:
+    try:
+        return importlib.metadata.version("opengwasdb")
+    except Exception:
+        return "0.0.0"
+
+
+#: The distribution version the registry's resolution contract cross-checks, so a
+#: stand-in resolver must report the same one the installed environment has.
+TOOL_VERSION = _opengwasdb_version()
 DEFAULT_OUTCOME = {
     "status": "success",
     "assigned_ancestry": "EUR",
@@ -107,7 +120,7 @@ def compute_fingerprints(row: dict, options: dict) -> dict:
         "source_recorded_bytes": size_bytes,
         "source_file_bytes": file_bytes,
         "source_file_mtime_ns": file_mtime_ns,
-        "opengwasdb_version": "test-0.0.0",
+        "opengwasdb_version": TOOL_VERSION,
         "opengwasdb_git_hash": "testgithash",
         "ancestry_reference_id": Path(str(options.get("ancestry_reference", "reference"))).name,
         "ancestry_reference_sha256": "a" * 64,
@@ -293,7 +306,7 @@ def main(argv: list[str]) -> int:
         "record_schema_version": RECORD_SCHEMA_VERSION,
         "manifest_path": str(manifest_path),
         "records_dir": str(records_dir),
-        "opengwasdb_version": "test-0.0.0",
+        "opengwasdb_version": TOOL_VERSION,
         "opengwasdb_git_hash": "testgithash",
         "n_total": len(rows),
         "n_success": n_success,

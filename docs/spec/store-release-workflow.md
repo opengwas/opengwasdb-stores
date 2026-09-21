@@ -637,11 +637,33 @@ membership is still the inventory's.
 
 **Record accounting.** Finalisation fails before anything replaces a prior
 candidate when a selected Analysis has no record, when a record names an
-Analysis the manifest does not, when a record appears twice, or when a record's
-source checksum/size/file, method tier and reader capability no longer match the
-manifest that was resolved. The fingerprint digest is recomputed over the
-record's own inputs, so an edited or stale record is caught. This is the
+Analysis the manifest does not, when a record appears twice, when a record
+declares a `record_schema_version` this registry does not finalise, or when a
+record's source checksum/size/file, method tier and reader capability no longer
+match the manifest that was resolved. The fingerprint digest is recomputed over
+the record's own inputs, and the source file's recorded size/mtime are re-checked
+against disk, so an edited, replaced or stale record is caught. This is the
 "wrong answer that looks like a right answer" guard applied to membership.
+
+**Resolution receipt.** A record's self-digest only proves it is internally
+consistent. A record produced under different gates, ancestry reference or
+fine-group map, extraction panel, reference-AF resources or resolver revision
+still recomputes a valid self-digest, so a standalone `verify`/`emit` that only
+recomputed it could freeze a stale Analysis. After a successful resolver
+invocation the `resolve` stage therefore atomically writes
+`<work-root>/<id>/resolver/resolution_receipt.json`: the resolver manifest's
+checksum, the registry-recomputable slice of the resolution contract (declared
+gates, MAF floor, reader capability, extraction panel, ancestry
+reference/group-map and reference-AF resource content fingerprints), the
+installed resolver's content identity, the actual `opengwasdb resolve-analyses`
+argv, and every `analysis_id` bound to the fingerprint digest the resolver wrote
+for it. Standalone `verify`/`emit` recompute the contract from the current
+config, references and installed tool and require it to equal the receipt, and
+require every record digest to match the receipt; a `--stage emit` without a
+prior successful `resolve` fails rather than trusting hand-assembled records.
+The registry never re-derives the resolver's statistics; it binds and re-checks
+the inputs that determine them. Core count and `--resume` are recorded as
+evidence but are not part of the contract, so neither changes it.
 
 **Release policy and controlled exclusions (issue #152).** The registry, not the
 resolver, decides membership. A ready Analysis whose Assigned Ancestry is not

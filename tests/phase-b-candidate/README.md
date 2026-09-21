@@ -31,19 +31,31 @@ alignment or SD — those stay OpenGWASDB's and are exercised upstream.
 4. **Every selected Analysis is accounted** — one ancestry row and one
    SD-estimation row per selected Analysis; the 6,035-row-style inventory
    evidence stays distinct from membership.
-5. **Accounting failures fail finalisation before replacement** — missing, stale,
-   extra and duplicate records (unit and end-to-end).
-6. **Resume reuses unchanged records** and reproduces byte-identical tables and
+5. **Accounting failures fail finalisation before replacement** — missing, extra,
+   duplicate and incompatible-`record_schema_version` records (unit and
+   end-to-end).
+6. **The resolution receipt closes the stale-record hole** — the receipt binds
+   the contract and every record digest; changing a gate, the ancestry reference
+   or fine-group map content, the resolver revision, or forging an
+   internally-consistent record with a recomputed self-digest all make
+   `verify`/`emit` fail, preserve a prior candidate and leave no staging tree.
+   A missing receipt is rejected too. (`--cores` and `--resume` deliberately do
+   not change the contract.)
+7. **Resume reuses unchanged records** and reproduces byte-identical tables and
    sidecars.
-7. **Interruption is safe** — a killed resolver or a failed finalisation leaves a
+8. **Interruption is safe** — a killed resolver or a failed finalisation leaves a
    prior candidate byte-identical and creates no partial one, and leaves no
    staging tree behind.
-8. **Byte equivalence across worker counts** — 1 worker and many workers produce
+9. **Byte equivalence across worker counts** — 1 worker and many workers produce
    identical `analyses.tsv` and sidecars.
-9. **The contract holds** — the emitted `analyses.tsv` passes the pinned
-   OpenGWASDB Analysis schema and the whole bundle passes `bundle.check()`, and
-   `release.yaml` binds the frozen inventory checksum, the #152 policy and the
-   executed resolver argv while staying `status: candidate`.
+10. **The contract holds** — the emitted `analyses.tsv` passes the pinned
+    OpenGWASDB Analysis schema and the whole bundle passes `bundle.check()`, and
+    `release.yaml` binds the frozen inventory checksum, the #152 policy and the
+    executed resolver argv while staying `status: candidate`.
+11. **`workflow/generate.smk` parses and wires every stage** — an automated
+    hermetic `snakemake --dry-run` (skipped when `snakemake` is not on PATH, as
+    in the default environment) plus a check that missing required config fails
+    loudly.
 
 ## Running the suite
 

@@ -85,14 +85,24 @@ work root (also how `workflow/generate.smk` wires the coarse DAG):
 |---|---|
 | `preflight` | The frozen inventory still matches the mirror, the declared Reference Resources exist, and every study design has a method tier. Writes `<work-root>/OGS-xxxxx/preflight/<snapshot>.json`. |
 | `prepare` | The canonical resolver manifest from the frozen exact `data_file` paths and the per-design method tiers. |
-| `resolve` | Invokes `opengwasdb resolve-analyses`; writes records, `index.json` and `resolve.log`. |
-| `verify` | Accounts every record; refuses a missing, stale, duplicate or extra one. |
+| `resolve` | Invokes `opengwasdb resolve-analyses`; writes records, `index.json`, `resolve.log`, and the `resolution_receipt.json` that binds the run to its contract. |
+| `verify` | Accounts every record and requires the current contract and every record digest to match the successful resolution receipt; refuses a missing, stale, duplicate, extra, or incompatible-schema record. |
 | `emit` | Applies release policy, checks the pinned schema and `bundle.check()`, and atomically publishes `stores/OGS-xxxxx/`. |
 | `all` | Default: every stage in order. |
 
 Useful options: `--registry-root` (default `stores/`), `--work-root` (default
 `output.work_root`), `--inventory` / `--provenance` / `--candidates` overrides,
 and `--resume`.
+
+A standalone `--stage verify` or `--stage emit` requires the
+`resolution_receipt.json` a successful `resolve` wrote. The receipt binds the
+resolver manifest, the declared gates / ancestry reference and fine-group map /
+extraction panel / reference-AF resources, the installed resolver's content
+identity, and every Analysis's fingerprint digest. Changing any of those (or a
+source file) after resolving makes the receipt stale, and `verify`/`emit` fail
+and tell you to re-resolve rather than freezing stale records into a candidate.
+`--cores` and `--resume` do not change the contract or the bundle tables and
+sidecars.
 
 ### Candidate output and controlled exclusions
 

@@ -35,12 +35,14 @@ import csv
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 from dataclasses import dataclass
 from pathlib import Path
+from unittest import mock
 
 import yaml
 
@@ -49,18 +51,23 @@ for extra in (str(REPO_ROOT), str(REPO_ROOT / "src")):
     if extra not in sys.path:
         sys.path.insert(0, extra)
 
+import resources.generators.lib.candidate_workflow as candidate_workflow  # noqa: E402
 from ogstores import bundle as bundle_module  # noqa: E402
 from ogstores.plan import plan  # noqa: E402
 from resources.generators.lib.candidate_workflow import (  # noqa: E402
     EXCLUSION_REASONS,
+    RECEIPT_FILENAME,
     RESOLVER_MANIFEST_COLUMNS,
+    CandidateError,
     ResolverRow,
+    account_records,
     apply_release_policy,
     build_candidate_tables,
     check_staged_candidate,
     derive_resolver_manifest,
     load_candidate_configuration,
     read_candidate_metadata,
+    read_resolution_receipt,
     render_resolver_manifest,
     resolver_argv,
     validate_candidate_analyses,
@@ -76,6 +83,7 @@ from resources.generators.lib.source_inventory import (  # noqa: E402
 
 CLI = REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py"
 FAKE_RESOLVER = Path(__file__).resolve().parent / "fixtures/fake_resolver.py"
+SNAKEMAKE = shutil.which("snakemake")
 STORE_KEY = "hybrid__European"
 SNAPSHOT_ID = "fixture-snapshot"
 STORE_ID = "OGS-99001"
@@ -358,6 +366,23 @@ def _write_tsv(path: Path, columns: list[str], rows: list[dict[str, str]]) -> No
             writer.writerow({name: row.get(name, "") for name in columns})
 
 
+def _fingerprint_digest(fingerprints: dict) -> str:
+    """The resolver's canonical digest, so a test can forge a self-consistent record."""
+    clean = {key: value for key, value in fingerprints.items() if key != "fingerprint_digest"}
+    payload = json.dumps(clean, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _two_resolver_rows() -> list[ResolverRow]:
+    """Two minimal resolver rows for unit-level accounting tests."""
+    return [
+        ResolverRow("GCST1", "/tmp/a.h.tsv.gz", "opengwasdb.gwas-ssf", "sd",
+                    "estimated_from_source_maf", "100", "a" * 64, "sha256", "10"),
+        ResolverRow("GCST2", "/tmp/b.h.tsv.gz", "opengwasdb.gwas-ssf", "sd",
+                    "estimated_from_source_maf", "200", "b" * 64, "sha256", "20"),
+    ]
+
+
 def _run_cli(
     fixture: Fixture,
     *args: str,
@@ -388,7 +413,15 @@ def _run_cli(
     if resume:
         command.append("--resume")
     command.extend(args)
-    env = {**os.environ, "FAKE_RESOLVER_OUTCOMES": str(outcomes or fixture.outcomes_path)}
+    # The fake resolver is exec'd through its shebang, so put this interpreter's
+    # directory first on PATH: it then runs under the same environment (and the
+    # same installed opengwasdb) as the registry process.
+    interpreter_dir = str(Path(sys.executable).resolve().parent)
+    env = {
+        **os.environ,
+        "PATH": interpreter_dir + os.pathsep + os.environ.get("PATH", ""),
+        "FAKE_RESOLVER_OUTCOMES": str(outcomes or fixture.outcomes_path),
+    }
     if fail_after is not None:
         env["FAKE_RESOLVER_FAIL_AFTER"] = str(fail_after)
     return subprocess.run(
@@ -503,6 +536,11 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertIn("resolve-analyses", commands)
         self.assertIn("--n-workers 1", commands)
         self.assertIn("generate_candidate.py", commands)
+        receipt_path = self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME
+        self.assertEqual(
+            release["source_snapshot"]["resolver_receipt_sha256"],
+            hashlib.sha256(receipt_path.read_bytes()).hexdigest(),
+        )
 
         build = yaml.safe_load((bundle_dir / "build.yaml").read_text(encoding="utf-8"))
         self.assertEqual(build["layout"], "hybrid")
@@ -635,6 +673,131 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("extra resolver record", result.stderr)
 
+    def test_record_schema_version_mismatch_fails_before_replacement(self) -> None:
+        self.assertEqual(_run_cli(self.fixture).returncode, 0)
+        records = self.fixture.work_root / STORE_ID / "resolver/records"
+        record_path = records / "GCST90000001.json"
+        record = json.loads(record_path.read_text())
+        record["record_schema_version"] = 2
+        record_path.write_text(json.dumps(record), encoding="utf-8")
+        result = self._run_emit_only()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("record_schema_version", result.stderr)
+
+    def test_index_schema_version_mismatch_fails_before_replacement(self) -> None:
+        self.assertEqual(_run_cli(self.fixture).returncode, 0)
+        records = self.fixture.work_root / STORE_ID / "resolver/records"
+        index_path = records / "index.json"
+        index = json.loads(index_path.read_text())
+        index["record_schema_version"] = 2
+        index_path.write_text(json.dumps(index), encoding="utf-8")
+        result = self._run_emit_only()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("record_schema_version", result.stderr)
+
+    # -- stale-contract (resolution receipt) -----------------------------------
+
+    def _resolved_candidate(self) -> None:
+        """Produce a successful candidate whose records and receipt are on disk."""
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def _assert_emit_rejects_and_preserves(self, expected_message: str) -> None:
+        before = _candidate_tables_bytes(self.fixture.registry_root)
+        result = self._run_emit_only()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(expected_message, result.stderr)
+        self.assertEqual(_candidate_tables_bytes(self.fixture.registry_root), before)
+        self.assertFalse((self.fixture.registry_root / ".staging").exists())
+
+    def test_changed_gate_makes_the_receipt_stale(self) -> None:
+        self._resolved_candidate()
+        document = yaml.safe_load(self.fixture.config_path.read_text(encoding="utf-8"))
+        document["ancestry_assignment"]["gates"]["tau"] = 0.9
+        self.fixture.config_path.write_text(
+            yaml.safe_dump(document, sort_keys=False), encoding="utf-8"
+        )
+        self._assert_emit_rejects_and_preserves("resolution contract changed")
+
+    def test_changed_ancestry_reference_makes_the_receipt_stale(self) -> None:
+        self._resolved_candidate()
+        reference = self.fixture.root / "reference/ref_freqs.tsv.gz"
+        reference.write_bytes(reference.read_bytes() + b"# changed content\n")
+        self._assert_emit_rejects_and_preserves("ancestry_reference_sha256")
+
+    def test_changed_ancestry_groups_makes_the_receipt_stale(self) -> None:
+        self._resolved_candidate()
+        groups = self.fixture.root / "reference/ancestry_groups.tsv"
+        groups.write_text(
+            groups.read_text(encoding="utf-8") + "AFR_A\tAFR\n", encoding="utf-8"
+        )
+        self._assert_emit_rejects_and_preserves("ancestry_groups_sha256")
+
+    def test_missing_receipt_fails_before_replacement(self) -> None:
+        self._resolved_candidate()
+        receipt = self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME
+        receipt.unlink()
+        self._assert_emit_rejects_and_preserves("resolution receipt is missing")
+
+    def test_receipt_binds_every_record_digest(self) -> None:
+        self._resolved_candidate()
+        receipt = json.loads(
+            (self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME).read_text()
+        )
+        records = self.fixture.work_root / STORE_ID / "resolver/records"
+        for analysis_id in receipt["analysis_ids"]:
+            record = json.loads((records / f"{analysis_id}.json").read_text())
+            self.assertEqual(
+                receipt["record_digests"][analysis_id],
+                record["fingerprints"]["fingerprint_digest"],
+            )
+        self.assertIn("resolve-analyses", " ".join(receipt["resolver"]["argv"]))
+
+    def test_tampered_fingerprint_with_valid_self_digest_is_rejected(self) -> None:
+        # The exact hole review found: mutate a gate/evidence fingerprint input
+        # and recompute a *valid* self-digest. The record is internally
+        # consistent, so only the receipt can reject it.
+        self._resolved_candidate()
+        records = self.fixture.work_root / STORE_ID / "resolver/records"
+        record_path = records / "GCST90000001.json"
+        record = json.loads(record_path.read_text())
+        record["fingerprints"]["resolution_config"]["gates"]["tau"] = 0.99
+        record["fingerprints"]["resolution_config"]["evidence_sample"] = 123
+        record["fingerprints"]["opengwasdb_git_hash"] = "a-different-revision"
+        record["fingerprints"]["fingerprint_digest"] = _fingerprint_digest(
+            record["fingerprints"]
+        )
+        record_path.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
+        self._assert_emit_rejects_and_preserves("bound")
+
+    def test_changed_tool_identity_makes_the_receipt_stale(self) -> None:
+        self._resolved_candidate()
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        manifest = derive_resolver_manifest(
+            read_inventory(self.fixture.inventory_path),
+            config,
+            read_candidate_metadata(
+                self.fixture.candidates_path,
+                [row.analysis_id for row in read_inventory(self.fixture.inventory_path) if row.ready],
+            ),
+        )
+        run_root = self.fixture.work_root / STORE_ID / "resolver"
+        with mock.patch.object(
+            candidate_workflow,
+            "_opengwasdb_tool_identity",
+            return_value=("0.3.0", "0" * 64),
+        ):
+            _, failures = verify_records(
+                manifest,
+                run_root / "records",
+                config=config,
+                manifest_path=run_root / "analyses.tsv",
+                receipt_path=run_root / RECEIPT_FILENAME,
+            )
+        self.assertTrue(
+            any("opengwasdb_resolver_sha256" in failure for failure in failures), failures
+        )
+
     def test_stale_record_fails_before_replacement(self) -> None:
         self.assertEqual(_run_cli(self.fixture).returncode, 0)
         records = self.fixture.work_root / STORE_ID / "resolver/records"
@@ -646,53 +809,89 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("fingerprint", result.stderr)
 
-    def test_verify_records_flags_missing_stale_duplicate_and_extra(self) -> None:
-        rows = [
-            ResolverRow(
-                analysis_id="GCST1",
-                source_file="/tmp/a.h.tsv.gz",
-                source_reader_capability="opengwasdb.gwas-ssf",
-                stored_effect_scale="sd",
-                original_sd_method="estimated_from_source_maf",
-                sample_size="100",
-                checksum="a" * 64,
-                checksum_algorithm="sha256",
-                size_bytes="10",
-            ),
-            ResolverRow(
-                analysis_id="GCST2",
-                source_file="/tmp/b.h.tsv.gz",
-                source_reader_capability="opengwasdb.gwas-ssf",
-                stored_effect_scale="sd",
-                original_sd_method="estimated_from_source_maf",
-                sample_size="200",
-                checksum="b" * 64,
-                checksum_algorithm="sha256",
-                size_bytes="20",
-            ),
-        ]
+    def test_account_records_flags_missing_duplicate_and_extra(self) -> None:
+        rows = _two_resolver_rows()
         with tempfile.TemporaryDirectory() as tmp:
             records = Path(tmp)
-            # index present but a record missing
-            index = {
+            base_index = {
+                "record_schema_version": 1,
                 "n_total": 2,
                 "analyses": [
                     {"analysis_id": "GCST1", "status": "success"},
                     {"analysis_id": "GCST2", "status": "success"},
                 ],
             }
-            (records / "index.json").write_text(json.dumps(index))
-            _, failures = verify_records(rows, records)
+            # index present but a record missing
+            (records / "index.json").write_text(json.dumps(base_index))
+            _, failures = account_records(rows, records)
             self.assertTrue(any("missing" in failure for failure in failures))
 
             # duplicate id in the index
-            index["analyses"] = [
+            duplicate_index = dict(base_index)
+            duplicate_index["analyses"] = [
                 {"analysis_id": "GCST1", "status": "success"},
                 {"analysis_id": "GCST1", "status": "success"},
             ]
-            (records / "index.json").write_text(json.dumps(index))
-            _, failures = verify_records(rows, records)
+            (records / "index.json").write_text(json.dumps(duplicate_index))
+            _, failures = account_records(rows, records)
             self.assertTrue(any("duplicate analysis_id" in failure for failure in failures))
+
+            # an extra record the manifest does not account for
+            (records / "index.json").write_text(json.dumps(base_index))
+            (records / "GCST99999999.json").write_text("{}")
+            _, failures = account_records(rows, records)
+            self.assertTrue(any("extra resolver record" in failure for failure in failures))
+
+    def test_account_records_rejects_incompatible_schema_versions(self) -> None:
+        rows = _two_resolver_rows()[:1]
+        with tempfile.TemporaryDirectory() as tmp:
+            records = Path(tmp)
+            (records / "index.json").write_text(
+                json.dumps(
+                    {
+                        "record_schema_version": 2,
+                        "n_total": 1,
+                        "analyses": [{"analysis_id": "GCST1", "status": "success"}],
+                    }
+                )
+            )
+            _, failures = account_records(rows, records)
+            self.assertTrue(any("record_schema_version" in failure for failure in failures))
+
+            (records / "index.json").write_text(
+                json.dumps(
+                    {
+                        "record_schema_version": 1,
+                        "n_total": 1,
+                        "analyses": [{"analysis_id": "GCST1", "status": "success"}],
+                    }
+                )
+            )
+            (records / "GCST1.json").write_text(
+                json.dumps(
+                    {
+                        "record_schema_version": 2,
+                        "analysis_id": "GCST1",
+                        "status": "success",
+                    }
+                )
+            )
+            _, failures = account_records(rows, records)
+            self.assertTrue(any("record_schema_version" in failure for failure in failures))
+
+    def test_read_resolution_receipt_rejects_incompatible_schema_versions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / RECEIPT_FILENAME
+            path.write_text(json.dumps({"receipt_schema_version": 2}))
+            with self.assertRaises(CandidateError):
+                read_resolution_receipt(path)
+            path.write_text(
+                json.dumps({"receipt_schema_version": 1, "record_schema_version": 9})
+            )
+            with self.assertRaises(CandidateError):
+                read_resolution_receipt(path)
+            with self.assertRaises(CandidateError):
+                read_resolution_receipt(Path(tmp) / "missing.json")
 
     # -- units -----------------------------------------------------------------
 
@@ -749,7 +948,11 @@ class CandidateWorkflowTests(unittest.TestCase):
         run = _run_cli(self.fixture, "--stage", "resolve")
         self.assertEqual(run.returncode, 0, run.stderr)
         records, failures = verify_records(
-            manifest, self.fixture.work_root / STORE_ID / "resolver/records"
+            manifest,
+            self.fixture.work_root / STORE_ID / "resolver/records",
+            config=config,
+            manifest_path=self.fixture.work_root / STORE_ID / "resolver/analyses.tsv",
+            receipt_path=self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME,
         )
         self.assertEqual(failures, [])
         index = json.loads(
@@ -796,6 +999,46 @@ class CandidateWorkflowTests(unittest.TestCase):
         (store_dir / "release.yaml").write_text("store_id: OGS-99001\n", encoding="utf-8")
         errors = check_staged_candidate(STORE_ID, staging_parent)
         self.assertTrue(errors)
+
+    # -- snakemake wiring ------------------------------------------------------
+
+    @unittest.skipUnless(
+        SNAKEMAKE, "snakemake is not on PATH; run under `pixi run --environment dev`"
+    )
+    def test_generate_smk_dry_run_wires_every_stage(self) -> None:
+        snakefile = REPO_ROOT / "workflow/generate.smk"
+        work_root = self.fixture.root / "smk-work"
+        registry_root = self.fixture.root / "smk-stores"
+        command = [
+            str(SNAKEMAKE),
+            "--snakefile",
+            str(snakefile),
+            "--dry-run",
+            "--cores",
+            "1",
+            "--config",
+            f"store_id={STORE_ID}",
+            f"config={self.fixture.config_path}",
+            f"snapshot_id={SNAPSHOT_ID}",
+            f"work_root={work_root}",
+            f"registry_root={registry_root}",
+        ]
+        result = subprocess.run(
+            command, cwd=str(self.fixture.root), capture_output=True, text=True, check=False
+        )
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        for rule in ("preflight", "resolver_manifest", "resolve", "verify", "finalise"):
+            self.assertIn(rule, result.stdout)
+        # The same DAG refuses to run without its required configuration.
+        missing = subprocess.run(
+            [str(SNAKEMAKE), "--snakefile", str(snakefile), "--dry-run", "--cores", "1"],
+            cwd=str(self.fixture.root),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertIn("store_id", missing.stderr + missing.stdout)
 
 
 if __name__ == "__main__":

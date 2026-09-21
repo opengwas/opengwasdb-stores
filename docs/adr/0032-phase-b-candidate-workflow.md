@@ -41,9 +41,28 @@ It runs five stages — `preflight`, `prepare`, `resolve`, `verify`, `emit` — 
 
 - **Every record is accounted before anything is replaced.** Finalisation refuses
   a selected Analysis with no record, a record that names an Analysis the
-  manifest does not, a duplicate record, or a record whose source identity or
+  manifest does not, a duplicate record, a record declaring an incompatible
+  `record_schema_version`, or a record whose source identity, source file or
   method tier no longer matches the manifest resolved. The fingerprint digest is
   recomputed over the record's own inputs.
+
+- **A resolution receipt closes the stale-record hole a self-digest cannot.**
+  A record's own fingerprint digest only proves it is *internally* consistent: a
+  record produced under different gates, ancestry reference or fine-group map,
+  extraction panel, reference-AF resources or tool revision still recomputes a
+  valid self-digest. After a successful resolver invocation the workflow
+  therefore atomically writes `resolver/resolution_receipt.json`, binding the
+  resolver manifest's checksum, the registry-recomputable slice of the
+  resolution contract (declared gates, MAF floor, reader capability, extraction
+  panel, ancestry reference/group-map and reference-AF resource content
+  fingerprints), the installed resolver's content identity, and every
+  `analysis_id` to the fingerprint digest the resolver wrote for it. Standalone
+  `verify`/`emit` recompute the contract from the current config, references and
+  installed tool and require it to equal the receipt, and require every record
+  digest to match the receipt. The registry never re-derives the resolver's
+  statistics; it binds and re-checks the inputs that determine them. Core count
+  and `--resume` are recorded as evidence but are deliberately *not* part of the
+  contract, so neither changes the contract or the bundle tables/sidecars.
 
 - **Output is a candidate only, published atomically.** The bundle is written
   under a hidden staging sibling, checked with `bundle.check()` and the pinned
@@ -69,6 +88,10 @@ It runs five stages — `preflight`, `prepare`, `resolve`, `verify`, `emit` — 
 - Aggregation is ordered by the frozen inventory and sidecar numerics go through
   the issue-#143 formatter, so 1 worker and 64 workers produce byte-identical
   tables and sidecars, and a resumed run reproduces an uninterrupted run's bytes.
+- The resolution receipt is written after a successful `resolve` and is required
+  by standalone `verify`/`emit`; a changed gate, reference, fine-group map,
+  extraction panel, reference-AF resource or resolver revision makes it stale
+  and forces a re-resolve rather than freezing stale Analyses into a candidate.
 - The Hybrid Build Recipe's Dense-Component axis (`--variant-reference` /
   `--reference-panel`) is deliberately not declared in `config-full.yaml`: it is
   a Reference Resource decision for acceptance, and inventing a host path would
