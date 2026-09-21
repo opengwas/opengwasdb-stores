@@ -55,6 +55,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cores", type=int, default=1, help="Concurrent worker count (up to 64)")
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR, help="Output directory for reports")
     parser.add_argument("--max-analyses", type=int, default=None, help="Cap number of analyses to evaluate")
+    parser.add_argument("--dry-run", action="store_true", help="Validate config, manifest, and references without scanning analyses")
     return parser.parse_args()
 
 
@@ -66,6 +67,7 @@ def main() -> None:
     print(f"Config:   {args.config}")
     print(f"Cores:    {args.cores}")
     print(f"Out Dir:  {args.out_dir}")
+    print(f"Dry Run:  {args.dry_run}")
     print("=" * 70)
 
     summary = evaluate_concordance_study(
@@ -73,7 +75,14 @@ def main() -> None:
         config_path=args.config,
         cores=args.cores,
         max_analyses=args.max_analyses,
+        dry_run=args.dry_run,
     )
+
+    if args.dry_run:
+        print("\nDry run successful: configuration, sample manifest, method tiers, and reference paths validated.")
+        print(f"Total tasks prepared: {summary.total_analyses} ({summary.quantitative_count} quantitative, {summary.case_control_count} case-control)")
+        print("=" * 70)
+        return
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     json_path = args.out_dir / "concordance_results.json"

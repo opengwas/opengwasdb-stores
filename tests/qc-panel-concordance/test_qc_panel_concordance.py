@@ -57,6 +57,8 @@ from resources.generators.lib.qc_panel_concordance import (
     AnalysisConcordanceResult,
     categorize_disagreement,
     compare_single_analysis,
+    evaluate_concordance_study,
+    render_concordance_markdown_report,
 )
 from resources.generators.lib.source_inventory import (
     SourceInventoryRow,
@@ -67,6 +69,7 @@ from resources.generators.lib.source_inventory import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SAMPLE_TSV = REPO_ROOT / "resources" / "inventories" / "gwas-catalog-ssf-eur-hybrid-qc-sample-2026-09-10.tsv"
 SAMPLE_META = REPO_ROOT / "resources" / "inventories" / "gwas-catalog-ssf-eur-hybrid-qc-sample-2026-09-10.meta.yaml"
+CONFIG_YAML = REPO_ROOT / "resources" / "generators" / "gwas-catalog-eur-hybrid" / "config-full.yaml"
 
 
 class TestSampleManifestIntegrity(unittest.TestCase):
@@ -444,6 +447,254 @@ class TestReferenceAfFallbackPolicy(unittest.TestCase):
         )
         self.assertEqual(req.original_sd_method, OriginalSdMethod.BINARY_TRAIT)
         self.assertEqual(req.stored_effect_scale, StoredEffectScale.LOG_OR)
+
+
+class TestConcordanceRunnerContract(unittest.TestCase):
+    """Integration and contract tests for the Concordance Study runner."""
+
+    def test_shipped_config_and_sample_manifest_dry_run(self) -> None:
+        """Validate that the shipped config and sample manifest parse without error."""
+        self.assertTrue(CONFIG_YAML.is_file(), f"Missing config YAML at {CONFIG_YAML}")
+        self.assertTrue(SAMPLE_TSV.is_file(), f"Missing sample TSV at {SAMPLE_TSV}")
+
+        summary = evaluate_concordance_study(
+            manifest_path=SAMPLE_TSV,
+            config_path=CONFIG_YAML,
+            cores=1,
+            dry_run=True,
+        )
+
+        self.assertEqual(summary.total_analyses, 106)
+        self.assertEqual(summary.quantitative_count, 54)
+        self.assertEqual(summary.case_control_count, 52)
+        self.assertTrue(summary.criteria_evaluation["zero_execution_errors"])
+        self.assertIn("DRY_RUN", summary.recommendation)
+
+    def test_runner_fails_loudly_on_invalid_study_design(self) -> None:
+        """Verify that an unknown study_design in manifest fails task preparation."""
+        with tempfile.TemporaryDirectory() as td:
+            bad_manifest = Path(td) / "bad_manifest.tsv"
+            with open(bad_manifest, "w", newline="") as fh:
+                writer = csv.DictWriter(
+                    fh,
+                    fieldnames=["analysis_id", "study_design", "sample_size", "data_file", "data_bytes", "stratum"],
+                    delimiter="\t",
+                )
+                writer.writeheader()
+                writer.writerow({
+                    "analysis_id": "GCST999999",
+                    "study_design": "survival_analysis",
+                    "sample_size": "1000",
+                    "data_file": "/dummy/file.tsv.gz",
+                    "data_bytes": "1000",
+                    "stratum": "test",
+                })
+
+            with self.assertRaises(ValueError) as ctx:
+                evaluate_concordance_study(
+                    manifest_path=bad_manifest,
+                    config_path=CONFIG_YAML,
+                    cores=1,
+                    dry_run=True,
+                )
+            self.assertIn("survival_analysis", str(ctx.exception))
+
+
+class TestSyntheticConcordanceStudyEndToEnd(unittest.TestCase):
+    """Full end-to-end execution of evaluate_concordance_study on synthetic fixtures."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.dir = Path(self.temp_dir.name)
+
+        # Build synthetic reference
+        self.groups = ["EUR_fine", "AFR_fine", "EAS_fine", "SAS_fine"]
+        self.superpops = {"EUR_fine": "EUR", "AFR_fine": "AFR", "EAS_fine": "EAS", "SAS_fine": "SAS"}
+        self.alids: list[str] = []
+
+        ref_file = self.dir / "ref_freqs.hg38.tsv.gz"
+        groups_file = self.dir / "ancestry_groups.tsv"
+
+        with open(groups_file, "w", newline="") as fh:
+            writer = csv.writer(fh, delimiter="\t")
+            writer.writerow(["group", "super_pop"])
+            for g in self.groups:
+                writer.writerow([g, self.superpops[g]])
+
+        ref_rows: dict[str, dict[str, float]] = {}
+        for block_idx, block_group in enumerate(self.groups):
+            for i in range(10):
+                pos = 1000 + len(self.alids) * 100
+                alid = f"1:{pos}:A:G"
+                self.alids.append(alid)
+                base = 0.05 + 0.08 * i
+                ref_rows[alid] = {
+                    g: (min(0.95, base + 0.6) if g == block_group else base)
+                    for g in self.groups
+                }
+
+        with gzip.open(ref_file, "wt", newline="") as fh:
+            writer = csv.writer(fh, delimiter="\t")
+            writer.writerow(["alid", "chromosome", "position", "effect_allele", "other_allele", "rsid", *self.groups])
+            for alid, freqs in ref_rows.items():
+                _chr, pos, ea, oa = alid.split(":")
+                writer.writerow([alid, _chr, pos, ea, oa, f"rs{pos}", *[f"{freqs[g]:.4g}" for g in self.groups]])
+
+        # Synthetic QC panel TSV with panel variants
+        self.qc_panel_path = self.dir / "qc_panel.tsv"
+        with open(self.qc_panel_path, "w", newline="") as fh:
+            writer = csv.writer(fh, delimiter="\t")
+            writer.writerow(["alid", "chromosome", "position", "effect_allele", "other_allele", "min_superpop_maf"])
+            for alid in self.alids:
+                _chr, pos, ea, oa = alid.split(":")
+                writer.writerow([alid, _chr, pos, ea, oa, "0.15"])
+
+        # Synthetic SSF 1 (EUR quantitative)
+        eur_freqs = {a: float(ref_rows[a]["EUR_fine"]) for a in self.alids}
+        eur_path = self.dir / "synth_eur.h.tsv.gz"
+        fieldnames = [
+            "chromosome", "base_pair_location", "effect_allele", "other_allele",
+            "beta", "standard_error", "p_value", "effect_allele_frequency", "variant_id",
+        ]
+        with gzip.open(eur_path, "wt", newline="") as fh:
+            writer = csv.DictWriter(fh, delimiter="\t", fieldnames=fieldnames, lineterminator="\n")
+            writer.writeheader()
+            for alid, af in eur_freqs.items():
+                chrom, pos, ea, oa = alid.split(":")
+                writer.writerow({
+                    "chromosome": chrom, "base_pair_location": pos, "effect_allele": ea, "other_allele": oa,
+                    "beta": "0.02", "standard_error": "0.01", "p_value": "0.04",
+                    "effect_allele_frequency": f"{af:.4g}", "variant_id": f"rs{pos}",
+                })
+
+        # Synthetic SSF 2 (case-control)
+        cc_path = self.dir / "synth_cc.h.tsv.gz"
+        with gzip.open(cc_path, "wt", newline="") as fh:
+            writer = csv.DictWriter(fh, delimiter="\t", fieldnames=fieldnames, lineterminator="\n")
+            writer.writeheader()
+            for alid, af in eur_freqs.items():
+                chrom, pos, ea, oa = alid.split(":")
+                writer.writerow({
+                    "chromosome": chrom, "base_pair_location": pos, "effect_allele": ea, "other_allele": oa,
+                    "beta": "0.05", "standard_error": "0.02", "p_value": "0.01",
+                    "effect_allele_frequency": f"{af:.4g}", "variant_id": f"rs{pos}",
+                })
+
+        # Synthetic inventory / manifest
+        self.manifest_path = self.dir / "sample_manifest.tsv"
+        with open(self.manifest_path, "w", newline="") as fh:
+            writer = csv.DictWriter(
+                fh,
+                fieldnames=["analysis_id", "study_design", "sample_size", "data_file", "data_bytes", "stratum"],
+                delimiter="\t",
+            )
+            writer.writeheader()
+            writer.writerow({
+                "analysis_id": "SYNTH_Q",
+                "study_design": "quantitative",
+                "sample_size": "5000",
+                "data_file": str(eur_path),
+                "data_bytes": str(eur_path.stat().st_size),
+                "stratum": "synth_quant",
+            })
+            writer.writerow({
+                "analysis_id": "SYNTH_CC",
+                "study_design": "case-control",
+                "sample_size": "5000",
+                "data_file": str(cc_path),
+                "data_bytes": str(cc_path.stat().st_size),
+                "stratum": "synth_cc",
+            })
+
+        # Synthetic config
+        self.config_path = self.dir / "config.yaml"
+        config_data = {
+            "source": {
+                "source_collection_id": "test-collection",
+                "store_key": "test_store",
+                "ancestry_group": "European",
+                "candidates": str(self.manifest_path),
+                "inventory": {
+                    "snapshot_id": "test-snapshot",
+                    "path": str(self.manifest_path),
+                    "provenance_path": str(self.manifest_path),
+                    "freeze_inputs": {
+                        "base_manifest": str(self.manifest_path),
+                    },
+                },
+            },
+            "defaults": {
+                "by_study_design": {
+                    "quantitative": {
+                        "stored_effect_scale": "sd",
+                        "original_effect_scale": "sd",
+                        "original_sd_method": "estimated_from_source_maf",
+                        "sample_size_kind": "total",
+                    },
+                    "case-control": {
+                        "stored_effect_scale": "log_or",
+                        "original_effect_scale": "log_or",
+                        "original_sd_method": "binary_trait",
+                        "sample_size_kind": "case_control",
+                    },
+                },
+            },
+            "reference_resources": [
+                {
+                    "resource_id": "test-ancestry-mixture",
+                    "kind": "ancestry_mixture",
+                    "location": str(ref_file),
+                    "fine_group_map": str(groups_file),
+                }
+            ],
+            "ancestry_assignment": {
+                "enabled": True,
+                "reference_resource_id": "test-ancestry-mixture",
+                "maf_floor": 0.0,
+                "gates": {
+                    "tau": 0.50,
+                    "delta": 0.20,
+                    "n_min": 5,
+                    "residual_max": 0.06,
+                },
+            },
+            "effect_scale_validation": {
+                "enabled": True,
+                "reference_resources": [],
+            },
+            "output": {
+                "work_root": str(self.dir / "work"),
+            },
+        }
+        with open(self.config_path, "w", encoding="utf-8") as fh:
+            yaml.safe_dump(config_data, fh)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def test_evaluate_concordance_study_synthetic_end_to_end(self) -> None:
+        """Run evaluate_concordance_study end-to-end on synthetic data."""
+        summary = evaluate_concordance_study(
+            manifest_path=self.manifest_path,
+            config_path=self.config_path,
+            cores=1,
+            qc_panel_path=self.qc_panel_path,
+        )
+
+        self.assertEqual(summary.total_analyses, 2)
+        self.assertEqual(summary.quantitative_count, 1)
+        self.assertEqual(summary.case_control_count, 1)
+        self.assertEqual(summary.ancestry_concordance_count, 2)
+        self.assertEqual(summary.ancestry_concordance_rate, 1.0)
+        self.assertEqual(summary.false_positive_eur_count, 0)
+        self.assertEqual(summary.orientation_sensitivity_rate, 1.0)
+        self.assertTrue(summary.criteria_evaluation["zero_false_positive_eur"])
+        self.assertTrue(summary.criteria_evaluation["zero_execution_errors"])
+
+        report = render_concordance_markdown_report(summary)
+        self.assertIn("# QC Panel Concordance Study Report", report)
+        self.assertIn("Total Analyses Evaluated:** 2", report)
+        self.assertIn("ADOPT_QC_PANEL", report)
 
 
 if __name__ == "__main__":

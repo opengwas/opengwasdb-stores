@@ -386,7 +386,7 @@ def compare_single_analysis(
         else None
     )
 
-    combined_error = res_full.error or res_panel.error
+    combined_error = (res_full.error or res_panel.error) or None
     category = categorize_disagreement(
         full_ancestry=full_anc,
         panel_ancestry=panel_anc,
@@ -460,7 +460,7 @@ def _worker_task(task_args: tuple[dict[str, str], str, str]) -> AnalysisConcorda
         analysis_id=row_dict["analysis_id"],
         stratum=row_dict.get("stratum", "unassigned"),
         study_design=row_dict["study_design"],
-        sample_size_str=row_dict["sample_size"],
+        sample_size_str=row_dict.get("sample_size") or "",
         data_file_path=row_dict["data_file"],
         data_bytes=int(row_dict["data_bytes"]) if row_dict.get("data_bytes", "").strip() else 0,
         original_sd_method=OriginalSdMethod(orig_method_str),
@@ -504,51 +504,106 @@ def evaluate_concordance_study(
     config_path: Path,
     cores: int = 1,
     max_analyses: int | None = None,
+    dry_run: bool = False,
+    qc_panel_path: Path | None = None,
 ) -> ConcordanceStudySummary:
     """Execute the concordance study on the sample manifest."""
     repo_root = Path(__file__).resolve().parents[3]
     config = load_release_configuration(config_path, repo_root)
+    raw_doc = yaml.safe_load(config_path.read_text(encoding="utf-8")) if config_path.is_file() else {}
 
     # 1. Read sample manifest
     with manifest_path.open("r", encoding="utf-8") as fh:
         raw_rows = list(csv.DictReader(fh, delimiter="\t"))
 
-    if max_analyses is not None and max_analyses > 0:
+    if max_analyses is not None and max_analyses >= 0:
         raw_rows = raw_rows[:max_analyses]
 
     # 2. Load Reference Resource & QC Panel
     # Find ancestry mixture resource
-    ancestry_res = next(
-        (r for r in config.reference_resources if r.kind == "ancestry_mixture"),
-        None,
-    )
-    if ancestry_res is None or ancestry_res.location is None or ancestry_res.fine_group_map is None:
-        raise ValueError("Config does not declare a valid ancestry_mixture reference resource")
+    ancestry_res_id = config.ancestry_reference_resource_id
+    ancestry_res = config.reference_resources.get(ancestry_res_id)
+    if ancestry_res is None:
+        ancestry_res = next(
+            (r for r in config.reference_resources.values() if r.kind == "ancestry_mixture"),
+            None,
+        )
 
-    ref = load_reference(
-        freqs_path=ancestry_res.location,
-        groups_path=ancestry_res.fine_group_map,
-        maf_floor=config.ancestry_assignment.maf_floor,
+    fine_group_map = (
+        dict(ancestry_res.auxiliary_paths).get("fine_group_map")
+        if ancestry_res
+        else None
+    )
+    if ancestry_res is None or not ancestry_res.location or not fine_group_map:
+        raise ValueError("Config does not declare a valid ancestry_mixture reference resource with fine_group_map")
+
+    anc_block = raw_doc.get("ancestry_assignment") or {}
+    maf_floor = float(anc_block.get("maf_floor", 0.01))
+    gates_block = anc_block.get("gates") or {}
+    gates = Gates(
+        tau=float(gates_block.get("tau", 0.50)),
+        delta=float(gates_block.get("delta", 0.20)),
+        n_min=int(gates_block.get("n_min", 5000)),
+        residual_max=float(gates_block.get("residual_max", 0.06)),
+        orientation_flip_r=float(gates_block.get("orientation_flip_r", -0.5)),
     )
 
     # Load 10k QC panel ALIDs
-    qc_panel_path = repo_root / "resources" / "reference-resources" / "qc-panel-hg38" / "qc_panel.tsv"
-    with qc_panel_path.open("r", encoding="utf-8") as fh:
-        qc_alids = {row["alid"] for row in csv.DictReader(fh, delimiter="\t")}
-
-    gates = Gates(
-        tau=config.ancestry_assignment.gates.tau,
-        delta=config.ancestry_assignment.gates.delta,
-        n_min=config.ancestry_assignment.gates.n_min,
-        residual_max=config.ancestry_assignment.gates.residual_max,
+    panel_file = (
+        qc_panel_path
+        if qc_panel_path is not None
+        else repo_root / "resources" / "reference-resources" / "qc-panel-hg38" / "qc_panel.tsv"
     )
+    if not panel_file.is_file():
+        raise ValueError(f"QC panel file missing at {panel_file}")
+    with panel_file.open("r", encoding="utf-8") as fh:
+        qc_alids = {row["alid"] for row in csv.DictReader(fh, delimiter="\t")}
 
     # Prepare worker tasks
     tasks = []
     for r in raw_rows:
         sd = r["study_design"]
-        tier = config.defaults.by_study_design[sd]
-        tasks.append((r, tier.original_sd_method.value, tier.stored_effect_scale.value))
+        if sd not in config.method_tiers:
+            raise ValueError(f"Config declares no method tier for study design {sd!r}")
+        tier = config.method_tiers[sd]
+        tasks.append((r, tier.original_sd_method, tier.stored_effect_scale))
+
+    if dry_run or len(tasks) == 0:
+        return ConcordanceStudySummary(
+            created_at=datetime.now(timezone.utc).isoformat(),
+            sample_manifest_path=str(manifest_path),
+            config_path=str(config_path),
+            total_analyses=len(tasks),
+            quantitative_count=sum(1 for r in raw_rows if r.get("study_design") == "quantitative"),
+            case_control_count=sum(1 for r in raw_rows if r.get("study_design") == "case-control"),
+            ancestry_concordance_count=0,
+            ancestry_concordance_rate=0.0,
+            dominant_superpop_concordance_count=0,
+            dominant_superpop_concordance_rate=0.0,
+            gate_reason_concordance_count=0,
+            gate_reason_concordance_rate=0.0,
+            false_positive_eur_count=0,
+            orientation_sensitivity_rate=1.0,
+            total_disagreements=0,
+            disagreement_counts={},
+            mean_full_seconds=0.0,
+            mean_panel_seconds=0.0,
+            speedup_ratio=1.0,
+            criteria_evaluation={
+                "zero_false_positive_eur": True,
+                "complete_orientation_sensitivity": True,
+                "genome_wide_concordance_ge_98pct": True,
+                "zero_execution_errors": True,
+            },
+            recommendation="DRY_RUN: Configuration, manifest, and reference resource contracts validated.",
+            results=[],
+        )
+
+    ref = load_reference(
+        freqs_path=ancestry_res.location,
+        groups_path=fine_group_map,
+        maf_floor=maf_floor,
+    )
 
     results: list[AnalysisConcordanceResult] = []
     if cores > 1 and len(tasks) > 1:
@@ -615,7 +670,7 @@ def evaluate_concordance_study(
     gw_matches = sum(1 for r in gw_results if r.ancestry_match)
     c3 = (gw_matches / len(gw_results) >= 0.98) if gw_results else True
     # 4. No unhandled execution errors
-    c4 = all(r.error is None for r in results)
+    c4 = all(not r.error for r in results)
 
     all_criteria_pass = c1 and c2 and c3 and c4
     recommendation = (
