@@ -597,6 +597,19 @@ class TestFreeze(SourceInventoryTestCase):
             read_candidate_selection(missing, "hybrid__European")
         self.assertIn("ebi-studies.r", str(caught.exception))
 
+    def test_freeze_fails_when_ready_row_missing_required_fields(self) -> None:
+        for missing_field in ("data_bytes", "data_file", "data_url", "sha256"):
+            with self.subTest(missing_field=missing_field):
+                row = self.workspace.manifest_row(
+                    self.workspace.analysis("GCST90000001"), "ok"
+                )
+                row[missing_field] = ""
+                _write_raw_manifest(self.workspace.retry_manifest_path, [row])
+                with self.assertRaises(InventoryError) as caught:
+                    self.workspace.freeze()
+                self.assertIn("missing required field", str(caught.exception))
+                self.assertIn(missing_field, str(caught.exception))
+
 
 class TestPreflight(SourceInventoryTestCase):
     def setUp(self) -> None:
@@ -662,7 +675,10 @@ class TestPreflight(SourceInventoryTestCase):
         # The header-rejected file stays on disk, which is expected and is
         # reported so a re-frozen snapshot is a deliberate act.
         self.assertEqual(report["source_files"]["not_ready_with_present_file"], ["GCST90000002"])
-        self.assertIn("OK: preflight passed", render_preflight_summary(report))
+        summary = render_preflight_summary(report)
+        self.assertIn("OK: preflight passed", summary)
+        self.assertIn("stale snapshot       1 non-ready row(s) have files on disk", summary)
+        self.assertIn("WARNINGS:", summary)
         # The report is JSON-serialisable evidence.
         json.dumps(report)
 
@@ -867,6 +883,45 @@ class TestPreflight(SourceInventoryTestCase):
             self.workspace.preflight()
         self.assertIn("unknown readiness_status", str(caught.exception))
 
+    def test_preflight_fails_when_ready_row_missing_required_fields(self) -> None:
+        path = self.workspace.inventory_path
+        text = path.read_text(encoding="utf-8")
+        lines = text.splitlines()
+        fields = lines[1].split("\t")
+        self.assertEqual(fields[0], "GCST90000001")
+        fields[10] = ""
+        lines[1] = "\t".join(fields)
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        result = self.workspace.preflight()
+        self.assertFalse(result.ok)
+        self.assertIn("missing required field(s)", " ".join(result.failures))
+        self.assertIn("GCST90000001", " ".join(result.failures))
+
+    def test_preflight_fails_when_sidecar_accounting_mismatches(self) -> None:
+        provenance = yaml.safe_load(self.workspace.provenance_path.read_text(encoding="utf-8"))
+        provenance["rows"] = 999
+        self.workspace.provenance_path.write_text(
+            yaml.safe_dump(provenance, sort_keys=False), encoding="utf-8"
+        )
+        result = self.workspace.preflight()
+        self.assertFalse(result.ok)
+        self.assertIn("records 999", " ".join(result.failures))
+
+    def test_preflight_warns_when_required_reference_resource_lacks_version(self) -> None:
+        result = self.workspace.preflight()
+        self.assertTrue(result.ok, result.failures)
+        self.assertEqual(
+            result.warnings,
+            ("required Reference Resource 'ukb-ancestry-mixture-hg38' (ancestry_mixture) has no declared version",),
+        )
+        self.assertEqual(
+            result.report["warnings"],
+            ["required Reference Resource 'ukb-ancestry-mixture-hg38' (ancestry_mixture) has no declared version"],
+        )
+        summary = render_preflight_summary(result.report)
+        self.assertIn("WARNINGS:", summary)
+        self.assertIn("has no declared version", summary)
+
 
 class TestCommandLine(SourceInventoryTestCase):
     """The documented operator interface, exercised in process."""
@@ -943,6 +998,42 @@ class TestCommandLine(SourceInventoryTestCase):
         code, output = self.run_cli("preflight", "--config", str(self.workspace.config_path))
         self.assertEqual(code, 1)
         self.assertIn("freeze it first with 'pixi run inventory-freeze'", output)
+
+    def test_cli_diagnoses_unusable_work_root_without_traceback(self) -> None:
+        self.workspace.write_config()
+        self.workspace.freeze()
+        blocked = self.root / "blocked_work_root"
+        blocked.write_text("not a directory", encoding="utf-8")
+        code, output = self.run_cli(
+            "preflight",
+            "--config",
+            str(self.workspace.config_path),
+            "--work-root",
+            str(blocked),
+        )
+        self.assertEqual(code, 1)
+        self.assertNotIn("Traceback", output)
+        self.assertIn("FAILED:", output)
+        self.assertIn("work root", output)
+        self.assertIn("is unusable", output)
+        self.assertIn("ERROR: could not write report to", output)
+
+    def test_cli_diagnoses_unusable_report_path_without_traceback(self) -> None:
+        self.workspace.write_config()
+        self.workspace.freeze()
+        blocked = self.root / "blocked_file"
+        blocked.write_text("not a directory", encoding="utf-8")
+        unusable_report = blocked / "report.json"
+        code, output = self.run_cli(
+            "preflight",
+            "--config",
+            str(self.workspace.config_path),
+            "--report",
+            str(unusable_report),
+        )
+        self.assertEqual(code, 1)
+        self.assertNotIn("Traceback", output)
+        self.assertIn("ERROR: could not write report to", output)
 
 
 class TestShippedReleaseArtifacts(unittest.TestCase):

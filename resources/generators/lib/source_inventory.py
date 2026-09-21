@@ -24,6 +24,10 @@ checksums, because checksumming 1.8 TB is not a preflight — that belongs to th
 resolution stage. Duplicate-content groups are reported for review and never
 silently collapsed.
 
+The Phase B ``preflight`` command is an inventory-readiness gate before candidate
+selection, distinct from the Phase A production workflow's **Preflight Run**
+(``CONTEXT.md``).
+
 See ``docs/release-metadata-schema.md`` ("Source Inventory") for the column
 contract and ``docs/adr/0024-one-family-record-no-source-collection-tier.md``
 for why the inventory is a data file under ``resources/inventories/`` rather
@@ -254,7 +258,13 @@ class InventorySnapshot:
 
     @property
     def ready_bytes(self) -> int:
-        return sum(row.recorded_bytes or 0 for row in self.ready_rows)
+        total = 0
+        for row in self.ready_rows:
+            bytes_val = row.recorded_bytes
+            if bytes_val is None:
+                raise InventoryError(f"{row.analysis_id}: ready row has no recorded data_bytes")
+            total += bytes_val
+        return total
 
     @property
     def study_design_counts(self) -> dict[str, int]:
@@ -452,6 +462,26 @@ def build_snapshot(
         )
         for row in merged
     )
+
+    invalid_ready: list[str] = []
+    for row in rows:
+        if row.ready:
+            missing_fields: list[str] = []
+            if not row.data_file.strip():
+                missing_fields.append("data_file")
+            if not row.data_url.strip():
+                missing_fields.append("data_url")
+            if not row.sha256.strip():
+                missing_fields.append("sha256")
+            if not row.data_bytes.strip() or row.recorded_bytes is None:
+                missing_fields.append("data_bytes")
+            if missing_fields:
+                invalid_ready.append(f"{row.analysis_id} (missing {', '.join(missing_fields)})")
+
+    if invalid_ready:
+        raise InventoryError(
+            f"{len(invalid_ready)} ready row(s) missing required field(s): {', '.join(invalid_ready[:10])}"
+        )
 
     inputs = (
         ManifestInput(
@@ -821,6 +851,7 @@ class PreflightResult:
 
     report: dict[str, Any]
     failures: tuple[str, ...]
+    warnings: tuple[str, ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -850,11 +881,27 @@ def preflight(
     cores_source = "config" if cores is None else "cli"
 
     readiness = _counts(row.readiness_status for row in rows)
-    if sum(readiness.values()) != len(rows):
-        failures.append(
-            f"readiness counts do not account for every row: {sum(readiness.values())} of {len(rows)}"
-        )
     ready = [row for row in rows if row.ready]
+
+    # --- ready records completeness -----------------------------------------
+    invalid_ready: list[str] = []
+    for row in ready:
+        missing_fields: list[str] = []
+        if not row.data_file.strip():
+            missing_fields.append("data_file")
+        if not row.data_url.strip():
+            missing_fields.append("data_url")
+        if not row.sha256.strip():
+            missing_fields.append("sha256")
+        if not row.data_bytes.strip() or row.recorded_bytes is None:
+            missing_fields.append("data_bytes")
+        if missing_fields:
+            invalid_ready.append(f"{row.analysis_id} (missing {', '.join(missing_fields)})")
+
+    if invalid_ready:
+        failures.append(
+            f"{len(invalid_ready)} ready Analysis row(s) are missing required field(s): {', '.join(invalid_ready[:10])}"
+        )
 
     # --- planned method tiers ------------------------------------------------
     tier_counts: dict[str, int] = {}
@@ -882,17 +929,17 @@ def preflight(
             if row.data_file and Path(row.data_file).is_file():
                 not_ready_with_present_file.append(row.analysis_id)
             continue
-        source = Path(row.data_file)
-        if not source.is_file():
+        if not row.data_file or not Path(row.data_file).is_file():
             missing.append(row.analysis_id)
             continue
+        source = Path(row.data_file)
         recorded = row.recorded_bytes
         if recorded is not None and source.stat().st_size != recorded:
             size_mismatch.append(f"{row.analysis_id} ({source.stat().st_size} != {recorded})")
-        metadata = Path(row.yaml_file)
-        if not metadata.is_file():
+        if not row.yaml_file or not Path(row.yaml_file).is_file():
             metadata_missing.append(row.analysis_id)
             continue
+        metadata = Path(row.yaml_file)
         try:
             document = yaml.safe_load(metadata.read_text(encoding="utf-8", errors="replace"))
         except yaml.YAMLError as exc:
@@ -941,8 +988,13 @@ def preflight(
         res.as_dict(required=res.resource_id in config.required_resource_ids)
         for res in sorted(declared.values(), key=lambda res: res.resource_id)
     ]
+    warnings: list[str] = []
     for resource_id in config.required_resource_ids:
         resource = config.reference_resources[resource_id]
+        if not resource.version:
+            warnings.append(
+                f"required Reference Resource {resource_id!r} ({resource.kind}) has no declared version"
+            )
         if not resource.location or not Path(resource.location).exists():
             failures.append(
                 f"required Reference Resource {resource_id!r} ({resource.kind}) is not present at "
@@ -995,7 +1047,7 @@ def preflight(
             f"{config.min_free_gb} GB"
         )
 
-    # --- inventory identity --------------------------------------------------
+    # --- inventory identity & accounting ------------------------------------
     inventory_sha256 = sha256_file(inventory_path) if inventory_path.is_file() else ""
     provenance_sha256 = ""
     inventory_snapshot_id = ""
@@ -1012,6 +1064,30 @@ def preflight(
                 failures.append(
                     f"inventory {inventory_path} does not match the checksum recorded in "
                     f"{provenance_path}; the frozen snapshot was edited after freezing"
+                )
+            sidecar_rows = provenance.get("rows")
+            if sidecar_rows is not None and sidecar_rows != len(rows):
+                failures.append(
+                    f"inventory {inventory_path} has {len(rows)} row(s), but provenance sidecar records {sidecar_rows}"
+                )
+            sidecar_readiness = provenance.get("readiness_counts")
+            if sidecar_readiness is not None and sidecar_readiness != readiness:
+                failures.append(
+                    f"inventory {inventory_path} readiness counts do not match provenance sidecar: "
+                    f"{readiness} != {sidecar_readiness}"
+                )
+            sidecar_ready_rows = provenance.get("ready_rows")
+            if sidecar_ready_rows is not None and sidecar_ready_rows != len(ready):
+                failures.append(
+                    f"inventory {inventory_path} has {len(ready)} ready row(s), but provenance sidecar records {sidecar_ready_rows}"
+                )
+            sidecar_ready_bytes = provenance.get("ready_bytes")
+            calc_ready_bytes = sum(
+                row.recorded_bytes for row in ready if row.recorded_bytes is not None
+            )
+            if sidecar_ready_bytes is not None and calc_ready_bytes != sidecar_ready_bytes:
+                failures.append(
+                    f"inventory {inventory_path} ready bytes ({calc_ready_bytes}) do not match provenance sidecar ({sidecar_ready_bytes})"
                 )
     if inventory_snapshot_id != config.inventory_snapshot_id:
         failures.append(
@@ -1039,7 +1115,7 @@ def preflight(
             "rows": len(rows),
             "readiness_counts": readiness,
             "ready_rows": len(ready),
-            "ready_bytes": sum(row.recorded_bytes or 0 for row in ready),
+            "ready_bytes": sum(row.recorded_bytes for row in ready if row.recorded_bytes is not None),
             "study_design_counts": _counts(row.study_design for row in rows),
             "ready_study_design_counts": _counts(row.study_design for row in ready),
         },
@@ -1097,13 +1173,17 @@ def preflight(
             "metadata_unreadable": sorted(metadata_unreadable),
             "metadata_gate_failed": sorted(metadata_gate_failed),
             "not_ready_with_present_file": sorted(not_ready_with_present_file),
+            "invalid_ready": sorted(invalid_ready),
         },
         "duplicate_content_groups": [group.as_dict() for group in duplicates],
         "reference_resources": resource_report,
         "required_reference_resources": list(config.required_resource_ids),
+        "warnings": warnings,
         "failures": failures,
     }
-    return PreflightResult(report=report, failures=tuple(failures))
+    return PreflightResult(
+        report=report, failures=tuple(failures), warnings=tuple(warnings)
+    )
 
 
 def render_preflight_summary(report: Mapping[str, Any]) -> str:
@@ -1136,12 +1216,22 @@ def render_preflight_summary(report: Mapping[str, Any]) -> str:
     lines.append(
         f"  cores                {plan['cores']} (from {plan['cores_source']}, cap {plan['max_cores']})"
     )
+    metadata_failed_count = (
+        len(source_files.get("metadata_missing", []))
+        + len(source_files.get("metadata_unreadable", []))
+        + len(source_files.get("metadata_gate_failed", []))
+    )
     lines.append(
         f"  source files checked {source_files['checked']} "
         f"(missing {len(source_files['missing'])}, "
         f"size mismatch {len(source_files['size_mismatch'])}, "
-        f"metadata failed {len(source_files['metadata_unreadable']) + len(source_files['metadata_gate_failed'])})"
+        f"metadata failed {metadata_failed_count})"
     )
+    not_ready_with_present_file = source_files.get("not_ready_with_present_file", [])
+    if not_ready_with_present_file:
+        lines.append(
+            f"  stale snapshot       {len(not_ready_with_present_file)} non-ready row(s) have files on disk"
+        )
     duplicate_groups = report["duplicate_content_groups"]
     if duplicate_groups:
         lines.append(f"  duplicate content    {len(duplicate_groups)} group(s) for review:")
@@ -1150,6 +1240,9 @@ def render_preflight_summary(report: Mapping[str, Any]) -> str:
                 f"                       {' = '.join(group['analysis_ids'])} "
                 f"({group['data_bytes']} bytes)"
             )
+    if report.get("warnings"):
+        lines.append("WARNINGS:")
+        lines.extend(f"  - {warning}" for warning in report["warnings"])
     if report["failures"]:
         lines.append("FAILED:")
         lines.extend(f"  - {failure}" for failure in report["failures"])

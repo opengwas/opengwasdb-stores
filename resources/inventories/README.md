@@ -85,13 +85,14 @@ candidate with no acquisition row, an acquisition row outside the candidate
 pool, or a duplicate candidate accession — anything that would leave a row
 unaccounted.
 
-`preflight` is the cheap gate before a resolution run. In seconds, and without
-opening a single GWAS-SSF file, it reports:
+`preflight` is the cheap gate before a resolution run (and is distinct from the
+Phase A production workflow's Preflight Run, `CONTEXT.md`). In seconds, and
+without opening a single GWAS-SSF file, it reports:
 
 - total and per-status counts, and the ready count/bytes with the
   quantitative/case-control split;
-- the planned method tier per study design, and every expected exclusion (each
-  non-ready readiness status, and each controlled skip the method tiers imply);
+- the planned method tier per study design, reference-AF fallback policy, and
+  every expected exclusion (each non-ready readiness status);
 - missing source files, files whose size changed since the freeze, and metadata
   files that are missing, unreadable, or no longer declare GRCh38 harmonised
   source;

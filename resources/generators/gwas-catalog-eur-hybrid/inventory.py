@@ -162,10 +162,19 @@ def command_preflight(args: argparse.Namespace, repo_root: Path) -> int:
     report_path = Path(args.report) if args.report else (
         config.work_root / "preflight" / f"{inventory_path.stem}.json"
     )
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(json.dumps(result.report, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    report_error: OSError | None = None
+    try:
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(
+            json.dumps(result.report, indent=2, sort_keys=False) + "\n", encoding="utf-8"
+        )
+    except OSError as exc:
+        report_error = exc
 
     print(render_preflight_summary(result.report))
+    if report_error is not None:
+        print(f"ERROR: could not write report to {report_path}: {report_error}", file=sys.stderr)
+        return 1
     print(f"Report: {report_path}")
     return 0 if result.ok else 1
 

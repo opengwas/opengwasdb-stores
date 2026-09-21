@@ -139,8 +139,8 @@ runtime:
   min_free_gb: 50
 
 output:
-  # Phase B records, logs and reports live outside git (ADR 0015), under the
-  # artifact root this host configures in ogstores.yaml. The Release Bundle
-  # itself is a `stores/OGS-xxxxx/` directory, allocated when the candidate is
-  # emitted rather than declared here.
+  # Phase B records, logs and reports live outside git (ADR 0015) in this work/log
+  # root. Override per-run with `--work-root`. The Release Bundle itself is a
+  # `stores/OGS-xxxxx/` directory, allocated when the candidate is emitted rather
+  # than declared here.
   work_root: /data/opengwasdb/work/gwas-catalog-eur-hybrid

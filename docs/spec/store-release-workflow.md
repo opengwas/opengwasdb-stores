@@ -573,7 +573,7 @@ Selection starts at a **frozen Source Inventory**, not at a glob over an acquisi
 Two operator commands sit at this seam, and both are cheap:
 
 - `pixi run inventory-freeze` turns acquisition output into the frozen snapshot plus a provenance sidecar recording the inputs' checksums, the per-status counts of each pass, and the duplicate-content groups awaiting review;
-- `pixi run preflight` re-derives the plan from a frozen snapshot and the release config — per-status counts, ready count/bytes and design split, planned method tier per study design, expected exclusions, duplicate groups, Reference Resource presence, requested cores, work root and free space — reading only the inventory, small per-Analysis metadata and filesystem metadata. It never opens an association body and never checksums the source corpus.
+- `pixi run preflight` re-derives the plan from a frozen snapshot and the release config — per-status counts, ready count/bytes and design split, planned method tier per study design, expected exclusions, duplicate groups, Reference Resource presence, requested cores, work root and free space — reading only the inventory, small per-Analysis metadata and filesystem metadata. It never opens an association body and never checksums the source corpus. This Phase B inventory-readiness gate is distinct from a Phase A **Preflight Run** (`CONTEXT.md`), which executes a representative subset within the production build workflow.
 
 A snapshot is frozen so membership cannot move underneath a proposal: re-freezing after further acquisition creates a new snapshot, and the config is repointed deliberately. Duplicate source content across accessions is reported for a human decision rather than collapsed.
 
