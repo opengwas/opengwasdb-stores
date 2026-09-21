@@ -75,10 +75,44 @@ The earlier ten-Analysis pilots live in this directory as
 (quantitative), and their Release Bundles are `stores/OGS-00004` and
 `stores/OGS-00005`.
 
+## QC Panel Concordance Study & Reference-AF Policy (issue #152)
+
+Before executing the full-production candidate generation, issue #152 compares
+Method A (scanning against the full 5.8M-variant ancestry reference) versus
+Method B (extracting the fixed 10k-variant `qc-panel-hg38`).
+
+The study is preregistered at `docs/spec/qc-panel-concordance-preregistration.md`.
+
+```sh
+# 1. Generate / re-generate the frozen stratified sample manifest (106 Analyses):
+pixi run concordance-sample
+
+# 2. Run the concordance study in a Herdr pane using up to 64 cores:
+pixi run --environment dev concordance-run --cores 64 \
+  --out-dir /data/opengwasdb/work/gwas-catalog-eur-hybrid/concordance
+
+# 3. Review the generated comparison artifacts:
+#    - /data/opengwasdb/work/gwas-catalog-eur-hybrid/concordance/concordance_results.json
+#    - /data/opengwasdb/work/gwas-catalog-eur-hybrid/concordance/concordance_comparison.tsv
+#    - /data/opengwasdb/work/gwas-catalog-eur-hybrid/concordance/concordance_report.md
+```
+
+### Reference-AF Fallback Policy
+
+This release adopts an explicit **Source-AF-Only** policy:
+- `config-full.yaml` sets `effect_scale_validation.reference_resources: []`.
+- Quantitative Analyses lacking usable source AF receive an explicit `skipped`
+  resolution with reason `no_reference_resource_for_ancestry` and are excluded
+  from the candidate manifest.
+- The absent panel `/data/opengwasdb/reference/ukb-hg38` is never treated as usable evidence.
+
 ## Pieces
 
-- `resources/inventories/` — the frozen snapshot and what its columns mean;
+- `resources/inventories/` — the frozen snapshot, sample manifest, and what their columns mean;
 - `resources/generators/lib/source_inventory.py` — the freeze merge rule, the
   readiness vocabulary, and preflight;
+- `resources/generators/lib/concordance_sampling.py` — deterministic stratified sampling;
+- `resources/generators/lib/qc_panel_concordance.py` — concordance comparison engine & metrics;
+- `docs/spec/qc-panel-concordance-preregistration.md` — locked preregistration document;
 - `resources/scripts/download-ebi-gwas-catalog-eur-hybrid.py` — acquisition,
   which writes the status manifests the freeze merges.
