@@ -132,7 +132,7 @@ threadpoolctl = ">=3.0"
 # REVERT CONDITION (#153): once opengwasdb#208 is merged to `dev`, move this pin
 # back to the `dev` revision (or `main` after the #106 reversion), and re-run
 # `pixi lock`.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "0408e4122662c218a83b6ec3e2260ef9d2692ca0" }
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "d2b243313669719a8a303cd29d4379430dab80d9" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"

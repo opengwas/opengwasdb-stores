@@ -225,6 +225,16 @@ EXCLUSION_CATEGORIES: Mapping[str, str] = {
 #: Resolver record statuses that this module treats as a completed resolution.
 _RESOLVER_RECORD_STATUSES: tuple[str, ...] = ("success", "controlled_failure")
 
+#: The pinned upstream EAF-orientation vocabulary (opengwasdb
+#: ``EafOrientationOutcome``): ``passed``/``failed``/``unverified``. The resolver
+#: records it on every successful assignment, so the release policy can exclude a
+#: mis-oriented column and still admit an unchecked one. ``failed`` means the
+#: A1-oriented source frequencies correlate negatively with the reference (the
+#: column is untrustworthy); ``unverified`` means no direction could be read, so
+#: the ordinary assignment/gate policy decides the row. A value outside this set
+#: is a contract violation and fails loudly rather than being read as a failure.
+EAF_ORIENTATION_OUTCOMES: tuple[str, ...] = ("passed", "failed", "unverified")
+
 #: The resolver record/index schema this registry can finalise. A record or index
 #: declaring a different version is incompatible and must fail rather than be
 #: interpreted field-by-field against a schema it was not written for.
@@ -1397,21 +1407,27 @@ def _decide(
     gate_reason = str(ancestry.get("gate_reason") or "").strip()
     eaf_orientation = str(ancestry.get("eaf_orientation") or "").strip().lower()
 
-    if eaf_orientation and eaf_orientation not in {"ok", "consistent", "none"}:
+    if eaf_orientation and eaf_orientation not in EAF_ORIENTATION_OUTCOMES:
+        raise CandidateError(
+            f"{row.analysis_id}: resolver ancestry carries unknown eaf_orientation "
+            f"{eaf_orientation!r}; expected one of "
+            f"{', '.join(EAF_ORIENTATION_OUTCOMES)} (opengwasdb EafOrientationOutcome)"
+        )
+    # ``failed`` is the upstream signal that the A1-oriented frequencies correlate
+    # negatively with the reference; ``gate_reason=eaf_orientation`` is the
+    # assignment gate that names the same condition. Both exclude. ``passed`` is
+    # the ordinary case; ``unverified`` (no direction readable) and any legacy
+    # empty value fall through to the assignment/gate policy below rather than
+    # being invented into either success or failure here.
+    if eaf_orientation == "failed" or gate_reason == "eaf_orientation":
         return make(
             included=False,
             reason="orientation_failure",
             detail=(
-                f"eaf_orientation={eaf_orientation!r} "
+                f"eaf_orientation={eaf_orientation or 'unrecorded'} "
+                f"gate_reason={gate_reason or 'none'} "
                 f"r={ancestry.get('eaf_orientation_r')!r}"
             ),
-            assigned=assigned,
-        )
-    if gate_reason == "eaf_orientation":
-        return make(
-            included=False,
-            reason="orientation_failure",
-            detail=f"gate_reason={gate_reason!r} r={ancestry.get('eaf_orientation_r')!r}",
             assigned=assigned,
         )
     if not assigned:
@@ -2226,6 +2242,7 @@ __all__ = [
     "CandidateTables",
     "EXCLUSION_COLUMNS",
     "EXCLUSION_REASONS",
+    "EAF_ORIENTATION_OUTCOMES",
     "RECEIPT_FILENAME",
     "RECEIPT_SCHEMA_VERSION",
     "RESOLVER_MANIFEST_COLUMNS",

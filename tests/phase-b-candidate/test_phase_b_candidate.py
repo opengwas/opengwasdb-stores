@@ -59,6 +59,7 @@ from resources.generators.lib.candidate_workflow import (  # noqa: E402
     RECEIPT_FILENAME,
     RESOLVER_MANIFEST_COLUMNS,
     CandidateError,
+    CandidateMetadata,
     ResolverRow,
     account_records,
     apply_release_policy,
@@ -75,6 +76,8 @@ from resources.generators.lib.candidate_workflow import (  # noqa: E402
 )
 from resources.generators.lib.source_inventory import (  # noqa: E402
     ACQUISITION_MANIFEST_COLUMNS,
+    AcquisitionPass,
+    SourceInventoryRow,
     build_snapshot,
     read_candidate_selection,
     read_inventory,
@@ -114,7 +117,7 @@ OUTCOMES = {
     "GCST90000007": {
         "assigned_ancestry": None,
         "gate_reason": "eaf_orientation",
-        "eaf_orientation": "eaf_orientation",
+        "eaf_orientation": "failed",
         "eaf_orientation_r": -0.98,
     },
     "GCST90000008": {"status": "controlled_failure", "error": "simulated parse failure"},
@@ -243,8 +246,10 @@ class FixtureBuilder:
             source_collection_id="gwas-catalog-ssf",
             store_key=STORE_KEY,
             ancestry_group="European",
-            base_manifest=base_manifest,
-            retry_manifest=retry_manifest,
+            manifests=[
+                AcquisitionPass(role="base", path=base_manifest),
+                AcquisitionPass(role="retry_transient", path=retry_manifest),
+            ],
             candidates=selection,
             frozen_at="2026-09-21T00:00:00Z",
         )
@@ -270,10 +275,10 @@ class FixtureBuilder:
                     "snapshot_id": SNAPSHOT_ID,
                     "path": str(inventory_path),
                     "provenance_path": str(provenance_path),
-                    "freeze_inputs": {
-                        "base_manifest": str(base_manifest),
-                        "retry_manifest": str(retry_manifest),
-                    },
+                    "freeze_inputs": [
+                        {"role": "base", "path": str(base_manifest)},
+                        {"role": "retry_transient", "path": str(retry_manifest)},
+                    ],
                 },
             },
             "defaults": {
@@ -442,6 +447,98 @@ def _candidate_tables_bytes(registry_root: Path) -> dict[str, bytes]:
         "ancestry.tsv": (root / "sidecars/ancestry.tsv").read_bytes(),
         "sd_estimation.tsv": (root / "sidecars/sd_estimation.tsv").read_bytes(),
         "exclusions.tsv": (root / "sidecars/exclusions.tsv").read_bytes(),
+    }
+
+
+def _synthetic_inventory_row(
+    *, study_design: str = "quantitative", sample_size: str = "5000", readiness: str = "ok"
+) -> SourceInventoryRow:
+    return SourceInventoryRow(
+        analysis_id="GCST90000001",
+        publication_pmid="12345678",
+        trait="Trait",
+        study_design=study_design,
+        sample_size=sample_size,
+        readiness_status=readiness,
+        data_url="https://example.invalid/x.h.tsv.gz",
+        yaml_url="https://example.invalid/x.h.tsv.gz-meta.yaml",
+        data_file="/mirror/GCST90000001.h.tsv.gz",
+        yaml_file="/mirror/GCST90000001.h.tsv.gz-meta.yaml",
+        data_bytes="100",
+        yaml_bytes="10",
+        sha256="a" * 64,
+        error="",
+    )
+
+
+def _synthetic_candidate_metadata(
+    *, sample_size: str = "5000", n_cases: str = "", n_controls: str = ""
+) -> CandidateMetadata:
+    return CandidateMetadata(
+        analysis_id="GCST90000001",
+        source_label="Trait",
+        trait_ontology_label="",
+        trait_ontology_id="",
+        trait_ontology_mapping_method="unmapped",
+        publication_pmid="12345678",
+        first_author="Author",
+        n_cases=n_cases,
+        n_controls=n_controls,
+        sample_size=sample_size,
+    )
+
+
+def _synthetic_resolver_record(
+    *,
+    gate_reason: str = "ok",
+    eaf_orientation: str = "passed",
+    eaf_orientation_r: float = 0.99,
+    assigned_ancestry: str | None = "EUR",
+    status: str = "success",
+    phenotype_sd_status: str = "estimated",
+    phenotype_sd_reason: str | None = None,
+) -> dict:
+    """A resolver record in the pinned real shape, including the EafOrientationOutcome."""
+    estimate = (
+        {"sd": 1.0, "dispersion": 0.05, "method": "estimated_from_source_maf", "notes": ""}
+        if phenotype_sd_status == "estimated"
+        else None
+    )
+    return {
+        "record_schema_version": 1,
+        "analysis_id": "GCST90000001",
+        "status": status,
+        "fingerprints": {},
+        "diagnostics": {
+            "source_file": "/mirror/GCST90000001.h.tsv.gz",
+            "rows_read": 100,
+            "ancestry_sites": 100,
+        },
+        "ancestry": {
+            "assigned_ancestry": assigned_ancestry,
+            "dominant_superpop": assigned_ancestry,
+            "dominant_proportion": 0.9 if assigned_ancestry else 0.2,
+            "runner_up_margin": 0.7 if assigned_ancestry else 0.1,
+            "af_overlap": 100000,
+            "residual": 0.01,
+            "gate_reason": gate_reason,
+            "eaf_orientation": eaf_orientation,
+            "eaf_orientation_r": eaf_orientation_r,
+            "superpop_composition": {assigned_ancestry: 0.9} if assigned_ancestry else {},
+            "fine_composition": {},
+        },
+        "phenotype_sd": {
+            "status": phenotype_sd_status,
+            "reason": phenotype_sd_reason,
+            "estimate": estimate,
+            "reference_id": "",
+            "n_evidence_considered": 100,
+            "n_estimate_inputs": 90 if estimate else 0,
+            "evidence_sampled": False,
+        },
+        "error": None if status == "success" else "controlled failure",
+        "warnings": [],
+        "metrics": {"elapsed_seconds": 0.0, "peak_memory_bytes": 0},
     }
 
 
@@ -986,6 +1083,64 @@ class CandidateWorkflowTests(unittest.TestCase):
         })
         self.assertEqual(tables.ancestry_check, "passed_with_warnings")
         self.assertEqual(tables.sd_check, "passed_with_warnings")
+
+    # -- EAF orientation vocabulary (issue #115 / #154) -----------------------
+
+    def _orientation_outcome(
+        self, *, eaf_orientation: str, gate_reason: str, assigned: str | None, r: float = 0.99
+    ):
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        row = _synthetic_inventory_row()
+        metadata = _synthetic_candidate_metadata()
+        record = _synthetic_resolver_record(
+            eaf_orientation=eaf_orientation,
+            gate_reason=gate_reason,
+            assigned_ancestry=assigned,
+            eaf_orientation_r=r,
+        )
+        return apply_release_policy(
+            [row], config, {row.analysis_id: metadata}, {row.analysis_id: record}
+        )[0]
+
+    def test_orientation_passed_eur_is_includable(self) -> None:
+        outcome = self._orientation_outcome(
+            eaf_orientation="passed", gate_reason="ok", assigned="EUR"
+        )
+        self.assertTrue(outcome.included, outcome.exclusion_reason)
+        self.assertEqual(outcome.assigned_ancestry, "EUR")
+
+    def test_orientation_failed_is_orientation_failure(self) -> None:
+        # Real shape: a negative sign is also the assignment gate that names it.
+        outcome = self._orientation_outcome(
+            eaf_orientation="failed", gate_reason="eaf_orientation", assigned=None, r=-0.98
+        )
+        self.assertFalse(outcome.included)
+        self.assertEqual(outcome.exclusion_reason, "orientation_failure")
+
+    def test_orientation_failed_excludes_even_with_ok_gate(self) -> None:
+        # A mildly negative correlation is `failed` without tripping the gate.
+        outcome = self._orientation_outcome(
+            eaf_orientation="failed", gate_reason="ok", assigned="EUR", r=-0.2
+        )
+        self.assertFalse(outcome.included)
+        self.assertEqual(outcome.exclusion_reason, "orientation_failure")
+
+    def test_orientation_unverified_follows_assignment_policy(self) -> None:
+        # `unverified` is not a verdict: the ordinary policy decides the row.
+        included = self._orientation_outcome(
+            eaf_orientation="unverified", gate_reason="ok", assigned="EUR", r=float("nan")
+        )
+        self.assertTrue(included.included, included.exclusion_reason)
+        unassigned = self._orientation_outcome(
+            eaf_orientation="unverified", gate_reason="overlap", assigned=None, r=float("nan")
+        )
+        self.assertFalse(unassigned.included)
+        self.assertEqual(unassigned.exclusion_reason, "ancestry_unassigned")
+
+    def test_unknown_eaf_orientation_fails_loudly(self) -> None:
+        # `ok` is a gate_reason, not an EafOrientationOutcome; it must not read as passed.
+        with self.assertRaises(CandidateError):
+            self._orientation_outcome(eaf_orientation="ok", gate_reason="ok", assigned="EUR")
 
     def test_validate_candidate_analyses_rejects_blank_included_required_value(self) -> None:
         header = "analysis_id\tstored_effect_scale\tsample_size_kind\tsample_size_scope\tsample_size\toriginal_effect_scale\toriginal_sd_method\tancestry_assignment_method\n"

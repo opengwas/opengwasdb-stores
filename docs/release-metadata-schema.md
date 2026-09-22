@@ -639,7 +639,7 @@ snapshot was frozen from:
 | `source.inventory.snapshot_id` | Yes | The snapshot's identity. Must equal the inventory file's stem and the provenance sidecar's `snapshot_id`. |
 | `source.inventory.path` | Yes | `resources/inventories/<snapshot-id>.tsv`. |
 | `source.inventory.provenance_path` | Yes | `resources/inventories/<snapshot-id>.meta.yaml`, the sidecar whose `inventory_tsv_sha256` binds the TSV to the bytes that were frozen. |
-| `source.inventory.freeze_inputs.base_manifest` / `.retry_manifest` | Yes | The acquisition status manifests `freeze` merges, base first and retry authoritative. |
+| `source.inventory.freeze_inputs` | Yes | The ordered `{role, path}` acquisition status manifests `freeze` merges. Order is the precedence rule: earliest pass first, and a later pass is authoritative for every `analysis_id` it covers. A later pass may not regress a ready Analysis to a non-ready one. |
 
 Which `readiness_status` values count as a usable source is **not** a config
 key: it is owned by `resources/generators/lib/source_inventory.py`

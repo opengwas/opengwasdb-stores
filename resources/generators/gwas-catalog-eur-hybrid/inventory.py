@@ -41,6 +41,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from resources.generators.lib.source_inventory import (  # noqa: E402
+    AcquisitionPass,
     InventoryError,
     PreflightConfigError,
     build_snapshot,
@@ -63,8 +64,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     freeze = subparsers.add_parser("freeze", help="build the frozen Source Inventory from acquisition output")
     freeze.add_argument("--config", default=DEFAULT_CONFIG)
-    freeze.add_argument("--base-manifest", help="acquisition pass status manifest (default: config)")
-    freeze.add_argument("--retry-manifest", help="retry pass status manifest (default: config)")
+    freeze.add_argument(
+        "--manifest",
+        action="append",
+        metavar="ROLE=PATH",
+        help="override the configured acquisition passes; repeatable, and when given at least "
+        "once it replaces the configured list entirely, in the order given",
+    )
     freeze.add_argument("--candidates", help="candidate pool table (default: config)")
     freeze.add_argument("--snapshot-id", help="freeze a different snapshot id (default: config); without --out-dir it is written beside the configured one")
     freeze.add_argument("--out-dir", help="write <snapshot-id>.tsv/.meta.yaml here (default: the configured inventory directory)")
@@ -83,8 +89,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def command_freeze(args: argparse.Namespace, repo_root: Path) -> int:
     config = load_release_configuration(_config_path(repo_root, args.config), repo_root)
     snapshot_id = args.snapshot_id or config.inventory_snapshot_id
-    base_manifest = Path(args.base_manifest) if args.base_manifest else _freeze_input(config, "base_manifest")
-    retry_manifest = Path(args.retry_manifest) if args.retry_manifest else _freeze_input(config, "retry_manifest")
+    manifests = (
+        _parse_manifest_overrides(args.manifest) if args.manifest else config.freeze_inputs
+    )
     candidates_path = Path(args.candidates) if args.candidates else config.candidates_path
 
     candidates = read_candidate_selection(candidates_path, config.store_key)
@@ -93,8 +100,7 @@ def command_freeze(args: argparse.Namespace, repo_root: Path) -> int:
         source_collection_id=config.source_collection_id,
         store_key=config.store_key,
         ancestry_group=config.ancestry_group,
-        base_manifest=base_manifest,
-        retry_manifest=retry_manifest,
+        manifests=manifests,
         candidates=candidates,
         frozen_at=args.frozen_at,
     )
@@ -194,13 +200,26 @@ def _provenance_path(args: argparse.Namespace, config, inventory_path: Path) -> 
     return config.inventory_provenance_path
 
 
-def _freeze_input(config, role: str) -> Path:
-    try:
-        return Path(config.freeze_inputs[role])
-    except KeyError:
-        raise PreflightConfigError(
-            f"{config.path}: source.inventory.freeze_inputs is missing required role {role!r}"
-        ) from None
+def _parse_manifest_overrides(values: list[str]) -> tuple[AcquisitionPass, ...]:
+    """Parse repeated ``--manifest ROLE=PATH`` values into ordered acquisition passes.
+
+    Giving the flag at least once replaces the configured list entirely, so an
+    operator can freeze a snapshot from passes the release config does not name
+    without editing the config. Order is the precedence rule, exactly as in config.
+    """
+    passes: list[AcquisitionPass] = []
+    seen: set[str] = set()
+    for value in values:
+        role, separator, path_value = value.partition("=")
+        role = role.strip()
+        path_value = path_value.strip()
+        if not separator or not role or not path_value:
+            raise PreflightConfigError(f"--manifest expects ROLE=PATH, got {value!r}")
+        if role in seen:
+            raise PreflightConfigError(f"--manifest declares role {role!r} twice")
+        seen.add(role)
+        passes.append(AcquisitionPass(role=role, path=Path(path_value).expanduser()))
+    return tuple(passes)
 
 
 def main(argv: list[str] | None = None) -> int:

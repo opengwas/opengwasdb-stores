@@ -42,6 +42,7 @@ __pycache__/
 # Throwaway workflow-prototype runtime state.
 .prototype-state/
 .snakemake/
+.scratch/
 
 # Per-run outputs of the LD-panel eigendecomposition suite (the committed
 # fixtures are the sequential .ldeig.npz; -par/-seq are comparison artifacts).

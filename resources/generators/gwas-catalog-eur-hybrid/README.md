@@ -18,6 +18,7 @@ through AF-based ancestry assignment and phenotype-SD effect-scale estimation.
 It is Phase B only — it never declares how to build a Store.
 
 ```sh
+# 0. (Optional) re-attempt non-ready rows first -- see "The rescue pass" below.
 # 1. Freeze the inventory (writes resources/inventories/<snapshot-id>.{tsv,meta.yaml}).
 pixi run inventory-freeze
 
@@ -41,16 +42,63 @@ acquisition manifest under the mirror.
 
 ```sh
 # A later snapshot, re-frozen after more acquisition, still accounting the same
-# candidate pool:
+# candidate pool. `--manifest` is repeatable and REPLACES the configured passes
+# entirely; order is the precedence rule, so the last pass wins for any
+# analysis_id it covers:
 pixi run python resources/generators/gwas-catalog-eur-hybrid/inventory.py freeze \
   --snapshot-id gwas-catalog-ssf-eur-hybrid-2026-10-01 \
-  --base-manifest /data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-manifest.tsv \
-  --retry-manifest /data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-retry-transient-manifest.tsv \
+  --manifest base=/data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-manifest.tsv \
+  --manifest retry_transient=/data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-retry-transient-manifest.tsv \
   --candidates resources/data/derived/store-candidates-analyses.tsv
 ```
 
 Re-freezing does not change which Analyses an earlier snapshot selected; it
-creates a new snapshot that the config must then be pointed at.
+creates a new snapshot that the config must then be pointed at. `freeze` refuses
+to run if a later pass would turn an already-ready Analysis into a non-ready one,
+because that would silently drop a release member.
+
+### The rescue pass (issue #151)
+
+The `rescue_upstream_harmonised` pass re-attempted every row the 2026-09-10
+snapshot recorded as non-ready. Re-run it with:
+
+```sh
+# The non-ready set is derived from the previous snapshot, so the input is
+# reproducible from tracked data rather than hand-listed:
+awk -F'\t' 'NR>1 && $6!="ok" && $6!="already_present"{print $1}' \
+  resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-10.tsv > /tmp/not-ready.txt
+
+pixi run python resources/scripts/download-ebi-gwas-catalog-eur-hybrid.py \
+  --accessions-file /tmp/not-ready.txt \
+  --harmonised-index /data/opengwasdb/raw/ebi-gwas-catalog/harmonised_list-2026-09-22.txt \
+  --manifest /data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-rescue-upstream-harmonised-manifest.tsv
+```
+
+It is idempotent: files already in the mirror are not re-fetched, so a second
+run reproduces the same manifest.
+
+**Delta, 2026-09-10 -> 2026-09-22.** The candidate pool is unchanged at 6,035.
+Ready rises 4,570 -> 4,783 (+213: 111 quantitative, 102 case-control, +122.6 GB
+compressed). No Analysis lost readiness. Both snapshots stay in git so the
+delta stays reviewable.
+
+The rescue pass reclassified 213 rows to `already_present`:
+- 33 accessions harmonised upstream since initial acquisition;
+- 105 accessions publishing an `odds_ratio` effect column (read as `log(odds_ratio)`);
+- 1 accession publishing `BETA` in uppercase (`GCST90044776`);
+- 74 quantitative accessions publishing a signed `z_score` with per-row sample size and EAF.
+
+The remaining non-ready rows are not transient failures:
+
+| Status | n | Why |
+| --- | --- | --- |
+| `missing_remote_harmonised_yaml` | 1,104 | No harmonised GRCh38 file upstream. EBI's own `sumstats_harm_status` database records most as `cannot_harm`. |
+| `header_rejected` | 98 | Downloaded, but no usable effect column: 95 have no effect column at all; 2 are case-control accessions reporting z-score only (`GCST007228`, `GCST90010719`), which cannot derive a log-OR; 1 is a quantitative z-score accession with no sample-size column (`GCST90134637`). |
+| `data_absent_upstream` | 49 | A filename resolved, but upstream serves HTTP 404 for the association file — an orphan `-meta.yaml`, or a stale `harmonised_list.txt` entry. |
+| `metadata_rejected` | 1 | Sidecar declares GRCh37. |
+
+The earlier `data_failed` count was misleading: all 52 turned out to be
+permanent absence, not a transfer that could be retried.
 
 ## Candidate generation (issue #153)
 

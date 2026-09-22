@@ -622,9 +622,9 @@ class TestSyntheticConcordanceStudyEndToEnd(unittest.TestCase):
                     "snapshot_id": "test-snapshot",
                     "path": str(self.manifest_path),
                     "provenance_path": str(self.manifest_path),
-                    "freeze_inputs": {
-                        "base_manifest": str(self.manifest_path),
-                    },
+                    "freeze_inputs": [
+                        {"role": "base", "path": str(self.manifest_path)},
+                    ],
                 },
             },
             "defaults": {

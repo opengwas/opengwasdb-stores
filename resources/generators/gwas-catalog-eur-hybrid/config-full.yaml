@@ -69,15 +69,29 @@ source:
   # selection scope is pinned rather than implied.
   candidates: resources/data/derived/store-candidates-analyses.tsv
   inventory:
-    snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-10
-    path: resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-10.tsv
-    provenance_path: resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-10.meta.yaml
+    snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-22
+    path: resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv
+    provenance_path: resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.meta.yaml
+    # Written by resources/scripts/download-ebi-gwas-catalog-eur-hybrid.py.
+    # The retry pass re-attempted the 99 transiently failed accessions; its rows
+    # are authoritative for every analysis_id they cover.
+    #
+    # This is an ORDERED list and the order is the precedence rule: earliest pass
+    # first, and for an analysis_id two passes both cover the later one wins. Add a
+    # further acquisition pass (a deliberate rescue re-run, say) by appending it,
+    # never by editing an earlier pass's manifest.
     freeze_inputs:
-      # Written by resources/scripts/download-ebi-gwas-catalog-eur-hybrid.py.
-      # The retry pass re-attempted the 99 transiently failed accessions; its
-      # rows are authoritative for every analysis_id they cover.
-      base_manifest: /data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-manifest.tsv
-      retry_manifest: /data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-retry-transient-manifest.tsv
+      - role: base
+        path: /data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-manifest.tsv
+      - role: retry_transient
+        path: /data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-retry-transient-manifest.tsv
+      # Re-attempted every row the 2026-09-10 snapshot recorded as non-ready,
+      # resolving filenames through EBI's harmonised_list.txt index instead of
+      # a per-accession FTP probe. It recovered 33 Analyses that upstream had
+      # harmonised since acquisition, and reclassified 49 as
+      # `data_absent_upstream` -- listed in the index but served as HTTP 404.
+      - role: rescue_upstream_harmonised
+        path: /data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-rescue-upstream-harmonised-manifest.tsv
 
 defaults:
   # Facts this release asserts about every source, carried into analyses.tsv.

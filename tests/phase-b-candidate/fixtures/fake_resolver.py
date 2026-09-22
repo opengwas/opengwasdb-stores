@@ -41,7 +41,9 @@ DEFAULT_OUTCOME = {
     "status": "success",
     "assigned_ancestry": "EUR",
     "gate_reason": "ok",
-    "eaf_orientation": "ok",
+    # The pinned upstream EafOrientationOutcome vocabulary is
+    # passed|failed|unverified; a genuine assignment records `passed`.
+    "eaf_orientation": "passed",
     "sd_status": "estimated",
     "sd": 1.0,
     "sd_dispersion": 0.05,
@@ -159,7 +161,7 @@ def ancestry_payload(outcome: dict) -> dict:
         "af_overlap": outcome.get("af_overlap", 100000),
         "residual": outcome.get("residual", 0.01),
         "gate_reason": outcome.get("gate_reason", "ok"),
-        "eaf_orientation": outcome.get("eaf_orientation", "ok"),
+        "eaf_orientation": outcome.get("eaf_orientation", "passed"),
         "eaf_orientation_r": outcome.get("eaf_orientation_r", 0.99),
         "superpop_composition": {assigned: 0.9} if assigned else {},
         "fine_composition": {},

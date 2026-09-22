@@ -4,10 +4,12 @@ Phase B selects Analyses out of a **Source Inventory**: the frozen record of
 which upstream Analyses acquisition actually produced usable files for. This
 module is the seam for that record. It owns three things and nothing else:
 
-- **the retry-overlay precedence rule** — the acquisition pass and its
-  deliberate retry pass both write a status manifest; the retry manifest is
-  authoritative for every ``analysis_id`` it covers, because it is the later
-  observation of the same file;
+- **the pass-overlay precedence rule** — every acquisition pass writes a status
+  manifest, and the release config declares those passes as an *ordered* list
+  whose order is the precedence rule: a later pass is authoritative for every
+  ``analysis_id`` it covers, because it is the later observation of the same
+  file. A later pass may not, however, turn a ready Analysis into a non-ready
+  one: that would silently drop a release member, so the freeze stops instead;
 - **the readiness vocabulary** — which acquisition outcomes mean "this Analysis
   has a verified, readable source file" and which mean "not this release's
   member", kept distinct so an unavailable input stays a Source Inventory fact
@@ -69,6 +71,10 @@ KNOWN_READINESS_STATUSES: frozenset[str] = frozenset(
         "missing_remote_harmonised_yaml",
         "header_rejected",
         "metadata_rejected",
+        # A resolved filename whose data file upstream serves as HTTP 404:
+        # an orphan sidecar, or an index entry for a withdrawn file. Distinct
+        # from ``data_failed``, which is a transfer worth retrying.
+        "data_absent_upstream",
         "data_failed",
         "yaml_failed",
         "dry_run",
@@ -208,6 +214,19 @@ class ManifestInput:
 
 
 @dataclass(frozen=True)
+class AcquisitionPass:
+    """One acquisition pass a freeze overlays, and the role it plays in the merge.
+
+    A release declares its passes as an ordered sequence, earliest first. Order is
+    the whole precedence rule: for an ``analysis_id`` two passes both cover, the
+    later pass wins.
+    """
+
+    role: str
+    path: Path
+
+
+@dataclass(frozen=True)
 class DuplicateContentGroup:
     """Analyses whose source files share one checksum: identical bytes, two records."""
 
@@ -334,23 +353,63 @@ def read_acquisition_manifest(path: Path) -> list[dict[str, str]]:
 
 
 def merge_acquisition_manifests(
-    base_rows: Sequence[Mapping[str, str]],
-    retry_rows: Sequence[Mapping[str, str]],
-) -> tuple[list[dict[str, str]], int]:
-    """Overlay the retry pass on the base pass; return ``(merged, overrides)``.
+    passes: Sequence[tuple[str, Sequence[Mapping[str, str]]]],
+) -> tuple[list[dict[str, str]], dict[str, int]]:
+    """Overlay ordered acquisition passes; return ``(merged, overrides_by_role)``.
 
-    The retry manifest wins for every ``analysis_id`` it covers. It is the later
-    observation of the same upstream file, so where the two disagree the retry
-    is the truth — that is the whole reason the retry pass was run, and it is why
-    the frozen snapshot's status counts differ from the base manifest's.
+    ``passes`` is ``(role, rows)`` in precedence order, earliest first — the order
+    the release config declares. Each later pass is the later observation of the
+    same upstream file, so it wins for every ``analysis_id`` it covers. Every row
+    a pass overrides is counted against that pass's role, so how much each pass
+    moved the frozen snapshot stays visible in the provenance.
     """
-    merged: dict[str, dict[str, str]] = {row["analysis_id"]: dict(row) for row in base_rows}
-    overrides = 0
-    for row in retry_rows:
-        if row["analysis_id"] in merged:
-            overrides += 1
-        merged[row["analysis_id"]] = dict(row)
-    return [merged[key] for key in sorted(merged)], overrides
+    merged: dict[str, dict[str, str]] = {}
+    overrides_by_role: dict[str, int] = {}
+    for role, rows in passes:
+        overridden = 0
+        for row in rows:
+            analysis_id = row["analysis_id"]
+            if analysis_id in merged:
+                overridden += 1
+            merged[analysis_id] = dict(row)
+        overrides_by_role[role] = overrides_by_role.get(role, 0) + overridden
+    return [merged[key] for key in sorted(merged)], overrides_by_role
+
+
+def reject_ready_regressions(
+    passes: Sequence[tuple[str, Sequence[Mapping[str, str]]]],
+    merged: Mapping[str, Mapping[str, str]],
+) -> None:
+    """Fail when a later pass turns a ready Analysis into a non-ready one.
+
+    Overlaying later passes is safe because a later pass is the later observation
+    of the same upstream file — but "later" is not a licence to discard a verified
+    source file. A pass that regressed an already-ready row would silently drop a
+    release member, so this is an error rather than a precedence rule (issue #151).
+    """
+    ready_status: dict[str, str] = {}
+    last_writer: dict[str, str] = {}
+    for role, rows in passes:
+        for row in rows:
+            analysis_id = row["analysis_id"]
+            last_writer[analysis_id] = role
+            if row["status"] in READY_STATUSES:
+                ready_status.setdefault(analysis_id, row["status"])
+    regressions = [
+        (analysis_id, status, merged[analysis_id]["status"], last_writer[analysis_id])
+        for analysis_id, status in sorted(ready_status.items())
+        if merged[analysis_id]["status"] not in READY_STATUSES
+    ]
+    if not regressions:
+        return
+    detail = "; ".join(
+        f"{analysis_id} ({status} -> {merged_status} by {role})"
+        for analysis_id, status, merged_status, role in regressions[:10]
+    )
+    raise InventoryError(
+        f"{len(regressions)} Analysis(es) were ready in an earlier acquisition pass but a later "
+        f"pass recorded them as non-ready: {detail}"
+    )
 
 
 def _readiness_counts(rows: Iterable[Mapping[str, str]]) -> dict[str, int]:
@@ -409,21 +468,26 @@ def build_snapshot(
     source_collection_id: str,
     store_key: str,
     ancestry_group: str,
-    base_manifest: Path,
-    retry_manifest: Path,
+    manifests: Sequence[AcquisitionPass],
     candidates: CandidateSelection,
     frozen_at: str | None = None,
 ) -> InventorySnapshot:
-    """Merge the acquisition manifests and account every row against the candidates.
+    """Merge the ordered acquisition passes and account every row against the candidates.
 
-    Deterministic by construction: rows are sorted by ``analysis_id``, the
-    ``seconds`` column is dropped, and nothing here reads the mirror. Two freezes
-    of the same inputs produce the same inventory bytes; only ``frozen_at``
-    differs, and it lives in the provenance sidecar rather than the TSV.
+    ``manifests`` is in precedence order, earliest first. Deterministic by
+    construction: rows are sorted by ``analysis_id``, the ``seconds`` column is
+    dropped, and nothing here reads the mirror. Two freezes of the same inputs
+    produce the same inventory bytes; only ``frozen_at`` differs, and it lives in
+    the provenance sidecar rather than the TSV.
     """
-    base_rows = read_acquisition_manifest(base_manifest)
-    retry_rows = read_acquisition_manifest(retry_manifest)
-    merged, overrides = merge_acquisition_manifests(base_rows, retry_rows)
+    if not manifests:
+        raise InventoryError(
+            "a freeze needs at least one acquisition manifest; source.inventory.freeze_inputs "
+            "declares the ordered passes"
+        )
+    passes = [(manifest.role, read_acquisition_manifest(manifest.path)) for manifest in manifests]
+    merged, overrides_by_role = merge_acquisition_manifests(passes)
+    reject_ready_regressions(passes, {row["analysis_id"]: row for row in merged})
 
     manifest_ids = [row["analysis_id"] for row in merged]
     pool = set(candidates.analysis_ids)
@@ -483,25 +547,17 @@ def build_snapshot(
             f"{len(invalid_ready)} ready row(s) missing required field(s): {', '.join(invalid_ready[:10])}"
         )
 
-    inputs = (
+    inputs = tuple(
         ManifestInput(
-            role="base_manifest",
-            path=base_manifest,
-            sha256=sha256_file(base_manifest),
-            bytes=base_manifest.stat().st_size,
-            rows=len(base_rows),
-            readiness_counts=_readiness_counts(base_rows),
-            overrides=0,
-        ),
-        ManifestInput(
-            role="retry_manifest",
-            path=retry_manifest,
-            sha256=sha256_file(retry_manifest),
-            bytes=retry_manifest.stat().st_size,
-            rows=len(retry_rows),
-            readiness_counts=_readiness_counts(retry_rows),
-            overrides=overrides,
-        ),
+            role=manifest.role,
+            path=manifest.path,
+            sha256=sha256_file(manifest.path),
+            bytes=manifest.path.stat().st_size,
+            rows=len(rows),
+            readiness_counts=_readiness_counts(rows),
+            overrides=overrides_by_role[manifest.role],
+        )
+        for manifest, (_, rows) in zip(manifests, passes)
     )
 
     return InventorySnapshot(
@@ -683,7 +739,7 @@ class ReleaseConfiguration:
     inventory_snapshot_id: str
     inventory_path: Path
     inventory_provenance_path: Path
-    freeze_inputs: Mapping[str, Path]
+    freeze_inputs: tuple[AcquisitionPass, ...]
     candidates_path: Path
     reference_resources: Mapping[str, ReferenceResource]
     required_resource_ids: tuple[str, ...]
@@ -703,6 +759,36 @@ def _require(mapping: Mapping[str, Any], key: str, where: str) -> Any:
     return mapping[key]
 
 
+def _parse_freeze_inputs(raw: Any, path: Path) -> tuple[AcquisitionPass, ...]:
+    """Parse the ordered acquisition passes, where list order is the precedence rule.
+
+    The config lists passes earliest first, so the order in the file is the merge
+    order rather than a mapping's incidental key order. A duplicate role would make
+    two passes indistinguishable in the provenance, so it is rejected here.
+    """
+    where = f"{path}:source.inventory.freeze_inputs"
+    if not isinstance(raw, list) or not raw:
+        raise PreflightConfigError(
+            f"{where} must be a non-empty ordered list of {{role, path}} entries, earliest pass first"
+        )
+    passes: list[AcquisitionPass] = []
+    seen: set[str] = set()
+    for index, entry in enumerate(raw):
+        if not isinstance(entry, Mapping):
+            raise PreflightConfigError(f"{where}[{index}] is not a mapping with 'role' and 'path'")
+        role = str(entry.get("role") or "").strip()
+        value = str(entry.get("path") or "").strip()
+        if not role or not value:
+            raise PreflightConfigError(
+                f"{where}[{index}] needs a non-empty 'role' and 'path'"
+            )
+        if role in seen:
+            raise PreflightConfigError(f"{where} declares role {role!r} twice")
+        seen.add(role)
+        passes.append(AcquisitionPass(role=role, path=_external_path(value)))
+    return tuple(passes)
+
+
 def load_release_configuration(path: Path, repo_root: Path) -> ReleaseConfiguration:
     """Load the full-release generator config, failing on any missing required fact.
 
@@ -720,7 +806,9 @@ def load_release_configuration(path: Path, repo_root: Path) -> ReleaseConfigurat
 
     source = _require(document, "source", str(path))
     inventory_block = _require(source, "inventory", f"{path}:source")
-    freeze_inputs = _require(inventory_block, "freeze_inputs", f"{path}:source.inventory")
+    freeze_inputs = _parse_freeze_inputs(
+        _require(inventory_block, "freeze_inputs", f"{path}:source.inventory"), path
+    )
 
     resources: dict[str, ReferenceResource] = {}
     for entry in _require(document, "reference_resources", str(path)):
@@ -791,10 +879,7 @@ def load_release_configuration(path: Path, repo_root: Path) -> ReleaseConfigurat
         inventory_provenance_path=_repo_path(
             repo_root, str(_require(inventory_block, "provenance_path", f"{path}:source.inventory"))
         ),
-        freeze_inputs={
-            str(role): _external_path(str(value))
-            for role, value in freeze_inputs.items()
-        },
+        freeze_inputs=freeze_inputs,
         candidates_path=_repo_path(repo_root, str(_require(source, "candidates", f"{path}:source"))),
         reference_resources=resources,
         required_resource_ids=tuple(dict.fromkeys(required_resource_ids)),
