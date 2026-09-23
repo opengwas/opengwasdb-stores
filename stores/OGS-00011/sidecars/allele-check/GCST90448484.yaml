@@ -1,0 +1,18 @@
+analysis_id: GCST90448484
+trait: End-diastolic bi-ventricular shape (principal component 5)
+trait_ontology_id: OBA:VT0000277
+publication_pmid: '39543113'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90448001-GCST90449000/GCST90448484/harmonised/GCST90448484.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.660255
+matched_study: null
+supporting_comparisons: []
+check:
+  n_comparisons: 0
+  verdict_tally: {}
+recommendation: no_matching_trait
+notes: no independent analysis of this trait was found in OGS-00011's included analyses or in OGS-00010; the orientation
+  failure stays an exclusion
+measured_at: '2026-09-23T09:05:21Z'

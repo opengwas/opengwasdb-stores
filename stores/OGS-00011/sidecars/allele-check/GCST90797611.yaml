@@ -1,0 +1,69 @@
+analysis_id: GCST90797611
+trait: Right ventricular end systolic volume or Right ventricular ejection fraction (MTAG)
+trait_ontology_id: http://www.ebi.ac.uk/efo/EFO_0021816, http://www.ebi.ac.uk/efo/EFO_0021815
+publication_pmid: '41760662'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90797001-GCST90798000/GCST90797611/harmonised/GCST90797611.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.976809
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90134589
+  trait: Right ventricular end systolic volume
+  publication_pmid: '35697868'
+  match_type: ontology
+  trait_similarity: 0.7143
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90134001-GCST90135000/GCST90134589/harmonised/GCST90134589.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: -0.997115
+  spearman_r: -0.975806
+  verdict: swap_alleles
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90134593
+  trait: Right ventricular end systolic volume (MTAG)
+  publication_pmid: '35697868'
+  match_type: ontology
+  trait_similarity: 0.7143
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90134001-GCST90135000/GCST90134593/harmonised/GCST90134593.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: -0.996875
+  spearman_r: -0.975134
+  verdict: swap_alleles
+- source_bundle: OGS-00011
+  analysis_id: GCST90268118
+  trait: Right ventricular end systolic volume
+  publication_pmid: '37126556'
+  match_type: ontology
+  trait_similarity: 0.7143
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90268001-GCST90269000/GCST90268118/harmonised/GCST90268118.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 98
+  effect_measure: beta_vs_beta
+  pearson_r: -0.996268
+  spearman_r: -0.958304
+  verdict: swap_alleles
+check:
+  n_comparisons: 3
+  verdict_tally:
+    swap_alleles: 3
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: -0.997115
+  spearman_r: -0.975806
+  verdict: swap_alleles
+recommendation: swap_alleles
+notes: '3 comparison analyses evaluated; verdicts {''swap_alleles'': 3}; canonical-allele effects are inverted against
+  the comparison analysis/analyses (OGS-00011:GCST90134589 r=-0.997115 over 100, OGS-00011:GCST90134593 r=-0.996875
+  over 100, OGS-00011:GCST90268118 r=-0.996268 over 98), so the source''s effect and other alleles are swapped relative
+  to the reported betas'
+measured_at: '2026-09-23T09:05:21Z'

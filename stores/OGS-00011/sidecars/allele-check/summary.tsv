@@ -1,0 +1,163 @@
+analysis_id	trait	publication_pmid	gate_reason	eaf_orientation_r	n_comparisons	matched_source_bundle	matched_analysis_id	matched_trait	match_type	independent	n_variants_checked	n_variants_overlapping	pearson_r	spearman_r	recommendation
+GCST003566	Multiple sclerosis	27386562	eaf_orientation	-0.975186	3	OGS-00011	GCST90014448	Multiple sclerosis	ontology	true	100	99	0.997650	0.902140	flip_frequency
+GCST004364	Intelligence	28530673	residual	-0.120180	3	OGS-00011	GCST001837	Intelligence (childhood)	ontology	true	100	56	-0.911210	-0.601094	swap_alleles
+GCST005215	Corrected insulin response	24699409	residual	-0.252454	0										no_matching_trait
+GCST005216	Corrected insulin response adjusted for insulin sensitivity index	24699409	residual	-0.237259	0										no_matching_trait
+GCST005217	Insulin levels adjusted for BMI	24699409	residual	-0.008968	0										no_matching_trait
+GCST005218	Area under the curve of insulin levels	24699409	residual	-0.416031	0										no_matching_trait
+GCST005219	Incremental insulin	24699409	residual	-0.023769	1	OGS-00011	GCST90002238	Fasting insulin	ontology	true	100	100	0.088171	0.068299	inconclusive
+GCST005220	Insulin levels	24699409	residual	-0.023685	1	OGS-00011	GCST90002238	Fasting insulin	ontology	true	100	99	0.237881	0.187780	flip_frequency
+GCST005221	Insulin sensitivity index	24699409	residual	-0.253021	0										no_matching_trait
+GCST005222	Insulin disposition index	24699409	residual	-0.252875	0										no_matching_trait
+GCST005223	Ratio of the area under the curve for insulin and the area under the curve for glucose	24699409	residual	-0.028217	0										no_matching_trait
+GCST90165290	QT interval	36271874	eaf_orientation	-0.990268	2	OGS-00010	ukb-b-16311	Interval between previous point and current one in alphanumeric path (trail #2)	ukb_label	true	100	100	-0.185839	-0.857762	inconclusive
+GCST90165291	QT interval	36271874	eaf_orientation	-0.991880	2	OGS-00010	ukb-b-16311	Interval between previous point and current one in alphanumeric path (trail #2)	ukb_label	true	100	100	-0.983403	-0.861290	swap_alleles
+GCST90271755	Spontaneous preterm birth	37871108	eaf_orientation	-0.970946	3	OGS-00011	GCST90454238	ICD10 O42: Premature rupture of membranes	ontology	true	100	95	-0.556895	-0.396067	swap_alleles
+GCST90275135	Attention deficit hyperactivity disorder (ADuLT model adjusted for age, sex)	37689771	eaf_orientation	-0.676123	2	OGS-00011	GCST90568440	Attention deficit hyperactivity disorder	ontology	true	100	98	0.888948	0.773833	flip_frequency
+GCST90275136	Attention deficit hyperactivity disorder (ADuLT model adjusted for sex)	37689771	eaf_orientation	-0.676123	2	OGS-00011	GCST90568440	Attention deficit hyperactivity disorder	ontology	true	100	98	0.896938	0.784646	flip_frequency
+GCST90275137	Attention deficit hyperactivity disorder (ADuLT model)	37689771	eaf_orientation	-0.676123	2	OGS-00011	GCST90568440	Attention deficit hyperactivity disorder	ontology	true	100	98	0.939993	0.806068	flip_frequency
+GCST90275138	Autism (ADuLT model adjusted for age, sex)	37689771	eaf_orientation	-0.676066	0										no_matching_trait
+GCST90275139	Autism (ADuLT model adjusted for sex)	37689771	eaf_orientation	-0.676066	0										no_matching_trait
+GCST90275140	Autism (ADuLT model)	37689771	eaf_orientation	-0.676066	0										no_matching_trait
+GCST90275141	Depression (ADuLT model adjusted for age, sex)	37689771	eaf_orientation	-0.676045	3	OGS-00011	GCST005902	Depression (broad)	ontology	true	100	100	0.173822	-0.117000	inconclusive
+GCST90275142	Depression (ADuLT model adjusted for sex)	37689771	eaf_orientation	-0.676045	3	OGS-00011	GCST005902	Depression (broad)	ontology	true	100	91	0.508822	0.404316	flip_frequency
+GCST90275143	Depression (ADuLT model)	37689771	eaf_orientation	-0.676045	3	OGS-00011	GCST005902	Depression (broad)	ontology	true	100	96	0.594565	0.494045	flip_frequency
+GCST90275144	Schizophrenia (ADuLT model adjusted for age, sex)	37689771	eaf_orientation	-0.676089	0										no_matching_trait
+GCST90275145	Schizophrenia (ADuLT model adjusted for sex)	37689771	eaf_orientation	-0.676089	0										no_matching_trait
+GCST90275146	Schizophrenia (ADuLT model)	37689771	eaf_orientation	-0.676089	0										no_matching_trait
+GCST90275147	Attention deficit hyperactivity disorder (adjusted for age, sex)	37689771	eaf_orientation	-0.676123	2	OGS-00011	GCST90568440	Attention deficit hyperactivity disorder	ontology	true	100	98	0.887050	0.743715	flip_frequency
+GCST90275148	Attention deficit hyperactivity disorder (adjusted for sex)	37689771	eaf_orientation	-0.676123	2	OGS-00011	GCST90568440	Attention deficit hyperactivity disorder	ontology	true	100	98	0.904449	0.773859	flip_frequency
+GCST90275149	Attention deficit hyperactivity disorder	37689771	eaf_orientation	-0.676123	2	OGS-00011	GCST90568440	Attention deficit hyperactivity disorder	ontology	true	100	99	0.961244	0.737032	flip_frequency
+GCST90275150	Autism (adjusted for age, sex)	37689771	eaf_orientation	-0.676066	0										no_matching_trait
+GCST90275151	Autism (adjusted for sex)	37689771	eaf_orientation	-0.676066	0										no_matching_trait
+GCST90275152	Autism	37689771	eaf_orientation	-0.676066	0										no_matching_trait
+GCST90275153	Depression (adjusted for age, sex)	37689771	eaf_orientation	-0.676045	3	OGS-00011	GCST005902	Depression (broad)	ontology	true	100	100	0.844106	0.734557	flip_frequency
+GCST90275154	Depression (adjusted for sex)	37689771	eaf_orientation	-0.676045	3	OGS-00011	GCST005902	Depression (broad)	ontology	true	100	91	0.964742	0.711196	flip_frequency
+GCST90275155	Depression	37689771	eaf_orientation	-0.676045	3	OGS-00011	GCST005902	Depression (broad)	ontology	true	100	94	0.956244	0.708948	flip_frequency
+GCST90275156	Schizophrenia (adjusted for age, sex)	37689771	eaf_orientation	-0.676089	0										no_matching_trait
+GCST90275157	Schizophrenia (adjusted for sex)	37689771	eaf_orientation	-0.676089	0										no_matching_trait
+GCST90275158	Schizophrenia	37689771	eaf_orientation	-0.676089	0										no_matching_trait
+GCST90275159	Attention deficit hyperactivity disorder (SPACox model adjusted for age, sex)	37689771	eaf_orientation	-0.676123	2	OGS-00011	GCST90568440	Attention deficit hyperactivity disorder	ontology	true	100	62	-0.445225	-0.548840	swap_alleles
+GCST90275160	Attention deficit hyperactivity disorder (SPACox model adjusted for sex)	37689771	eaf_orientation	-0.676123	2	OGS-00011	GCST90568440	Attention deficit hyperactivity disorder	ontology	true	100	62	-0.445225	-0.548840	swap_alleles
+GCST90275161	Autism (SPACox model adjusted for age, sex)	37689771	eaf_orientation	-0.676066	0										no_matching_trait
+GCST90275162	Autism (SPACox model adjusted for sex)	37689771	eaf_orientation	-0.676066	0										no_matching_trait
+GCST90275163	Depression (SPACox model adjusted for age, sex)	37689771	eaf_orientation	-0.676045	3	OGS-00011	GCST005902	Depression (broad)	ontology	true	100	82	0.089504	0.102295	inconclusive
+GCST90275164	Depression (SPACox model adjusted for sex)	37689771	eaf_orientation	-0.676045	3	OGS-00011	GCST005902	Depression (broad)	ontology	true	100	82	0.089504	0.102295	inconclusive
+GCST90275165	Schizophrenia (SPACox model adjusted for age, sex)	37689771	eaf_orientation	-0.676089	0										no_matching_trait
+GCST90275166	Schizophrenia (SPACox model adjusted for sex)	37689771	eaf_orientation	-0.676089	0										no_matching_trait
+GCST90276157	Alzheimer's disease and Lewy body co-pathology	37700353	residual	-0.191905	3	OGS-00011	GCST90027158	Alzheimer's disease	ontology	true	100	11	0.847427	0.500000	flip_frequency
+GCST90276158	Alzheimer's disease pathology	37700353	residual	-0.191905	3	OGS-00011	GCST90027158	Alzheimer's disease	ontology	true	100	10	0.929187	0.963636	flip_frequency
+GCST90276159	Lewy body pathology	37700353	residual	-0.191905	3	OGS-00011	GCST90001390	Dementia with Lewy bodies	ontology	true	100	89	0.264855	0.248774	flip_frequency
+GCST90276160	Lewy body pathology in Alzheimer's disease pathology	37700353	residual	-0.191905	3	OGS-00011	GCST90001390	Dementia with Lewy bodies	ontology	true	100	89	-0.152902	-0.465560	swap_alleles
+GCST90277450	Major depressive disorder (lifetime)	37985819	eaf_orientation	-0.711209	3	OGS-00011	GCST005903	Major depressive disorder (ICD-10 coded)	ontology	true	100	67	0.982727	0.755607	flip_frequency
+GCST90277451	Direct bilirubin levels (UKB data field 30660)	37985819	eaf_orientation	-0.711209	3	OGS-00011	GCST90025983	Direct bilirubin levels	ontology	true	100	2			inconclusive
+GCST90277452	Ever taken cannabis (UKB data field 20453)	37985819	eaf_orientation	-0.711209	0										no_matching_trait
+GCST90296697	Type 2 diabetes	38182742	eaf_orientation	-0.974042	3	OGS-00011	GCST006801	Type 2 diabetes	ontology	true	100	0			swap_alleles
+GCST90296698	Type 2 diabetes	38182742	eaf_orientation	-0.973908	3	OGS-00011	GCST006801	Type 2 diabetes	ontology	true	100	0			swap_alleles
+GCST90296699	Type 2 diabetes (with history of pregnancy)	38182742	eaf_orientation	-0.973904	3	OGS-00011	GCST006801	Type 2 diabetes	ontology	true	100	0			swap_alleles
+GCST90296700	Type 2 diabetes (with no history of pregnancy)	38182742	eaf_orientation	-0.973923	3	OGS-00011	GCST006801	Type 2 diabetes	ontology	true	100	0			swap_alleles
+GCST90297793	Pediatric steroid sensitive nephrotic syndrome	37547536	residual	-0.023709	2	OGS-00011	GCST90705042	Steroid-sensitive nephrotic syndrome	ontology	true	100	20	-0.349207	-0.442105	swap_alleles
+GCST90302879	Poverty (general factor)	38987359	eaf_orientation	-0.673824	3	OGS-00011	GCST90566698	Household income	ontology	true	100	100	0.996318	0.918260	flip_frequency
+GCST90421025	D-Fructose 1-6-bisphosphate levels in blood donors	38964323	eaf_orientation	-0.996681	0										no_matching_trait
+GCST90435503	Trunk total mass (UKB data field 23287)	38872030	eaf_orientation	-0.990906	3	OGS-00011	GCST90652380	Bone marrow fat fraction of thoracic vertebra 8	ontology	true	100	100	0.063596	0.214545	inconclusive
+GCST90435504	Arms total mass (UKB data field 23260)	38872030	eaf_orientation	-0.990906	3	OGS-00011	GCST90652380	Bone marrow fat fraction of thoracic vertebra 8	ontology	true	100	100	0.118567	0.081104	inconclusive
+GCST90435505	Gynoid total mass (UKB data field 23265)	38872030	eaf_orientation	-0.990906	3	OGS-00011	GCST90652380	Bone marrow fat fraction of thoracic vertebra 8	ontology	true	100	100	-0.040383	-0.053513	inconclusive
+GCST90435506	Total mass (UKB data field 23283)	38872030	eaf_orientation	-0.990906	3	OGS-00011	GCST90652380	Bone marrow fat fraction of thoracic vertebra 8	ontology	true	100	100	-0.088412	0.011665	inconclusive
+GCST90435507	Leg total mass (UKB data field 23277)	38872030	eaf_orientation	-0.990906	3	OGS-00011	GCST90652380	Bone marrow fat fraction of thoracic vertebra 8	ontology	true	100	100	0.251237	0.149283	flip_frequency
+GCST90435508	Android total mass (UKB data field 23248)	38872030	eaf_orientation	-0.990906	3	OGS-00011	GCST90652380	Bone marrow fat fraction of thoracic vertebra 8	ontology	true	100	100	-0.253287	-0.108035	swap_alleles
+GCST90446168	Cognitive processing speed	39242605	eaf_orientation	-0.662394	3	OGS-00011	GCST90309368	Cognition and processing speed (confirmatory factor analysis Factor 34)	ontology	true	100	100	-0.997637	-0.943390	swap_alleles
+GCST90446169	Cognitive processing accuracy	39242605	eaf_orientation	-0.662394	3	OGS-00011	GCST006572	Cognitive performance	ontology	true	100	44	0.995207	0.918252	flip_frequency
+GCST90446758	Retinal arterial temporal angle	39505872	eaf_orientation	-0.982860	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	100	-0.999288	-0.662574	swap_alleles
+GCST90446759	Retinal venular temporal angle	39505872	eaf_orientation	-0.982860	3	OGS-00011	GCST90270399	Retinal venular tortuosity	ontology	true	100	100	-0.996489	-0.756796	swap_alleles
+GCST90446760	Retinal arteriolar tortuosity	39505872	eaf_orientation	-0.982860	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	98	-0.996556	-0.916659	swap_alleles
+GCST90446761	Retinal venular tortuosity	39505872	eaf_orientation	-0.982860	3	OGS-00011	GCST90270399	Retinal venular tortuosity	ontology	true	100	100	-0.999175	-0.989115	swap_alleles
+GCST90446762	Retinal ratio tortuosity	39505872	eaf_orientation	-0.982860	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	100	-0.998917	-0.977582	flip_frequency
+GCST90446763	Central retinal arteriolar equivalent	39505872	eaf_orientation	-0.982860	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	100	-0.521047	-0.622226	swap_alleles
+GCST90446764	Central retinal vein equivalent	39505872	eaf_orientation	-0.982860	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	99	0.973893	0.591429	flip_frequency
+GCST90446765	Retinal ratio central retinal equivalent	39505872	eaf_orientation	-0.982860	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	99	-0.984198	-0.592999	swap_alleles
+GCST90446766	Retinal arterial diameter variability	39505872	eaf_orientation	-0.982860	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	99	-0.593026	-0.472369	swap_alleles
+GCST90446767	Retinal venular diameter variability	39505872	eaf_orientation	-0.982860	3	OGS-00011	GCST90270399	Retinal venular tortuosity	ontology	true	100	99	0.891768	0.832109	flip_frequency
+GCST90446768	Retinal arterial vascular density	39505872	eaf_orientation	-0.982860	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	97	-0.228618	-0.296287	swap_alleles
+GCST90446769	Retinal venular vascular density	39505872	eaf_orientation	-0.982860	3	OGS-00011	GCST90270399	Retinal venular tortuosity	ontology	true	100	97	0.704666	0.822086	flip_frequency
+GCST90446770	Retinal ratio vascular density	39505872	eaf_orientation	-0.982860	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	100	-0.630473	-0.541302	swap_alleles
+GCST90446771	Retinal arterial median diameter	39505872	eaf_orientation	-0.982860	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	96	-0.563246	-0.568937	swap_alleles
+GCST90446772	Retinal venular median diameter	39505872	eaf_orientation	-0.982860	3	OGS-00011	GCST90270399	Retinal venular tortuosity	ontology	true	100	97	-0.914889	-0.895645	swap_alleles
+GCST90446773	Retinal ratio median diameter	39505872	eaf_orientation	-0.982860	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	95	-0.543955	-0.801778	flip_frequency
+GCST90446774	Retinal vasculature number of bifurcations	39505872	eaf_orientation	-0.982860	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	97	0.995149	0.829266	flip_frequency
+GCST90446775	Retinal arterial temporal angle	39505872	eaf_orientation	-0.980230	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	100	-0.955744	-0.735158	swap_alleles
+GCST90446776	Retinal venular temporal angle	39505872	eaf_orientation	-0.980247	3	OGS-00011	GCST90270399	Retinal venular tortuosity	ontology	true	100	100	-0.797054	-0.769289	swap_alleles
+GCST90446777	Retinal arteriolar tortuosity	39505872	eaf_orientation	-0.980264	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	100	-0.998147	-0.977390	swap_alleles
+GCST90446778	Retinal venular tortuosity	39505872	eaf_orientation	-0.980200	3	OGS-00011	GCST90270399	Retinal venular tortuosity	ontology	true	100	100	-0.996295	-0.985155	swap_alleles
+GCST90446779	Retinal ratio tortuosity	39505872	eaf_orientation	-0.980232	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	100	-0.920352	-0.823642	swap_alleles
+GCST90446780	Central retinal arteriolar equivalent	39505872	eaf_orientation	-0.981037	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	100	-0.207110	0.094989	swap_alleles
+GCST90446781	Central retinal vein equivalent	39505872	eaf_orientation	-0.981053	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	100	0.023610	-0.054065	swap_alleles
+GCST90446782	Retinal ratio central retinal equivalent	39505872	eaf_orientation	-0.980235	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	100	-0.529347	-0.632751	swap_alleles
+GCST90446783	Retinal arterial diameter variability	39505872	eaf_orientation	-0.981016	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	100	-0.938253	-0.780570	swap_alleles
+GCST90446784	Retinal venular diameter variability	39505872	eaf_orientation	-0.981252	3	OGS-00011	GCST90270399	Retinal venular tortuosity	ontology	true	100	100	0.924409	0.627183	flip_frequency
+GCST90446785	Retinal arterial vascular density	39505872	eaf_orientation	-0.980419	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	98	98	-0.213967	-0.322100	flip_frequency
+GCST90446786	Retinal venular vascular density	39505872	eaf_orientation	-0.980497	3	OGS-00011	GCST90270399	Retinal venular tortuosity	ontology	true	100	100	0.289479	-0.027099	flip_frequency
+GCST90446787	Retinal ratio vascular density	39505872	eaf_orientation	-0.980288	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	100	-0.269564	-0.230327	swap_alleles
+GCST90446788	Retinal arterial median diameter	39505872	eaf_orientation	-0.980771	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	99	98	-0.512673	-0.122672	swap_alleles
+GCST90446789	Retinal venular median diameter	39505872	eaf_orientation	-0.980945	3	OGS-00011	GCST90270399	Retinal venular tortuosity	ontology	true	100	100	0.071152	0.262778	inconclusive
+GCST90446790	Retinal ratio median diameter	39505872	eaf_orientation	-0.980200	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	100	-0.093316	0.004596	swap_alleles
+GCST90446791	Retinal vasculature number of bifurcations	39505872	eaf_orientation	-0.980571	3	OGS-00011	GCST90270397	Retinal arteriolar tortuosity	ontology	true	100	99	-0.053221	-0.457984	inconclusive
+GCST90448480	End-diastolic bi-ventricular shape (principal component 1)	39543113	eaf_orientation	-0.660282	0										no_matching_trait
+GCST90448481	End-diastolic bi-ventricular shape (principal component 2)	39543113	eaf_orientation	-0.660259	0										no_matching_trait
+GCST90448482	End-diastolic bi-ventricular shape (principal component 3)	39543113	eaf_orientation	-0.660257	0										no_matching_trait
+GCST90448483	End-diastolic bi-ventricular shape (principal component 4)	39543113	eaf_orientation	-0.660253	0										no_matching_trait
+GCST90448484	End-diastolic bi-ventricular shape (principal component 5)	39543113	eaf_orientation	-0.660255	0										no_matching_trait
+GCST90448485	End-diastolic bi-ventricular shape (principal component 6)	39543113	eaf_orientation	-0.660276	0										no_matching_trait
+GCST90448486	End-diastolic bi-ventricular shape (principal component 7)	39543113	eaf_orientation	-0.660277	0										no_matching_trait
+GCST90448487	End-diastolic bi-ventricular shape (principal component 8)	39543113	eaf_orientation	-0.660277	0										no_matching_trait
+GCST90448488	End-diastolic bi-ventricular shape (principal component 9)	39543113	eaf_orientation	-0.660259	0										no_matching_trait
+GCST90448489	End-diastolic bi-ventricular shape (principal component 10)	39543113	eaf_orientation	-0.660281	0										no_matching_trait
+GCST90448490	End-diastolic bi-ventricular shape (principal component 11)	39543113	eaf_orientation	-0.554126	0										no_matching_trait
+GCST90503115	Common executive function	39891803	eaf_orientation	-0.502369	3	OGS-00011	GCST90162547	Common executive function	ontology	true	100	100	0.999185	0.682028	flip_frequency
+GCST90503116	Working memory	39891803	eaf_orientation	-0.502369	1	OGS-00011	GCST90179116	Prospective memory task	ontology	true	100	100	-0.059279	0.657066	inconclusive
+GCST90503117	Executive function (substitution test-specific factor)	39891803	eaf_orientation	-0.502369	3	OGS-00011	GCST90162547	Common executive function	ontology	true	100	100	0.762070	0.689637	flip_frequency
+GCST90551884	Lifespan	40021682	eaf_orientation	-0.978996	0										no_matching_trait
+GCST90551885	Lifespan	40021682	eaf_orientation	-0.979011	0										no_matching_trait
+GCST90551886	Lifespan	40021682	eaf_orientation	-0.978938	0										no_matching_trait
+GCST90558098	Rheumatoid arthritis	40262193	residual	-0.017342	3	OGS-00011	GCST90014458	Rheumatoid arthritis	ontology	true	100	4	0.586100	0.400000	inconclusive
+GCST90558099	Rheumatoid arthritis	40262193	residual	-0.017275	3	OGS-00011	GCST90014458	Rheumatoid arthritis	ontology	true	100	4	0.136946	0.000000	inconclusive
+GCST90566392	Biological age difference (delta-Age)	40497443	eaf_orientation	-0.687313	3	OGS-00011	GCST90014290	Intrinsic epigenetic age acceleration	ontology	true	100	82	0.954473	0.630609	swap_alleles
+GCST90566393	Biological age difference (delta-Age)	40497443	eaf_orientation	-0.686683	3	OGS-00011	GCST90014290	Intrinsic epigenetic age acceleration	ontology	true	100	78	0.953555	0.680826	swap_alleles
+GCST90572755	Response to COVID-19 vaccine (immunogenicity)	41249154	eaf_orientation	-0.614027	3	OGS-00011	GCST90305767	Response to BNT162b2 vaccine (anti-SARS-CoV-2 Spike antibody levels after second dose)	ontology	true	100	7	-0.471580	-0.678571	inconclusive
+GCST90590336	General obesity axis	40272846	eaf_orientation	-0.977390	0										no_matching_trait
+GCST90590337	Muscle dominant axis	40272846	eaf_orientation	-0.977389	0										no_matching_trait
+GCST90590338	Peripheral fat axis	40272846	eaf_orientation	-0.977388	1	OGS-00011	GCST90590321	Thigh slabs internal fat to muscle ratio	ontology	true	100	100	-0.888707	-0.888785	swap_alleles
+GCST90590339	Lower body fat axis	40272846	eaf_orientation	-0.977390	1	OGS-00011	GCST90590321	Thigh slabs internal fat to muscle ratio	ontology	true	100	100	0.883478	0.857894	flip_frequency
+GCST90652244	Response to statins (LDL cholesterol percent change)(baseline-unadjusted)	31969989	eaf_orientation	-0.678441	3	OGS-00011	GCST90455607	Total cholesterol response to statins (absolute difference)	ontology	true	100	59	0.790455	0.657101	flip_frequency
+GCST90672045	Chronic lung allograft dysfunction	41864285	eaf_orientation	-0.976114	0										no_matching_trait
+GCST90707271	Acute myeloid leukemia (all cytogenetic sub-types)	41610418	eaf_orientation	-0.799093	0										no_matching_trait
+GCST90707272	Acute myeloid leukemia (complex karyotype)	41610418	eaf_orientation	-0.792004	0										no_matching_trait
+GCST90707273	Acute myeloid leukemia (deletions in chromosome 5 and/or 7)	41610418	eaf_orientation	-0.793089	0										no_matching_trait
+GCST90707274	Acute myeloid leukemia (normal cytogenetics)	41610418	eaf_orientation	-0.796972	0										no_matching_trait
+GCST90797590	Body surface area-indexed left ventricular end-diastolic volume or Body surface area-indexed left ventricular end-systolic volume (MTAG)	41760662	eaf_orientation	-0.976808	3	OGS-00011	GCST90268124	Left ventricular end-diastolic volume	ontology	true	100	100	-0.985926	-0.953387	swap_alleles
+GCST90797591	Body surface area-indexed left ventricular end-diastolic volume or Body surface area-indexed left ventricular stroke volume (MTAG)	41760662	eaf_orientation	-0.976808	3	OGS-00011	GCST90268124	Left ventricular end-diastolic volume	ontology	true	100	100	-0.993919	-0.980078	swap_alleles
+GCST90797592	Body surface area-indexed left ventricular end-diastolic volume or Left ventricular end-systolic volume (MTAG)	41760662	eaf_orientation	-0.976808	3	OGS-00011	GCST90268124	Left ventricular end-diastolic volume	ontology	true	100	100	-0.994195	-0.977450	swap_alleles
+GCST90797593	Body surface area-indexed left ventricular end-diastolic volume or Left ventricular stroke volume (MTAG)	41760662	eaf_orientation	-0.976808	3	OGS-00011	GCST90268124	Left ventricular end-diastolic volume	ontology	true	100	100	-0.994042	-0.978362	swap_alleles
+GCST90797594	Left ventricular ejection fraction or Left ventricular global function index (MTAG)	41760662	eaf_orientation	-0.976808	3	OGS-00011	GCST90268125	Left ventricular ejection fraction	ontology	true	100	100	-0.988916	-0.816454	swap_alleles
+GCST90797595	Body surface area-indexed left ventricular end-systolic volume or Body surface area-indexed left ventricular end-diastolic volume (MTAG)	41760662	eaf_orientation	-0.976808	3	OGS-00011	GCST90268124	Left ventricular end-diastolic volume	ontology	true	100	100	-0.994328	-0.977906	swap_alleles
+GCST90797596	Body surface area-indexed left ventricular end-systolic volume or Left ventricular end-diastolic volume (MTAG)	41760662	eaf_orientation	-0.976808	3	OGS-00011	GCST90268124	Left ventricular end-diastolic volume	ontology	true	100	100	-0.987266	-0.960444	swap_alleles
+GCST90797597	Left ventricular global function index or Left ventricular ejection fraction (MTAG)	41760662	eaf_orientation	-0.976808	3	OGS-00011	GCST90268125	Left ventricular ejection fraction	ontology	true	100	100	-0.998926	-0.976370	swap_alleles
+GCST90797598	Left ventricular myocardial contraction fraction or Left ventricular mass-to-volume ratio (MTAG)	41760662	eaf_orientation	-0.976808	3	OGS-00011	GCST90268129	Left ventricular peak filling rate	ontology	true	100	100	-0.714174	-0.788083	swap_alleles
+GCST90797599	Left ventricular mass-to-volume ratio or Left ventricular myocardial contraction fraction (MTAG)	41760662	eaf_orientation	-0.976808	3	OGS-00011	GCST90268129	Left ventricular peak filling rate	ontology	true	100	100	0.029480	0.242016	inconclusive
+GCST90797600	Body surface area-indexed left ventricular stroke volume or Body surface area-indexed left ventricular end-diastolic volume (MTAG)	41760662	eaf_orientation	-0.976808	3	OGS-00011	GCST90268124	Left ventricular end-diastolic volume	ontology	true	100	98	-0.987810	-0.969015	swap_alleles
+GCST90797601	Left ventricular stroke volume or Left ventricular end-diastolic volume (MTAG)	41760662	eaf_orientation	-0.976808	3	OGS-00011	GCST90268124	Left ventricular end-diastolic volume	ontology	true	100	98	-0.988389	-0.926260	swap_alleles
+GCST90797602	Body surface area-indexed right ventricular end-systolic volume or Right ventricular ejection fraction (MTAG)	41760662	eaf_orientation	-0.976809	3	OGS-00011	GCST90134589	Right ventricular end systolic volume	ontology	true	100	100	-0.997115	-0.975806	swap_alleles
+GCST90797603	Body surface area-indexed right ventricular end-diastolic volume or Body surface area-indexed right ventricular end-systolic volume (MTAG)	41760662	eaf_orientation	-0.976806	3	OGS-00011	GCST90134588	Right ventricular end diastolic volume	ontology	true	100	100	-0.987324	-0.875716	swap_alleles
+GCST90797604	Body surface area-indexed right ventricular end-diastolic volume or Body surface area-indexed right ventricular stroke volume (MTAG)	41760662	eaf_orientation	-0.976806	3	OGS-00011	GCST90134588	Right ventricular end diastolic volume	ontology	true	100	100	-0.987690	-0.876376	swap_alleles
+GCST90797605	Right ventricular end diastolic volume or Right ventricular end systolic volume (MTAG)	41760662	eaf_orientation	-0.976806	3	OGS-00011	GCST90134588	Right ventricular end diastolic volume	ontology	true	100	100	-0.991489	-0.909487	swap_alleles
+GCST90797606	Right ventricular end diastolic volume or Right ventricular stroke volume (MTAG)	41760662	eaf_orientation	-0.976806	3	OGS-00011	GCST90134588	Right ventricular end diastolic volume	ontology	true	100	100	-0.991139	-0.898422	swap_alleles
+GCST90797607	Right ventricular ejection fraction or Right ventricular end systolic volume (MTAG)	41760662	eaf_orientation	-0.976809	3	OGS-00011	GCST90134589	Right ventricular end systolic volume	ontology	true	100	100	0.998112	0.980822	flip_frequency
+GCST90797608	Right ventricular ejection fraction or Body surface area-indexed right ventricular end-systolic volume (MTAG)	41760662	eaf_orientation	-0.976809	3	OGS-00011	GCST90134589	Right ventricular end systolic volume	ontology	true	100	100	0.998112	0.980822	flip_frequency
+GCST90797609	Body surface area-indexed right ventricular end-systolic volume or Body surface area-indexed right ventricular end-diastolic volume (MTAG)	41760662	eaf_orientation	-0.976806	3	OGS-00011	GCST90134588	Right ventricular end diastolic volume	ontology	true	100	100	-0.984190	-0.837420	swap_alleles
+GCST90797610	Right ventricular end systolic volume or Right ventricular end diastolic volume (MTAG)	41760662	eaf_orientation	-0.976806	3	OGS-00011	GCST90134588	Right ventricular end diastolic volume	ontology	true	100	100	-0.986267	-0.849265	swap_alleles
+GCST90797611	Right ventricular end systolic volume or Right ventricular ejection fraction (MTAG)	41760662	eaf_orientation	-0.976809	3	OGS-00011	GCST90134589	Right ventricular end systolic volume	ontology	true	100	100	-0.997115	-0.975806	swap_alleles
+GCST90797612	Body surface area-indexed right ventricular stroke volume or Body surface area-indexed right ventricular end-diastolic volume (MTAG)	41760662	eaf_orientation	-0.976806	3	OGS-00011	GCST90134588	Right ventricular end diastolic volume	ontology	true	100	100	-0.981241	-0.937354	swap_alleles
+GCST90797613	Right ventricular stroke volume or Right ventricular end diastolic volume (MTAG)	41760662	eaf_orientation	-0.976806	3	OGS-00011	GCST90134588	Right ventricular end diastolic volume	ontology	true	100	100	-0.989236	-0.940642	swap_alleles
+GCST90824163	Type 1 diabetes	42062540	eaf_orientation	-0.978326	3	OGS-00011	GCST010681	Type 1 diabetes	ontology	true	100	79	0.996480	0.925876	flip_frequency
+GCST90832109	Glaucoma (primary angle closure)	41238566	eaf_orientation	-0.976623	3	OGS-00011	GCST90399725	Glaucoma (primary open-angle)	label	true	100	95	0.395963	0.586464	inconclusive
+GCST90832110	Glaucoma (primary angle closure)	41238566	eaf_orientation	-0.964285	3	OGS-00011	GCST90399725	Glaucoma (primary open-angle)	label	true	100	100	-0.634318	-0.691053	swap_alleles
+GCST90841074	Major depressive disorder	42230966	eaf_orientation	-0.666872	3	OGS-00011	GCST005903	Major depressive disorder (ICD-10 coded)	ontology	true	100	100	0.192682	0.276208	flip_frequency

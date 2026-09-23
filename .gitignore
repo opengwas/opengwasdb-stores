@@ -43,6 +43,9 @@ __pycache__/
 .prototype-state/
 .snakemake/
 .scratch/
+*.png
+*.pdf
+*.ipynb
 
 # Per-run outputs of the LD-panel eigendecomposition suite (the committed
 # fixtures are the sequential .ldeig.npz; -par/-seq are comparison artifacts).

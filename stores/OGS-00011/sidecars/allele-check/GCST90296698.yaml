@@ -1,0 +1,69 @@
+analysis_id: GCST90296698
+trait: Type 2 diabetes
+trait_ontology_id: MONDO:0005148
+publication_pmid: '38182742'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90296001-GCST90297000/GCST90296698/harmonised/GCST90296698.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.973908
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST006801
+  trait: Type 2 diabetes
+  publication_pmid: '26961502'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST006001-GCST007000/GCST006801/harmonised/26961502-GCST006801-EFO_0001360.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 0
+  effect_measure: beta_vs_beta
+  pearson_r: null
+  spearman_r: null
+  verdict: inconclusive
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST006867
+  trait: Type 2 diabetes
+  publication_pmid: '30054458'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST006001-GCST007000/GCST006867/harmonised/30054458-GCST006867-EFO_0001360.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 88
+  effect_measure: beta_vs_beta
+  pearson_r: -0.98398
+  spearman_r: -0.940844
+  verdict: swap_alleles
+- source_bundle: OGS-00011
+  analysis_id: GCST007517
+  trait: Type 2 diabetes
+  publication_pmid: '29632382'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST007001-GCST008000/GCST007517/harmonised/29632382-GCST007517-EFO_0001360.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 10
+  effect_measure: beta_vs_beta
+  pearson_r: -0.994499
+  spearman_r: -0.975758
+  verdict: inconclusive
+check:
+  n_comparisons: 3
+  verdict_tally:
+    inconclusive: 2
+    swap_alleles: 1
+  n_variants_checked: 100
+  n_variants_overlapping: 0
+  effect_measure: beta_vs_beta
+  pearson_r: null
+  spearman_r: null
+  verdict: inconclusive
+recommendation: swap_alleles
+notes: '3 comparison analyses evaluated; verdicts {''inconclusive'': 2, ''swap_alleles'': 1}; canonical-allele effects
+  are inverted against the comparison analysis/analyses (OGS-00011:GCST006867 r=-0.98398 over 88), so the source''s
+  effect and other alleles are swapped relative to the reported betas'
+measured_at: '2026-09-23T09:05:21Z'

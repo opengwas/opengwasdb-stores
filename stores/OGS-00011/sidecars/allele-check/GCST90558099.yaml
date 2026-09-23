@@ -1,0 +1,67 @@
+analysis_id: GCST90558099
+trait: Rheumatoid arthritis
+trait_ontology_id: MONDO:0008383
+publication_pmid: '40262193'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90558001-GCST90559000/GCST90558099/harmonised/GCST90558099.h.tsv.gz
+orientation_gate:
+  gate_reason: residual
+  eaf_orientation: failed
+  eaf_orientation_r: -0.0172745
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90014458
+  trait: Rheumatoid arthritis
+  publication_pmid: '34278373'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90014001-GCST90015000/GCST90014458/harmonised/GCST90014458.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 4
+  effect_measure: beta_vs_beta
+  pearson_r: 0.136946
+  spearman_r: 0.0
+  verdict: inconclusive
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90014459
+  trait: Rheumatoid arthritis
+  publication_pmid: '34278373'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90014001-GCST90015000/GCST90014459/harmonised/GCST90014459.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 4
+  effect_measure: beta_vs_beta
+  pearson_r: 0.094272
+  spearman_r: 0.0
+  verdict: inconclusive
+- source_bundle: OGS-00011
+  analysis_id: GCST90129453
+  trait: Rheumatoid arthritis
+  publication_pmid: '37219871'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90129001-GCST90130000/GCST90129453/harmonised/GCST90129453.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 1
+  effect_measure: beta_vs_beta
+  pearson_r: null
+  spearman_r: null
+  verdict: inconclusive
+check:
+  n_comparisons: 3
+  verdict_tally:
+    inconclusive: 3
+  n_variants_checked: 100
+  n_variants_overlapping: 4
+  effect_measure: beta_vs_beta
+  pearson_r: 0.136946
+  spearman_r: 0.0
+  verdict: inconclusive
+recommendation: inconclusive
+notes: '3 comparison analyses evaluated; verdicts {''inconclusive'': 3}; no comparison resolved a direction (overlapping
+  variants: 4, 4, 1; 20 needed)'
+measured_at: '2026-09-23T09:05:21Z'

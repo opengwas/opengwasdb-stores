@@ -1,0 +1,69 @@
+analysis_id: GCST90446169
+trait: Cognitive processing accuracy
+trait_ontology_id: http://www.ebi.ac.uk/efo/EFO_0008354
+publication_pmid: '39242605'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90446001-GCST90447000/GCST90446169/harmonised/GCST90446169.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.662394
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST006572
+  trait: Cognitive performance
+  publication_pmid: '30038396'
+  match_type: ontology
+  trait_similarity: 0.25
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST006001-GCST007000/GCST006572/harmonised/30038396-GCST006572-EFO_0008354.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 44
+  effect_measure: beta_vs_beta
+  pearson_r: 0.995207
+  spearman_r: 0.918252
+  verdict: flip_frequency
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90309368
+  trait: Cognition and processing speed (confirmatory factor analysis Factor 34)
+  publication_pmid: '38965376'
+  match_type: ontology
+  trait_similarity: 0.2
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90309001-GCST90310000/GCST90309368/harmonised/GCST90309368.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.891175
+  spearman_r: 0.949823
+  verdict: flip_frequency
+- source_bundle: OGS-00011
+  analysis_id: GCST90179119
+  trait: Symbol digit substitution task
+  publication_pmid: '36150907'
+  match_type: ontology
+  trait_similarity: 0.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90179001-GCST90180000/GCST90179119/harmonised/GCST90179119.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.989173
+  spearman_r: 0.922916
+  verdict: flip_frequency
+check:
+  n_comparisons: 3
+  verdict_tally:
+    flip_frequency: 3
+  n_variants_checked: 100
+  n_variants_overlapping: 44
+  effect_measure: beta_vs_beta
+  pearson_r: 0.995207
+  spearman_r: 0.918252
+  verdict: flip_frequency
+recommendation: flip_frequency
+notes: '3 comparison analyses evaluated; verdicts {''flip_frequency'': 3}; canonical-allele effects agree with the
+  comparison analysis/analyses (OGS-00011:GCST006572 r=0.995207 over 44, OGS-00011:GCST90309368 r=0.891175 over
+  100, OGS-00011:GCST90179119 r=0.989173 over 100), so the source''s allele labels and beta are self-consistent
+  and only its effect_allele_frequency column is inverted'
+measured_at: '2026-09-23T09:05:21Z'

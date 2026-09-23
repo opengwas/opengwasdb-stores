@@ -1,0 +1,55 @@
+analysis_id: GCST90275136
+trait: Attention deficit hyperactivity disorder (ADuLT model adjusted for sex)
+trait_ontology_id: MONDO:0007743
+publication_pmid: '37689771'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90275001-GCST90276000/GCST90275136/harmonised/GCST90275136.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.676123
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90568440
+  trait: Attention deficit hyperactivity disorder
+  publication_pmid: '40962958'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90568001-GCST90569000/GCST90568440/harmonised/GCST90568440.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 98
+  effect_measure: beta_vs_beta
+  pearson_r: 0.896938
+  spearman_r: 0.784646
+  verdict: flip_frequency
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90568441
+  trait: Attention deficit hyperactivity disorder
+  publication_pmid: '40962958'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90568001-GCST90569000/GCST90568441/harmonised/GCST90568441.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 98
+  effect_measure: beta_vs_beta
+  pearson_r: 0.994024
+  spearman_r: 0.897456
+  verdict: flip_frequency
+check:
+  n_comparisons: 2
+  verdict_tally:
+    flip_frequency: 2
+  n_variants_checked: 100
+  n_variants_overlapping: 98
+  effect_measure: beta_vs_beta
+  pearson_r: 0.896938
+  spearman_r: 0.784646
+  verdict: flip_frequency
+recommendation: flip_frequency
+notes: '2 comparison analyses evaluated; verdicts {''flip_frequency'': 2}; canonical-allele effects agree with the
+  comparison analysis/analyses (OGS-00011:GCST90568440 r=0.896938 over 98, OGS-00011:GCST90568441 r=0.994024 over
+  98), so the source''s allele labels and beta are self-consistent and only its effect_allele_frequency column is
+  inverted'
+measured_at: '2026-09-23T09:05:21Z'

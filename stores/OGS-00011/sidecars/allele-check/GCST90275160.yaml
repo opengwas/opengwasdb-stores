@@ -1,0 +1,55 @@
+analysis_id: GCST90275160
+trait: Attention deficit hyperactivity disorder (SPACox model adjusted for sex)
+trait_ontology_id: MONDO:0007743
+publication_pmid: '37689771'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90275001-GCST90276000/GCST90275160/harmonised/GCST90275160.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.676123
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90568440
+  trait: Attention deficit hyperactivity disorder
+  publication_pmid: '40962958'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90568001-GCST90569000/GCST90568440/harmonised/GCST90568440.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 62
+  effect_measure: beta_vs_beta
+  pearson_r: -0.445225
+  spearman_r: -0.54884
+  verdict: swap_alleles
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90568441
+  trait: Attention deficit hyperactivity disorder
+  publication_pmid: '40962958'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90568001-GCST90569000/GCST90568441/harmonised/GCST90568441.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 28
+  effect_measure: beta_vs_beta
+  pearson_r: -0.197672
+  spearman_r: -0.019704
+  verdict: inconclusive
+check:
+  n_comparisons: 2
+  verdict_tally:
+    inconclusive: 1
+    swap_alleles: 1
+  n_variants_checked: 100
+  n_variants_overlapping: 62
+  effect_measure: beta_vs_beta
+  pearson_r: -0.445225
+  spearman_r: -0.54884
+  verdict: swap_alleles
+recommendation: swap_alleles
+notes: '2 comparison analyses evaluated; verdicts {''inconclusive'': 1, ''swap_alleles'': 1}; canonical-allele effects
+  are inverted against the comparison analysis/analyses (OGS-00011:GCST90568440 r=-0.445225 over 62), so the source''s
+  effect and other alleles are swapped relative to the reported betas'
+measured_at: '2026-09-23T09:05:21Z'

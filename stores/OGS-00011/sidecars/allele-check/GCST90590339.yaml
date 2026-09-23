@@ -1,0 +1,40 @@
+analysis_id: GCST90590339
+trait: Lower body fat axis
+trait_ontology_id: http://www.ebi.ac.uk/efo/EFO_0004341
+publication_pmid: '40272846'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90590001-GCST90591000/GCST90590339/harmonised/GCST90590339.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.97739
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90590321
+  trait: Thigh slabs internal fat to muscle ratio
+  publication_pmid: '40922984'
+  match_type: ontology
+  trait_similarity: 0.1111
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90590001-GCST90591000/GCST90590321/harmonised/GCST90590321.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.883478
+  spearman_r: 0.857894
+  verdict: flip_frequency
+supporting_comparisons: []
+check:
+  n_comparisons: 1
+  verdict_tally:
+    flip_frequency: 1
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.883478
+  spearman_r: 0.857894
+  verdict: flip_frequency
+recommendation: flip_frequency
+notes: canonical-allele effects agree with the comparison analysis/analyses (OGS-00011:GCST90590321 r=0.883478 over
+  100), so the source's allele labels and beta are self-consistent and only its effect_allele_frequency column is
+  inverted
+measured_at: '2026-09-23T09:05:21Z'

@@ -1,0 +1,52 @@
+analysis_id: GCST90165291
+trait: QT interval
+trait_ontology_id: http://www.ebi.ac.uk/efo/EFO_0004682
+publication_pmid: '36271874'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90165001-GCST90166000/GCST90165291/harmonised/GCST90165291.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.99188
+matched_study:
+  source_bundle: OGS-00010
+  analysis_id: ukb-b-16311
+  trait: 'Interval between previous point and current one in alphanumeric path (trail #2)'
+  publication_pmid: ''
+  match_type: ukb_label
+  trait_similarity: 0.125
+  independent: true
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_store_z_times_se
+  pearson_r: -0.983403
+  spearman_r: -0.86129
+  verdict: swap_alleles
+supporting_comparisons:
+- source_bundle: OGS-00010
+  analysis_id: ukb-b-9917
+  trait: 'Interval between previous point and current one in numeric path (trail #1)'
+  publication_pmid: ''
+  match_type: ukb_label
+  trait_similarity: 0.125
+  independent: true
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_store_z_times_se
+  pearson_r: -0.969445
+  spearman_r: -0.768209
+  verdict: swap_alleles
+check:
+  n_comparisons: 2
+  verdict_tally:
+    swap_alleles: 2
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_store_z_times_se
+  pearson_r: -0.983403
+  spearman_r: -0.86129
+  verdict: swap_alleles
+recommendation: swap_alleles
+notes: '2 comparison analyses evaluated; verdicts {''swap_alleles'': 2}; canonical-allele effects are inverted against
+  the comparison analysis/analyses (OGS-00010:ukb-b-16311 r=-0.983403 over 100, OGS-00010:ukb-b-9917 r=-0.969445
+  over 100), so the source''s effect and other alleles are swapped relative to the reported betas'
+measured_at: '2026-09-23T09:05:21Z'

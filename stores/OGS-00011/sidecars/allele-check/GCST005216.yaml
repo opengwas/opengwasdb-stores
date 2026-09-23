@@ -1,0 +1,18 @@
+analysis_id: GCST005216
+trait: Corrected insulin response adjusted for insulin sensitivity index
+trait_ontology_id: http://www.ebi.ac.uk/efo/EFO_0004471, http://www.ebi.ac.uk/efo/EFO_0008473
+publication_pmid: '24699409'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST005001-GCST006000/GCST005216/harmonised/24699409-GCST005216-EFO_0008473.h.tsv.gz
+orientation_gate:
+  gate_reason: residual
+  eaf_orientation: failed
+  eaf_orientation_r: -0.237259
+matched_study: null
+supporting_comparisons: []
+check:
+  n_comparisons: 0
+  verdict_tally: {}
+recommendation: no_matching_trait
+notes: no independent analysis of this trait was found in OGS-00011's included analyses or in OGS-00010; the orientation
+  failure stays an exclusion
+measured_at: '2026-09-23T09:05:21Z'

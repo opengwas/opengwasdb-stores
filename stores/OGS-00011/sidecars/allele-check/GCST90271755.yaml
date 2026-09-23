@@ -1,0 +1,71 @@
+analysis_id: GCST90271755
+trait: Spontaneous preterm birth
+trait_ontology_id: http://www.ebi.ac.uk/efo/EFO_0006917
+publication_pmid: '37871108'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90271001-GCST90272000/GCST90271755/harmonised/GCST90271755.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.970946
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90454238
+  trait: 'ICD10 O42: Premature rupture of membranes'
+  publication_pmid: '40069456'
+  match_type: ontology
+  trait_similarity: 0.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90454001-GCST90455000/GCST90454238/harmonised/GCST90454238.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 95
+  effect_measure: beta_vs_beta
+  pearson_r: -0.556895
+  spearman_r: -0.396067
+  verdict: swap_alleles
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90271753
+  trait: Spontaneous preterm birth
+  publication_pmid: '37871108'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: false
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90271001-GCST90272000/GCST90271753/harmonised/GCST90271753.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 93
+  effect_measure: beta_vs_beta
+  pearson_r: -0.290805
+  spearman_r: -0.171914
+  verdict: swap_alleles
+- source_bundle: OGS-00011
+  analysis_id: GCST90271757
+  trait: Spontaneous preterm birth
+  publication_pmid: '37871108'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: false
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90271001-GCST90272000/GCST90271757/harmonised/GCST90271757.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 0
+  effect_measure: beta_vs_beta
+  pearson_r: null
+  spearman_r: null
+  verdict: inconclusive
+check:
+  n_comparisons: 3
+  verdict_tally:
+    inconclusive: 1
+    swap_alleles: 2
+  n_variants_checked: 100
+  n_variants_overlapping: 95
+  effect_measure: beta_vs_beta
+  pearson_r: -0.556895
+  spearman_r: -0.396067
+  verdict: swap_alleles
+recommendation: swap_alleles
+notes: 'at least one comparison is from the same publication as the source, so a shared pipeline mistake would not
+  be detected there; treat that comparison as weaker evidence; 3 comparison analyses evaluated; verdicts {''inconclusive'':
+  1, ''swap_alleles'': 2}; canonical-allele effects are inverted against the comparison analysis/analyses (OGS-00011:GCST90454238
+  r=-0.556895 over 95, OGS-00011:GCST90271753 r=-0.290805 over 93), so the source''s effect and other alleles are
+  swapped relative to the reported betas'
+measured_at: '2026-09-23T09:05:21Z'

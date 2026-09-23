@@ -1,0 +1,67 @@
+analysis_id: GCST90275164
+trait: Depression (SPACox model adjusted for sex)
+trait_ontology_id: MONDO:0002009
+publication_pmid: '37689771'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90275001-GCST90276000/GCST90275164/harmonised/GCST90275164.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.676045
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST005902
+  trait: Depression (broad)
+  publication_pmid: '29662059'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST005001-GCST006000/GCST005902/harmonised/29662059-GCST005902-EFO_0003761.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 82
+  effect_measure: beta_vs_beta
+  pearson_r: 0.089504
+  spearman_r: 0.102295
+  verdict: inconclusive
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90014436
+  trait: Depression
+  publication_pmid: '34278373'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90014001-GCST90015000/GCST90014436/harmonised/GCST90014436.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 13
+  effect_measure: beta_vs_beta
+  pearson_r: -0.321416
+  spearman_r: -0.445055
+  verdict: inconclusive
+- source_bundle: OGS-00011
+  analysis_id: GCST90014437
+  trait: Depression
+  publication_pmid: '34278373'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90014001-GCST90015000/GCST90014437/harmonised/GCST90014437.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 13
+  effect_measure: beta_vs_beta
+  pearson_r: -0.542154
+  spearman_r: -0.450549
+  verdict: inconclusive
+check:
+  n_comparisons: 3
+  verdict_tally:
+    inconclusive: 3
+  n_variants_checked: 100
+  n_variants_overlapping: 82
+  effect_measure: beta_vs_beta
+  pearson_r: 0.089504
+  spearman_r: 0.102295
+  verdict: inconclusive
+recommendation: inconclusive
+notes: '3 comparison analyses evaluated; verdicts {''inconclusive'': 3}; no comparison resolved a direction (overlapping
+  variants: 82, 13, 13; 20 needed)'
+measured_at: '2026-09-23T09:05:21Z'

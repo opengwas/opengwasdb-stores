@@ -1,0 +1,69 @@
+analysis_id: GCST90797599
+trait: Left ventricular mass-to-volume ratio or Left ventricular myocardial contraction fraction (MTAG)
+trait_ontology_id: http://www.ebi.ac.uk/efo/EFO_0004295
+publication_pmid: '41760662'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90797001-GCST90798000/GCST90797599/harmonised/GCST90797599.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.976808
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90268129
+  trait: Left ventricular peak filling rate
+  publication_pmid: '37126556'
+  match_type: ontology
+  trait_similarity: 0.1818
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90268001-GCST90269000/GCST90268129/harmonised/GCST90268129.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.02948
+  spearman_r: 0.242016
+  verdict: inconclusive
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90268138
+  trait: Left ventricular peak filling rate (adjusted without BSA and SBP)
+  publication_pmid: '37126556'
+  match_type: ontology
+  trait_similarity: 0.1818
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90268001-GCST90269000/GCST90268138/harmonised/GCST90268138.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.323164
+  spearman_r: 0.307255
+  verdict: flip_frequency
+- source_bundle: OGS-00011
+  analysis_id: GCST90268127
+  trait: Left ventricular peak atrial filling rate
+  publication_pmid: '37126556'
+  match_type: ontology
+  trait_similarity: 0.1667
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90268001-GCST90269000/GCST90268127/harmonised/GCST90268127.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: -0.757176
+  spearman_r: -0.514083
+  verdict: swap_alleles
+check:
+  n_comparisons: 3
+  verdict_tally:
+    flip_frequency: 1
+    inconclusive: 1
+    swap_alleles: 1
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.02948
+  spearman_r: 0.242016
+  verdict: inconclusive
+recommendation: inconclusive
+notes: '3 comparison analyses evaluated; verdicts {''flip_frequency'': 1, ''inconclusive'': 1, ''swap_alleles'':
+  1}; comparisons disagree on the direction, so no single fix is justified from this evidence'
+measured_at: '2026-09-23T09:05:21Z'

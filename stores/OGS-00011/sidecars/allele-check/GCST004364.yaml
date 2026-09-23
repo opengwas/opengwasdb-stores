@@ -1,0 +1,69 @@
+analysis_id: GCST004364
+trait: Intelligence
+trait_ontology_id: http://www.ebi.ac.uk/efo/EFO_0004337
+publication_pmid: '28530673'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST004001-GCST005000/GCST004364/harmonised/28530673-GCST004364-EFO_0004337.h.tsv.gz
+orientation_gate:
+  gate_reason: residual
+  eaf_orientation: failed
+  eaf_orientation_r: -0.12018
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST001837
+  trait: Intelligence (childhood)
+  publication_pmid: '23358156'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST001001-GCST002000/GCST001837/harmonised/23358156-GCST001837-EFO_0004337.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 56
+  effect_measure: beta_vs_beta
+  pearson_r: -0.91121
+  spearman_r: -0.601094
+  verdict: swap_alleles
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90179114
+  trait: Intelligence
+  publication_pmid: '36150907'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90179001-GCST90180000/GCST90179114/harmonised/GCST90179114.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 82
+  effect_measure: beta_vs_beta
+  pearson_r: -0.985298
+  spearman_r: -0.822923
+  verdict: swap_alleles
+- source_bundle: OGS-00011
+  analysis_id: GCST90104472
+  trait: Performance intelligence quotient
+  publication_pmid: '35998220'
+  match_type: ontology
+  trait_similarity: 0.3333
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90104001-GCST90105000/GCST90104472/harmonised/GCST90104472.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 83
+  effect_measure: beta_vs_beta
+  pearson_r: -0.832031
+  spearman_r: -0.706813
+  verdict: swap_alleles
+check:
+  n_comparisons: 3
+  verdict_tally:
+    swap_alleles: 3
+  n_variants_checked: 100
+  n_variants_overlapping: 56
+  effect_measure: beta_vs_beta
+  pearson_r: -0.91121
+  spearman_r: -0.601094
+  verdict: swap_alleles
+recommendation: swap_alleles
+notes: '3 comparison analyses evaluated; verdicts {''swap_alleles'': 3}; canonical-allele effects are inverted against
+  the comparison analysis/analyses (OGS-00011:GCST001837 r=-0.91121 over 56, OGS-00011:GCST90179114 r=-0.985298
+  over 82, OGS-00011:GCST90104472 r=-0.832031 over 83), so the source''s effect and other alleles are swapped relative
+  to the reported betas'
+measured_at: '2026-09-23T09:05:21Z'

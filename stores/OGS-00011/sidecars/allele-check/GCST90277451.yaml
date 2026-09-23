@@ -1,0 +1,67 @@
+analysis_id: GCST90277451
+trait: Direct bilirubin levels (UKB data field 30660)
+trait_ontology_id: http://www.ebi.ac.uk/efo/EFO_0004570
+publication_pmid: '37985819'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90277001-GCST90278000/GCST90277451/harmonised/GCST90277451.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.711209
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90025983
+  trait: Direct bilirubin levels
+  publication_pmid: '34226706'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90025001-GCST90026000/GCST90025983/harmonised/34226706-GCST90025983-EFO_0004570.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 2
+  effect_measure: beta_vs_beta
+  pearson_r: null
+  spearman_r: null
+  verdict: inconclusive
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90319610
+  trait: Serum direct bilirubin levels
+  publication_pmid: '38584764'
+  match_type: ontology
+  trait_similarity: 0.6667
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90319001-GCST90320000/GCST90319610/harmonised/GCST90319610.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 3
+  effect_measure: beta_vs_beta
+  pearson_r: -0.690514
+  spearman_r: -1.0
+  verdict: inconclusive
+- source_bundle: OGS-00011
+  analysis_id: GCST90319638
+  trait: Serum direct bilirubin levels
+  publication_pmid: '38584764'
+  match_type: ontology
+  trait_similarity: 0.6667
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90319001-GCST90320000/GCST90319638/harmonised/GCST90319638.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 3
+  effect_measure: beta_vs_beta
+  pearson_r: 0.89778
+  spearman_r: 0.5
+  verdict: inconclusive
+check:
+  n_comparisons: 3
+  verdict_tally:
+    inconclusive: 3
+  n_variants_checked: 100
+  n_variants_overlapping: 2
+  effect_measure: beta_vs_beta
+  pearson_r: null
+  spearman_r: null
+  verdict: inconclusive
+recommendation: inconclusive
+notes: '3 comparison analyses evaluated; verdicts {''inconclusive'': 3}; no comparison resolved a direction (overlapping
+  variants: 2, 3, 3; 20 needed)'
+measured_at: '2026-09-23T09:05:21Z'

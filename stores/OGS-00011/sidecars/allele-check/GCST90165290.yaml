@@ -1,0 +1,51 @@
+analysis_id: GCST90165290
+trait: QT interval
+trait_ontology_id: http://www.ebi.ac.uk/efo/EFO_0004682
+publication_pmid: '36271874'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90165001-GCST90166000/GCST90165290/harmonised/GCST90165290.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.990268
+matched_study:
+  source_bundle: OGS-00010
+  analysis_id: ukb-b-16311
+  trait: 'Interval between previous point and current one in alphanumeric path (trail #2)'
+  publication_pmid: ''
+  match_type: ukb_label
+  trait_similarity: 0.125
+  independent: true
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_store_z_times_se
+  pearson_r: -0.185839
+  spearman_r: -0.857762
+  verdict: inconclusive
+supporting_comparisons:
+- source_bundle: OGS-00010
+  analysis_id: ukb-b-9917
+  trait: 'Interval between previous point and current one in numeric path (trail #1)'
+  publication_pmid: ''
+  match_type: ukb_label
+  trait_similarity: 0.125
+  independent: true
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_store_z_times_se
+  pearson_r: -0.143736
+  spearman_r: -0.768041
+  verdict: inconclusive
+check:
+  n_comparisons: 2
+  verdict_tally:
+    inconclusive: 2
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_store_z_times_se
+  pearson_r: -0.185839
+  spearman_r: -0.857762
+  verdict: inconclusive
+recommendation: inconclusive
+notes: '2 comparison analyses evaluated; verdicts {''inconclusive'': 2}; no comparison resolved a direction (overlapping
+  variants: 100, 100; 20 needed)'
+measured_at: '2026-09-23T09:05:21Z'

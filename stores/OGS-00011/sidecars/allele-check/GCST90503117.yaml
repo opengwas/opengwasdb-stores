@@ -1,0 +1,69 @@
+analysis_id: GCST90503117
+trait: Executive function (substitution test-specific factor)
+trait_ontology_id: http://www.ebi.ac.uk/efo/EFO_0009332
+publication_pmid: '39891803'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90503001-GCST90504000/GCST90503117/harmonised/GCST90503117.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.502369
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90162547
+  trait: Common executive function
+  publication_pmid: '36150907'
+  match_type: ontology
+  trait_similarity: 0.6667
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90162001-GCST90163000/GCST90162547/harmonised/GCST90162547.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.76207
+  spearman_r: 0.689637
+  verdict: flip_frequency
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90162548
+  trait: Common executive function
+  publication_pmid: '36150907'
+  match_type: ontology
+  trait_similarity: 0.6667
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90162001-GCST90163000/GCST90162548/harmonised/GCST90162548.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.906885
+  spearman_r: 0.842832
+  verdict: flip_frequency
+- source_bundle: OGS-00011
+  analysis_id: GCST90162549
+  trait: Common executive function
+  publication_pmid: '36150907'
+  match_type: ontology
+  trait_similarity: 0.6667
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90162001-GCST90163000/GCST90162549/harmonised/GCST90162549.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.665364
+  spearman_r: 0.591635
+  verdict: flip_frequency
+check:
+  n_comparisons: 3
+  verdict_tally:
+    flip_frequency: 3
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.76207
+  spearman_r: 0.689637
+  verdict: flip_frequency
+recommendation: flip_frequency
+notes: '3 comparison analyses evaluated; verdicts {''flip_frequency'': 3}; canonical-allele effects agree with the
+  comparison analysis/analyses (OGS-00011:GCST90162547 r=0.76207 over 100, OGS-00011:GCST90162548 r=0.906885 over
+  100, OGS-00011:GCST90162549 r=0.665364 over 100), so the source''s allele labels and beta are self-consistent
+  and only its effect_allele_frequency column is inverted'
+measured_at: '2026-09-23T09:05:21Z'
