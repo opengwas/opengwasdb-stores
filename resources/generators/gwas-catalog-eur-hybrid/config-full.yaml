@@ -53,6 +53,22 @@ build:
   completion_state: observed_only
   command: build-hybrid
   options:
+    # The Dense Component axis. Deliberately undeclared until acceptance, because
+    # it is a Reference Resource decision rather than a Phase B one: declaring it
+    # earlier would bind the candidate to one host's reference root.
+    #
+    # gnomAD v4.1 common variants at MAF >= 1% (13,415,936 ALIDs; chr1-22, X, Y,
+    # MT), declared by resources/reference-resources/gnomad-v4-common-hg38.
+    # Replaces alid-panel/EUR-variants.tsv.gz, which is autosome-only and whose
+    # real floor is 3.24% MAF rather than the 1% this release needs.
+    #
+    # The X, Y and MT rows do not resolve yet: `normalise_chromosome` does not
+    # alias the numeric PLINK encodings, so a source spelling the chromosome
+    # `23` misses an axis spelling it `X` (opengwas/opengwasdb#216). Those rows
+    # therefore still route to the Ragged Overflow exactly as they do today; the
+    # autosomal rows resolve at 80.27% against this axis versus 78.11% against
+    # the panel it replaces.
+    variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz
     source-reader-capability: opengwasdb.gwas-ssf
     source-assembly: hg38
   post:
