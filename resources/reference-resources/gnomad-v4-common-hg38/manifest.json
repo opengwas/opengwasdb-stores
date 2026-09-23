@@ -1,5 +1,5 @@
 {
-  "built_at": "2026-09-23T20:27:28Z",
+  "built_at": "2026-09-23T23:12:11Z",
   "contigs": [
     "chr1",
     "chr2",
@@ -37,29 +37,33 @@
       "composed_of": [
         "afr"
       ],
+      "content_sha256": "f6cc9d4182dfb023f615f1e84fd45a34fa5db0512e2a023b5a2d1710bdf3f71d",
+      "file_sha256": "40f79a03a57897d674acc756a1dbfadc165851a93f731febd214a9b6c7db48c4",
       "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz",
-      "sha256": "cab12cca7a0e27a55cfaa06fb2c4d5d94658045a9f2be00a24824e5fa4841523",
       "variants": 20149213
     },
     "ALL": {
+      "content_sha256": "bbc9e473a328a6a449d08b0a9a126652f89a51ea490c3e3d53645f22b152c943",
+      "file_sha256": "094cb0c741e0f71e19cfb3a2df121f67f572d8f61762e0e8d82ec5fe98aaeae7",
       "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/ALL-variants.txt.gz",
-      "sha256": "547380f311e7fa721a1bbab12d1735afc949b17db6bf31437429de921e94cf73",
       "variants": 27447322
     },
     "AMR": {
       "composed_of": [
         "amr"
       ],
+      "content_sha256": "3a11a4dcc960472c413872955ea6db0fd000802dfb40507b7dce4becb25bddf5",
+      "file_sha256": "a937d1c72b804a1e7d4ffd3be547daf2f30fa16dc39d1925b0e96c0dd19a58a4",
       "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/AMR-variants.txt.gz",
-      "sha256": "ff0726aff7c752588f2a65ef32f755ac912e5cf58e76538bc378e85bbaa813b5",
       "variants": 13487396
     },
     "EAS": {
       "composed_of": [
         "eas"
       ],
+      "content_sha256": "e588e87a82265029b0e9eeb6bea1643ced998f494e10245e627fc0d862dc1c42",
+      "file_sha256": "11779344436fa4f52d44b238874b7aaf004e062d88efc5b5eef713bb15bc7a95",
       "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz",
-      "sha256": "0f35544a63c04fa1d6ba15b8afa129a5419eed4eeb7bf9ae24d5d647dbc5166f",
       "variants": 10718294
     },
     "EUR": {
@@ -67,74 +71,87 @@
         "nfe",
         "fin"
       ],
+      "content_sha256": "e2b8ac0f2610b30e28991838987b9366c1c51b21a34498a480b46c8318aac4ac",
+      "file_sha256": "7c7ab7bd437cb700564f9efaf4b0d1c0e636339a4efe57334f609a52f360ab04",
       "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz",
-      "sha256": "811b5863e98eefe09b8c05cc56cafbdd16d3145408567fa30d04a0ce5cd2b68f",
       "variants": 13415936
     },
     "MID": {
       "composed_of": [
         "mid"
       ],
+      "content_sha256": "92a0345b02f0e4125e74169b6f2c52665ee3eaf0d63da830aafddc51362a79e7",
+      "file_sha256": "e8b51fc9a528973adbe9410ec0a6ff4d6005070aeb9996f707ef13ecca17164d",
       "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/MID-variants.txt.gz",
-      "sha256": "11df75998a5a85c66493359175a4c2f679cef0fe1ccc01b67d05f7753a7ba49b",
       "variants": 14133778
     },
     "SAS": {
       "composed_of": [
         "sas"
       ],
+      "content_sha256": "a9a484c032a5382e670c6043854af7451bc8e0289548077e6c256902a6d68fa6",
+      "file_sha256": "479b1339be17dac1ed21125c1e5ebca77d584d48003141a62da8f647651f309e",
       "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/SAS-variants.txt.gz",
-      "sha256": "287cc276450da82824ca0c5a96cdde54b645174e6ac1ed59af5820e7fb5f590d",
       "variants": 12266874
     },
     "gnomad:afr": {
+      "content_sha256": "f6cc9d4182dfb023f615f1e84fd45a34fa5db0512e2a023b5a2d1710bdf3f71d",
+      "file_sha256": "a0fcbfcfad7e514bf63423df4e7304bfd562553cc7c6bcf6da93f9deb615a487",
       "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/afr-variants.txt.gz",
-      "sha256": "cab12cca7a0e27a55cfaa06fb2c4d5d94658045a9f2be00a24824e5fa4841523",
       "variants": 20149213
     },
     "gnomad:ami": {
+      "content_sha256": "1a915e23f6a9fd8cb80b8292788b00c85cb830730167350214053876864c9653",
+      "file_sha256": "e3723499034baf50dd4fa6b828ba95465f61c90ce291f68b3beaf8febbb58789",
       "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/ami-variants.txt.gz",
-      "sha256": "1b02c9f92148bf6c8759a5465acfdb291cf17030c5a9ecbd74678d35306d27eb",
       "variants": 11405829
     },
     "gnomad:amr": {
+      "content_sha256": "3a11a4dcc960472c413872955ea6db0fd000802dfb40507b7dce4becb25bddf5",
+      "file_sha256": "102fbadb87440ceb5e7541082b7f20aca0bbc5cdafb2512049c08e498a4e21dd",
       "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/amr-variants.txt.gz",
-      "sha256": "ff0726aff7c752588f2a65ef32f755ac912e5cf58e76538bc378e85bbaa813b5",
       "variants": 13487396
     },
     "gnomad:asj": {
+      "content_sha256": "1b573c50eac7dd62e061a7871e8239ba047ba3ae4cb74d250469fe0fddf40d1b",
+      "file_sha256": "17e82f5b2d26bb0198435d294ffb07738b4d871560e2829b8cebd044ccc873bc",
       "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/asj-variants.txt.gz",
-      "sha256": "bcd9d70e1a28c20a0ddecad9abe01dfbc74960b7a6b30f092f76d58ff0c488a1",
       "variants": 13003687
     },
     "gnomad:eas": {
+      "content_sha256": "e588e87a82265029b0e9eeb6bea1643ced998f494e10245e627fc0d862dc1c42",
+      "file_sha256": "3b197e9306bef6e8afb0bcf72c17429819973f15c29618754cb708fe1407cfdb",
       "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/eas-variants.txt.gz",
-      "sha256": "0f35544a63c04fa1d6ba15b8afa129a5419eed4eeb7bf9ae24d5d647dbc5166f",
       "variants": 10718294
     },
     "gnomad:fin": {
+      "content_sha256": "2331f3c0fd8d5883da80d7bf5d086baa0f52e762cd74d78bc97ad73c136ce526",
+      "file_sha256": "514dac627270ef3e042a2fcbfb9fc286e9ad2a578831c7eb8a071845a80b796b",
       "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/fin-variants.txt.gz",
-      "sha256": "4ca006ce195fd2c6891afc15f7085be7cc75879da4f3dd91132d08133862bc11",
       "variants": 11539433
     },
     "gnomad:mid": {
+      "content_sha256": "92a0345b02f0e4125e74169b6f2c52665ee3eaf0d63da830aafddc51362a79e7",
+      "file_sha256": "47ff7a43b080055ba4de141705a742fd6d5b0dba2521f3d0eb30562ae5eaee37",
       "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/mid-variants.txt.gz",
-      "sha256": "11df75998a5a85c66493359175a4c2f679cef0fe1ccc01b67d05f7753a7ba49b",
       "variants": 14133778
     },
     "gnomad:nfe": {
+      "content_sha256": "894ea84408033789f16ab9b7c9ec050b4428c452a6813a211c9206e409281077",
+      "file_sha256": "29c009050d6d852af3f668c403de05a5e80b770d86d6484ae4180f66066d7c82",
       "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/nfe-variants.txt.gz",
-      "sha256": "dc49a3e141a2641ad0ce34c03b6e1fbca4ac955351bc9337b43fbee92af39d4c",
       "variants": 12216516
     },
     "gnomad:remaining": {
+      "content_sha256": "1a884b8f059d5c1e85cd0095a02d0df89f0129e75ecc06769b7c6840b2979fc6",
+      "file_sha256": "cea3bade79b83a5ab7b437907ad2e60003e549fc4ac8b251d0b750d32ca16111",
       "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/remaining-variants.txt.gz",
-      "sha256": "5a62e6d30ea528f87ed07eb40cd0d549d19b07f142e519cb1e69ea889b3aaa57",
       "variants": 15299024
     },
     "gnomad:sas": {
+      "content_sha256": "a9a484c032a5382e670c6043854af7451bc8e0289548077e6c256902a6d68fa6",
+      "file_sha256": "8433b15f2d3234221bb788dad066bc228d7d6ef84317c5c2c287caf72d61f974",
       "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/sas-variants.txt.gz",
-      "sha256": "287cc276450da82824ca0c5a96cdde54b645174e6ac1ed59af5820e7fb5f590d",
       "variants": 12266874
     }
   },

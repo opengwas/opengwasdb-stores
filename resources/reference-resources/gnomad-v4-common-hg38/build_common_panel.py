@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import io
 import json
 import os
 import subprocess
@@ -254,13 +255,37 @@ def write_alids(path: Path, alids: set[str]) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".part")
     digest = hashlib.sha256()
-    with gzip.open(tmp, "wt", encoding="utf-8") as fh:
+    # `mtime=0` is load-bearing: gzip stamps the current time into its header by
+    # default, so identical content would produce different bytes on every run and
+    # the sha256s recorded in manifest.json -- and quoted as release evidence --
+    # would never be reproducible. Same reasoning as the inventory freeze dropping
+    # its `seconds` column. (`gzip.open` does not expose `mtime`, hence the
+    # explicit GzipFile.)
+    with open(tmp, "wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as binary:
+        fh = io.TextIOWrapper(binary, encoding="utf-8", newline="\n")
         for alid in sorted(alids, key=_alid_sort_key):
             line = alid + "\n"
             fh.write(line)
             digest.update(line.encode("utf-8"))
+        fh.flush()
+        binary.flush()
     tmp.replace(path)
-    return digest.hexdigest()
+
+    # Two digests, both named for what they are. An earlier revision recorded only
+    # the content digest under a bare `sha256`, which a verifier checking the
+    # `.txt.gz` with `sha256sum` reads as a mismatch on a perfectly good artifact.
+    return digest.hexdigest(), sha256_file(path)
+
+
+def sha256_file(path: Path) -> str:
+    """The digest of the file's bytes as they sit on disk."""
+    import hashlib
+
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -326,8 +351,10 @@ def main(argv: list[str] | None = None) -> int:
 
     for group, alids in sorted(groups.items()):
         path = out / "gnomad-groups" / f"{group}-variants.txt.gz"
+        content_sha, file_sha = write_alids(path, alids)
         checksums[f"gnomad:{group}"] = {
-            "path": str(path), "variants": len(alids), "sha256": write_alids(path, alids)
+            "path": str(path), "variants": len(alids),
+            "content_sha256": content_sha, "file_sha256": file_sha,
         }
         print(f"  gnomad:{group:<10} {len(alids):>12,}  {path}", flush=True)
 
@@ -339,9 +366,10 @@ def main(argv: list[str] | None = None) -> int:
         for m in members:
             union |= groups[m]
         path = out / f"{superpop}-variants.txt.gz"
+        content_sha, file_sha = write_alids(path, union)
         checksums[superpop] = {
             "path": str(path), "variants": len(union), "composed_of": list(members),
-            "sha256": write_alids(path, union),
+            "content_sha256": content_sha, "file_sha256": file_sha,
         }
         print(f"  {superpop:<17} {len(union):>12,}  {path}", flush=True)
 
@@ -350,7 +378,11 @@ def main(argv: list[str] | None = None) -> int:
         for m in members:
             every |= groups[m]
     path = out / "ALL-variants.txt.gz"
-    checksums["ALL"] = {"path": str(path), "variants": len(every), "sha256": write_alids(path, every)}
+    content_sha, file_sha = write_alids(path, every)
+    checksums["ALL"] = {
+        "path": str(path), "variants": len(every),
+        "content_sha256": content_sha, "file_sha256": file_sha,
+    }
     print(f"  {'ALL':<17} {len(every):>12,}  {path}", flush=True)
 
     manifest = {
