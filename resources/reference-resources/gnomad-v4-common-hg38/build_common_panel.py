@@ -102,15 +102,36 @@ CONTIG_LENGTHS: dict[str, int] = {
 }
 
 
+#: Every non-autosomal spelling, mapped to the one canonical label each carries
+#: (`opengwasdb.variants.normalise`, ADR 0052). Kept here rather than imported
+#: because this script derives an axis that a *pinned* opengwasdb reads: the labels
+#: must be the canonical ones whether or not the pinned revision still leaves the
+#: numeric aliases unmapped.
+#:
+#: ``MT`` is the one that bites. `normalise_chromosome` maps ``M``, ``MT``, ``25``
+#: and ``26`` all *to* ``MT``, so an axis spelling the mitochondrion ``M``
+#: resolves nothing at all -- 425 rows of a 13.4 M-row axis that no source can
+#: ever match.
+_CANONICAL_CHROMOSOME: dict[str, str] = {
+    "23": "X", "X": "X",
+    "24": "Y", "Y": "Y",
+    "25": "MT", "26": "MT", "M": "MT", "MT": "MT",
+}
+
+#: The canonical labels this build may emit for a non-autosomal contig.
+CANONICAL_NON_AUTOSOMAL: frozenset[str] = frozenset({"X", "Y", "MT"})
+
+
 def canonical_alid(chrom: str, pos: str, ref: str, alt: str) -> str | None:
     """The canonical ALID for one site, or ``None`` if it names no variant.
 
-    Mirrors `opengwasdb.variants.normalise`: strip a `chr` prefix, uppercase the
-    non-autosomal labels, and order the allele pair lexically so a source that
-    reports the pair the other way round resolves to the same row.
+    Mirrors `opengwasdb.variants.normalise`: strip a `chr` prefix, alias every
+    non-autosomal spelling to its one canonical label, and order the allele pair
+    lexically so a source that reports the pair the other way round resolves to
+    the same row.
     """
     c = chrom[3:] if chrom.lower().startswith("chr") else chrom
-    c = c.upper() if c.upper() in {"X", "Y", "MT", "M"} else c
+    c = _CANONICAL_CHROMOSOME.get(c.upper(), c)
     ref, alt = ref.strip().upper(), alt.strip().upper()
     if not ref or not alt or ref == alt or ref == "." or alt == ".":
         return None
@@ -205,13 +226,30 @@ def mitochondrial(min_maf: float) -> set[str]:
 def _alid_sort_key(alid: str) -> tuple[int, str, int, str]:
     """Order ALIDs by chromosome then position, autosomes before X/Y/M."""
     chrom, pos, a1, a2 = alid.split(":", 3)
-    rank = int(chrom) if chrom.isdigit() else {"X": 23, "Y": 24, "M": 25, "MT": 25}.get(chrom, 99)
+    rank = int(chrom) if chrom.isdigit() else {"X": 23, "Y": 24, "MT": 25}.get(chrom, 99)
     return rank, chrom, int(pos), f"{a1}:{a2}"
 
 
 def write_alids(path: Path, alids: set[str]) -> str:
-    """Write one sorted ALID list atomically; return its sha256."""
+    """Write one sorted ALID list atomically; return its sha256.
+
+    Refuses to write a label outside the canonical non-autosomal set, so a
+    spelling no reader can resolve fails here rather than producing an axis whose
+    rows are silently dead.
+    """
     import hashlib
+
+    bad = {
+        a.split(":", 1)[0]
+        for a in alids
+        if not a.split(":", 1)[0].isdigit()
+        and a.split(":", 1)[0] not in CANONICAL_NON_AUTOSOMAL
+    }
+    if bad:
+        raise ValueError(
+            f"refusing to write {path.name}: non-canonical chromosome label(s) "
+            f"{sorted(bad)}; expected autosomes or {sorted(CANONICAL_NON_AUTOSOMAL)}"
+        )
 
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".part")

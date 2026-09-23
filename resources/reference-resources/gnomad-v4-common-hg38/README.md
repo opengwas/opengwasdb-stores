@@ -82,13 +82,30 @@ frequency at all**. Its 425 variants above 1% are admitted to *every* ancestry's
 axis on the global homoplasmic frequency. That is not a per-ancestry claim and
 `manifest.json` says so.
 
-## Status: not yet usable for X, Y or MT
+### Canonical labels are `X`, `Y`, `MT`
 
-The axis carries `X`, `Y` and `M`, the spelling `normalise_chromosome` already
-produces. That function does **not** alias the numeric PLINK encodings, so a
-source spelling the chromosome `23` does not resolve against it:
+The axis emits the labels `opengwasdb.variants.normalise` canonicalises to
+(ADR 0052). `MT` is the one that bites: `normalise_chromosome` maps `M`, `MT`,
+`25` and `26` all *to* `MT`, so an axis spelling the mitochondrion `M` resolves
+nothing. This build shipped that bug for one revision — 425 dead rows out of
+13.4 M — which is why `write_alids` now asserts every emitted label against the
+closed set `{X, Y, MT}` before writing:
 
-| source spelling | variants | resolves today | resolves with the alias fix |
+```
+refusing to write EUR-variants.txt.gz: non-canonical chromosome label(s) ['M'];
+  expected autosomes or ['MT', 'X', 'Y']
+```
+
+A spelling no reader can resolve now fails loudly instead of producing an axis
+whose rows are silently dead.
+
+## Status: the aliases are not in a released opengwasdb yet
+
+The axis carries the canonical labels, but `normalise_chromosome` in the *pinned*
+revision does not yet alias the numeric PLINK encodings, so a source spelling the
+chromosome `23` does not resolve against it:
+
+| source spelling | variants | resolves on the pinned rev | resolves once ADR 0052 lands |
 |---|---|---|---|
 | `23` | 57,796 | **0.00%** | 99.40% |
 | `23`,`25` | 282,191 | **0.00%** | 76.50% |
@@ -97,9 +114,16 @@ source spelling the chromosome `23` does not resolve against it:
 
 Over a stratified 384-file sample of the release's 3,262 sources, 18.0% carry
 X-chromosome rows and the spelling is near evenly split between `23` and `X`.
-The aliasing fix is **opengwas/opengwasdb#216**, and it gates any use of the
-non-autosomal rows of this axis. The autosomal rows are unaffected and usable
-now.
+
+The canonicalisation is **ADR 0052**, in development as
+[opengwas/opengwasdb#216](https://github.com/opengwas/opengwasdb/issues/216) on
+`feature/216-chromosome-aliases`. Completing it needs no change to this axis or
+to the bundle that points at it — the rows simply start resolving, and X/Y/MT
+variants move from the Ragged Overflow into the Dense Component. The consequence
+to record is that a store built before ADR 0052 and one built after are not the
+same store, so the pinned revision belongs in the build evidence either way.
+
+**The autosomal rows are unaffected and usable now.**
 
 ## Verification
 

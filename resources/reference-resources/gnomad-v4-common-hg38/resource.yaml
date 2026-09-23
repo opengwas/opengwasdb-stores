@@ -3,7 +3,7 @@ label: gnomAD v4.1 common-variant axes per ancestry (GRCh38, MAF >= 1%)
 kind: variant_axis
 ancestry: [AFR, AMR, EAS, EUR, MID, SAS]
 genome_build: GRCh38
-variant_id_convention: "chr:pos:a1:a2 (a1 = min(ref, alt)), chromosome without 'chr' prefix"
+variant_id_convention: "chr:pos:a1:a2 (a1 = min(ref, alt)); chromosome without 'chr' prefix, non-autosomal labels canonicalised to X/Y/MT (ADR 0052)"
 allele_columns:
   effect: a1
   other: a2
@@ -65,6 +65,13 @@ notes: >
   `NAF-variants.txt.gz` is emitted -- an absence the manifest records explicitly
   rather than leaving as a missing file to be misread.
 
+  **Canonical non-autosomal labels are `X`, `Y` and `MT`** (ADR 0052). `MT` is
+  load-bearing: `normalise_chromosome` maps `M`, `MT`, `25` and `26` all *to*
+  `MT`, so an axis spelling the mitochondrion `M` would resolve nothing. The
+  build asserts every emitted label against that closed set before writing, so a
+  spelling no reader can resolve fails loudly instead of producing rows that are
+  silently dead.
+
   The mitochondrion is a deliberate simplification. gnomAD's chrM release is a
   different callset with a different model (homoplasmy and heteroplasmy,
   `AF_hom`) and carries no per-ancestry allele frequency, so its variants are
@@ -76,8 +83,10 @@ notes: >
   covary. Reference completion is unaffected and still needs an LD panel matched
   to the Analysis's Assigned Ancestry.
 
-  **Chromosome spelling is not yet reconciled upstream.** The axis carries `X`,
-  `Y` and `M` as canonical labels (the spelling `normalise_chromosome` already
-  produces), but that function does not yet alias the numeric PLINK encodings, so
-  a source spelling X as `23` still fails to resolve against this axis. That gap
-  is opengwas/opengwasdb#216 and gates any use of the non-autosomal rows.
+  **The numeric-encoding aliases are not yet in a released opengwasdb.** The
+  canonicalisation this axis depends on is ADR 0052, in development as
+  opengwas/opengwasdb#216. Until the pinned revision carries it, a source
+  spelling X as `23` still fails to resolve against this axis -- measured at
+  0.00% of 1,015,007 non-autosomal source variants across 12 sources, rising to
+  99.40% for the best-covered of them once the aliases land. The autosomal rows
+  are unaffected and usable now.
