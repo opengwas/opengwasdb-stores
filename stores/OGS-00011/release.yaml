@@ -1,7 +1,7 @@
 store_id: OGS-00011
 label: eur-hybrid-full
 access_posture: public
-status: candidate
+status: accepted
 derived_from: null
 created_at: '2026-09-22T21:03:39Z'
 source_snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-22
