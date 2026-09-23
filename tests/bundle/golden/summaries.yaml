@@ -88,3 +88,12 @@ OGS-00010:
   assigned_ancestry: EUR
   sample_size: 10339-463010
   source_url: NA
+OGS-00011:
+  n_analyses: 4783
+  first_author: mixed (662)
+  publication_pmid: mixed (758)
+  tissue: NA
+  context: NA
+  assigned_ancestry: NA
+  sample_size: 15-2586691
+  source_url: https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/

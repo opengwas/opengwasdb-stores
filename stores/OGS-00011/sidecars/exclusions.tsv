@@ -1,0 +1,1522 @@
+analysis_id	source_analysis_id	study_design	category	reason	detail	resolver_status	exclude_from_build
+GCST000028	GCST000028	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST000392	GCST000392	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST000553	GCST000553	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST000568	GCST000568	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST000571	GCST000571	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST000612	GCST000612	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST000679	GCST000679	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST000755	GCST000755	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST000758	GCST000758	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST000759	GCST000759	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST000760	GCST000760	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST000879	GCST000879	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST000922	GCST000922	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST001198	GCST001198	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST001212	GCST001212	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST001255	GCST001255	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST001475	GCST001475	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST001592	GCST001592	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST001790	GCST001790	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST001791	GCST001791	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST002216	GCST002216	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST002221	GCST002221	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST002222	GCST002222	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST002223	GCST002223	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST002245	GCST002245	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST002318	GCST002318	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST002548	GCST002548	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST002598	GCST002598	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST002783	GCST002783	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST002920	GCST002920	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003129	GCST003129	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003143	GCST003143	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003156	GCST003156	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003219	GCST003219	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003367	GCST003367	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003368	GCST003368	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003371	GCST003371	quantitative	ancestry	ancestry_not_eur	assigned_ancestry=AFR (release target EUR)	success	true
+GCST003484	GCST003484	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003496	GCST003496	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003497	GCST003497	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003498	GCST003498	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003499	GCST003499	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003566	GCST003566	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9751856274245814	success	true
+GCST003658	GCST003658	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003659	GCST003659	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003738	GCST003738	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003739	GCST003739	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003740	GCST003740	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003766	GCST003766	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003769	GCST003769	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003770	GCST003770	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003795	GCST003795	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003814	GCST003814	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003898	GCST003898	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST003900	GCST003900	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003965	GCST003965	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003966	GCST003966	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003967	GCST003967	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003968	GCST003968	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003969	GCST003969	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003970	GCST003970	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003971	GCST003971	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003972	GCST003972	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003973	GCST003973	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004074	GCST004074	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004075	GCST004075	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004076	GCST004076	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004137	GCST004137	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004158	GCST004158	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004198	GCST004198	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004292	GCST004292	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004293	GCST004293	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004296	GCST004296	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004364	GCST004364	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.12018047073299706	success	true
+GCST004420	GCST004420	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004421	GCST004421	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004422	GCST004422	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004423	GCST004423	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004424	GCST004424	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004425	GCST004425	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004426	GCST004426	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004427	GCST004427	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004428	GCST004428	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004429	GCST004429	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004430	GCST004430	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004431	GCST004431	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004432	GCST004432	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004433	GCST004433	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004434	GCST004434	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004435	GCST004435	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004436	GCST004436	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004437	GCST004437	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004438	GCST004438	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004439	GCST004439	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004440	GCST004440	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004441	GCST004441	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004442	GCST004442	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004443	GCST004443	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004444	GCST004444	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004445	GCST004445	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004446	GCST004446	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004447	GCST004447	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004448	GCST004448	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004449	GCST004449	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004450	GCST004450	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004451	GCST004451	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004452	GCST004452	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004453	GCST004453	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004454	GCST004454	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004455	GCST004455	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004456	GCST004456	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004457	GCST004457	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004458	GCST004458	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004459	GCST004459	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004460	GCST004460	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004692	GCST004692	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004824	GCST004824	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004826	GCST004826	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004833	GCST004833	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004901	GCST004901	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004924	GCST004924	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004925	GCST004925	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004926	GCST004926	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004927	GCST004927	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004928	GCST004928	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004929	GCST004929	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004930	GCST004930	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004931	GCST004931	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004932	GCST004932	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004939	GCST004939	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004940	GCST004940	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004941	GCST004941	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004952	GCST004952	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004954	GCST004954	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005038	GCST005038	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST005047	GCST005047	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005058	GCST005058	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005059	GCST005059	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005060	GCST005060	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005061	GCST005061	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005062	GCST005062	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005063	GCST005063	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005064	GCST005064	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005065	GCST005065	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005066	GCST005066	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005067	GCST005067	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005068	GCST005068	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005069	GCST005069	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005070	GCST005070	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005071	GCST005071	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005072	GCST005072	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005073	GCST005073	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005074	GCST005074	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005178	GCST005178	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005179	GCST005179	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST005180	GCST005180	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST005185	GCST005185	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST005186	GCST005186	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST005212	GCST005212	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005215	GCST005215	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.25245389628134535	success	true
+GCST005216	GCST005216	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.23725909183500954	success	true
+GCST005217	GCST005217	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.008968449187878324	success	true
+GCST005218	GCST005218	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.41603093275041125	success	true
+GCST005219	GCST005219	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.023769019484166935	success	true
+GCST005220	GCST005220	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.023685066776740895	success	true
+GCST005221	GCST005221	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.25302074958701065	success	true
+GCST005222	GCST005222	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.2528752058430076	success	true
+GCST005223	GCST005223	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.028216941263907717	success	true
+GCST005232	GCST005232	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005362	GCST005362	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005367	GCST005367	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005413	GCST005413	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST005522	GCST005522	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005523	GCST005523	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005524	GCST005524	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005527	GCST005527	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005528	GCST005528	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005529	GCST005529	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005531	GCST005531	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005536	GCST005536	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005538	GCST005538	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005540	GCST005540	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005543	GCST005543	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005569	GCST005569	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005581	GCST005581	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005626	GCST005626	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005686	GCST005686	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005831	GCST005831	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005841	GCST005841	case-control	ancestry	ancestry_unassigned	gate_reason=proportion	success	true
+GCST005845	GCST005845	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005846	GCST005846	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005847	GCST005847	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005848	GCST005848	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005849	GCST005849	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005850	GCST005850	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005898	GCST005898	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005920	GCST005920	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005921	GCST005921	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005923	GCST005923	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005964	GCST005964	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006044	GCST006044	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006045	GCST006045	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006046	GCST006046	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006047	GCST006047	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006061	GCST006061	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006065	GCST006065	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006227	GCST006227	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006228	GCST006228	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006229	GCST006229	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006230	GCST006230	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006231	GCST006231	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006250	GCST006250	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006258	GCST006258	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006259	GCST006259	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006268	GCST006268	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006326	GCST006326	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST006327	GCST006327	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST006328	GCST006328	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST006329	GCST006329	quantitative	resolution	resolution_failed	ValueError: Duplicate effect column 'beta' in header	controlled_failure	true
+GCST006368	GCST006368	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST006390	GCST006390	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006407	GCST006407	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006476	GCST006476	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006477	GCST006477	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006478	GCST006478	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006489	GCST006489	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006490	GCST006490	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006533	GCST006533	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006534	GCST006534	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006537	GCST006537	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006538	GCST006538	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006540	GCST006540	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006542	GCST006542	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006543	GCST006543	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006544	GCST006544	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006545	GCST006545	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006546	GCST006546	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006547	GCST006547	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006548	GCST006548	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006549	GCST006549	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006550	GCST006550	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006551	GCST006551	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006552	GCST006552	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006553	GCST006553	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006554	GCST006554	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006620	GCST006620	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006661	GCST006661	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006862	GCST006862	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006937	GCST006937	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006938	GCST006938	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006957	GCST006957	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006980	GCST006980	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST007320	GCST007320	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST007515	GCST007515	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST007516	GCST007516	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST007518	GCST007518	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST007638	GCST007638	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST007857	GCST007857	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST007858	GCST007858	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST008225	GCST008225	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST009541	GCST009541	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST009722	GCST009722	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST009760	GCST009760	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010003	GCST010003	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010004	GCST010004	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010005	GCST010005	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010116	GCST010116	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010696	GCST010696	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010697	GCST010697	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010698	GCST010698	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010699	GCST010699	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010700	GCST010700	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010701	GCST010701	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010702	GCST010702	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010703	GCST010703	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010763	GCST010763	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010764	GCST010764	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010765	GCST010765	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010766	GCST010766	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010767	GCST010767	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010768	GCST010768	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010769	GCST010769	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010770	GCST010770	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010771	GCST010771	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010772	GCST010772	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010773	GCST010773	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010774	GCST010774	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011079	GCST011079	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST011321	GCST011321	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011322	GCST011322	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011323	GCST011323	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011324	GCST011324	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011325	GCST011325	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011326	GCST011326	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011327	GCST011327	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011328	GCST011328	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011329	GCST011329	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011330	GCST011330	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011331	GCST011331	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011332	GCST011332	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011333	GCST011333	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011334	GCST011334	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011335	GCST011335	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011336	GCST011336	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011337	GCST011337	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011338	GCST011338	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011339	GCST011339	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011340	GCST011340	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011341	GCST011341	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011342	GCST011342	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011343	GCST011343	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011344	GCST011344	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011833	GCST011833	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011834	GCST011834	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011887	GCST011887	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011889	GCST011889	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST012431	GCST012431	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST012597	GCST012597	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000014	GCST90000014	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000015	GCST90000015	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000016	GCST90000016	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000045	GCST90000045	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000046	GCST90000046	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000047	GCST90000047	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000048	GCST90000048	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000049	GCST90000049	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000050	GCST90000050	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000060	GCST90000060	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000064	GCST90000064	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000255	GCST90000255	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000256	GCST90000256	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000296	GCST90000296	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000437	GCST90000437	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000438	GCST90000438	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000439	GCST90000439	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000440	GCST90000440	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000441	GCST90000441	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000442	GCST90000442	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000443	GCST90000443	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000444	GCST90000444	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000445	GCST90000445	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000446	GCST90000446	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000447	GCST90000447	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000448	GCST90000448	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000449	GCST90000449	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000450	GCST90000450	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000451	GCST90000451	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000452	GCST90000452	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000453	GCST90000453	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000454	GCST90000454	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000455	GCST90000455	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000456	GCST90000456	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000457	GCST90000457	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000458	GCST90000458	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000459	GCST90000459	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000460	GCST90000460	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000461	GCST90000461	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000462	GCST90000462	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000463	GCST90000463	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000464	GCST90000464	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000465	GCST90000465	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000466	GCST90000466	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000467	GCST90000467	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000468	GCST90000468	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000469	GCST90000469	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000470	GCST90000470	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000471	GCST90000471	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000472	GCST90000472	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000473	GCST90000473	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000474	GCST90000474	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000475	GCST90000475	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000476	GCST90000476	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000477	GCST90000477	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000478	GCST90000478	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000479	GCST90000479	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000480	GCST90000480	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000481	GCST90000481	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000482	GCST90000482	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000483	GCST90000483	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000484	GCST90000484	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000485	GCST90000485	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000486	GCST90000486	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000487	GCST90000487	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000488	GCST90000488	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000489	GCST90000489	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000490	GCST90000490	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000491	GCST90000491	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000492	GCST90000492	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000493	GCST90000493	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000494	GCST90000494	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000495	GCST90000495	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000496	GCST90000496	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000497	GCST90000497	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000498	GCST90000498	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000499	GCST90000499	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000500	GCST90000500	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000501	GCST90000501	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000502	GCST90000502	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000503	GCST90000503	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000504	GCST90000504	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000505	GCST90000505	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000506	GCST90000506	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000512	GCST90000512	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000513	GCST90000513	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000529	GCST90000529	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000584	GCST90000584	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000654	GCST90000654	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90001389	GCST90001389	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90002409	GCST90002409	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90006790	GCST90006790	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90006791	GCST90006791	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90010423	GCST90010423	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90010715	GCST90010715	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011766	GCST90011766	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011767	GCST90011767	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011770	GCST90011770	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011804	GCST90011804	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011806	GCST90011806	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011808	GCST90011808	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011809	GCST90011809	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011810	GCST90011810	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011811	GCST90011811	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011812	GCST90011812	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011813	GCST90011813	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011814	GCST90011814	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011815	GCST90011815	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011816	GCST90011816	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011817	GCST90011817	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011818	GCST90011818	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011819	GCST90011819	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011820	GCST90011820	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011821	GCST90011821	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011874	GCST90011874	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011875	GCST90011875	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011885	GCST90011885	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011898	GCST90011898	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011899	GCST90011899	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012003	GCST90012003	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90012088	GCST90012088	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012115	GCST90012115	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012174	GCST90012174	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012175	GCST90012175	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012176	GCST90012176	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012177	GCST90012177	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012178	GCST90012178	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012179	GCST90012179	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012180	GCST90012180	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012181	GCST90012181	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012182	GCST90012182	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012183	GCST90012183	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012184	GCST90012184	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012185	GCST90012185	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012186	GCST90012186	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012187	GCST90012187	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012188	GCST90012188	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012189	GCST90012189	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012190	GCST90012190	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012191	GCST90012191	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012192	GCST90012192	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012193	GCST90012193	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012194	GCST90012194	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012195	GCST90012195	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012196	GCST90012196	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012197	GCST90012197	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012198	GCST90012198	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012199	GCST90012199	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012200	GCST90012200	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012201	GCST90012201	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012202	GCST90012202	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013411	GCST90013411	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013414	GCST90013414	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013421	GCST90013421	quantitative	effect_scale	sd_no_qualifying_evidence	no_qualifying_evidence	success	true
+GCST90013423	GCST90013423	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013442	GCST90013442	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90013445	GCST90013445	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013446	GCST90013446	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013473	GCST90013473	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013537	GCST90013537	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013538	GCST90013538	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013539	GCST90013539	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013540	GCST90013540	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013541	GCST90013541	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013542	GCST90013542	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013543	GCST90013543	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013544	GCST90013544	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013545	GCST90013545	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013546	GCST90013546	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013547	GCST90013547	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013548	GCST90013548	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013549	GCST90013549	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013550	GCST90013550	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013551	GCST90013551	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013552	GCST90013552	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013553	GCST90013553	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013554	GCST90013554	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013555	GCST90013555	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013556	GCST90013556	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013557	GCST90013557	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013558	GCST90013558	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013559	GCST90013559	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013560	GCST90013560	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013561	GCST90013561	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013562	GCST90013562	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013563	GCST90013563	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013564	GCST90013564	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013565	GCST90013565	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013566	GCST90013566	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013567	GCST90013567	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013568	GCST90013568	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013569	GCST90013569	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013570	GCST90013570	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013571	GCST90013571	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013572	GCST90013572	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013573	GCST90013573	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013574	GCST90013574	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013575	GCST90013575	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013576	GCST90013576	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013577	GCST90013577	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013578	GCST90013578	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013579	GCST90013579	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013580	GCST90013580	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013581	GCST90013581	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013582	GCST90013582	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013658	GCST90013658	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013662	GCST90013662	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013663	GCST90013663	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013664	GCST90013664	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90014054	GCST90014054	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90014122	GCST90014122	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90014268	GCST90014268	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90016585	GCST90016585	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90016586	GCST90016586	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90016587	GCST90016587	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90016588	GCST90016588	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90016589	GCST90016589	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90016590	GCST90016590	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90016591	GCST90016591	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90016592	GCST90016592	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90016593	GCST90016593	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90016594	GCST90016594	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90017147	GCST90017147	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90017148	GCST90017148	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019016	GCST90019016	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019017	GCST90019017	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019492	GCST90019492	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019493	GCST90019493	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019494	GCST90019494	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019495	GCST90019495	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019496	GCST90019496	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019497	GCST90019497	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019498	GCST90019498	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019499	GCST90019499	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019500	GCST90019500	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019501	GCST90019501	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019502	GCST90019502	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019503	GCST90019503	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019504	GCST90019504	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019505	GCST90019505	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019506	GCST90019506	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019507	GCST90019507	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019508	GCST90019508	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019509	GCST90019509	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019510	GCST90019510	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019511	GCST90019511	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019512	GCST90019512	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019513	GCST90019513	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019514	GCST90019514	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019515	GCST90019515	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019516	GCST90019516	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019517	GCST90019517	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019518	GCST90019518	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019519	GCST90019519	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019520	GCST90019520	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019521	GCST90019521	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019522	GCST90019522	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019523	GCST90019523	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019524	GCST90019524	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019525	GCST90019525	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90019526	GCST90019526	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90020034	GCST90020034	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90020035	GCST90020035	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90020070	GCST90020070	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90020071	GCST90020071	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90020072	GCST90020072	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90020165	GCST90020165	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90020166	GCST90020166	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90020167	GCST90020167	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90020168	GCST90020168	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90020190	GCST90020190	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90020191	GCST90020191	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90020192	GCST90020192	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90020193	GCST90020193	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90020194	GCST90020194	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90020195	GCST90020195	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90020196	GCST90020196	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90020197	GCST90020197	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90026372	GCST90026372	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90026609	GCST90026609	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90026610	GCST90026610	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90026611	GCST90026611	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90027163	GCST90027163	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90027266	GCST90027266	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90027272	GCST90027272	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90027273	GCST90027273	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90029070	GCST90029070	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90044700	GCST90044700	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90044763	GCST90044763	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90044773	GCST90044773	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90044774	GCST90044774	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90044775	GCST90044775	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90044776	GCST90044776	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90044902	GCST90044902	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90044903	GCST90044903	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90054778	GCST90054778	quantitative	effect_scale	sd_no_qualifying_evidence	no_qualifying_evidence	success	true
+GCST90054782	GCST90054782	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90061440	GCST90061440	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90085698	GCST90085698	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90085822	GCST90085822	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90085834	GCST90085834	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90085836	GCST90085836	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90085859	GCST90085859	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90085861	GCST90085861	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90085862	GCST90085862	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90085863	GCST90085863	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90085874	GCST90085874	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90085878	GCST90085878	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90085889	GCST90085889	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90085893	GCST90085893	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90091060	GCST90091060	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90091061	GCST90091061	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90092003	GCST90092003	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90093074	GCST90093074	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90093075	GCST90093075	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90093076	GCST90093076	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90093077	GCST90093077	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90093078	GCST90093078	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90093079	GCST90093079	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90093080	GCST90093080	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90093081	GCST90093081	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90093325	GCST90093325	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90094643	GCST90094643	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90094644	GCST90094644	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90094646	GCST90094646	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90094647	GCST90094647	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90094648	GCST90094648	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90094649	GCST90094649	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90094650	GCST90094650	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90094886	GCST90094886	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90094887	GCST90094887	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90094888	GCST90094888	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90094889	GCST90094889	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90094890	GCST90094890	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90095079	GCST90095079	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90095080	GCST90095080	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90095129	GCST90095129	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90095130	GCST90095130	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90095131	GCST90095131	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096892	GCST90096892	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096893	GCST90096893	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096894	GCST90096894	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096895	GCST90096895	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096896	GCST90096896	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096897	GCST90096897	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096898	GCST90096898	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096899	GCST90096899	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096900	GCST90096900	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096901	GCST90096901	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096902	GCST90096902	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096903	GCST90096903	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096904	GCST90096904	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096905	GCST90096905	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096906	GCST90096906	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096907	GCST90096907	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096908	GCST90096908	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096909	GCST90096909	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096910	GCST90096910	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096911	GCST90096911	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096912	GCST90096912	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096913	GCST90096913	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096914	GCST90096914	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096915	GCST90096915	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096916	GCST90096916	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096917	GCST90096917	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096918	GCST90096918	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096919	GCST90096919	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096920	GCST90096920	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096921	GCST90096921	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096922	GCST90096922	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096923	GCST90096923	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096924	GCST90096924	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096925	GCST90096925	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096926	GCST90096926	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096927	GCST90096927	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096928	GCST90096928	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90096929	GCST90096929	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90101825	GCST90101825	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90101826	GCST90101826	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90101827	GCST90101827	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90101828	GCST90101828	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90101829	GCST90101829	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90101887	GCST90101887	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90101888	GCST90101888	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90101889	GCST90101889	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90101890	GCST90101890	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90101891	GCST90101891	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90101892	GCST90101892	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90101914	GCST90101914	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90101942	GCST90101942	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90101963	GCST90101963	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90102063	GCST90102063	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90102094	GCST90102094	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90102102	GCST90102102	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90102253	GCST90102253	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90102460	GCST90102460	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104085	GCST90104085	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104086	GCST90104086	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104087	GCST90104087	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104537	GCST90104537	case-control	ancestry	ancestry_unassigned	gate_reason=proportion	success	true
+GCST90104564	GCST90104564	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104898	GCST90104898	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104908	GCST90104908	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104909	GCST90104909	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104910	GCST90104910	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104911	GCST90104911	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104912	GCST90104912	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104913	GCST90104913	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104914	GCST90104914	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104915	GCST90104915	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104916	GCST90104916	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104917	GCST90104917	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104918	GCST90104918	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104919	GCST90104919	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104920	GCST90104920	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104921	GCST90104921	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104922	GCST90104922	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104923	GCST90104923	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104924	GCST90104924	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104925	GCST90104925	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104926	GCST90104926	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104927	GCST90104927	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104928	GCST90104928	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104929	GCST90104929	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104930	GCST90104930	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104931	GCST90104931	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104932	GCST90104932	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104933	GCST90104933	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104934	GCST90104934	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104935	GCST90104935	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104936	GCST90104936	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104937	GCST90104937	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104938	GCST90104938	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104939	GCST90104939	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104940	GCST90104940	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104941	GCST90104941	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104942	GCST90104942	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104943	GCST90104943	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104944	GCST90104944	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104945	GCST90104945	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104946	GCST90104946	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104947	GCST90104947	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104948	GCST90104948	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104949	GCST90104949	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104950	GCST90104950	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90104951	GCST90104951	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90105075	GCST90105075	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90105076	GCST90105076	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90105077	GCST90105077	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90128518	GCST90128518	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90132223	GCST90132223	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90132226	GCST90132226	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90132313	GCST90132313	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90134254	GCST90134254	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90134288	GCST90134288	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90134327	GCST90134327	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90134433	GCST90134433	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90134532	GCST90134532	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90134599	GCST90134599	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90134600	GCST90134600	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90134601	GCST90134601	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90134602	GCST90134602	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90134661	GCST90134661	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90162552	GCST90162552	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90162553	GCST90162553	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90162554	GCST90162554	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90162555	GCST90162555	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90165257	GCST90165257	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90165259	GCST90165259	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90165261	GCST90165261	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90165267	GCST90165267	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90165271	GCST90165271	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90165273	GCST90165273	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90165275	GCST90165275	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90165277	GCST90165277	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90165279	GCST90165279	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90165281	GCST90165281	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90165283	GCST90165283	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90165285	GCST90165285	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90165287	GCST90165287	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90165289	GCST90165289	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90165290	GCST90165290	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9902675260151453	success	true
+GCST90165291	GCST90165291	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9918795039815018	success	true
+GCST90204167	GCST90204167	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90225499	GCST90225499	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90225500	GCST90225500	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90225550	GCST90225550	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90239652	GCST90239652	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90239748	GCST90239748	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90239749	GCST90239749	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90239750	GCST90239750	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90239856	GCST90239856	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90243957	GCST90243957	case-control	metadata	missing_case_control_counts	n_cases=10771 n_controls=0	success	true
+GCST90243963	GCST90243963	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90244103	GCST90244103	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90244822	GCST90244822	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90244823	GCST90244823	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90244824	GCST90244824	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90244825	GCST90244825	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90244828	GCST90244828	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90244829	GCST90244829	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90244832	GCST90244832	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90244833	GCST90244833	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90244834	GCST90244834	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90244835	GCST90244835	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90244837	GCST90244837	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90244838	GCST90244838	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90244839	GCST90244839	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90244840	GCST90244840	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90244842	GCST90244842	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90244845	GCST90244845	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90244846	GCST90244846	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90245765	GCST90245765	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90245766	GCST90245766	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90245767	GCST90245767	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90245768	GCST90245768	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90245769	GCST90245769	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90245770	GCST90245770	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90245771	GCST90245771	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90245772	GCST90245772	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90245773	GCST90245773	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90245774	GCST90245774	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90245775	GCST90245775	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90245776	GCST90245776	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90255613	GCST90255613	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90255676	GCST90255676	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90255677	GCST90255677	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90256681	GCST90256681	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90256683	GCST90256683	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90256686	GCST90256686	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90256689	GCST90256689	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90256690	GCST90256690	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90256691	GCST90256691	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90256692	GCST90256692	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90256694	GCST90256694	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90256695	GCST90256695	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90256696	GCST90256696	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257015	GCST90257015	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257016	GCST90257016	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257017	GCST90257017	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257018	GCST90257018	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257019	GCST90257019	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257020	GCST90257020	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257021	GCST90257021	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257022	GCST90257022	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257023	GCST90257023	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257024	GCST90257024	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257025	GCST90257025	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257026	GCST90257026	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257027	GCST90257027	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257028	GCST90257028	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257029	GCST90257029	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257030	GCST90257030	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257031	GCST90257031	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257032	GCST90257032	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257033	GCST90257033	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257034	GCST90257034	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257035	GCST90257035	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257036	GCST90257036	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257037	GCST90257037	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257038	GCST90257038	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257039	GCST90257039	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257040	GCST90257040	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257041	GCST90257041	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257042	GCST90257042	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257043	GCST90257043	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257044	GCST90257044	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257045	GCST90257045	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257046	GCST90257046	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257047	GCST90257047	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257048	GCST90257048	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257049	GCST90257049	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257050	GCST90257050	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257051	GCST90257051	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257052	GCST90257052	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257053	GCST90257053	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257054	GCST90257054	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257055	GCST90257055	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257056	GCST90257056	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257057	GCST90257057	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257058	GCST90257058	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257059	GCST90257059	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257060	GCST90257060	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257061	GCST90257061	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257062	GCST90257062	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257063	GCST90257063	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257064	GCST90257064	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257065	GCST90257065	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257066	GCST90257066	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257067	GCST90257067	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257068	GCST90257068	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257069	GCST90257069	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257070	GCST90257070	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257071	GCST90257071	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257072	GCST90257072	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257073	GCST90257073	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257074	GCST90257074	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257075	GCST90257075	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257076	GCST90257076	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257077	GCST90257077	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257078	GCST90257078	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257079	GCST90257079	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257080	GCST90257080	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257081	GCST90257081	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257082	GCST90257082	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257083	GCST90257083	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257084	GCST90257084	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257085	GCST90257085	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257086	GCST90257086	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257087	GCST90257087	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257088	GCST90257088	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257089	GCST90257089	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257090	GCST90257090	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257091	GCST90257091	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257092	GCST90257092	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257093	GCST90257093	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257094	GCST90257094	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257095	GCST90257095	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257096	GCST90257096	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257097	GCST90257097	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257098	GCST90257098	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257099	GCST90257099	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257100	GCST90257100	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257101	GCST90257101	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257102	GCST90257102	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257103	GCST90257103	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257104	GCST90257104	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90257105	GCST90257105	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264121	GCST90264121	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264122	GCST90264122	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264123	GCST90264123	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264124	GCST90264124	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264125	GCST90264125	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264126	GCST90264126	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264127	GCST90264127	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264128	GCST90264128	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264129	GCST90264129	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264130	GCST90264130	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264131	GCST90264131	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264132	GCST90264132	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264133	GCST90264133	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264134	GCST90264134	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264135	GCST90264135	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264136	GCST90264136	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264137	GCST90264137	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264138	GCST90264138	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264139	GCST90264139	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264140	GCST90264140	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264141	GCST90264141	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264142	GCST90264142	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264143	GCST90264143	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264144	GCST90264144	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264145	GCST90264145	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264146	GCST90264146	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264147	GCST90264147	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264148	GCST90264148	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264149	GCST90264149	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90264150	GCST90264150	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267266	GCST90267266	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267267	GCST90267267	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267268	GCST90267268	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267269	GCST90267269	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267270	GCST90267270	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267271	GCST90267271	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267272	GCST90267272	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267273	GCST90267273	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267274	GCST90267274	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267275	GCST90267275	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267276	GCST90267276	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267277	GCST90267277	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267278	GCST90267278	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267279	GCST90267279	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267280	GCST90267280	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267281	GCST90267281	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267282	GCST90267282	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267283	GCST90267283	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267284	GCST90267284	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267285	GCST90267285	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267286	GCST90267286	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267287	GCST90267287	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267288	GCST90267288	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267289	GCST90267289	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267290	GCST90267290	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267291	GCST90267291	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267292	GCST90267292	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267293	GCST90267293	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267294	GCST90267294	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267295	GCST90267295	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267296	GCST90267296	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267297	GCST90267297	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267298	GCST90267298	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267299	GCST90267299	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267300	GCST90267300	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267301	GCST90267301	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267302	GCST90267302	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267303	GCST90267303	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267304	GCST90267304	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267305	GCST90267305	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267306	GCST90267306	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267307	GCST90267307	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267347	GCST90267347	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267348	GCST90267348	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267349	GCST90267349	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267350	GCST90267350	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267351	GCST90267351	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267352	GCST90267352	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267353	GCST90267353	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267354	GCST90267354	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267355	GCST90267355	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267356	GCST90267356	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267357	GCST90267357	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267358	GCST90267358	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267359	GCST90267359	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267360	GCST90267360	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90267372	GCST90267372	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90268419	GCST90268419	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90268420	GCST90268420	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90268421	GCST90268421	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90268422	GCST90268422	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90269769	GCST90269769	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90270074	GCST90270074	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270075	GCST90270075	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270076	GCST90270076	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270327	GCST90270327	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270328	GCST90270328	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270329	GCST90270329	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270330	GCST90270330	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270331	GCST90270331	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270332	GCST90270332	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270333	GCST90270333	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270334	GCST90270334	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270335	GCST90270335	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270336	GCST90270336	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270337	GCST90270337	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270338	GCST90270338	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270339	GCST90270339	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270340	GCST90270340	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270341	GCST90270341	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270930	GCST90270930	case-control	ancestry	ancestry_unassigned	gate_reason=margin	success	true
+GCST90270931	GCST90270931	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EAS (release target EUR)	success	true
+GCST90270932	GCST90270932	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EAS (release target EUR)	success	true
+GCST90271315	GCST90271315	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90271641	GCST90271641	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90271755	GCST90271755	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9709459293177205	success	true
+GCST90271789	GCST90271789	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90275135	GCST90275135	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.676123040183046	success	true
+GCST90275136	GCST90275136	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.676123040183046	success	true
+GCST90275137	GCST90275137	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.676123040183046	success	true
+GCST90275138	GCST90275138	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760655194709643	success	true
+GCST90275139	GCST90275139	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760655194709643	success	true
+GCST90275140	GCST90275140	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760655194709643	success	true
+GCST90275141	GCST90275141	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760451808789918	success	true
+GCST90275142	GCST90275142	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760451808789918	success	true
+GCST90275143	GCST90275143	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760451808789918	success	true
+GCST90275144	GCST90275144	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760889769609099	success	true
+GCST90275145	GCST90275145	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760889769609099	success	true
+GCST90275146	GCST90275146	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760889769609099	success	true
+GCST90275147	GCST90275147	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.676123040183046	success	true
+GCST90275148	GCST90275148	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.676123040183046	success	true
+GCST90275149	GCST90275149	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.676123040183046	success	true
+GCST90275150	GCST90275150	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760655194709643	success	true
+GCST90275151	GCST90275151	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760655194709643	success	true
+GCST90275152	GCST90275152	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760655194709643	success	true
+GCST90275153	GCST90275153	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760451808789918	success	true
+GCST90275154	GCST90275154	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760451808789918	success	true
+GCST90275155	GCST90275155	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760451808789918	success	true
+GCST90275156	GCST90275156	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760889769609099	success	true
+GCST90275157	GCST90275157	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760889769609099	success	true
+GCST90275158	GCST90275158	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760889769609099	success	true
+GCST90275159	GCST90275159	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.676123040183046	success	true
+GCST90275160	GCST90275160	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.676123040183046	success	true
+GCST90275161	GCST90275161	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760655194709643	success	true
+GCST90275162	GCST90275162	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760655194709643	success	true
+GCST90275163	GCST90275163	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760451808789918	success	true
+GCST90275164	GCST90275164	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760451808789918	success	true
+GCST90275165	GCST90275165	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760889769609099	success	true
+GCST90275166	GCST90275166	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760889769609099	success	true
+GCST90275189	GCST90275189	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90275190	GCST90275190	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90275191	GCST90275191	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90275197	GCST90275197	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90275198	GCST90275198	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90275199	GCST90275199	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90276157	GCST90276157	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.19190548373306093	success	true
+GCST90276158	GCST90276158	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.19190548373306093	success	true
+GCST90276159	GCST90276159	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.19190548373306093	success	true
+GCST90276160	GCST90276160	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.19190548373306093	success	true
+GCST90277450	GCST90277450	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7112085802237657	success	true
+GCST90277451	GCST90277451	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7112085802237657	success	true
+GCST90277452	GCST90277452	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7112085802237657	success	true
+GCST90278455	GCST90278455	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90278456	GCST90278456	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90281037	GCST90281037	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90281038	GCST90281038	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90281161	GCST90281161	case-control	metadata	missing_case_control_counts	n_cases=585 n_controls=0	success	true
+GCST90281163	GCST90281163	case-control	metadata	missing_case_control_counts	n_cases=13635 n_controls=0	success	true
+GCST90281165	GCST90281165	case-control	metadata	missing_case_control_counts	n_cases=14135 n_controls=0	success	true
+GCST90281169	GCST90281169	case-control	metadata	missing_case_control_counts	n_cases=2758 n_controls=0	success	true
+GCST90281171	GCST90281171	case-control	metadata	missing_case_control_counts	n_cases=21899 n_controls=0	success	true
+GCST90281173	GCST90281173	case-control	metadata	missing_case_control_counts	n_cases=22567 n_controls=0	success	true
+GCST90281176	GCST90281176	case-control	metadata	missing_case_control_counts	n_cases=1380 n_controls=0	success	true
+GCST90281178	GCST90281178	case-control	metadata	missing_case_control_counts	n_cases=11361 n_controls=0	success	true
+GCST90281180	GCST90281180	case-control	metadata	missing_case_control_counts	n_cases=11643 n_controls=0	success	true
+GCST90292488	GCST90292488	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90293085	GCST90293085	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90293086	GCST90293086	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90296697	GCST90296697	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9740418506888578	success	true
+GCST90296698	GCST90296698	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9739075143647095	success	true
+GCST90296699	GCST90296699	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9739041380490776	success	true
+GCST90296700	GCST90296700	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9739233853796522	success	true
+GCST90297560	GCST90297560	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90297561	GCST90297561	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90297793	GCST90297793	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.023708829239883704	success	true
+GCST90302879	GCST90302879	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6738243272562536	success	true
+GCST90319487	GCST90319487	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90319488	GCST90319488	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90319489	GCST90319489	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399874	GCST90399874	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399875	GCST90399875	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399876	GCST90399876	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399877	GCST90399877	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399878	GCST90399878	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399879	GCST90399879	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399880	GCST90399880	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399881	GCST90399881	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399882	GCST90399882	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399883	GCST90399883	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399884	GCST90399884	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399885	GCST90399885	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399886	GCST90399886	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399887	GCST90399887	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399888	GCST90399888	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399889	GCST90399889	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399890	GCST90399890	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399891	GCST90399891	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399892	GCST90399892	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399893	GCST90399893	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399894	GCST90399894	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399895	GCST90399895	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399896	GCST90399896	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399897	GCST90399897	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399898	GCST90399898	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399899	GCST90399899	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399900	GCST90399900	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399901	GCST90399901	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399902	GCST90399902	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399903	GCST90399903	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399904	GCST90399904	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399905	GCST90399905	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399906	GCST90399906	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399907	GCST90399907	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399908	GCST90399908	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399909	GCST90399909	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399910	GCST90399910	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90399911	GCST90399911	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90421022	GCST90421022	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90421023	GCST90421023	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90421024	GCST90421024	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90421025	GCST90421025	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9966813472358118	success	true
+GCST90421026	GCST90421026	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90421027	GCST90421027	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90421028	GCST90421028	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90421029	GCST90421029	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90421030	GCST90421030	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90421031	GCST90421031	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90421032	GCST90421032	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428068	GCST90428068	case-control	metadata	missing_case_control_counts	n_cases=71 n_controls=0	success	true
+GCST90428069	GCST90428069	case-control	metadata	missing_case_control_counts	n_cases=67 n_controls=0	success	true
+GCST90428399	GCST90428399	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428400	GCST90428400	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428401	GCST90428401	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428402	GCST90428402	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428403	GCST90428403	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428404	GCST90428404	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428405	GCST90428405	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428406	GCST90428406	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428407	GCST90428407	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428408	GCST90428408	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428409	GCST90428409	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428410	GCST90428410	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428411	GCST90428411	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428412	GCST90428412	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428413	GCST90428413	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428414	GCST90428414	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428415	GCST90428415	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428416	GCST90428416	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428417	GCST90428417	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428418	GCST90428418	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428419	GCST90428419	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428420	GCST90428420	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428421	GCST90428421	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428422	GCST90428422	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428423	GCST90428423	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428424	GCST90428424	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428425	GCST90428425	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428426	GCST90428426	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428427	GCST90428427	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428428	GCST90428428	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428430	GCST90428430	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428431	GCST90428431	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428432	GCST90428432	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428433	GCST90428433	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428434	GCST90428434	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428435	GCST90428435	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428436	GCST90428436	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428437	GCST90428437	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428438	GCST90428438	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428462	GCST90428462	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428463	GCST90428463	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428625	GCST90428625	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90435377	GCST90435377	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90435378	GCST90435378	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90435503	GCST90435503	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9909059889297928	success	true
+GCST90435504	GCST90435504	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9909059889297928	success	true
+GCST90435505	GCST90435505	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9909059889297928	success	true
+GCST90435506	GCST90435506	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9909059889297928	success	true
+GCST90435507	GCST90435507	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9909059889297928	success	true
+GCST90435508	GCST90435508	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9909059889297928	success	true
+GCST90444373	GCST90444373	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90444374	GCST90444374	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90444375	GCST90444375	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90444376	GCST90444376	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90446160	GCST90446160	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90446162	GCST90446162	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90446163	GCST90446163	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90446168	GCST90446168	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6623936894238955	success	true
+GCST90446169	GCST90446169	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6623936894238955	success	true
+GCST90446466	GCST90446466	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90446643	GCST90446643	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90446758	GCST90446758	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
+GCST90446759	GCST90446759	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
+GCST90446760	GCST90446760	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
+GCST90446761	GCST90446761	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
+GCST90446762	GCST90446762	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
+GCST90446763	GCST90446763	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
+GCST90446764	GCST90446764	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
+GCST90446765	GCST90446765	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
+GCST90446766	GCST90446766	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
+GCST90446767	GCST90446767	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
+GCST90446768	GCST90446768	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
+GCST90446769	GCST90446769	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
+GCST90446770	GCST90446770	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
+GCST90446771	GCST90446771	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
+GCST90446772	GCST90446772	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
+GCST90446773	GCST90446773	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
+GCST90446774	GCST90446774	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
+GCST90446775	GCST90446775	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.980229550306733	success	true
+GCST90446776	GCST90446776	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9802474033744794	success	true
+GCST90446777	GCST90446777	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9802635733279719	success	true
+GCST90446778	GCST90446778	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9802001743755346	success	true
+GCST90446779	GCST90446779	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9802319053551536	success	true
+GCST90446780	GCST90446780	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9810366684510521	success	true
+GCST90446781	GCST90446781	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9810532150267202	success	true
+GCST90446782	GCST90446782	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9802349600763073	success	true
+GCST90446783	GCST90446783	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9810162375012309	success	true
+GCST90446784	GCST90446784	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9812520070947386	success	true
+GCST90446785	GCST90446785	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9804192516361925	success	true
+GCST90446786	GCST90446786	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9804973877605454	success	true
+GCST90446787	GCST90446787	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9802877796600173	success	true
+GCST90446788	GCST90446788	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9807709493636948	success	true
+GCST90446789	GCST90446789	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9809445606614008	success	true
+GCST90446790	GCST90446790	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.980200310236884	success	true
+GCST90446791	GCST90446791	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9805708682507384	success	true
+GCST90448480	GCST90448480	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6602817942312714	success	true
+GCST90448481	GCST90448481	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6602594950986417	success	true
+GCST90448482	GCST90448482	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6602571738160956	success	true
+GCST90448483	GCST90448483	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.66025294484797	success	true
+GCST90448484	GCST90448484	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6602552661195862	success	true
+GCST90448485	GCST90448485	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6602759706055367	success	true
+GCST90448486	GCST90448486	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.660276696990041	success	true
+GCST90448487	GCST90448487	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.660276696990041	success	true
+GCST90448488	GCST90448488	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6602594950986417	success	true
+GCST90448489	GCST90448489	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6602810877463978	success	true
+GCST90448490	GCST90448490	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.554126363857749	success	true
+GCST90449045	GCST90449045	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90449046	GCST90449046	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90449047	GCST90449047	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90449048	GCST90449048	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90449049	GCST90449049	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90449050	GCST90449050	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90449051	GCST90449051	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90449052	GCST90449052	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90454200	GCST90454200	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90454201	GCST90454201	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90454344	GCST90454344	case-control	metadata	missing_case_control_counts	n_cases=0 n_controls=91477	success	true
+GCST90454345	GCST90454345	case-control	metadata	missing_case_control_counts	n_cases=0 n_controls=91477	success	true
+GCST90454346	GCST90454346	case-control	metadata	missing_case_control_counts	n_cases=0 n_controls=91477	success	true
+GCST90454347	GCST90454347	case-control	metadata	missing_case_control_counts	n_cases=0 n_controls=91477	success	true
+GCST90454348	GCST90454348	case-control	metadata	missing_case_control_counts	n_cases=0 n_controls=91477	success	true
+GCST90454483	GCST90454483	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90454484	GCST90454484	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90454485	GCST90454485	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90454486	GCST90454486	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90454487	GCST90454487	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90454488	GCST90454488	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90454489	GCST90454489	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90454490	GCST90454490	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90472771	GCST90472771	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90472777	GCST90472777	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90472778	GCST90472778	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90472779	GCST90472779	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90472780	GCST90472780	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90472781	GCST90472781	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90472782	GCST90472782	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90472783	GCST90472783	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90472784	GCST90472784	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90472785	GCST90472785	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90482691	GCST90482691	case-control	ancestry	ancestry_unassigned	gate_reason=proportion	success	true
+GCST90487900	GCST90487900	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90502821	GCST90502821	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90502822	GCST90502822	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90502823	GCST90502823	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90503115	GCST90503115	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.5023694536961458	success	true
+GCST90503116	GCST90503116	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.5023694536961458	success	true
+GCST90503117	GCST90503117	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.5023694536961458	success	true
+GCST90503313	GCST90503313	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90503314	GCST90503314	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90503315	GCST90503315	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90503316	GCST90503316	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90551884	GCST90551884	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9789964120864073	success	true
+GCST90551885	GCST90551885	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.979010849594426	success	true
+GCST90551886	GCST90551886	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9789383650667114	success	true
+GCST90558035	GCST90558035	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90558036	GCST90558036	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90558037	GCST90558037	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90558086	GCST90558086	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90558087	GCST90558087	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90558088	GCST90558088	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90558089	GCST90558089	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90558090	GCST90558090	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90558091	GCST90558091	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90558092	GCST90558092	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90558093	GCST90558093	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90558094	GCST90558094	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90558095	GCST90558095	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90558096	GCST90558096	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90558097	GCST90558097	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90558098	GCST90558098	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.01734206080212494	success	true
+GCST90558099	GCST90558099	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.017274461830679644	success	true
+GCST90558100	GCST90558100	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90558101	GCST90558101	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559107	GCST90559107	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559108	GCST90559108	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559109	GCST90559109	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559110	GCST90559110	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559111	GCST90559111	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559112	GCST90559112	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559113	GCST90559113	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559114	GCST90559114	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559115	GCST90559115	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559116	GCST90559116	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559117	GCST90559117	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559118	GCST90559118	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559119	GCST90559119	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559120	GCST90559120	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559121	GCST90559121	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559122	GCST90559122	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559123	GCST90559123	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559124	GCST90559124	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559125	GCST90559125	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559126	GCST90559126	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559127	GCST90559127	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559128	GCST90559128	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559129	GCST90559129	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559130	GCST90559130	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559131	GCST90559131	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559132	GCST90559132	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559133	GCST90559133	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559134	GCST90559134	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559135	GCST90559135	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559136	GCST90559136	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559137	GCST90559137	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559138	GCST90559138	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559139	GCST90559139	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559140	GCST90559140	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559141	GCST90559141	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559142	GCST90559142	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559143	GCST90559143	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559144	GCST90559144	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559145	GCST90559145	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559146	GCST90559146	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559147	GCST90559147	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559148	GCST90559148	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559149	GCST90559149	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559150	GCST90559150	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559151	GCST90559151	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559152	GCST90559152	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559153	GCST90559153	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559154	GCST90559154	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90559206	GCST90559206	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559207	GCST90559207	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559208	GCST90559208	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559209	GCST90559209	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559210	GCST90559210	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559211	GCST90559211	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559212	GCST90559212	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559213	GCST90559213	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559214	GCST90559214	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559215	GCST90559215	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559216	GCST90559216	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559217	GCST90559217	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559218	GCST90559218	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559219	GCST90559219	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559220	GCST90559220	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559221	GCST90559221	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559222	GCST90559222	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559223	GCST90559223	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559224	GCST90559224	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559225	GCST90559225	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559226	GCST90559226	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90559227	GCST90559227	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90565360	GCST90565360	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90565869	GCST90565869	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90566392	GCST90566392	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6873125576476798	success	true
+GCST90566393	GCST90566393	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6866832652900563	success	true
+GCST90566696	GCST90566696	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90566697	GCST90566697	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90566699	GCST90566699	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90566795	GCST90566795	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90566796	GCST90566796	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90566797	GCST90566797	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90566798	GCST90566798	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90566799	GCST90566799	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90566800	GCST90566800	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90566801	GCST90566801	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90566802	GCST90566802	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90566803	GCST90566803	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90566804	GCST90566804	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90566805	GCST90566805	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90570521	GCST90570521	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90570522	GCST90570522	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90570524	GCST90570524	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90570525	GCST90570525	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90570526	GCST90570526	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90572755	GCST90572755	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6140274903553035	success	true
+GCST90572789	GCST90572789	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90572790	GCST90572790	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90572791	GCST90572791	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90590336	GCST90590336	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9773898958217313	success	true
+GCST90590337	GCST90590337	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9773885324750743	success	true
+GCST90590338	GCST90590338	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9773879881924658	success	true
+GCST90590339	GCST90590339	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9773898958217313	success	true
+GCST90624053	GCST90624053	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90627758	GCST90627758	case-control	metadata	missing_case_control_counts	n_cases=37995 n_controls=0	success	true
+GCST90627773	GCST90627773	case-control	metadata	missing_case_control_counts	n_cases=31572 n_controls=0	success	true
+GCST90651070	GCST90651070	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90651071	GCST90651071	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90651072	GCST90651072	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90651073	GCST90651073	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90651074	GCST90651074	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90651075	GCST90651075	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90651076	GCST90651076	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90651077	GCST90651077	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90652244	GCST90652244	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6784414451129875	success	true
+GCST90652505	GCST90652505	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90652529	GCST90652529	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90652530	GCST90652530	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90652531	GCST90652531	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90652532	GCST90652532	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90652550	GCST90652550	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90654630	GCST90654630	case-control	ancestry	ancestry_unassigned	gate_reason=margin	success	true
+GCST90671996	GCST90671996	quantitative	ancestry	ancestry_unassigned	gate_reason=proportion	success	true
+GCST90672045	GCST90672045	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9761138489204356	success	true
+GCST90707271	GCST90707271	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7990928263989932	success	true
+GCST90707272	GCST90707272	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7920038654724125	success	true
+GCST90707273	GCST90707273	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7930885071442779	success	true
+GCST90707274	GCST90707274	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7969720036676159	success	true
+GCST90726346	GCST90726346	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90726396	GCST90726396	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90726397	GCST90726397	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90726398	GCST90726398	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90727422	GCST90727422	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90728588	GCST90728588	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90797590	GCST90797590	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768081019417459	success	true
+GCST90797591	GCST90797591	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768076116586337	success	true
+GCST90797592	GCST90797592	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768076116586337	success	true
+GCST90797593	GCST90797593	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768076116586337	success	true
+GCST90797594	GCST90797594	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768081056109279	success	true
+GCST90797595	GCST90797595	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768076116586337	success	true
+GCST90797596	GCST90797596	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768081019417459	success	true
+GCST90797597	GCST90797597	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768081056109279	success	true
+GCST90797598	GCST90797598	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768081056109279	success	true
+GCST90797599	GCST90797599	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768076116586337	success	true
+GCST90797600	GCST90797600	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768081056109279	success	true
+GCST90797601	GCST90797601	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768081056109279	success	true
+GCST90797602	GCST90797602	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.976808750055264	success	true
+GCST90797603	GCST90797603	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768055469599933	success	true
+GCST90797604	GCST90797604	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768055469599933	success	true
+GCST90797605	GCST90797605	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768055469599933	success	true
+GCST90797606	GCST90797606	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768055469599933	success	true
+GCST90797607	GCST90797607	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768087301362888	success	true
+GCST90797608	GCST90797608	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768087301362888	success	true
+GCST90797609	GCST90797609	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768060843320072	success	true
+GCST90797610	GCST90797610	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768060843320072	success	true
+GCST90797611	GCST90797611	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.976808750055264	success	true
+GCST90797612	GCST90797612	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768060646408082	success	true
+GCST90797613	GCST90797613	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768060646408082	success	true
+GCST90809294	GCST90809294	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90809296	GCST90809296	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90824163	GCST90824163	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9783262536811252	success	true
+GCST90832109	GCST90832109	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9766232899767854	success	true
+GCST90832110	GCST90832110	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9642854516395474	success	true
+GCST90841074	GCST90841074	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6668718425845486	success	true

@@ -1,0 +1,75 @@
+store_id: OGS-00011
+label: eur-hybrid-full
+access_posture: public
+status: candidate
+derived_from: null
+created_at: '2026-09-22T21:03:39Z'
+source_snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-22
+source_snapshot:
+  inventory_snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-22
+  inventory_tsv_sha256: 341359d27657111585880a194f6c992b8c751f2d3a43af4f27080c0fd0cb06e5
+  preflight_report: /data/opengwasdb/work/gwas-catalog-eur-hybrid/OGS-00011/preflight/gwas-catalog-ssf-eur-hybrid-2026-09-22.json
+  resolver_receipt: /data/opengwasdb/work/gwas-catalog-eur-hybrid/OGS-00011/resolver/resolution_receipt.json
+  resolver_receipt_sha256: c9503ab261d13852760c25cd2459cfa9cb5fd0e93e5e0d13ec7a74258c821ca4
+  resolver_opengwasdb_version: 0.3.0
+generator:
+  version: sha256:17af7d26057cb2d545f26e95aeb96a8c7c44ef10c56b748788684563c020e683
+  commands:
+  - python3 resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py OGS-00011 --config resources/generators/gwas-catalog-eur-hybrid/config-full.yaml
+    --cores 64 --resume
+  - opengwasdb resolve-analyses /data/opengwasdb/work/gwas-catalog-eur-hybrid/OGS-00011/resolver/analyses.tsv
+    /data/opengwasdb/work/gwas-catalog-eur-hybrid/OGS-00011/resolver/records --ancestry-reference /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
+    --ancestry-groups /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv --default-source-reader-capability
+    opengwasdb.gwas-ssf --maf-floor 0.01 --tau 0.5 --delta 0.2 --n-min 5000 --residual-max 0.06 --n-workers
+    64 --resume
+description: 'Every ready Analysis in the hybrid__European candidate pool of the EBI GWAS Catalog harmonised
+  GWAS-SSF Source Collection, resolved through AF-based ancestry assignment and phenotype-SD effect-scale
+  estimation. Mixed study designs: quantitative Analyses carry an empirically estimated phenotype SD,
+  and case-control Analyses are stored on the log-OR scale with SD estimation explicitly skipped rather
+  than defaulted.
+
+  '
+notes: 'The candidate pool is 6,035 Analyses across 1,007 publications. Only the subset the frozen Source
+  Inventory records as ready becomes release membership; the remaining inputs stay inventory facts and
+  are never selected. Two accession pairs are byte-identical under different accessions and are reported
+  for an explicit review decision instead of being silently collapsed (`sidecars/source_readiness.tsv`
+  and `duplicates` in the preflight report).
+
+
+  Candidate status: human review required before acceptance (issue #153). 3262 included, 1521 excluded
+  of 6035 frozen inventory rows.
+
+
+  Evidence: frozen Source Inventory gwas-catalog-ssf-eur-hybrid-2026-09-22 (sha256 341359d27657111585880a194f6c992b8c751f2d3a43af4f27080c0fd0cb06e5);
+  preflight report /data/opengwasdb/work/gwas-catalog-eur-hybrid/OGS-00011/preflight/gwas-catalog-ssf-eur-hybrid-2026-09-22.json;
+  resolution receipt /data/opengwasdb/work/gwas-catalog-eur-hybrid/OGS-00011/resolver/resolution_receipt.json
+  (sha256 c9503ab261d13852760c25cd2459cfa9cb5fd0e93e5e0d13ec7a74258c821ca4).
+
+
+  Policy: full-reference AF ancestry assignment and source-AF-only quantitative phenotype-SD estimation
+  (issue #152); case-control rows use log_or/binary_trait; non-target/unassigned ancestry, orientation
+  failures, unusable source AF and ordinary resolution failures are controlled exclusions (sidecars/exclusions.tsv).
+
+
+  Exclusions by reason: ancestry_not_eur=3, ancestry_unassigned=1334, missing_case_control_counts=19,
+  orientation_failure=162, resolution_failed=1, sd_no_qualifying_evidence=2
+
+
+  Review: 1499 Analysis/Analyses excluded by ancestry policy (unassigned, non-target, or orientation failure);
+  see sidecars/exclusions.tsv
+
+
+  Review: 2 quantitative Analysis/Analyses had no usable phenotype SD and were excluded; see sidecars/sd_estimation.tsv
+
+
+  Review: 187 included Analysis/Analyses have a high-dispersion SD estimate; see sidecars/sd_estimation.tsv
+
+
+  Review: 1 Analysis/Analyses failed resolution and were excluded; see sidecars/exclusions.tsv
+
+
+  Review: 19 Analysis/Analyses had incomplete resolved metadata and were excluded; see sidecars/exclusions.tsv
+
+
+  Review: 2 duplicate-content group(s) surfaced for review, not collapsed: GCST90565871+GCST90565872;
+  GCST90624704+GCST90624705'
