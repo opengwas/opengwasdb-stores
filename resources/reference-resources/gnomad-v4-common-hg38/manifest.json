@@ -1,0 +1,168 @@
+{
+  "built_at": "2026-09-23T20:27:28Z",
+  "contigs": [
+    "chr1",
+    "chr2",
+    "chr3",
+    "chr4",
+    "chr5",
+    "chr6",
+    "chr7",
+    "chr8",
+    "chr9",
+    "chr10",
+    "chr11",
+    "chr12",
+    "chr13",
+    "chr14",
+    "chr15",
+    "chr16",
+    "chr17",
+    "chr18",
+    "chr19",
+    "chr20",
+    "chr21",
+    "chr22",
+    "chrX",
+    "chrY",
+    "chrM"
+  ],
+  "genome_build": "GRCh38",
+  "min_an_fraction": 0.5,
+  "min_maf": 0.01,
+  "mitochondrial_note": "gnomAD's chrM release carries no per-ancestry AF; these variants are admitted to every ancestry axis on the global homoplasmic frequency (AF_hom) and are not a per-ancestry claim.",
+  "mitochondrial_variants": 425,
+  "outputs": {
+    "AFR": {
+      "composed_of": [
+        "afr"
+      ],
+      "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz",
+      "sha256": "cab12cca7a0e27a55cfaa06fb2c4d5d94658045a9f2be00a24824e5fa4841523",
+      "variants": 20149213
+    },
+    "ALL": {
+      "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/ALL-variants.txt.gz",
+      "sha256": "547380f311e7fa721a1bbab12d1735afc949b17db6bf31437429de921e94cf73",
+      "variants": 27447322
+    },
+    "AMR": {
+      "composed_of": [
+        "amr"
+      ],
+      "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/AMR-variants.txt.gz",
+      "sha256": "ff0726aff7c752588f2a65ef32f755ac912e5cf58e76538bc378e85bbaa813b5",
+      "variants": 13487396
+    },
+    "EAS": {
+      "composed_of": [
+        "eas"
+      ],
+      "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz",
+      "sha256": "0f35544a63c04fa1d6ba15b8afa129a5419eed4eeb7bf9ae24d5d647dbc5166f",
+      "variants": 10718294
+    },
+    "EUR": {
+      "composed_of": [
+        "nfe",
+        "fin"
+      ],
+      "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz",
+      "sha256": "811b5863e98eefe09b8c05cc56cafbdd16d3145408567fa30d04a0ce5cd2b68f",
+      "variants": 13415936
+    },
+    "MID": {
+      "composed_of": [
+        "mid"
+      ],
+      "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/MID-variants.txt.gz",
+      "sha256": "11df75998a5a85c66493359175a4c2f679cef0fe1ccc01b67d05f7753a7ba49b",
+      "variants": 14133778
+    },
+    "SAS": {
+      "composed_of": [
+        "sas"
+      ],
+      "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/SAS-variants.txt.gz",
+      "sha256": "287cc276450da82824ca0c5a96cdde54b645174e6ac1ed59af5820e7fb5f590d",
+      "variants": 12266874
+    },
+    "gnomad:afr": {
+      "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/afr-variants.txt.gz",
+      "sha256": "cab12cca7a0e27a55cfaa06fb2c4d5d94658045a9f2be00a24824e5fa4841523",
+      "variants": 20149213
+    },
+    "gnomad:ami": {
+      "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/ami-variants.txt.gz",
+      "sha256": "1b02c9f92148bf6c8759a5465acfdb291cf17030c5a9ecbd74678d35306d27eb",
+      "variants": 11405829
+    },
+    "gnomad:amr": {
+      "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/amr-variants.txt.gz",
+      "sha256": "ff0726aff7c752588f2a65ef32f755ac912e5cf58e76538bc378e85bbaa813b5",
+      "variants": 13487396
+    },
+    "gnomad:asj": {
+      "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/asj-variants.txt.gz",
+      "sha256": "bcd9d70e1a28c20a0ddecad9abe01dfbc74960b7a6b30f092f76d58ff0c488a1",
+      "variants": 13003687
+    },
+    "gnomad:eas": {
+      "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/eas-variants.txt.gz",
+      "sha256": "0f35544a63c04fa1d6ba15b8afa129a5419eed4eeb7bf9ae24d5d647dbc5166f",
+      "variants": 10718294
+    },
+    "gnomad:fin": {
+      "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/fin-variants.txt.gz",
+      "sha256": "4ca006ce195fd2c6891afc15f7085be7cc75879da4f3dd91132d08133862bc11",
+      "variants": 11539433
+    },
+    "gnomad:mid": {
+      "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/mid-variants.txt.gz",
+      "sha256": "11df75998a5a85c66493359175a4c2f679cef0fe1ccc01b67d05f7753a7ba49b",
+      "variants": 14133778
+    },
+    "gnomad:nfe": {
+      "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/nfe-variants.txt.gz",
+      "sha256": "dc49a3e141a2641ad0ce34c03b6e1fbca4ac955351bc9337b43fbee92af39d4c",
+      "variants": 12216516
+    },
+    "gnomad:remaining": {
+      "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/remaining-variants.txt.gz",
+      "sha256": "5a62e6d30ea528f87ed07eb40cd0d549d19b07f142e519cb1e69ea889b3aaa57",
+      "variants": 15299024
+    },
+    "gnomad:sas": {
+      "path": "/data/opengwasdb/reference/gnomad-v4-common-hg38/gnomad-groups/sas-variants.txt.gz",
+      "sha256": "287cc276450da82824ca0c5a96cdde54b645174e6ac1ed59af5820e7fb5f590d",
+      "variants": 12266874
+    }
+  },
+  "resource_id": "gnomad-v4-common-hg38",
+  "sources": {
+    "autosomal_and_sex": "https://storage.googleapis.com/gcp-public-data--gnomad/release/4.1/vcf/genomes/gnomad.genomes.v4.1.sites.{contig}.vcf.bgz",
+    "mitochondrial": "https://storage.googleapis.com/gcp-public-data--gnomad/release/3.1/vcf/genomes/gnomad.genomes.v3.1.sites.chrM.vcf.bgz"
+  },
+  "superpop_composition": {
+    "AFR": [
+      "afr"
+    ],
+    "AMR": [
+      "amr"
+    ],
+    "EAS": [
+      "eas"
+    ],
+    "EUR": [
+      "nfe",
+      "fin"
+    ],
+    "MID": [
+      "mid"
+    ],
+    "NAF": [],
+    "SAS": [
+      "sas"
+    ]
+  }
+}

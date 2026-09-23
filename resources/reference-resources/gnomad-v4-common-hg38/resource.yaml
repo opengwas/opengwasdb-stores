@@ -1,0 +1,83 @@
+resource_id: gnomad-v4-common-hg38
+label: gnomAD v4.1 common-variant axes per ancestry (GRCh38, MAF >= 1%)
+kind: variant_axis
+ancestry: [AFR, AMR, EAS, EUR, MID, SAS]
+genome_build: GRCh38
+variant_id_convention: "chr:pos:a1:a2 (a1 = min(ref, alt)), chromosome without 'chr' prefix"
+allele_columns:
+  effect: a1
+  other: a2
+  freq: null
+location: /data/opengwasdb/reference/gnomad-v4-common-hg38
+location_kind: external_directory
+source:
+  cohort: gnomAD v4.1 genomes (sites), plus gnomAD v3.1 for the mitochondrion
+  n_genomes: 76215
+  variant_inclusion: "minor allele frequency >= 0.01 within an ancestry group"
+  coverage_filter: "allele number >= 50% of that shard's per-group maximum"
+  groups:
+    afr: African/African American
+    ami: Amish
+    amr: Admixed American
+    asj: Ashkenazi Jewish
+    eas: East Asian
+    fin: Finnish
+    mid: Middle Eastern
+    nfe: Non-Finnish European
+    remaining: "heterogeneous remainder; composes no super-population"
+    sas: South Asian
+  acquisition: resources/reference-resources/gnomad-v4-common-hg38/build_common_panel.py
+  generator: resources/reference-resources/gnomad-v4-common-hg38/build_common_panel.py
+  mirror: none
+description: >
+  Per-ancestry common-variant axes for the Dense Component of a Hybrid or Dense
+  Store Release. Each `<SUPERPOP>-variants.txt.gz` is a plain newline-delimited
+  canonical ALID list -- the simplest of the three forms
+  `opengwasdb.variants.reference.read_variant_reference` accepts -- so a build
+  can be given `--variant-reference` for the ancestry it is building and skip
+  Pass 1 (the variant union and liftover) entirely.
+
+  Built to replace `alid-panel/EUR-variants.tsv.gz` as the axis for the full
+  GWAS Catalog EUR Hybrid release (opengwasdb-stores#155), which is autosome-only
+  and whose real floor is 3.24% MAF rather than the 1% it needs: it was built
+  with `--mac 50` against HGDP+1kGP's 772 EUR samples, and 1% of 772 samples is
+  15 allele copies. gnomAD v4.1 contributes 76,215 genomes (34,029 non-Finnish
+  European), which supports a 1% threshold with real coverage, and publishes the
+  X and Y chromosomes that HGDP+1kGP's LD blocks never reached.
+
+  Nothing is mirrored. The gnomAD sites VCFs are large only because of VEP
+  annotation this axis never reads, and they are bgzip+tabix indexed, so
+  `bcftools` streams them over HTTPS a 10 Mb region at a time and each shard is
+  reduced to ALIDs on the way past. The whole build therefore costs bandwidth
+  and a 1.5 GB of output, not 550 GB of disk.
+status: available
+notes: >
+  `gnomad-groups/` holds the ten raw gnomAD ancestry groups, kept because the
+  super-population composition below is a release decision that may change, and
+  re-deriving a group from the gnomAD source to change it is far more expensive
+  than reading a list that already exists.
+
+  EUR is composed of `nfe` + `fin`. `asj` and `ami` are European-descended
+  founder populations whose drift places variants on a European axis that are
+  common in neither of the groups a European release is actually built from;
+  they remain available as their own lists. `remaining` is heterogeneous by
+  construction and composes nothing. **NAF has no gnomAD group at all**, so no
+  `NAF-variants.txt.gz` is emitted -- an absence the manifest records explicitly
+  rather than leaving as a missing file to be misread.
+
+  The mitochondrion is a deliberate simplification. gnomAD's chrM release is a
+  different callset with a different model (homoplasmy and heteroplasmy,
+  `AF_hom`) and carries no per-ancestry allele frequency, so its variants are
+  admitted to *every* ancestry's axis on the global homoplasmic frequency. That
+  is not a per-ancestry claim and is labelled as such in `manifest.json`.
+
+  This resource is an axis, not a frequency table and not an LD panel: it says
+  which variants a matrix has rows for, not how common they are and not how they
+  covary. Reference completion is unaffected and still needs an LD panel matched
+  to the Analysis's Assigned Ancestry.
+
+  **Chromosome spelling is not yet reconciled upstream.** The axis carries `X`,
+  `Y` and `M` as canonical labels (the spelling `normalise_chromosome` already
+  produces), but that function does not yet alias the numeric PLINK encodings, so
+  a source spelling X as `23` still fails to resolve against this axis. That gap
+  is opengwas/opengwasdb#216 and gates any use of the non-autosomal rows.
