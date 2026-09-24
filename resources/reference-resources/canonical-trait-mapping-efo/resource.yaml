@@ -10,9 +10,18 @@ description: >
   its own trait ontology mapping (see CONTEXT.md, "Canonical Trait Mapping
   Table", and docs/adr/0021-trait-ontology-mapping-lookup-lives-in-registry.md).
   Exact-match only, keyed on a normalised (trimmed, lowercased) trait_label;
-  no fuzzy or semantic matching. Rows are added by hand as specific traits are
-  curated -- there is no automated candidate-generation pipeline behind this
-  table yet.
+  no fuzzy or semantic matching. The lookup columns are the first three
+  (trait_label, trait_ontology_id, trait_ontology_label); trait_ontology_label
+  is the human-readable label of the ontology term itself (for example
+  "carnitine measurement" for EFO:0010469), never a vocabulary or
+  identifier-authority name. The remaining columns record provenance for a
+  row -- ontology_release, chooser_id, confidence, runner_up_margin,
+  review_status (auto_accepted or human_reviewed), reviewer, reviewed_at --
+  and are optional, so hand-curated rows that leave them empty remain valid.
+  The resolver reads the lookup columns by name and ignores any extra columns,
+  so widening the table never changes lookup behaviour. Rows are added by hand
+  as specific traits are curated -- there is no automated candidate-generation
+  pipeline behind this table yet.
 status: available
 notes: >
   Starts empty (header only): no currently-built gwas-ssf-ragged bundle has an
@@ -20,4 +29,6 @@ notes: >
   thousands of free-text field labels too messy for hand curation at this
   table's exact-match granularity -- that needs real candidate-generation and
   review tooling, tracked separately, not fabricated rows here. Add a row only
-  when a real trait needs one.
+  when a real trait needs one; fill in the optional provenance columns when a
+  candidate-generation-and-review process produced the row, and leave them
+  empty for a hand-curated row.

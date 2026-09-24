@@ -240,7 +240,7 @@ and the matching authority name in `trait_ontology_label` (issue #141).
 | `source_analysis_id` | No | Upstream analysis identifier, such as a GCST accession or OpenGWAS ID, when the Source Collection provides one. |
 | `source_label` | Yes | Upstream trait or phenotype label preserved as source provenance. Registry-only; kept separate from `analysis_label` even when both hold the same source text. |
 | `analysis_label` | Yes | Free-text, non-unique display label for the Analysis, carried into the built store. Typically the same source text as `source_label`; for a single-target gene-centric Analysis it is the resolved gene symbol, and for an aggregate assay it is the SomaScan SeqId, SomaLogic's stable assay identifier (issue #141). |
-| `trait_ontology_label` | No | Human-readable trait label from the ontology that defines `trait_ontology_id`, such as an EFO/MONDO/OBA/GO term name or a source-local analyte vocabulary term. Never an identifier-authority name such as `Ensembl`: an authority name describes the vocabulary, not the Trait. Named `trait_ontology_name` before OpenGWASDB ADR 0034. |
+| `trait_ontology_label` | No | Human-readable label of the ontology term itself that `trait_ontology_id` identifies, exactly as the defining ontology or controlled vocabulary names it — for example `carnitine measurement` (`EFO:0010469`) or `multiple sclerosis` (`MONDO:0005301`). It is never an identifier-authority or vocabulary label such as `Ensembl`, `EFO`, `MONDO`, or `OBA`: those name the vocabulary, not the Trait, and `bundle.check()` rejects an authority-name label (issue #141). Named `trait_ontology_name` before OpenGWASDB ADR 0034. |
 | `trait_ontology_id` | No | Ontology or controlled-vocabulary identifier for the analysed Trait, when available. CURIE format, for example `EFO:0001073`; blank when unmapped. Never a gene or protein identifier: `bundle.check()` rejects Ensembl, HGNC, Entrez/NCBI Gene, and UniProt identifiers, bare or authority-qualified (issue #141). Not required to be unique. |
 | `trait_ontology_mapping_method` | Yes | Controlled value describing how `trait_ontology_id`/`trait_ontology_label` were resolved: `source_provided`, `canonical_table_lookup`, or `unmapped`. The #130 `external_authority_lookup` value is retired: gene/target identity is annotation, not a Trait Ontology Mapping (issue #141). Registry-only. |
 | `source_file` | Yes | Source file or filtered source file consumed by the builder. Omitted in legacy monolithic BESD releases (`OGS-00001` and `OGS-00002`), where source identity is currently recorded only as an unverified path prefix (a known integrity gap tracked in issue #134). |
@@ -758,7 +758,10 @@ ID (e.g. GWAS Catalog's `MAPPED_TRAIT_URI`), pass it through as
 against the curated Canonical Trait Mapping Table Reference Resource
 (`resources/reference-resources/canonical-trait-mapping-efo/`) as
 `canonical_table_lookup`; (3) otherwise `unmapped`, leaving
-`trait_ontology_id`/`trait_ontology_label` blank rather than guessing. There is
+`trait_ontology_id`/`trait_ontology_label` blank rather than guessing. The
+Canonical Trait Mapping Table keeps its three lookup columns (`trait_label`,
+`trait_ontology_id`, `trait_ontology_label`) first; any further columns are
+provenance for reviewers, and the resolver ignores them. There is
 no gene-authority path: a gene's Ensembl ID is not a Trait Ontology Mapping, so
 a gene-centric Analysis whose source supplies no ontology term stays
 `unmapped`/blank rather than being given a gene id (issue #141). A
