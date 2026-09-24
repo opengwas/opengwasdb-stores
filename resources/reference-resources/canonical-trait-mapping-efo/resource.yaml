@@ -20,15 +20,17 @@ description: >
   and are optional, so hand-curated rows that leave them empty remain valid.
   The resolver reads the lookup columns by name and ignores any extra columns,
   so widening the table never changes lookup behaviour. Rows are added by hand
-  as specific traits are curated -- there is no automated candidate-generation
-  pipeline behind this table yet.
+  as specific traits are curated, or by the curation pipeline's promotion
+  stage (curation/promotion.py, issue #169), which appends a row only when a
+  proposal clears both the confidence and runner-up-margin thresholds and
+  bumps this resource's `version`.
 status: available
 notes: >
   Starts empty (header only): no currently-built gwas-ssf-ragged bundle has an
   unmapped trait to seed a row from, and opengwas-gwas-vcf-dense (ukb-b) has
   thousands of free-text field labels too messy for hand curation at this
-  table's exact-match granularity -- that needs real candidate-generation and
-  review tooling, tracked separately, not fabricated rows here. Add a row only
-  when a real trait needs one; fill in the optional provenance columns when a
-  candidate-generation-and-review process produced the row, and leave them
-  empty for a hand-curated row.
+  table's exact-match granularity -- that needs the candidate-generation and
+  review tooling now provided by the curation pipeline (issues #163-#169), not
+  fabricated rows here. Add a row only when a real trait needs one; fill in
+  the optional provenance columns when a candidate-generation-and-review
+  process produced the row, and leave them empty for a hand-curated row.

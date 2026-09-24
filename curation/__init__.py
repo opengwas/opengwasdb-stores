@@ -23,4 +23,8 @@ committed Release Manifests without changing them:
   the choice stage (issue #167).
 - :mod:`curation.choice` runs a chooser over each shortlist and emits the
   proposals table (issue #167).
+- :mod:`curation.promotion` gates proposals on confidence and runner-up
+  margin, promotes the confident ones to the Canonical Trait Mapping Table
+  with a Reference Resource version bump, and queues the rest for review
+  (issue #169).
 """
