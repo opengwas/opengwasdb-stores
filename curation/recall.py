@@ -75,8 +75,10 @@ from curation.embedding import (
     DEFAULT_EMBEDDING_MIN_SCORE,
     DEFAULT_EMBEDDING_TOP_K,
     PINNED_EMBEDDING_MODEL_ID,
+    EmbeddingChannel,
     EmbeddingError,
     SemanticRetriever,
+    as_embedding_channel,
     resolve_retriever,
 )
 from curation.harvest import (
@@ -297,7 +299,7 @@ def _shortlist_lookup(
     index: OntologyIndex | None,
     shortlists: Mapping[str, Sequence[str]] | None,
     max_size: int,
-    embedding: SemanticRetriever | None = None,
+    embedding: SemanticRetriever | EmbeddingChannel | None = None,
 ) -> dict[str, tuple[str, ...]]:
     """Resolve the blind shortlist for every distinct validation label.
 
@@ -319,13 +321,14 @@ def _shortlist_lookup(
 
     if index is None:  # pragma: no cover - evaluate_recall guards this
         raise RecallError("an index is required to generate shortlists")
+    channel = as_embedding_channel(embedding)
     cache: dict[str, tuple[str, ...]] = {}
     for label in labels:
         key = normalise_label(label)
         if key not in cache:
             cache[key] = tuple(
                 candidate.ontology_id
-                for candidate in generate_shortlist(label, index, max_size, embedding)
+                for candidate in generate_shortlist(label, index, max_size, channel)
             )
         generated[label] = cache[key]
     return generated
@@ -336,7 +339,7 @@ def evaluate_recall(
     index: OntologyIndex | None = None,
     shortlists: Mapping[str, Sequence[str]] | None = None,
     sizes: Sequence[int] = DEFAULT_SIZES,
-    embedding: SemanticRetriever | None = None,
+    embedding: SemanticRetriever | EmbeddingChannel | None = None,
 ) -> RecallResult:
     """Score retrieval recall for the validation pairs.
 

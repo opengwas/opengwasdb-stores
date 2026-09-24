@@ -646,6 +646,103 @@ class SemanticRetriever:
         )
 
 
+class EmbeddingChannel:
+    """Run-scoped gate around a :class:`SemanticRetriever`.
+
+    The channel owns two pieces of per-run state that a bare retriever cannot:
+
+    * **Provenance.** :attr:`last_retrieval_ok` records whether the most recent
+      call actually embedded the query. A disabled channel, or one whose
+      embedder failed, reports ``False`` so the caller does not stamp the
+      shortlist row with an embedding model and index build that were never
+      used.
+    * **A circuit breaker.** A connection/endpoint failure
+      (:class:`EmbeddingUnavailableError`) is almost always run-wide, so the
+      first one trips the channel and every later label is served lexical-only
+      without another embed attempt or timeout. Per-query failures that are not
+      connection problems do not trip it.
+    """
+
+    def __init__(self, retriever: SemanticRetriever | None = None) -> None:
+        self._retriever = retriever
+        self._tripped = False
+        self._failure = ""
+        self._last_retrieval_ok = False
+
+    @property
+    def retriever(self) -> SemanticRetriever | None:
+        return self._retriever
+
+    @property
+    def available(self) -> bool:
+        """True while the channel can still attempt a retrieval."""
+        return self._retriever is not None and not self._tripped
+
+    @property
+    def tripped(self) -> bool:
+        """True once an endpoint failure has disabled the channel for the run."""
+        return self._tripped
+
+    @property
+    def failure(self) -> str:
+        """The endpoint failure that tripped the breaker, or ``""``."""
+        return self._failure
+
+    @property
+    def last_retrieval_ok(self) -> bool:
+        """Whether the most recent :meth:`retrieve` embedded its query."""
+        return self._last_retrieval_ok
+
+    @property
+    def model_id(self) -> str:
+        return self._retriever.model_id if self._retriever is not None else ""
+
+    @property
+    def build_id(self) -> str:
+        return self._retriever.build_id if self._retriever is not None else ""
+
+    def trip(self, reason: str) -> None:
+        """Disable the channel for the rest of the run."""
+        self._tripped = True
+        self._failure = reason
+
+    def retrieve(self, label: str) -> list[str]:
+        """Return neighbour ids, or ``[]`` when disabled or failed.
+
+        Sets :attr:`last_retrieval_ok` so a caller can tell a healthy channel
+        that found nothing from one that never ran. A connection/endpoint
+        failure trips the breaker; any other embedding error degrades this
+        query only.
+        """
+        self._last_retrieval_ok = False
+        text = (label or "").strip()
+        if not self.available or not text:
+            return []
+        try:
+            ranked = self._retriever.rank(text)
+        except EmbeddingUnavailableError as exc:
+            self.trip(str(exc))
+            return []
+        except EmbeddingError:
+            return []
+        self._last_retrieval_ok = True
+        return [ontology_id for ontology_id, _ in ranked]
+
+
+def as_embedding_channel(
+    embedding: SemanticRetriever | "EmbeddingChannel" | None,
+) -> EmbeddingChannel | None:
+    """Coerce a retriever (or channel) into a run-scoped channel.
+
+    Passing a bare :class:`SemanticRetriever` wraps it in a fresh channel for a
+    one-shot call. A run that spans many labels should coerce once and pass the
+    channel to every label, so the circuit breaker persists across the run.
+    """
+    if embedding is None or isinstance(embedding, EmbeddingChannel):
+        return embedding
+    return EmbeddingChannel(embedding)
+
+
 def resolve_retriever(
     embedding_index: Path | str | None,
     ontology_release: str,

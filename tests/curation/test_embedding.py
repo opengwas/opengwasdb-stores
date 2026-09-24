@@ -51,6 +51,7 @@ from curation.candidates import (
     embedding_channel,
     format_shortlist_tsv,
     generate_shortlist,
+    generate_shortlists,
     run_channels,
 )
 from curation.embedding import (
@@ -58,6 +59,7 @@ from curation.embedding import (
     HASHING_EMBEDDING_MODEL_ID,
     PINNED_EMBEDDING_MODEL_ID,
     EmbeddedTerm,
+    EmbeddingChannel,
     EmbeddingIndex,
     EmbeddingIndexCorruptError,
     EmbeddingIndexError,
@@ -153,6 +155,18 @@ class BrokenEmbedder:
 
     def embed(self, texts: Sequence[str]) -> list[tuple[float, ...]]:
         raise EmbeddingUnavailableError("hosted embedder is down")
+
+
+class CountingFailingEmbedder:
+    """An endpoint that fails every call and counts how often it was tried."""
+
+    def __init__(self, model_id: str = FIXTURE_MODEL_ID) -> None:
+        self.model_id = model_id
+        self.calls = 0
+
+    def embed(self, texts: Sequence[str]) -> list[tuple[float, ...]]:
+        self.calls += 1
+        raise EmbeddingUnavailableError("endpoint down")
 
 
 def fixture_ontology_index(release: str = PINNED_ONTOLOGY_RELEASE):
@@ -525,6 +539,82 @@ class TestLexicalOnlyUnchanged(unittest.TestCase):
         self.assertEqual(header, list(candidates.SHORTLIST_COLUMNS))
         self.assertEqual(rows[0]["embedding_model"], FIXTURE_MODEL_ID)
         self.assertEqual(rows[0]["embedding_index_build"], candidate.embedding_index_build)
+
+
+class TestProvenanceAndCircuitBreaker(unittest.TestCase):
+    """Degraded channels claim no provenance and stop after an endpoint failure."""
+
+    def setUp(self) -> None:
+        self.ontology_index = fixture_ontology_index()
+
+    def test_degraded_rows_do_not_claim_semantic_provenance(self) -> None:
+        retriever = SemanticRetriever(
+            index=fixture_semantic_index(), embedder=BrokenEmbedder(), top_k=5
+        )
+        rows = generate_shortlist(
+            "Body mass index", self.ontology_index, embedding=retriever
+        )
+        self.assertTrue(rows)
+        self.assertTrue(all(row.embedding_model == "" for row in rows))
+        self.assertTrue(all(row.embedding_index_build == "" for row in rows))
+        self.assertFalse(any(CHANNEL_EMBEDDING in row.channels for row in rows))
+        _, tsv_rows = parse_tsv(format_shortlist_tsv(rows))
+        self.assertTrue(all(row["embedding_model"] == "" for row in tsv_rows))
+        self.assertTrue(all(row["embedding_index_build"] == "" for row in tsv_rows))
+
+    def test_healthy_channel_records_provenance_even_without_neighbours(self) -> None:
+        # The query embeds successfully but is orthogonal to every term: the
+        # channel ran, so provenance is recorded even though it added nothing.
+        retriever = SemanticRetriever(
+            index=fixture_semantic_index(),
+            embedder=StubEmbedder({}, model_id=FIXTURE_MODEL_ID),
+            top_k=5,
+        )
+        rows = generate_shortlist(
+            "Body mass index", self.ontology_index, embedding=retriever
+        )
+        self.assertTrue(rows)
+        self.assertTrue(
+            all(row.embedding_model == FIXTURE_MODEL_ID for row in rows)
+        )
+        self.assertTrue(all(row.embedding_index_build for row in rows))
+        self.assertFalse(any(CHANNEL_EMBEDDING in row.channels for row in rows))
+
+    def test_circuit_breaker_disables_later_labels(self) -> None:
+        embedder = CountingFailingEmbedder()
+        channel = EmbeddingChannel(
+            SemanticRetriever(
+                index=fixture_semantic_index(), embedder=embedder, top_k=5
+            )
+        )
+        rows = generate_shortlists(
+            [
+                "Body mass index",
+                "systolic blood pressure",
+                "cardio-metabolic phenotype",
+            ],
+            self.ontology_index,
+            embedding=channel,
+        )
+        self.assertTrue(channel.tripped)
+        self.assertFalse(channel.available)
+        self.assertIn("endpoint down", channel.failure)
+        # The endpoint was tried once, not once per label.
+        self.assertEqual(embedder.calls, 1)
+        self.assertTrue(rows)
+        self.assertTrue(all(row.embedding_model == "" for row in rows))
+
+    def test_tripped_channel_skips_the_embedder(self) -> None:
+        embedder = CountingFailingEmbedder()
+        channel = EmbeddingChannel(
+            SemanticRetriever(
+                index=fixture_semantic_index(), embedder=embedder, top_k=5
+            )
+        )
+        self.assertEqual(channel.retrieve("first"), [])
+        self.assertTrue(channel.tripped)
+        self.assertEqual(channel.retrieve("second"), [])
+        self.assertEqual(embedder.calls, 1)
 
 
 class TestRetrieverResolution(unittest.TestCase):

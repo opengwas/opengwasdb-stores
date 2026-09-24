@@ -72,8 +72,10 @@ from curation.embedding import (
     DEFAULT_EMBEDDING_MIN_SCORE,
     DEFAULT_EMBEDDING_TOP_K,
     PINNED_EMBEDDING_MODEL_ID,
+    EmbeddingChannel,
     EmbeddingError,
     SemanticRetriever,
+    as_embedding_channel,
     resolve_retriever,
 )
 from curation.ontology import (
@@ -268,7 +270,7 @@ def synonym_channel(label: str, index: OntologyIndex) -> list[str]:
 
 def embedding_channel(
     label: str,
-    retriever: SemanticRetriever | None,
+    embedding: SemanticRetriever | EmbeddingChannel | None,
 ) -> list[str]:
     """Ontology ids nearest to the trait label in the embedding index.
 
@@ -278,14 +280,20 @@ def embedding_channel(
     it. When no retriever is supplied, or the retriever cannot serve the query,
     the channel contributes nothing rather than failing candidate generation --
     the clean-degradation contract of issue #166.
+
+    A run-scoped :class:`~curation.embedding.EmbeddingChannel` is used when
+    supplied; it carries the circuit breaker, so a connection failure on one
+    label disables the channel for the rest of the run.
     """
-    if retriever is None:
+    if embedding is None:
         return []
+    if isinstance(embedding, EmbeddingChannel):
+        return embedding.retrieve(label)
     text = (label or "").strip()
     if not text:
         return []
     try:
-        ranked = retriever.rank(text)
+        ranked = embedding.rank(text)
     except EmbeddingError:
         # An embedder that is unreachable mid-run degrades to lexical-only.
         return []
@@ -295,7 +303,7 @@ def embedding_channel(
 def run_channels(
     label: str,
     index: OntologyIndex,
-    embedding: SemanticRetriever | None = None,
+    embedding: SemanticRetriever | EmbeddingChannel | None = None,
 ) -> dict[str, list[str]]:
     """Run every channel for one label, returning ``{channel: [ontology_id]}``.
 
@@ -364,15 +372,33 @@ def generate_shortlist(
     trait_label: str,
     index: OntologyIndex,
     shortlist_size: int = DEFAULT_SHORTLIST_SIZE,
-    embedding: SemanticRetriever | None = None,
+    embedding: SemanticRetriever | EmbeddingChannel | None = None,
+) -> list[Candidate]:
+    """Return the top ``shortlist_size`` candidates for one trait label.
+
+    A bare retriever is wrapped in a one-shot channel; a run spanning many
+    labels should pass a shared :class:`~curation.embedding.EmbeddingChannel`
+    (as :func:`generate_shortlists` does) so the circuit breaker persists.
+    """
+    return _generate_shortlist(
+        trait_label, index, shortlist_size, as_embedding_channel(embedding)
+    )
+
+
+def _generate_shortlist(
+    trait_label: str,
+    index: OntologyIndex,
+    shortlist_size: int,
+    embedding: EmbeddingChannel | None,
 ) -> list[Candidate]:
     """Return the top ``shortlist_size`` candidates for one trait label.
 
     The channels are unioned and deduplicated by ontology id, ranked by RRF,
     and truncated. An unmatched label returns ``[]``. When an embedding
-    retriever is supplied, its channel contributes candidates and its model and
-    index build are recorded on every returned candidate; when it is ``None``
-    (or fails), the shortlist is the lexical-only one.
+    channel is supplied, its channel contributes candidates and, only if
+    semantic retrieval actually ran for this label, its model and index build
+    are recorded on the returned candidates; a disabled, tripped, or failed
+    channel leaves the provenance empty and the shortlist lexical-only.
     """
     if shortlist_size < 1:
         raise CandidateGenerationError(
@@ -390,8 +416,11 @@ def generate_shortlist(
     if not ranks:
         return []
 
-    embedding_model = embedding.model_id if embedding is not None else ""
-    embedding_index_build = embedding.build_id if embedding is not None else ""
+    # Provenance is claimed only when the semantic channel actually embedded
+    # this label; a degraded or disabled channel must not look like a success.
+    embedding_ran = embedding is not None and embedding.last_retrieval_ok
+    embedding_model = embedding.model_id if embedding_ran else ""
+    embedding_index_build = embedding.build_id if embedding_ran else ""
 
     by_id = index.by_id()
     ranked: list[tuple[float, str, dict[str, int]]] = [
@@ -435,16 +464,21 @@ def generate_shortlists(
     trait_labels: Iterable[str],
     index: OntologyIndex,
     shortlist_size: int = DEFAULT_SHORTLIST_SIZE,
-    embedding: SemanticRetriever | None = None,
+    embedding: SemanticRetriever | EmbeddingChannel | None = None,
 ) -> list[Candidate]:
     """Generate shortlists for every label, concatenated in input order.
 
     A label with no match contributes no rows rather than a fabricated one; the
     empty shortlist is visible as the label's absence from the output.
+
+    A bare retriever is coerced to one run-scoped channel here, so a
+    connection failure on an early label disables the semantic channel for
+    every later label instead of retrying it per label.
     """
+    channel = as_embedding_channel(embedding)
     rows: list[Candidate] = []
     for label in trait_labels:
-        rows.extend(generate_shortlist(label, index, shortlist_size, embedding))
+        rows.extend(_generate_shortlist(label, index, shortlist_size, channel))
     return rows
 
 
@@ -601,8 +635,8 @@ def build_parser() -> argparse.ArgumentParser:
 def resolve_embedding(
     args: argparse.Namespace,
     ontology_release: str,
-) -> SemanticRetriever | None:
-    """Resolve the semantic retriever from parsed CLI args, or ``None``.
+) -> EmbeddingChannel | None:
+    """Resolve the run-scoped semantic channel from parsed CLI args, or ``None``.
 
     The channel is enabled by ``--enable-embedding`` or by supplying
     ``--embedding-index``. Any unavailability is reported on stderr as a
@@ -612,7 +646,7 @@ def resolve_embedding(
     if not (getattr(args, "enable_embedding", False) or args.embedding_index):
         return None
     try:
-        return resolve_retriever(
+        retriever = resolve_retriever(
             args.embedding_index,
             ontology_release,
             model_id=args.embedding_model,
@@ -627,6 +661,7 @@ def resolve_embedding(
             file=sys.stderr,
         )
         return None
+    return EmbeddingChannel(retriever)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -655,6 +690,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.shortlist_size,
         embedding,
     )
+    if embedding is not None and embedding.tripped:
+        print(
+            f"candidates: warning: semantic channel disabled after "
+            f"endpoint failure: {embedding.failure}",
+            file=sys.stderr,
+        )
     text = format_shortlist_tsv(candidates)
 
     if args.output:

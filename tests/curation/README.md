@@ -104,13 +104,17 @@ or model is unavailable, so no run that worked before stops working.
 3. **Attribution**: a semantic candidate records the `embedding` channel and
    its rank like any other channel, and the shortlist row records the pinned
    model id and the content-addressed index build alongside the ontology
-   release.
+   release. Provenance is recorded only when semantic retrieval actually ran
+   for the label; a disabled or degraded channel leaves it empty.
 4. **Pins**: the embedding index round-trips, rejects an unknown format
    version, and records its model, release, and build metadata; the build id
-   is content-addressed, so a changed vector changes it.
+   is content-addressed, so a changed vector changes it. Loading also rejects
+   an artifact whose declared dimension or build id disagrees with its vectors.
 5. **Degradation**: no retriever leaves the shortlist lexical-only; a missing,
    stale, release-mismatched, or model-mismatched index, and an embedder that
-   fails at query time, all contribute nothing rather than raising.
+   fails at query time, all contribute nothing rather than raising. An
+   endpoint/connection failure also trips a run-level circuit breaker, so the
+   channel is not retried (and does not time out) for every later label.
 6. **CLI surface**: `--enable-embedding` / `--embedding-index` enable the
    channel, and an unavailable index prints a warning and leaves the run
    lexical-only with exit 0.
