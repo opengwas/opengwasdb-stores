@@ -9,4 +9,8 @@ committed Release Manifests without changing them:
   retrieval index candidate generation resolves against (issue #164).
 - :mod:`curation.candidates` turns each queued Trait label into a
   multi-channel lexical shortlist of plausible ontology terms (issue #164).
+- :mod:`curation.harvest` collects the source-provided Trait Ontology Mapping
+  pairs as a ground-truth validation set (issue #165).
+- :mod:`curation.recall` scores retrieval against that validation set and
+  reports stratified recall with the ukb-b stratum-gap caveat (issue #165).
 """

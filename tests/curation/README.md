@@ -5,7 +5,10 @@ curation pipeline (issue #161):
 
 - `test_gap_scan.py` — the unmapped Trait work queue (issue #163);
 - `test_candidates.py` — pinned ontology release and lexical candidate
-  generation (issue #164).
+  generation (issue #164);
+- `test_harvest.py` — the source-provided validation set (issue #165);
+- `test_recall.py` — stratified retrieval recall and the ukb-b stratum gap
+  (issue #165).
 
 ## Gap-scan suite (`curation.gap_scan`, issue #163)
 
@@ -76,11 +79,67 @@ fabricated candidate can reach a Release Manifest.
 The suite resolves against a tiny in-memory fixture OBO document, never a real
 release, so it is hermetic.
 
+## Harvest suite (`curation.harvest`, issue #165)
+
+### The contract this suite exists for
+
+Rows whose `trait_ontology_mapping_method` is `source_provided` carry the
+Source Collection's own ontology term for a Trait, making them ground truth for
+retrieval. The harvest must turn an explicit set of committed Manifests into a
+correct validation set, without modifying a Manifest, a generator, or a bundle.
+
+### Contracts and invariants covered
+
+1. **Selection**: only `source_provided` rows are harvested; `unmapped` and
+   `canonical_table_lookup` rows are excluded.
+2. **Uniqueness**: pairs are unique on
+   `(trait_label, ontology_id, ontology_label, stratum)` and Store Families are
+   unioned across occurrences.
+3. **Stratum**: categorisation follows the documented precedence — MONDO is
+   disease, OBA is measurement, an analyte/measurement Store Family is a
+   measurement, a measurement label is a measurement, a disease family is
+   disease, else `other`.
+4. **Obsolete**: a term found in the pinned index reports its own obsolete
+   flag; an absent term is never assumed obsolete and only the explicit
+   `obsolete_` source-label convention flags it.
+5. **CLI surface**: manifest files and bundle directories are accepted; output
+   goes to stdout or `--output`; the header is always present.
+
+## Recall suite (`curation.recall`, issue #165)
+
+### The contract this suite exists for
+
+Retrieval must be scored against the ground truth *blind* — shortlists are
+generated from the Trait label alone, never from the known ontology id. The
+report must break recall down by stratum and shortlist size, exclude obsolete
+terms, enumerate misses, and always state the ukb-b stratum-gap caveat.
+
+### Contracts and invariants covered
+
+1. **Blind scoring**: a pair whose label matches nothing does not retrieve its
+   own target id, even when that id is in the index.
+2. **Sizes**: a correct id inside the shortlist is a hit at every size at or
+   above its rank, and a miss below it; recall is computed per stratum and in
+   aggregate.
+3. **Obsolete**: obsolete pairs are excluded from scoring and counted.
+4. **Misses**: misses are enumerated per size with the rank at which the id was
+   found, so near-misses are inspectable.
+5. **Disclaimer**: every format (text, markdown, tsv) states plainly that no
+   validation stratum matches the ukb-b label distribution of disease,
+   procedure, and administrative free-text.
+6. **CLI surface**: the command scores against an index or pre-generated
+   shortlists and writes the report to stdout or `--output`.
+
+Both suites resolve against tiny in-memory fixtures, never a real release, so
+they are hermetic.
+
 ## Running the suites
 
 ```sh
 pixi run python tests/curation/test_gap_scan.py
 pixi run python tests/curation/test_candidates.py
+pixi run python tests/curation/test_harvest.py
+pixi run python tests/curation/test_recall.py
 # or through the repo orchestrator
 pixi run test-python
 ```

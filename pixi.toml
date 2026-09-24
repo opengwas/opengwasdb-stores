@@ -274,8 +274,13 @@ ld-acquire = { cmd = "python3 resources/scripts/ld-panel/acquire_hgdp1kgp.py" }
 ld-materialize = { cmd = "python3 resources/scripts/ld-panel/materialize_reference.py" }
 
 [feature.curation.tasks]
-# Curation stages (issues #161/#164). Run in the isolated curation environment:
+# Curation stages (issues #161/#164/#165). Run in the isolated curation
+# environment:
 #   pixi run -e curation ontology-index --obo <efo.obo> --output .cache/curation/...
 #   pixi run -e curation lexical-candidates --work-queue <queue.tsv> --index <index.json> --output <shortlist.tsv>
+#   pixi run -e curation harvest <manifest>... --index <index.json> --output <validation.tsv>
+#   pixi run -e curation recall --validation <validation.tsv> --index <index.json>
 ontology-index = { cmd = "python3 -m curation.ontology" }
 lexical-candidates = { cmd = "python3 -m curation.candidates" }
+harvest = { cmd = "python3 -m curation.harvest" }
+recall = { cmd = "python3 -m curation.recall" }
