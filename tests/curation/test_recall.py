@@ -43,6 +43,12 @@ from curation.harvest import (
     STRATUM_OTHER,
 )
 from curation.ontology import build_index_from_obo, write_index
+from curation.embedding import (
+    HASHING_EMBEDDING_MODEL_ID,
+    HashingEmbedder,
+    build_embedding_index,
+    write_embedding_index,
+)
 from curation.recall import (
     STRATUM_GAP_DISCLAIMER,
     RecallError,
@@ -66,6 +72,11 @@ ontology: efo
 id: EFO:0004340
 name: Body mass index
 def: "A measurement of body mass index." []
+
+[Term]
+id: EFO:0000999
+name: glucose measurement
+def: "A measurement of quercetin bioavailability in plasma." []
 
 [Term]
 id: EFO:0004518
@@ -451,6 +462,99 @@ class TestSemanticDelta(unittest.TestCase):
         # 11 columns, one row per stratum and aggregate per size.
         self.assertTrue(all(len(row) == len(recall.MISS_COLUMNS) for row in delta_rows))
         self.assertTrue(any(row[5] == "+0.500000" for row in delta_rows))
+
+
+class TestSemanticDeltaReport(unittest.TestCase):
+    """End-to-end: a harvested validation fixture scored with the semantic
+    channel enabled prints the per-stratum delta clearly."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.td = Path(self.temp_dir.name)
+        self.ontology_index = _fixture_index()
+        self.index_path = self.td / "index.json"
+        write_index(self.ontology_index, self.index_path)
+        self.embedding_path = self.td / "embedding.json"
+        write_embedding_index(
+            build_embedding_index(
+                self.ontology_index,
+                HashingEmbedder(model_id=HASHING_EMBEDDING_MODEL_ID),
+            ),
+            self.embedding_path,
+        )
+        # Harvest-shaped validation rows: the lexical baseline cannot reach
+        # EFO:0000999 from "quercetin bioavailability" because the shared
+        # tokens live only in the term's definition, while the semantic channel
+        # indexes label, synonyms, and definition together.
+        self.validation_path = self.td / "validation.tsv"
+        write_tsv(
+            self.validation_path,
+            VALIDATION_COLUMNS,
+            [
+                {"trait_label": "quercetin bioavailability", "ontology_id": "EFO:0000999",
+                 "ontology_label": "glucose measurement",
+                 "stratum": STRATUM_ANALYTE_MEASUREMENT,
+                 "store_families": "metabolome", "is_obsolete": "false"},
+                {"trait_label": "Body mass index", "ontology_id": "EFO:0004340",
+                 "ontology_label": "Body mass index",
+                 "stratum": STRATUM_DISEASE,
+                 "store_families": "gwas", "is_obsolete": "false"},
+            ],
+        )
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def run_cli(self, argv: list[str]) -> tuple[int, str, str]:
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            code = recall.main(argv)
+        return code, stdout.getvalue(), stderr.getvalue()
+
+    def test_text_report_prints_per_stratum_delta(self) -> None:
+        code, out, err = self.run_cli(
+            [
+                "--validation", str(self.validation_path),
+                "--index", str(self.index_path),
+                "--enable-embedding",
+                "--embedding-index", str(self.embedding_path),
+                "--sizes", "1,5",
+                "--format", "text",
+            ]
+        )
+        self.assertEqual(code, 0, err)
+        self.assertIn("Semantic channel delta (semantic - lexical)", out)
+        delta_section = out.split("Semantic channel delta (semantic - lexical)", 1)[1]
+
+        analyte_line = next(
+            line for line in delta_section.splitlines()
+            if line.startswith(STRATUM_ANALYTE_MEASUREMENT)
+        )
+        disease_line = next(
+            line for line in delta_section.splitlines()
+            if line.startswith(STRATUM_DISEASE)
+        )
+        # The semantic channel adds the analyte pair the lexical baseline missed.
+        self.assertIn("+100.0%", analyte_line)
+        # The disease pair was already retrieved lexically: no change.
+        self.assertIn("+0.0%", disease_line)
+
+    def test_markdown_report_prints_delta_table(self) -> None:
+        code, out, err = self.run_cli(
+            [
+                "--validation", str(self.validation_path),
+                "--index", str(self.index_path),
+                "--enable-embedding",
+                "--embedding-index", str(self.embedding_path),
+                "--sizes", "1,5",
+                "--format", "markdown",
+            ]
+        )
+        self.assertEqual(code, 0, err)
+        self.assertIn("## Semantic channel delta (semantic - lexical)", out)
+        self.assertIn(
+            f"| {STRATUM_ANALYTE_MEASUREMENT} | 1 | +100.0% | +100.0% |", out
+        )
 
 
 class TestCli(unittest.TestCase):

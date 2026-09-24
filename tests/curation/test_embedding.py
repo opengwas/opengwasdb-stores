@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import sys
 import tempfile
 import unittest
@@ -58,6 +59,7 @@ from curation.embedding import (
     PINNED_EMBEDDING_MODEL_ID,
     EmbeddedTerm,
     EmbeddingIndex,
+    EmbeddingIndexCorruptError,
     EmbeddingIndexError,
     EmbeddingUnavailableError,
     HashingEmbedder,
@@ -390,6 +392,43 @@ class TestEmbeddingIndexArtifact(unittest.TestCase):
             encoding="utf-8",
         )
         with self.assertRaises(EmbeddingIndexError):
+            load_embedding_index(artifact)
+
+    def test_corrupted_dimension_is_rejected(self) -> None:
+        built = build_embedding_index(fixture_ontology_index(), RecordingEmbedder())
+        data = built.to_dict()
+        data["dimension"] = built.dimension + 1
+        artifact = self.td / "bad-dimension.json"
+        artifact.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaises(EmbeddingIndexCorruptError):
+            load_embedding_index(artifact)
+
+    def test_missing_dimension_is_rejected(self) -> None:
+        built = build_embedding_index(fixture_ontology_index(), RecordingEmbedder())
+        data = built.to_dict()
+        del data["dimension"]
+        artifact = self.td / "no-dimension.json"
+        artifact.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaises(EmbeddingIndexCorruptError):
+            load_embedding_index(artifact)
+
+    def test_edited_vector_with_stale_build_id_is_rejected(self) -> None:
+        built = build_embedding_index(fixture_ontology_index(), RecordingEmbedder())
+        data = built.to_dict()
+        # Tamper with a vector but keep the artifact's original build id.
+        data["terms"][0]["vector"] = [9.0, 9.0]
+        artifact = self.td / "tampered-vector.json"
+        artifact.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaises(EmbeddingIndexCorruptError):
+            load_embedding_index(artifact)
+
+    def test_corrupted_build_id_is_rejected(self) -> None:
+        built = build_embedding_index(fixture_ontology_index(), RecordingEmbedder())
+        data = built.to_dict()
+        data["index_build_id"] = "blake2b:00000000000000000000000000000000"
+        artifact = self.td / "bad-build.json"
+        artifact.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaises(EmbeddingIndexCorruptError):
             load_embedding_index(artifact)
 
     def test_missing_index_raises(self) -> None:

@@ -135,6 +135,16 @@ class EmbeddingIndexError(EmbeddingError):
     """Raised when an embedding index artifact is missing or malformed."""
 
 
+class EmbeddingIndexCorruptError(EmbeddingIndexError):
+    """Raised when an index artifact's metadata disagrees with its vectors.
+
+    The declared ``dimension`` and ``index_build_id`` are a checksum over the
+    stored vectors. When either does not match what the vectors actually
+    compute to, the artifact was truncated, hand-edited, or built by a
+    different writer, and it must not be queried.
+    """
+
+
 class EmbeddingUnavailableError(EmbeddingError):
     """Raised when no embedder can serve the index's pinned model.
 
@@ -421,12 +431,36 @@ class EmbeddingIndex:
             raise EmbeddingIndexError(
                 f"embedding index vectors disagree on dimension: {sorted(dimensions)}"
             )
-        return cls(
+        index = cls(
             model_id=model_id,
             ontology_release=release,
             terms=terms,
             built_at=str(data.get("built_at", "")),
         )
+
+        declared_dimension = data.get("dimension")
+        if isinstance(declared_dimension, bool) or not isinstance(declared_dimension, int):
+            raise EmbeddingIndexCorruptError(
+                "embedding index artifact carries no integer dimension"
+            )
+        if declared_dimension != index.dimension:
+            raise EmbeddingIndexCorruptError(
+                f"embedding index declares dimension {declared_dimension}, but its "
+                f"vectors have dimension {index.dimension}"
+            )
+
+        declared_build_id = data.get("index_build_id")
+        if not isinstance(declared_build_id, str) or not declared_build_id:
+            raise EmbeddingIndexCorruptError(
+                "embedding index artifact carries no index_build_id"
+            )
+        if declared_build_id != index.build_id:
+            raise EmbeddingIndexCorruptError(
+                f"embedding index build id {declared_build_id!r} does not match the "
+                f"content-address of its vectors ({index.build_id!r}); the artifact "
+                "is corrupt or was edited"
+            )
+        return index
 
 
 def _round_vector(vector: Sequence[float]) -> tuple[float, ...]:
