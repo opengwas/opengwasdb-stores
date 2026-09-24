@@ -261,12 +261,16 @@ def _format_number(value: float) -> str:
 
 
 def _serialize_probabilities(probabilities: Mapping[str, float]) -> str:
-    """Serialize a distribution as a deterministic JSON object (as choice does)."""
-    rounded = {
-        ontology_id: round(probability, 6)
-        for ontology_id, probability in probabilities.items()
+    """Serialize a distribution as a deterministic JSON object (as choice does).
+
+    Values are preserved exactly, without rounding, so the chooser's native
+    calibrated distribution is carried into the review queue unmodified.
+    """
+    ordered = {
+        ontology_id: probabilities[ontology_id]
+        for ontology_id in sorted(probabilities)
     }
-    return json.dumps(rounded, sort_keys=True, separators=(",", ":"))
+    return json.dumps(ordered, separators=(",", ":"))
 
 
 def normalize_trait_label(label: str | None) -> str:

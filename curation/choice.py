@@ -123,15 +123,16 @@ def _format_number(value: float) -> str:
 def _serialize_probabilities(probabilities: Mapping[str, float]) -> str:
     """Serialize the distribution as a deterministic JSON object.
 
-    Values are rounded to six decimal places so a subtraction's float residue
-    (``0.30000000000000004``) does not leak into the table, and keys are sorted
-    so the same distribution always renders identically.
+    Original float values are preserved exactly -- no rounding and no
+    truncation -- so a chooser's native calibrated distribution reaches the
+    proposal table unmodified. Keys are sorted so the same distribution always
+    renders identically.
     """
-    rounded = {
-        ontology_id: round(probability, 6)
-        for ontology_id, probability in probabilities.items()
+    ordered = {
+        ontology_id: probabilities[ontology_id]
+        for ontology_id in sorted(probabilities)
     }
-    return json.dumps(rounded, sort_keys=True, separators=(",", ":"))
+    return json.dumps(ordered, separators=(",", ":"))
 
 
 @dataclass(frozen=True)

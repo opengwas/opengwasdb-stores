@@ -25,7 +25,11 @@ REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from curation.choice import build_chooser
+from curation.choice import (
+    PROPOSAL_COLUMNS,
+    build_chooser,
+    build_proposal,
+)
 from curation.chooser import (
     Candidate,
     ChoiceError,
@@ -270,6 +274,32 @@ class TestProbabilityPassThrough(unittest.TestCase):
         chooser = JevChooser(client)
         with self.assertRaises(JevResponseError):
             chooser.choose("label", candidates)
+
+    def test_high_precision_probabilities_reach_proposal_unmodified(self) -> None:
+        # The acceptance criterion is that Jev's native calibrated distribution
+        # is carried into the proposal table without rounding or truncation.
+        candidates = [make_candidate("EFO:1"), make_candidate("EFO:2")]
+        high_precision = 0.123456789123
+        client = FixtureJevClient(
+            {
+                "label": JevResponse(
+                    probabilities={
+                        "EFO:1": high_precision,
+                        "EFO:2": 1.0 - high_precision,
+                    }
+                )
+            }
+        )
+        chooser = JevChooser(client)
+        result = chooser.choose("label", candidates)
+        assert result is not None
+        self.assertEqual(result.probabilities["EFO:1"], high_precision)
+
+        proposal = build_proposal("label", candidates, result)
+        row = dict(zip(PROPOSAL_COLUMNS, proposal.to_row()))
+        serialized = row["probabilities"]
+        self.assertIn("0.123456789123", serialized)
+        self.assertEqual(json.loads(serialized)["EFO:1"], high_precision)
 
 
 class TestCostTracking(unittest.TestCase):
