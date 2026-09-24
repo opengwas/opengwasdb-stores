@@ -178,6 +178,23 @@ snakemake-minimal = ">=9,<10"
 # every semantic step is an `opengwasdb` subcommand (ADR 0023).
 snakemake-minimal = ">=9,<10"
 
+[feature.curation.dependencies]
+# Canonical Trait Mapping Table curation tooling (issues #161/#164).
+#
+# This feature is deliberately kept out of the `main` solve group so retrieval
+# and model-client dependencies can never change what a Manifest Generator or a
+# build resolves. The lexical candidate generation in `curation/` is pure
+# Python standard library and needs none of these; they seed the isolated
+# environment for the stages that follow:
+#   - rapidfuzz: fuzzy lexical scoring available to retrieval as its channels
+#     grow;
+#   - httpx: the hosted-model and embedding clients the choice (#167) and
+#     semantic (#166) stages are built around.
+# Do not add a `store-build` dependency here, and do not add this feature to
+# any environment in `solve-group = "main"`.
+rapidfuzz = ">=3.0"
+httpx = ">=0.27"
+
 # ---------------------------------------------------------------------------
 # Environments
 # ---------------------------------------------------------------------------
@@ -191,6 +208,10 @@ docs = { features = ["r", "reporting"], solve-group = "main" }
 ld-panel = { features = ["python", "ld-panel"], solve-group = "main" }
 dev = { features = ["python", "store-build", "r", "reporting", "ld-panel", "dev"], solve-group = "main" }
 workflow = { features = ["python", "store-build", "workflow"], solve-group = "main" }
+# Curation tooling resolves on its own, outside the `main` solve group, so its
+# retrieval/model-client dependencies cannot perturb a generator or build solve
+# (issue #164). Run it with `pixi run -e curation <task>`.
+curation = { features = ["python", "curation"] }
 
 # ---------------------------------------------------------------------------
 # Tasks
@@ -251,3 +272,10 @@ docs-smoke = { cmd = "quarto render resources/scripts/beta-scale-estimation.qmd 
 [feature.ld-panel.tasks]
 ld-acquire = { cmd = "python3 resources/scripts/ld-panel/acquire_hgdp1kgp.py" }
 ld-materialize = { cmd = "python3 resources/scripts/ld-panel/materialize_reference.py" }
+
+[feature.curation.tasks]
+# Curation stages (issues #161/#164). Run in the isolated curation environment:
+#   pixi run -e curation ontology-index --obo <efo.obo> --output .cache/curation/...
+#   pixi run -e curation lexical-candidates --work-queue <queue.tsv> --index <index.json> --output <shortlist.tsv>
+ontology-index = { cmd = "python3 -m curation.ontology" }
+lexical-candidates = { cmd = "python3 -m curation.candidates" }

@@ -35,6 +35,11 @@ __pycache__/
 .pixi/
 *.egg-info/
 
+# Rebuildable curation artifacts (issue #164): the ontology retrieval index is
+# derived from a pinned ontology release and held outside the tracked tree. It
+# is not a Reference Resource (ADR-0011) and no Build Recipe consumes it.
+.cache/
+
 # Local secrets (e.g. OPENGWAS_JWT for resources/lib/metadata_resolvers/
 # opengwas_api.R's fetch_opengwas_gwasinfo()); never committed.
 .Renviron

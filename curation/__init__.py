@@ -1,7 +1,12 @@
 """Curation tooling for OpenGWASDB Store Releases.
 
 This package holds repository-owned curation stages that operate *over*
-committed Release Manifests without changing them. The first such stage is the
-gap scan (:mod:`curation.gap_scan`), which derives the unmapped Trait work queue
-that feeds Canonical Trait Mapping Table curation.
+committed Release Manifests without changing them:
+
+- :mod:`curation.gap_scan` derives the unmapped Trait work queue that feeds
+  Canonical Trait Mapping Table curation (issue #163).
+- :mod:`curation.ontology` pins the ontology release and builds the rebuildable
+  retrieval index candidate generation resolves against (issue #164).
+- :mod:`curation.candidates` turns each queued Trait label into a
+  multi-channel lexical shortlist of plausible ontology terms (issue #164).
 """

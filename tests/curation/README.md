@@ -1,8 +1,15 @@
-# Gap-scan test suite
+# Curation test suites
 
-Test suite for `curation.gap_scan` (issue #163).
+Hermetic, network-free test suites for the Canonical Trait Mapping Table
+curation pipeline (issue #161):
 
-## The contract this suite exists for
+- `test_gap_scan.py` — the unmapped Trait work queue (issue #163);
+- `test_candidates.py` — pinned ontology release and lexical candidate
+  generation (issue #164).
+
+## Gap-scan suite (`curation.gap_scan`, issue #163)
+
+### The contract this suite exists for
 
 Trait Ontology Mapping is frozen into every Release Manifest's `analyses.tsv`.
 Rows with `trait_ontology_mapping_method = unmapped` are the curation gap. The
@@ -14,7 +21,7 @@ A wrong queue is silently expensive: a mis-normalised label fragments one
 curation candidate into several, an under-count demotes a high-value label, and
 a wrong Store Family attribution sends the review to the wrong place.
 
-## Contracts and invariants covered
+### Contracts and invariants covered
 
 1. **Selection**: only `unmapped` rows are queued; `source_provided` and
    `canonical_table_lookup` rows are excluded.
@@ -33,10 +40,47 @@ a wrong Store Family attribution sends the review to the wrong place.
 7. **CLI surface**: manifest files and bundle directories are accepted; output
    goes to stdout or `--output`; the header is always present.
 
-## Running the suite
+## Candidate-generation suite (`curation.candidates`, issue #164)
+
+### The contract this suite exists for
+
+Candidate generation turns each queued label into a shortlist of plausible
+ontology terms using lexical channels only — no model and no network. It
+resolves against a rebuildable retrieval index derived from a pinned ontology
+release, and every shortlist row carries that release string so a later
+proposal can state what it was resolved against. Retrieval is the ceiling on
+the whole pipeline: a term not retrieved here can never be chosen, and a
+fabricated candidate can reach a Release Manifest.
+
+### Contracts and invariants covered
+
+1. **Channels**: exact, normalised, token-overlap, and synonym/acronym channels
+   each retrieve their intended term.
+2. **Attribution**: a candidate records which channels found it and each
+   channel's rank; candidates found by several channels are deduplicated by
+   ontology id.
+3. **Evidence**: a candidate carries the term's label, definition, parent id,
+   and parent label.
+4. **Pin**: the pinned ontology release travels on every candidate and every
+   output row.
+5. **Bounded shortlist**: the shortlist size is configurable and respected; a
+   label no channel matches yields an empty shortlist, never a fabricated term.
+6. **Obsolete terms**: obsolete terms are flagged in the shortlist rather than
+   silently offered as live terms.
+7. **Index**: the retrieval index round-trips through its rebuildable artifact,
+   rejects an unknown format version, and defaults outside the tracked tree
+   (`.cache/curation/`).
+8. **CLI surface**: the command reads the gap-scan work queue, resolves against
+   the index, and writes the shortlist table to `--output` or stdout.
+
+The suite resolves against a tiny in-memory fixture OBO document, never a real
+release, so it is hermetic.
+
+## Running the suites
 
 ```sh
 pixi run python tests/curation/test_gap_scan.py
+pixi run python tests/curation/test_candidates.py
 # or through the repo orchestrator
 pixi run test-python
 ```
