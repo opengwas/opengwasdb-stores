@@ -64,6 +64,15 @@ from curation.chooser import (
     Chooser,
     validate_choice_result,
 )
+from curation.jev_chooser import (
+    DEFAULT_JEV_MODEL,
+    DEFAULT_MAX_INPUT_BYTES,
+    DEFAULT_MAX_INPUT_TOKENS,
+    MAX_JEV_OPTIONS,
+    FixtureJevClient,
+    HttpJevClient,
+    JevChooser,
+)
 from curation.stub_chooser import StubChooser
 
 PROPOSAL_COLUMNS: tuple[str, ...] = (
@@ -285,14 +294,49 @@ def format_proposals_tsv(proposals: Sequence[Proposal]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def build_chooser(name: str, fixture: Path | str | None) -> Chooser:
-    """Resolve a ``--chooser`` name and optional fixture into a chooser."""
+def build_chooser(
+    name: str,
+    fixture: Path | str | None,
+    *,
+    jev_endpoint: str | None = None,
+    jev_model: str = DEFAULT_JEV_MODEL,
+    jev_api_key: str | None = None,
+    jev_fixture: Path | str | None = None,
+    jev_max_options: int = MAX_JEV_OPTIONS,
+    jev_max_input_bytes: int = DEFAULT_MAX_INPUT_BYTES,
+    jev_max_input_tokens: int = DEFAULT_MAX_INPUT_TOKENS,
+) -> Chooser:
+    """Resolve a ``--chooser`` name and its options into a chooser.
+
+    ``stub`` replays a recorded fixture. ``jev`` uses a hosted HTTP endpoint or,
+    for hermetic offline runs, a recorded Jev fixture via ``jev_fixture``.
+    """
     if name == "stub":
         if fixture is None:
             raise ChoiceError(
                 "--fixture is required when --chooser is 'stub'"
             )
         return StubChooser.from_path(fixture)
+    if name == "jev":
+        if jev_fixture is not None:
+            client = FixtureJevClient.from_path(jev_fixture)
+        elif jev_endpoint:
+            client = HttpJevClient(
+                jev_endpoint, model=jev_model, api_key=jev_api_key
+            )
+        else:
+            raise ChoiceError(
+                "--jev-endpoint or --jev-fixture is required when "
+                "--chooser is 'jev'"
+            )
+        return JevChooser(
+            client,
+            chooser_id="jev",
+            chooser_version=jev_model,
+            max_options=jev_max_options,
+            max_input_bytes=jev_max_input_bytes,
+            max_input_tokens=jev_max_input_tokens,
+        )
     raise ChoiceError(f"unknown chooser: {name!r}")
 
 
@@ -341,6 +385,60 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help="recorded choices for the stub chooser (JSON or TSV)",
     )
+    parser.add_argument(
+        "--jev-endpoint",
+        default=os.environ.get("OPENGWASDB_JEV_ENDPOINT"),
+        metavar="URL",
+        help="hosted Jev decision endpoint (enables --chooser jev)",
+    )
+    parser.add_argument(
+        "--jev-model",
+        default=os.environ.get("OPENGWASDB_JEV_MODEL", DEFAULT_JEV_MODEL),
+        metavar="MODEL",
+        help=f"Jev model id to request (default: {DEFAULT_JEV_MODEL})",
+    )
+    parser.add_argument(
+        "--jev-api-key",
+        default=os.environ.get("OPENGWASDB_JEV_API_KEY"),
+        metavar="KEY",
+        help="bearer token for the hosted Jev endpoint",
+    )
+    parser.add_argument(
+        "--jev-fixture",
+        default=None,
+        metavar="PATH",
+        help="recorded Jev decisions for hermetic offline runs (JSON or TSV)",
+    )
+    parser.add_argument(
+        "--jev-max-options",
+        type=int,
+        default=MAX_JEV_OPTIONS,
+        metavar="N",
+        help=(
+            "maximum Jev enum options (hard cap "
+            f"{MAX_JEV_OPTIONS}; default: {MAX_JEV_OPTIONS})"
+        ),
+    )
+    parser.add_argument(
+        "--jev-max-input-bytes",
+        type=int,
+        default=DEFAULT_MAX_INPUT_BYTES,
+        metavar="N",
+        help=(
+            "Jev input byte budget for the candidate payload "
+            f"(default: {DEFAULT_MAX_INPUT_BYTES})"
+        ),
+    )
+    parser.add_argument(
+        "--jev-max-input-tokens",
+        type=int,
+        default=DEFAULT_MAX_INPUT_TOKENS,
+        metavar="N",
+        help=(
+            "Jev input token budget for the candidate payload "
+            f"(default: {DEFAULT_MAX_INPUT_TOKENS})"
+        ),
+    )
     return parser
 
 
@@ -350,7 +448,17 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         shortlists = read_shortlists(args.shortlists)
-        chooser = build_chooser(args.chooser, args.fixture)
+        chooser = build_chooser(
+            args.chooser,
+            args.fixture,
+            jev_endpoint=args.jev_endpoint,
+            jev_model=args.jev_model,
+            jev_api_key=args.jev_api_key,
+            jev_fixture=args.jev_fixture,
+            jev_max_options=args.jev_max_options,
+            jev_max_input_bytes=args.jev_max_input_bytes,
+            jev_max_input_tokens=args.jev_max_input_tokens,
+        )
         proposals = build_proposals(shortlists, chooser)
     except ChoiceError as exc:
         print(f"choice: error: {exc}", file=sys.stderr)

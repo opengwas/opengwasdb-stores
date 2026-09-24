@@ -15,7 +15,16 @@ curation pipeline (issue #161):
 - `test_choice.py` — the chooser interface, the fixture-backed stub chooser,
   and the proposals table (issue #167);
 - `test_promotion.py` — the confidence/margin gate, the review queue, rejection
-  persistence, and the Reference Resource version bump (issue #169).
+  persistence, and the Reference Resource version bump (issue #169);
+- `test_jev_chooser.py` — the Jev-backed structured-decision chooser: the
+  255-option cap, byte/token budgets, enum-constrained wire payload, unmodified
+  probabilities, and the hosted/fixture clients (issue #168);
+- `test_validate_chooser.py` — choice accuracy conditional on retrieval, the
+  reliability curve, stratified reporting, caveats, and cost tracking
+  (issue #168);
+- `test_e2e_pipeline.py` — the full pipeline round trip from `analyses.tsv` to
+  a promoted Canonical Trait Mapping Table row and the real R resolver
+  (issue #168).
 
 ## Gap-scan suite (`curation.gap_scan`, issue #163)
 
@@ -274,6 +283,67 @@ The suite is hermetic: it runs against temporary fixture tables and invokes
 the real R resolver only against its own fixture, so it never touches the real
 curated data.
 
+## Jev chooser, validation, and end-to-end suite (`curation.jev_chooser`,
+`curation.validate_chooser`, issue #168)
+
+### The contract these suites exist for
+
+`curation.stub_chooser` proves the choice stage can be wired together; the Jev
+chooser is the live implementation, and the validation runner is how its
+accuracy is measured. The Jev chooser must be structurally incapable of
+proposing a term outside the shortlist: its request exposes the shortlist as a
+TypeSafe JSON enum, so a conforming model can only return one of those ids. It
+also enforces Jev's hard limits -- 255 enum options and an input byte/token
+budget -- at configuration time, before a request is sent.
+
+Choice accuracy must be measured *conditional on retrieval*. Folding retrieval
+misses into the chooser's score would blame the chooser for a term candidate
+generation never found, so the validation runner excludes those pairs and
+counts them separately.
+
+### Contracts and invariants covered
+
+1. **Option cap**: a shortlist larger than `MAX_JEV_OPTIONS` (255) raises
+   `JevConfigurationError` before any client call; exactly 255 is accepted.
+2. **Budgets**: a payload over `max_input_bytes` or the estimated
+   `max_input_tokens` raises at configuration time with an actionable message.
+3. **Enum payload**: the request's response schema exposes exactly the
+   shortlist's ontology ids as the enum (and as the probability property keys),
+   so the model cannot invent a term.
+4. **Unmodified probabilities**: the calibrated distribution reaches
+   `ChoiceResult` unchanged; the selection is the model's explicit choice or
+   the argmax (shortlist order breaks ties), and the base class rejects a
+   selection that contradicts it.
+5. **Clients**: the hosted `HttpJevClient` is exercised through an injected
+   fake transport (never a socket) and the `FixtureJevClient` replays recorded
+   decisions from a mapping, JSON, or TSV fixture; an unrecorded label fails
+   loudly.
+6. **Cost**: a response that reports `cost_usd` is recorded per label, and the
+   chooser exposes the per-label records and total spend.
+7. **Conditional accuracy**: pairs whose correct term is not in the shortlist
+   are excluded from the chooser's score and counted as retrieval misses;
+   accuracy is reported per stratum (analyte measurement vs disease, plus
+   `other`) and in aggregate.
+8. **Reliability curve**: reported probabilities are binned against observed
+   accuracy, including empty bins.
+9. **Caveats and recommendation**: the report states the analyte-measurement
+   dominance and whether the disease stratum is large enough to be evidence,
+   and recommends a promotion confidence threshold and runner-up margin from
+   the observed curve.
+10. **Explicit live runs**: a hosted Jev validation requires `--live`; the
+    harness never opens a socket otherwise, and it is not registered as a CI
+    suite.
+11. **End-to-end round trip**: `analyses.tsv` -> `gap_scan` -> `candidates` ->
+    `choice` (stub) -> `promotion` produces a Canonical Trait Mapping Table row
+    that the real R `resolve_trait_ontology_mapping()` resolves with
+    `resolution_status = "resolved"`,
+    `trait_ontology_mapping_method = "canonical_table_lookup"`, and the correct
+    ontology id and label.
+
+All three suites are hermetic: tiny in-memory OBO/index fixtures, the fixture
+choosers, and (for the round trip) the repository's own R resolver against its
+own temporary table. Nothing opens a socket.
+
 ## Running the suites
 
 ```sh
@@ -284,6 +354,9 @@ pixi run python tests/curation/test_harvest.py
 pixi run python tests/curation/test_recall.py
 pixi run python tests/curation/test_choice.py
 pixi run python tests/curation/test_promotion.py
+pixi run python tests/curation/test_jev_chooser.py
+pixi run python tests/curation/test_validate_chooser.py
+pixi run python tests/curation/test_e2e_pipeline.py
 # or through the repo orchestrator
 pixi run test-python
 ```
@@ -310,3 +383,26 @@ The `local-hashing-v1` model is the offline embedder; a hosted model such as
 the pinned `all-MiniLM-L6-v2` needs `--embedding-endpoint` (or
 `OPENGWASDB_EMBEDDING_ENDPOINT`). An unavailable channel prints a warning and
 the report stays lexical-only.
+
+To validate a chooser's choice accuracy conditional on retrieval (issue #168):
+
+```sh
+# offline: replay a fixture chooser (this is what CI never runs)
+pixi run -e curation validate-chooser \
+    --validation <validation.tsv> \
+    --shortlists <shortlist.tsv> \
+    --chooser stub --fixture <fixture.json>
+
+# live: explicitly opt in to the hosted Jev service
+pixi run -e curation validate-chooser \
+    --validation <validation.tsv> \
+    --shortlists <shortlist.tsv> \
+    --chooser jev --jev-endpoint "$OPENGWASDB_JEV_ENDPOINT" --live
+```
+
+The validation set is the harvest of `source_provided` rows from
+`gwas-ssf-ragged` (and hybrid) manifests; the shortlists are the candidate
+tables for those labels. The report separates retrieval misses from choice
+errors, bins reported probability against observed accuracy, and recommends a
+promotion confidence and runner-up margin threshold. `--live` is required for a
+hosted endpoint so the harness never opens a socket by accident.

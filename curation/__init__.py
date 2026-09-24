@@ -19,12 +19,18 @@ committed Release Manifests without changing them:
   semantic channel's delta over the lexical-only baseline (issues #165/#166).
 - :mod:`curation.chooser` defines the chooser interface and its shortlist
   membership rule (issue #167).
+- :mod:`curation.jev_chooser` implements a Jev-backed structured-decision
+  chooser with the 255-option cap, input byte/token budgets, and both a hosted
+  HTTP client and an injectable fixture client (issue #168).
 - :mod:`curation.stub_chooser` replays recorded choices for hermetic testing of
   the choice stage (issue #167).
 - :mod:`curation.choice` runs a chooser over each shortlist and emits the
-  proposals table (issue #167).
+  proposals table (issue #167), registering both the stub and Jev choosers.
 - :mod:`curation.promotion` gates proposals on confidence and runner-up
   margin, promotes the confident ones to the Canonical Trait Mapping Table
   with a Reference Resource version bump, and queues the rest for review
   (issue #169).
+- :mod:`curation.validate_chooser` scores a chooser against the held-out
+  validation set, computing choice accuracy conditional on retrieval and a
+  probability reliability curve (issue #168).
 """
