@@ -5,6 +5,7 @@ build:
   command: build-hybrid
   options:
     variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz
+    n-workers: 32
     source-reader-capability: opengwasdb.gwas-ssf
     source-assembly: hg38
 post:

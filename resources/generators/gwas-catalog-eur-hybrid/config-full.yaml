@@ -69,6 +69,21 @@ build:
     # autosomal rows resolve at 80.27% against this axis versus 78.11% against
     # the panel it replaces.
     variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz
+    # Pass 2 routes every association of every study, and forks only when this is
+    # > 1 -- the CLI default is 1, which is a single core on a 224-core host. A
+    # Dense build can afford the serial default because it reads only panel sites;
+    # a Hybrid build must read every row to route off-panel variants into the
+    # Ragged Overflow, so leaving it unset cost OGS-00011 ~159 s/Analysis and a ~6
+    # day projection (151 of 3,262 Analyses in 6h40m at 100% of one core, against
+    # OGS-00010's 19 s/Analysis).
+    #
+    # 32 rather than 64 is the issue #154 measurement: throughput is flat above 8
+    # workers (0.0277 / 0.0280 / 0.0273 analyses/s at 8 / 32 / 64), and at 64 the
+    # ancestry reference is re-read 53x against an allowed 1-4x -- a fork-sharing
+    # defect, not a speedup. 32 gives the best measured throughput with sharing at
+    # 2.1x, inside tolerance. #154 also recorded PSS over its self-imposed 68.7 GB
+    # budget at 32 and 64; that budget is not binding on this host (1,006 GB RAM).
+    n-workers: 32
     source-reader-capability: opengwasdb.gwas-ssf
     source-assembly: hg38
   post:
