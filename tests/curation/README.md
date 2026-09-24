@@ -10,7 +10,9 @@ curation pipeline (issue #161):
 - `test_recall.py` — stratified retrieval recall and the ukb-b stratum gap
   (issue #165);
 - `test_choice.py` — the chooser interface, the fixture-backed stub chooser,
-  and the proposals table (issue #167).
+  and the proposals table (issue #167);
+- `test_promotion.py` — the confidence/margin gate, the review queue, rejection
+  persistence, and the Reference Resource version bump (issue #169).
 
 ## Gap-scan suite (`curation.gap_scan`, issue #163)
 
@@ -168,6 +170,48 @@ The suite is hermetic: the only chooser exercised is the fixture-backed
 6. **CLI surface**: the command reads a shortlist, runs the stub chooser from a
    fixture, and writes the table to `--output` or stdout.
 
+## Promotion suite (`curation.promotion`, issue #169)
+
+### The contract this suite exists for
+
+The promotion stage is the only place a proposal becomes a committed Canonical
+Trait Mapping Table row, and it must never do so on evidence too weak for a
+human to have skipped. A proposal is auto-accepted only when *both* its
+confidence and its runner-up margin clear configurable thresholds; everything
+else goes to a review queue a curator works from. A previously rejected
+`(trait_label, ontology_id)` pair is suppressed on every later run, and a new
+promotion bumps the Reference Resource's integer `version`.
+
+### Contracts and invariants covered
+
+1. **Gating**: eligibility is an inclusive AND over `confidence` and
+   `runner_up_margin`; a high-confidence winner over a near-tie is queued, not
+   promoted.
+2. **Promotion**: eligible rows are appended to `mapping.tsv` with the issue
+   #162 provenance columns, `review_status = auto_accepted`, and an ISO
+   `reviewed_at`; the three resolver lookup columns are first.
+3. **Review queue**: sub-threshold proposals carry the proposal, their full
+   candidate shortlist and evidence as JSON, and empty `review_decision`,
+   `override_ontology_id`, `override_ontology_label`, `curator_notes`,
+   `curator`, and `curated_at` columns.
+4. **Rejections**: a rejection registry (or a reviewed queue whose decision is
+   `reject`/`amend`) suppresses the pair; the registry is read, never
+   rewritten, and suppression persists across runs.
+5. **Version bump**: promoting at least one new row increments the integer
+   `version` in `resource.yaml` by exactly one; a re-run that promotes nothing
+   leaves both the table and the version untouched.
+6. **Strict boundaries**: the only files promotion writes are the Reference
+   Resource directory's `mapping.tsv`/`resource.yaml` and the review queue
+   file; no Release Manifest, bundle, or store is modified.
+7. **Resolver**: promoted rows resolve through
+   `resolve_trait_ontology_mapping()` as `canonical_table_lookup`.
+8. **CLI surface**: the command reads the proposals table, applies the
+   thresholds, and writes the two outputs.
+
+The suite is hermetic: it runs against temporary fixture tables and invokes
+the real R resolver only against its own fixture, so it never touches the real
+curated data.
+
 ## Running the suites
 
 ```sh
@@ -176,6 +220,7 @@ pixi run python tests/curation/test_candidates.py
 pixi run python tests/curation/test_harvest.py
 pixi run python tests/curation/test_recall.py
 pixi run python tests/curation/test_choice.py
+pixi run python tests/curation/test_promotion.py
 # or through the repo orchestrator
 pixi run test-python
 ```

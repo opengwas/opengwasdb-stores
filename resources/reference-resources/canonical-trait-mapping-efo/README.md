@@ -59,11 +59,31 @@ time of writing). `opengwas-gwas-vcf-dense` (ukb-b)'s ~2,500 free-text UK
 Biobank field descriptions (e.g. `"Operative procedures - secondary OPCS:
 Z84.6 Knee joint"`) are exactly the opposite case: too numerous and too messy
 for hand curation at this granularity, and exact string matching against them
-would have a very low hit rate. Populating ukb-b-scale coverage needs real
-candidate-generation-and-review tooling (see
-`docs/adr/0021-trait-ontology-mapping-lookup-lives-in-registry.md`), tracked
-as separate, larger follow-up work — not fabricated rows here.
+would have a very low hit rate. Populating ukb-b-scale coverage needs the
+candidate-generation-and-review tooling described in "How rows are added"
+(see `docs/adr/0021-trait-ontology-mapping-lookup-lives-in-registry.md`); that
+tooling exists, but this table stays empty until a real curation run promotes
+rows through it -- no fabricated rows here.
 
 Add a row only when a real, currently-unmapped trait needs one. Fill in the
 provenance columns when a candidate-generation-and-review process produced the
 row; leave them empty for a hand-curated row.
+
+## How rows are added
+
+Rows reach this table by two routes:
+
+1. **Hand curation.** A curator adds a row directly, leaving the provenance
+   columns empty or filling them in by hand (`review_status = human_reviewed`).
+2. **The curation pipeline** (issue #161): `curation.gap_scan` derives the
+   unmapped-Trait work queue, `curation.candidates` builds a lexical shortlist,
+   `curation.choice` records a proposal, and `curation.promotion` gates that
+   proposal on confidence and runner-up margin. A proposal that clears both
+   thresholds is appended to this table with `review_status = auto_accepted`
+   and a `reviewed_at` date, and the resource's integer `version` in
+   `resource.yaml` is bumped. A proposal below either threshold goes to a
+   review queue instead, carrying its full candidate shortlist for a curator.
+
+A rejected `(trait_label, ontology_id)` pair is retained in a rejection
+registry and suppressed by every later promotion run, so a term a curator has
+rejected is never re-proposed or auto-accepted.
