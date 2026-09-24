@@ -9,4 +9,10 @@ committed Release Manifests without changing them:
   retrieval index candidate generation resolves against (issue #164).
 - :mod:`curation.candidates` turns each queued Trait label into a
   multi-channel lexical shortlist of plausible ontology terms (issue #164).
+- :mod:`curation.chooser` defines the chooser interface and its shortlist
+  membership rule (issue #167).
+- :mod:`curation.stub_chooser` replays recorded choices for hermetic testing of
+  the choice stage (issue #167).
+- :mod:`curation.choice` runs a chooser over each shortlist and emits the
+  proposals table (issue #167).
 """

@@ -29,6 +29,7 @@ SUITES: list[tuple[str, str, list[str]]] = [
     ("bundle", "python", ["tests/bundle/test_bundle.py"]),
     ("curation/gap-scan", "python", ["tests/curation/test_gap_scan.py"]),
     ("curation/candidates", "python", ["tests/curation/test_candidates.py"]),
+    ("curation/choice", "python", ["tests/curation/test_choice.py"]),
     ("effect-scale-validation (R)", "r", ["tests/effect-scale-validation/run_tests.R"]),
     ("eqtlgen-besd-ragged", "python", ["tests/eqtlgen-besd-ragged/test_subset_besd.py"]),
     ("finngen-r13-pilot", "r", ["tests/finngen-r13-pilot/run_tests.R"]),

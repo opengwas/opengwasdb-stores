@@ -5,7 +5,9 @@ curation pipeline (issue #161):
 
 - `test_gap_scan.py` — the unmapped Trait work queue (issue #163);
 - `test_candidates.py` — pinned ontology release and lexical candidate
-  generation (issue #164).
+  generation (issue #164);
+- `test_choice.py` — the chooser interface, the fixture-backed stub chooser,
+  and the proposals table (issue #167).
 
 ## Gap-scan suite (`curation.gap_scan`, issue #163)
 
@@ -76,11 +78,45 @@ fabricated candidate can reach a Release Manifest.
 The suite resolves against a tiny in-memory fixture OBO document, never a real
 release, so it is hermetic.
 
+## Choice-stage suite (`curation.chooser`, `curation.stub_chooser`,
+`curation.choice`, issue #167)
+
+### The contract this suite exists for
+
+Candidate generation is the ceiling on the whole pipeline: a term it did not
+retrieve can never be mapped. The choice stage runs a chooser over each
+shortlist and records one proposal per trait label. The structural rule is that
+a chooser may only select from the shortlist it was handed — it can never
+invent a term — and that an empty shortlist yields no proposal rather than an
+arbitrary selection.
+
+The suite is hermetic: the only chooser exercised is the fixture-backed
+`StubChooser`, so there is no model, no network, and no non-determinism.
+
+### Contracts and invariants covered
+
+1. **Interface**: `Chooser.choose` returns the explicit no-proposal outcome for
+   an empty shortlist, and validates that the selection and the distribution
+   cover exactly the shortlist.
+2. **Hard error**: a selection outside the shortlist raises
+   `SelectionNotInShortlistError`; the CLI reports it and writes no proposal.
+3. **Stub chooser**: recorded selections and distributions replay
+   deterministically from a mapping, JSON, or TSV fixture; an unrecorded trait
+   label fails loudly; unmentioned candidates receive probability 0.0.
+4. **Arithmetic**: the winner, runner-up, confidence, and runner-up margin
+   (`1.0` for a single candidate) are calculated from the distribution, with a
+   deterministic shortlist-order tie-break.
+5. **Proposal table**: the documented columns are emitted, carrying
+   `chooser_id`, `chooser_version`, and the pinned `ontology_release`.
+6. **CLI surface**: the command reads a shortlist, runs the stub chooser from a
+   fixture, and writes the table to `--output` or stdout.
+
 ## Running the suites
 
 ```sh
 pixi run python tests/curation/test_gap_scan.py
 pixi run python tests/curation/test_candidates.py
+pixi run python tests/curation/test_choice.py
 # or through the repo orchestrator
 pixi run test-python
 ```
