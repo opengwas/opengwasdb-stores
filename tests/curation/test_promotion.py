@@ -51,11 +51,14 @@ from curation.promotion import (
     REASON_BELOW_MARGIN,
     REVIEW_DECISION_COLUMNS,
     REVIEW_QUEUE_COLUMNS,
+    HUMAN_REVIEWED,
     MissingShortlistEvidenceError,
     ProposalFormatError,
     ProposalRecord,
     RejectionFormatError,
     ResourceYamlError,
+    ReviewDecision,
+    ReviewQueueFormatError,
     build_candidate_evidence,
     build_promotion_plan,
     bump_resource_version,
@@ -290,6 +293,13 @@ class PromotionTestCase(unittest.TestCase):
         _, rows = parse_tsv(self.review_queue.read_text(encoding="utf-8"))
         return rows
 
+    def decide_review_row(self, **decision: str) -> None:
+        """Fill decision columns in the (single-row) review queue fixture."""
+        header, rows = parse_tsv(self.review_queue.read_text(encoding="utf-8"))
+        self.assertEqual(len(rows), 1)
+        rows[0].update(decision)
+        write_table(self.review_queue, header, rows)
+
 
 # ---------------------------------------------------------------------------
 # Gating
@@ -322,6 +332,64 @@ class TestGateReason(unittest.TestCase):
     def test_single_candidate_full_margin_is_eligible(self) -> None:
         proposal = proposal_record("x", "EFO:1", "one", 1.0, 1.0)
         self.assertIsNone(gate_reason(proposal, 0.85, 0.20))
+
+
+class TestInvalidEvidence(PromotionTestCase):
+    """NaN/inf/out-of-range evidence is rejected before it reaches the gate.
+
+    ``NaN`` compares false against every threshold, so an unvalidated NaN
+    confidence would satisfy neither ``< threshold`` nor ``>= threshold`` and
+    be treated as eligible -- the exact bypass these tests pin down.
+    """
+
+    def test_nan_confidence_cannot_bypass_gate(self) -> None:
+        row = proposal_row("Height", "EFO:1", "one", float("nan"), runner_up_margin=1.0)
+        self.write_proposals([row])
+        with self.assertRaises(ProposalFormatError):
+            self.promote(shortlists_path=None)
+        # Nothing was promoted or queued.
+        self.assertEqual(self.mapping_rows(), [])
+        self.assertFalse(self.review_queue.exists())
+
+    def test_infinite_margin_cannot_bypass_gate(self) -> None:
+        row = proposal_row("Height", "EFO:1", "one", 0.99, runner_up_margin=float("inf"))
+        self.write_proposals([row])
+        with self.assertRaises(ProposalFormatError):
+            self.promote(shortlists_path=None)
+        self.assertEqual(self.mapping_rows(), [])
+
+    def test_negative_infinite_confidence_raises(self) -> None:
+        row = proposal_row("Height", "EFO:1", "one", float("-inf"), runner_up_margin=1.0)
+        self.write_proposals([row])
+        with self.assertRaises(ProposalFormatError):
+            self.promote(shortlists_path=None)
+
+    def test_out_of_range_confidence_raises(self) -> None:
+        row = proposal_row("Height", "EFO:1", "one", 1.5, runner_up_margin=1.0)
+        self.write_proposals([row])
+        with self.assertRaises(ProposalFormatError):
+            self.promote(shortlists_path=None)
+
+    def test_nan_probability_raises(self) -> None:
+        row = proposal_row("Height", "EFO:1", "one", 0.99, runner_up_margin=1.0)
+        row["probabilities"] = '{"EFO:1": NaN}'
+        self.write_proposals([row])
+        with self.assertRaises(ProposalFormatError):
+            self.promote(shortlists_path=None)
+
+    def test_direct_construction_rejects_nan_confidence(self) -> None:
+        with self.assertRaises(ProposalFormatError):
+            proposal_record("x", "EFO:1", "one", float("nan"), 1.0)
+
+    def test_direct_construction_rejects_infinite_margin(self) -> None:
+        with self.assertRaises(ProposalFormatError):
+            proposal_record("x", "EFO:1", "one", 0.99, float("inf"))
+
+    def test_direct_construction_rejects_out_of_range_probability(self) -> None:
+        with self.assertRaises(ProposalFormatError):
+            proposal_record(
+                "x", "EFO:1", "one", 0.99, 1.0, probabilities={"EFO:1": 1.2}
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -855,6 +923,178 @@ class TestRejectionRetention(PromotionTestCase):
 
 
 # ---------------------------------------------------------------------------
+# Human review round-trip
+# ---------------------------------------------------------------------------
+
+
+class TestHumanReviewRoundTrip(PromotionTestCase):
+    """Curator decisions are applied and preserved across runs."""
+
+    def queue_one_subthreshold_proposal(self) -> None:
+        rows = [
+            proposal_row(
+                "Height",
+                "EFO:1",
+                "body height",
+                0.60,
+                runner_up_id="EFO:2",
+                runner_up_label="body size",
+                runner_up_confidence="0.300000",
+                runner_up_margin=0.30,
+                probabilities={"EFO:1": 0.60, "EFO:2": 0.40},
+            )
+        ]
+        self.write_proposals(rows)
+        self.write_shortlists(shortlists_from_proposals(rows))
+        self.promote()
+
+    def test_accept_promotes_human_reviewed_and_bumps_version(self) -> None:
+        self.queue_one_subthreshold_proposal()
+        self.decide_review_row(
+            review_decision="accept", curator="Alice", curated_at="2026-03-04"
+        )
+
+        outcome = self.promote()
+
+        self.assertEqual(outcome.version, 2)
+        self.assertTrue(outcome.mapping_written)
+        self.assertEqual(len(outcome.plan.human_reviewed), 1)
+        mapped = self.mapping_rows()
+        self.assertEqual(len(mapped), 1)
+        self.assertEqual(mapped[0]["trait_label"], "Height")
+        self.assertEqual(mapped[0]["trait_ontology_id"], "EFO:1")
+        self.assertEqual(mapped[0]["trait_ontology_label"], "body height")
+        self.assertEqual(mapped[0]["review_status"], HUMAN_REVIEWED)
+        self.assertEqual(mapped[0]["reviewer"], "Alice")
+        self.assertEqual(mapped[0]["reviewed_at"], "2026-03-04")
+        self.assertIn("version: 2", self.resource_yaml_path.read_text(encoding="utf-8"))
+
+    def test_amend_promotes_override_with_curator_provenance(self) -> None:
+        self.queue_one_subthreshold_proposal()
+        self.decide_review_row(
+            review_decision="amend",
+            override_ontology_id="EFO:7",
+            override_ontology_label="curator preferred term",
+            curator="Bob",
+            curated_at="2026-03-05",
+        )
+
+        outcome = self.promote()
+
+        self.assertEqual(outcome.version, 2)
+        mapped = self.mapping_rows()
+        self.assertEqual(mapped[0]["trait_ontology_id"], "EFO:7")
+        self.assertEqual(mapped[0]["trait_ontology_label"], "curator preferred term")
+        self.assertEqual(mapped[0]["review_status"], HUMAN_REVIEWED)
+        self.assertEqual(mapped[0]["reviewer"], "Bob")
+        self.assertEqual(mapped[0]["reviewed_at"], "2026-03-05")
+
+    def test_curated_at_falls_back_to_as_of(self) -> None:
+        self.queue_one_subthreshold_proposal()
+        self.decide_review_row(review_decision="accept", curator="Alice")
+        self.promote()
+        self.assertEqual(self.mapping_rows()[0]["reviewed_at"], "2026-01-02")
+
+    def test_reject_suppresses_and_is_preserved(self) -> None:
+        self.queue_one_subthreshold_proposal()
+        self.decide_review_row(
+            review_decision="reject", curator="Carol", curated_at="2026-03-06"
+        )
+
+        outcome = self.promote()
+
+        self.assertEqual(outcome.plan.promoted, ())
+        self.assertEqual(self.mapping_rows(), [])
+        # The rejection is preserved in the rewritten queue, not discarded.
+        preserved = self.review_rows()[0]
+        self.assertEqual(preserved["review_decision"], "reject")
+        self.assertEqual(preserved["curator"], "Carol")
+        self.assertEqual(preserved["curated_at"], "2026-03-06")
+        # And it keeps suppressing on the next run.
+        self.promote()
+        self.assertEqual(self.mapping_rows(), [])
+
+    def test_decided_row_is_preserved_not_duplicated(self) -> None:
+        self.queue_one_subthreshold_proposal()
+        self.decide_review_row(review_decision="accept", curator="Alice")
+        self.promote()
+        rows = self.review_rows()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["review_decision"], "accept")
+        self.assertEqual(rows[0]["curator"], "Alice")
+
+    def test_separate_reviewed_queue_applies_and_preserves_decisions(self) -> None:
+        self.queue_one_subthreshold_proposal()
+        reviewed = self.base / "reviewed.tsv"
+        shutil.copyfile(self.review_queue, reviewed)
+        header, rows = parse_tsv(reviewed.read_text(encoding="utf-8"))
+        rows[0]["review_decision"] = "accept"
+        rows[0]["curator"] = "Dave"
+        rows[0]["curated_at"] = "2026-03-07"
+        write_table(reviewed, header, rows)
+
+        outcome = self.promote(reviewed_queue_path=reviewed)
+
+        self.assertEqual(outcome.version, 2)
+        self.assertEqual(self.mapping_rows()[0]["reviewer"], "Dave")
+        # The decision is copied into the output queue.
+        self.assertEqual(self.review_rows()[0]["review_decision"], "accept")
+
+    def test_unknown_decision_raises(self) -> None:
+        self.queue_one_subthreshold_proposal()
+        self.decide_review_row(review_decision="maybe")
+        with self.assertRaises(ReviewQueueFormatError):
+            self.promote()
+
+    def test_amend_without_override_id_raises(self) -> None:
+        self.queue_one_subthreshold_proposal()
+        self.decide_review_row(review_decision="amend", override_ontology_label="x")
+        with self.assertRaises(ReviewQueueFormatError):
+            self.promote()
+
+    def test_missing_reviewed_queue_raises(self) -> None:
+        self.write_proposals([proposal_row("x", "EFO:1", "one", 0.99, runner_up_margin=1.0)])
+        with self.assertRaises(ReviewQueueFormatError):
+            self.promote(reviewed_queue_path=self.base / "nope.tsv")
+
+    def test_accept_is_idempotent_across_runs(self) -> None:
+        self.queue_one_subthreshold_proposal()
+        self.decide_review_row(review_decision="accept", curator="Alice")
+        self.promote()
+        before = self.mapping_path.read_text(encoding="utf-8")
+        second = self.promote()
+        self.assertFalse(second.mapping_written)
+        self.assertEqual(self.mapping_path.read_text(encoding="utf-8"), before)
+        self.assertEqual(len(self.mapping_rows()), 1)
+
+    def test_cli_applies_reviewed_queue_decisions(self) -> None:
+        self.queue_one_subthreshold_proposal()
+        self.decide_review_row(
+            review_decision="amend",
+            override_ontology_id="EFO:9",
+            override_ontology_label="cli override",
+            curator="Erin",
+            curated_at="2026-03-08",
+        )
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            code = main(
+                [
+                    "--proposals", str(self.proposals),
+                    "--review-queue", str(self.review_queue),
+                    "--resource-dir", str(self.resource_dir),
+                    "--shortlists", str(self.shortlists),
+                    "--as-of", "2026-01-02",
+                ]
+            )
+        self.assertEqual(code, 0, stderr.getvalue())
+        mapped = self.mapping_rows()
+        self.assertEqual(mapped[0]["trait_ontology_id"], "EFO:9")
+        self.assertEqual(mapped[0]["review_status"], HUMAN_REVIEWED)
+        self.assertEqual(mapped[0]["reviewer"], "Erin")
+
+
+# ---------------------------------------------------------------------------
 # Version bump and idempotency
 # ---------------------------------------------------------------------------
 
@@ -1108,6 +1348,75 @@ class TestBuildPromotionPlan(unittest.TestCase):
                 margin_threshold=0.20,
                 reviewed_at="2026-01-02",
             )
+
+    def test_accept_decision_promotes_human_reviewed(self) -> None:
+        proposal = proposal_record("Weak", "EFO:2", "two", 0.10, 0.9)
+        decision = ReviewDecision(
+            proposal=proposal,
+            decision="accept",
+            override_ontology_id="",
+            override_ontology_label="",
+            curator="Alice",
+            curated_at="2026-03-04",
+            row={},
+        )
+        plan = build_promotion_plan(
+            [proposal],
+            confidence_threshold=0.85,
+            margin_threshold=0.20,
+            reviewed_decisions={decision.key: decision},
+            reviewed_at="2026-01-02",
+        )
+        self.assertEqual(len(plan.promoted), 1)
+        self.assertEqual(plan.promoted[0].review_status, HUMAN_REVIEWED)
+        self.assertEqual(plan.promoted[0].reviewer, "Alice")
+        self.assertEqual(plan.promoted[0].trait_ontology_id, "EFO:2")
+        self.assertEqual(plan.promoted[0].reviewed_at, "2026-03-04")
+        self.assertEqual(plan.queued, ())
+
+    def test_amend_decision_promotes_the_override(self) -> None:
+        proposal = proposal_record("Weak", "EFO:2", "two", 0.10, 0.9)
+        decision = ReviewDecision(
+            proposal=proposal,
+            decision="amend",
+            override_ontology_id="EFO:7",
+            override_ontology_label="seven",
+            curator="Bob",
+            curated_at="2026-03-05",
+            row={},
+        )
+        plan = build_promotion_plan(
+            [proposal],
+            confidence_threshold=0.85,
+            margin_threshold=0.20,
+            reviewed_decisions={decision.key: decision},
+            reviewed_at="2026-01-02",
+        )
+        self.assertEqual(plan.promoted[0].trait_ontology_id, "EFO:7")
+        self.assertEqual(plan.promoted[0].trait_ontology_label, "seven")
+        self.assertEqual(plan.promoted[0].review_status, HUMAN_REVIEWED)
+
+    def test_reject_decision_suppresses_without_a_rejection_set(self) -> None:
+        proposal = proposal_record("Weak", "EFO:2", "two", 0.10, 0.9)
+        decision = ReviewDecision(
+            proposal=proposal,
+            decision="reject",
+            override_ontology_id="",
+            override_ontology_label="",
+            curator="Carol",
+            curated_at="",
+            row={},
+        )
+        plan = build_promotion_plan(
+            [proposal],
+            confidence_threshold=0.85,
+            margin_threshold=0.20,
+            reviewed_decisions={decision.key: decision},
+            reviewed_at="2026-01-02",
+        )
+        self.assertEqual(plan.promoted, ())
+        self.assertEqual(plan.queued, ())
+        self.assertEqual([record.trait_label for record in plan.suppressed], ["Weak"])
 
     def test_existing_label_is_skipped(self) -> None:
         proposals = [proposal_record("Mapped", "EFO:1", "one", 0.99, 0.9)]

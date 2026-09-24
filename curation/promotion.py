@@ -33,6 +33,23 @@ whose ``review_decision`` is ``reject``/``amend``) is read on every run, and any
 ``(trait_label, ontology_id)`` pair it records is suppressed: it is neither
 promoted nor re-queued, on this or any later run.
 
+Human review round-trip
+-----------------------
+A review queue is meant to be edited in place and read back. Existing curator
+decisions are read from the review queue file itself (and from
+``--reviewed-queue`` when given): ``accept`` promotes the proposal's own
+selection, ``amend`` promotes ``override_ontology_id``/
+``override_ontology_label``, and ``reject`` suppresses the pair. Human rows are
+written with ``review_status = human_reviewed`` and the curator's identity and
+date, and they bump the resource ``version`` like any other promotion. Decided
+rows -- including rejections -- are preserved when the queue is rewritten, so
+no curator decision is discarded.
+
+Invalid evidence is rejected before it can reach the gate: ``confidence``,
+``runner_up_margin``, ``runner_up_confidence``, and every probability must be
+finite and in ``[0, 1]``. A ``NaN`` would otherwise pass every comparison
+falsely and be auto-accepted.
+
 Strict boundaries
 -----------------
 Promotion writes to exactly two places: the Reference Resource directory
@@ -47,7 +64,7 @@ CLI
     python3 -m curation.promotion \\
         --proposals <proposals.tsv> --review-queue <review.tsv> \\
         [--shortlists <shortlist.tsv>] [--rejections <rejections.tsv>] \\
-        [--resource-dir <dir>] \\
+        [--reviewed-queue <reviewed.tsv>] [--resource-dir <dir>] \\
         [--confidence-threshold 0.85] [--margin-threshold 0.20] \\
         [--as-of YYYY-MM-DD]
 """
@@ -57,6 +74,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import os
 import re
 import sys
@@ -96,6 +114,19 @@ MAPPING_COLUMNS: tuple[str, ...] = (
 
 # A row promoted by this stage was accepted on the chooser's output alone.
 AUTO_ACCEPTED: str = "auto_accepted"
+
+# A row promoted from a curator's decision was checked and accepted by a human.
+HUMAN_REVIEWED: str = "human_reviewed"
+
+# Curator decisions a reviewed queue may carry. ``accept`` promotes the
+# proposal's own selection; ``amend`` promotes the curator's override;
+# ``reject`` suppresses the proposal's selection.
+DECISION_ACCEPT: str = "accept"
+DECISION_AMEND: str = "amend"
+DECISION_REJECT: str = "reject"
+REVIEW_DECISIONS: frozenset[str] = frozenset(
+    {DECISION_ACCEPT, DECISION_AMEND, DECISION_REJECT}
+)
 
 # Review queue = the proposal columns, then why it was queued, then the full
 # candidate evidence, then the decision columns a curator fills in.
@@ -169,6 +200,31 @@ class MissingShortlistEvidenceError(PromotionError):
     Promotion therefore requires the candidate shortlist whenever a proposal
     falls below either threshold.
     """
+
+
+class ReviewQueueFormatError(PromotionError):
+    """Raised when a reviewed queue or one of its curator decisions is malformed."""
+
+
+def _validate_unit_interval(value: float, field_name: str, context: str = "") -> float:
+    """Require a finite number in ``[0.0, 1.0]``, or raise.
+
+    ``NaN`` and infinities are rejected outright rather than allowed to reach
+    the gate: every comparison against ``NaN`` is false, so an unvalidated
+    ``NaN`` confidence would silently pass ``confidence < threshold`` and be
+    auto-accepted. Out-of-range values are rejected for the same reason -- a
+    probability outside ``[0, 1]`` is not evidence a gate can reason about.
+    """
+    prefix = f"{context}: " if context else ""
+    if not math.isfinite(value):
+        raise ProposalFormatError(
+            f"{prefix}{field_name} must be a finite number, got {value!r}"
+        )
+    if not 0.0 <= value <= 1.0:
+        raise ProposalFormatError(
+            f"{prefix}{field_name} must be between 0 and 1, got {value!r}"
+        )
+    return value
 
 
 # Separator between a chooser's id and its version when they are recorded in
@@ -269,7 +325,11 @@ def _parse_probabilities(raw: str | None, source: Path) -> dict[str, float]:
                 f"{source}: probability for {ontology_id!r} is not a number: "
                 f"{probability!r}"
             )
-        probabilities[str(ontology_id)] = float(probability)
+        probabilities[str(ontology_id)] = _validate_unit_interval(
+            float(probability),
+            f"probability for {ontology_id!r}",
+            str(source),
+        )
     return probabilities
 
 
@@ -289,6 +349,18 @@ class ProposalRecord:
     chooser_id: str
     chooser_version: str
     ontology_release: str
+
+    def __post_init__(self) -> None:
+        # A probability-like value must be finite and in [0, 1]. This runs for
+        # both parsed rows and directly-constructed records, so no NaN or
+        # infinity can ever reach the gate and slip through an all-false
+        # comparison.
+        _validate_unit_interval(self.confidence, "confidence")
+        _validate_unit_interval(self.runner_up_margin, "runner_up_margin")
+        if self.runner_up_confidence is not None:
+            _validate_unit_interval(self.runner_up_confidence, "runner_up_confidence")
+        for ontology_id, probability in self.probabilities.items():
+            _validate_unit_interval(probability, f"probability for {ontology_id!r}")
 
     @classmethod
     def from_row(cls, row: Mapping[str, str], source: Path, row_index: int) -> "ProposalRecord":
@@ -550,6 +622,76 @@ def read_rejections(path: Path | str | None) -> set[tuple[str, str]]:
     return rejected
 
 
+def read_reviewed_queue(path: Path | str | None) -> list[ReviewDecision]:
+    """Read a reviewed queue's curator decisions, in file order.
+
+    A row whose ``review_decision`` is empty is not a decision and is skipped,
+    so a queue can be read back on the next run whether or not it has been
+    reviewed yet. The full row is kept on each decision so it can be re-emitted
+    into the round-tripped queue without losing notes or evidence.
+
+    Raises :class:`ReviewQueueFormatError` for a missing file, a missing
+    proposal column, an unknown decision value, or an ``amend`` decision with
+    no override id.
+    """
+    if path is None:
+        return []
+    reviewed_path = Path(path)
+    if not reviewed_path.is_file():
+        raise ReviewQueueFormatError(f"reviewed queue does not exist: {reviewed_path}")
+
+    with open(reviewed_path, "r", encoding="utf-8", newline="") as f:
+        reader = csv.reader(f, delimiter="\t")
+        header = next(reader, None)
+        columns = list(header) if header is not None else []
+        missing = [column for column in PROPOSAL_COLUMNS if column not in columns]
+        if missing:
+            raise ReviewQueueFormatError(
+                f"{reviewed_path} is missing review-queue column(s): "
+                + ", ".join(missing)
+            )
+        if "review_decision" not in columns:
+            raise ReviewQueueFormatError(
+                f"{reviewed_path} has no review_decision column"
+            )
+
+        decisions: list[ReviewDecision] = []
+        for row_index, fields in enumerate(reader):
+            if len(fields) != len(columns):
+                raise ReviewQueueFormatError(
+                    f"{reviewed_path} data row {row_index} has {len(fields)} "
+                    f"fields; header has {len(columns)}"
+                )
+            row = dict(zip(columns, fields))
+            decision = (row.get("review_decision") or "").strip().lower()
+            if not decision:
+                continue
+            if decision not in REVIEW_DECISIONS:
+                raise ReviewQueueFormatError(
+                    f"{reviewed_path} data row {row_index} has an unknown "
+                    f"review_decision: {row.get('review_decision')!r} "
+                    f"(expected one of {', '.join(sorted(REVIEW_DECISIONS))})"
+                )
+            override_id = (row.get("override_ontology_id") or "").strip()
+            if decision == DECISION_AMEND and not override_id:
+                raise ReviewQueueFormatError(
+                    f"{reviewed_path} data row {row_index} is an amend decision "
+                    "with no override_ontology_id"
+                )
+            decisions.append(
+                ReviewDecision(
+                    proposal=ProposalRecord.from_row(row, reviewed_path, row_index),
+                    decision=decision,
+                    override_ontology_id=override_id,
+                    override_ontology_label=row.get("override_ontology_label") or "",
+                    curator=(row.get("curator") or "").strip(),
+                    curated_at=(row.get("curated_at") or "").strip(),
+                    row=row,
+                )
+            )
+    return decisions
+
+
 # ---------------------------------------------------------------------------
 # Review-queue evidence
 # ---------------------------------------------------------------------------
@@ -668,6 +810,36 @@ def build_candidate_evidence(
 
 
 @dataclass(frozen=True)
+class ReviewDecision:
+    """A curator's decision on one queued proposal, read from a reviewed queue.
+
+    ``row`` is the full original TSV row, so a decision can be re-emitted into
+    the round-tripped review queue without losing any column (notes, evidence,
+    and the decision itself).
+    """
+
+    proposal: ProposalRecord
+    decision: str
+    override_ontology_id: str
+    override_ontology_label: str
+    curator: str
+    curated_at: str
+    row: Mapping[str, str]
+
+    @property
+    def key(self) -> tuple[str, str]:
+        """The ``(normalised trait_label, selected ontology id)`` pair decided."""
+        return (
+            normalize_trait_label(self.proposal.trait_label),
+            self.proposal.selected_ontology_id,
+        )
+
+    def to_queue_row(self) -> list[str]:
+        """Re-emit the decision in the canonical review-queue column order."""
+        return [self.row.get(column, "") for column in REVIEW_QUEUE_COLUMNS]
+
+
+@dataclass(frozen=True)
 class PromotedRow:
     """One auto-accepted row to append to the Canonical Trait Mapping Table."""
 
@@ -699,6 +871,42 @@ class PromotedRow:
             review_status=AUTO_ACCEPTED,
             reviewer="",
             reviewed_at=reviewed_at,
+        )
+
+    @classmethod
+    def from_review_decision(
+        cls, decision: ReviewDecision, reviewed_at: str
+    ) -> "PromotedRow":
+        """Build a ``human_reviewed`` row from a curator's accept/amend decision.
+
+        ``accept`` promotes the proposal's own selection; ``amend`` promotes
+        the curator's override. The curator and their date (falling back to the
+        run's ``reviewed_at`` when the curator left it blank) are recorded.
+        """
+        if decision.decision == DECISION_AMEND:
+            ontology_id = decision.override_ontology_id.strip()
+            ontology_label = decision.override_ontology_label
+            if not ontology_id:
+                raise PromotionError(
+                    f"amend decision for {decision.proposal.trait_label!r} has "
+                    "no override_ontology_id"
+                )
+        else:
+            ontology_id = decision.proposal.selected_ontology_id
+            ontology_label = decision.proposal.selected_ontology_label
+        return cls(
+            trait_label=decision.proposal.trait_label,
+            trait_ontology_id=ontology_id,
+            trait_ontology_label=ontology_label,
+            ontology_release=decision.proposal.ontology_release,
+            chooser_id=format_chooser_provenance(
+                decision.proposal.chooser_id, decision.proposal.chooser_version
+            ),
+            confidence=decision.proposal.confidence,
+            runner_up_margin=decision.proposal.runner_up_margin,
+            review_status=HUMAN_REVIEWED,
+            reviewer=decision.curator,
+            reviewed_at=decision.curated_at or reviewed_at,
         )
 
     def to_row(self) -> list[str]:
@@ -763,6 +971,9 @@ class PromotionPlan:
     promoted: tuple[PromotedRow, ...] = ()
     queued: tuple[ReviewEntry, ...] = ()
     suppressed: tuple[ProposalRecord, ...] = ()
+    # The subset of ``promoted`` that came from a curator's accept/amend
+    # decision rather than the automatic confidence/margin gate.
+    human_reviewed: tuple[PromotedRow, ...] = ()
 
 
 def build_promotion_plan(
@@ -773,15 +984,18 @@ def build_promotion_plan(
     rejections: Iterable[tuple[str, str]] = (),
     existing_labels: Iterable[str] = (),
     shortlist_evidence: Mapping[str, Sequence[Candidate]] | None = None,
+    reviewed_decisions: Mapping[tuple[str, str], ReviewDecision] | None = None,
     reviewed_at: str,
 ) -> PromotionPlan:
     """Gate every proposal into promoted, queued, or suppressed.
 
-    A rejected ``(trait_label, ontology_id)`` pair is suppressed outright. A
-    proposal whose trait label is already in the mapping table is skipped
-    (never duplicated). The first proposal for a trait label wins, so a
-    repeated label cannot shadow itself. Eligible proposals are promoted; the
-    rest are queued with their full candidate evidence.
+    A curator's accept/amend decision promotes a ``human_reviewed`` row first;
+    a reject decision is handled through ``rejections``. A rejected
+    ``(trait_label, ontology_id)`` pair is suppressed outright. A proposal
+    whose trait label is already in the mapping table (or already decided, or
+    already promoted) is skipped, so a repeated label cannot shadow itself.
+    Eligible remaining proposals are promoted; the rest are queued with their
+    full candidate evidence.
 
     Queueing requires that evidence: a proposal below a threshold whose label
     has no shortlist raises :class:`MissingShortlistEvidenceError`, so a
@@ -790,19 +1004,47 @@ def build_promotion_plan(
     rejected_pairs = set(rejections)
     already_mapped = set(existing_labels)
     evidence_by_label = shortlist_evidence or {}
+    decisions = dict(reviewed_decisions or {})
+    # A reject decision suppresses the proposal's selection; an amend decision
+    # supersedes it with the override, so its original selection is rejected
+    # too. Deriving this here keeps the plan self-contained for library callers
+    # that pass decisions without a separate rejection set.
+    for key, decision in decisions.items():
+        if decision.decision in (DECISION_REJECT, DECISION_AMEND):
+            rejected_pairs.add(key)
 
     promoted: list[PromotedRow] = []
+    human_reviewed: list[PromotedRow] = []
     queued: list[ReviewEntry] = []
     suppressed: list[ProposalRecord] = []
     seen_labels: set[str] = set()
+    decided_pairs: set[tuple[str, str]] = set()
+
+    # Curator decisions first. Reject is handled through rejected_pairs (a
+    # reviewed queue is also a rejection registry); accept/amend promote a
+    # human_reviewed row from the proposal's selection or the curator's
+    # override.
+    for key, decision in decisions.items():
+        if decision.decision == DECISION_REJECT:
+            continue
+        decided_pairs.add(key)
+        normalized_label = normalize_trait_label(decision.proposal.trait_label)
+        if normalized_label in already_mapped or normalized_label in seen_labels:
+            continue
+        seen_labels.add(normalized_label)
+        row = PromotedRow.from_review_decision(decision, reviewed_at)
+        promoted.append(row)
+        human_reviewed.append(row)
 
     for proposal in proposals:
         normalized_label = normalize_trait_label(proposal.trait_label)
         pair = (normalized_label, proposal.selected_ontology_id)
+        if pair in decided_pairs or normalized_label in seen_labels:
+            continue
         if pair in rejected_pairs:
             suppressed.append(proposal)
             continue
-        if normalized_label in already_mapped or normalized_label in seen_labels:
+        if normalized_label in already_mapped:
             continue
         seen_labels.add(normalized_label)
 
@@ -824,12 +1066,22 @@ def build_promotion_plan(
         promoted=tuple(promoted),
         queued=tuple(queued),
         suppressed=tuple(suppressed),
+        human_reviewed=tuple(human_reviewed),
     )
 
 
-def format_review_queue_tsv(entries: Sequence[ReviewEntry]) -> str:
-    """Render the review queue TSV; the header is always present."""
+def format_review_queue_tsv(
+    entries: Sequence[ReviewEntry],
+    decided_rows: Sequence[Sequence[str]] = (),
+) -> str:
+    """Render the review queue TSV; the header is always present.
+
+    ``decided_rows`` are existing curator rows (already in canonical column
+    order) preserved ahead of any new queued entry, so a round-tripped queue
+    keeps every rejection and decision.
+    """
     lines = ["\t".join(REVIEW_QUEUE_COLUMNS)]
+    lines.extend("\t".join(row) for row in decided_rows)
     lines.extend("\t".join(entry.to_row()) for entry in entries)
     return "\n".join(lines) + "\n"
 
@@ -868,6 +1120,7 @@ def run_promotion(
     resource_dir: Path | str = DEFAULT_RESOURCE_DIR,
     shortlists_path: Path | str | None = None,
     rejections_path: Path | str | None = None,
+    reviewed_queue_path: Path | str | None = None,
     confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
     margin_threshold: float = DEFAULT_MARGIN_THRESHOLD,
     as_of: str | None = None,
@@ -879,10 +1132,19 @@ def run_promotion(
     ``shortlists_path`` is required whenever a proposal falls below either
     threshold, because a review entry must carry its full candidate evidence;
     the error is raised while planning, before anything is written.
+
+    Existing curator decisions are read from ``review_queue_path`` itself (so a
+    queue edited in place is applied on the next run) and from
+    ``reviewed_queue_path`` when given. Accept/amend decisions promote a
+    ``human_reviewed`` row; reject decisions suppress the pair. Decided rows
+    are preserved in the rewritten queue rather than discarded.
     """
     proposals = read_proposals(proposals_path)
     shortlist_evidence = read_shortlist_evidence(shortlists_path)
     rejections = read_rejections(rejections_path)
+    decisions, decided_rows = _collect_review_decisions(
+        review_queue_path, reviewed_queue_path
+    )
 
     resource_path = Path(resource_dir)
     mapping_path = resource_path / MAPPING_FILENAME
@@ -898,6 +1160,7 @@ def run_promotion(
         rejections=rejections,
         existing_labels=existing_mapping_labels(table),
         shortlist_evidence=shortlist_evidence,
+        reviewed_decisions=decisions,
         reviewed_at=reviewed_at,
     )
 
@@ -916,9 +1179,51 @@ def run_promotion(
         _write_text_atomically(bumped_text, resource_yaml_path)
         mapping_written = True
 
-    _write_text_atomically(format_review_queue_tsv(plan.queued), Path(review_queue_path))
+    _write_text_atomically(
+        format_review_queue_tsv(plan.queued, decided_rows), Path(review_queue_path)
+    )
 
     return PromotionOutcome(plan=plan, version=version, mapping_written=mapping_written)
+
+
+def _collect_review_decisions(
+    review_queue_path: Path | str | None,
+    reviewed_queue_path: Path | str | None,
+) -> tuple[dict[tuple[str, str], ReviewDecision], list[list[str]]]:
+    """Read curator decisions from the queue and any explicit reviewed queue.
+
+    Returns the decisions keyed by ``(normalised trait_label, selected id)``
+    (an explicit ``--reviewed-queue`` overrides a decision for the same pair)
+    and the decided rows to preserve, deduplicated by pair.
+    """
+    decisions: dict[tuple[str, str], ReviewDecision] = {}
+    decided_rows: list[list[str]] = []
+    seen_pairs: set[tuple[str, str]] = set()
+
+    sources: list[Path] = []
+    if review_queue_path is not None:
+        queue = Path(review_queue_path)
+        # The output queue may not exist on a first run; its decisions, if any,
+        # are read when it does.
+        if queue.is_file():
+            sources.append(queue)
+    if reviewed_queue_path is not None:
+        reviewed = Path(reviewed_queue_path)
+        if not reviewed.is_file():
+            raise ReviewQueueFormatError(
+                f"reviewed queue does not exist: {reviewed}"
+            )
+        if reviewed not in sources:
+            sources.append(reviewed)
+
+    for source in sources:
+        for decision in read_reviewed_queue(source):
+            key = decision.key
+            decisions[key] = decision
+            if key not in seen_pairs:
+                seen_pairs.add(key)
+                decided_rows.append(decision.to_queue_row())
+    return decisions, decided_rows
 
 
 def _resolve_reviewed_at(as_of: str | None) -> str:
@@ -985,6 +1290,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="rejection registry (or reviewed queue) of pairs never to re-propose",
     )
     parser.add_argument(
+        "--reviewed-queue",
+        default=None,
+        metavar="TSV",
+        help=(
+            "reviewed queue whose curator decisions to apply: accept/amend "
+            "promote a human_reviewed row, reject suppresses; may be the same "
+            "file as --review-queue"
+        ),
+    )
+    parser.add_argument(
         "--resource-dir",
         default=str(DEFAULT_RESOURCE_DIR),
         metavar="DIR",
@@ -1042,6 +1357,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             resource_dir=args.resource_dir,
             shortlists_path=args.shortlists,
             rejections_path=args.rejections,
+            reviewed_queue_path=args.reviewed_queue,
             confidence_threshold=args.confidence_threshold,
             margin_threshold=args.margin_threshold,
             as_of=args.as_of,

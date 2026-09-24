@@ -186,7 +186,9 @@ promotion bumps the Reference Resource's integer `version`.
 
 1. **Gating**: eligibility is an inclusive AND over `confidence` and
    `runner_up_margin`; a high-confidence winner over a near-tie is queued, not
-   promoted.
+   promoted. `confidence`, `runner_up_margin`, `runner_up_confidence`, and
+   every probability must be finite and in `[0, 1]`: a `NaN` would otherwise
+   compare false against every bound and be auto-accepted.
 2. **Promotion**: eligible rows are appended to `mapping.tsv` with the issue
    #162 provenance columns, `review_status = auto_accepted`, and an ISO
    `reviewed_at`; the three resolver lookup columns are first, and the exact
@@ -199,19 +201,25 @@ promotion bumps the Reference Resource's integer `version`.
    `override_ontology_label`, `curator_notes`, `curator`, and `curated_at`
    columns. A queued proposal without a shortlist raises instead of writing an
    entry with missing evidence.
-4. **Rejections**: a rejection registry (or a reviewed queue whose decision is
+4. **Human review round-trip**: a review queue edited in place is read back on
+   the next run (or via `--reviewed-queue`). `accept` promotes the proposal's
+   own selection and `amend` promotes the override, both as
+   `review_status = human_reviewed` with the curator and date and a resource
+   `version` bump; `reject` suppresses the pair. Decided rows -- including
+   rejections -- are preserved in the rewritten queue, never discarded.
+5. **Rejections**: a rejection registry (or a reviewed queue whose decision is
    `reject`/`amend`) suppresses the pair; the registry is read, never
    rewritten, and suppression persists across runs.
-5. **Version bump**: promoting at least one new row increments the integer
+6. **Version bump**: promoting at least one new row increments the integer
    `version` in `resource.yaml` by exactly one; a re-run that promotes nothing
    leaves both the table and the version untouched.
-6. **Strict boundaries**: the only files promotion writes are the Reference
+7. **Strict boundaries**: the only files promotion writes are the Reference
    Resource directory's `mapping.tsv`/`resource.yaml` and the review queue
    file; no Release Manifest, bundle, or store is modified.
-7. **Resolver**: promoted rows resolve through
+8. **Resolver**: promoted rows resolve through
    `resolve_trait_ontology_mapping()` as `canonical_table_lookup`.
-8. **CLI surface**: the command reads the proposals table, applies the
-   thresholds, and writes the two outputs.
+9. **CLI surface**: the command reads the proposals table, applies the
+   thresholds and any curator decisions, and writes the two outputs.
 
 The suite is hermetic: it runs against temporary fixture tables and invokes
 the real R resolver only against its own fixture, so it never touches the real

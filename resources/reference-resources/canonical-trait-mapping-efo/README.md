@@ -90,3 +90,11 @@ Rows reach this table by two routes:
 A rejected `(trait_label, ontology_id)` pair is retained in a rejection
 registry and suppressed by every later promotion run, so a term a curator has
 rejected is never re-proposed or auto-accepted.
+
+A queued row can be reviewed in place: a curator sets `review_decision` to
+`accept` (promote the proposal's selection) or `amend` (promote
+`override_ontology_id`/`override_ontology_label`), with `curator` and
+`curated_at`. The next promotion run reads those decisions back from the queue
+itself (or from `--reviewed-queue`), appends the rows as
+`review_status = human_reviewed`, bumps the resource `version`, and preserves
+the decided rows -- including `reject` decisions -- in the rewritten queue.
