@@ -13,4 +13,10 @@ committed Release Manifests without changing them:
   pairs as a ground-truth validation set (issue #165).
 - :mod:`curation.recall` scores retrieval against that validation set and
   reports stratified recall with the ukb-b stratum-gap caveat (issue #165).
+- :mod:`curation.chooser` defines the chooser interface and its shortlist
+  membership rule (issue #167).
+- :mod:`curation.stub_chooser` replays recorded choices for hermetic testing of
+  the choice stage (issue #167).
+- :mod:`curation.choice` runs a chooser over each shortlist and emits the
+  proposals table (issue #167).
 """
