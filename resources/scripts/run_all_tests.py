@@ -29,6 +29,7 @@ SUITES: list[tuple[str, str, list[str]]] = [
     ("bundle", "python", ["tests/bundle/test_bundle.py"]),
     ("curation/gap-scan", "python", ["tests/curation/test_gap_scan.py"]),
     ("curation/candidates", "python", ["tests/curation/test_candidates.py"]),
+    ("curation/embedding", "python", ["tests/curation/test_embedding.py"]),
     ("curation/harvest", "python", ["tests/curation/test_harvest.py"]),
     ("curation/recall", "python", ["tests/curation/test_recall.py"]),
     ("curation/choice", "python", ["tests/curation/test_choice.py"]),

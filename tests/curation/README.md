@@ -6,9 +6,12 @@ curation pipeline (issue #161):
 - `test_gap_scan.py` — the unmapped Trait work queue (issue #163);
 - `test_candidates.py` — pinned ontology release and lexical candidate
   generation (issue #164);
+- `test_embedding.py` — the semantic embedding channel: hermetic fixture
+  vectors, channel attribution, model/index pins, and clean degradation
+  (issue #166);
 - `test_harvest.py` — the source-provided validation set (issue #165);
-- `test_recall.py` — stratified retrieval recall and the ukb-b stratum gap
-  (issue #165);
+- `test_recall.py` — stratified retrieval recall, the ukb-b stratum gap, and
+  the semantic channel's incremental delta (issues #165/#166);
 - `test_choice.py` — the chooser interface, the fixture-backed stub chooser,
   and the proposals table (issue #167).
 
@@ -81,6 +84,41 @@ fabricated candidate can reach a Release Manifest.
 The suite resolves against a tiny in-memory fixture OBO document, never a real
 release, so it is hermetic.
 
+## Embedding suite (`curation.embedding`, issue #166)
+
+### The contract this suite exists for
+
+Lexical channels cannot reach a Trait label that shares no token with the
+correct ontology term. The semantic channel embeds each term's label,
+synonyms, and definition into a nearest-neighbour index and contributes
+candidates under exactly the same attribution rules as the lexical channels.
+It is individually enableable and must degrade to lexical-only when its index
+or model is unavailable, so no run that worked before stops working.
+
+### Contracts and invariants covered
+
+1. **Reach**: the channel retrieves a term sharing no lexical overlap with the
+   query, where every lexical channel returns nothing.
+2. **Indexed text**: a term is indexed by its label, its synonyms, and its
+   definition, not by its label alone.
+3. **Attribution**: a semantic candidate records the `embedding` channel and
+   its rank like any other channel, and the shortlist row records the pinned
+   model id and the content-addressed index build alongside the ontology
+   release.
+4. **Pins**: the embedding index round-trips, rejects an unknown format
+   version, and records its model, release, and build metadata; the build id
+   is content-addressed, so a changed vector changes it.
+5. **Degradation**: no retriever leaves the shortlist lexical-only; a missing,
+   stale, release-mismatched, or model-mismatched index, and an embedder that
+   fails at query time, all contribute nothing rather than raising.
+6. **CLI surface**: `--enable-embedding` / `--embedding-index` enable the
+   channel, and an unavailable index prints a warning and leaves the run
+   lexical-only with exit 0.
+
+The suite is hermetic: retrieval uses a deterministic in-memory stub embedder
+with explicit fixture vectors, and the only real embedder exercised is the
+offline `HashingEmbedder`. Nothing opens a socket.
+
 ## Harvest suite (`curation.harvest`, issue #165)
 
 ### The contract this suite exists for
@@ -129,8 +167,13 @@ terms, enumerate misses, and always state the ukb-b stratum-gap caveat.
 5. **Disclaimer**: every format (text, markdown, tsv) states plainly that no
    validation stratum matches the ukb-b label distribution of disease,
    procedure, and administrative free-text.
-6. **CLI surface**: the command scores against an index or pre-generated
-   shortlists and writes the report to stdout or `--output`.
+6. **Semantic delta**: the same validation set scored lexical-only and with the
+   semantic channel enabled yields a per-stratum delta at every size; a
+   negative delta is reported as-is, and the delta appears in every format.
+7. **CLI surface**: the command scores against an index or pre-generated
+   shortlists and writes the report to stdout or `--output`; the semantic
+   delta requires `--index` and degrades to the baseline with a warning when
+   the channel is unavailable.
 
 Both suites resolve against tiny in-memory fixtures, never a real release, so
 they are hermetic.
@@ -173,9 +216,33 @@ The suite is hermetic: the only chooser exercised is the fixture-backed
 ```sh
 pixi run python tests/curation/test_gap_scan.py
 pixi run python tests/curation/test_candidates.py
+pixi run python tests/curation/test_embedding.py
 pixi run python tests/curation/test_harvest.py
 pixi run python tests/curation/test_recall.py
 pixi run python tests/curation/test_choice.py
 # or through the repo orchestrator
 pixi run test-python
 ```
+
+To measure the semantic channel's delta over the lexical-only baseline (the
+recall report re-run required by issue #166):
+
+```sh
+# build the pinned embedding index from the lexical retrieval index
+pixi run -e curation embedding-index \
+    --ontology-index .cache/curation/efo-v3.78.0.index.json \
+    --output .cache/curation/efo-v3.78.0--local-hashing-v1.embedding.json \
+    --model local-hashing-v1
+
+# score the same validation set lexical-only and with the channel enabled
+pixi run -e curation recall \
+    --validation <validation.tsv> \
+    --index .cache/curation/efo-v3.78.0.index.json \
+    --enable-embedding \
+    --embedding-index .cache/curation/efo-v3.78.0--local-hashing-v1.embedding.json
+```
+
+The `local-hashing-v1` model is the offline embedder; a hosted model such as
+the pinned `all-MiniLM-L6-v2` needs `--embedding-endpoint` (or
+`OPENGWASDB_EMBEDDING_ENDPOINT`). An unavailable channel prints a warning and
+the report stays lexical-only.

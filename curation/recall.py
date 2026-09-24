@@ -36,13 +36,26 @@ A pair is a hit at shortlist size *N* when the known ontology id is among the
 first *N* candidates, and a miss otherwise; the rank at which it was found is
 retained on the miss so near-misses can be inspected.
 
+Semantic delta
+--------------
+The same validation set can be scored twice -- once lexical-only and once with
+the semantic embedding channel enabled (:mod:`curation.embedding`) -- and
+:func:`compare_recall` reports the per-stratum delta at every size. A negative
+delta is reported as-is: the report measures the channel's contribution rather
+than assuming it helps.
+
 CLI
 ---
 ::
 
     python3 -m curation.recall --validation <validation.tsv> \\
         (--index <index.json> | --shortlists <shortlist.tsv>) \\
-        [--sizes 1,5,10,20] [--format text|markdown|tsv] [--output <report>]
+        [--sizes 1,5,10,20] [--format text|markdown|tsv] [--output <report>] \\
+        [--enable-embedding --embedding-index <embedding.json>]
+
+With ``--enable-embedding`` (or ``--embedding-index``) and ``--index``, the
+report also carries the semantic channel's delta over the lexical-only
+baseline, per stratum and shortlist size.
 """
 
 from __future__ import annotations
@@ -58,6 +71,14 @@ from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
 from curation.candidates import generate_shortlist, normalise_label
+from curation.embedding import (
+    DEFAULT_EMBEDDING_MIN_SCORE,
+    DEFAULT_EMBEDDING_TOP_K,
+    PINNED_EMBEDDING_MODEL_ID,
+    EmbeddingError,
+    SemanticRetriever,
+    resolve_retriever,
+)
 from curation.harvest import (
     STRATUM_ORDER,
     STRATUM_OTHER,
@@ -276,11 +297,14 @@ def _shortlist_lookup(
     index: OntologyIndex | None,
     shortlists: Mapping[str, Sequence[str]] | None,
     max_size: int,
+    embedding: SemanticRetriever | None = None,
 ) -> dict[str, tuple[str, ...]]:
     """Resolve the blind shortlist for every distinct validation label.
 
     Generation sees only the trait label and the ontology index; the pair's
-    known ``ontology_id`` is never passed in, so the score cannot leak.
+    known ``ontology_id`` is never passed in, so the score cannot leak. When an
+    embedding retriever is supplied, shortlists are generated with the semantic
+    channel enabled; the lexical-only baseline is the same call with ``None``.
     """
     labels = list(dict.fromkeys(pair.trait_label for pair in pairs))
     generated: dict[str, tuple[str, ...]] = {}
@@ -301,7 +325,7 @@ def _shortlist_lookup(
         if key not in cache:
             cache[key] = tuple(
                 candidate.ontology_id
-                for candidate in generate_shortlist(label, index, max_size)
+                for candidate in generate_shortlist(label, index, max_size, embedding)
             )
         generated[label] = cache[key]
     return generated
@@ -312,15 +336,21 @@ def evaluate_recall(
     index: OntologyIndex | None = None,
     shortlists: Mapping[str, Sequence[str]] | None = None,
     sizes: Sequence[int] = DEFAULT_SIZES,
+    embedding: SemanticRetriever | None = None,
 ) -> RecallResult:
     """Score retrieval recall for the validation pairs.
 
     Exactly one of ``index`` or ``shortlists`` must be supplied. Obsolete pairs
     are excluded from scoring and counted; recall is computed per stratum and
-    in aggregate at every size, and misses are enumerated per size.
+    in aggregate at every size, and misses are enumerated per size. When
+    ``embedding`` is supplied with ``index``, shortlists are generated with the
+    semantic channel enabled; passing ``None`` yields the lexical-only
+    baseline, and the two results can be compared with :func:`compare_recall`.
     """
     if (index is None) == (shortlists is None):
         raise RecallError("supply exactly one of index or shortlists")
+    if embedding is not None and index is None:
+        raise RecallError("embedding recall requires an ontology index")
 
     ordered_sizes = tuple(sorted({int(size) for size in sizes}))
     if not ordered_sizes or ordered_sizes[0] < 1:
@@ -331,7 +361,7 @@ def evaluate_recall(
     scored_pairs = [pair for pair in all_pairs if not pair.is_obsolete]
     excluded_obsolete = len(all_pairs) - len(scored_pairs)
 
-    lookup = _shortlist_lookup(scored_pairs, index, shortlists, max_size)
+    lookup = _shortlist_lookup(scored_pairs, index, shortlists, max_size, embedding)
 
     release = (
         index.ontology_release
@@ -381,6 +411,105 @@ def evaluate_recall(
     return result
 
 
+@dataclass(frozen=True)
+class RecallDelta:
+    """The incremental recall the semantic channel adds over lexical-only.
+
+    ``compare_recall`` builds this from a lexical-only baseline result and the
+    same validation set scored with the embedding channel enabled. A negative
+    delta is possible and is reported as-is: adding a channel can re-rank a
+    correct term out of a small shortlist, and hiding that would turn a
+    measurement into a promise.
+    """
+
+    baseline_release: str
+    semantic_release: str
+    sizes: tuple[int, ...]
+    scored: int
+    stratum_totals: dict[str, int] = field(default_factory=dict)
+    baseline_stratum_hits: dict[str, dict[int, int]] = field(default_factory=dict)
+    semantic_stratum_hits: dict[str, dict[int, int]] = field(default_factory=dict)
+    baseline_aggregate_hits: dict[int, int] = field(default_factory=dict)
+    semantic_aggregate_hits: dict[int, int] = field(default_factory=dict)
+
+    def present_strata(self) -> list[str]:
+        """Strata with scored pairs in either run, in canonical order."""
+        present = set(self.stratum_totals)
+        known = [s for s in STRATUM_ORDER if s in present]
+        extra = sorted(s for s in present if s not in STRATUM_ORDER)
+        return known + extra
+
+    def baseline_recall_for(self, stratum: str, size: int) -> float:
+        total = self.stratum_totals.get(stratum, 0)
+        if not total:
+            return 0.0
+        return self.baseline_stratum_hits.get(stratum, {}).get(size, 0) / total
+
+    def semantic_recall_for(self, stratum: str, size: int) -> float:
+        total = self.stratum_totals.get(stratum, 0)
+        if not total:
+            return 0.0
+        return self.semantic_stratum_hits.get(stratum, {}).get(size, 0) / total
+
+    def delta_for(self, stratum: str, size: int) -> float:
+        """Semantic recall minus lexical-only recall for one stratum and size."""
+        return self.semantic_recall_for(stratum, size) - self.baseline_recall_for(stratum, size)
+
+    def baseline_aggregate_recall(self, size: int) -> float:
+        if not self.scored:
+            return 0.0
+        return self.baseline_aggregate_hits.get(size, 0) / self.scored
+
+    def semantic_aggregate_recall(self, size: int) -> float:
+        if not self.scored:
+            return 0.0
+        return self.semantic_aggregate_hits.get(size, 0) / self.scored
+
+    def aggregate_delta(self, size: int) -> float:
+        return self.semantic_aggregate_recall(size) - self.baseline_aggregate_recall(size)
+
+
+def compare_recall(baseline: RecallResult, semantic: RecallResult) -> RecallDelta:
+    """Compute the per-stratum semantic delta over the lexical-only baseline.
+
+    Both results must score the same validation set at the same sizes; a
+    mismatch means the delta would compare two different measurements rather
+    than one channel's contribution.
+    """
+    if baseline.sizes != semantic.sizes:
+        raise RecallError(
+            f"recall sizes differ: baseline {list(baseline.sizes)} vs "
+            f"semantic {list(semantic.sizes)}"
+        )
+    if baseline.scored != semantic.scored:
+        raise RecallError(
+            f"recall scored pairs differ: baseline {baseline.scored} vs "
+            f"semantic {semantic.scored}"
+        )
+
+    strata = set(baseline.stratum_totals) | set(semantic.stratum_totals)
+    delta = RecallDelta(
+        baseline_release=baseline.ontology_release,
+        semantic_release=semantic.ontology_release,
+        sizes=baseline.sizes,
+        scored=baseline.scored,
+        baseline_aggregate_hits=dict(baseline.aggregate_hits),
+        semantic_aggregate_hits=dict(semantic.aggregate_hits),
+    )
+    for stratum in strata:
+        delta.stratum_totals[stratum] = max(
+            baseline.stratum_totals.get(stratum, 0),
+            semantic.stratum_totals.get(stratum, 0),
+        )
+        delta.baseline_stratum_hits[stratum] = dict(
+            baseline.stratum_hits.get(stratum, {size: 0 for size in baseline.sizes})
+        )
+        delta.semantic_stratum_hits[stratum] = dict(
+            semantic.stratum_hits.get(stratum, {size: 0 for size in semantic.sizes})
+        )
+    return delta
+
+
 # ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
@@ -390,11 +519,57 @@ def _format_percent(value: float) -> str:
     return f"{value * 100:.1f}%"
 
 
+def _format_signed_percent(value: float) -> str:
+    return f"{value * 100:+.1f}%"
+
+
 def _size_header(sizes: Sequence[int]) -> list[str]:
     return [f"top-{size}" for size in sizes]
 
 
-def render_text(result: RecallResult) -> str:
+def _delta_section_text(delta: RecallDelta) -> list[str]:
+    """The semantic-delta table for the plain-text report."""
+    lines: list[str] = []
+    lines.append("Semantic channel delta (semantic - lexical)")
+    lines.append("-" * 60)
+    if delta.semantic_release:
+        lines.append(
+            f"Baseline: lexical-only {delta.baseline_release or '(unknown release)'}; "
+            f"semantic: {delta.semantic_release}"
+        )
+    header = ["stratum", "n", *_size_header(delta.sizes)]
+    rows = [
+        [
+            stratum,
+            str(delta.stratum_totals.get(stratum, 0)),
+            *(_format_signed_percent(delta.delta_for(stratum, size)) for size in delta.sizes),
+        ]
+        for stratum in delta.present_strata()
+    ]
+    rows.append(
+        [
+            "aggregate",
+            str(delta.scored),
+            *(_format_signed_percent(delta.aggregate_delta(size)) for size in delta.sizes),
+        ]
+    )
+    widths = [
+        max(len(header[column]), *(len(row[column]) for row in rows))
+        for column in range(len(header))
+    ]
+
+    def render_row(row: Sequence[str]) -> str:
+        return "  ".join(
+            cell.ljust(widths[column]) for column, cell in enumerate(row)
+        ).rstrip()
+
+    lines.append(render_row(header))
+    lines.extend(render_row(row) for row in rows)
+    lines.append("")
+    return lines
+
+
+def render_text(result: RecallResult, delta: RecallDelta | None = None) -> str:
     """Render the report as plain text."""
     lines: list[str] = []
     lines.append("Retrieval recall for the source-provided validation set")
@@ -436,6 +611,8 @@ def render_text(result: RecallResult) -> str:
     lines.append(render_row(header))
     lines.extend(render_row(row) for row in rows)
     lines.append("")
+    if delta is not None:
+        lines.extend(_delta_section_text(delta))
     lines.append(f"Misses at top-{result.sizes[-1]} ({len(result.misses.get(result.sizes[-1], ()))})")
     lines.append("-" * 60)
     for miss in result.misses.get(result.sizes[-1], ()):
@@ -448,7 +625,7 @@ def render_text(result: RecallResult) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_markdown(result: RecallResult) -> str:
+def render_markdown(result: RecallResult, delta: RecallDelta | None = None) -> str:
     """Render the report as Markdown."""
     lines: list[str] = []
     lines.append("# Retrieval recall for the source-provided validation set")
@@ -483,6 +660,30 @@ def render_markdown(result: RecallResult) -> str:
         + " |"
     )
     lines.append("")
+    if delta is not None:
+        lines.append("## Semantic channel delta (semantic - lexical)")
+        lines.append("")
+        lines.append("| " + " | ".join(["stratum", "n", *_size_header(delta.sizes)]) + " |")
+        lines.append("| " + " | ".join(["---"] * (2 + len(delta.sizes))) + " |")
+        for stratum in delta.present_strata():
+            cells = [
+                stratum,
+                str(delta.stratum_totals.get(stratum, 0)),
+                *(_format_signed_percent(delta.delta_for(stratum, size)) for size in delta.sizes),
+            ]
+            lines.append("| " + " | ".join(cells) + " |")
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    "aggregate",
+                    str(delta.scored),
+                    *(_format_signed_percent(delta.aggregate_delta(size)) for size in delta.sizes),
+                ]
+            )
+            + " |"
+        )
+        lines.append("")
     largest = result.sizes[-1]
     misses = result.misses.get(largest, ())
     lines.append(f"## Misses at top-{largest} ({len(misses)})")
@@ -496,18 +697,22 @@ def render_markdown(result: RecallResult) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_tsv(result: RecallResult) -> str:
+def render_tsv(result: RecallResult, delta: RecallDelta | None = None) -> str:
     """Render the report as a machine-readable TSV.
 
     Comment lines prefixed with ``#`` carry the release, counts, and the
     mandatory disclaimer; the table then holds one ``recall`` row per stratum
-    and size plus one ``miss`` row per enumerated miss.
+    and size, one ``delta`` row per stratum and size when a semantic comparison
+    is supplied, and one ``miss`` row per enumerated miss.
     """
     lines: list[str] = []
     lines.append(f"# ontology_release: {result.ontology_release}")
     lines.append(f"# scored: {result.scored}")
     lines.append(f"# excluded_obsolete: {result.excluded_obsolete}")
     lines.append(f"# disclaimer: {STRATUM_GAP_DISCLAIMER}")
+    if delta is not None:
+        lines.append(f"# delta_baseline: {delta.baseline_release or '(unknown release)'}")
+        lines.append(f"# delta_semantic: {delta.semantic_release or '(unknown release)'}")
     lines.append("\t".join(MISS_COLUMNS))
 
     for stratum in [*result.present_strata(), "aggregate"]:
@@ -536,6 +741,38 @@ def render_tsv(result: RecallResult) -> str:
                     ]
                 )
             )
+
+    if delta is not None:
+        for stratum in [*delta.present_strata(), "aggregate"]:
+            total = (
+                delta.scored
+                if stratum == "aggregate"
+                else delta.stratum_totals.get(stratum, 0)
+            )
+            for size in delta.sizes:
+                if stratum == "aggregate":
+                    hits = delta.semantic_aggregate_hits.get(size, 0)
+                    value = delta.aggregate_delta(size)
+                else:
+                    hits = delta.semantic_stratum_hits.get(stratum, {}).get(size, 0)
+                    value = delta.delta_for(stratum, size)
+                lines.append(
+                    "\t".join(
+                        [
+                            "delta",
+                            stratum,
+                            str(size),
+                            str(total),
+                            str(hits),
+                            f"{value:+.6f}",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                        ]
+                    )
+                )
 
     for size in result.sizes:
         for miss in result.misses.get(size, ()):
@@ -566,13 +803,17 @@ RENDERERS = {
 }
 
 
-def render_report(result: RecallResult, fmt: str = "text") -> str:
-    """Render a result in the requested format."""
+def render_report(
+    result: RecallResult,
+    fmt: str = "text",
+    delta: RecallDelta | None = None,
+) -> str:
+    """Render a result in the requested format, with the delta when supplied."""
     try:
         renderer = RENDERERS[fmt]
     except KeyError as exc:
         raise RecallError(f"unknown report format: {fmt!r}") from exc
-    return renderer(result)
+    return renderer(result, delta)
 
 
 # ---------------------------------------------------------------------------
@@ -649,12 +890,105 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help="write the report here instead of stdout",
     )
+    parser.add_argument(
+        "--enable-embedding",
+        action="store_true",
+        help=(
+            "also score the semantic channel and report its delta over the "
+            "lexical-only baseline (requires --index)"
+        ),
+    )
+    parser.add_argument(
+        "--embedding-index",
+        default=None,
+        metavar="JSON",
+        help="semantic embedding index artifact; supplying it also enables the delta",
+    )
+    parser.add_argument(
+        "--embedding-model",
+        default=PINNED_EMBEDDING_MODEL_ID,
+        metavar="MODEL",
+        help=(
+            "default embedding model/artifact to resolve when no explicit "
+            f"index is given (default: {PINNED_EMBEDDING_MODEL_ID})"
+        ),
+    )
+    parser.add_argument(
+        "--embedding-endpoint",
+        default=os.environ.get("OPENGWASDB_EMBEDDING_ENDPOINT"),
+        metavar="URL",
+        help="hosted OpenAI-compatible /embeddings endpoint for the model",
+    )
+    parser.add_argument(
+        "--embedding-api-key",
+        default=os.environ.get("OPENGWASDB_EMBEDDING_API_KEY"),
+        metavar="KEY",
+        help="bearer token for the hosted embedding endpoint",
+    )
+    parser.add_argument(
+        "--embedding-top-k",
+        type=int,
+        default=DEFAULT_EMBEDDING_TOP_K,
+        metavar="N",
+        help=f"neighbours the semantic channel returns (default: {DEFAULT_EMBEDDING_TOP_K})",
+    )
+    parser.add_argument(
+        "--embedding-min-score",
+        type=float,
+        default=DEFAULT_EMBEDDING_MIN_SCORE,
+        metavar="SCORE",
+        help=(
+            "minimum cosine similarity a semantic neighbour must exceed "
+            f"(default: {DEFAULT_EMBEDDING_MIN_SCORE})"
+        ),
+    )
     return parser
+
+
+def _resolve_embedding(
+    args: argparse.Namespace,
+    ontology_release: str,
+) -> SemanticRetriever | None:
+    """Resolve the semantic retriever for the delta, or ``None`` with a warning.
+
+    The delta is only requested when the channel is enabled and an index is
+    being scored. Any unavailability is reported and returns ``None`` so the
+    report degrades to the lexical-only baseline rather than failing.
+    """
+    if not (getattr(args, "enable_embedding", False) or args.embedding_index):
+        return None
+    try:
+        return resolve_retriever(
+            args.embedding_index,
+            ontology_release,
+            model_id=args.embedding_model,
+            endpoint=args.embedding_endpoint,
+            api_key=args.embedding_api_key,
+            top_k=args.embedding_top_k,
+            min_score=args.embedding_min_score,
+        )
+    except EmbeddingError as exc:
+        print(
+            f"recall: warning: semantic delta disabled: {exc}",
+            file=sys.stderr,
+        )
+        return None
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    embedding_requested = bool(
+        getattr(args, "enable_embedding", False) or args.embedding_index
+    )
+    if embedding_requested and not args.index:
+        print(
+            "recall: error: the semantic delta requires --index "
+            "(pre-generated --shortlists carry no channel information)",
+            file=sys.stderr,
+        )
+        return 1
 
     try:
         pairs = read_validation(args.validation)
@@ -665,7 +999,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             shortlists = read_shortlists(args.shortlists)
         result = evaluate_recall(pairs, index=index, shortlists=shortlists, sizes=args.sizes)
-        text = render_report(result, args.format)
+        delta = None
+        if index is not None:
+            embedding = _resolve_embedding(args, index.ontology_release)
+            if embedding is not None:
+                semantic = evaluate_recall(
+                    pairs, index=index, sizes=args.sizes, embedding=embedding
+                )
+                delta = compare_recall(result, semantic)
+        text = render_report(result, args.format, delta)
     except (RecallError, IndexFormatError) as exc:
         print(f"recall: error: {exc}", file=sys.stderr)
         return 1

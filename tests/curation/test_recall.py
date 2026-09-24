@@ -47,6 +47,7 @@ from curation.recall import (
     STRATUM_GAP_DISCLAIMER,
     RecallError,
     ValidationPair,
+    compare_recall,
     evaluate_recall,
     parse_sizes,
     read_shortlists,
@@ -374,6 +375,84 @@ class TestParseSizes(unittest.TestCase):
             parse_sizes("abc")
 
 
+class TestSemanticDelta(unittest.TestCase):
+    """The semantic channel's incremental recall is computed and rendered."""
+
+    def setUp(self) -> None:
+        # Semantic retrieval finds beta's target at rank 2; the lexical-only
+        # baseline never retrieves it.
+        semantic_shortlists = {
+            "alpha": ("EFO:1", "EFO:2", "EFO:3"),
+            "beta": ("EFO:9", "EFO:7"),
+            "gamma": ("EFO:5", "EFO:6", "EFO:7", "EFO:4"),
+        }
+        sizes = (1, 2, 4)
+        self.baseline = evaluate_recall(scored_pairs(), shortlists=SHORTLISTS, sizes=sizes)
+        self.semantic = evaluate_recall(
+            scored_pairs(), shortlists=semantic_shortlists, sizes=sizes
+        )
+        self.delta = compare_recall(self.baseline, self.semantic)
+
+    def test_delta_per_stratum_and_size(self) -> None:
+        self.assertAlmostEqual(
+            self.delta.delta_for(STRATUM_DISEASE, 2), 0.5
+        )
+        self.assertAlmostEqual(
+            self.delta.delta_for(STRATUM_DISEASE, 1), 0.0
+        )
+        self.assertEqual(
+            self.delta.delta_for(STRATUM_ANALYTE_MEASUREMENT, 2), 0.0
+        )
+
+    def test_aggregate_delta(self) -> None:
+        self.assertAlmostEqual(self.delta.aggregate_delta(1), 0.0)
+        self.assertAlmostEqual(self.delta.aggregate_delta(2), 0.25)
+        self.assertAlmostEqual(self.delta.aggregate_delta(4), 0.25)
+
+    def test_present_strata_and_scored(self) -> None:
+        self.assertEqual(
+            self.delta.present_strata(),
+            [STRATUM_ANALYTE_MEASUREMENT, STRATUM_DISEASE],
+        )
+        self.assertEqual(self.delta.scored, 4)
+
+    def test_mismatched_sizes_or_scored_raise(self) -> None:
+        other = evaluate_recall(scored_pairs(), shortlists=SHORTLISTS, sizes=(1, 4))
+        with self.assertRaises(RecallError):
+            compare_recall(self.baseline, other)
+        different_pairs = scored_pairs()[:2]
+        smaller = evaluate_recall(different_pairs, shortlists=SHORTLISTS, sizes=(1, 2, 4))
+        with self.assertRaises(RecallError):
+            compare_recall(self.baseline, smaller)
+
+    def test_text_report_shows_delta_section(self) -> None:
+        text = render_text(self.baseline, self.delta)
+        self.assertIn("Semantic channel delta (semantic - lexical)", text)
+        self.assertIn("+50.0%", text)
+
+    def test_every_format_renders_the_delta(self) -> None:
+        for fmt in ("text", "markdown", "tsv"):
+            with self.subTest(fmt=fmt):
+                rendered = render_report(self.baseline, fmt, self.delta)
+                if fmt == "tsv":
+                    self.assertIn("delta\t", rendered)
+                else:
+                    self.assertIn("Semantic channel delta", rendered)
+
+    def test_tsv_delta_rows_carry_signed_value(self) -> None:
+        tsv = render_tsv(self.baseline, self.delta)
+        self.assertIn("# delta_semantic:", tsv)
+        delta_rows = [
+            line.split("\t")
+            for line in tsv.splitlines()
+            if not line.startswith("#") and line.startswith("delta\t")
+        ]
+        self.assertTrue(delta_rows)
+        # 11 columns, one row per stratum and aggregate per size.
+        self.assertTrue(all(len(row) == len(recall.MISS_COLUMNS) for row in delta_rows))
+        self.assertTrue(any(row[5] == "+0.500000" for row in delta_rows))
+
+
 class TestCli(unittest.TestCase):
     """The command scores an index or shortlists and writes a report."""
 
@@ -466,6 +545,18 @@ class TestCli(unittest.TestCase):
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit):
             recall.build_parser().parse_args(["--validation", str(self.validation_path)])
+
+    def test_embedding_with_shortlists_is_an_error(self) -> None:
+        code, out, err = self.run_cli(
+            [
+                "--validation", str(self.validation_path),
+                "--shortlists", str(self.shortlists_path),
+                "--enable-embedding",
+            ]
+        )
+        self.assertEqual(code, 1)
+        self.assertEqual(out, "")
+        self.assertIn("requires --index", err)
 
 
 if __name__ == "__main__":

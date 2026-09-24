@@ -9,10 +9,14 @@ committed Release Manifests without changing them:
   retrieval index candidate generation resolves against (issue #164).
 - :mod:`curation.candidates` turns each queued Trait label into a
   multi-channel lexical shortlist of plausible ontology terms (issue #164).
+- :mod:`curation.embedding` builds and queries the semantic embedding index
+  that the optional `embedding` channel adds to candidate generation, and
+  carries the pinned model and content-addressed index build (issue #166).
 - :mod:`curation.harvest` collects the source-provided Trait Ontology Mapping
   pairs as a ground-truth validation set (issue #165).
 - :mod:`curation.recall` scores retrieval against that validation set and
-  reports stratified recall with the ukb-b stratum-gap caveat (issue #165).
+  reports stratified recall with the ukb-b stratum-gap caveat, including the
+  semantic channel's delta over the lexical-only baseline (issues #165/#166).
 - :mod:`curation.chooser` defines the chooser interface and its shortlist
   membership rule (issue #167).
 - :mod:`curation.stub_chooser` replays recorded choices for hermetic testing of

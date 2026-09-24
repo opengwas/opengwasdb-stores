@@ -22,6 +22,12 @@ Retrieval runs independent lexical channels and unions their results:
 ``synonym``
     Match against the term's known synonyms, and against acronyms generated
     from multi-word labels and synonyms (``body mass index`` -> ``BMI``).
+``embedding``
+    Semantic nearest-neighbour match: the label is embedded with the pinned
+    model and compared against an embedding index of each term's label,
+    synonyms, and definition (:mod:`curation.embedding`). This channel is
+    optional (``--enable-embedding`` / ``--embedding-index``); when it is
+    disabled or unavailable the run is lexical-only and still succeeds.
 
 Every channel is additive. A candidate records which channels retrieved it and
 each channel's rank, because a candidate resting on several agreeing channels is
@@ -36,7 +42,9 @@ to the configurable shortlist size. A label no channel matches yields an empty
 shortlist -- the generator never fabricates a term.
 
 The pinned ontology release travels on every shortlist row so a later proposal
-can record exactly what it was resolved against.
+can record exactly what it was resolved against. When the semantic channel is
+in use, the pinned embedding model and the content-addressed embedding index
+build travel on every row as well.
 
 CLI
 ---
@@ -44,7 +52,8 @@ CLI
 
     python3 -m curation.candidates \\
         --work-queue <queue.tsv> --index <index.json> --output <shortlist.tsv> \\
-        [--shortlist-size N]
+        [--shortlist-size N] \\
+        [--enable-embedding --embedding-index <embedding.json>]
 """
 
 from __future__ import annotations
@@ -59,6 +68,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
+from curation.embedding import (
+    DEFAULT_EMBEDDING_MIN_SCORE,
+    DEFAULT_EMBEDDING_TOP_K,
+    PINNED_EMBEDDING_MODEL_ID,
+    EmbeddingError,
+    SemanticRetriever,
+    resolve_retriever,
+)
 from curation.ontology import (
     IndexFormatError,
     OntologyIndex,
@@ -71,11 +88,13 @@ CHANNEL_EXACT = "exact"
 CHANNEL_NORMALISED = "normalised"
 CHANNEL_TOKEN_OVERLAP = "token_overlap"
 CHANNEL_SYNONYM = "synonym"
+CHANNEL_EMBEDDING = "embedding"
 CHANNEL_ORDER: tuple[str, ...] = (
     CHANNEL_EXACT,
     CHANNEL_NORMALISED,
     CHANNEL_TOKEN_OVERLAP,
     CHANNEL_SYNONYM,
+    CHANNEL_EMBEDDING,
 )
 
 DEFAULT_SHORTLIST_SIZE: int = 10
@@ -100,6 +119,11 @@ SHORTLIST_COLUMNS: tuple[str, ...] = (
     "channels",
     "channel_ranks",
     "is_obsolete",
+    # The semantic channel's pins: empty when the channel was disabled or
+    # unavailable, so a row always states whether it was resolved with the
+    # embedding channel and, if so, with which model and index build.
+    "embedding_model",
+    "embedding_index_build",
 )
 
 
@@ -242,16 +266,49 @@ def synonym_channel(label: str, index: OntologyIndex) -> list[str]:
     return sorted(matches)
 
 
+def embedding_channel(
+    label: str,
+    retriever: SemanticRetriever | None,
+) -> list[str]:
+    """Ontology ids nearest to the trait label in the embedding index.
+
+    This is the semantic channel. It is independent of the lexical channels:
+    the query is embedded and compared to the indexed label/synonym/definition
+    vectors, so a label sharing no token with the correct term can still reach
+    it. When no retriever is supplied, or the retriever cannot serve the query,
+    the channel contributes nothing rather than failing candidate generation --
+    the clean-degradation contract of issue #166.
+    """
+    if retriever is None:
+        return []
+    text = (label or "").strip()
+    if not text:
+        return []
+    try:
+        ranked = retriever.rank(text)
+    except EmbeddingError:
+        # An embedder that is unreachable mid-run degrades to lexical-only.
+        return []
+    return [ontology_id for ontology_id, _ in ranked[:CHANNEL_LIMIT]]
+
+
 def run_channels(
     label: str,
     index: OntologyIndex,
+    embedding: SemanticRetriever | None = None,
 ) -> dict[str, list[str]]:
-    """Run every channel for one label, returning ``{channel: [ontology_id]}``."""
+    """Run every channel for one label, returning ``{channel: [ontology_id]}``.
+
+    The lexical channels always run. The semantic channel runs only when a
+    retriever is supplied; its key is always present so a caller can attribute
+    an empty result to a disabled channel rather than a missing key.
+    """
     return {
         CHANNEL_EXACT: exact_channel(label, index),
         CHANNEL_NORMALISED: normalised_channel(label, index),
         CHANNEL_TOKEN_OVERLAP: token_overlap_channel(label, index),
         CHANNEL_SYNONYM: synonym_channel(label, index),
+        CHANNEL_EMBEDDING: embedding_channel(label, embedding),
     }
 
 
@@ -275,6 +332,10 @@ class Candidate:
     channels: tuple[str, ...]
     channel_ranks: tuple[tuple[str, int], ...]
     is_obsolete: bool
+    #: The semantic channel's pins. Both are empty when the channel was
+    #: disabled or unavailable for this run.
+    embedding_model: str = ""
+    embedding_index_build: str = ""
 
     def to_row(self) -> list[str]:
         return [
@@ -289,6 +350,8 @@ class Candidate:
             ",".join(self.channels),
             ",".join(f"{channel}={rank}" for channel, rank in self.channel_ranks),
             "true" if self.is_obsolete else "false",
+            _tsv_field(self.embedding_model),
+            _tsv_field(self.embedding_index_build),
         ]
 
 
@@ -301,18 +364,22 @@ def generate_shortlist(
     trait_label: str,
     index: OntologyIndex,
     shortlist_size: int = DEFAULT_SHORTLIST_SIZE,
+    embedding: SemanticRetriever | None = None,
 ) -> list[Candidate]:
     """Return the top ``shortlist_size`` candidates for one trait label.
 
     The channels are unioned and deduplicated by ontology id, ranked by RRF,
-    and truncated. An unmatched label returns ``[]``.
+    and truncated. An unmatched label returns ``[]``. When an embedding
+    retriever is supplied, its channel contributes candidates and its model and
+    index build are recorded on every returned candidate; when it is ``None``
+    (or fails), the shortlist is the lexical-only one.
     """
     if shortlist_size < 1:
         raise CandidateGenerationError(
             f"shortlist_size must be at least 1, got {shortlist_size}"
         )
 
-    channels = run_channels(trait_label, index)
+    channels = run_channels(trait_label, index, embedding)
 
     # ontology_id -> {channel: rank}, first rank wins if a channel ever repeats.
     ranks: dict[str, dict[str, int]] = {}
@@ -322,6 +389,9 @@ def generate_shortlist(
 
     if not ranks:
         return []
+
+    embedding_model = embedding.model_id if embedding is not None else ""
+    embedding_index_build = embedding.build_id if embedding is not None else ""
 
     by_id = index.by_id()
     ranked: list[tuple[float, str, dict[str, int]]] = [
@@ -354,6 +424,8 @@ def generate_shortlist(
                     (channel, channel_ranks[channel]) for channel in ordered_channels
                 ),
                 is_obsolete=term.is_obsolete,
+                embedding_model=embedding_model,
+                embedding_index_build=embedding_index_build,
             )
         )
     return shortlist
@@ -363,6 +435,7 @@ def generate_shortlists(
     trait_labels: Iterable[str],
     index: OntologyIndex,
     shortlist_size: int = DEFAULT_SHORTLIST_SIZE,
+    embedding: SemanticRetriever | None = None,
 ) -> list[Candidate]:
     """Generate shortlists for every label, concatenated in input order.
 
@@ -371,7 +444,7 @@ def generate_shortlists(
     """
     rows: list[Candidate] = []
     for label in trait_labels:
-        rows.extend(generate_shortlist(label, index, shortlist_size))
+        rows.extend(generate_shortlist(label, index, shortlist_size, embedding))
     return rows
 
 
@@ -467,7 +540,93 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help=f"maximum candidates per trait label (default: {DEFAULT_SHORTLIST_SIZE})",
     )
+    parser.add_argument(
+        "--enable-embedding",
+        action="store_true",
+        help=(
+            "add the semantic embedding channel; requires or defaults to an "
+            "embedding index, and degrades to lexical-only when unavailable"
+        ),
+    )
+    parser.add_argument(
+        "--embedding-index",
+        default=None,
+        metavar="JSON",
+        help=(
+            "semantic embedding index artifact; supplying it also enables the "
+            "channel (default: the release+model .cache/curation path)"
+        ),
+    )
+    parser.add_argument(
+        "--embedding-model",
+        default=PINNED_EMBEDDING_MODEL_ID,
+        metavar="MODEL",
+        help=(
+            "default embedding model/artifact to resolve when no explicit "
+            f"index is given (default: {PINNED_EMBEDDING_MODEL_ID})"
+        ),
+    )
+    parser.add_argument(
+        "--embedding-endpoint",
+        default=os.environ.get("OPENGWASDB_EMBEDDING_ENDPOINT"),
+        metavar="URL",
+        help="hosted OpenAI-compatible /embeddings endpoint for the model",
+    )
+    parser.add_argument(
+        "--embedding-api-key",
+        default=os.environ.get("OPENGWASDB_EMBEDDING_API_KEY"),
+        metavar="KEY",
+        help="bearer token for the hosted embedding endpoint",
+    )
+    parser.add_argument(
+        "--embedding-top-k",
+        type=int,
+        default=DEFAULT_EMBEDDING_TOP_K,
+        metavar="N",
+        help=f"neighbours the semantic channel returns (default: {DEFAULT_EMBEDDING_TOP_K})",
+    )
+    parser.add_argument(
+        "--embedding-min-score",
+        type=float,
+        default=DEFAULT_EMBEDDING_MIN_SCORE,
+        metavar="SCORE",
+        help=(
+            "minimum cosine similarity a semantic neighbour must exceed "
+            f"(default: {DEFAULT_EMBEDDING_MIN_SCORE})"
+        ),
+    )
     return parser
+
+
+def resolve_embedding(
+    args: argparse.Namespace,
+    ontology_release: str,
+) -> SemanticRetriever | None:
+    """Resolve the semantic retriever from parsed CLI args, or ``None``.
+
+    The channel is enabled by ``--enable-embedding`` or by supplying
+    ``--embedding-index``. Any unavailability is reported on stderr as a
+    warning and returns ``None`` so the run continues lexical-only; a semantic
+    channel problem must never fail candidate generation (issue #166).
+    """
+    if not (getattr(args, "enable_embedding", False) or args.embedding_index):
+        return None
+    try:
+        return resolve_retriever(
+            args.embedding_index,
+            ontology_release,
+            model_id=args.embedding_model,
+            endpoint=args.embedding_endpoint,
+            api_key=args.embedding_api_key,
+            top_k=args.embedding_top_k,
+            min_score=args.embedding_min_score,
+        )
+    except EmbeddingError as exc:
+        print(
+            f"candidates: warning: semantic channel disabled: {exc}",
+            file=sys.stderr,
+        )
+        return None
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -489,8 +648,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"candidates: error: {exc}", file=sys.stderr)
         return 1
 
+    embedding = resolve_embedding(args, index.ontology_release)
     candidates = generate_shortlists(
-        (row["trait_label"] for row in queue), index, args.shortlist_size
+        (row["trait_label"] for row in queue),
+        index,
+        args.shortlist_size,
+        embedding,
     )
     text = format_shortlist_tsv(candidates)
 

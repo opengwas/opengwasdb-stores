@@ -280,7 +280,11 @@ ld-materialize = { cmd = "python3 resources/scripts/ld-panel/materialize_referen
 #   pixi run -e curation lexical-candidates --work-queue <queue.tsv> --index <index.json> --output <shortlist.tsv>
 #   pixi run -e curation harvest <manifest>... --index <index.json> --output <validation.tsv>
 #   pixi run -e curation recall --validation <validation.tsv> --index <index.json>
+#   pixi run -e curation embedding-index --ontology-index <index.json> --output <embedding.json>
+#   pixi run -e curation semantic-candidates --work-queue <queue.tsv> --index <index.json> --enable-embedding --output <shortlist.tsv>
 ontology-index = { cmd = "python3 -m curation.ontology" }
+embedding-index = { cmd = "python3 -m curation.embedding" }
 lexical-candidates = { cmd = "python3 -m curation.candidates" }
+semantic-candidates = { cmd = "python3 -m curation.candidates --enable-embedding" }
 harvest = { cmd = "python3 -m curation.harvest" }
 recall = { cmd = "python3 -m curation.recall" }
