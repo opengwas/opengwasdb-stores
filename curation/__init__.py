@@ -33,4 +33,12 @@ committed Release Manifests without changing them:
 - :mod:`curation.validate_chooser` scores a chooser against the held-out
   validation set, computing choice accuracy conditional on retrieval and a
   probability reliability curve (issue #168).
+- :mod:`curation.coverage` reports a round's before/after unmapped rate per
+  Store Family in Analyses resolved, distinct from the rows added to the
+  Canonical Trait Mapping Table, plus the review queue size, the no-candidate
+  count, and the round cost (issue #170).
+- :mod:`curation.curation_round` wires the whole pipeline -- gap scan,
+  candidate generation, choice, promotion, and the coverage report -- into one
+  end-to-end round over a Release Manifest, without modifying any Manifest,
+  bundle, or store (issue #170).
 """

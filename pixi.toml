@@ -284,6 +284,8 @@ ld-materialize = { cmd = "python3 resources/scripts/ld-panel/materialize_referen
 #   pixi run -e curation semantic-candidates --work-queue <queue.tsv> --index <index.json> --enable-embedding --output <shortlist.tsv>
 #   pixi run -e curation choice --shortlists <shortlist.tsv> --chooser jev --jev-endpoint <url>
 #   pixi run -e curation validate-chooser --validation <validation.tsv> --shortlists <shortlist.tsv>
+#   pixi run -e curation coverage --manifests <analyses.tsv> --mapping <mapping.tsv>
+#   pixi run -e curation curation-round --index <index.json> --chooser jev --jev-endpoint <url>
 #
 # `validate-chooser` is an explicit validation harness, never part of
 # `pixi run test-*`. A live hosted-Jev run additionally requires `--live`.
@@ -296,3 +298,5 @@ recall = { cmd = "python3 -m curation.recall" }
 choice = { cmd = "python3 -m curation.choice" }
 promotion = { cmd = "python3 -m curation.promotion" }
 validate-chooser = { cmd = "python3 -m curation.validate_chooser" }
+coverage = { cmd = "python3 -m curation.coverage" }
+curation-round = { cmd = "python3 -m curation.curation_round" }

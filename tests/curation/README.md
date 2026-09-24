@@ -24,7 +24,12 @@ curation pipeline (issue #161):
   (issue #168);
 - `test_e2e_pipeline.py` — the full pipeline round trip from `analyses.tsv` to
   a promoted Canonical Trait Mapping Table row and the real R resolver
-  (issue #168).
+  (issue #168);
+- `test_coverage.py` — the round coverage report and the end-to-end round
+  runner: before/after unmapped rates per Store Family in Analyses resolved,
+  rows added kept distinct, review queue size, no-candidate labels left
+  unmapped, cost accounting, and the strict no-Manifest/no-bundle/no-store
+  boundary (issue #170).
 
 ## Gap-scan suite (`curation.gap_scan`, issue #163)
 
@@ -344,6 +349,49 @@ All three suites are hermetic: tiny in-memory OBO/index fixtures, the fixture
 choosers, and (for the round trip) the repository's own R resolver against its
 own temporary table. Nothing opens a socket.
 
+## Coverage and round-runner suite (`curation.coverage`,
+`curation.curation_round`, issue #170)
+
+### The contract this suite exists for
+
+A curation round must be reported in the language of the corpus, not the
+machinery. A promoted Canonical Trait Mapping Table row maps one *trait label*,
+but that label can appear on many Analyses across several Store Families, so
+the headline figure is **Analyses resolved**, and it must never be conflated
+with the number of rows appended. The report must also state the work the
+round leaves behind -- the review queue and the labels for which no candidate
+was ever retrieved -- so the residual unmapped rate is not mistaken for a
+failure.
+
+### Contracts and invariants covered
+
+1. **Analyses resolved vs rows added**: one promoted row resolving many
+   Analyses across several families reports one row added and the full
+   Analyses-resolved count; the two fields are separate.
+2. **Before/after per Store Family**: each family's before rate is its
+   committed unmapped Analyses over its total Analyses; its after rate subtracts
+   exactly the Analyses whose label the round promoted. A promoted label absent
+   from a family resolves nothing there.
+3. **Normalisation**: labels differing by case or surrounding whitespace
+   collapse, and a duplicated or unnormalised promoted label counts one row.
+4. **Review queue size**: only labels still awaiting a human curator are
+   counted; a decided row is not awaiting anyone.
+5. **No candidates**: labels in the work queue with no shortlist row are
+   counted, and a full round leaves them unmapped rather than forcing an
+   approximate term.
+6. **Cost**: a cost-reporting chooser's per-label spend is summed into the
+   round total; an offline chooser is reported as untracked, not free.
+7. **Formats**: text, Markdown, and TSV carry the same before/after rates,
+   Analyses resolved, rows added, review queue size, no-candidate count, and
+   total cost; the TSV carries the globals as `#` comment lines.
+8. **Strict boundaries**: a round writes only the Reference Resource directory
+   and its work directory; no Release Manifest, accepted bundle, or built
+   Store Release is modified, and `--dry-run` leaves even the real mapping
+   table untouched.
+
+The suite is hermetic: tiny in-memory OBO/index fixtures, the stub chooser, and
+temporary Reference Resource copies. Nothing opens a socket.
+
 ## Running the suites
 
 ```sh
@@ -357,6 +405,7 @@ pixi run python tests/curation/test_promotion.py
 pixi run python tests/curation/test_jev_chooser.py
 pixi run python tests/curation/test_validate_chooser.py
 pixi run python tests/curation/test_e2e_pipeline.py
+pixi run python tests/curation/test_coverage.py
 # or through the repo orchestrator
 pixi run test-python
 ```
@@ -406,3 +455,35 @@ tables for those labels. The report separates retrieval misses from choice
 errors, bins reported probability against observed accuracy, and recommends a
 promotion confidence and runner-up margin threshold. `--live` is required for a
 hosted endpoint so the harness never opens a socket by accident.
+
+To run a full curation round and report its coverage (issue #170):
+
+```sh
+# rehearse the round against a copied Reference Resource; nothing real is written
+pixi run -e curation curation-round \
+    --index .cache/curation/efo-v3.78.0.index.json \
+    --chooser stub --fixture <fixture.json> \
+    --dry-run
+
+# live round: the confident proposals are promoted and the resource version bumped
+pixi run -e curation curation-round \
+    --index .cache/curation/efo-v3.78.0.index.json \
+    --chooser jev --jev-endpoint "$OPENGWASDB_JEV_ENDPOINT"
+
+# report coverage from an existing round's artifacts (read-only)
+pixi run -e curation coverage \
+    --manifests families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv \
+    --mapping resources/reference-resources/canonical-trait-mapping-efo/mapping.tsv \
+    --work-queue .cache/curation/round/work-queue.tsv \
+    --shortlists .cache/curation/round/shortlists.tsv \
+    --review-queue .cache/curation/round/review-queue.tsv \
+    --format markdown
+```
+
+The round defaults to the committed ukb-b Dense observed VCF manifest. It
+promotes a proposal only when its confidence is at least `0.85` *and* its
+runner-up margin is at least `0.20`; everything else is queued for a human
+curator, and a label with no retrieved candidate is left unmapped by design.
+The coverage report states the before/after unmapped rate per Store Family in
+Analyses resolved, the rows added, the review queue size, the no-candidate
+count, and the total round cost.
