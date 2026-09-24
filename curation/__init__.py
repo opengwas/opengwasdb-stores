@@ -1,0 +1,44 @@
+"""Curation tooling for OpenGWASDB Store Releases.
+
+This package holds repository-owned curation stages that operate *over*
+committed Release Manifests without changing them:
+
+- :mod:`curation.gap_scan` derives the unmapped Trait work queue that feeds
+  Canonical Trait Mapping Table curation (issue #163).
+- :mod:`curation.ontology` pins the ontology release and builds the rebuildable
+  retrieval index candidate generation resolves against (issue #164).
+- :mod:`curation.candidates` turns each queued Trait label into a
+  multi-channel lexical shortlist of plausible ontology terms (issue #164).
+- :mod:`curation.embedding` builds and queries the semantic embedding index
+  that the optional `embedding` channel adds to candidate generation, and
+  carries the pinned model and content-addressed index build (issue #166).
+- :mod:`curation.harvest` collects the source-provided Trait Ontology Mapping
+  pairs as a ground-truth validation set (issue #165).
+- :mod:`curation.recall` scores retrieval against that validation set and
+  reports stratified recall with the ukb-b stratum-gap caveat, including the
+  semantic channel's delta over the lexical-only baseline (issues #165/#166).
+- :mod:`curation.chooser` defines the chooser interface and its shortlist
+  membership rule (issue #167).
+- :mod:`curation.jev_chooser` implements a Jev-backed structured-decision
+  chooser with the 255-option cap, input byte/token budgets, and both a hosted
+  HTTP client and an injectable fixture client (issue #168).
+- :mod:`curation.stub_chooser` replays recorded choices for hermetic testing of
+  the choice stage (issue #167).
+- :mod:`curation.choice` runs a chooser over each shortlist and emits the
+  proposals table (issue #167), registering both the stub and Jev choosers.
+- :mod:`curation.promotion` gates proposals on confidence and runner-up
+  margin, promotes the confident ones to the Canonical Trait Mapping Table
+  with a Reference Resource version bump, and queues the rest for review
+  (issue #169).
+- :mod:`curation.validate_chooser` scores a chooser against the held-out
+  validation set, computing choice accuracy conditional on retrieval and a
+  probability reliability curve (issue #168).
+- :mod:`curation.coverage` reports a round's before/after unmapped rate per
+  Store Family in Analyses resolved, distinct from the rows added to the
+  Canonical Trait Mapping Table, plus the review queue size, the no-candidate
+  count, and the round cost (issue #170).
+- :mod:`curation.curation_round` wires the whole pipeline -- gap scan,
+  candidate generation, choice, promotion, and the coverage report -- into one
+  end-to-end round over a Release Manifest, without modifying any Manifest,
+  bundle, or store (issue #170).
+"""
