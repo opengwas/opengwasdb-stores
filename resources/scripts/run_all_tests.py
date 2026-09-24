@@ -27,6 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SUITES: list[tuple[str, str, list[str]]] = [
     ("ancestry-assignment", "python", ["tests/ancestry-assignment/run_tests.py"]),
     ("bundle", "python", ["tests/bundle/test_bundle.py"]),
+    ("curation/gap-scan", "python", ["tests/curation/test_gap_scan.py"]),
     ("effect-scale-validation (R)", "r", ["tests/effect-scale-validation/run_tests.R"]),
     ("eqtlgen-besd-ragged", "python", ["tests/eqtlgen-besd-ragged/test_subset_besd.py"]),
     ("finngen-r13-pilot", "r", ["tests/finngen-r13-pilot/run_tests.R"]),
