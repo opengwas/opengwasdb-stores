@@ -15,12 +15,18 @@ curation pipeline (issue #161). It reads the proposals table emitted by
    with the full provenance columns established in issue #162, and bumps the
    integer ``version`` in that resource's ``resource.yaml``. The first three
    columns are the resolver's lookup contract, so they are formatted exactly as
-   :func:`curation.choice` records them.
+   :func:`curation.choice` records them. The table's header is fixed at those
+   ten columns, so the chooser's exact version rides in the ``chooser_id`` cell
+   as ``<chooser_id>:<chooser_version>`` (see
+   :func:`format_chooser_provenance`).
 3. **Queues everything else for review.** A sub-threshold proposal is written
    to a review queue TSV carrying the proposal, its full candidate shortlist
    and evidence, and empty decision columns a curator fills in
    (``review_decision``, ``override_ontology_id``, ``override_ontology_label``,
-   ``curator_notes``, ``curator``, ``curated_at``).
+   ``curator_notes``, ``curator``, ``curated_at``). The shortlist is required
+   whenever anything is queued -- ``--shortlists`` must be supplied -- so a
+   review entry is never written with a missing shortlist or a blank candidate
+   label.
 
 Rejections are persistent. A rejection registry (or a previously reviewed queue
 whose ``review_decision`` is ``reject``/``amend``) is read on every run, and any
@@ -153,6 +159,39 @@ class ResourceYamlError(PromotionError):
 
 class RejectionFormatError(PromotionError):
     """Raised when a rejection registry is missing a trait label or ontology id."""
+
+
+class MissingShortlistEvidenceError(PromotionError):
+    """Raised when a queued proposal has no full shortlist evidence to carry.
+
+    A review queue entry exists so a human can judge the alternatives, so it
+    must never be written with a missing shortlist or a blank candidate label.
+    Promotion therefore requires the candidate shortlist whenever a proposal
+    falls below either threshold.
+    """
+
+
+# Separator between a chooser's id and its version when they are recorded in
+# the single ``chooser_id`` column of the Canonical Trait Mapping Table. The
+# table's header is fixed at the ten issue-#162 columns, so the version is
+# carried in the chooser_id cell (``stub:1``) rather than lost.
+CHOOSER_PROVENANCE_SEPARATOR: str = ":"
+
+
+def format_chooser_provenance(chooser_id: str, chooser_version: str) -> str:
+    """Encode a chooser's id and exact version into the ``chooser_id`` column.
+
+    The Canonical Trait Mapping Table's header is fixed at the ten columns
+    settled in issue #162, so there is no separate ``chooser_version`` column
+    to promote into. The exact version is preserved by recording
+    ``<chooser_id>:<chooser_version>`` (for example ``stub:1``). An empty
+    version leaves the id alone; an empty id leaves the version alone.
+    """
+    chooser_id = (chooser_id or "").strip()
+    chooser_version = (chooser_version or "").strip()
+    if chooser_id and chooser_version:
+        return f"{chooser_id}{CHOOSER_PROVENANCE_SEPARATOR}{chooser_version}"
+    return chooser_id or chooser_version
 
 
 def _tsv_field(value: str) -> str:
@@ -561,56 +600,65 @@ def build_candidate_evidence(
 ) -> tuple[CandidateEvidence, ...]:
     """Build the full candidate shortlist with evidence for a queued proposal.
 
-    Candidates are ordered by descending probability, then shortlist rank, then
-    ontology id, so the queue is deterministic. When the shortlist TSV is not
-    available the distribution is still carried, with the selected and
-    runner-up labels the only evidence known.
+    The shortlist is required: a review entry exists for a human to judge the
+    alternatives, so it must carry every candidate's evidence (label,
+    definition, parent term, channels, channel ranks, obsolete flag) and never
+    a blank candidate label. The evidence covers the *whole* shortlist, not
+    just the terms the proposal scored; an unscored candidate is carried with
+    probability ``0.0``. Candidates are ordered by descending probability, then
+    shortlist rank, then ontology id, so the queue is deterministic.
+
+    Raises :class:`MissingShortlistEvidenceError` when no shortlist is
+    available, when a proposal's distribution names a term outside the
+    shortlist, or when a shortlisted candidate has no id or label.
     """
-    by_id = {candidate.ontology_id: candidate for candidate in shortlist or []}
-    order = {
-        candidate.ontology_id: index
-        for index, candidate in enumerate(shortlist or [])
-    }
-    ontology_ids = sorted(
-        proposal.probabilities,
-        key=lambda ontology_id: (
-            -proposal.probabilities[ontology_id],
-            order.get(ontology_id, len(order)),
-            ontology_id,
+    if not shortlist:
+        raise MissingShortlistEvidenceError(
+            f"no candidate shortlist evidence for queued trait label "
+            f"{proposal.trait_label!r}; promotion requires the shortlist "
+            f"(--shortlists) whenever a proposal falls below a threshold"
+        )
+
+    by_id = {candidate.ontology_id: candidate for candidate in shortlist}
+    order = {candidate.ontology_id: index for index, candidate in enumerate(shortlist)}
+
+    outside = sorted(set(proposal.probabilities) - set(by_id))
+    if outside:
+        raise MissingShortlistEvidenceError(
+            f"shortlist for {proposal.trait_label!r} is missing candidate(s) "
+            f"named by the proposal distribution: {', '.join(outside)}"
+        )
+
+    ordered = sorted(
+        shortlist,
+        key=lambda candidate: (
+            -proposal.probabilities.get(candidate.ontology_id, 0.0),
+            order[candidate.ontology_id],
+            candidate.ontology_id,
         ),
     )
 
     evidence: list[CandidateEvidence] = []
-    for ontology_id in ontology_ids:
-        probability = proposal.probabilities[ontology_id]
-        candidate = by_id.get(ontology_id)
-        if candidate is None:
-            label = ""
-            if ontology_id == proposal.selected_ontology_id:
-                label = proposal.selected_ontology_label
-            elif ontology_id == proposal.runner_up_id:
-                label = proposal.runner_up_label
-            evidence.append(
-                CandidateEvidence(
-                    ontology_id=ontology_id,
-                    ontology_label=label,
-                    probability=probability,
-                )
+    for candidate in ordered:
+        if not candidate.ontology_id or not candidate.ontology_label:
+            raise MissingShortlistEvidenceError(
+                f"shortlist for {proposal.trait_label!r} has a candidate with "
+                f"no id or label (id={candidate.ontology_id!r}, "
+                f"label={candidate.ontology_label!r})"
             )
-        else:
-            evidence.append(
-                CandidateEvidence(
-                    ontology_id=ontology_id,
-                    ontology_label=candidate.ontology_label,
-                    probability=probability,
-                    definition=candidate.definition,
-                    parent_id=candidate.parent_id,
-                    parent_label=candidate.parent_label,
-                    channels=candidate.channels,
-                    channel_ranks=candidate.channel_ranks,
-                    is_obsolete=candidate.is_obsolete,
-                )
+        evidence.append(
+            CandidateEvidence(
+                ontology_id=candidate.ontology_id,
+                ontology_label=candidate.ontology_label,
+                probability=proposal.probabilities.get(candidate.ontology_id, 0.0),
+                definition=candidate.definition,
+                parent_id=candidate.parent_id,
+                parent_label=candidate.parent_label,
+                channels=candidate.channels,
+                channel_ranks=candidate.channel_ranks,
+                is_obsolete=candidate.is_obsolete,
             )
+        )
     return tuple(evidence)
 
 
@@ -641,7 +689,11 @@ class PromotedRow:
             trait_ontology_id=proposal.selected_ontology_id,
             trait_ontology_label=proposal.selected_ontology_label,
             ontology_release=proposal.ontology_release,
-            chooser_id=proposal.chooser_id,
+            # The ten-column header has no chooser_version column, so the exact
+            # version rides in the chooser_id cell as ``<id>:<version>``.
+            chooser_id=format_chooser_provenance(
+                proposal.chooser_id, proposal.chooser_version
+            ),
             confidence=proposal.confidence,
             runner_up_margin=proposal.runner_up_margin,
             review_status=AUTO_ACCEPTED,
@@ -729,7 +781,11 @@ def build_promotion_plan(
     proposal whose trait label is already in the mapping table is skipped
     (never duplicated). The first proposal for a trait label wins, so a
     repeated label cannot shadow itself. Eligible proposals are promoted; the
-    rest are queued with their evidence.
+    rest are queued with their full candidate evidence.
+
+    Queueing requires that evidence: a proposal below a threshold whose label
+    has no shortlist raises :class:`MissingShortlistEvidenceError`, so a
+    review entry is never built with a missing shortlist or blank labels.
     """
     rejected_pairs = set(rejections)
     already_mapped = set(existing_labels)
@@ -820,6 +876,9 @@ def run_promotion(
 
     Writes ``mapping.tsv`` and ``resource.yaml`` inside ``resource_dir`` only
     when there is at least one new row, and always writes the review queue.
+    ``shortlists_path`` is required whenever a proposal falls below either
+    threshold, because a review entry must carry its full candidate evidence;
+    the error is raised while planning, before anything is written.
     """
     proposals = read_proposals(proposals_path)
     shortlist_evidence = read_shortlist_evidence(shortlists_path)
@@ -914,7 +973,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--shortlists",
         default=None,
         metavar="TSV",
-        help="candidate shortlist TSV, to carry full evidence into the review queue",
+        help=(
+            "candidate shortlist TSV; required whenever any proposal falls "
+            "below a threshold, so the review queue carries full evidence"
+        ),
     )
     parser.add_argument(
         "--rejections",

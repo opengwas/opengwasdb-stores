@@ -37,7 +37,7 @@ candidate-generation step:
 | Column | Meaning |
 |---|---|
 | `ontology_release` | Release/version of the ontology the chosen term was read from (for example an EFO or MONDO release identifier). |
-| `chooser_id` | Identifier of the chooser — the model, tool, or process — that proposed the term. |
+| `chooser_id` | Identifier of the chooser — the model, tool, or process — that proposed the term. A row promoted by `curation.promotion` records the chooser's exact version in this cell as `<chooser_id>:<chooser_version>` (for example `stub:1`), because the ten-column header has no separate `chooser_version` column and the version must not be lost. |
 | `confidence` | The chooser's own confidence in the chosen term, as a number between 0 and 1. |
 | `runner_up_margin` | Difference in score between the chosen term and the next-best candidate; small margins flag rows worth a closer look. |
 | `review_status` | Controlled value: `auto_accepted` (accepted on the chooser's output without a human) or `human_reviewed` (a person checked and accepted it). |
@@ -82,7 +82,10 @@ Rows reach this table by two routes:
    thresholds is appended to this table with `review_status = auto_accepted`
    and a `reviewed_at` date, and the resource's integer `version` in
    `resource.yaml` is bumped. A proposal below either threshold goes to a
-   review queue instead, carrying its full candidate shortlist for a curator.
+   review queue instead; the candidate shortlist (`--shortlists`) is required
+   whenever anything is queued, so every review entry carries its full
+   candidate shortlist and evidence (label, definition, parent term, channels,
+   and channel ranks).
 
 A rejected `(trait_label, ontology_id)` pair is retained in a rejection
 registry and suppressed by every later promotion run, so a term a curator has

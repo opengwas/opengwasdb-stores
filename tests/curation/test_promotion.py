@@ -40,6 +40,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from curation import candidates, promotion
 from curation.choice import PROPOSAL_COLUMNS
+from curation.chooser import Candidate
 from curation.promotion import (
     AUTO_ACCEPTED,
     DEFAULT_CONFIDENCE_THRESHOLD,
@@ -50,6 +51,7 @@ from curation.promotion import (
     REASON_BELOW_MARGIN,
     REVIEW_DECISION_COLUMNS,
     REVIEW_QUEUE_COLUMNS,
+    MissingShortlistEvidenceError,
     ProposalFormatError,
     ProposalRecord,
     RejectionFormatError,
@@ -57,6 +59,7 @@ from curation.promotion import (
     build_candidate_evidence,
     build_promotion_plan,
     bump_resource_version,
+    format_chooser_provenance,
     gate_reason,
     load_mapping,
     main,
@@ -148,6 +151,40 @@ def shortlist_row(
     }
 
 
+def shortlists_from_proposals(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Derive a full shortlist TSV row set from proposals rows.
+
+    Every candidate in each proposal's distribution gets a shortlist row with
+    the evidence a review entry must carry: a label (the selected/runner-up
+    labels where known), a definition, a parent term, and a channel.
+    """
+    shortlists: list[dict[str, str]] = []
+    for row in rows:
+        label = row["trait_label"]
+        probabilities = json.loads(row["probabilities"])
+        for ontology_id in probabilities:
+            if ontology_id == row["selected_ontology_id"]:
+                ontology_label = row["selected_ontology_label"]
+            elif ontology_id == row["runner_up_id"]:
+                ontology_label = row["runner_up_label"]
+            else:
+                ontology_label = f"{ontology_id} label"
+            shortlists.append(
+                shortlist_row(
+                    label,
+                    len(shortlists) + 1,
+                    ontology_id,
+                    ontology_label,
+                    definition=f"Definition for {ontology_id}",
+                    parent_id=f"PARENT:{ontology_id}",
+                    parent_label=f"Parent of {ontology_id}",
+                    channels="exact,normalised",
+                    channel_ranks="exact=1,normalised=1",
+                )
+            )
+    return shortlists
+
+
 def write_table(path: Path, columns: list[str], rows: list[dict[str, str]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = ["\t".join(columns)]
@@ -231,6 +268,17 @@ class PromotionTestCase(unittest.TestCase):
             "resource_dir": self.resource_dir,
             "as_of": "2026-01-02",
         }
+        # A queued proposal needs a shortlist. Use the fixture written by
+        # write_shortlists(), or derive one from the proposals so a test that
+        # only cares about the gate still gets full evidence. Passing
+        # shortlists_path=None explicitly tests the missing-evidence error.
+        if "shortlists_path" not in overrides:
+            if not self.shortlists.is_file() and self.proposals.is_file():
+                _, rows = parse_tsv(self.proposals.read_text(encoding="utf-8"))
+                if rows:
+                    self.write_shortlists(shortlists_from_proposals(rows))
+            if self.shortlists.is_file():
+                kwargs["shortlists_path"] = self.shortlists
         kwargs.update(overrides)
         return run_promotion(**kwargs)  # type: ignore[arg-type]
 
@@ -400,6 +448,8 @@ class TestPromotionSplit(PromotionTestCase):
         self.assertEqual(promoted[0]["review_status"], AUTO_ACCEPTED)
         self.assertEqual(promoted[0]["reviewer"], "")
         self.assertEqual(promoted[0]["reviewed_at"], "2026-01-02")
+        # The exact chooser version rides in the chooser_id cell.
+        self.assertEqual(promoted[0]["chooser_id"], "stub:1")
 
         queued = {row["trait_label"]: row for row in self.review_rows()}
         self.assertEqual(queued["Height"]["review_reason"], REASON_BELOW_CONFIDENCE)
@@ -415,6 +465,52 @@ class TestPromotionSplit(PromotionTestCase):
     def test_default_thresholds(self) -> None:
         self.assertEqual(DEFAULT_CONFIDENCE_THRESHOLD, 0.85)
         self.assertEqual(DEFAULT_MARGIN_THRESHOLD, 0.20)
+
+
+class TestChooserProvenance(PromotionTestCase):
+    """The exact chooser version is never lost on a promoted row."""
+
+    def test_promoted_row_records_chooser_id_and_version(self) -> None:
+        self.write_proposals(
+            [
+                proposal_row(
+                    "x",
+                    "EFO:1",
+                    "one",
+                    0.99,
+                    runner_up_margin=1.0,
+                    chooser_id="gpt-4o",
+                    chooser_version="2024-08-06",
+                )
+            ]
+        )
+        self.promote()
+        self.assertEqual(self.mapping_rows()[0]["chooser_id"], "gpt-4o:2024-08-06")
+
+    def test_format_chooser_provenance_handles_missing_parts(self) -> None:
+        self.assertEqual(format_chooser_provenance("stub", "1"), "stub:1")
+        self.assertEqual(format_chooser_provenance("stub", ""), "stub")
+        self.assertEqual(format_chooser_provenance("", "1"), "1")
+        self.assertEqual(format_chooser_provenance("", ""), "")
+        self.assertEqual(format_chooser_provenance("  stub  ", "  1  "), "stub:1")
+
+    def test_review_queue_keeps_separate_version_column(self) -> None:
+        self.write_proposals(
+            [
+                proposal_row(
+                    "x",
+                    "EFO:1",
+                    "one",
+                    0.10,
+                    chooser_id="gpt-4o",
+                    chooser_version="2024-08-06",
+                )
+            ]
+        )
+        self.promote()
+        row = self.review_rows()[0]
+        self.assertEqual(row["chooser_id"], "gpt-4o")
+        self.assertEqual(row["chooser_version"], "2024-08-06")
 
 
 class TestMarginGating(PromotionTestCase):
@@ -545,7 +641,25 @@ class TestReviewQueue(PromotionTestCase):
         self.assertFalse(top["is_obsolete"])
         self.assertAlmostEqual(top["probability"], 0.55)
 
-    def test_candidates_json_without_shortlists_still_has_distribution(self) -> None:
+    def test_missing_shortlist_raises_for_queued_proposal(self) -> None:
+        self.write_proposals(
+            [
+                proposal_row(
+                    "Body mass index",
+                    "EFO:1",
+                    "body mass index",
+                    0.55,
+                    runner_up_margin=0.10,
+                )
+            ]
+        )
+        with self.assertRaises(MissingShortlistEvidenceError):
+            self.promote(shortlists_path=None)
+        # Planning fails before anything is written.
+        self.assertFalse(self.review_queue.exists())
+        self.assertEqual(self.mapping_rows(), [])
+
+    def test_full_shortlist_includes_unscored_candidates(self) -> None:
         self.write_proposals(
             [
                 proposal_row(
@@ -561,12 +675,44 @@ class TestReviewQueue(PromotionTestCase):
                 )
             ]
         )
+        self.write_shortlists(
+            [
+                shortlist_row("Body mass index", 1, "EFO:1", "body mass index"),
+                shortlist_row("Body mass index", 2, "EFO:2", "body weights"),
+                shortlist_row("Body mass index", 3, "EFO:3", "a term the chooser did not score"),
+            ]
+        )
         self.promote()
         _, rows = parse_tsv(self.review_queue.read_text(encoding="utf-8"))
         evidence = json.loads(rows[0]["candidates"])
-        self.assertEqual([item["ontology_id"] for item in evidence], ["EFO:1", "EFO:2"])
-        self.assertEqual(evidence[0]["ontology_label"], "body mass index")
-        self.assertEqual(evidence[1]["ontology_label"], "body weights")
+        self.assertEqual(
+            [item["ontology_id"] for item in evidence], ["EFO:1", "EFO:2", "EFO:3"]
+        )
+        self.assertEqual(evidence[2]["ontology_label"], "a term the chooser did not score")
+        self.assertEqual(evidence[2]["probability"], 0.0)
+
+    def test_blank_candidate_label_raises(self) -> None:
+        self.write_proposals([proposal_row("Body mass index", "EFO:1", "one", 0.55, runner_up_margin=0.10)])
+        self.write_shortlists([shortlist_row("Body mass index", 1, "EFO:1", "")])
+        with self.assertRaises(MissingShortlistEvidenceError):
+            self.promote()
+
+    def test_distribution_term_outside_shortlist_raises(self) -> None:
+        self.write_proposals(
+            [
+                proposal_row(
+                    "Body mass index",
+                    "EFO:1",
+                    "one",
+                    0.55,
+                    runner_up_margin=0.10,
+                    probabilities={"EFO:1": 0.55, "EFO:2": 0.45},
+                )
+            ]
+        )
+        self.write_shortlists([shortlist_row("Body mass index", 1, "EFO:1", "one")])
+        with self.assertRaises(MissingShortlistEvidenceError):
+            self.promote()
 
     def test_build_candidate_evidence_orders_by_probability(self) -> None:
         proposal = proposal_record(
@@ -577,8 +723,22 @@ class TestReviewQueue(PromotionTestCase):
             0.2,
             probabilities={"EFO:3": 0.2, "EFO:1": 0.4, "EFO:2": 0.4},
         )
-        evidence = build_candidate_evidence(proposal, None)
-        # Equal probabilities fall back to ontology id for determinism.
+        shortlist = [
+            Candidate(
+                ontology_id=ontology_id,
+                ontology_label=ontology_id.lower(),
+                definition="",
+                parent_id="",
+                parent_label="",
+                channels=("exact",),
+                channel_ranks=(("exact", 1),),
+                is_obsolete=False,
+                ontology_release=RELEASE,
+            )
+            for ontology_id in ("EFO:3", "EFO:1", "EFO:2")
+        ]
+        evidence = build_candidate_evidence(proposal, shortlist)
+        # Equal probabilities fall back to shortlist order for determinism.
         self.assertEqual([item.ontology_id for item in evidence], ["EFO:1", "EFO:2", "EFO:3"])
 
 
@@ -847,12 +1007,12 @@ class TestStrictBoundaries(PromotionTestCase):
         bundle = self.base / "families" / "fam" / "releases" / "rel"
         bundle.mkdir(parents=True)
         (bundle / "analyses.tsv").write_text("analysis_id\ttrait\n", encoding="utf-8")
-        self.write_proposals(
-            [
-                proposal_row("Promoted", "EFO:1", "one", 0.99, runner_up_margin=1.0),
-                proposal_row("Queued", "EFO:2", "two", 0.10),
-            ]
-        )
+        rows = [
+            proposal_row("Promoted", "EFO:1", "one", 0.99, runner_up_margin=1.0),
+            proposal_row("Queued", "EFO:2", "two", 0.10),
+        ]
+        self.write_proposals(rows)
+        self.write_shortlists(shortlists_from_proposals(rows))
 
         before = snapshot(self.base)
         self.promote()
@@ -912,16 +1072,42 @@ class TestBuildPromotionPlan(unittest.TestCase):
             proposal_record("Weak", "EFO:2", "two", 0.10, 0.9),
             proposal_record("Rejected", "EFO:3", "three", 0.99, 0.9),
         ]
+        evidence = {
+            "weak": [
+                Candidate(
+                    ontology_id="EFO:2",
+                    ontology_label="two",
+                    definition="",
+                    parent_id="",
+                    parent_label="",
+                    channels=("exact",),
+                    channel_ranks=(("exact", 1),),
+                    is_obsolete=False,
+                    ontology_release=RELEASE,
+                )
+            ]
+        }
         plan = build_promotion_plan(
             proposals,
             confidence_threshold=0.85,
             margin_threshold=0.20,
             rejections={("rejected", "EFO:3")},
+            shortlist_evidence=evidence,
             reviewed_at="2026-01-02",
         )
         self.assertEqual([row.trait_label for row in plan.promoted], ["Good"])
         self.assertEqual([entry.proposal.trait_label for entry in plan.queued], ["Weak"])
         self.assertEqual([record.trait_label for record in plan.suppressed], ["Rejected"])
+
+    def test_queued_without_evidence_raises(self) -> None:
+        proposals = [proposal_record("Weak", "EFO:2", "two", 0.10, 0.9)]
+        with self.assertRaises(MissingShortlistEvidenceError):
+            build_promotion_plan(
+                proposals,
+                confidence_threshold=0.85,
+                margin_threshold=0.20,
+                reviewed_at="2026-01-02",
+            )
 
     def test_existing_label_is_skipped(self) -> None:
         proposals = [proposal_record("Mapped", "EFO:1", "one", 0.99, 0.9)]
@@ -965,17 +1151,18 @@ class TestPromotionCli(PromotionTestCase):
         return code, stdout.getvalue(), stderr.getvalue()
 
     def test_cli_promotes_and_queues(self) -> None:
-        self.write_proposals(
-            [
-                proposal_row("Promoted", "EFO:1", "one", 0.99, runner_up_margin=1.0),
-                proposal_row("Queued", "EFO:2", "two", 0.10),
-            ]
-        )
+        rows = [
+            proposal_row("Promoted", "EFO:1", "one", 0.99, runner_up_margin=1.0),
+            proposal_row("Queued", "EFO:2", "two", 0.10),
+        ]
+        self.write_proposals(rows)
+        self.write_shortlists(shortlists_from_proposals(rows))
         code, out, err = self.run_cli(
             [
                 "--proposals", str(self.proposals),
                 "--review-queue", str(self.review_queue),
                 "--resource-dir", str(self.resource_dir),
+                "--shortlists", str(self.shortlists),
                 "--as-of", "2026-01-02",
             ]
         )
@@ -985,6 +1172,22 @@ class TestPromotionCli(PromotionTestCase):
         self.assertEqual(len(self.mapping_rows()), 1)
         self.assertEqual(len(self.review_rows()), 1)
         self.assertIn("version: 2", self.resource_yaml_path.read_text(encoding="utf-8"))
+
+    def test_cli_returns_one_when_queued_without_shortlists(self) -> None:
+        self.write_proposals(
+            [proposal_row("Queued", "EFO:2", "two", 0.10)]
+        )
+        code, _, err = self.run_cli(
+            [
+                "--proposals", str(self.proposals),
+                "--review-queue", str(self.review_queue),
+                "--resource-dir", str(self.resource_dir),
+            ]
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("promotion: error:", err)
+        self.assertIn("shortlist", err)
+        self.assertFalse(self.review_queue.exists())
 
     def test_cli_returns_one_on_bad_proposals(self) -> None:
         code, out, err = self.run_cli(

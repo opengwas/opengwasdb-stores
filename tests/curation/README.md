@@ -189,11 +189,16 @@ promotion bumps the Reference Resource's integer `version`.
    promoted.
 2. **Promotion**: eligible rows are appended to `mapping.tsv` with the issue
    #162 provenance columns, `review_status = auto_accepted`, and an ISO
-   `reviewed_at`; the three resolver lookup columns are first.
+   `reviewed_at`; the three resolver lookup columns are first, and the exact
+   chooser version is preserved in the `chooser_id` cell as
+   `<chooser_id>:<chooser_version>`.
 3. **Review queue**: sub-threshold proposals carry the proposal, their full
-   candidate shortlist and evidence as JSON, and empty `review_decision`,
-   `override_ontology_id`, `override_ontology_label`, `curator_notes`,
-   `curator`, and `curated_at` columns.
+   candidate shortlist and evidence as JSON (every shortlisted candidate, with
+   definition, parent term, channels, and channel ranks -- never a blank
+   label), and empty `review_decision`, `override_ontology_id`,
+   `override_ontology_label`, `curator_notes`, `curator`, and `curated_at`
+   columns. A queued proposal without a shortlist raises instead of writing an
+   entry with missing evidence.
 4. **Rejections**: a rejection registry (or a reviewed queue whose decision is
    `reject`/`amend`) suppresses the pair; the registry is read, never
    rewritten, and suppression persists across runs.
