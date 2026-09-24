@@ -35,7 +35,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Sequence
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -55,16 +55,20 @@ from curation.candidates import (
     run_channels,
 )
 from curation.embedding import (
+    DICTIONARY_EMBEDDING_MODEL_ID,
     EMBEDDING_INDEX_FORMAT_VERSION,
     HASHING_EMBEDDING_MODEL_ID,
     PINNED_EMBEDDING_MODEL_ID,
+    DictionaryEmbedder,
     EmbeddedTerm,
     EmbeddingChannel,
+    EmbeddingError,
     EmbeddingIndex,
     EmbeddingIndexCorruptError,
     EmbeddingIndexError,
     EmbeddingUnavailableError,
     HashingEmbedder,
+    HttpEmbedder,
     SemanticRetriever,
     build_embedding_index,
     cosine_similarity,
@@ -117,23 +121,6 @@ def: "A systolic blood pressure measurement." []
 SEMANTIC_QUERY = "quercetin bioavailability"
 
 FIXTURE_MODEL_ID = "fixture-embedder-v1"
-
-
-class StubEmbedder:
-    """A deterministic embedder backed by explicit fixture vectors."""
-
-    def __init__(
-        self,
-        vectors: Mapping[str, Sequence[float]],
-        model_id: str = FIXTURE_MODEL_ID,
-        default: Sequence[float] = (0.0, 0.0, 0.0),
-    ) -> None:
-        self.model_id = model_id
-        self._vectors = {text: tuple(vector) for text, vector in vectors.items()}
-        self._default = tuple(default)
-
-    def embed(self, texts: Sequence[str]) -> list[tuple[float, ...]]:
-        return [self._vectors.get(text, self._default) for text in texts]
 
 
 class RecordingEmbedder:
@@ -196,8 +183,10 @@ def fixture_semantic_index(release: str = PINNED_ONTOLOGY_RELEASE) -> EmbeddingI
 
 
 def fixture_retriever() -> SemanticRetriever:
-    embedder = StubEmbedder(
-        {SEMANTIC_QUERY: (0.0, 1.0, 0.0)}, model_id=FIXTURE_MODEL_ID
+    # DictionaryEmbedder replays the dense vectors directly, so the query and
+    # the target term can point the same way with no shared tokens at all.
+    embedder = DictionaryEmbedder(
+        model_id=FIXTURE_MODEL_ID, vectors={SEMANTIC_QUERY: (0.0, 1.0, 0.0)}
     )
     return SemanticRetriever(index=fixture_semantic_index(), embedder=embedder, top_k=5)
 
@@ -325,6 +314,134 @@ class TestHashingEmbedder(unittest.TestCase):
         vector = HashingEmbedder(dimension=8).embed([""])[0]
         self.assertEqual(len(vector), 8)
         self.assertTrue(all(component == 0.0 for component in vector))
+
+
+class TestDictionaryEmbedder(unittest.TestCase):
+    """The explicit-dictionary embedder replays dense vectors offline."""
+
+    def test_default_model_id(self) -> None:
+        self.assertEqual(
+            DictionaryEmbedder().model_id, DICTIONARY_EMBEDDING_MODEL_ID
+        )
+
+    def test_registered_text_returns_its_vector(self) -> None:
+        embedder = DictionaryEmbedder(
+            model_id="m", vectors={"a": (1.0, 2.0), "b": (3.0, 4.0)}
+        )
+        self.assertEqual(embedder.embed(["a", "b"]), [(1.0, 2.0), (3.0, 4.0)])
+
+    def test_unregistered_text_is_zero_vector(self) -> None:
+        embedder = DictionaryEmbedder(model_id="m", vectors={"a": (1.0, 0.0)})
+        self.assertEqual(embedder.embed(["missing"]), [(0.0, 0.0)])
+
+    def test_register_replaces_and_extends(self) -> None:
+        embedder = DictionaryEmbedder(model_id="m", vectors={"a": (1.0, 0.0)})
+        embedder.register("b", (0.0, 1.0))
+        embedder.register("a", (0.5, 0.5))
+        self.assertEqual(embedder.embed(["a", "b"]), [(0.5, 0.5), (0.0, 1.0)])
+        self.assertEqual(embedder.dimension, 2)
+        self.assertEqual(set(embedder.registered_texts()), {"a", "b"})
+
+    def test_inconsistent_dimensions_are_rejected(self) -> None:
+        with self.assertRaises(EmbeddingError):
+            DictionaryEmbedder(model_id="m", vectors={"a": (1.0,), "b": (1.0, 0.0)})
+        embedder = DictionaryEmbedder(model_id="m", vectors={"a": (1.0, 0.0)})
+        with self.assertRaises(EmbeddingError):
+            embedder.register("b", (1.0, 0.0, 0.0))
+
+    def test_default_vector_must_match_dimension(self) -> None:
+        with self.assertRaises(EmbeddingError):
+            DictionaryEmbedder(
+                model_id="m", vectors={"a": (1.0,)}, default=(0.0, 0.0)
+            )
+
+    def test_builds_and_queries_a_semantic_index_offline(self) -> None:
+        ontology_index = fixture_ontology_index()
+        by_id = {term.ontology_id: term for term in ontology_index}
+        embedder = DictionaryEmbedder(
+            model_id=FIXTURE_MODEL_ID,
+            vectors={
+                term_embedding_text(by_id["EFO:0004340"]): (1.0, 0.0, 0.0),
+                term_embedding_text(by_id["EFO:0000999"]): (0.0, 1.0, 0.0),
+                term_embedding_text(by_id["EFO:0004518"]): (0.0, 0.0, 1.0),
+                SEMANTIC_QUERY: (0.0, 1.0, 0.0),
+            },
+        )
+        index = build_embedding_index(ontology_index, embedder)
+        retriever = SemanticRetriever(index=index, embedder=embedder, top_k=5)
+        rows = generate_shortlist(SEMANTIC_QUERY, ontology_index, embedding=retriever)
+        # No lexical channel fires, yet the registered dense vectors retrieve it.
+        self.assertEqual([row.ontology_id for row in rows], ["EFO:0000999"])
+        self.assertEqual(rows[0].channels, (CHANNEL_EMBEDDING,))
+
+
+class _FakeResponse:
+    """Minimal stand-in for an httpx response."""
+
+    def __init__(self, payload: object) -> None:
+        self._payload = payload
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> object:
+        return self._payload
+
+
+class _FakeClient:
+    """Minimal stand-in for an httpx client that always returns one payload."""
+
+    def __init__(self, payload: object) -> None:
+        self._payload = payload
+
+    def __enter__(self) -> "_FakeClient":
+        return self
+
+    def __exit__(self, *exc: object) -> bool:
+        return False
+
+    def post(self, url: str, json: object = None, headers: object = None) -> _FakeResponse:
+        return _FakeResponse(self._payload)
+
+
+def _fake_client_factory(payload: object):
+    def factory(**kwargs: object) -> _FakeClient:
+        return _FakeClient(payload)
+
+    return factory
+
+
+class TestHttpEmbedderResponseValidation(unittest.TestCase):
+    """The hosted client refuses vectors from a model it did not request."""
+
+    def _embedder(self, payload: object) -> HttpEmbedder:
+        return HttpEmbedder(
+            "https://example.invalid/v1/embeddings",
+            model_id="expected",
+            client_factory=_fake_client_factory(payload),
+        )
+
+    def test_matching_model_is_accepted(self) -> None:
+        payload = {"model": "expected", "data": [{"index": 0, "embedding": [0.1, 0.2]}]}
+        self.assertEqual(self._embedder(payload).embed(["hello"]), [(0.1, 0.2)])
+
+    def test_returned_model_mismatch_is_rejected(self) -> None:
+        payload = {"model": "other", "data": [{"index": 0, "embedding": [0.1, 0.2]}]}
+        with self.assertRaises(EmbeddingUnavailableError):
+            self._embedder(payload).embed(["hello"])
+
+    def test_omitted_model_is_tolerated(self) -> None:
+        payload = {"data": [{"index": 0, "embedding": [0.1, 0.2]}]}
+        self.assertEqual(self._embedder(payload).embed(["hello"]), [(0.1, 0.2)])
+
+    def test_wrong_vector_count_is_rejected(self) -> None:
+        payload = {"model": "expected", "data": []}
+        with self.assertRaises(EmbeddingUnavailableError):
+            self._embedder(payload).embed(["hello"])
+
+    def test_non_object_payload_is_rejected(self) -> None:
+        with self.assertRaises(EmbeddingUnavailableError):
+            self._embedder([1, 2, 3]).embed(["hello"])
 
 
 class TestBuildEmbeddingIndex(unittest.TestCase):
@@ -567,7 +684,9 @@ class TestProvenanceAndCircuitBreaker(unittest.TestCase):
         # channel ran, so provenance is recorded even though it added nothing.
         retriever = SemanticRetriever(
             index=fixture_semantic_index(),
-            embedder=StubEmbedder({}, model_id=FIXTURE_MODEL_ID),
+            embedder=DictionaryEmbedder(
+                model_id=FIXTURE_MODEL_ID, default=(0.0, 0.0, 0.0)
+            ),
             top_k=5,
         )
         rows = generate_shortlist(
@@ -651,7 +770,7 @@ class TestRetrieverResolution(unittest.TestCase):
         with self.assertRaises(EmbeddingUnavailableError):
             SemanticRetriever(
                 index=index,
-                embedder=StubEmbedder({}, model_id="some-other-model"),
+                embedder=DictionaryEmbedder(model_id="some-other-model"),
             )
 
     def test_resolves_matching_index_and_embedder(self) -> None:

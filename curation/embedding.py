@@ -49,9 +49,13 @@ Embedders
 * :class:`HashingEmbedder` is a deterministic, stdlib-only, offline embedder.
   It is what makes the whole channel testable and usable without a network, and
   it is a genuine (if weak) semantic proxy, not a test double.
+* :class:`DictionaryEmbedder` replays explicitly registered dense vectors
+  offline. It is how precomputed embeddings from any model are exercised
+  hermetically, with no network, no model execution, and no token-hashing
+  proxy.
 * :class:`HttpEmbedder` calls a hosted OpenAI-compatible ``/embeddings``
   endpoint. ``httpx`` is imported lazily so the pure-stdlib path, and the test
-  suite, never require it.
+  suite, never require it; a response that names a different model is refused.
 
 CLI
 ---
@@ -76,7 +80,7 @@ import time
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-from typing import Protocol, Sequence
+from typing import Mapping, Protocol, Sequence
 
 from curation.ontology import (
     IndexFormatError,
@@ -99,6 +103,11 @@ PINNED_EMBEDDING_MODEL_ID: str = "sentence-transformers/all-MiniLM-L6-v2"
 # hashing over tokens) rather than a fixture stand-in, so a run can build and
 # query a semantic index with no network at all.
 HASHING_EMBEDDING_MODEL_ID: str = "local-hashing-v1"
+
+# The explicit-dictionary embedder's model id. It replays precomputed dense
+# vectors offline, so a run or a test can exercise genuine semantic retrieval
+# without a network, a model, or a token-hashing proxy.
+DICTIONARY_EMBEDDING_MODEL_ID: str = "local-dictionary-v1"
 
 # The embedding index schema version. A reader refuses an artifact whose version
 # it does not know, so a rebuild is forced rather than a stale shape misread.
@@ -217,6 +226,77 @@ class HashingEmbedder:
         return tuple(vector)
 
 
+class DictionaryEmbedder:
+    """Offline embedder backed by an explicit ``text -> vector`` dictionary.
+
+    Unlike :class:`HashingEmbedder`, which derives a vector from the query's
+    tokens, this embedder returns the dense vector registered for the exact
+    text. It is how precomputed embeddings -- from any model, including a
+    hosted one -- are replayed offline: register the texts a run will embed and
+    it performs genuine nearest-neighbour retrieval with no network, no model
+    execution, and no token-hashing constraint. A text that is not registered
+    maps to ``default`` (a zero vector unless one is supplied), so it retrieves
+    nothing rather than fabricating similarity.
+    """
+
+    def __init__(
+        self,
+        model_id: str = DICTIONARY_EMBEDDING_MODEL_ID,
+        vectors: Mapping[str, Sequence[float]] | None = None,
+        default: Sequence[float] | None = None,
+    ) -> None:
+        self._model_id = model_id
+        self._vectors: dict[str, tuple[float, ...]] = {
+            text: tuple(float(component) for component in vector)
+            for text, vector in (vectors or {}).items()
+        }
+        dimensions = {len(vector) for vector in self._vectors.values()}
+        if len(dimensions) > 1:
+            raise EmbeddingError(
+                f"dictionary vectors disagree on dimension: {sorted(dimensions)}"
+            )
+        self._dimension = next(iter(dimensions), 0)
+        if default is None:
+            self._default = tuple(0.0 for _ in range(self._dimension))
+        else:
+            default_vector = tuple(float(component) for component in default)
+            if self._dimension and len(default_vector) != self._dimension:
+                raise EmbeddingError(
+                    f"default vector has dimension {len(default_vector)}, but the "
+                    f"registered vectors have dimension {self._dimension}"
+                )
+            self._dimension = len(default_vector)
+            self._default = default_vector
+
+    @property
+    def model_id(self) -> str:
+        return self._model_id
+
+    @property
+    def dimension(self) -> int:
+        return self._dimension
+
+    def register(self, text: str, vector: Sequence[float]) -> None:
+        """Register (or replace) the dense vector for ``text``."""
+        registered = tuple(float(component) for component in vector)
+        if self._dimension and len(registered) != self._dimension:
+            raise EmbeddingError(
+                f"vector for {text!r} has dimension {len(registered)}, but the "
+                f"dictionary uses dimension {self._dimension}"
+            )
+        if not self._dimension:
+            self._dimension = len(registered)
+            self._default = tuple(0.0 for _ in registered)
+        self._vectors[text] = registered
+
+    def registered_texts(self) -> tuple[str, ...]:
+        """The texts this embedder has a vector for, in registration order."""
+        return tuple(self._vectors)
+
+    def embed(self, texts: Sequence[str]) -> list[tuple[float, ...]]:
+        return [self._vectors.get(text, self._default) for text in texts]
+
+
 class HttpEmbedder:
     """Hosted OpenAI-compatible ``/embeddings`` client.
 
@@ -233,18 +313,21 @@ class HttpEmbedder:
         api_key: str | None = None,
         timeout: float = 30.0,
         batch_size: int = 64,
+        client_factory: object | None = None,
     ) -> None:
-        try:
-            import httpx
-        except ImportError as exc:  # pragma: no cover - httpx ships in curation env
-            raise EmbeddingUnavailableError(
-                "httpx is required for the hosted embedding client"
-            ) from exc
         if not endpoint:
             raise EmbeddingError("an embedding endpoint is required")
         if batch_size < 1:
             raise EmbeddingError(f"batch_size must be at least 1, got {batch_size}")
-        self._httpx = httpx
+        if client_factory is None:
+            try:
+                import httpx
+            except ImportError as exc:  # pragma: no cover - httpx ships in curation env
+                raise EmbeddingUnavailableError(
+                    "httpx is required for the hosted embedding client"
+                ) from exc
+            client_factory = httpx.Client
+        self._client_factory = client_factory
         self._endpoint = endpoint
         self._model_id = model_id
         self._api_key = api_key
@@ -257,7 +340,7 @@ class HttpEmbedder:
 
     def embed(self, texts: Sequence[str]) -> list[tuple[float, ...]]:
         try:
-            with self._httpx.Client(timeout=self._timeout) as client:
+            with self._client_factory(timeout=self._timeout) as client:
                 return self._embed_batches(client, texts)
         except EmbeddingError:
             raise
@@ -272,17 +355,39 @@ class HttpEmbedder:
         vectors: list[tuple[float, ...]] = []
         for start in range(0, len(texts), self._batch_size):
             batch = list(texts[start : start + self._batch_size])
-            payload = {"model": self._model_id, "input": batch}
+            request = {"model": self._model_id, "input": batch}
             headers = {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
-            response = client.post(self._endpoint, json=payload, headers=headers)
+            response = client.post(self._endpoint, json=request, headers=headers)
             response.raise_for_status()
-            data = response.json().get("data")
+            payload = response.json()
+            if not isinstance(payload, dict):
+                raise EmbeddingUnavailableError(
+                    "hosted embedding response was not a JSON object"
+                )
+            # An endpoint that reports the model it served must have served the
+            # one we asked for; vectors from a different model are not
+            # commensurable with the index and must not be used.
+            returned_model = payload.get("model")
+            if (
+                isinstance(returned_model, str)
+                and returned_model
+                and returned_model != self._model_id
+            ):
+                raise EmbeddingUnavailableError(
+                    f"hosted embedding endpoint returned vectors for model "
+                    f"{returned_model!r}, not the requested {self._model_id!r}"
+                )
+            data = payload.get("data")
             if not isinstance(data, list) or len(data) != len(batch):
                 raise EmbeddingUnavailableError(
                     "hosted embedding response did not return one vector per input"
                 )
             ordered = sorted(data, key=lambda item: item.get("index", 0))
             for item in ordered:
+                if not isinstance(item, dict):
+                    raise EmbeddingUnavailableError(
+                        "hosted embedding response item was not a JSON object"
+                    )
                 vector = item.get("embedding")
                 if not isinstance(vector, list):
                     raise EmbeddingUnavailableError(

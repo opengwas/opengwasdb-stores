@@ -119,9 +119,11 @@ or model is unavailable, so no run that worked before stops working.
    channel, and an unavailable index prints a warning and leaves the run
    lexical-only with exit 0.
 
-The suite is hermetic: retrieval uses a deterministic in-memory stub embedder
-with explicit fixture vectors, and the only real embedder exercised is the
-offline `HashingEmbedder`. Nothing opens a socket.
+The suite is hermetic: genuine semantic retrieval is exercised with
+`DictionaryEmbedder` replaying explicit dense fixture vectors (and the offline
+`HashingEmbedder` for token-based runs), while the `HttpEmbedder` response
+validation is exercised through an injected fake client. Nothing opens a
+socket.
 
 ## Harvest suite (`curation.harvest`, issue #165)
 
