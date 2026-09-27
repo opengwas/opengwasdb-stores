@@ -96,6 +96,24 @@ class TestBundleContract(unittest.TestCase):
         (root / "analyses.tsv").write_text(analyses, encoding="utf-8")
         return bundle.load(store_id, registry_root=self.tmp_dir)
 
+    def test_optional_info_score_threshold_validates_numeric_or_unavailable(self) -> None:
+        base = self.make_bundle()
+        self.assertEqual(bundle.check(base, registry_root=self.tmp_dir), [])
+        original = (base.root / "analyses.tsv").read_text()
+        header, row = original.strip().split("\n")
+        for value in ("NaN", "0", "0.6", "1"):
+            candidate = self.make_bundle(analyses=(
+                header + "\tinfo_score_threshold\n" + row + "\t" + value + "\n"
+            ))
+            self.assertEqual(bundle.check(candidate, registry_root=self.tmp_dir), [])
+        for value in ("", "nan", "NA", "inf", "-0.01", "1.01", "missing"):
+            candidate = self.make_bundle(analyses=(
+                header + "\tinfo_score_threshold\n" + row + "\t" + value + "\n"
+            ))
+            with self.subTest(value=value):
+                self.assertTrue(any("info_score_threshold" in error for error in
+                                    bundle.check(candidate, registry_root=self.tmp_dir)))
+
     def test_ci_population_is_all_seven_registered_bundles_and_each_passes(self) -> None:
         registry = REPO_ROOT / "stores"
         store_ids = sorted(

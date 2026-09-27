@@ -129,6 +129,11 @@ defaults:
   source_genome_build: GRCh38
   license: EBI GWAS Catalog terms of use
   sample_size_scope: analysis_level
+  # Requested floor when a reader proves per-association imputation INFO/R².
+  # Current GWAS-SSF reader has no validated INFO projection, so candidate
+  # analyses.tsv records literal NaN (unavailable), not an invented 0.6 filter.
+  # Explicit 0 disables filtering; values outside [0,1] fail configuration.
+  info_score_threshold: 0.6
   # Issue #11's settled trust-vs-validate policy: a row with no usable source
   # allele frequencies keeps this method, and AF-based assignment replaces it
   # only where an assignment is actually attempted.

@@ -46,6 +46,7 @@ import shutil
 import statistics
 import subprocess
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
@@ -127,6 +128,7 @@ ANALYSES_COLUMNS: tuple[str, ...] = (
     "n_cases",
     "n_controls",
     "analysis_group_id",
+    "info_score_threshold",
     "inclusion_reason",
     "exclude_from_build",
 )
@@ -192,6 +194,14 @@ REFERENCE_OVERLAP_COLUMNS: tuple[str, ...] = (
 # <5% matched rows signals a likely source-specific assembly/allele mismatch.
 MAX_OFF_REFERENCE_SHARE = 0.25
 LOW_OVERLAP_RATE = 0.05
+
+# Only capabilities whose *reader* establishes per-association imputation
+# INFO/R² semantics and validates [0,1] may be enabled here. The pinned
+# GWAS-SSF reader exposes EAF/MAF, but no validated INFO projection; a header
+# that looks like INFO alone is not evidence. Do not add a capability until
+# core supplies per-Analysis validity evidence and builder filtering/counts;
+# a capability alone must not claim that one Analysis has usable scores.
+VALIDATED_INFO_SCORE_READERS: frozenset[str] = frozenset()
 
 EXCLUSION_COLUMNS: tuple[str, ...] = (
     "analysis_id",
@@ -310,6 +320,7 @@ class CandidateConfiguration:
     effect_scale_block: Mapping[str, Any]
     reader_capability: str
     target_ancestry: str
+    info_score_threshold: str
 
 
 def _require(document: Mapping[str, Any], key: str, where: str) -> Any:
@@ -353,6 +364,9 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         raise PreflightConfigError(f"{path}:build.post must be a mapping")
 
     reader_capability = str(options.get("source-reader-capability") or "opengwasdb.gwas-ssf")
+    info_score_threshold = parse_info_score_threshold(
+        defaults.get("info_score_threshold", 0.6)
+    )
     target_ancestry = read_source_label_map(repo_root, base.ancestry_group)
 
     return CandidateConfiguration(
@@ -371,7 +385,38 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         effect_scale_block=_mapping(document.get("effect_scale_validation") or {}),
         reader_capability=reader_capability,
         target_ancestry=target_ancestry,
+        info_score_threshold=info_score_threshold,
     )
+
+
+def parse_info_score_threshold(value: Any) -> str:
+    """Validate the requested INFO floor; zero disables filtering explicitly."""
+    if isinstance(value, bool) or value is None or not str(value).strip():
+        raise PreflightConfigError("defaults.info_score_threshold must be a number in [0,1]")
+    try:
+        number = Decimal(str(value).strip())
+    except InvalidOperation as exc:
+        raise PreflightConfigError(
+            "defaults.info_score_threshold must be a number in [0,1]"
+        ) from exc
+    if not number.is_finite() or not 0 <= number <= 1:
+        raise PreflightConfigError("defaults.info_score_threshold must be a number in [0,1]")
+    return format(number, "f")
+
+
+def info_threshold_for_reader(
+    config: CandidateConfiguration, *, score_evidence_validated: bool = False
+) -> str:
+    """Emit a floor only with reader support AND per-Analysis score evidence.
+
+    The current resolver supplies no such evidence, so candidate rows remain
+    unavailable. Literal NaN is not a numeric filter or an explicit zero.
+    """
+    if Decimal(config.info_score_threshold) == 0:
+        return "0"
+    if score_evidence_validated and config.reader_capability in VALIDATED_INFO_SCORE_READERS:
+        return config.info_score_threshold
+    return "NaN"
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:
@@ -1817,6 +1862,7 @@ def _analyses_row(
         "n_cases": outcome.n_cases,
         "n_controls": outcome.n_controls,
         "analysis_group_id": str(config.defaults.get("analysis_group_id", "")),
+        "info_score_threshold": info_threshold_for_reader(config),
         "inclusion_reason": inclusion_reason,
         "exclude_from_build": exclude,
     }

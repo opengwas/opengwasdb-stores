@@ -713,6 +713,24 @@ def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
                 f"Analysis column {column!r}"
             )
 
+    # Optional for older bundles. A literal NaN means no validated score
+    # evidence; zero is the explicit disabled filter, not an absent value.
+    if "info_score_threshold" in table.fieldnames:
+        for row in table.rows:
+            value = (row.get("info_score_threshold") or "").strip()
+            if value == "NaN":
+                continue
+            try:
+                number = Decimal(value)
+            except InvalidOperation:
+                number = Decimal("NaN")
+            if not number.is_finite() or not 0 <= number <= 1:
+                errors.append(
+                    f"analysis {row.get('analysis_id') or '<unknown analysis_id>'!r} "
+                    f"has info_score_threshold {value!r}; expected literal NaN "
+                    "or a number in [0,1]"
+                )
+
     # A Trait Ontology Mapping is an ontology term plus its trait label. It is
     # never a gene identifier with an authority name standing in for the label:
     # that asserts a gene is the Trait (issue #141). Empty is the correct

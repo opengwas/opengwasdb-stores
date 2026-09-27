@@ -176,6 +176,39 @@ stores/OGS-xxxxx/
   `GCST90624704`/`GCST90624705`) are surfaced in `sidecars/source_readiness.tsv`
   and a warning; they are never silently collapsed.
 
+### INFO threshold contract and core handoff (#175)
+
+`defaults.info_score_threshold` requests a finite floor in `[0,1]` (default
+`0.6`); explicit `0` disables the gate. Candidate `analyses.tsv` emits literal
+`NaN` for an Analysis whose reader does **not** establish a validated
+per-association imputation INFO/R² score. The pinned
+`opengwasdb.gwas-ssf` reader reads effect allele frequency, but exposes no
+validated imputation quality score (`opengwasdb/readers/gwas_ssf.py`); its
+`effect_allele_frequency`/MAF and any similarly named header must not become
+INFO. Thus OGS-00011 currently emits `NaN`, not an unimplemented positive
+filter. These unavailable rows must be reported as such, not as filtered or
+quality-passing. Legacy bundles without the column remain valid.
+
+**Core reader/builder integration required before enabling a positive floor:**
+register a capability in `VALIDATED_INFO_SCORE_READERS` and pass
+`score_evidence_validated=True` to the emission hook only after the core
+reader identifies a source-format-specific score with documented imputation
+INFO/R² semantics, rejects ambiguous lookalike or duplicate columns, and
+validates scores as finite numbers in `[0,1]` for that Analysis. Header presence
+alone is not sufficient. If a declared score-bearing Analysis has no valid
+scores, fail candidate validation with its ID and reason, rather than emitting
+`NaN` or `0`. The builder/resolver must consume the exact same recognized
+score and exclude rows with a missing, malformed, nonfinite, or out-of-range
+score when the positive floor is enabled; exclude valid scores strictly below
+the floor (`score == threshold` passes). Neither ancestry EAF nor phenotype-SD
+MAF gates are substitutes for this build gate. Publish per-Analysis and total
+physical input rows, retained rows, below-threshold rows, and invalid-score
+rows separately by missing/malformed/nonfinite/out-of-range reason; require
+`input = retained + below_threshold + sum(invalid_reasons)` on the same reader
+row stream, reconcile Dense and Ragged counts to retained rows, and prohibit
+calling a positive threshold a post-filter projection before that reconciliation
+is implemented. No full-data scan or filtering is performed by Phase B.
+
 ### Human review before acceptance
 
 A successful run leaves `status: candidate`. Nothing in this workflow accepts,
