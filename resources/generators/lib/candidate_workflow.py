@@ -43,6 +43,7 @@ import hashlib
 import json
 import os
 import shutil
+import statistics
 import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -179,6 +180,17 @@ SD_ESTIMATION_SIDECAR_COLUMNS: tuple[str, ...] = (
     "estimator_version",
     "sd_notes",
 )
+
+REFERENCE_OVERLAP_COLUMNS: tuple[str, ...] = (
+    "analysis_id", "ancestry_reference_id", "ancestry_rows_scanned",
+    "ancestry_rows_matched", "ancestry_reference_rate", "variant_reference",
+    "rows_scanned", "variant_reference_rows_matched", "variant_reference_rate",
+    "stop_reason", "exclude_from_build",
+)
+
+# A Hybrid release must not project an overflow comparable to OGS-00011's 39%.
+MAX_OFF_REFERENCE_SHARE = 0.25
+LOW_OVERLAP_RATE = 0.05
 
 EXCLUSION_COLUMNS: tuple[str, ...] = (
     "analysis_id",
@@ -642,6 +654,9 @@ def resolver_argv(
     extraction_panel = config.ancestry_block.get("extraction_panel")
     if extraction_panel:
         argv.extend(["--extraction-panel", str(extraction_panel)])
+    axis = config.build_options.get("variant-reference")
+    if axis:
+        argv.extend(["--variant-reference", str(axis)])
     for spec in _resolve_af_reference_specs(config):
         argv.extend(["--af-reference", spec])
     argv.extend(
@@ -1556,6 +1571,9 @@ class CandidateTables:
     ancestry_tsv: str
     sd_estimation_tsv: str
     exclusions_tsv: str
+    reference_overlap_tsv: str
+    reference_overlap: Mapping[str, Any]
+    reference_overlap_errors: tuple[str, ...]
     inventory_rows: int
     included_rows: int
     excluded_rows: int
@@ -1607,6 +1625,7 @@ def build_candidate_tables(
     exclusion_rows = [
         _exclusion_row(outcome) for outcome in outcomes if not outcome.included
     ]
+    overlap_rows, overlap_summary, overlap_errors = _reference_overlap(outcomes, config)
 
     exclusion_counts: dict[str, int] = {}
     for outcome in outcomes:
@@ -1628,6 +1647,9 @@ def build_candidate_tables(
         ancestry_tsv=_render_tsv(ANCESTRY_SIDECAR_COLUMNS, ancestry_rows),
         sd_estimation_tsv=_render_tsv(SD_ESTIMATION_SIDECAR_COLUMNS, sd_rows),
         exclusions_tsv=_render_tsv(EXCLUSION_COLUMNS, exclusion_rows),
+        reference_overlap_tsv=_render_tsv(REFERENCE_OVERLAP_COLUMNS, overlap_rows),
+        reference_overlap=overlap_summary,
+        reference_overlap_errors=tuple(overlap_errors),
         inventory_rows=len(inventory_rows),
         included_rows=sum(1 for outcome in outcomes if outcome.included),
         excluded_rows=sum(1 for outcome in outcomes if not outcome.included),
@@ -1637,6 +1659,114 @@ def build_candidate_tables(
         effect_scale_check=effect_scale_check,
         warnings=tuple(warnings),
     )
+
+
+def _reference_overlap(
+    outcomes: Sequence[AnalysisOutcome], config: CandidateConfiguration
+) -> tuple[list[dict[str, str]], dict[str, Any], list[str]]:
+    """Summarise physical scanned rows (not distinct sites or whole-file estimates).
+
+    The ancestry scan can stop before the physical SD scan. Rows without a
+    successful scan are explicit missing measurements, never a fabricated zero.
+    Only build-included Analyses contribute to projected overflow.
+    """
+    axis = str(config.build_options.get("variant-reference") or "")
+    rows: list[dict[str, str]] = []
+    measured: list[tuple[str, int, int]] = []
+    ancestry_measured: list[tuple[str, int, int]] = []
+    missing: list[str] = []
+    for outcome in outcomes:
+        diagnostics = _record_mapping(outcome.record, "diagnostics")
+        ancestry_n = diagnostics.get("ancestry_rows_read", diagnostics.get("rows_read"))
+        ancestry_matched = diagnostics.get("ancestry_reference_rows_matched")
+        total = diagnostics.get("rows_read")
+        axis_matched = diagnostics.get("variant_reference_rows_matched")
+        success = (outcome.record or {}).get("status") == "success"
+        def count(value: Any, denominator: Any) -> bool:
+            return (type(value) is int and type(denominator) is int
+                    and denominator > 0 and 0 <= value <= denominator)
+
+        anc_valid = success and count(ancestry_matched, ancestry_n)
+        axis_valid = success and count(axis_matched, total)
+        fingerprints = _record_mapping(outcome.record, "fingerprints")
+        row = {
+            "analysis_id": outcome.analysis_id,
+            "ancestry_reference_id": str(fingerprints.get("ancestry_reference_id") or ""),
+            "ancestry_rows_scanned": str(ancestry_n) if success and type(ancestry_n) is int and ancestry_n >= 0 else "",
+            "ancestry_rows_matched": str(ancestry_matched) if anc_valid else "",
+            "ancestry_reference_rate": _float_or_empty(ancestry_matched / ancestry_n) if anc_valid else "",
+            "variant_reference": axis,
+            "rows_scanned": str(total) if success and type(total) is int and total >= 0 else "",
+            "variant_reference_rows_matched": str(axis_matched) if axis and axis_valid else "",
+            "variant_reference_rate": _float_or_empty(axis_matched / total) if axis and axis_valid else "",
+            "stop_reason": str(diagnostics.get("stop_reason") or ""),
+            "exclude_from_build": "" if outcome.included else "true",
+        }
+        rows.append(row)
+        if anc_valid:
+            ancestry_measured.append((outcome.analysis_id, ancestry_n, ancestry_matched))
+        if outcome.included:
+            if not anc_valid or (axis and not axis_valid):
+                missing.append(outcome.analysis_id)
+            elif axis:
+                measured.append((outcome.analysis_id, total, axis_matched))
+
+    errors: list[str] = []
+    if missing:
+        errors.append("reference overlap missing or invalid for included Analyses: "
+                      + ", ".join(missing[:10]))
+    summary: dict[str, Any] = {
+        "low_overlap_threshold": LOW_OVERLAP_RATE,
+        "max_off_reference_share": MAX_OFF_REFERENCE_SHARE,
+        "included_measured": len(measured) if axis else sum(
+            outcome.included and bool(rows[index]["ancestry_reference_rate"])
+            for index, outcome in enumerate(outcomes)
+        ),
+        "ancestry_median_rate": None,
+        "ancestry_p05_rate": None,
+        "ancestry_low_overlap_analyses": [],
+        "median_rate": None,
+        "p05_rate": None,
+        "p10_rate": None,
+        "low_overlap_count": 0,
+        "low_overlap_analyses": [],
+        "projected_off_reference_share": None,
+        "worst_contributors": [],
+    }
+    if ancestry_measured:
+        ancestry_rates = sorted(matches / scanned for _, scanned, matches in ancestry_measured)
+        summary["ancestry_median_rate"] = statistics.median(ancestry_rates)
+        summary["ancestry_p05_rate"] = ancestry_rates[int((len(ancestry_rates) - 1) * .05)]
+        summary["ancestry_low_overlap_analyses"] = sorted(
+            aid for aid, scanned, matches in ancestry_measured
+            if matches / scanned < LOW_OVERLAP_RATE
+        )
+    if axis and measured:
+        rates = sorted(matches / scanned for _, scanned, matches in measured)
+        low = sorted(aid for aid, scanned, matched in measured if matched / scanned < LOW_OVERLAP_RATE)
+        total_scanned = sum(scanned for _, scanned, _ in measured)
+        total_matched = sum(matches for _, _, matches in measured)
+        off_share = (total_scanned - total_matched) / total_scanned
+        contributors = sorted(measured, key=lambda item: (-(item[1] - item[2]), item[0]))
+        summary.update(
+            median_rate=statistics.median(rates),
+            p05_rate=rates[int((len(rates) - 1) * .05)],
+            p10_rate=rates[int((len(rates) - 1) * .10)],
+            low_overlap_count=len(low), low_overlap_analyses=low,
+            projected_off_reference_share=off_share,
+            worst_contributors=[aid for aid, _, _ in contributors[:10]],
+        )
+        if off_share > MAX_OFF_REFERENCE_SHARE:
+            errors.append(
+                f"projected off-reference share {off_share:.1%} exceeds {MAX_OFF_REFERENCE_SHARE:.0%}; "
+                "worst contributors: " + ", ".join(summary["worst_contributors"])
+            )
+    if not axis:
+        summary["median_rate"] = summary["ancestry_median_rate"]
+        summary["p05_rate"] = summary["ancestry_p05_rate"]
+        summary["low_overlap_analyses"] = summary["ancestry_low_overlap_analyses"]
+        summary["low_overlap_count"] = len(summary["low_overlap_analyses"])
+    return rows, summary, errors
 
 
 def _analyses_row(
@@ -2025,7 +2155,8 @@ def render_validation_yaml(
     recorded, never guessed (issue #135). The checks describe the Phase B
     evidence that does exist.
     """
-    status = "passed_with_warnings" if tables.warnings else "passed"
+    status = ("failed" if tables.reference_overlap_errors else
+              "passed_with_warnings" if tables.warnings else "passed")
     document = {
         "status": status,
         "validated_at": validated_at,
@@ -2049,15 +2180,18 @@ def render_validation_yaml(
             "ancestry": tables.ancestry_check,
             "effect_scale": tables.effect_scale_check,
             "sd_estimation": tables.sd_check,
+            "reference_overlap": "failed" if tables.reference_overlap_errors else "passed",
         },
+        "reference_overlap": dict(tables.reference_overlap),
         "reports": {
             "source_readiness": "sidecars/source_readiness.tsv",
             "ancestry": "sidecars/ancestry.tsv",
             "sd_estimation": "sidecars/sd_estimation.tsv",
             "exclusions": "sidecars/exclusions.tsv",
+            "reference_overlap": "sidecars/reference_overlap.tsv",
         },
         "warnings": list(tables.warnings),
-        "errors": [],
+        "errors": list(tables.reference_overlap_errors),
     }
     return _dump_yaml(document)
 
@@ -2079,6 +2213,7 @@ class CandidateFiles:
     ancestry_tsv: str
     sd_estimation_tsv: str
     exclusions_tsv: str
+    reference_overlap_tsv: str
 
 
 def stage_candidate(staging_store_dir: Path, files: CandidateFiles) -> None:
@@ -2098,6 +2233,7 @@ def stage_candidate(staging_store_dir: Path, files: CandidateFiles) -> None:
     (sidecars / "ancestry.tsv").write_text(files.ancestry_tsv, encoding="utf-8")
     (sidecars / "sd_estimation.tsv").write_text(files.sd_estimation_tsv, encoding="utf-8")
     (sidecars / "exclusions.tsv").write_text(files.exclusions_tsv, encoding="utf-8")
+    (sidecars / "reference_overlap.tsv").write_text(files.reference_overlap_tsv, encoding="utf-8")
     (staging_store_dir / "build.yaml").write_text(files.build_yaml, encoding="utf-8")
     (staging_store_dir / "validation.yaml").write_text(files.validation_yaml, encoding="utf-8")
     (staging_store_dir / "release.yaml").write_text(files.release_yaml, encoding="utf-8")

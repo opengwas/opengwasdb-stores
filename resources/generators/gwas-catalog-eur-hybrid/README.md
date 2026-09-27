@@ -157,7 +157,7 @@ sidecars.
 ```text
 stores/OGS-xxxxx/
   release.yaml    build.yaml    analyses.tsv    validation.yaml
-  sidecars/ source_readiness.tsv ancestry.tsv sd_estimation.tsv exclusions.tsv
+  sidecars/ source_readiness.tsv ancestry.tsv sd_estimation.tsv exclusions.tsv reference_overlap.tsv
 ```
 
 * `analyses.tsv` holds every selected ready Analysis. Non-member rows stay in it

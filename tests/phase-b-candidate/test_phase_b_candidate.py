@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -40,7 +41,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from unittest import mock
 
@@ -69,6 +70,7 @@ from resources.generators.lib.candidate_workflow import (  # noqa: E402
     load_candidate_configuration,
     read_candidate_metadata,
     read_resolution_receipt,
+    render_validation_yaml,
     render_resolver_manifest,
     resolver_argv,
     validate_candidate_analyses,
@@ -561,7 +563,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertTrue((bundle_dir / "build.yaml").is_file())
         self.assertTrue((bundle_dir / "validation.yaml").is_file())
         self.assertTrue((bundle_dir / "analyses.tsv").is_file())
-        for sidecar in ("source_readiness", "ancestry", "sd_estimation", "exclusions"):
+        for sidecar in ("source_readiness", "ancestry", "sd_estimation", "exclusions", "reference_overlap"):
             self.assertTrue((bundle_dir / "sidecars" / f"{sidecar}.tsv").is_file())
 
         analyses = _read_tsv(bundle_dir / "analyses.tsv")
@@ -599,6 +601,12 @@ class CandidateWorkflowTests(unittest.TestCase):
         sd_rows = _read_tsv(bundle_dir / "sidecars/sd_estimation.tsv")
         self.assertEqual({row["analysis_id"] for row in ancestry}, selected_ids)
         self.assertEqual({row["analysis_id"] for row in sd_rows}, selected_ids)
+        overlap_rows = _read_tsv(bundle_dir / "sidecars/reference_overlap.tsv")
+        self.assertEqual({row["analysis_id"] for row in overlap_rows}, selected_ids)
+        self.assertEqual(
+            {row["rows_scanned"] for row in overlap_rows if row["exclude_from_build"] != "true"},
+            {"2000"},
+        )
         sd_by_id = {row["analysis_id"]: row for row in sd_rows}
         self.assertEqual(sd_by_id["GCST90000004"]["status"], "skipped")
         self.assertEqual(
@@ -648,6 +656,8 @@ class CandidateWorkflowTests(unittest.TestCase):
         validation = yaml.safe_load((bundle_dir / "validation.yaml").read_text(encoding="utf-8"))
         self.assertIn(validation["status"], {"passed", "passed_with_warnings"})
         self.assertEqual(validation["checks"]["schema"], "passed")
+        self.assertEqual(validation["checks"]["reference_overlap"], "passed")
+        self.assertEqual(validation["reference_overlap"]["median_rate"], 1.0)
 
         # The complete bundle passes the executable contract, and the active
         # (non-excluded) analyses pass the pinned OpenGWASDB schema.
@@ -1083,6 +1093,52 @@ class CandidateWorkflowTests(unittest.TestCase):
         })
         self.assertEqual(tables.ancestry_check, "passed_with_warnings")
         self.assertEqual(tables.sd_check, "passed_with_warnings")
+
+    def test_high_projected_overflow_blocks_candidate_publication(self) -> None:
+        config = yaml.safe_load(self.fixture.config_path.read_text())
+        config["build"]["options"]["variant-reference"] = "/axis.gz"
+        self.fixture.config_path.write_text(yaml.safe_dump(config))
+        outcomes = json.loads(self.fixture.outcomes_path.read_text())
+        outcomes["GCST90000001"]["variant_reference_rows_matched"] = 0
+        self.fixture.outcomes_path.write_text(json.dumps(outcomes))
+        run = _run_cli(self.fixture)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn("GCST90000001", run.stderr + run.stdout)
+        self.assertIn("off-reference share", run.stderr + run.stdout)
+        self.assertFalse((self.fixture.registry_root / STORE_ID).exists())
+
+    def test_bundle_overlap_sidecar_and_gate_name_worst_contributor(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
+        first = _synthetic_inventory_row()
+        second = replace(first, analysis_id="GCST90000002", data_file="/mirror/second.gz")
+        records = []
+        for row, matches in ((first, 100), (second, 0)):
+            record = _synthetic_resolver_record()
+            record["analysis_id"] = row.analysis_id
+            record["diagnostics"].update(
+                ancestry_rows_read=100, ancestry_reference_rows_matched=90,
+                variant_reference_rows_matched=matches,
+            )
+            records.append(record)
+        outcomes = apply_release_policy(
+            [first, second], config,
+            {row.analysis_id: _synthetic_candidate_metadata() for row in (first, second)},
+            {record["analysis_id"]: record for record in records},
+        )
+        tables = build_candidate_tables(
+            inventory_rows=[first, second], outcomes=outcomes, config=config, index_summary={}
+        )
+        overlap = list(csv.DictReader(io.StringIO(tables.reference_overlap_tsv), delimiter="\t"))
+        self.assertEqual([row["variant_reference_rate"] for row in overlap], ["1", "0"])
+        self.assertEqual([row["rows_scanned"] for row in overlap], ["100", "100"])
+        validation = yaml.safe_load(render_validation_yaml(
+            tables=tables, index_summary={}, validated_at="now", validator_name="test"
+        ))
+        self.assertEqual(validation["checks"]["reference_overlap"], "failed")
+        self.assertEqual(validation["reference_overlap"]["projected_off_reference_share"], 0.5)
+        self.assertEqual(validation["reference_overlap"]["low_overlap_analyses"], ["GCST90000002"])
+        self.assertIn("GCST90000002", " ".join(validation["errors"]))
 
     # -- EAF orientation vocabulary (issue #115 / #154) -----------------------
 

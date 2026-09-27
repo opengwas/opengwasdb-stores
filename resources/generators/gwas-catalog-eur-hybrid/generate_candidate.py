@@ -285,6 +285,9 @@ def stage_emit(
         config=pipeline.config,
         index_summary=index,
     )
+    if tables.reference_overlap_errors:
+        raise CandidateError("bundle reference-overlap validation failed:\n  - "
+                             + "\n  - ".join(tables.reference_overlap_errors))
     schema_errors = validate_candidate_analyses(tables.analyses_tsv)
     if schema_errors:
         raise CandidateError(
@@ -337,6 +340,7 @@ def stage_emit(
         ancestry_tsv=tables.ancestry_tsv,
         sd_estimation_tsv=tables.sd_estimation_tsv,
         exclusions_tsv=tables.exclusions_tsv,
+        reference_overlap_tsv=tables.reference_overlap_tsv,
     )
 
     staging_store_dir = pipeline.registry_root / STAGING_DIRNAME / pipeline.store_id
