@@ -176,13 +176,32 @@ stores/OGS-xxxxx/
   `GCST90624704`/`GCST90624705`) are surfaced in `sidecars/source_readiness.tsv`
   and a warning; they are never silently collapsed.
 
-### INFO threshold contract and core handoff (#175)
+### Reference-overlap gate (#174)
+
+`sidecars/reference_overlap.tsv` and the `validation.yaml` `reference_overlap`
+block measure how much of an included Analysis's source the declared variant
+reference covers, and the gate projects off-reference overflow before a Hybrid
+build commits to it. When a resolver record carries the post-INFO
+`build_eligible_rows` diagnostics, the denominator is the Analysis's
+build-eligible rows and the sidecar reports `build_eligible_rows`,
+`build_eligible_rows_on_variant_reference`,
+`build_eligible_rows_off_variant_reference` and `build_eligible_rate`. The gate
+falls back to the legacy pre-INFO `rows_scanned` /
+`variant_reference_rows_matched` columns only for a record that does not carry
+the new diagnostics; the legacy columns are always kept so an older record is
+still reviewable. The summary names the denominator it used in
+`projected_off_reference_basis` (`build_eligible_rows`, `legacy_rows_read`, or
+`mixed`). A carried-but-unusable count (for example a zero build-eligible
+denominator) is treated as a missing measurement, never as a zero off-axis
+share.
+
+### INFO threshold contract and core integration (#175)
 
 `defaults.info_score_threshold` requests a finite floor in `[0,1]` (default
 `0.6`); explicit `0` disables the gate **only when usable score evidence is
-available**. Candidate `analyses.tsv` emits literal `NaN`, even with an explicit
-zero request, for an Analysis whose reader does **not** establish a validated
-per-association imputation INFO/R² score. The pinned
+available**. Candidate `analyses.tsv` emits a numeric threshold only on
+per-Analysis resolver evidence; every other Analysis emits literal `NaN` and
+empty declaration cells, even with an explicit zero request. The pinned
 `opengwasdb.gwas-ssf` reader reads effect allele frequency, but exposes no
 validated imputation quality score (`opengwasdb/readers/gwas_ssf.py`); its
 `effect_allele_frequency`/MAF and any similarly named header must not become
@@ -214,19 +233,32 @@ mapped declaration fails verification. Changing the mapping requires re-resolve.
 Neither a source header that happens to say INFO/R2 nor a MAF column is
 automatic evidence. Without this optional input, legacy configuration works.
 
-**Handoff to the later integration slice:** even a reviewed declaration is not
-proof of a valid per-association score. Candidate `analyses.tsv` still emits
-literal `NaN` for mapped and unmapped Analyses, including requested zero. Only
-when the resolver record proves at least one finite score in `[0,1]` from the
-**declared** column, and the core builder actually enforces filtering on that
-same score, may finalisation write the requested numeric threshold. The later
-slice must define/check resolver record score-validity counts (valid > 0,
-missing, malformed, nonfinite, out-of-range) and core builder per-Analysis and
-total physical input/retained/below-threshold/invalid counts, with
-`input = retained + below_threshold + sum(invalid_reasons)` and Dense/Ragged
-counts reconciled to retained rows. Missing or invalid scores must not pass a
-positive filter; equality passes. This slice does not scan source files, infer
-score semantics or activate the final build filter.
+**Emission rule.** For a mapped Analysis, finalisation emits the requested
+numeric threshold plus the exact declaration triple only when **all** of these
+hold:
+
+1. the resolver record's `diagnostics.info_score_state` is `disabled` (explicit
+   zero) or `filtered` (positive floor) -- the two post-INFO states core writes;
+2. `diagnostics.info_rows_usable > 0`; and
+3. the record's per-Analysis fingerprint still binds the exact
+   `info_score_threshold` and declaration triple from the manifest.
+
+Every other Analysis -- undeclared, a legacy record without the #175
+diagnostics, or a mapped Analysis whose evidence is unusable -- emits literal
+`NaN` and empty triple cells. A mapped Analysis with zero usable scores is a
+controlled resolver failure; the release policy surfaces it as an exclusion
+naming its Analysis (`sidecars/exclusions.tsv`, `resolution_failed`), never as
+an included NaN-threshold row. The capability-wide
+`VALIDATED_INFO_SCORE_READERS` allowlist is retired: only the per-Analysis
+record evidence decides, because a reader capability cannot prove an
+individual source's declared score is valid, and the manifest declaration
+alone is not evidence.
+
+`analyses.tsv` therefore carries four optional INFO columns: the requested
+`info_score_threshold` plus `imputation_score_column`,
+`imputation_score_kind` and `imputation_score_provenance`. `bundle.check()`
+rejects a numeric threshold without the complete triple and a triple without a
+numeric threshold.
 
 ### Human review before acceptance
 

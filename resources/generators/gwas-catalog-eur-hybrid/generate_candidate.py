@@ -278,7 +278,7 @@ def stage_emit(
     rows = read_inventory(pipeline.inventory_path)
     outcomes = apply_release_policy(rows, pipeline.config, metadata, {
         record["analysis_id"]: record for record in records
-    })
+    }, manifest_rows=manifest)
     tables = build_candidate_tables(
         inventory_rows=rows,
         outcomes=outcomes,

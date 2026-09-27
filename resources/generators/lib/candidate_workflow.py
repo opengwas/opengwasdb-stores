@@ -133,6 +133,9 @@ ANALYSES_COLUMNS: tuple[str, ...] = (
     "n_controls",
     "analysis_group_id",
     "info_score_threshold",
+    "imputation_score_column",
+    "imputation_score_kind",
+    "imputation_score_provenance",
     "inclusion_reason",
     "exclude_from_build",
 )
@@ -142,6 +145,20 @@ ANALYSES_COLUMNS: tuple[str, ...] = (
 SOURCE_READINESS_COLUMNS: tuple[str, ...] = INVENTORY_COLUMNS + (
     "duplicate_content_group",
     "candidate_membership",
+)
+
+#: ``sidecars/reference_overlap.tsv`` (issue #174). The ``rows_scanned`` /
+#: ``variant_reference_rows_matched`` / ``variant_reference_rate`` columns are
+#: the legacy pre-INFO counts kept for older records; the
+#: ``build_eligible_*`` columns are the post-INFO denominator this gate uses
+#: whenever a record carries it.
+REFERENCE_OVERLAP_COLUMNS: tuple[str, ...] = (
+    "analysis_id", "ancestry_reference_id", "ancestry_rows_scanned",
+    "ancestry_rows_matched", "ancestry_reference_rate", "variant_reference",
+    "rows_scanned", "variant_reference_rows_matched", "variant_reference_rate",
+    "build_eligible_rows", "build_eligible_rows_on_variant_reference",
+    "build_eligible_rows_off_variant_reference", "build_eligible_rate",
+    "stop_reason", "exclude_from_build",
 )
 
 ANCESTRY_SIDECAR_COLUMNS: tuple[str, ...] = (
@@ -187,22 +204,26 @@ SD_ESTIMATION_SIDECAR_COLUMNS: tuple[str, ...] = (
     "sd_notes",
 )
 
-REFERENCE_OVERLAP_COLUMNS: tuple[str, ...] = (
-    "analysis_id", "ancestry_reference_id", "ancestry_rows_scanned",
-    "ancestry_rows_matched", "ancestry_reference_rate", "variant_reference",
-    "rows_scanned", "variant_reference_rows_matched", "variant_reference_rate",
-    "stop_reason", "exclude_from_build",
-)
-
 # Issue #174: stop before a Hybrid build projects OGS-00011-scale overflow;
 # <5% matched rows signals a likely source-specific assembly/allele mismatch.
 MAX_OFF_REFERENCE_SHARE = 0.25
 LOW_OVERLAP_RATE = 0.05
 
-# Legacy finalisation hook; no capability is enabled. A reviewed per-Analysis
-# declaration alone cannot establish score validity or builder enforcement.
-# The later integration slice must require both before enabling a floor.
-VALIDATED_INFO_SCORE_READERS: frozenset[str] = frozenset()
+# The INFO columns `analyses.tsv` may carry (stores #175). A declaration is a
+# per-Analysis triple: the exact source column, its kind, and independent
+# provider provenance. `info_score_threshold` is the requested floor and is
+# emitted only alongside that complete triple.
+INFO_SCORE_COLUMNS: tuple[str, ...] = (
+    "info_score_threshold",
+    "imputation_score_column",
+    "imputation_score_kind",
+    "imputation_score_provenance",
+)
+
+#: The two resolver values that mean a declared score was actually evaluated:
+#: `disabled` is an explicit zero floor, `filtered` a positive one. A declared
+#: Analysis whose record reports anything else has no usable score evidence.
+USABLE_INFO_SCORE_STATES: frozenset[str] = frozenset({"disabled", "filtered"})
 
 EXCLUSION_COLUMNS: tuple[str, ...] = (
     "analysis_id",
@@ -418,17 +439,48 @@ def parse_info_score_threshold(value: Any) -> str:
     return format(number, "f")
 
 
-def info_threshold_for_reader(
-    config: CandidateConfiguration, *, score_evidence_validated: bool = False
-) -> str:
-    """Legacy hook, not activated by declarations: candidate rows stay NaN.
+def info_score_emission(
+    declaration: ResolverRow | None, record: Mapping[str, Any] | None
+) -> tuple[str, str, str, str]:
+    """The four ``analyses.tsv`` INFO cells for one Analysis (stores #175).
 
-    Future finalisation also requires resolver valid-score evidence and builder
-    enforcement before either zero or a positive floor may be emitted.
+    A numeric floor is emitted only on per-Analysis evidence, never on a
+    capability-wide allowlist: the Analysis must carry an approved declaration,
+    its resolver record must report a usable ``info_score_state``
+    (``disabled``/``filtered``) with at least one usable score, and its
+    fingerprint must still bind that exact declaration. Every other Analysis --
+    undeclared, a legacy record without the new diagnostics, or a declared one
+    whose evidence is unusable -- emits literal ``NaN`` and empty triple cells.
+    A declared-but-unusable Analysis is caught by the release policy before this
+    runs and surfaces as a controlled exclusion naming its Analysis.
     """
-    if score_evidence_validated and config.reader_capability in VALIDATED_INFO_SCORE_READERS:
-        return config.info_score_threshold
-    return "NaN"
+    if declaration is None or not declaration.imputation_score_column:
+        return ("NaN", "", "", "")
+    diagnostics = _record_mapping(record, "diagnostics")
+    if diagnostics.get("info_score_state") not in USABLE_INFO_SCORE_STATES:
+        return ("NaN", "", "", "")
+    usable = diagnostics.get("info_rows_usable")
+    if not _positive_int(usable):
+        return ("NaN", "", "", "")
+    resolution_config = _record_mapping(
+        _record_mapping(record, "fingerprints"), "resolution_config"
+    )
+    if resolution_config.get("info_score_threshold") != float(declaration.info_score_threshold):
+        return ("NaN", "", "", "")
+    for key in SCORE_DECLARATION_COLUMNS[1:]:
+        if resolution_config.get(key) != getattr(declaration, key):
+            return ("NaN", "", "", "")
+    return (
+        declaration.info_score_threshold,
+        declaration.imputation_score_column,
+        declaration.imputation_score_kind,
+        declaration.imputation_score_provenance,
+    )
+
+
+def _positive_int(value: Any) -> bool:
+    """True only for a real, strictly positive ``int`` (a bool is not a count)."""
+    return type(value) is int and value > 0
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:
@@ -1466,6 +1518,12 @@ class AnalysisOutcome:
     sample_size: str
     n_cases: str
     n_controls: str
+    #: The emitted INFO columns (stores #175). Default is the no-evidence pair:
+    #: literal ``NaN`` and empty triple cells. (:func:`info_score_emission`).
+    info_score_threshold: str = "NaN"
+    info_score_column: str = ""
+    info_score_kind: str = ""
+    info_score_provenance: str = ""
 
     @property
     def analysis_id(self) -> str:
@@ -1482,6 +1540,7 @@ def apply_release_policy(
     config: CandidateConfiguration,
     metadata: Mapping[str, CandidateMetadata],
     records: Mapping[str, Mapping[str, Any]],
+    manifest_rows: Sequence[ResolverRow] = (),
 ) -> list[AnalysisOutcome]:
     """Decide membership for every selected ready Analysis, with a reason.
 
@@ -1491,7 +1550,13 @@ def apply_release_policy(
     one controlled reason -- never a silently dropped row and never a fabricated
     value. Duplicate-content accessions are not collapsed: each keeps its own
     row and its own decision.
+
+    ``manifest_rows`` are the resolver manifest rows this run resolved, if the
+    caller has them: they carry the approved per-Analysis INFO declarations that
+    decide the emitted threshold (stores #175). Omitting them emits ``NaN`` for
+    every Analysis, the no-declaration behaviour.
     """
+    declaration_by_id = {row.analysis_id: row for row in manifest_rows}
     outcomes: list[AnalysisOutcome] = []
     for row in rows:
         if not row.ready:
@@ -1503,6 +1568,7 @@ def apply_release_policy(
                 tier=config.base.method_tiers[row.study_design],
                 record=records.get(row.analysis_id),
                 config=config,
+                declaration=declaration_by_id.get(row.analysis_id),
             )
         )
     return outcomes
@@ -1515,12 +1581,14 @@ def _decide(
     tier: Any,
     record: Mapping[str, Any] | None,
     config: CandidateConfiguration,
+    declaration: ResolverRow | None = None,
 ) -> AnalysisOutcome:
     stored_effect_scale = tier.stored_effect_scale
     case_control = stored_effect_scale in {"log_or", "log_hazard"}
     sample_size = resolved.sample_size
     n_cases = resolved.n_cases if case_control else ""
     n_controls = resolved.n_controls if case_control else ""
+    emitted_info = info_score_emission(declaration, record)
 
     def make(
         *,
@@ -1547,6 +1615,10 @@ def _decide(
             sample_size=sample_size,
             n_cases=n_cases,
             n_controls=n_controls,
+            info_score_threshold=emitted_info[0],
+            info_score_column=emitted_info[1],
+            info_score_kind=emitted_info[2],
+            info_score_provenance=emitted_info[3],
         )
 
     if not sample_size or _non_positive(sample_size):
@@ -1561,6 +1633,26 @@ def _decide(
     if record.get("status") != "success":
         error = str(record.get("error") or "resolver returned controlled_failure")
         return make(included=False, reason="resolution_failed", detail=error)
+
+    # A declared score with no usable evidence must not be included on a NaN
+    # threshold. The resolver already reports this as a controlled failure
+    # (handled above); this is the registry-side guard for a record that claims
+    # success without the evidence, so the invariant "included implies usable"
+    # holds no matter what produced the record. The Analysis id is named
+    # through the exclusion row.
+    if declaration is not None and declaration.imputation_score_column:
+        diagnostics = _record_mapping(record, "diagnostics")
+        state = diagnostics.get("info_score_state")
+        usable = diagnostics.get("info_rows_usable")
+        if state not in USABLE_INFO_SCORE_STATES or not _positive_int(usable):
+            return make(
+                included=False,
+                reason="resolution_failed",
+                detail=(
+                    "declared imputation score has no usable evidence "
+                    f"(info_score_state={state!r}, info_rows_usable={usable!r})"
+                ),
+            )
 
     ancestry = _record_mapping(record, "ancestry")
     assigned = str(ancestry.get("assigned_ancestry") or "").strip()
@@ -1809,15 +1901,20 @@ def build_candidate_tables(
 def _reference_overlap(
     outcomes: Sequence[AnalysisOutcome], config: CandidateConfiguration
 ) -> tuple[list[dict[str, str]], dict[str, Any], list[str]]:
-    """Summarise physical scanned rows (not distinct sites or whole-file estimates).
+    """Summarise the post-INFO reference overlap that decides projected overflow.
 
-    The ancestry scan can stop before the physical SD scan. Rows without a
-    successful scan are explicit missing measurements, never a fabricated zero.
-    Only build-included Analyses contribute to projected overflow.
+    The denominator is an Analysis's **build-eligible** rows after any declared
+    INFO filter (`build_eligible_rows`, stores #175) whenever its resolver record
+    carries those diagnostics; only a record without them falls back to the
+    legacy pre-INFO ``rows_read`` / ``variant_reference_rows_matched`` counts. A
+    zero build-eligible denominator is unavailable, never a fabricated zero
+    off-axis share. The ancestry scan can stop before the physical SD scan, so a
+    row without a successful scan is an explicit missing measurement. Only
+    build-included Analyses contribute to projected overflow.
     """
     axis = str(config.build_options.get("variant-reference") or "")
     rows: list[dict[str, str]] = []
-    measured: list[tuple[str, int, int]] = []
+    measured: list[tuple[str, int, int, str]] = []
     ancestry_measured: list[tuple[str, int, int]] = []
     missing: list[str] = []
     for outcome in outcomes:
@@ -1826,13 +1923,26 @@ def _reference_overlap(
         ancestry_matched = diagnostics.get("ancestry_reference_rows_matched")
         total = diagnostics.get("rows_read")
         axis_matched = diagnostics.get("variant_reference_rows_matched")
+        eligible_total = diagnostics.get("build_eligible_rows")
+        eligible_on = diagnostics.get("build_eligible_rows_on_variant_reference")
+        eligible_off = diagnostics.get("build_eligible_rows_off_variant_reference")
         success = (outcome.record or {}).get("status") == "success"
+
         def count(value: Any, denominator: Any) -> bool:
             return (type(value) is int and type(denominator) is int
                     and denominator > 0 and 0 <= value <= denominator)
 
         anc_valid = success and count(ancestry_matched, ancestry_n)
         axis_valid = success and count(axis_matched, total)
+        # A record "carries" the post-INFO diagnostics when build_eligible_rows
+        # is an int; its on/off split is valid only when it partitions that count.
+        eligible_carried = success and type(eligible_total) is int and eligible_total >= 0
+        eligible_valid = (
+            eligible_carried
+            and count(eligible_on, eligible_total)
+            and count(eligible_off, eligible_total)
+            and eligible_on + eligible_off == eligible_total
+        )
         fingerprints = _record_mapping(outcome.record, "fingerprints")
         row = {
             "analysis_id": outcome.analysis_id,
@@ -1844,6 +1954,10 @@ def _reference_overlap(
             "rows_scanned": str(total) if success and type(total) is int and total >= 0 else "",
             "variant_reference_rows_matched": str(axis_matched) if axis and axis_valid else "",
             "variant_reference_rate": _float_or_empty(axis_matched / total) if axis and axis_valid else "",
+            "build_eligible_rows": str(eligible_total) if eligible_carried else "",
+            "build_eligible_rows_on_variant_reference": str(eligible_on) if axis and eligible_valid else "",
+            "build_eligible_rows_off_variant_reference": str(eligible_off) if axis and eligible_valid else "",
+            "build_eligible_rate": _float_or_empty(eligible_on / eligible_total) if axis and eligible_valid and eligible_total > 0 else "",
             "stop_reason": str(diagnostics.get("stop_reason") or ""),
             "exclude_from_build": "" if outcome.included else "true",
         }
@@ -1851,15 +1965,32 @@ def _reference_overlap(
         if anc_valid:
             ancestry_measured.append((outcome.analysis_id, ancestry_n, ancestry_matched))
         if outcome.included:
-            if not anc_valid or (axis and not axis_valid):
+            if not anc_valid:
                 missing.append(outcome.analysis_id)
             elif axis:
-                measured.append((outcome.analysis_id, total, axis_matched))
+                if eligible_carried:
+                    # Prefer the post-INFO denominator; a carried-but-unusable
+                    # (for example zero-eligible) count is missing, never a
+                    # silent fallback to pre-INFO rows.
+                    if eligible_valid and eligible_total > 0:
+                        measured.append(
+                            (outcome.analysis_id, eligible_total, eligible_on, "build_eligible_rows")
+                        )
+                    else:
+                        missing.append(outcome.analysis_id)
+                elif axis_valid:
+                    measured.append(
+                        (outcome.analysis_id, total, axis_matched, "legacy_rows_read")
+                    )
+                else:
+                    missing.append(outcome.analysis_id)
 
     errors: list[str] = []
     if missing:
         errors.append("reference overlap missing or invalid for included Analyses: "
                       + ", ".join(missing[:10]))
+    bases = sorted({basis for _, _, _, basis in measured})
+    basis = bases[0] if len(bases) == 1 else ("mixed" if bases else None)
     summary: dict[str, Any] = {
         "low_overlap_threshold": LOW_OVERLAP_RATE,
         "max_off_reference_share": MAX_OFF_REFERENCE_SHARE,
@@ -1876,6 +2007,7 @@ def _reference_overlap(
         "low_overlap_count": 0,
         "low_overlap_analyses": [],
         "projected_off_reference_share": None,
+        "projected_off_reference_basis": None,
         "worst_contributors": [],
     }
     if ancestry_measured:
@@ -1887,10 +2019,10 @@ def _reference_overlap(
             if matches / scanned < LOW_OVERLAP_RATE
         )
     if axis and measured:
-        rates = sorted(matches / scanned for _, scanned, matches in measured)
-        low = sorted(aid for aid, scanned, matched in measured if matched / scanned < LOW_OVERLAP_RATE)
-        total_scanned = sum(scanned for _, scanned, _ in measured)
-        total_matched = sum(matches for _, _, matches in measured)
+        rates = sorted(matches / scanned for _, scanned, matches, _ in measured)
+        low = sorted(aid for aid, scanned, matched, _ in measured if matched / scanned < LOW_OVERLAP_RATE)
+        total_scanned = sum(scanned for _, scanned, _, _ in measured)
+        total_matched = sum(matches for _, _, matches, _ in measured)
         off_share = (total_scanned - total_matched) / total_scanned
         contributors = sorted(measured, key=lambda item: (-(item[1] - item[2]), item[0]))
         summary.update(
@@ -1899,11 +2031,13 @@ def _reference_overlap(
             p10_rate=rates[int((len(rates) - 1) * .10)],
             low_overlap_count=len(low), low_overlap_analyses=low,
             projected_off_reference_share=off_share,
-            worst_contributors=[aid for aid, _, _ in contributors[:10]],
+            projected_off_reference_basis=basis,
+            worst_contributors=[aid for aid, _, _, _ in contributors[:10]],
         )
         if off_share > MAX_OFF_REFERENCE_SHARE:
             errors.append(
-                f"projected off-reference share {off_share:.1%} exceeds {MAX_OFF_REFERENCE_SHARE:.0%}; "
+                f"projected off-reference share {off_share:.1%} exceeds {MAX_OFF_REFERENCE_SHARE:.0%} "
+                f"(denominator basis: {basis}); "
                 "worst contributors: " + ", ".join(summary["worst_contributors"])
             )
     if not axis:
@@ -1961,7 +2095,10 @@ def _analyses_row(
         "n_cases": outcome.n_cases,
         "n_controls": outcome.n_controls,
         "analysis_group_id": str(config.defaults.get("analysis_group_id", "")),
-        "info_score_threshold": info_threshold_for_reader(config),
+        "info_score_threshold": outcome.info_score_threshold,
+        "imputation_score_column": outcome.info_score_column,
+        "imputation_score_kind": outcome.info_score_kind,
+        "imputation_score_provenance": outcome.info_score_provenance,
         "inclusion_reason": inclusion_reason,
         "exclude_from_build": exclude,
     }
@@ -2517,6 +2654,9 @@ __all__ = [
     "ANCESTRY_SIDECAR_COLUMNS",
     "ANALYSES_COLUMNS",
     "CANDIDATE_STATUS",
+    "INFO_SCORE_COLUMNS",
+    "REFERENCE_OVERLAP_COLUMNS",
+    "USABLE_INFO_SCORE_STATES",
     "CandidateConfiguration",
     "CandidateError",
     "CandidateFiles",
@@ -2543,6 +2683,7 @@ __all__ = [
     "cleanup_staging",
     "compute_resolution_contract",
     "derive_resolver_manifest",
+    "info_score_emission",
     "load_candidate_configuration",
     "now_utc",
     "publish_candidate",

@@ -133,10 +133,11 @@ defaults:
   source_genome_build: GRCh38
   license: EBI GWAS Catalog terms of use
   sample_size_scope: analysis_level
-  # Requested floor when a reader proves per-association imputation INFO/R².
-  # Even a reviewed declaration is not yet evidence of valid score rows or
-  # builder enforcement: candidate analyses.tsv remains literal NaN until
-  # the resolver-record and builder integration slice lands.
+  # Requested floor once a per-Analysis declaration and resolver evidence prove
+  # a usable per-association imputation INFO/R² score. With no OGS-00011
+  # declaration approved, candidate analyses.tsv emits literal NaN for every
+  # Analysis; a declared Analysis emits this floor only when its resolver record
+  # reports a usable post-INFO state and at least one usable score.
   # Explicit 0 disables filtering; values outside [0,1] fail configuration.
   info_score_threshold: 0.6
   # Issue #11's settled trust-vs-validate policy: a row with no usable source

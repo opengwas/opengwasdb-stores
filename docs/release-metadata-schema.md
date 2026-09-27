@@ -189,7 +189,7 @@ applying generator config defaults, even when that repeats store-level metadata.
 
 | Class | Owner | Where used | Examples |
 |---|---|---|---|
-| Shared core | OpenGWASDB | Release manifests and built stores. These columns carry interpretation-bearing Analysis metadata. | `analysis_id`, `analysis_label`, ontology fields, ancestry fields, effect-scale fields, sample-size fields, Attribution Metadata (`license`, `publication_doi`, `publication_pmid`, `consortium`, `first_author`). |
+| Shared core | OpenGWASDB | Release manifests and built stores. These columns carry interpretation-bearing Analysis metadata. | `analysis_id`, `analysis_label`, ontology fields, ancestry fields, effect-scale fields, sample-size fields, INFO policy fields (`info_score_threshold`, `imputation_score_column`, `imputation_score_kind`, `imputation_score_provenance`), Attribution Metadata (`license`, `publication_doi`, `publication_pmid`, `consortium`, `first_author`). |
 | Registry-only | Store registry | Release manifests only. These columns locate source inputs, record provenance, or explain inclusion. | `source_analysis_id`, `source_label`, `source_file`, `source_bundle_id`, `checksum`, `checksum_algorithm`, `size_bytes`, `analysis_group_id`, `inclusion_reason`, `exclude_from_build`, `trait_ontology_mapping_method`. |
 | Store-only | OpenGWASDB | Built stores only. These columns are produced during or after the build and therefore do not appear in accepted release manifests. | `completed_against`, reference-completion quality rollups, store artifact diagnostics. |
 
@@ -268,24 +268,34 @@ and the matching authority name in `trait_ontology_label` (issue #141).
 | `n_controls` | No | Control count for binary traits, or non-event/comparison count for time-to-event traits when reported by the source. Same absence rule as `n_cases`. |
 | `analysis_group_id` | No | Grouping key for analyses sharing a publication, analyte panel, phenotype batch, or source bundle. |
 | `inclusion_reason` | No | Short reason this Analysis was selected. |
-| `info_score_threshold` | No | Optional per-Analysis requested imputation INFO/R² floor in `[0,1]`: literal `NaN` means unavailable (no validated score-bearing reader and per-Analysis evidence, even when zero was requested), `0` explicitly disables filtering when a usable score is available, positive values require an independently validated score reader and builder enforcement. Omission remains valid for older bundles. A source MAF/EAF or a lookalike `INFO` header is not evidence of imputation quality. This value alone does not imply any variants were filtered. |
+| `info_score_threshold` | No | Optional per-Analysis requested imputation INFO/R² floor in `[0,1]`. A numeric value (including `0`) is emitted only alongside the complete declaration triple below and only on resolver evidence: the record reports `info_score_state` `disabled` (explicit zero) or `filtered` (positive floor), `info_rows_usable > 0`, and a fingerprint that still binds the declaration. Literal `NaN` means unavailable -- no approved declaration, a legacy record without the diagnostics, or unusable evidence. A source MAF/EAF or a lookalike `INFO` header is not evidence of imputation quality. This value alone does not imply any variants were filtered. `bundle.check()` rejects a numeric threshold without the complete triple. Omission remains valid for older bundles. |
+| `imputation_score_column` | No | Exact, case-sensitive source column name the declaration cites as the imputation score. Emitted only with a numeric `info_score_threshold` and the other two triple columns; empty otherwise. |
+| `imputation_score_kind` | No | `imputation_info` or `imputation_r2`. `bundle.check()` rejects any other non-empty value. |
+| `imputation_score_provenance` | No | Independent provider semantic evidence (for example a provider data dictionary) for the declared column. A header guess, the column name itself, or MAF/EAF is not provenance. |
 | `exclude_from_build` | No | `true` only for rows retained for audit but intentionally skipped by the build. The registry honours it at build time: it materialises a derived build manifest (`<artifact-root>/<store-id>/work/analyses.tsv`) with every `true` row removed and points the builder at that, so `opengwasdb` never sees an excluded row. The row itself stays in the committed bundle, with its `inclusion_reason`, as the audit record of why the Analysis is absent. See [ADR 0025](adr/0025-registry-filters-excluded-analyses.md). |
 | `ancestry_prop_*` | No | Optional family of columns for estimated reference ancestry proportions. |
 
+The four INFO columns are one policy: `info_score_threshold` is the requested
+floor and `imputation_score_column`/`imputation_score_kind`/
+`imputation_score_provenance` are the exact source-column declaration it
+requires. `bundle.check()` rejects a numeric threshold without the complete
+triple and a triple without a numeric threshold.
+
 For the Phase B GWAS Catalog EUR Hybrid candidate generator, a separate optional
 `source.imputation_score_declarations` TSV supplies explicit, independently
-sourced per-Analysis score semantics to the **resolver input**, not to the
-candidate `analyses.tsv`. Its exact headers are `analysis_id`,
-`imputation_score_column`, `imputation_score_kind`,
-`imputation_score_provenance`; kinds are `imputation_info` or `imputation_r2`.
-The resolver input also carries the requested `info_score_threshold`, or
-literal `NaN` when unmapped. The declaration and requested floor do not alone
-prove a score usable: the generated candidate still emits literal `NaN` until
-resolver evidence establishes at least one valid score from that exact column
-and core builder filtering/count reconciliation is wired. See the family
+sourced per-Analysis score semantics to the **resolver input**. Its exact
+headers are `analysis_id`, `imputation_score_column`,
+`imputation_score_kind`, `imputation_score_provenance`; kinds are
+`imputation_info` or `imputation_r2`. The resolver input also carries the
+requested `info_score_threshold`, or literal `NaN` when unmapped. Finalisation
+copies the requested floor and the exact triple into the candidate
+`analyses.tsv` only for an Analysis whose resolver record carries the post-INFO
+state and at least one usable score (see the family
 [README](../resources/generators/gwas-catalog-eur-hybrid/README.md) for the
-input contract and integration handoff. Older bundles may omit
-`info_score_threshold`; declaration columns belong only in resolver inputs.
+emission rule); every other Analysis emits literal `NaN` and empty triple
+cells. A declared Analysis with no usable score is a controlled failure that the
+release policy surfaces as an exclusion naming its Analysis. Older bundles may
+omit all four columns entirely.
 
 Some generators add release-specific columns beyond this table, such as the
 `gwas-ssf-ragged` generator's single-gene-target columns (`trait_chr`,
