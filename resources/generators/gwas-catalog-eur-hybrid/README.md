@@ -179,8 +179,9 @@ stores/OGS-xxxxx/
 ### INFO threshold contract and core handoff (#175)
 
 `defaults.info_score_threshold` requests a finite floor in `[0,1]` (default
-`0.6`); explicit `0` disables the gate. Candidate `analyses.tsv` emits literal
-`NaN` for an Analysis whose reader does **not** establish a validated
+`0.6`); explicit `0` disables the gate **only when usable score evidence is
+available**. Candidate `analyses.tsv` emits literal `NaN`, even with an explicit
+zero request, for an Analysis whose reader does **not** establish a validated
 per-association imputation INFO/R² score. The pinned
 `opengwasdb.gwas-ssf` reader reads effect allele frequency, but exposes no
 validated imputation quality score (`opengwasdb/readers/gwas_ssf.py`); its

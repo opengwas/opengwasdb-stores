@@ -684,15 +684,25 @@ class CandidateWorkflowTests(unittest.TestCase):
             self.fixture.config_path.write_text(yaml.safe_dump(document))
             loaded = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
             self.assertEqual(loaded.info_score_threshold, value)
-            self.assertEqual(candidate_workflow.info_threshold_for_reader(loaded),
-                             "0" if value == "0" else "NaN")
+            self.assertEqual(candidate_workflow.info_threshold_for_reader(loaded), "NaN")
+            with mock.patch.object(
+                candidate_workflow,
+                "VALIDATED_INFO_SCORE_READERS",
+                frozenset({loaded.reader_capability}),
+            ):
+                self.assertEqual(
+                    candidate_workflow.info_threshold_for_reader(
+                        loaded, score_evidence_validated=True
+                    ),
+                    value,
+                )
         document = yaml.safe_load(self.fixture.config_path.read_text())
         document["defaults"]["info_score_threshold"] = 0
         self.fixture.config_path.write_text(yaml.safe_dump(document))
         result = _run_cli(self.fixture)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         emitted = _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
-        self.assertEqual({row["info_score_threshold"] for row in emitted}, {"0"})
+        self.assertEqual({row["info_score_threshold"] for row in emitted}, {"NaN"})
 
         for invalid in ("NaN", "inf", "-0.1", "1.1", "", True):
             document = yaml.safe_load(self.fixture.config_path.read_text())

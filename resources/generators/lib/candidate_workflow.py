@@ -412,8 +412,6 @@ def info_threshold_for_reader(
     The current resolver supplies no such evidence, so candidate rows remain
     unavailable. Literal NaN is not a numeric filter or an explicit zero.
     """
-    if Decimal(config.info_score_threshold) == 0:
-        return "0"
     if score_evidence_validated and config.reader_capability in VALIDATED_INFO_SCORE_READERS:
         return config.info_score_threshold
     return "NaN"
