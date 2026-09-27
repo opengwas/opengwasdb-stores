@@ -188,7 +188,8 @@ REFERENCE_OVERLAP_COLUMNS: tuple[str, ...] = (
     "stop_reason", "exclude_from_build",
 )
 
-# A Hybrid release must not project an overflow comparable to OGS-00011's 39%.
+# Issue #174: stop before a Hybrid build projects OGS-00011-scale overflow;
+# <5% matched rows signals a likely source-specific assembly/allele mismatch.
 MAX_OFF_REFERENCE_SHARE = 0.25
 LOW_OVERLAP_RATE = 0.05
 
