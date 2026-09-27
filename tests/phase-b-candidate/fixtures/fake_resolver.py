@@ -148,6 +148,13 @@ def compute_fingerprints(row: dict, options: dict) -> dict:
             },
         },
     }
+    if row.get("imputation_score_column"):
+        fingerprints["resolution_config"].update({
+            "info_score_threshold": float(row["info_score_threshold"]),
+            "imputation_score_column": row["imputation_score_column"],
+            "imputation_score_kind": row["imputation_score_kind"],
+            "imputation_score_provenance": row["imputation_score_provenance"],
+        })
     fingerprints["fingerprint_digest"] = fingerprint_digest(fingerprints)
     return fingerprints
 

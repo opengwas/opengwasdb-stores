@@ -713,6 +713,120 @@ class CandidateWorkflowTests(unittest.TestCase):
             ):
                 load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
 
+    def _declare_scores(self, rows: list[dict[str, str]]) -> Path:
+        path = self.fixture.root / "score-declarations.tsv"
+        _write_tsv(path, list(candidate_workflow.SCORE_DECLARATION_COLUMNS), rows)
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["source"]["imputation_score_declarations"] = str(path)
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        return path
+
+    def test_declared_score_manifest_receipt_and_candidate_handoff(self) -> None:
+        analysis_id = "GCST90000004"
+        path = self._declare_scores([{
+            "analysis_id": analysis_id,
+            "imputation_score_column": "imputation_INFO",
+            "imputation_score_kind": "imputation_info",
+            "imputation_score_provenance": "provider specification: INFO is imputation quality",
+        }])
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["defaults"]["info_score_threshold"] = 0
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        run_root = self.fixture.work_root / STORE_ID / "resolver"
+        manifest = _read_tsv(run_root / "analyses.tsv")
+        self.assertEqual(tuple(manifest[0]), RESOLVER_MANIFEST_COLUMNS)
+        by_id = {row["analysis_id"]: row for row in manifest}
+        declared = by_id[analysis_id]
+        self.assertEqual(declared["info_score_threshold"], "0")
+        self.assertEqual(declared["imputation_score_column"], "imputation_INFO")
+        self.assertEqual(declared["imputation_score_kind"], "imputation_info")
+        self.assertEqual(declared["imputation_score_provenance"],
+                         "provider specification: INFO is imputation quality")
+        self.assertEqual(by_id["GCST90000001"]["info_score_threshold"], "NaN")
+        self.assertEqual(by_id["GCST90000001"]["imputation_score_column"], "")
+        record = json.loads((run_root / "records" / f"{analysis_id}.json").read_text())
+        self.assertEqual(record["fingerprints"]["resolution_config"]["imputation_score_column"],
+                         "imputation_INFO")
+        receipt = read_resolution_receipt(run_root / RECEIPT_FILENAME)
+        self.assertEqual(receipt["contract"]["imputation_score_declarations_sha256"],
+                         hashlib.sha256(path.read_bytes()).hexdigest())
+        self.assertEqual(receipt["manifest_sha256"],
+                         hashlib.sha256((run_root / "analyses.tsv").read_bytes()).hexdigest())
+        final = _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
+        self.assertEqual({row["info_score_threshold"] for row in final}, {"NaN"})
+        # A declaration cannot turn on a build filter without score counts and
+        # builder wiring, even for an explicitly requested zero.
+        self.assertNotIn("imputation_score_column", final[0])
+        self.assertEqual(_run_cli(self.fixture, "--stage", "verify").returncode, 0)
+        path.write_text(path.read_text().replace("imputation_INFO", "imputation_R2"))
+        stale = _run_cli(self.fixture, "--stage", "verify")
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn("resolution contract changed", stale.stderr + stale.stdout)
+
+    def test_declared_score_requires_resolver_fingerprint(self) -> None:
+        analysis_id = "GCST90000004"
+        self._declare_scores([{
+            "analysis_id": analysis_id, "imputation_score_column": "imputation_r2",
+            "imputation_score_kind": "imputation_r2",
+            "imputation_score_provenance": "provider dictionary: imputation r2",
+        }])
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        run_root = self.fixture.work_root / STORE_ID / "resolver"
+        record_path = run_root / "records" / f"{analysis_id}.json"
+        record = json.loads(record_path.read_text())
+        del record["fingerprints"]["resolution_config"]["imputation_score_kind"]
+        record["fingerprints"]["fingerprint_digest"] = _fingerprint_digest(
+            record["fingerprints"]
+        )
+        record_path.write_text(json.dumps(record))
+        inventory = read_inventory(self.fixture.inventory_path)
+        metadata = read_candidate_metadata(self.fixture.candidates_path,
+                                           (row.analysis_id for row in inventory if row.ready))
+        manifest = derive_resolver_manifest(inventory, load_candidate_configuration(
+            self.fixture.config_path, REPO_ROOT), metadata)
+        _, failures = account_records(manifest, run_root / "records")
+        self.assertTrue(any("resolution_config.imputation_score_kind" in error
+                            for error in failures), failures)
+        stale = _run_cli(self.fixture, "--stage", "emit")
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn("resolution_config.imputation_score_kind", stale.stderr + stale.stdout)
+
+    def test_score_declaration_validation_and_legacy_manifest(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        rows = read_inventory(self.fixture.inventory_path)
+        metadata = read_candidate_metadata(self.fixture.candidates_path,
+                                           (row.analysis_id for row in rows if row.ready))
+        legacy = derive_resolver_manifest(rows, config, metadata)
+        self.assertEqual({row.info_score_threshold for row in legacy}, {"NaN"})
+        self.assertEqual({row.imputation_score_kind for row in legacy}, {""})
+        valid = {"analysis_id": "GCST90000001", "imputation_score_column": "r2",
+                 "imputation_score_kind": "imputation_r2",
+                 "imputation_score_provenance": "provider data dictionary: imputation R2"}
+        for broken, message in (
+            ([{**valid, "analysis_id": "unknown"}], "unknown analysis_id"),
+            ([valid, valid], "duplicate analysis_id"),
+            ([{**valid, "imputation_score_column": " r2"}], "exact non-empty"),
+            ([{**valid, "imputation_score_kind": "MAF"}], "invalid imputation_score_kind"),
+            ([{**valid, "imputation_score_provenance": ""}], "independent provider evidence"),
+        ):
+            with self.subTest(broken=broken):
+                self._declare_scores(broken)
+                configured = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+                with self.assertRaisesRegex(CandidateError, message):
+                    derive_resolver_manifest(rows, configured, metadata)
+        path = self._declare_scores([valid])
+        path.write_text(path.read_text().replace("imputation_score_kind", "score_kind"))
+        with self.assertRaisesRegex(CandidateError, "exact TSV headers"):
+            derive_resolver_manifest(rows, load_candidate_configuration(
+                self.fixture.config_path, REPO_ROOT), metadata)
+        path.unlink()
+        with self.assertRaisesRegex(CandidateError, "table not found"):
+            derive_resolver_manifest(rows, load_candidate_configuration(
+                self.fixture.config_path, REPO_ROOT), metadata)
+
     def test_worker_count_byte_equivalence(self) -> None:
         single_root = self.fixture.root / "stores-1"
         multi_root = self.fixture.root / "stores-4"

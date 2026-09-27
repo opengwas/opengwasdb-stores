@@ -88,6 +88,10 @@ RESOLVER_MANIFEST_COLUMNS: tuple[str, ...] = (
     "checksum",
     "checksum_algorithm",
     "size_bytes",
+    "info_score_threshold",
+    "imputation_score_column",
+    "imputation_score_kind",
+    "imputation_score_provenance",
 )
 
 #: The canonical Release Bundle ``analyses.tsv`` columns this generator emits.
@@ -195,12 +199,9 @@ REFERENCE_OVERLAP_COLUMNS: tuple[str, ...] = (
 MAX_OFF_REFERENCE_SHARE = 0.25
 LOW_OVERLAP_RATE = 0.05
 
-# Only capabilities whose *reader* establishes per-association imputation
-# INFO/R² semantics and validates [0,1] may be enabled here. The pinned
-# GWAS-SSF reader exposes EAF/MAF, but no validated INFO projection; a header
-# that looks like INFO alone is not evidence. Do not add a capability until
-# core supplies per-Analysis validity evidence and builder filtering/counts;
-# a capability alone must not claim that one Analysis has usable scores.
+# Legacy finalisation hook; no capability is enabled. A reviewed per-Analysis
+# declaration alone cannot establish score validity or builder enforcement.
+# The later integration slice must require both before enabling a floor.
 VALIDATED_INFO_SCORE_READERS: frozenset[str] = frozenset()
 
 EXCLUSION_COLUMNS: tuple[str, ...] = (
@@ -321,6 +322,7 @@ class CandidateConfiguration:
     reader_capability: str
     target_ancestry: str
     info_score_threshold: str
+    imputation_score_declarations: Path | None
 
 
 def _require(document: Mapping[str, Any], key: str, where: str) -> Any:
@@ -368,6 +370,17 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         defaults.get("info_score_threshold", 0.6)
     )
     target_ancestry = read_source_label_map(repo_root, base.ancestry_group)
+    source = _mapping(document.get("source"))
+    declaration_input = source.get("imputation_score_declarations")
+    if declaration_input is not None and (
+        not isinstance(declaration_input, str) or not declaration_input.strip()
+    ):
+        raise PreflightConfigError(
+            "source.imputation_score_declarations must be a non-empty TSV path"
+        )
+    declaration_path = Path(declaration_input) if declaration_input else None
+    if declaration_path is not None and not declaration_path.is_absolute():
+        declaration_path = repo_root / declaration_path
 
     return CandidateConfiguration(
         base=base,
@@ -386,6 +399,7 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         reader_capability=reader_capability,
         target_ancestry=target_ancestry,
         info_score_threshold=info_score_threshold,
+        imputation_score_declarations=declaration_path,
     )
 
 
@@ -407,10 +421,10 @@ def parse_info_score_threshold(value: Any) -> str:
 def info_threshold_for_reader(
     config: CandidateConfiguration, *, score_evidence_validated: bool = False
 ) -> str:
-    """Emit a floor only with reader support AND per-Analysis score evidence.
+    """Legacy hook, not activated by declarations: candidate rows stay NaN.
 
-    The current resolver supplies no such evidence, so candidate rows remain
-    unavailable. Literal NaN is not a numeric filter or an explicit zero.
+    Future finalisation also requires resolver valid-score evidence and builder
+    enforcement before either zero or a positive floor may be emitted.
     """
     if score_evidence_validated and config.reader_capability in VALIDATED_INFO_SCORE_READERS:
         return config.info_score_threshold
@@ -565,6 +579,59 @@ def _clean_number(value: str | None) -> str:
 # ---------------------------------------------------------------------------
 
 
+SCORE_DECLARATION_COLUMNS: tuple[str, ...] = (
+    "analysis_id", "imputation_score_column", "imputation_score_kind",
+    "imputation_score_provenance",
+)
+SCORE_KINDS: frozenset[str] = frozenset({"imputation_info", "imputation_r2"})
+
+
+def read_imputation_score_declarations(
+    path: Path | None, analysis_ids: Iterable[str]
+) -> dict[str, tuple[str, str, str]]:
+    """Read reviewed per-Analysis provider citations, never source-header guesses.
+
+    A citation is required but its scientific independence requires human review.
+    """
+    if path is None:
+        return {}
+    if not path.is_file():
+        raise CandidateError(f"imputation score declaration table not found: {path}")
+    known = set(analysis_ids)
+    found: dict[str, tuple[str, str, str]] = {}
+    with path.open(newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh, delimiter="\t")
+        if reader.fieldnames != list(SCORE_DECLARATION_COLUMNS):
+            raise CandidateError(
+                f"{path}: expected exact TSV headers {SCORE_DECLARATION_COLUMNS!r}"
+            )
+        for number, row in enumerate(reader, 2):
+            if None in row or any(value is None for value in row.values()):
+                raise CandidateError(f"{path}:{number}: malformed declaration row")
+            analysis_id = row["analysis_id"].strip()
+            if not analysis_id or analysis_id not in known:
+                raise CandidateError(f"{path}:{number}: unknown analysis_id {analysis_id!r}")
+            if analysis_id in found:
+                raise CandidateError(f"{path}:{number}: duplicate analysis_id {analysis_id!r}")
+            column, kind, provenance = (
+                row[name] for name in SCORE_DECLARATION_COLUMNS[1:]
+            )
+            if not column or column != column.strip() or any(c in column for c in "\r\n\t"):
+                raise CandidateError(
+                    f"{path}:{number}: imputation_score_column must be an exact "
+                    "non-empty header name"
+                )
+            if kind not in SCORE_KINDS:
+                raise CandidateError(f"{path}:{number}: invalid imputation_score_kind {kind!r}")
+            if not provenance or not provenance.strip() or any(c in provenance for c in "\r\n\t"):
+                raise CandidateError(
+                    f"{path}:{number}: imputation_score_provenance requires "
+                    "independent provider evidence"
+                )
+            found[analysis_id] = (column, kind, provenance)
+    return found
+
+
 @dataclass(frozen=True)
 class ResolverRow:
     """One row of the canonical resolver manifest."""
@@ -578,6 +645,10 @@ class ResolverRow:
     checksum: str
     checksum_algorithm: str
     size_bytes: str
+    info_score_threshold: str = "NaN"
+    imputation_score_column: str = ""
+    imputation_score_kind: str = ""
+    imputation_score_provenance: str = ""
 
     def as_dict(self) -> dict[str, str]:
         return {name: getattr(self, name) for name in RESOLVER_MANIFEST_COLUMNS}
@@ -597,6 +668,9 @@ def derive_resolver_manifest(
     reconstructed from an accession -- and the total N comes from the resolved
     metadata. ``data_file`` is used verbatim; nothing here opens it.
     """
+    declarations = read_imputation_score_declarations(
+        config.imputation_score_declarations, (row.analysis_id for row in rows)
+    )
     manifest: list[ResolverRow] = []
     for row in rows:
         if not row.ready:
@@ -613,6 +687,7 @@ def derive_resolver_manifest(
             raise CandidateError(f"{row.analysis_id}: ready row has no sha256")
         resolved = metadata.get(row.analysis_id)
         sample_size = resolved.sample_size if resolved else ""
+        column, kind, provenance = declarations.get(row.analysis_id, ("", "", ""))
         manifest.append(
             ResolverRow(
                 analysis_id=row.analysis_id,
@@ -624,6 +699,10 @@ def derive_resolver_manifest(
                 checksum=row.sha256,
                 checksum_algorithm="sha256",
                 size_bytes=row.data_bytes,
+                info_score_threshold=config.info_score_threshold if column else "NaN",
+                imputation_score_column=column,
+                imputation_score_kind=kind,
+                imputation_score_provenance=provenance,
             )
         )
     if not manifest:
@@ -1002,6 +1081,20 @@ def _verify_fingerprints(row: ResolverRow, record: Mapping[str, Any]) -> list[st
                     f"{row.analysis_id}: resolver resolution_config.{key} is "
                     f"{resolution_config.get(key)!r}, expected {expected[key]!r}"
                 )
+    # A declared score must be included in the resolver's own fingerprint.
+    # Legacy/no-declaration records predate these keys and remain compatible.
+    if row.imputation_score_column:
+        if isinstance(resolution_config, Mapping):
+            for key in ("info_score_threshold",) + SCORE_DECLARATION_COLUMNS[1:]:
+                wanted = (
+                    float(row.info_score_threshold)
+                    if key == "info_score_threshold" else getattr(row, key)
+                )
+                if resolution_config.get(key) != wanted:
+                    failures.append(
+                        f"{row.analysis_id}: resolver resolution_config.{key} is "
+                        f"{resolution_config.get(key)!r}, expected {wanted!r}"
+                    )
     failures.extend(_verify_source_file_unchanged(row, fingerprints))
     return failures
 
@@ -1134,7 +1227,7 @@ def compute_resolution_contract(config: CandidateConfiguration) -> dict[str, Any
         )
 
     opengwasdb_version, opengwasdb_resolver_sha256 = _opengwasdb_tool_identity()
-    return {
+    contract = {
         "source_reader_capability": config.reader_capability,
         "maf_floor": config.ancestry_block.get("maf_floor", 0.01),
         "gates": {
@@ -1155,6 +1248,14 @@ def compute_resolution_contract(config: CandidateConfiguration) -> dict[str, Any
         "opengwasdb_version": opengwasdb_version,
         "opengwasdb_resolver_sha256": opengwasdb_resolver_sha256,
     }
+    # Keep the legacy no-mapping contract byte-for-byte compatible. A newly
+    # configured mapping changes both the manifest and this receipt contract.
+    if config.imputation_score_declarations is not None:
+        contract["imputation_score_declarations"] = str(config.imputation_score_declarations)
+        contract["imputation_score_declarations_sha256"] = sha256_file(
+            config.imputation_score_declarations
+        )
+    return contract
 
 
 def build_resolution_receipt(

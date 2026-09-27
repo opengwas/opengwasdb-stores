@@ -272,6 +272,21 @@ and the matching authority name in `trait_ontology_label` (issue #141).
 | `exclude_from_build` | No | `true` only for rows retained for audit but intentionally skipped by the build. The registry honours it at build time: it materialises a derived build manifest (`<artifact-root>/<store-id>/work/analyses.tsv`) with every `true` row removed and points the builder at that, so `opengwasdb` never sees an excluded row. The row itself stays in the committed bundle, with its `inclusion_reason`, as the audit record of why the Analysis is absent. See [ADR 0025](adr/0025-registry-filters-excluded-analyses.md). |
 | `ancestry_prop_*` | No | Optional family of columns for estimated reference ancestry proportions. |
 
+For the Phase B GWAS Catalog EUR Hybrid candidate generator, a separate optional
+`source.imputation_score_declarations` TSV supplies explicit, independently
+sourced per-Analysis score semantics to the **resolver input**, not to the
+candidate `analyses.tsv`. Its exact headers are `analysis_id`,
+`imputation_score_column`, `imputation_score_kind`,
+`imputation_score_provenance`; kinds are `imputation_info` or `imputation_r2`.
+The resolver input also carries the requested `info_score_threshold`, or
+literal `NaN` when unmapped. The declaration and requested floor do not alone
+prove a score usable: the generated candidate still emits literal `NaN` until
+resolver evidence establishes at least one valid score from that exact column
+and core builder filtering/count reconciliation is wired. See the family
+[README](../resources/generators/gwas-catalog-eur-hybrid/README.md) for the
+input contract and integration handoff. Older bundles may omit
+`info_score_threshold`; declaration columns belong only in resolver inputs.
+
 Some generators add release-specific columns beyond this table, such as the
 `gwas-ssf-ragged` generator's single-gene-target columns (`trait_chr`,
 `trait_bp`, `n`, `mhc`, `target_resolution_method`, `n_target_rows`) for

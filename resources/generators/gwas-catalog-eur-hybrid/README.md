@@ -190,25 +190,43 @@ INFO. Thus OGS-00011 currently emits `NaN`, not an unimplemented positive
 filter. These unavailable rows must be reported as such, not as filtered or
 quality-passing. Legacy bundles without the column remain valid.
 
-**Core reader/builder integration required before enabling a positive floor:**
-register a capability in `VALIDATED_INFO_SCORE_READERS` and pass
-`score_evidence_validated=True` to the emission hook only after the core
-reader identifies a source-format-specific score with documented imputation
-INFO/R² semantics, rejects ambiguous lookalike or duplicate columns, and
-validates scores as finite numbers in `[0,1]` for that Analysis. Header presence
-alone is not sufficient. If a declared score-bearing Analysis has no valid
-scores, fail candidate validation with its ID and reason, rather than emitting
-`NaN` or `0`. The builder/resolver must consume the exact same recognized
-score and exclude rows with a missing, malformed, nonfinite, or out-of-range
-score when the positive floor is enabled; exclude valid scores strictly below
-the floor (`score == threshold` passes). Neither ancestry EAF nor phenotype-SD
-MAF gates are substitutes for this build gate. Publish per-Analysis and total
-physical input rows, retained rows, below-threshold rows, and invalid-score
-rows separately by missing/malformed/nonfinite/out-of-range reason; require
-`input = retained + below_threshold + sum(invalid_reasons)` on the same reader
-row stream, reconcile Dense and Ragged counts to retained rows, and prohibit
-calling a positive threshold a post-filter projection before that reconciliation
-is implemented. No full-data scan or filtering is performed by Phase B.
+An optional `source.imputation_score_declarations` path may point to an
+explicit, reviewed TSV (relative to the repository root or absolute). It must
+have **exactly** these headers in order:
+
+```text
+analysis_id\timputation_score_column\timputation_score_kind\timputation_score_provenance
+```
+
+Each `analysis_id` must occur in the frozen inventory at most once. The column
+name is the exact, case-sensitive source header (no normalization); the kind is
+`imputation_info` or `imputation_r2`; provenance must cite independent provider
+semantic evidence (e.g. a provider data dictionary), not a header guess or
+MAF/EAF. Unknown IDs, duplicate IDs, malformed rows and unsupported kinds fail
+prepare. There is **no real OGS-00011 mapping in `config-full.yaml`**: research
+and review of provider evidence are separate work. An unmapped Analysis passes
+literal `NaN` and empty declaration columns to the resolver. A mapped Analysis
+passes the requested numeric threshold (including `0`) and the exact three
+fields to the resolver manifest. The manifest checksum, declaration file
+checksum and score fields in the resolver's per-Analysis fingerprint bind
+verify/emit to the reviewed input; a resolver that does not fingerprint a
+mapped declaration fails verification. Changing the mapping requires re-resolve.
+Neither a source header that happens to say INFO/R2 nor a MAF column is
+automatic evidence. Without this optional input, legacy configuration works.
+
+**Handoff to the later integration slice:** even a reviewed declaration is not
+proof of a valid per-association score. Candidate `analyses.tsv` still emits
+literal `NaN` for mapped and unmapped Analyses, including requested zero. Only
+when the resolver record proves at least one finite score in `[0,1]` from the
+**declared** column, and the core builder actually enforces filtering on that
+same score, may finalisation write the requested numeric threshold. The later
+slice must define/check resolver record score-validity counts (valid > 0,
+missing, malformed, nonfinite, out-of-range) and core builder per-Analysis and
+total physical input/retained/below-threshold/invalid counts, with
+`input = retained + below_threshold + sum(invalid_reasons)` and Dense/Ragged
+counts reconciled to retained rows. Missing or invalid scores must not pass a
+positive filter; equality passes. This slice does not scan source files, infer
+score semantics or activate the final build filter.
 
 ### Human review before acceptance
 

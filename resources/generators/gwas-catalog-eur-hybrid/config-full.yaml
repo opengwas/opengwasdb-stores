@@ -99,6 +99,10 @@ source:
   # `resources/scripts/ebi-studies.r`; the freeze records its checksum so the
   # selection scope is pinned rather than implied.
   candidates: resources/data/derived/store-candidates-analyses.tsv
+  # Optional reviewed per-Analysis provider score declarations (TSV; see README).
+  # No OGS-00011 source score mapping has been approved; do not infer from INFO/R2
+  # headers or MAF. Set only after independent provenance has been reviewed.
+  # imputation_score_declarations: resources/generators/gwas-catalog-eur-hybrid/score-declarations.tsv
   inventory:
     snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-22
     path: resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv
@@ -130,8 +134,9 @@ defaults:
   license: EBI GWAS Catalog terms of use
   sample_size_scope: analysis_level
   # Requested floor when a reader proves per-association imputation INFO/R².
-  # Current GWAS-SSF reader has no validated INFO projection, so candidate
-  # analyses.tsv records literal NaN (unavailable), not an invented 0.6 filter.
+  # Even a reviewed declaration is not yet evidence of valid score rows or
+  # builder enforcement: candidate analyses.tsv remains literal NaN until
+  # the resolver-record and builder integration slice lands.
   # Explicit 0 disables filtering; values outside [0,1] fail configuration.
   info_score_threshold: 0.6
   # Issue #11's settled trust-vs-validate policy: a row with no usable source
