@@ -178,6 +178,28 @@ class TestBundleContract(unittest.TestCase):
         errors = list(bundle.check(candidate, registry_root=self.tmp_dir))
         self.assertTrue(any("source_reader_capability" in error for error in errors), errors)
 
+    def test_optional_maf_threshold_validates_nan_or_numeric(self) -> None:
+        """A per-Analysis MAF floor is literal NaN or a number in [0, 0.5] (#176)."""
+        base = self.make_bundle()
+        self.assertEqual(bundle.check(base, registry_root=self.tmp_dir), [])
+        header, row = (base.root / "analyses.tsv").read_text().strip().split("\n")
+        header = header + "\t" + bundle.MAF_THRESHOLD_COLUMN
+        for value in ("NaN", "0", "0.005", "0.5"):
+            candidate = self.make_bundle(analyses=header + "\n" + row + "\t" + value + "\n")
+            with self.subTest(value=value):
+                self.assertEqual(
+                    bundle.check(candidate, registry_root=self.tmp_dir), [], value
+                )
+        for value in ("", "nan", "NA", "inf", "-0.01", "0.5001", "missing"):
+            candidate = self.make_bundle(analyses=header + "\n" + row + "\t" + value + "\n")
+            with self.subTest(value=value):
+                self.assertTrue(
+                    any(
+                        "maf_threshold" in error
+                        for error in bundle.check(candidate, registry_root=self.tmp_dir)
+                    )
+                )
+
     def test_ci_population_is_all_seven_registered_bundles_and_each_passes(self) -> None:
         registry = REPO_ROOT / "stores"
         store_ids = sorted(

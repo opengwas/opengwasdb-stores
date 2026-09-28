@@ -100,9 +100,20 @@ source:
   # selection scope is pinned rather than implied.
   candidates: resources/data/derived/store-candidates-analyses.tsv
   # Optional reviewed per-Analysis provider score declarations (TSV; see README).
-  # No OGS-00011 source score mapping has been approved; do not infer from INFO/R2
-  # headers or MAF. Set only after independent provenance has been reviewed.
-  # imputation_score_declarations: resources/generators/gwas-catalog-eur-hybrid/score-declarations.tsv
+  # Derived deterministically by `derive_score_declarations.py`, which scans the
+  # header of every ready inventory row against the fixed synonym table in the
+  # OGS-00011 admission contract (#176). Every other ready Analysis is unmapped
+  # and the candidate emits literal NaN for it.
+  imputation_score_declarations: resources/generators/gwas-catalog-eur-hybrid/score-declarations.tsv
+  # Genotyping technologies exempt from the default MAF floor. An Analysis whose
+  # metadata YAML lists technologies that are ALL in this list gets NaN (no MAF
+  # filter); missing technology metadata is never an exemption. The operator
+  # exempted sequencing-only studies for OGS-00011 (#176, 2026-09-28): their
+  # low-frequency calls are observed, not imputed. That is 158 Analyses (105
+  # WGS, 53 WES); an Analysis that also lists an array is still filtered.
+  maf_filter_exempt_genotyping_technologies:
+    - Whole genome sequencing
+    - Exome-wide sequencing
   inventory:
     snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-22
     path: resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv
@@ -140,6 +151,15 @@ defaults:
   # reports a usable post-INFO state and at least one usable score.
   # Explicit 0 disables filtering; values outside [0,1] fail configuration.
   info_score_threshold: 0.6
+  # Requested per-Analysis MAF floor (#176): a number in [0,0.5], or omitted for
+  # no MAF filter at all. `0` disables filtering explicitly. The candidate emits
+  # this value per Analysis only on resolver evidence (record maf_state
+  # disabled/filtered and a fingerprint that binds the same value); every other
+  # Analysis -- including one exempt through
+  # source.maf_filter_exempt_genotyping_technologies -- emits literal NaN.
+  # 0.005 is the floor the operator chose for this release; it is independent of
+  # the Dense-Component panel's own MAF >= 1% axis.
+  maf_threshold: 0.005
   # Issue #11's settled trust-vs-validate policy: a row with no usable source
   # allele frequencies keeps this method, and AF-based assignment replaces it
   # only where an assignment is actually attempted.

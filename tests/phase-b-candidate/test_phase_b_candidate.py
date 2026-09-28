@@ -59,17 +59,23 @@ from resources.generators.lib.candidate_workflow import (  # noqa: E402
     EXCLUSION_REASONS,
     RECEIPT_FILENAME,
     RESOLVER_MANIFEST_COLUMNS,
+    USABLE_MAF_STATES,
     CandidateError,
     CandidateMetadata,
     ResolverRow,
     account_records,
+    analysis_maf_threshold,
     apply_release_policy,
     build_candidate_tables,
     check_staged_candidate,
     derive_resolver_manifest,
     info_score_emission,
     load_candidate_configuration,
+    maf_threshold_emission,
+    parse_maf_filter_exempt_technologies,
+    parse_maf_threshold,
     read_candidate_metadata,
+    read_genotyping_technologies,
     read_resolution_receipt,
     render_validation_yaml,
     render_resolver_manifest,
@@ -720,6 +726,33 @@ class CandidateWorkflowTests(unittest.TestCase):
         document["defaults"]["info_score_threshold"] = value
         self.fixture.config_path.write_text(yaml.safe_dump(document))
 
+    def _set_maf_threshold(self, value: object) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        if value is None:
+            document["defaults"].pop("maf_threshold", None)
+        else:
+            document["defaults"]["maf_threshold"] = value
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+
+    def _set_maf_exempt(self, technologies: object) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        if technologies is None:
+            document["source"].pop("maf_filter_exempt_genotyping_technologies", None)
+        else:
+            document["source"]["maf_filter_exempt_genotyping_technologies"] = technologies
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+
+    def _write_metadata_yaml(self, name: str, technologies: object) -> Path:
+        path = self.fixture.root / name
+        document: dict[str, object] = {
+            "genome_assembly": "GRCh38",
+            "is_harmonised": True,
+        }
+        if technologies is not None:
+            document["genotyping_technology"] = technologies
+        path.write_text(yaml.safe_dump(document), encoding="utf-8")
+        return path
+
     def test_declared_usable_analysis_emits_threshold_and_triple(self) -> None:
         analysis_id = "GCST90000001"
         self._declare_scores([{
@@ -771,7 +804,180 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertEqual(by_id[analysis_id]["info_score_threshold"], "0")
         self.assertEqual(by_id[analysis_id]["imputation_score_column"], "imputation_INFO")
 
-    def test_declared_analysis_with_no_usable_scores_is_excluded_with_id(self) -> None:
+    # -- MAF threshold (issue #176) -------------------------------------------
+
+    def test_maf_threshold_configuration_parsing(self) -> None:
+        self.assertIsNone(parse_maf_threshold(None))
+        self.assertEqual(parse_maf_threshold(0), "0")
+        self.assertEqual(parse_maf_threshold("0"), "0")
+        self.assertEqual(parse_maf_threshold(0.005), "0.005")
+        self.assertEqual(parse_maf_threshold("0.5"), "0.5")
+        for invalid in (True, "", "NaN", "inf", "-0.01", "0.5001", "abc"):
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(
+                ValueError, "maf_threshold"
+            ):
+                parse_maf_threshold(invalid)
+        self.assertEqual(parse_maf_filter_exempt_technologies(None), ())
+        self.assertEqual(
+            parse_maf_filter_exempt_technologies([" Whole genome sequencing "]),
+            ("Whole genome sequencing",),
+        )
+        for invalid in ("Whole genome sequencing", [""], [1], ["ok", ""]):
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(
+                ValueError, "maf_filter_exempt_genotyping_technologies"
+            ):
+                parse_maf_filter_exempt_technologies(invalid)
+
+    def test_maf_threshold_is_per_analysis_from_metadata_yaml(self) -> None:
+        # Omitted defaults.maf_threshold means no MAF filter at all.
+        base = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertIsNone(base.maf_threshold)
+        self.assertEqual(base.maf_filter_exempt_genotyping_technologies, ())
+
+        self._set_maf_threshold(0.005)
+        self._set_maf_exempt(["Whole genome sequencing", "Exome-wide sequencing"])
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertEqual(config.maf_threshold, "0.005")
+        self.assertEqual(
+            config.maf_filter_exempt_genotyping_technologies,
+            ("Whole genome sequencing", "Exome-wide sequencing"),
+        )
+        missing = _synthetic_inventory_row()
+        absent_yaml = self.fixture.root / "absent.yaml"
+        self.assertEqual(
+            read_genotyping_technologies(str(absent_yaml)), []
+        )
+        # Missing technology metadata is never an exemption.
+        self.assertEqual(
+            analysis_maf_threshold(replace(missing, yaml_file=str(absent_yaml)), config),
+            "0.005",
+        )
+        exempt_path = self._write_metadata_yaml("wgs.yaml", ["Whole genome sequencing"])
+        self.assertEqual(
+            read_genotyping_technologies(str(exempt_path)), ["Whole genome sequencing"]
+        )
+        exempt = replace(missing, yaml_file=str(exempt_path))
+        # Every technology in the exempt list -> NaN (no MAF filter).
+        self.assertEqual(analysis_maf_threshold(exempt, config), "NaN")
+        # An empty technology list is not "all in the list".
+        empty_path = self._write_metadata_yaml("empty.yaml", [])
+        self.assertEqual(
+            analysis_maf_threshold(replace(missing, yaml_file=str(empty_path)), config),
+            "0.005",
+        )
+        # One technology outside the list -> not exempt.
+        mixed_path = self._write_metadata_yaml(
+            "mixed.yaml", ["Whole genome sequencing", "Genome-wide genotyping array"]
+        )
+        self.assertEqual(
+            analysis_maf_threshold(replace(missing, yaml_file=str(mixed_path)), config),
+            "0.005",
+        )
+        # A no-MAF-filter release ignores exemptions entirely.
+        self._set_maf_threshold(None)
+        no_filter = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertEqual(analysis_maf_threshold(exempt, no_filter), "NaN")
+
+    def test_maf_threshold_emission_is_per_analysis_evidence(self) -> None:
+        declared = ResolverRow(
+            "GCST1", "/tmp/a.h.tsv.gz", "opengwasdb.gwas-ssf", "sd",
+            "estimated_from_source_maf", "100", "a" * 64, "sha256", "10",
+            maf_threshold="0.005",
+        )
+        matching = {
+            "diagnostics": {"maf_state": "filtered"},
+            "fingerprints": {"resolution_config": {"maf_threshold": 0.005}},
+        }
+        self.assertEqual(maf_threshold_emission(declared, matching), "0.005")
+        self.assertEqual(maf_threshold_emission(None, matching), "NaN")
+        self.assertEqual(
+            maf_threshold_emission(replace(declared, maf_threshold="NaN"), matching),
+            "NaN",
+        )
+        # A record that did not apply MAF (unavailable), or one without the
+        # #176 diagnostics, has no evidence: NaN.
+        unavailable = {
+            "diagnostics": {"maf_state": "unavailable"},
+            "fingerprints": {"resolution_config": {"maf_threshold": 0.005}},
+        }
+        self.assertEqual(maf_threshold_emission(declared, unavailable), "NaN")
+        self.assertEqual(maf_threshold_emission(declared, {"diagnostics": {}}), "NaN")
+        # A fingerprint that no longer binds the value emits NaN.
+        stale = {
+            "diagnostics": {"maf_state": "filtered"},
+            "fingerprints": {"resolution_config": {"maf_threshold": 0.01}},
+        }
+        self.assertEqual(maf_threshold_emission(declared, stale), "NaN")
+        # Zero is a real requested floor, emitted as "0", not treated as absence.
+        zero = replace(declared, maf_threshold="0")
+        disabled = {
+            "diagnostics": {"maf_state": "disabled"},
+            "fingerprints": {"resolution_config": {"maf_threshold": 0}},
+        }
+        self.assertEqual(maf_threshold_emission(zero, disabled), "0")
+        self.assertEqual(USABLE_MAF_STATES, frozenset({"disabled", "filtered"}))
+
+    def test_maf_threshold_manifest_receipt_and_candidate_emission(self) -> None:
+        self._set_maf_threshold(0.005)
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        run_root = self.fixture.work_root / STORE_ID / "resolver"
+        self.assertIn("maf_threshold", RESOLVER_MANIFEST_COLUMNS)
+        manifest = _read_tsv(run_root / "analyses.tsv")
+        self.assertEqual({row["maf_threshold"] for row in manifest}, {"0.005"})
+        record = json.loads((run_root / "records" / "GCST90000001.json").read_text())
+        self.assertEqual(
+            record["fingerprints"]["resolution_config"]["maf_threshold"], 0.005
+        )
+        self.assertEqual(record["diagnostics"]["maf_state"], "filtered")
+        emitted = _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
+        self.assertEqual({row["maf_threshold"] for row in emitted}, {"0.005"})
+        receipt = read_resolution_receipt(run_root / RECEIPT_FILENAME)
+        self.assertEqual(receipt["contract"]["maf_threshold"], "0.005")
+        self.assertEqual(
+            receipt["contract"]["maf_filter_exempt_genotyping_technologies"], []
+        )
+
+    def test_maf_threshold_requires_resolver_fingerprint(self) -> None:
+        self._set_maf_threshold(0.005)
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        run_root = self.fixture.work_root / STORE_ID / "resolver"
+        record_path = run_root / "records" / "GCST90000001.json"
+        record = json.loads(record_path.read_text())
+        del record["fingerprints"]["resolution_config"]["maf_threshold"]
+        record["fingerprints"]["fingerprint_digest"] = _fingerprint_digest(
+            record["fingerprints"]
+        )
+        record_path.write_text(json.dumps(record))
+        inventory = read_inventory(self.fixture.inventory_path)
+        metadata = read_candidate_metadata(
+            self.fixture.candidates_path,
+            (row.analysis_id for row in inventory if row.ready),
+        )
+        manifest = derive_resolver_manifest(
+            inventory,
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            metadata,
+        )
+        _, failures = account_records(manifest, run_root / "records")
+        self.assertTrue(
+            any("resolution_config.maf_threshold" in error for error in failures), failures
+        )
+        stale = _run_cli(self.fixture, "--stage", "emit")
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn("resolution_config.maf_threshold", stale.stderr + stale.stdout)
+
+    def test_changed_maf_threshold_makes_the_receipt_stale(self) -> None:
+        self._set_maf_threshold(0.005)
+        self._resolved_candidate()
+        self._set_maf_threshold(0.01)
+        self._assert_emit_rejects_and_preserves("resolution contract changed")
+
+    def test_declared_analysis_with_no_usable_scores_is_included_with_nan_info(self) -> None:
+        # Core no longer treats zero usable scores as a controlled failure, and
+        # the registry no longer refuses the Analysis (#176): every row is
+        # retained and the emitted INFO cells are literal NaN / empty.
         analysis_id = "GCST90000001"
         self._declare_scores([{
             "analysis_id": analysis_id,
@@ -786,15 +992,16 @@ class CandidateWorkflowTests(unittest.TestCase):
             row["analysis_id"]: row
             for row in _read_tsv(self.fixture.registry_root / STORE_ID / "sidecars/exclusions.tsv")
         }
-        self.assertIn(analysis_id, exclusions)
-        self.assertEqual(exclusions[analysis_id]["reason"], "resolution_failed")
-        self.assertIn(analysis_id, exclusions[analysis_id]["detail"])
+        self.assertNotIn(analysis_id, exclusions)
         by_id = {
             row["analysis_id"]: row
             for row in _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
         }
-        self.assertEqual(by_id[analysis_id]["exclude_from_build"], "true")
+        self.assertEqual(by_id[analysis_id]["exclude_from_build"], "")
         self.assertEqual(by_id[analysis_id]["info_score_threshold"], "NaN")
+        self.assertEqual(by_id[analysis_id]["imputation_score_column"], "")
+        self.assertEqual(by_id[analysis_id]["imputation_score_kind"], "")
+        self.assertEqual(by_id[analysis_id]["imputation_score_provenance"], "")
 
     def test_info_score_emission_is_per_analysis_evidence(self) -> None:
         declared = ResolverRow(

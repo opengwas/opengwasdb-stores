@@ -5,8 +5,10 @@ Phase B entry point for the EBI GWAS Catalog `hybrid__European` pool: the
 (issue #150).
 
 ```text
-inventory.py       freeze + preflight for this family's Source Inventory (issue #151)
-config-full.yaml   the full-release Phase B configuration
+inventory.py                freeze + preflight for this family's Source Inventory (issue #151)
+config-full.yaml            the full-release Phase B configuration
+derive_score_declarations.py  derive the reviewed score declarations from source headers (#176)
+score-declarations.tsv      the committed derivation output (config-full.yaml consumes it)
 ```
 
 ## The full release (issue #150)
@@ -198,16 +200,14 @@ share.
 ### INFO threshold contract and core integration (#175)
 
 `defaults.info_score_threshold` requests a finite floor in `[0,1]` (default
-`0.6`); explicit `0` disables the gate **only when usable score evidence is
-available**. Candidate `analyses.tsv` emits a numeric threshold only on
-per-Analysis resolver evidence; every other Analysis emits literal `NaN` and
-empty declaration cells, even with an explicit zero request. The pinned
-`opengwasdb.gwas-ssf` reader reads effect allele frequency, but exposes no
-validated imputation quality score (`opengwasdb/readers/gwas_ssf.py`); its
-`effect_allele_frequency`/MAF and any similarly named header must not become
-INFO. Thus OGS-00011 currently emits `NaN`, not an unimplemented positive
-filter. These unavailable rows must be reported as such, not as filtered or
-quality-passing. Legacy bundles without the column remain valid.
+`0.6`); explicit `0` disables filtering. Candidate `analyses.tsv` emits a
+numeric threshold only on per-Analysis resolver evidence; every other Analysis
+emits literal `NaN` and empty declaration cells, even with an explicit zero
+request. The frequency a MAF column carries is not an imputation score, and a
+header that merely resembles `INFO` is not a declaration either: neither the
+reader's `effect_allele_frequency` nor a look-alike name becomes INFO. An
+Analysis with no resolver evidence is reported as unavailable, not as filtered
+or quality-passing. Legacy bundles without the column remain valid.
 
 An optional `source.imputation_score_declarations` path may point to an
 explicit, reviewed TSV (relative to the repository root or absolute). It must
@@ -222,15 +222,15 @@ name is the exact, case-sensitive source header (no normalization); the kind is
 `imputation_info` or `imputation_r2`; provenance must cite independent provider
 semantic evidence (e.g. a provider data dictionary), not a header guess or
 MAF/EAF. Unknown IDs, duplicate IDs, malformed rows and unsupported kinds fail
-prepare. There is **no real OGS-00011 mapping in `config-full.yaml`**: research
-and review of provider evidence are separate work. An unmapped Analysis passes
-literal `NaN` and empty declaration columns to the resolver. A mapped Analysis
-passes the requested numeric threshold (including `0`) and the exact three
-fields to the resolver manifest. The manifest checksum, declaration file
+prepare. `config-full.yaml` sets this path to the committed
+`score-declarations.tsv` (derived below). An Analysis absent from the table
+passes literal `NaN` and empty declaration columns to the resolver. A mapped
+Analysis passes the requested numeric threshold (including `0`) and the exact
+three fields to the resolver manifest. The manifest checksum, declaration file
 checksum and score fields in the resolver's per-Analysis fingerprint bind
 verify/emit to the reviewed input; a resolver that does not fingerprint a
 mapped declaration fails verification. Changing the mapping requires re-resolve.
-Neither a source header that happens to say INFO/R2 nor a MAF column is
+A source header that happens to resemble INFO/R2 or a MAF column is never
 automatic evidence. Without this optional input, legacy configuration works.
 
 **Emission rule.** For a mapped Analysis, finalisation emits the requested
@@ -245,10 +245,10 @@ hold:
 
 Every other Analysis -- undeclared, a legacy record without the #175
 diagnostics, or a mapped Analysis whose evidence is unusable -- emits literal
-`NaN` and empty triple cells. A mapped Analysis with zero usable scores is a
-controlled resolver failure; the release policy surfaces it as an exclusion
-naming its Analysis (`sidecars/exclusions.tsv`, `resolution_failed`), never as
-an included NaN-threshold row. The capability-wide
+`NaN` and empty triple cells. A mapped Analysis with zero usable scores is
+*included*: core no longer reports it as a controlled failure (#176), and the
+record's `info_score_state = "no_usable_scores"` is read as no evidence, so the
+Analysis stays in the bundle with literal `NaN` INFO cells. The capability-wide
 `VALIDATED_INFO_SCORE_READERS` allowlist is retired: only the per-Analysis
 record evidence decides, because a reader capability cannot prove an
 individual source's declared score is valid, and the manifest declaration
@@ -259,6 +259,49 @@ alone is not evidence.
 `imputation_score_kind` and `imputation_score_provenance`. `bundle.check()`
 rejects a numeric threshold without the complete triple and a triple without a
 numeric threshold.
+
+### Deriving the score declarations (#176)
+
+`config-full.yaml` sets `source.imputation_score_declarations` to the committed
+`score-declarations.tsv`, which `derive_score_declarations.py` derives
+deterministically from the header of every ready inventory row:
+
+```sh
+pixi run python resources/generators/gwas-catalog-eur-hybrid/derive_score_declarations.py
+```
+
+The synonym table is fixed and case-sensitive (the OGS-00011 admission
+contract, #176), first match in the listed order wins, and look-alikes
+(`additional_info`, `lowQuality`, z-scores, `r2_iCOGS`,
+`mmm_var_info_nonmissing`, ...) are never declared. A header with no synonym is
+absent from the output; the candidate then emits literal `NaN` for it. Re-run
+the command and commit the result when the frozen inventory changes, rather
+than hand-editing the TSV.
+
+### MAF threshold contract (#176)
+
+`defaults.maf_threshold` requests a per-Analysis MAF floor in `[0, 0.5]`;
+`0` disables filtering and omitting the key means no MAF filter at all. The
+frozen inventory's `yaml_file` metadata decides the per-Analysis exemption: an
+Analysis is exempt (emitting literal `NaN`) only when its
+`genotyping_technology` list is non-empty and **every** technology appears in
+`source.maf_filter_exempt_genotyping_technologies`; missing technology metadata
+is never an exemption. `config-full.yaml` sets `maf_threshold: 0.005` and
+exempts `Whole genome sequencing` and `Exome-wide sequencing` (operator
+decision, #176): the 158 sequencing-only Analyses carry no MAF floor because
+their low-frequency calls are observed rather than imputed, while an Analysis
+that also lists a genotyping array is filtered.
+
+The resolver manifest carries the derived `maf_threshold` per Analysis.
+Candidate `analyses.tsv` emits the numeric value only on resolver evidence: the
+record's `diagnostics.maf_state` is `disabled` or `filtered` **and** the
+per-Analysis fingerprint still binds the same `maf_threshold`. Every other
+Analysis emits literal `NaN`. `verify` requires a numeric request to be bound
+by the fingerprint, exactly as it does for the INFO threshold, and the
+resolution receipt's contract records the configured default and exemption
+list, so changing either makes the receipt stale. `bundle.check()` rejects any
+`maf_threshold` value that is not literal `NaN` or a finite number in
+`[0, 0.5]`.
 
 ### Human review before acceptance
 

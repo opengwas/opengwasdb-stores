@@ -189,7 +189,7 @@ applying generator config defaults, even when that repeats store-level metadata.
 
 | Class | Owner | Where used | Examples |
 |---|---|---|---|
-| Shared core | OpenGWASDB | Release manifests and built stores. These columns carry interpretation-bearing Analysis metadata. | `analysis_id`, `analysis_label`, ontology fields, ancestry fields, effect-scale fields, sample-size fields, INFO policy fields (`info_score_threshold`, `imputation_score_column`, `imputation_score_kind`, `imputation_score_provenance`), Attribution Metadata (`license`, `publication_doi`, `publication_pmid`, `consortium`, `first_author`). |
+| Shared core | OpenGWASDB | Release manifests and built stores. These columns carry interpretation-bearing Analysis metadata. | `analysis_id`, `analysis_label`, ontology fields, ancestry fields, effect-scale fields, sample-size fields, INFO policy fields (`info_score_threshold`, `imputation_score_column`, `imputation_score_kind`, `imputation_score_provenance`), the MAF floor (`maf_threshold`), Attribution Metadata (`license`, `publication_doi`, `publication_pmid`, `consortium`, `first_author`). |
 | Registry-only | Store registry | Release manifests only. These columns locate source inputs, record provenance, or explain inclusion. | `source_analysis_id`, `source_label`, `source_file`, `source_bundle_id`, `checksum`, `checksum_algorithm`, `size_bytes`, `analysis_group_id`, `inclusion_reason`, `exclude_from_build`, `trait_ontology_mapping_method`. |
 | Store-only | OpenGWASDB | Built stores only. These columns are produced during or after the build and therefore do not appear in accepted release manifests. | `completed_against`, reference-completion quality rollups, store artifact diagnostics. |
 
@@ -273,6 +273,7 @@ and the matching authority name in `trait_ontology_label` (issue #141).
 | `imputation_score_column` | No | Exact, case-sensitive source column name the declaration cites as the imputation score. Emitted only with a numeric `info_score_threshold` and the other two triple columns; empty otherwise. |
 | `imputation_score_kind` | No | `imputation_info` or `imputation_r2`. `bundle.check()` rejects any other non-empty value. |
 | `imputation_score_provenance` | No | Independent provider semantic evidence (for example a provider data dictionary) for the declared column. A header guess, the column name itself, or MAF/EAF is not provenance. |
+| `maf_threshold` | No | Optional per-Analysis MAF floor in `[0, 0.5]`; `0` disables filtering and literal `NaN` means no MAF filter. A numeric value is emitted only on resolver evidence: the record reports a usable `maf_state` (`disabled` for an explicit zero, `filtered` for a positive floor) and the per-Analysis fingerprint still binds the same value. Every other Analysis -- no configured default, a MAF-exempt genotyping technology, a legacy record without the diagnostics, or a changed fingerprint -- emits literal `NaN`. The frequency is the reader's `af_alt` (GWAS-SSF `effect_allele_frequency`); `MAF = min(af, 1 - af)`. A row whose `af` is missing, non-finite or outside `[0, 1]` is retained, not dropped. `bundle.check()` rejects any non-`NaN` value outside `[0, 0.5]`. This value alone does not imply any variants were filtered. Omission remains valid for older bundles. |
 | `exclude_from_build` | No | `true` only for rows retained for audit but intentionally skipped by the build. The registry honours it at build time: it materialises a derived build manifest (`<artifact-root>/<store-id>/work/analyses.tsv`) with every `true` row removed and points the builder at that, so `opengwasdb` never sees an excluded row. The row itself stays in the committed bundle, with its `inclusion_reason`, as the audit record of why the Analysis is absent. See [ADR 0025](adr/0025-registry-filters-excluded-analyses.md). |
 | `ancestry_prop_*` | No | Optional family of columns for estimated reference ancestry proportions. |
 
@@ -299,9 +300,20 @@ copies the requested floor and the exact triple into the candidate
 state and at least one usable score (see the family
 [README](../resources/generators/gwas-catalog-eur-hybrid/README.md) for the
 emission rule); every other Analysis emits literal `NaN` and empty triple
-cells. A declared Analysis with no usable score is a controlled failure that the
-release policy surfaces as an exclusion naming its Analysis. Older bundles may
-omit all four columns entirely.
+cells. A declared Analysis with no usable score is retained: core no longer
+reports it as a controlled failure, the registry does not refuse it, and it is
+included with literal `NaN` INFO cells. Older bundles may omit all four columns
+entirely.
+
+The MAF floor is a `defaults.maf_threshold` release decision applied per
+Analysis: an Analysis is exempt (and emits `NaN`) when its source metadata
+YAML's `genotyping_technology` list is non-empty and every technology is in
+`source.maf_filter_exempt_genotyping_technologies`; missing technology
+metadata is never an exemption. The resolver manifest carries the derived
+`maf_threshold` per Analysis and the resolver record's `maf_state` plus its
+fingerprint binding decide the emitted candidate value, exactly as for INFO.
+`bundle.check()` validates the column independently of the pinned OpenGWASDB
+Analysis schema.
 
 Some generators add release-specific columns beyond this table, such as the
 `gwas-ssf-ragged` generator's single-gene-target columns (`trait_chr`,
