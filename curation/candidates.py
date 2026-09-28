@@ -23,11 +23,13 @@ Retrieval runs independent lexical channels and unions their results:
     Match against the term's known synonyms, and against acronyms generated
     from multi-word labels and synonyms (``body mass index`` -> ``BMI``).
 ``embedding``
-    Semantic nearest-neighbour match: the label is embedded with the pinned
-    model and compared against an embedding index of each term's label,
-    synonyms, and definition (:mod:`curation.embedding`). This channel is
-    optional (``--enable-embedding`` / ``--embedding-index``); when it is
-    disabled or unavailable the run is lexical-only and still succeeds.
+    Semantic nearest-neighbour match: a query vector for the label is compared
+    against a vector store of each term's label, synonyms, and definition
+    (:mod:`curation.embedding`). The query vector comes from a precomputed
+    trait store when one covers the label and otherwise from the pinned model
+    over HTTP. This channel is optional (``--enable-embedding`` /
+    ``--ontology-embeddings`` / ``--trait-embeddings``); when it is disabled or
+    unavailable the run is lexical-only and still succeeds.
 
 Every channel is additive. A candidate records which channels retrieved it and
 each channel's rank, because a candidate resting on several agreeing channels is
@@ -43,7 +45,7 @@ shortlist -- the generator never fabricates a term.
 
 The pinned ontology release travels on every shortlist row so a later proposal
 can record exactly what it was resolved against. When the semantic channel is
-in use, the pinned embedding model and the content-addressed embedding index
+in use, the pinned embedding model and the content-addressed ontology store
 build travel on every row as well.
 
 CLI
@@ -53,7 +55,8 @@ CLI
     python3 -m curation.candidates \\
         --work-queue <queue.tsv> --index <index.json> --output <shortlist.tsv> \\
         [--shortlist-size N] \\
-        [--enable-embedding --embedding-index <embedding.json>]
+        [--ontology-embeddings <ontology-store-dir>] \\
+        [--trait-embeddings <trait-store-dir>]
 """
 
 from __future__ import annotations
@@ -69,6 +72,7 @@ from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
 from curation.embedding import (
+    DEFAULT_EMBEDDING_BATCH_SIZE,
     DEFAULT_EMBEDDING_MIN_SCORE,
     DEFAULT_EMBEDDING_TOP_K,
     PINNED_EMBEDDING_MODEL_ID,
@@ -81,7 +85,11 @@ from curation.embedding import (
 from curation.ontology import (
     IndexFormatError,
     OntologyIndex,
+    acronym,
+    jaccard,
     load_index,
+    normalise_label,
+    tokenize,
 )
 
 # Channel names. Order is meaningful: it is the canonical order in which a
@@ -140,8 +148,9 @@ class WorkQueueError(CandidateGenerationError):
 # ---------------------------------------------------------------------------
 # Lexical primitives
 # ---------------------------------------------------------------------------
-
-_PUNCTUATION_RE = re.compile(r"[\W_]+", re.UNICODE)
+# ``normalise_label``, ``tokenize``, ``jaccard``, and ``acronym`` live in
+# :mod:`curation.ontology` next to the prebuilt lookups built from them and are
+# re-exported here because the channels below are their public home.
 
 # A TSV field cannot contain a tab or a line break. Free-text fields (a term's
 # definition in particular) are flattened rather than allowed to shift columns.
@@ -153,46 +162,6 @@ def _tsv_field(value: str) -> str:
     return _TSV_UNSAFE_RE.sub(" ", value)
 
 
-def normalise_label(label: str | None) -> str:
-    """Trim, lowercase, strip punctuation, and collapse whitespace.
-
-    Deliberately close to, but wider than, the canonical table's
-    ``trimws(tolower(x))`` lookup key: this is a *retrieval* normalisation, so
-    ``"Body-mass index (BMI)"`` and ``"body mass index bmi"`` collapse to the
-    same string and the normalised channel can find terms the exact channel
-    cannot.
-    """
-    text = (label or "").strip().lower()
-    text = _PUNCTUATION_RE.sub(" ", text)
-    return " ".join(text.split())
-
-
-def tokenize(label: str | None) -> frozenset[str]:
-    """Tokenize a label after normalisation."""
-    normalised = normalise_label(label)
-    return frozenset(normalised.split()) if normalised else frozenset()
-
-
-def jaccard(left: frozenset[str], right: frozenset[str]) -> float:
-    """Jaccard similarity, 0.0 for two empty token sets."""
-    if not left or not right:
-        return 0.0
-    return len(left & right) / len(left | right)
-
-
-def acronym(label: str | None) -> str:
-    """First letter of each token of a multi-word label, lowercased.
-
-    A single-token label has no distinct acronym and yields ``""`` -- returning
-    the token itself would make the synonym channel match on ordinary shared
-    words.
-    """
-    tokens = normalise_label(label).split()
-    if len(tokens) < 2:
-        return ""
-    return "".join(token[0] for token in tokens)
-
-
 # ---------------------------------------------------------------------------
 # Channels
 # ---------------------------------------------------------------------------
@@ -200,12 +169,52 @@ def acronym(label: str | None) -> str:
 
 def exact_channel(label: str, index: OntologyIndex) -> list[str]:
     """Ontology ids whose label is byte-for-byte the trait label, in id order."""
-    matches = [term.ontology_id for term in index if term.label == label]
-    return sorted(matches)
+    return index.lexical_lookups.exact_ids(label)
 
 
 def normalised_channel(label: str, index: OntologyIndex) -> list[str]:
     """Ontology ids whose label normalises to the trait label's normal form."""
+    return index.lexical_lookups.normalised_ids(normalise_label(label))
+
+
+def token_overlap_channel(label: str, index: OntologyIndex) -> list[str]:
+    """Ontology ids ranked by Jaccard token overlap with the trait label.
+
+    A term's searchable tokens are its label's tokens unioned with its
+    synonyms' tokens, so an abbreviation reaches the term it abbreviates here
+    as well as through the synonym channel. Only terms sharing at least one
+    token are scored, via the prebuilt token postings.
+    """
+    return index.lexical_lookups.token_overlap_ids(tokenize(label), CHANNEL_LIMIT)
+
+
+def synonym_channel(label: str, index: OntologyIndex) -> list[str]:
+    """Ontology ids whose synonyms or generated acronyms match the trait label.
+
+    A match is either an exact/normalised equality against a declared synonym,
+    or an equality against an acronym generated from a multi-word label or
+    synonym.
+    """
+    raw = (label or "").strip()
+    normalised = normalise_label(label)
+    if not raw and not normalised:
+        return []
+    return index.lexical_lookups.synonym_ids(raw, normalised)
+
+
+# The brute-force scans the prebuilt lookups replace. They are retained here,
+# not as dead code but as the reference the equivalence test in
+# ``tests/curation/test_candidates.py`` checks the fast channels against over a
+# fixture index and randomised labels.
+
+def _brute_exact_channel(label: str, index: OntologyIndex) -> list[str]:
+    """Reference implementation: scan every term for an identical label."""
+    matches = [term.ontology_id for term in index if term.label == label]
+    return sorted(matches)
+
+
+def _brute_normalised_channel(label: str, index: OntologyIndex) -> list[str]:
+    """Reference implementation: scan every term for a normalised match."""
     key = normalise_label(label)
     if not key:
         return []
@@ -217,13 +226,8 @@ def normalised_channel(label: str, index: OntologyIndex) -> list[str]:
     return sorted(matches)
 
 
-def token_overlap_channel(label: str, index: OntologyIndex) -> list[str]:
-    """Ontology ids ranked by Jaccard token overlap with the trait label.
-
-    A term's searchable tokens are its label's tokens unioned with its
-    synonyms' tokens, so an abbreviation reaches the term it abbreviates here
-    as well as through the synonym channel.
-    """
+def _brute_token_overlap_channel(label: str, index: OntologyIndex) -> list[str]:
+    """Reference implementation: score every term by Jaccard overlap."""
     query = tokenize(label)
     if not query:
         return []
@@ -239,13 +243,8 @@ def token_overlap_channel(label: str, index: OntologyIndex) -> list[str]:
     return [ontology_id for _, ontology_id in scored[:CHANNEL_LIMIT]]
 
 
-def synonym_channel(label: str, index: OntologyIndex) -> list[str]:
-    """Ontology ids whose synonyms or generated acronyms match the trait label.
-
-    A match is either an exact/normalised equality against a declared synonym,
-    or an equality against an acronym generated from a multi-word label or
-    synonym.
-    """
+def _brute_synonym_channel(label: str, index: OntologyIndex) -> list[str]:
+    """Reference implementation: scan every term's synonyms and acronyms."""
     raw = (label or "").strip()
     normalised = normalise_label(label)
     if not raw and not normalised:
@@ -579,16 +578,35 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "add the semantic embedding channel; requires or defaults to an "
-            "embedding index, and degrades to lexical-only when unavailable"
+            "ontology embedding store, and degrades to lexical-only when "
+            "unavailable"
+        ),
+    )
+    parser.add_argument(
+        "--ontology-embeddings",
+        default=None,
+        metavar="DIR",
+        help=(
+            "ontology embedding store directory; supplying it also enables the "
+            "channel (default: the release+model .cache/curation path)"
         ),
     )
     parser.add_argument(
         "--embedding-index",
         default=None,
-        metavar="JSON",
+        metavar="DIR",
         help=(
-            "semantic embedding index artifact; supplying it also enables the "
-            "channel (default: the release+model .cache/curation path)"
+            "deprecated alias for --ontology-embeddings (kept for the curation "
+            "round driver)"
+        ),
+    )
+    parser.add_argument(
+        "--trait-embeddings",
+        default=None,
+        metavar="DIR",
+        help=(
+            "precomputed trait embedding store directory; when supplied the "
+            "semantic channel needs no network for the labels it covers"
         ),
     )
     parser.add_argument(
@@ -629,6 +647,16 @@ def build_parser() -> argparse.ArgumentParser:
             f"(default: {DEFAULT_EMBEDDING_MIN_SCORE})"
         ),
     )
+    parser.add_argument(
+        "--embedding-batch-size",
+        type=int,
+        default=DEFAULT_EMBEDDING_BATCH_SIZE,
+        metavar="N",
+        help=(
+            "texts per hosted embedding request when a label is embedded on "
+            f"the fly (default: {DEFAULT_EMBEDDING_BATCH_SIZE})"
+        ),
+    )
     return parser
 
 
@@ -638,22 +666,33 @@ def resolve_embedding(
 ) -> EmbeddingChannel | None:
     """Resolve the run-scoped semantic channel from parsed CLI args, or ``None``.
 
-    The channel is enabled by ``--enable-embedding`` or by supplying
-    ``--embedding-index``. Any unavailability is reported on stderr as a
-    warning and returns ``None`` so the run continues lexical-only; a semantic
-    channel problem must never fail candidate generation (issue #166).
+    The channel is enabled by ``--enable-embedding`` or by supplying an
+    ontology or trait embedding store. Any unavailability is reported on
+    stderr as a warning and returns ``None`` so the run continues
+    lexical-only; a semantic channel problem must never fail candidate
+    generation (issue #166).
     """
-    if not (getattr(args, "enable_embedding", False) or args.embedding_index):
+    ontology_path = getattr(args, "ontology_embeddings", None) or getattr(
+        args, "embedding_index", None
+    )
+    trait_path = getattr(args, "trait_embeddings", None)
+    if not (
+        getattr(args, "enable_embedding", False) or ontology_path or trait_path
+    ):
         return None
     try:
         retriever = resolve_retriever(
-            args.embedding_index,
+            ontology_path,
             ontology_release,
             model_id=args.embedding_model,
             endpoint=args.embedding_endpoint,
             api_key=args.embedding_api_key,
             top_k=args.embedding_top_k,
             min_score=args.embedding_min_score,
+            trait_embeddings=trait_path,
+            batch_size=getattr(
+                args, "embedding_batch_size", DEFAULT_EMBEDDING_BATCH_SIZE
+            ),
         )
     except EmbeddingError as exc:
         print(
@@ -694,6 +733,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             f"candidates: warning: semantic channel disabled after "
             f"endpoint failure: {embedding.failure}",
+            file=sys.stderr,
+        )
+    if embedding is not None and embedding.query_vector_misses:
+        print(
+            f"candidates: warning: {embedding.query_vector_misses} label(s) had "
+            "no precomputed trait vector and no endpoint; treated as lexical-only",
             file=sys.stderr,
         )
     text = format_shortlist_tsv(candidates)

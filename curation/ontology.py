@@ -23,7 +23,7 @@ stale artifact fails loudly rather than being read with the wrong shape::
 
     {
       "index_format_version": 1,
-      "ontology_release": "efo/v3.78.0",
+      "ontology_release": "efo/v3.94.0",
       "terms": [
         {
           "ontology_id": "EFO:0004340",
@@ -55,8 +55,9 @@ import sys
 import time
 from collections import defaultdict
 from dataclasses import dataclass, replace
+from functools import cached_property
 from pathlib import Path
-from typing import Iterator, Sequence
+from typing import Iterator, Mapping, Sequence
 
 # ---------------------------------------------------------------------------
 # The pin
@@ -65,7 +66,7 @@ from typing import Iterator, Sequence
 # The ontology release candidate generation resolves against. Recorded on
 # every shortlist row. Bump only when the pinned source document is replaced;
 # a shortlist built against one release must never be reported as another.
-PINNED_ONTOLOGY_RELEASE: str = "efo/v3.78.0"
+PINNED_ONTOLOGY_RELEASE: str = "efo/v3.94.0"
 
 # The index schema version. A reader refuses an artifact whose version it does
 # not know, so a rebuild is forced rather than a stale shape being misread.
@@ -136,6 +137,168 @@ class OntologyTerm:
         )
 
 
+# ---------------------------------------------------------------------------
+# Lexical primitives
+# ---------------------------------------------------------------------------
+# These are the *retrieval* normalisation/tokenisation rules the lexical
+# channels share. They live with the index because the prebuilt lookups below
+# are built from them; ``curation.candidates`` re-exports them for callers.
+
+_PUNCTUATION_RE = re.compile(r"[\W_]+", re.UNICODE)
+
+
+def normalise_label(label: str | None) -> str:
+    """Trim, lowercase, strip punctuation, and collapse whitespace.
+
+    Deliberately close to, but wider than, the canonical table's
+    ``trimws(tolower(x))`` lookup key: this is a *retrieval* normalisation, so
+    ``"Body-mass index (BMI)"`` and ``"body mass index bmi"`` collapse to the
+    same string and the normalised channel can find terms the exact channel
+    cannot.
+    """
+    text = (label or "").strip().lower()
+    text = _PUNCTUATION_RE.sub(" ", text)
+    return " ".join(text.split())
+
+
+def tokenize(label: str | None) -> frozenset[str]:
+    """Tokenize a label after normalisation."""
+    normalised = normalise_label(label)
+    return frozenset(normalised.split()) if normalised else frozenset()
+
+
+def jaccard(left: frozenset[str], right: frozenset[str]) -> float:
+    """Jaccard similarity, 0.0 for two empty token sets."""
+    if not left or not right:
+        return 0.0
+    return len(left & right) / len(left | right)
+
+
+def acronym(label: str | None) -> str:
+    """First letter of each token of a multi-word label, lowercased.
+
+    A single-token label has no distinct acronym and yields ``""`` -- returning
+    the token itself would make the synonym channel match on ordinary shared
+    words.
+    """
+    tokens = normalise_label(label).split()
+    if len(tokens) < 2:
+        return ""
+    return "".join(token[0] for token in tokens)
+
+
+@dataclass(frozen=True)
+class LexicalLookups:
+    """Prebuilt lookup structures for the lexical retrieval channels.
+
+    A channel that scans every term for every query is quadratic in the corpus
+    (94k EFO terms x 2.5k ukb-b labels). These maps are built once per loaded
+    :class:`OntologyIndex` and turn each channel into a handful of dictionary
+    probes plus, for token overlap, one pass over the postings of the query's
+    tokens. The channels' outputs -- ids, order, and ranks -- are identical to
+    the brute-force scans they replace; the equivalence is asserted in
+    ``tests/curation/test_candidates.py``.
+    """
+
+    exact: Mapping[str, tuple[str, ...]]
+    normalised: Mapping[str, tuple[str, ...]]
+    token_postings: Mapping[str, tuple[str, ...]]
+    term_token_counts: Mapping[str, int]
+    raw_synonyms: Mapping[str, tuple[str, ...]]
+    normalised_synonyms: Mapping[str, tuple[str, ...]]
+    acronyms: Mapping[str, tuple[str, ...]]
+
+    @classmethod
+    def build(cls, index: "OntologyIndex") -> "LexicalLookups":
+        exact: dict[str, list[str]] = defaultdict(list)
+        normalised: dict[str, list[str]] = defaultdict(list)
+        token_postings: dict[str, list[str]] = defaultdict(list)
+        term_token_counts: dict[str, int] = {}
+        raw_synonyms: dict[str, list[str]] = defaultdict(list)
+        normalised_synonyms: dict[str, list[str]] = defaultdict(list)
+        acronyms: dict[str, list[str]] = defaultdict(list)
+
+        for term in index:
+            ontology_id = term.ontology_id
+            exact[term.label].append(ontology_id)
+            normalised[normalise_label(term.label)].append(ontology_id)
+
+            tokens = tokenize(term.label)
+            for synonym in term.synonyms:
+                tokens |= tokenize(synonym)
+            term_token_counts[ontology_id] = len(tokens)
+            for token in tokens:
+                token_postings[token].append(ontology_id)
+
+            for synonym in term.synonyms:
+                raw_synonyms[synonym].append(ontology_id)
+                normalised_synonyms[normalise_label(synonym)].append(ontology_id)
+
+            generated = {acronym(term.label)}
+            generated.update(acronym(synonym) for synonym in term.synonyms)
+            for candidate in generated:
+                if candidate:
+                    acronyms[candidate].append(ontology_id)
+
+        def frozen(mapping: Mapping[str, list[str]]) -> dict[str, tuple[str, ...]]:
+            return {key: tuple(sorted(values)) for key, values in mapping.items()}
+
+        return cls(
+            exact=frozen(exact),
+            normalised=frozen(normalised),
+            token_postings=frozen(token_postings),
+            term_token_counts=term_token_counts,
+            raw_synonyms=frozen(raw_synonyms),
+            normalised_synonyms=frozen(normalised_synonyms),
+            acronyms=frozen(acronyms),
+        )
+
+    def exact_ids(self, label: str) -> list[str]:
+        """Ids whose label is byte-for-byte ``label``, sorted ascending."""
+        return list(self.exact.get(label, ()))
+
+    def normalised_ids(self, key: str) -> list[str]:
+        """Ids whose label normalises to ``key``, sorted ascending."""
+        if not key:
+            return []
+        return list(self.normalised.get(key, ()))
+
+    def synonym_ids(self, raw: str, normalised: str) -> list[str]:
+        """Ids matched by a declared synonym, a normalised synonym, or an acronym."""
+        matched: set[str] = set()
+        if raw:
+            matched.update(self.raw_synonyms.get(raw, ()))
+        if normalised:
+            matched.update(self.normalised_synonyms.get(normalised, ()))
+            matched.update(self.acronyms.get(normalised, ()))
+        return sorted(matched)
+
+    def token_overlap_ids(
+        self, query_tokens: frozenset[str], limit: int
+    ) -> list[str]:
+        """Ids ranked by Jaccard token overlap, ties broken by id."""
+        if not query_tokens:
+            return []
+        intersections: dict[str, int] = {}
+        for token in query_tokens:
+            for ontology_id in self.token_postings.get(token, ()):
+                intersections[ontology_id] = intersections.get(ontology_id, 0) + 1
+        if not intersections:
+            return []
+        query_size = len(query_tokens)
+        scored: list[tuple[float, str]] = []
+        for ontology_id, intersection in intersections.items():
+            term_size = self.term_token_counts.get(ontology_id, 0)
+            union = query_size + term_size - intersection
+            if union <= 0:
+                continue
+            score = intersection / union
+            if score > 0.0:
+                scored.append((score, ontology_id))
+        scored.sort(key=lambda pair: (-pair[0], pair[1]))
+        return [ontology_id for _, ontology_id in scored[:limit]]
+
+
 @dataclass(frozen=True)
 class OntologyIndex:
     """The retrieval index: one pinned release's terms, in source order."""
@@ -149,8 +312,18 @@ class OntologyIndex:
     def __iter__(self) -> Iterator[OntologyTerm]:
         return iter(self.terms)
 
-    def by_id(self) -> dict[str, OntologyTerm]:
+    @cached_property
+    def _by_id(self) -> dict[str, OntologyTerm]:
         return {term.ontology_id: term for term in self.terms}
+
+    def by_id(self) -> dict[str, OntologyTerm]:
+        """A mapping of ontology id to term, built once per index."""
+        return self._by_id
+
+    @cached_property
+    def lexical_lookups(self) -> LexicalLookups:
+        """The lexical channels' prebuilt lookup structures, built once."""
+        return LexicalLookups.build(self)
 
     def to_dict(self) -> dict[str, object]:
         return {

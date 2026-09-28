@@ -46,8 +46,7 @@ from curation.ontology import build_index_from_obo, write_index
 from curation.embedding import (
     HASHING_EMBEDDING_MODEL_ID,
     HashingEmbedder,
-    build_embedding_index,
-    write_embedding_index,
+    build_ontology_embedding_store,
 )
 from curation.recall import (
     STRATUM_GAP_DISCLAIMER,
@@ -474,14 +473,12 @@ class TestSemanticDeltaReport(unittest.TestCase):
         self.ontology_index = _fixture_index()
         self.index_path = self.td / "index.json"
         write_index(self.ontology_index, self.index_path)
-        self.embedding_path = self.td / "embedding.json"
-        write_embedding_index(
-            build_embedding_index(
-                self.ontology_index,
-                HashingEmbedder(model_id=HASHING_EMBEDDING_MODEL_ID),
-            ),
-            self.embedding_path,
-        )
+        self.embedding_path = self.td / "ontology-embeddings"
+        build_ontology_embedding_store(
+            self.ontology_index,
+            HashingEmbedder(model_id=HASHING_EMBEDDING_MODEL_ID),
+            self.embedding_path / "chunks",
+        ).save(self.embedding_path)
         # Harvest-shaped validation rows: the lexical baseline cannot reach
         # EFO:0000999 from "quercetin bioavailability" because the shared
         # tokens live only in the term's definition, while the semantic channel
@@ -517,7 +514,7 @@ class TestSemanticDeltaReport(unittest.TestCase):
                 "--validation", str(self.validation_path),
                 "--index", str(self.index_path),
                 "--enable-embedding",
-                "--embedding-index", str(self.embedding_path),
+                "--ontology-embeddings", str(self.embedding_path),
                 "--sizes", "1,5",
                 "--format", "text",
             ]
@@ -545,7 +542,7 @@ class TestSemanticDeltaReport(unittest.TestCase):
                 "--validation", str(self.validation_path),
                 "--index", str(self.index_path),
                 "--enable-embedding",
-                "--embedding-index", str(self.embedding_path),
+                "--ontology-embeddings", str(self.embedding_path),
                 "--sizes", "1,5",
                 "--format", "markdown",
             ]
