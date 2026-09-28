@@ -396,7 +396,7 @@ class ProposalRecord:
         trait_label = (row.get("trait_label") or "").strip()
         if not trait_label:
             raise ProposalFormatError(f"{source} data row {row_index} has an empty trait_label")
-        selected_ontology_id = (row.get("selected_ontology_id") or "").strip()
+        selected_ontology_id = normalise_ontology_id(row.get("selected_ontology_id"))
         if not selected_ontology_id:
             raise ProposalFormatError(
                 f"{source} data row {row_index} has an empty selected_ontology_id"
@@ -641,7 +641,9 @@ def read_rejections(path: Path | str | None) -> set[tuple[str, str]]:
                 if decision not in REJECTION_DECISIONS:
                     continue
             label = normalize_trait_label(row.get("trait_label"))
-            ontology_id = (row.get(id_column) or "").strip()
+            # A registry entry may spell the id in any OBO/IRI form; normalise
+            # before it is compared with a proposal's canonical selection.
+            ontology_id = normalise_ontology_id(row.get(id_column))
             if not label or not ontology_id:
                 raise RejectionFormatError(
                     f"{rejections_path} data row {row_index} is missing a "
@@ -701,7 +703,7 @@ def read_reviewed_queue(path: Path | str | None) -> list[ReviewDecision]:
                     f"review_decision: {row.get('review_decision')!r} "
                     f"(expected one of {', '.join(sorted(REVIEW_DECISIONS))})"
                 )
-            override_id = (row.get("override_ontology_id") or "").strip()
+            override_id = normalise_ontology_id(row.get("override_ontology_id"))
             if decision == DECISION_AMEND and not override_id:
                 raise ReviewQueueFormatError(
                     f"{reviewed_path} data row {row_index} is an amend decision "
@@ -859,10 +861,10 @@ class ReviewDecision:
 
     @property
     def key(self) -> tuple[str, str]:
-        """The ``(normalised trait_label, selected ontology id)`` pair decided."""
+        """The ``(normalised trait_label, normalised selected id)`` pair decided."""
         return (
             normalize_trait_label(self.proposal.trait_label),
-            self.proposal.selected_ontology_id,
+            normalise_ontology_id(self.proposal.selected_ontology_id),
         )
 
     def to_queue_row(self) -> list[str]:

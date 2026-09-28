@@ -855,6 +855,20 @@ class TestRejectionRetention(PromotionTestCase):
         self.assertEqual(outcome.plan.promoted, ())
         self.assertEqual(self.mapping_rows(), [])
 
+    def test_registry_ids_are_normalised_on_read(self) -> None:
+        self.write_rejections([{"trait_label": "Height", "ontology_id": "efo:EFO_1"}])
+        self.assertEqual(read_rejections(self.rejections), {("height", "EFO:1")})
+
+    def test_rejection_matches_a_non_canonical_id_form(self) -> None:
+        self.write_proposals(
+            [proposal_row("Height", "EFO:1", "one", 0.99, runner_up_margin=1.0)]
+        )
+        # The registry spells the id in the OBO's native lower-prefix form.
+        self.write_rejections([{"trait_label": "Height", "ontology_id": "efo:EFO_1"}])
+        outcome = self.promote(rejections_path=self.rejections)
+        self.assertEqual(outcome.plan.promoted, ())
+        self.assertEqual(len(outcome.plan.suppressed), 1)
+
     def test_a_different_pair_is_not_suppressed(self) -> None:
         self.write_proposals(
             [proposal_row("Height", "EFO:2", "two", 0.99, runner_up_margin=1.0)]
@@ -1047,6 +1061,22 @@ class TestHumanReviewRoundTrip(PromotionTestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["review_decision"], "accept")
         self.assertEqual(rows[0]["curator"], "Alice")
+
+    def test_reviewed_queue_decision_ids_are_normalised_before_comparison(self) -> None:
+        self.queue_one_subthreshold_proposal()
+        reviewed = self.base / "reviewed.tsv"
+        shutil.copyfile(self.review_queue, reviewed)
+        header, rows = parse_tsv(reviewed.read_text(encoding="utf-8"))
+        # The reviewed queue spells the decided id in a non-canonical form; it
+        # must still suppress the canonical proposal.
+        rows[0]["selected_ontology_id"] = "efo:EFO_1"
+        rows[0]["review_decision"] = "reject"
+        write_table(reviewed, header, rows)
+
+        outcome = self.promote(reviewed_queue_path=reviewed)
+
+        self.assertEqual(outcome.plan.queued, ())
+        self.assertEqual(len(outcome.plan.suppressed), 1)
 
     def test_separate_reviewed_queue_applies_and_preserves_decisions(self) -> None:
         self.queue_one_subthreshold_proposal()
