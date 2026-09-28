@@ -815,6 +815,80 @@ class EmbeddingStore:
         return cls.load(directory)
 
 
+@dataclass(frozen=True)
+class EmbeddingStoreMeta:
+    """An embedding store's ``meta.yaml`` without its vector payload.
+
+    A curation round pins the model, ontology release, and content-addressed
+    ``build_id`` of every store it consumed. Reading the meta file lets
+    ``round-init`` record those pins and every later stage check them without
+    loading (or hashing) gigabytes of vectors. The full :meth:`EmbeddingStore.load`
+    still re-checks the build id against the vector bytes when the store is used.
+    """
+
+    model_id: str
+    ontology_release: str
+    build_id: str
+    dimension: int
+    count: int
+    text_recipe: str = ""
+    text_recipe_version: str = ""
+    built_at: str = ""
+
+
+def read_embedding_store_meta(directory: Path | str) -> EmbeddingStoreMeta:
+    """Read an embedding store's ``meta.yaml`` without loading its vectors."""
+    source = Path(directory)
+    meta_path = source / _META_FILENAME
+    if not meta_path.is_file():
+        raise EmbeddingStoreError(f"embedding store does not exist: {source}")
+    try:
+        meta = yaml.safe_load(meta_path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        raise EmbeddingStoreError(f"{meta_path} is not valid YAML: {exc}") from exc
+    if not isinstance(meta, dict):
+        raise EmbeddingStoreError(f"{meta_path} is not a mapping")
+    version = meta.get("format_version")
+    if version != EMBEDDING_STORE_FORMAT_VERSION:
+        raise EmbeddingStoreError(
+            f"embedding store format version {version!r} is not the supported "
+            f"{EMBEDDING_STORE_FORMAT_VERSION}; rebuild the store"
+        )
+    model_id = meta.get("model_id")
+    release = meta.get("ontology_release")
+    build_id = meta.get("build_id")
+    for field_name, value in (
+        ("model_id", model_id),
+        ("ontology_release", release),
+        ("build_id", build_id),
+    ):
+        if not isinstance(value, str) or not value:
+            raise EmbeddingStoreError(
+                f"embedding store {source} carries no {field_name}"
+            )
+    dimension = meta.get("dimension")
+    count = meta.get("count")
+    if (
+        isinstance(dimension, bool)
+        or not isinstance(dimension, int)
+        or isinstance(count, bool)
+        or not isinstance(count, int)
+    ):
+        raise EmbeddingStoreError(
+            f"embedding store {source} carries no integer count/dimension"
+        )
+    return EmbeddingStoreMeta(
+        model_id=model_id,
+        ontology_release=release,
+        build_id=build_id,
+        dimension=dimension,
+        count=count,
+        text_recipe=str(meta.get("text_recipe", "")),
+        text_recipe_version=str(meta.get("text_recipe_version", "")),
+        built_at=str(meta.get("built_at", "")),
+    )
+
+
 def nearest_neighbours(
     query_vector: Sequence[float],
     store: EmbeddingStore,
