@@ -1103,8 +1103,8 @@ def _sum_round_recorded_cost(config: RoundConfig) -> float:
         return 0.0
     total = 0.0
     for path in choices_dir.rglob("*.yaml"):
-        if path.name.endswith(".error.yaml"):
-            continue
+        # Error files also carry the cost of a paid-but-rejected response, so
+        # they count toward the cumulative spend a resume must respect.
         data = _read_result(path)
         if data is None:
             continue
@@ -1248,12 +1248,24 @@ def _choose_label(
                 if isinstance(raw_response, Mapping)
                 else raw_response
             )
+        # A request that was paid for and then rejected still consumed tokens
+        # and money; record both so the error file and the round's cost
+        # accounting are complete.
+        input_tokens = getattr(exc, "input_tokens", None)
+        if input_tokens is not None:
+            error_data["input_tokens"] = input_tokens
+        cost_usd = getattr(exc, "cost_usd", None)
+        if cost_usd is None:
+            cost_usd = _chooser_cost_for_label(chooser, trait_label)
+        if cost_usd is not None:
+            error_data["cost_usd"] = cost_usd
         _atomic_write_yaml(error_data, error_path)
         return ChooseLabelOutcome(
             trait_label=trait_label,
             status="error",
             error_class=type(exc).__name__,
             message=message,
+            cost_usd=cost_usd,
         )
 
     cost = result.cost_usd
@@ -1633,7 +1645,24 @@ def _reconcile_round(
         if data is None:
             if error_path.is_file():
                 counts[BUCKET_ERROR] += 1
-                ledger_rows.append([_tsv(label), "", "", ""])
+                # A paid request that failed still spent tokens and money; the
+                # error file carries them so the ledger and reconciliation are
+                # complete rather than dropping the spend.
+                error_data = _read_result(error_path) or {}
+                error_tokens = _optional_int(error_data.get("input_tokens"))
+                error_cost = _optional_float(error_data.get("cost_usd"))
+                if error_tokens is not None:
+                    total_tokens += error_tokens
+                if error_cost is not None:
+                    total_cost += error_cost
+                ledger_rows.append(
+                    [
+                        _tsv(label),
+                        "" if error_tokens is None else str(error_tokens),
+                        "" if error_cost is None else f"{error_cost:.6f}",
+                        _tsv(str(error_data.get("model_version") or "")),
+                    ]
+                )
             else:
                 counts[BUCKET_PENDING] += 1
                 ledger_rows.append([_tsv(label), "", "", ""])

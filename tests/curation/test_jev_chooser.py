@@ -593,6 +593,28 @@ class TestCostTracking(unittest.TestCase):
         self.assertEqual(chooser.cost_records, [])
         self.assertEqual(chooser.total_cost_usd, 0.0)
 
+    def test_paid_but_rejected_response_still_records_usage_and_cost(self) -> None:
+        candidates = [make_candidate("EFO:1")]
+        client = FixtureJevClient(
+            {
+                "label": JevResponse(
+                    # An invented id makes the response invalid after receipt.
+                    probabilities={"EFO:999": 1.0},
+                    input_tokens=1234,
+                    cost_usd=0.02,
+                    raw={"usage": {"input_tokens": 1234}},
+                )
+            }
+        )
+        chooser = JevChooser(client)
+        with self.assertRaises(JevResponseError) as raised:
+            chooser.choose("label", candidates)
+        self.assertEqual(raised.exception.input_tokens, 1234)
+        self.assertAlmostEqual(raised.exception.cost_usd, 0.02)
+        # The spend is still accounted for even though the answer was refused.
+        self.assertEqual(len(chooser.cost_records), 1)
+        self.assertAlmostEqual(chooser.total_cost_usd, 0.02)
+
     def test_cost_is_derived_from_input_tokens(self) -> None:
         client = HttpJevClient(
             api_key="k",

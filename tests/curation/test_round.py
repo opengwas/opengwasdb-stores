@@ -687,6 +687,51 @@ class ChooseTest(RoundTestCase):
             error_data["raw_response"]["answers"]["term"]["choice"], "EFO:1"
         )
 
+    def test_paid_rejected_response_records_usage_cost_and_ledger(self) -> None:
+        class PaidFailure(ValueError):
+            pass
+
+        class PaidChooser(RecordingChooser):
+            def select(self, trait_label, candidates):
+                if trait_label != BMI_LABEL:
+                    return super().select(trait_label, candidates)
+                exc = PaidFailure("distribution rejected after the call")
+                exc.raw_response = {"usage": {"input_tokens": 1234}}
+                exc.input_tokens = 1234
+                exc.cost_usd = 0.07
+                raise exc
+
+        outcome = round_mod.run_choose(
+            self.round_dir, chooser=PaidChooser(self.chooser.choices), workers=1
+        )
+        self.assertEqual(outcome.failed, 1)
+        self.assertAlmostEqual(outcome.total_cost_usd, 0.07)
+
+        _, error_path = round_mod.choice_file_paths(
+            self.round_dir, round_mod.gap_scan.normalize_trait_label(BMI_LABEL)
+        )
+        error_data = round_mod._read_result(error_path)
+        assert error_data is not None
+        self.assertEqual(error_data["input_tokens"], 1234)
+        self.assertAlmostEqual(error_data["cost_usd"], 0.07)
+
+        # The reduce ledger carries the spend of the failed request.
+        round_mod.run_reduce(self.round_dir, allow_incomplete=True)
+        _, ledger = parse_tsv((self.round_dir / "cost-ledger.tsv").read_text())
+        bmi_row = next(row for row in ledger if row["trait_label"] == BMI_LABEL)
+        self.assertEqual(bmi_row["input_tokens"], "1234")
+        self.assertAlmostEqual(float(bmi_row["cost_usd"]), 0.07)
+
+        # A resume seeds the cap from the error file's recorded cost.
+        resumed = round_mod.run_choose(
+            self.round_dir,
+            chooser=PaidChooser(self.chooser.choices),
+            workers=1,
+            max_cost_usd=0.01,
+        )
+        self.assertTrue(resumed.cost_cap_reached)
+        self.assertEqual(resumed.processed, 0)
+
     def test_max_cost_stops_new_requests(self) -> None:
         chooser = RecordingChooser(
             self.chooser.choices,

@@ -1232,9 +1232,16 @@ class JevChooser(Chooser):
                     JevCostRecord(trait_label=trait_label, cost_usd=response.cost_usd)
                 )
         except JevResponseError as exc:
-            # The response was paid for before it was rejected; carry it so the
-            # round can persist a diagnosable, key-free error file.
+            # The response was paid for before it was rejected; carry its usage
+            # and cost so the round can persist a diagnosable, key-free error
+            # file and still account for what was spent.
             exc.raw_response = response.raw
+            exc.input_tokens = response.input_tokens
+            exc.cost_usd = response.cost_usd
+            if response.cost_usd is not None:
+                self.cost_records.append(
+                    JevCostRecord(trait_label=trait_label, cost_usd=response.cost_usd)
+                )
             raise
 
         # The calibrated distribution is passed through unmodified; the
