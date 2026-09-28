@@ -132,7 +132,21 @@ threadpoolctl = ">=3.0"
 # REVERT CONDITION (#153): once opengwasdb#208 is merged to `dev`, move this pin
 # back to the `dev` revision (or `main` after the #106 reversion), and re-run
 # `pixi lock`.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "d2b243313669719a8a303cd29d4379430dab80d9" }
+#
+# Bumped for #176 (OGS-00011 release and build readiness): opengwasdb#208 has
+# since merged, and this pins the OGS-00011 build-readiness integration commit
+# on top of `dev` (opengwasdb PR from feat/ogs00011-build-readiness). It adds
+# the resolver's build-eligible on/off-reference counts and lowercase-allele
+# routing parity (#174), declared GWAS-SSF imputation-score filtering in the
+# resolver and the Hybrid builder (#175), and the bounded/streamed Hybrid tail
+# with opt-in checkpoint/resume (opengwasdb#226-#233). The previous pin ran
+# pre-#224 code, which spent >21 h in the EAF consensus baseline. Candidate
+# generation and the build must run at this same revision.
+#
+# REVERT CONDITION (#176): the pinned commit stays reachable from `dev` only if
+# that PR is merged with a merge commit. If it is squashed or rebased, repin to
+# the resulting `dev` commit and re-run `pixi lock` before regenerating.
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "d0dcfbb179c5f69da845a4187f463d7d008f93fe" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"

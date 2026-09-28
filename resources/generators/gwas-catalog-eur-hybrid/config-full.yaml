@@ -99,6 +99,10 @@ source:
   # `resources/scripts/ebi-studies.r`; the freeze records its checksum so the
   # selection scope is pinned rather than implied.
   candidates: resources/data/derived/store-candidates-analyses.tsv
+  # Optional reviewed per-Analysis provider score declarations (TSV; see README).
+  # No OGS-00011 source score mapping has been approved; do not infer from INFO/R2
+  # headers or MAF. Set only after independent provenance has been reviewed.
+  # imputation_score_declarations: resources/generators/gwas-catalog-eur-hybrid/score-declarations.tsv
   inventory:
     snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-22
     path: resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv
@@ -129,6 +133,13 @@ defaults:
   source_genome_build: GRCh38
   license: EBI GWAS Catalog terms of use
   sample_size_scope: analysis_level
+  # Requested floor once a per-Analysis declaration and resolver evidence prove
+  # a usable per-association imputation INFO/R² score. With no OGS-00011
+  # declaration approved, candidate analyses.tsv emits literal NaN for every
+  # Analysis; a declared Analysis emits this floor only when its resolver record
+  # reports a usable post-INFO state and at least one usable score.
+  # Explicit 0 disables filtering; values outside [0,1] fail configuration.
+  info_score_threshold: 0.6
   # Issue #11's settled trust-vs-validate policy: a row with no usable source
   # allele frequencies keeps this method, and AF-based assignment replaces it
   # only where an assignment is actually attempted.
