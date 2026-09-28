@@ -1366,5 +1366,27 @@ class TestCliCandidatesWithPrecomputedVectors(unittest.TestCase):
         self.assertFalse(any(CHANNEL_EMBEDDING in row["channels"] for row in rows))
 
 
+class DefaultEndpointTest(unittest.TestCase):
+    def test_environment_overrides_the_local_server(self) -> None:
+        from unittest import mock
+
+        from curation import embedding
+
+        with mock.patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(
+                embedding.default_embedding_endpoint(),
+                embedding.DEFAULT_EMBEDDING_ENDPOINT,
+            )
+        with mock.patch.dict(
+            "os.environ", {"OPENGWASDB_EMBEDDING_ENDPOINT": "http://gpu:9000"}
+        ):
+            self.assertEqual(embedding.default_embedding_endpoint(), "http://gpu:9000")
+
+    def test_batch_size_fits_text_embeddings_inference(self) -> None:
+        from curation import embedding
+
+        self.assertLessEqual(embedding.DEFAULT_EMBEDDING_BATCH_SIZE, 32)
+
+
 if __name__ == "__main__":
     unittest.main()

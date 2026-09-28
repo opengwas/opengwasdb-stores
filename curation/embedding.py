@@ -65,7 +65,7 @@ Embed the pinned ontology index into a resumable store::
     python3 -m curation.embedding embed-ontology \\
         --ontology-index .cache/curation/efo-v3.94.0.index.json \\
         --output .cache/curation/efo-v3.94.0--BioLORD-2023.ontology-embeddings \\
-        --endpoint "$OPENGWASDB_EMBEDDING_ENDPOINT"
+        --endpoint http://localhost:8080
 
 Embed a work queue's trait labels with the same model as an ontology store::
 
@@ -73,7 +73,7 @@ Embed a work queue's trait labels with the same model as an ontology store::
         --work-queue .cache/curation/queue.tsv \\
         --output .cache/curation/traits.ontology-embeddings \\
         --model-of .cache/curation/efo-v3.94.0--BioLORD-2023.ontology-embeddings \\
-        --endpoint "$OPENGWASDB_EMBEDDING_ENDPOINT"
+        --endpoint http://localhost:8080
 
 Each run writes every finished chunk under ``<output>/chunks/`` before it
 assembles the store, so an interrupted run resumes and only requests the
@@ -144,8 +144,19 @@ DEFAULT_EMBEDDING_MIN_SCORE: float = 0.0
 # Dimension of the offline hashing stub's vectors.
 DEFAULT_HASHING_DIMENSION: int = 256
 
-# Texts per ``POST /v1/embeddings`` request.
-DEFAULT_EMBEDDING_BATCH_SIZE: int = 128
+# Texts per ``POST /v1/embeddings`` request. Text Embeddings Inference refuses
+# more than its ``max_client_batch_size``, which defaults to 32.
+DEFAULT_EMBEDDING_BATCH_SIZE: int = 32
+
+# Where the embed CLIs look for the model server when neither ``--endpoint`` nor
+# ``OPENGWASDB_EMBEDDING_ENDPOINT`` is given: a local Text Embeddings Inference
+# container.
+DEFAULT_EMBEDDING_ENDPOINT: str = "http://localhost:8080"
+
+
+def default_embedding_endpoint() -> str:
+    """The embed CLIs' endpoint: the environment override, else the local server."""
+    return os.environ.get("OPENGWASDB_EMBEDDING_ENDPOINT") or DEFAULT_EMBEDDING_ENDPOINT
 
 # Texts per resumable chunk file. A finished chunk is written before the next
 # one is requested, so a run resumes at chunk granularity.
@@ -1593,9 +1604,12 @@ def build_ontology_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--endpoint",
-        default=os.environ.get("OPENGWASDB_EMBEDDING_ENDPOINT"),
+        default=default_embedding_endpoint(),
         metavar="URL",
-        help="hosted OpenAI-compatible /v1/embeddings URL for a non-offline model",
+        help=(
+            "OpenAI-compatible /v1/embeddings base URL for a non-offline model "
+            f"(default: $OPENGWASDB_EMBEDDING_ENDPOINT, else {DEFAULT_EMBEDDING_ENDPOINT})"
+        ),
     )
     parser.add_argument(
         "--api-key",
@@ -1667,9 +1681,12 @@ def build_traits_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--endpoint",
-        default=os.environ.get("OPENGWASDB_EMBEDDING_ENDPOINT"),
+        default=default_embedding_endpoint(),
         metavar="URL",
-        help="hosted OpenAI-compatible /v1/embeddings URL for a non-offline model",
+        help=(
+            "OpenAI-compatible /v1/embeddings base URL for a non-offline model "
+            f"(default: $OPENGWASDB_EMBEDDING_ENDPOINT, else {DEFAULT_EMBEDDING_ENDPOINT})"
+        ),
     )
     parser.add_argument(
         "--api-key",

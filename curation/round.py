@@ -84,6 +84,7 @@ from curation.embedding import (
     EmbeddingStoreError,
     PINNED_EMBEDDING_MODEL_ID,
     build_trait_embedding_store,
+    default_embedding_endpoint,
     embedder_for_model,
     read_embedding_store_meta,
     resolve_retriever,
@@ -2107,7 +2108,7 @@ def build_parser() -> argparse.ArgumentParser:
     embed_traits_parser.add_argument("--output", default=None, metavar="DIR")
     embed_traits_parser.add_argument(
         "--endpoint",
-        default=os.environ.get("OPENGWASDB_EMBEDDING_ENDPOINT"),
+        default=default_embedding_endpoint(),
         metavar="URL",
     )
     embed_traits_parser.add_argument(
