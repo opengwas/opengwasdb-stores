@@ -48,14 +48,23 @@ PROBABILITY_TOLERANCE: float = 1e-6
 # places, so a wide distribution can sum to 0.99 or 1.01 even though every
 # option is individually valid. The accepted slack therefore grows with the
 # number of options: an N-option distribution may be off by up to half a
-# hundredth per option. A distribution outside that band is still rejected, and
-# an accepted one is renormalised before anything downstream consumes it.
+# hundredth per option. The slack is capped: without a ceiling a large
+# distribution (Jev allows 255 options) would accept almost any sum, including
+# a zero one. A distribution outside the band is rejected, and an accepted one
+# is renormalised before anything downstream consumes it.
 PROBABILITY_ROUNDING_PER_OPTION: float = 0.005
+
+# The largest absolute rounding slack any distribution may get. Two decimal
+# places over 255 options cannot plausibly be off by more than this.
+MAX_PROBABILITY_TOLERANCE: float = 0.05
 
 
 def probability_tolerance(n_options: int) -> float:
     """The rounding slack allowed for an ``n_options``-option distribution."""
-    return max(PROBABILITY_TOLERANCE, PROBABILITY_ROUNDING_PER_OPTION * n_options)
+    return min(
+        max(PROBABILITY_TOLERANCE, PROBABILITY_ROUNDING_PER_OPTION * n_options),
+        MAX_PROBABILITY_TOLERANCE,
+    )
 
 # The abstention option every chooser may select when no candidate denotes the
 # trait. It is deliberately *not* an ontology id: it is a sentinel that lives
@@ -278,6 +287,14 @@ def validate_choice_result(
 
     total = math.fsum(probabilities.values())
     tolerance = probability_tolerance(len(probabilities))
+    if total <= 0.0:
+        # A zero (or negative) sum is never a distribution, however wide the
+        # rounding slack is; reject it explicitly rather than letting a large
+        # tolerance accept it as "close to 1.0".
+        raise InvalidProbabilityDistributionError(
+            f"probabilities sum to {total!r}; a zero or non-positive sum is "
+            "not a distribution"
+        )
     if not math.isclose(total, 1.0, abs_tol=tolerance):
         raise InvalidProbabilityDistributionError(
             f"probabilities sum to {total!r}, not 1.0 "

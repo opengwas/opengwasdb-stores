@@ -288,7 +288,7 @@ class TestChooserInterface(unittest.TestCase):
         probabilities = {"EFO:1": 0.5}
         probabilities.update({f"EFO:{index}": 0.0245 for index in range(2, 22)})
         self.assertAlmostEqual(sum(probabilities.values()), 0.99)
-        self.assertGreater(probability_tolerance(len(probabilities)), 0.1)
+        self.assertEqual(probability_tolerance(len(probabilities)), 0.05)
 
         chooser = FixedChooser(
             ChoiceResult(
@@ -311,6 +311,21 @@ class TestChooserInterface(unittest.TestCase):
     def test_distribution_outside_the_rounding_band_still_raises(self) -> None:
         candidates = [make_candidate(f"EFO:{index}") for index in range(1, 22)]
         probabilities = {candidate.ontology_id: 0.8 / 21 for candidate in candidates}
+        chooser = FixedChooser(
+            ChoiceResult("EFO:1", probabilities, "jev", "jev-1.13.0")
+        )
+        with self.assertRaises(InvalidProbabilityDistributionError):
+            chooser.choose("Body mass index", candidates)
+
+    def test_tolerance_is_capped(self) -> None:
+        # Two decimal places over a 255-option distribution would otherwise
+        # allow a slack greater than 1.0 and accept an all-zero sum.
+        self.assertEqual(probability_tolerance(255), 0.05)
+        self.assertEqual(probability_tolerance(21), 0.05)
+
+    def test_all_zero_large_distribution_is_rejected(self) -> None:
+        candidates = [make_candidate(f"EFO:{index}") for index in range(1, 256)]
+        probabilities = {candidate.ontology_id: 0.0 for candidate in candidates}
         chooser = FixedChooser(
             ChoiceResult("EFO:1", probabilities, "jev", "jev-1.13.0")
         )
