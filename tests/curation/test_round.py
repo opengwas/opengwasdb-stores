@@ -535,6 +535,19 @@ class RunbookSequenceTest(RoundTestCase):
         covered = round_mod.run_coverage(self.round_dir)
         self.assertEqual(covered.report.rows_added, 1)
 
+    def test_stub_round_cannot_promote_into_the_tracked_table(self) -> None:
+        tracked = Path(promotion.DEFAULT_RESOURCE_DIR)
+        before = {p.name: p.read_bytes() for p in tracked.iterdir() if p.is_file()}
+        self.init_round(
+            chooser_id="stub", resource_dir=tracked, queue_tsv=self.queue_tsv([BMI_LABEL])
+        )
+
+        with self.assertRaisesRegex(round_mod.RoundStateError, "tracked mapping table"):
+            round_mod.run_promote(self.round_dir)
+
+        after = {p.name: p.read_bytes() for p in tracked.iterdir() if p.is_file()}
+        self.assertEqual(after, before)
+
 
 # ---------------------------------------------------------------------------
 # choose (map)

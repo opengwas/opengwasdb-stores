@@ -1775,6 +1775,24 @@ class PromoteOutcome:
     no_suitable_path: Path
 
 
+def _refuse_offline_promotion_to_tracked_table(config: RoundConfig) -> None:
+    """Refuse to write a stub or fixture round into the tracked mapping table.
+
+    A stub chooser or a replayed fixture is for tests and dry runs; its rows are
+    not curation evidence, so they may only land in a copied Reference Resource.
+    """
+    offline = config.chooser.chooser_id == "stub" or config.chooser.fixture is not None
+    tracked = Path(config.resource_dir).resolve() == Path(
+        promotion.DEFAULT_RESOURCE_DIR
+    ).resolve()
+    if offline and tracked:
+        raise RoundStateError(
+            "refusing to promote a stub/fixture round into the tracked mapping "
+            f"table {promotion.DEFAULT_RESOURCE_DIR}; pass a copied resource with "
+            "round-init --resource-dir"
+        )
+
+
 def run_promote(
     round_dir: Path | str,
     *,
@@ -1791,6 +1809,7 @@ def run_promote(
     back with ``reviewed_queue`` on a later run.
     """
     config = read_round_config(round_dir)
+    _refuse_offline_promotion_to_tracked_table(config)
     outcome = promotion.run_promotion(
         proposals_path=config.proposals_path,
         review_queue_path=config.review_queue_path,
