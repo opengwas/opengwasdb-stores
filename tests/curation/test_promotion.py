@@ -989,6 +989,31 @@ class TestHumanReviewRoundTrip(PromotionTestCase):
         self.assertEqual(mapped[0]["reviewer"], "Bob")
         self.assertEqual(mapped[0]["reviewed_at"], "2026-03-05")
 
+    def test_amend_with_none_suitable_sentinel_is_refused(self) -> None:
+        from curation.chooser import NONE_SUITABLE
+
+        self.queue_one_subthreshold_proposal()
+        self.decide_review_row(
+            review_decision="amend",
+            override_ontology_id=NONE_SUITABLE,
+            curator="Bob",
+        )
+        with self.assertRaises(promotion.PromotionError):
+            self.promote()
+        # The reserved sentinel never reaches the mapping table.
+        self.assertEqual(self.mapping_rows(), [])
+
+    def test_amend_with_a_non_curie_override_is_refused(self) -> None:
+        self.queue_one_subthreshold_proposal()
+        self.decide_review_row(
+            review_decision="amend",
+            override_ontology_id="http://www.genenames.org/cgi-bin/gene?hgnc_id=1",
+            curator="Bob",
+        )
+        with self.assertRaises(promotion.PromotionError):
+            self.promote()
+        self.assertEqual(self.mapping_rows(), [])
+
     def test_curated_at_falls_back_to_as_of(self) -> None:
         self.queue_one_subthreshold_proposal()
         self.decide_review_row(review_decision="accept", curator="Alice")

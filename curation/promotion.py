@@ -92,6 +92,7 @@ from typing import Iterable, Mapping, Sequence
 
 from curation.choice import PROPOSAL_COLUMNS, read_shortlists
 from curation.chooser import NONE_SUITABLE, Candidate, ChoiceError
+from curation.ontology import is_curie, normalise_ontology_id
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[1]
 
@@ -914,12 +915,21 @@ class PromotedRow:
         run's ``reviewed_at`` when the curator left it blank) are recorded.
         """
         if decision.decision == DECISION_AMEND:
-            ontology_id = decision.override_ontology_id.strip()
+            ontology_id = normalise_ontology_id(decision.override_ontology_id)
             ontology_label = decision.override_ontology_label
             if not ontology_id:
                 raise PromotionError(
                     f"amend decision for {decision.proposal.trait_label!r} has "
                     "no override_ontology_id"
+                )
+            if ontology_id == NONE_SUITABLE or not is_curie(ontology_id):
+                # The reserved abstention is not a term, and neither is a bare
+                # IRI or free text. A curator amending an uncertain abstention
+                # must supply a real ontology CURIE.
+                raise PromotionError(
+                    f"amend decision for {decision.proposal.trait_label!r} has "
+                    f"override_ontology_id {decision.override_ontology_id!r}, "
+                    "which is not a real ontology CURIE"
                 )
         else:
             ontology_id = decision.proposal.selected_ontology_id
