@@ -783,6 +783,55 @@ def _parse_retry_after(headers: Mapping[str, Any] | None) -> float | None:
     return seconds
 
 
+def _redact_secret(text: str, headers: Mapping[str, str]) -> str:
+    """Remove a bearer token from diagnostic text before it is raised.
+
+    The API key is never part of a request body, but a misbehaving server (or a
+    proxy in front of it) could echo an Authorization header. Redacting the
+    resolved token here keeps a key-free error diagnosable from a
+    ``.error.yaml`` file.
+    """
+    authorization = headers.get("authorization") or headers.get("Authorization") or ""
+    prefix = "Bearer "
+    if authorization.startswith(prefix):
+        token = authorization[len(prefix):].strip()
+        if token:
+            text = text.replace(token, "***")
+    return text
+
+
+def _response_body_text(response: Any) -> str:
+    """Best-effort response body text for a failed-request diagnostic.
+
+    Handles an ``httpx``-style ``.text`` attribute, then a JSON body, then raw
+    bytes; any failure yields an empty string so the diagnostic never masks the
+    original error. The body is truncated so a large server error page cannot
+    bloat an ``.error.yaml`` file.
+    """
+    text = ""
+    body = getattr(response, "text", None)
+    if isinstance(body, str):
+        text = body
+    if not text:
+        try:
+            decoded = response.json()
+        except Exception:  # noqa: BLE001 - a body may not be JSON at all
+            decoded = None
+        if decoded is not None:
+            try:
+                text = json.dumps(decoded, ensure_ascii=False, sort_keys=True)
+            except (TypeError, ValueError):
+                text = str(decoded)
+    if not text:
+        content = getattr(response, "content", None)
+        if isinstance(content, (bytes, bytearray)):
+            text = bytes(content).decode("utf-8", errors="replace")
+    text = " ".join(text.split())
+    if len(text) > 1000:
+        text = text[:1000] + "..."
+    return text
+
+
 class HttpJevClient(JevClient):
     """A :class:`JevClient` that calls the hosted TypeSafe Jev endpoint.
 
@@ -902,9 +951,13 @@ class HttpJevClient(JevClient):
 
             status = getattr(response, "status_code", None)
             if status in NON_RETRYABLE_STATUS_CODES:
+                body_text = _redact_secret(
+                    _response_body_text(response), headers
+                )
+                detail = f": {body_text}" if body_text else ""
                 raise JevApiError(
                     f"hosted Jev request to {endpoint!r} returned "
-                    f"non-retryable status {status}",
+                    f"non-retryable status {status}{detail}",
                     status_code=status,
                 )
             retryable = status in RETRYABLE_STATUS_CODES or (

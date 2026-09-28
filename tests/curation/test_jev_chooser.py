@@ -63,7 +63,7 @@ from curation.jev_chooser import (
     resolve_api_key,
 )
 
-RELEASE = "efo/v3.78.0"
+RELEASE = "efo/v3.94.0"
 
 
 def make_candidate(
@@ -820,6 +820,22 @@ class TestHttpClient(unittest.TestCase):
         self.assertEqual(raised.exception.status_code, 422)
         self.assertEqual(len(fake.posts), 1)
         self.assertEqual(sleeps, [])
+
+    def test_non_retryable_error_includes_a_redacted_body(self) -> None:
+        response = _FakeResponse({}, status_code=422)
+        response.text = '{"error": "invalid body for key secret-key"}'
+        fake = _FakeHttpClient([response])
+        client = HttpJevClient(
+            api_key="secret-key",
+            client_factory=lambda: fake,
+        )
+        with self.assertRaises(JevApiError) as raised:
+            client.decide(_build_request())
+        message = str(raised.exception)
+        # The (key-free) body is diagnosable from the error, and the key is not.
+        self.assertIn("invalid body", message)
+        self.assertIn("***", message)
+        self.assertNotIn("secret-key", message)
 
     def test_retry_exhaustion_raises_unavailable(self) -> None:
         sleeps: list[float] = []
