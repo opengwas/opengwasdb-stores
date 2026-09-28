@@ -990,18 +990,25 @@ def _choose_label(
         if isinstance(exc, KeyboardInterrupt):
             raise
         message = _redact_api_keys(str(exc))
-        _atomic_write_yaml(
-            {
-                "trait_label": trait_label,
-                "normalised_label": normalised,
-                "fingerprint": fingerprint,
-                "error_class": type(exc).__name__,
-                "message": message,
-                "attempts": attempts + 1,
-                "at": _utc_now(),
-            },
-            error_path,
-        )
+        error_data: dict[str, Any] = {
+            "trait_label": trait_label,
+            "normalised_label": normalised,
+            "fingerprint": fingerprint,
+            "error_class": type(exc).__name__,
+            "message": message,
+            "attempts": attempts + 1,
+            "at": _utc_now(),
+        }
+        raw_response = getattr(exc, "raw_response", None)
+        if raw_response is not None:
+            # A failure after a paid response still records the (key-free)
+            # answer so a curator can diagnose it from the error file alone.
+            error_data["raw_response"] = (
+                dict(raw_response)
+                if isinstance(raw_response, Mapping)
+                else raw_response
+            )
+        _atomic_write_yaml(error_data, error_path)
         return ChooseLabelOutcome(
             trait_label=trait_label,
             status="error",

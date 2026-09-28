@@ -67,6 +67,7 @@ from curation.chooser import (
     ChoiceError,
     ChoiceResult,
     Chooser,
+    normalise_choice_result,
     validate_choice_result,
 )
 from curation.jev_chooser import (
@@ -241,6 +242,7 @@ def build_proposal(
     abstention visible to the review stage instead of silently dropping it.
     """
     validate_choice_result(result, candidates)
+    result = normalise_choice_result(result, candidates)
 
     order = {candidate.ontology_id: index for index, candidate in enumerate(candidates)}
     by_id = {candidate.ontology_id: candidate for candidate in candidates}

@@ -454,6 +454,30 @@ class ChooseTest(RoundTestCase):
         self.assertIn("***", error_path.read_text(encoding="utf-8"))
         self.assertNotIn("super-secret-key", error_path.read_text(encoding="utf-8"))
 
+    def test_error_file_records_the_raw_response_of_a_paid_answer(self) -> None:
+        class PaidFailure(ValueError):
+            pass
+
+        class PaidChooser(RecordingChooser):
+            def select(self, trait_label, candidates):
+                exc = PaidFailure("distribution rejected after the call")
+                exc.raw_response = {
+                    "answers": {"term": {"choice": "EFO:1", "confidence": 0.5}}
+                }
+                raise exc
+
+        round_mod.run_choose(
+            self.round_dir, chooser=PaidChooser(self.chooser.choices), workers=1
+        )
+        _, error_path = round_mod.choice_file_paths(
+            self.round_dir, round_mod.gap_scan.normalize_trait_label(BMI_LABEL)
+        )
+        error_data = round_mod._read_result(error_path)
+        assert error_data is not None
+        self.assertEqual(
+            error_data["raw_response"]["answers"]["term"]["choice"], "EFO:1"
+        )
+
     def test_max_cost_stops_new_requests(self) -> None:
         chooser = RecordingChooser(
             self.chooser.choices,

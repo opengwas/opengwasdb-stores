@@ -58,6 +58,8 @@ from curation.chooser import (
     InconsistentChoiceError,
     InvalidProbabilityDistributionError,
     SelectionNotInShortlistError,
+    normalise_choice_result,
+    probability_tolerance,
     validate_choice_result,
 )
 from curation.stub_chooser import (
@@ -278,6 +280,42 @@ class TestChooserInterface(unittest.TestCase):
     def test_validate_accepts_a_tied_selection(self) -> None:
         result = ChoiceResult("EFO:2", {"EFO:1": 0.5, "EFO:2": 0.5}, "fixed", "1")
         validate_choice_result(result, self.candidates)
+
+    def test_rounded_distribution_is_accepted_and_renormalised(self) -> None:
+        # Jev rounds every probability to two decimal places, so a 21-option
+        # distribution can legitimately sum to 0.99 rather than 1.0.
+        candidates = [make_candidate(f"EFO:{index}") for index in range(1, 22)]
+        probabilities = {"EFO:1": 0.5}
+        probabilities.update({f"EFO:{index}": 0.0245 for index in range(2, 22)})
+        self.assertAlmostEqual(sum(probabilities.values()), 0.99)
+        self.assertGreater(probability_tolerance(len(probabilities)), 0.1)
+
+        chooser = FixedChooser(
+            ChoiceResult(
+                "EFO:1",
+                probabilities,
+                "jev",
+                "jev-1.13.0",
+                raw_response={"answers": {"term": {"choice": "EFO:1"}}},
+            )
+        )
+        result = chooser.choose("Body mass index", candidates)
+        assert result is not None
+        self.assertAlmostEqual(sum(result.probabilities.values()), 1.0)
+        self.assertAlmostEqual(result.probabilities["EFO:1"], 0.5 / 0.99)
+        # The untouched response is still available for provenance.
+        self.assertEqual(
+            result.raw_response, {"answers": {"term": {"choice": "EFO:1"}}}
+        )
+
+    def test_distribution_outside_the_rounding_band_still_raises(self) -> None:
+        candidates = [make_candidate(f"EFO:{index}") for index in range(1, 22)]
+        probabilities = {candidate.ontology_id: 0.8 / 21 for candidate in candidates}
+        chooser = FixedChooser(
+            ChoiceResult("EFO:1", probabilities, "jev", "jev-1.13.0")
+        )
+        with self.assertRaises(InvalidProbabilityDistributionError):
+            chooser.choose("Body mass index", candidates)
 
 
 class TestStubChooser(unittest.TestCase):

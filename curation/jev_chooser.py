@@ -1156,59 +1156,65 @@ class JevChooser(Chooser):
         request = self.configure(trait_label, candidates)
         response = self.client.decide(request)
 
-        probabilities = dict(response.probabilities)
-        option_ids = set(request.option_ids)
-        allowed_ids = option_ids | {NONE_SUITABLE}
-        invented = sorted(set(probabilities) - allowed_ids)
-        if invented:
-            raise JevResponseError(
-                f"Jev returned probabilities for option(s) outside the "
-                f"shortlist and abstention: {', '.join(invented)}"
-            )
-        if not probabilities:
-            raise JevResponseError(
-                f"Jev returned no probability distribution for {trait_label!r}"
-            )
-
-        # The reserved abstention is always an option in the request, so make
-        # sure it is present even if a terse fixture omitted it.
-        probabilities.setdefault(NONE_SUITABLE, 0.0)
-
-        for option_id, probability in probabilities.items():
-            if isinstance(probability, bool) or not isinstance(probability, (int, float)):
+        try:
+            probabilities = dict(response.probabilities)
+            option_ids = set(request.option_ids)
+            allowed_ids = option_ids | {NONE_SUITABLE}
+            invented = sorted(set(probabilities) - allowed_ids)
+            if invented:
                 raise JevResponseError(
-                    f"Jev probability for {option_id!r} is not a number: "
-                    f"{probability!r}"
+                    f"Jev returned probabilities for option(s) outside the "
+                    f"shortlist and abstention: {', '.join(invented)}"
                 )
-            if not math.isfinite(probability) or probability < 0.0:
+            if not probabilities:
                 raise JevResponseError(
-                    f"Jev probability for {option_id!r} must be finite and "
-                    f"non-negative, got {probability!r}"
+                    f"Jev returned no probability distribution for {trait_label!r}"
                 )
 
-        response_option_ids = request.response_option_ids
-        if response.chosen_option_id is not None:
-            selected = response.chosen_option_id
-            if selected not in allowed_ids:
-                raise JevResponseError(
-                    f"Jev selected {selected!r}, which is not in the shortlist "
-                    f"or the {NONE_SUITABLE!r} abstention"
-                )
-        else:
-            # Deterministic tie-break: the highest probability, then the
-            # shortlist's own order so a flat distribution still resolves.
-            selected = max(
-                response_option_ids,
-                key=lambda option_id: (
-                    probabilities.get(option_id, 0.0),
-                    -response_option_ids.index(option_id),
-                ),
-            )
+            # The reserved abstention is always an option in the request, so make
+            # sure it is present even if a terse fixture omitted it.
+            probabilities.setdefault(NONE_SUITABLE, 0.0)
 
-        if response.cost_usd is not None:
-            self.cost_records.append(
-                JevCostRecord(trait_label=trait_label, cost_usd=response.cost_usd)
-            )
+            for option_id, probability in probabilities.items():
+                if isinstance(probability, bool) or not isinstance(probability, (int, float)):
+                    raise JevResponseError(
+                        f"Jev probability for {option_id!r} is not a number: "
+                        f"{probability!r}"
+                    )
+                if not math.isfinite(probability) or probability < 0.0:
+                    raise JevResponseError(
+                        f"Jev probability for {option_id!r} must be finite and "
+                        f"non-negative, got {probability!r}"
+                    )
+
+            response_option_ids = request.response_option_ids
+            if response.chosen_option_id is not None:
+                selected = response.chosen_option_id
+                if selected not in allowed_ids:
+                    raise JevResponseError(
+                        f"Jev selected {selected!r}, which is not in the shortlist "
+                        f"or the {NONE_SUITABLE!r} abstention"
+                    )
+            else:
+                # Deterministic tie-break: the highest probability, then the
+                # shortlist's own order so a flat distribution still resolves.
+                selected = max(
+                    response_option_ids,
+                    key=lambda option_id: (
+                        probabilities.get(option_id, 0.0),
+                        -response_option_ids.index(option_id),
+                    ),
+                )
+
+            if response.cost_usd is not None:
+                self.cost_records.append(
+                    JevCostRecord(trait_label=trait_label, cost_usd=response.cost_usd)
+                )
+        except JevResponseError as exc:
+            # The response was paid for before it was rejected; carry it so the
+            # round can persist a diagnosable, key-free error file.
+            exc.raw_response = response.raw
+            raise
 
         # The calibrated distribution is passed through unmodified; the
         # Chooser base class validates its coverage and normalisation.

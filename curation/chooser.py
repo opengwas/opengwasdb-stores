@@ -36,13 +36,26 @@ from __future__ import annotations
 
 import math
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Mapping, Sequence
 
 # The probability distribution is required to sum to 1 within this tolerance.
 # The tolerance absorbs the rounding a real chooser's float arithmetic leaves
 # behind without admitting a distribution that is meaningfully un-normalised.
 PROBABILITY_TOLERANCE: float = 1e-6
+
+# A real hosted chooser (Jev) returns probabilities rounded to two decimal
+# places, so a wide distribution can sum to 0.99 or 1.01 even though every
+# option is individually valid. The accepted slack therefore grows with the
+# number of options: an N-option distribution may be off by up to half a
+# hundredth per option. A distribution outside that band is still rejected, and
+# an accepted one is renormalised before anything downstream consumes it.
+PROBABILITY_ROUNDING_PER_OPTION: float = 0.005
+
+
+def probability_tolerance(n_options: int) -> float:
+    """The rounding slack allowed for an ``n_options``-option distribution."""
+    return max(PROBABILITY_TOLERANCE, PROBABILITY_ROUNDING_PER_OPTION * n_options)
 
 # The abstention option every chooser may select when no candidate denotes the
 # trait. It is deliberately *not* an ontology id: it is a sentinel that lives
@@ -264,19 +277,42 @@ def validate_choice_result(
             )
 
     total = math.fsum(probabilities.values())
-    if not math.isclose(total, 1.0, abs_tol=PROBABILITY_TOLERANCE):
+    tolerance = probability_tolerance(len(probabilities))
+    if not math.isclose(total, 1.0, abs_tol=tolerance):
         raise InvalidProbabilityDistributionError(
             f"probabilities sum to {total!r}, not 1.0 "
-            f"(tolerance {PROBABILITY_TOLERANCE})"
+            f"(tolerance {tolerance})"
         )
 
     selected_probability = probabilities[result.selected_ontology_id]
     best_probability = max(probabilities.values())
-    if selected_probability < best_probability - PROBABILITY_TOLERANCE:
+    if selected_probability < best_probability - tolerance:
         raise InconsistentChoiceError(
             f"chooser selected {result.selected_ontology_id!r} with probability "
             f"{selected_probability!r} but {best_probability!r} is the maximum"
         )
+
+
+def normalise_choice_result(
+    result: ChoiceResult,
+    candidates: Sequence[Candidate],
+) -> ChoiceResult:
+    """Return ``result`` with probabilities rescaled to sum to exactly 1.
+
+    A chooser's rounded distribution is accepted by
+    :func:`validate_choice_result` with a per-option slack, so every consumer
+    downstream -- the promotion gate, the proposal confidence, and the margins
+    -- must see a distribution normalised against the same total. The untouched
+    response remains in ``raw_response``.
+    """
+    probabilities = result.probabilities
+    if not probabilities:
+        return result
+    total = math.fsum(probabilities.values())
+    if total <= 0.0 or math.isclose(total, 1.0, abs_tol=PROBABILITY_TOLERANCE):
+        return result
+    scaled = {key: value / total for key, value in probabilities.items()}
+    return replace(result, probabilities=scaled)
 
 
 class Chooser(ABC):
@@ -304,8 +340,15 @@ class Chooser(ABC):
         if not candidates:
             return None
         result = self.select(trait_label, candidates)
-        validate_choice_result(result, candidates)
-        return result
+        try:
+            validate_choice_result(result, candidates)
+        except ChoiceError as exc:
+            # A failure that happens after a paid response still carries that
+            # response so the round can persist a diagnosable error file.
+            if result.raw_response is not None and not hasattr(exc, "raw_response"):
+                exc.raw_response = result.raw_response
+            raise
+        return normalise_choice_result(result, candidates)
 
     @abstractmethod
     def select(
