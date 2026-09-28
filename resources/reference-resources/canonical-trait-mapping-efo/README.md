@@ -91,6 +91,15 @@ A rejected `(trait_label, ontology_id)` pair is retained in a rejection
 registry and suppressed by every later promotion run, so a term a curator has
 rejected is never re-proposed or auto-accepted.
 
+A `none_suitable` proposal is never written to this table. When the chooser is
+confident that no retrieved candidate denotes the trait, the label is recorded
+in the round's `no-suitable-term.tsv` as unmapped by design rather than being
+forced onto an approximate term; when the abstention is uncertain it goes to
+the review queue, where a curator may amend in a real candidate. The curation
+round's resumable stages (`curation.round`) keep every result file, the cost
+ledger, and the per-bucket reconciliation in the round directory, so a rerun
+resumes rather than repeating finished work.
+
 A queued row can be reviewed in place: a curator sets `review_decision` to
 `accept` (promote the proposal's selection) or `amend` (promote
 `override_ontology_id`/`override_ontology_label`), with `curator` and

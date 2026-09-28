@@ -40,7 +40,7 @@ from curation.validate_chooser import (
     report_to_json,
 )
 
-RELEASE = "efo/v3.78.0"
+RELEASE = "efo/v3.94.0"
 
 
 def make_candidate(ontology_id: str, ontology_label: str | None = None) -> Candidate:

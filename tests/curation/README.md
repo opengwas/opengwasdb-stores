@@ -32,6 +32,11 @@ curation pipeline (issue #161):
   rows added kept distinct, review queue size, no-candidate labels left
   unmapped, cost accounting, and the strict no-Manifest/no-bundle/no-store
   boundary (issue #170).
+- `test_round.py` — the resumable round stages: per-trait atomic result files,
+  skip-on-identical-fingerprint and rerun-on-changed-shortlist, error files and
+  retry, interrupt safety, `--max-cost-usd`, bucket reconciliation including
+  stale results, `none_suitable` routing, coverage from the full table, and
+  `round.yaml` pin-mismatch refusal (issue #161).
 
 ## Gap-scan suite (`curation.gap_scan`, issue #163)
 
@@ -436,6 +441,128 @@ failure.
 
 The suite is hermetic: tiny in-memory OBO/index fixtures, the stub chooser, and
 temporary Reference Resource copies. Nothing opens a socket.
+
+## Resumable round runbook (issue #161)
+
+A real round over the ukb-b queue runs as independent, idempotent stages. Each
+stage reads its pins from `<round-dir>/round.yaml` and refuses to run when the
+ontology release, embedding model, or store build disagrees with them. The
+round directory is gitignored (default `.cache/curation/rounds/<round-id>/`).
+
+```sh
+# 0. build the pinned lexical index (v3.94.0)
+pixi run -e curation ontology-index \
+    --obo <efo.obo> \
+    --output .cache/curation/efo-v3.94.0.index.json
+
+# 1. embed the ontology terms once (resumable under <store>/chunks/)
+pixi run -e curation embed-ontology \
+    --ontology-index .cache/curation/efo-v3.94.0.index.json \
+    --output .cache/curation/efo-v3.94.0--BioLORD-2023.ontology-embeddings \
+    --model FremyCompany/BioLORD-2023 \
+    --endpoint "$OPENGWASDB_EMBEDDING_ENDPOINT"
+
+# 2. pin the round: ontology index + stores + chooser + thresholds + inputs
+pixi run -e curation round-init \
+    --round-dir .cache/curation/rounds/ukb-b-2026q1 \
+    --index .cache/curation/efo-v3.94.0.index.json \
+    --ontology-embeddings .cache/curation/efo-v3.94.0--BioLORD-2023.ontology-embeddings \
+    --trait-embeddings .cache/curation/efo-v3.94.0--BioLORD-2023.trait-embeddings \
+    --chooser jev \
+    --manifests families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv \
+    --threshold-evidence "conf 0.85 / margin 0.20 from the validation curve"
+
+# 3. derive the queue, excluding labels already in the mapping table
+pixi run -e curation round-gap-scan \
+    --round-dir .cache/curation/rounds/ukb-b-2026q1
+
+# 4. precompute the queue's trait vectors with the SAME model
+pixi run -e curation embed-traits \
+    --work-queue .cache/curation/rounds/ukb-b-2026q1/queue.tsv \
+    --output .cache/curation/efo-v3.94.0--BioLORD-2023.trait-embeddings \
+    --model-of .cache/curation/efo-v3.94.0--BioLORD-2023.ontology-embeddings \
+    --endpoint "$OPENGWASDB_EMBEDDING_ENDPOINT"
+
+# 5. shortlist every queued label from the precomputed vectors (no network)
+pixi run -e curation round-candidates \
+    --round-dir .cache/curation/rounds/ukb-b-2026q1
+
+# 6. map: one atomic result file per trait, concurrent and cost-capped
+pixi run -e curation round-choose \
+    --round-dir .cache/curation/rounds/ukb-b-2026q1 \
+    --workers 8 --max-cost-usd 25
+
+# 7. reduce: proposals, cost ledger, and a per-bucket reconciliation
+pixi run -e curation round-reduce \
+    --round-dir .cache/curation/rounds/ukb-b-2026q1
+
+# 8. promote: confident rows only; abstentions and weak rows never reach it
+pixi run -e curation round-promote \
+    --round-dir .cache/curation/rounds/ukb-b-2026q1
+
+# 9. report the after state from the whole post-promotion table
+pixi run -e curation round-coverage \
+    --round-dir .cache/curation/rounds/ukb-b-2026q1 --format markdown
+```
+
+`round-choose` writes `choices/<2hex>/<sha256>.yaml` atomically (temp + fsync
++ rename). A label whose result already carries the current request fingerprint
+is skipped; a changed shortlist, model, or context changes the fingerprint and
+forces a rerun. A failed request writes `<sha256>.error.yaml` (error class,
+message, attempts, timestamp) and the stage continues; a later success removes
+it. `--limit N` pilots the first N labels that still need work, and
+`--max-cost-usd X` stops issuing new requests once the cumulative recorded cost
+reaches `X`. Ctrl-C leaves only complete result files.
+
+`round-reduce` classifies every queued label into exactly one bucket --
+`no_candidate`, `pending` (no result, or a result for a stale shortlist),
+`error`, `none_suitable`, or `proposed` -- and exits non-zero when any label is
+`pending`/`error` unless `--allow-incomplete` is given. `round-promote` never
+writes a `none_suitable` abstention to `mapping.tsv`: a confident abstention is
+recorded in `no-suitable-term.tsv` (unmapped by design) and an uncertain one
+goese to `review-queue.tsv`.
+
+### The harvested-validation-set variant
+
+Harvest `source_provided` rows and run the same machinery over them by pinning
+the harvested validation set as an explicit queue instead of manifests:
+
+```sh
+pixi run -e curation harvest <manifest>... --index <index.json> --output <validation.tsv>
+
+pixi run -e curation round-init \
+    --round-dir .cache/curation/rounds/validation \
+    --index .cache/curation/efo-v3.94.0.index.json \
+    --chooser stub --fixture <fixture.json> \
+    --queue-tsv <validation.tsv>
+
+pixi run -e curation round-gap-scan --round-dir .cache/curation/rounds/validation
+pixi run -e curation round-candidates --round-dir .cache/curation/rounds/validation
+pixi run -e curation round-choose --round-dir .cache/curation/rounds/validation
+pixi run -e curation round-reduce --round-dir .cache/curation/rounds/validation --allow-incomplete
+```
+
+### How a curator returns a reviewed queue
+
+A curator edits `review-queue.tsv` in the round directory, filling one row's
+`review_decision` (`accept`, `amend`, or `reject`), and for an amend
+`override_ontology_id`/`override_ontology_label`, plus `curator_notes`,
+`curator`, and `curated_at`. The reviewed file is passed back on a later
+promotion run, which promotes accepted/amended rows as `human_reviewed`,
+suppresses rejected ones, and preserves every decision in the rewritten queue:
+
+```sh
+pixi run -e curation round-promote \
+    --round-dir .cache/curation/rounds/ukb-b-2026q1 \
+    --reviewed-queue .cache/curation/rounds/ukb-b-2026q1/review-queue.tsv
+
+pixi run -e curation round-coverage \
+    --round-dir .cache/curation/rounds/ukb-b-2026q1 --format markdown
+```
+
+`curation-round` remains a thin convenience runner: it executes the stages in
+order and stops after `reduce` when the round is incomplete, so a failed batch
+can be resumed with `round-choose` and then `curation-round` again.
 
 ## Running the suites
 

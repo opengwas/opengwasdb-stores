@@ -68,7 +68,7 @@ from curation.stub_chooser import (
     parse_fixture_tsv,
 )
 
-RELEASE = "efo/v3.78.0"
+RELEASE = "efo/v3.94.0"
 
 SHORTLIST_COLUMNS = list(candidates.SHORTLIST_COLUMNS)
 

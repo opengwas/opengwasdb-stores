@@ -42,7 +42,7 @@ from curation.ontology import build_index_from_obo, write_index
 from curation.promotion import MAPPING_COLUMNS
 from curation.stub_chooser import StubChooser
 
-RELEASE = "efo/v3.78.0"
+RELEASE = "efo/v3.94.0"
 
 FIXTURE_OBO = """\
 format-version: 1.2

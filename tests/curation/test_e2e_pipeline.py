@@ -44,7 +44,7 @@ from curation.gap_scan import OUTPUT_COLUMNS as QUEUE_COLUMNS
 from curation.ontology import build_index_from_obo, write_index
 from curation.promotion import MAPPING_COLUMNS
 
-RELEASE = "efo/v3.78.0"
+RELEASE = "efo/v3.94.0"
 
 # A deliberately tiny ontology: the correct term and a near neighbour that the
 # token-overlap channel also retrieves, so the shortlist is not a foregone
