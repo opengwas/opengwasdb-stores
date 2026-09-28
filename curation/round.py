@@ -1317,8 +1317,9 @@ def run_choose(
     A label whose result file already carries the current fingerprint is
     skipped. Each result is written atomically, and a failure writes an error
     file that a later successful run removes. ``--limit`` caps the labels a
-    pilot issues; ``--max-cost-usd`` stops new requests once the cumulative
-    recorded cost reaches the cap. An interrupt leaves only complete files.
+    pilot issues; ``--max-cost-usd`` stops new requests before the recorded
+    cost plus the reservations for in-flight requests plus this request's own
+    estimate would exceed the cap. An interrupt leaves only complete files.
     """
     config = read_round_config(round_dir)
     if workers < 1:
@@ -1367,9 +1368,18 @@ def run_choose(
                 if limit is not None and processed >= limit:
                     limit_reached = True
                     break
+                reserve = 0.0
                 if max_cost_usd is not None:
+                    # Account for this request's own estimate before submitting
+                    # it: the recorded cost, the reservations for already
+                    # in-flight requests, and this estimate together must fit
+                    # under the cap, otherwise the round would overshoot by one
+                    # request.
+                    reserve = _estimate_request_cost(
+                        chooser, trait_label, candidates
+                    )
                     with cost_lock:
-                        if total_cost + reserved_cost >= max_cost_usd:
+                        if total_cost + reserved_cost + reserve > max_cost_usd:
                             cost_cap_reached = True
                             break
                 future = executor.submit(
@@ -1382,12 +1392,9 @@ def run_choose(
                 )
                 futures[future] = trait_label
                 if max_cost_usd is not None:
-                    # Reserve an estimate for the in-flight request so a
+                    # Reserve the estimate for the in-flight request so a
                     # concurrent batch cannot collectively overshoot the cap.
                     with cost_lock:
-                        reserve = _estimate_request_cost(
-                            chooser, trait_label, candidates
-                        )
                         reserved_cost += reserve
                     future_reserved[future] = reserve
                 processed += 1

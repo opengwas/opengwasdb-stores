@@ -678,12 +678,15 @@ class ChooseTest(RoundTestCase):
             self.chooser.choices,
             costs={BMI_LABEL: 0.1, HEIGHT_LABEL: 0.1},
         )
+        # The first request's $0.10 estimate fits exactly; the next would push
+        # the round to $0.20, so it is never submitted.
         outcome = round_mod.run_choose(
-            self.round_dir, chooser=chooser, workers=1, max_cost_usd=0.05
+            self.round_dir, chooser=chooser, workers=1, max_cost_usd=0.10
         )
         self.assertTrue(outcome.cost_cap_reached)
         self.assertEqual(outcome.processed, 1)
         self.assertEqual(len(chooser.calls), 1)
+        self.assertAlmostEqual(outcome.total_cost_usd, 0.10)
 
     def test_limit_caps_a_pilot(self) -> None:
         outcome = round_mod.run_choose(
@@ -744,11 +747,24 @@ class CostCapTest(RoundTestCase):
             costs={label: 0.10 for label in labels},
         )
 
+    def test_cap_accounts_for_the_next_request_before_submitting(self) -> None:
+        labels = ["alpha", "beta"]
+        chooser = self._build(labels)
+        # With a $0.15 cap, the first $0.10 request fits but the second would
+        # overshoot to $0.20, so it must not be submitted.
+        outcome = round_mod.run_choose(
+            self.round_dir, chooser=chooser, workers=1, max_cost_usd=0.15
+        )
+        self.assertTrue(outcome.cost_cap_reached)
+        self.assertEqual(outcome.processed, 1)
+        self.assertEqual(len(chooser.calls), 1)
+        self.assertAlmostEqual(outcome.total_cost_usd, 0.10)
+
     def test_concurrent_requests_cannot_overshoot_the_cap(self) -> None:
         labels = ["alpha", "beta", "gamma", "delta"]
         chooser = self._build(labels)
         outcome = round_mod.run_choose(
-            self.round_dir, chooser=chooser, workers=4, max_cost_usd=0.05
+            self.round_dir, chooser=chooser, workers=4, max_cost_usd=0.15
         )
         self.assertTrue(outcome.cost_cap_reached)
         # Only the first in-flight request may be submitted; the rest are
