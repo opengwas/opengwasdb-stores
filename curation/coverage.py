@@ -243,6 +243,12 @@ class CoverageReport:
     ``analyses_resolved`` and ``rows_added`` are deliberately separate fields:
     one promoted row can resolve many Analyses, and collapsing the two would
     overstate or understate the round depending on which one was quoted.
+
+    The bucket counts (``no_candidate_count``, ``none_suitable_count``,
+    ``pending_count``, ``error_count``) partition the work queue: every queued
+    label is in exactly one of no-candidate, none-suitable, pending, error, or
+    the proposed bucket (which has no count of its own because it is the
+    remainder, and its rows appear in the proposals table).
     """
 
     families: tuple[FamilyCoverage, ...]
@@ -252,6 +258,9 @@ class CoverageReport:
     no_candidate_count: int
     total_cost_usd: float = 0.0
     cost_tracked: bool = False
+    none_suitable_count: int = 0
+    pending_count: int = 0
+    error_count: int = 0
 
     @property
     def total_analyses(self) -> int:
@@ -292,6 +301,10 @@ def compute_coverage(
     no_candidate_count: int = 0,
     cost_usd: float = 0.0,
     cost_tracked: bool = False,
+    mapped_after_labels: Iterable[str] | None = None,
+    none_suitable_count: int = 0,
+    pending_count: int = 0,
+    error_count: int = 0,
 ) -> CoverageReport:
     """Compute the coverage report from per-family stats and the round's outcome.
 
@@ -301,12 +314,27 @@ def compute_coverage(
     whose label is in that set; its ``unmapped_after`` is what remains.
     ``rows_added`` is the number of distinct promoted labels -- the rows
     appended -- and is reported independently of ``analyses_resolved``.
+
+    ``mapped_after_labels`` is the *whole* post-promotion mapping table, not
+    just this round's additions. When supplied, the after state is computed
+    from that table: an unmapped Analysis is resolved if its label appears in
+    it, including rows that already existed before this round. This keeps the
+    after rate honest when a Manifest has not yet been regenerated after an
+    earlier promotion. ``analyses_resolved`` still counts only this round's
+    promoted labels.
     """
     promoted = {
         normalize_trait_label(label)
         for label in promoted_labels
         if normalize_trait_label(label)
     }
+    mapped_after: set[str] | None = None
+    if mapped_after_labels is not None:
+        mapped_after = {
+            normalize_trait_label(label)
+            for label in mapped_after_labels
+            if normalize_trait_label(label)
+        }
 
     families: list[FamilyCoverage] = []
     for store_family in sorted(family_stats):
@@ -316,13 +344,22 @@ def compute_coverage(
             for label, count in stats.unmapped_label_counts.items()
             if label in promoted
         )
+        if mapped_after is None:
+            unmapped_after = stats.unmapped_before - resolved
+        else:
+            resolved_from_table = sum(
+                count
+                for label, count in stats.unmapped_label_counts.items()
+                if label in mapped_after
+            )
+            unmapped_after = stats.unmapped_before - resolved_from_table
         families.append(
             FamilyCoverage(
                 store_family=store_family,
                 total_analyses=stats.total_analyses,
                 unmapped_before=stats.unmapped_before,
                 analyses_resolved=resolved,
-                unmapped_after=stats.unmapped_before - resolved,
+                unmapped_after=unmapped_after,
             )
         )
 
@@ -334,6 +371,9 @@ def compute_coverage(
         no_candidate_count=no_candidate_count,
         total_cost_usd=float(cost_usd),
         cost_tracked=cost_tracked,
+        none_suitable_count=none_suitable_count,
+        pending_count=pending_count,
+        error_count=error_count,
     )
 
 
@@ -474,6 +514,7 @@ def read_cost_report(path: Path | str | None) -> tuple[float, bool]:
     if "cost_usd" not in columns:
         raise CoverageFormatError(f"{cost_path} has no cost_usd column")
     total = 0.0
+    tracked = False
     for row_index, row in enumerate(rows):
         raw = (row.get("cost_usd") or "").strip()
         if not raw:
@@ -490,7 +531,8 @@ def read_cost_report(path: Path | str | None) -> tuple[float, bool]:
                 f"{cost_path} data row {row_index} has an invalid cost_usd: {raw!r}"
             )
         total += value
-    return total, True
+        tracked = True
+    return total, tracked
 
 
 def chooser_cost(chooser: object) -> tuple[float, bool]:
@@ -554,6 +596,19 @@ def _summary_lines(report: CoverageReport) -> list[tuple[str, str]]:
         (
             "No candidates retrieved",
             f"{report.no_candidate_count} label(s) left unmapped by design",
+        ),
+        (
+            "No suitable term",
+            f"{report.none_suitable_count} label(s) left unmapped by design "
+            "(confident abstention)",
+        ),
+        (
+            "Pending results",
+            f"{report.pending_count} label(s) awaiting a chooser result",
+        ),
+        (
+            "Errored results",
+            f"{report.error_count} label(s) with a failed chooser request",
         ),
         ("Total round cost", _format_cost(report)),
     ]
@@ -643,6 +698,9 @@ def render_tsv(report: CoverageReport) -> str:
     lines.append(f"# rows_added: {report.rows_added}")
     lines.append(f"# review_queue_size: {report.review_queue_size}")
     lines.append(f"# no_candidate_count: {report.no_candidate_count}")
+    lines.append(f"# none_suitable_count: {report.none_suitable_count}")
+    lines.append(f"# pending_count: {report.pending_count}")
+    lines.append(f"# error_count: {report.error_count}")
     lines.append(f"# cost_tracked: {'true' if report.cost_tracked else 'false'}")
     lines.append(f"# total_cost_usd: {report.total_cost_usd:.6f}")
     lines.append("\t".join(TSV_COLUMNS))
