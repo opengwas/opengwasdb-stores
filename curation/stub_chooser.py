@@ -30,7 +30,9 @@ scores. A trait label the fixture does not mention raises
 answered with an invented default. Shortlist membership is still enforced by
 :meth:`curation.chooser.Chooser.choose`, so a fixture that names a term outside
 the shortlist raises :class:`~curation.chooser.SelectionNotInShortlistError`
-exactly as a live chooser would.
+exactly as a live chooser would. A fixture may select the
+:data:`~curation.chooser.NONE_SUITABLE` abstention, exactly as the live Jev
+chooser can, when no candidate denotes the trait.
 """
 
 from __future__ import annotations

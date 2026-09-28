@@ -15,9 +15,15 @@ explicit no-proposal outcome. It is not allowed to reach outside the shortlist:
   than letting a chooser pick from nothing.
 * :func:`validate_choice_result` (called by :meth:`Chooser.choose`) raises
   :class:`SelectionNotInShortlistError` when the selected id is not one of the
-  candidates. This is structural, not advisory: a chooser cannot invent a term
-  that candidate generation did not retrieve, because the shortlist is the
-  ceiling on what the whole pipeline can ever map.
+  candidates (or the :data:`NONE_SUITABLE` abstention). This is structural, not
+  advisory: a chooser cannot invent a term that candidate generation did not
+  retrieve, because the shortlist is the ceiling on what the whole pipeline can
+  ever map.
+
+The one value a chooser may select that is not a shortlisted candidate is the
+:data:`NONE_SUITABLE` abstention. It means "none of the retrieved candidates
+denotes this trait" and is carried through to a proposals row rather than
+silently dropped.
 
 Subclasses implement :meth:`Chooser.select`; callers call
 :meth:`Chooser.choose`, which wraps it with the empty-shortlist and shortlist
@@ -31,12 +37,19 @@ from __future__ import annotations
 import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 # The probability distribution is required to sum to 1 within this tolerance.
 # The tolerance absorbs the rounding a real chooser's float arithmetic leaves
 # behind without admitting a distribution that is meaningfully un-normalised.
 PROBABILITY_TOLERANCE: float = 1e-6
+
+# The abstention option every chooser may select when no candidate denotes the
+# trait. It is deliberately *not* an ontology id: it is a sentinel that lives
+# alongside the shortlist in a chooser's distribution. A chooser may select it,
+# and its probability may appear in the distribution, but it is never one of
+# the shortlisted candidates and never becomes a Trait Ontology Mapping.
+NONE_SUITABLE: str = "none_suitable"
 
 # The shortlist columns a Candidate is built from. They are the columns
 # emitted by curation.candidates.SHORTLIST_COLUMNS, minus the per-row
@@ -158,14 +171,36 @@ class ChoiceResult:
     """A chooser's proposal for one trait label.
 
     ``selected_ontology_id`` must be present in the shortlist the chooser was
-    given. ``probabilities`` maps every candidate ontology id to a probability
-    and sums to 1 within :data:`PROBABILITY_TOLERANCE`.
+    given, or be the :data:`NONE_SUITABLE` abstention. ``probabilities`` maps
+    every candidate ontology id to a probability and sums to 1 within
+    :data:`PROBABILITY_TOLERANCE`; it may additionally carry a probability for
+    :data:`NONE_SUITABLE`.
+
+    The trailing fields are optional provenance a downstream persistence stage
+    may record: the answering model's version and own confidence, the request's
+    input-token usage and derived cost, the parsed response document, and a
+    deterministic request fingerprint.
     """
 
     selected_ontology_id: str
     probabilities: dict[str, float]
     chooser_id: str
     chooser_version: str
+    #: The answering model's own version, when the chooser reports one (Jev's
+    #: response ``model``). Empty for choosers that have no model version.
+    model_version: str = ""
+    #: The model's own confidence in its selection, distinct from the selected
+    #: option's probability under ``probabilities``.
+    model_confidence: float | None = None
+    #: Input tokens the request consumed, when the chooser reports usage.
+    input_tokens: int | None = None
+    #: The cost of the request in USD, when the chooser reports or derives it.
+    cost_usd: float | None = None
+    #: The parsed response document, for durable provenance.
+    raw_response: Mapping[str, Any] | None = None
+    #: A deterministic digest of the request body (including the model id and
+    #: excluding the API key), so a later stage can skip an identical request.
+    request_fingerprint: str = ""
 
 
 def validate_choice_result(
@@ -181,12 +216,14 @@ def validate_choice_result(
     sum to 1.
     """
     candidate_ids = {candidate.ontology_id for candidate in candidates}
+    allowed_ids = candidate_ids | {NONE_SUITABLE}
 
-    if result.selected_ontology_id not in candidate_ids:
+    if result.selected_ontology_id not in allowed_ids:
         raise SelectionNotInShortlistError(
             f"chooser {result.chooser_id!r} selected "
             f"{result.selected_ontology_id!r}, which is not one of the "
-            f"{len(candidate_ids)} shortlisted candidate(s)"
+            f"{len(candidate_ids)} shortlisted candidate(s) or the "
+            f"{NONE_SUITABLE!r} abstention"
         )
 
     probabilities = result.probabilities
@@ -195,11 +232,11 @@ def validate_choice_result(
             "chooser returned no probability distribution"
         )
 
-    invented = sorted(set(probabilities) - candidate_ids)
+    invented = sorted(set(probabilities) - allowed_ids)
     if invented:
         raise SelectionNotInShortlistError(
-            "chooser assigned probability to term(s) outside the shortlist: "
-            + ", ".join(invented)
+            "chooser assigned probability to term(s) outside the shortlist "
+            "and abstention: " + ", ".join(invented)
         )
 
     missing = sorted(candidate_ids - set(probabilities))
@@ -207,6 +244,12 @@ def validate_choice_result(
         raise InvalidProbabilityDistributionError(
             "chooser omitted a probability for shortlist term(s): "
             + ", ".join(missing)
+        )
+
+    if result.selected_ontology_id not in probabilities:
+        raise InvalidProbabilityDistributionError(
+            f"chooser selected {result.selected_ontology_id!r} but assigned "
+            "it no probability"
         )
 
     for ontology_id, probability in probabilities.items():
@@ -243,8 +286,9 @@ class Chooser(ABC):
     which owns the two invariants no chooser may bypass:
 
     * an empty shortlist yields the explicit no-proposal outcome ``None``;
-    * the returned selection must be one of the candidates, and its
-      distribution must cover exactly them.
+    * the returned selection must be one of the candidates (or the
+      :data:`NONE_SUITABLE` abstention), and its distribution must cover
+      exactly them.
     """
 
     def choose(
