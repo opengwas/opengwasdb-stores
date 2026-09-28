@@ -217,6 +217,19 @@ class ChooserPin:
     context: str
     fixture: Path | None = None
 
+    def resolved_version(self) -> str:
+        """The version a result is attributed to.
+
+        A Jev chooser's version *is* its model id, so an empty pinned version
+        falls back to the pinned model. This is the single source ``choose``
+        and ``reduce`` both use, so their fingerprints cannot drift apart.
+        """
+        if self.version:
+            return self.version
+        if self.chooser_id == "jev":
+            return self.model or DEFAULT_JEV_MODEL
+        return self.version
+
     def to_dict(self) -> dict[str, object]:
         return {
             "id": self.chooser_id,
@@ -536,6 +549,12 @@ def init_round(
         )
 
     index = load_index(resolved_index)
+    if chooser_id == "jev" and not chooser_model:
+        chooser_model = DEFAULT_JEV_MODEL
+    if chooser_id == "jev" and chooser_version in ("", "1"):
+        # Jev's version is its model id; the stub default of "1" would make
+        # choose and reduce compute different fingerprints.
+        chooser_version = chooser_model
     ontology_pin = _embedding_pin(_resolve_path(ontology_embeddings)) if ontology_embeddings else None
     trait_pin = _embedding_pin(_resolve_path(trait_embeddings)) if trait_embeddings else None
     _validate_embedding_pins(index.ontology_release, ontology_pin, trait_pin)
@@ -910,14 +929,18 @@ def _read_result(path: Path) -> Mapping[str, Any] | None:
 
 
 def _chooser_identity(chooser: Chooser | None, config: RoundConfig) -> tuple[str, str, str, str]:
-    """The (id, version, model, context) a result is attributed to."""
+    """The (id, version, model, context) a result is attributed to.
+
+    Both ``choose`` (with a live chooser) and ``reduce`` (with only the pin)
+    build their request fingerprints through here, so the two always agree.
+    """
     if chooser is None:
         pin = config.chooser
-        return pin.chooser_id, pin.version, pin.model, pin.context
+        return pin.chooser_id, pin.resolved_version(), pin.model, pin.context
     chooser_id = str(getattr(chooser, "chooser_id", config.chooser.chooser_id))
-    chooser_version = str(
-        getattr(chooser, "chooser_version", config.chooser.version)
-    )
+    chooser_version = str(getattr(chooser, "chooser_version", ""))
+    if not chooser_version:
+        chooser_version = config.chooser.resolved_version()
     return (
         chooser_id,
         chooser_version,
@@ -1785,12 +1808,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _main_init(args: argparse.Namespace) -> int:
-    chooser_version = args.chooser_version
-    if chooser_version is None:
-        chooser_version = "1" if args.chooser == "stub" else (args.chooser_model or "")
     chooser_model = args.chooser_model or ""
     if args.chooser == "jev" and not chooser_model:
         chooser_model = DEFAULT_JEV_MODEL
+    chooser_version = args.chooser_version
+    if chooser_version is None:
+        # Jev's version is its model id; pinning the model pins the version.
+        chooser_version = "1" if args.chooser == "stub" else chooser_model
     try:
         round_dir = _resolve_cli_round_dir(args)
         config = init_round(

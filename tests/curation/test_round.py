@@ -28,6 +28,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from curation import choice, coverage, promotion, round as round_mod
 from curation.chooser import NONE_SUITABLE, ChoiceResult, Chooser
+from curation.jev_chooser import DEFAULT_JEV_MODEL, HttpJevClient, JevChooser
 from curation.ontology import build_index_from_obo, write_index
 from curation.promotion import MAPPING_COLUMNS
 
@@ -739,6 +740,81 @@ class RunnerTest(RoundTestCase):
         # The mapping table was not touched by an incomplete round.
         _, rows = parse_tsv(self.mapping_path.read_text(encoding="utf-8"))
         self.assertEqual(rows, [])
+
+
+class _FakeJevResponse:
+    def __init__(self, data: dict, status_code: int = 200) -> None:
+        self._data = data
+        self.status_code = status_code
+        self.headers: dict[str, str] = {}
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            raise RuntimeError(f"HTTP status {self.status_code}")
+
+    def json(self) -> dict:
+        return self._data
+
+
+class _FakeJevHttpClient:
+    def __init__(self, responses: list) -> None:
+        self._responses = list(responses)
+
+    def post(self, url: str, json: dict, headers: dict):
+        item = self._responses.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    def close(self) -> None:
+        pass
+
+
+class RealJevIdentityTest(RoundTestCase):
+    """init -> choose -> reduce with a real Jev chooser and no --chooser-model."""
+
+    def test_choose_and_reduce_agree_without_chooser_model(self) -> None:
+        queue = self.queue_tsv([BMI_LABEL])
+        # chooser_version defaults to the stub's "1"; init_round must derive a
+        # Jev version from the model so choose and reduce fingerprints agree.
+        config = self.init_round(queue_tsv=queue, chooser_id="jev")
+        self.assertEqual(config.chooser.model, DEFAULT_JEV_MODEL)
+        self.assertEqual(config.chooser.version, DEFAULT_JEV_MODEL)
+        self.assertEqual(config.chooser.resolved_version(), DEFAULT_JEV_MODEL)
+
+        round_mod.run_gap_scan(self.round_dir)
+        self.write_shortlists([shortlist_row(BMI_LABEL, BMI_ID, "body mass index")])
+
+        response = {
+            "model": DEFAULT_JEV_MODEL,
+            "answers": {
+                "term": {
+                    "type": "choice",
+                    "choice": BMI_ID,
+                    "confidence": 0.9,
+                    "probabilities": {BMI_ID: 0.9, NONE_SUITABLE: 0.1},
+                }
+            },
+            "usage": {"input_tokens": 100, "output_tokens": 5},
+        }
+        fake = _FakeJevHttpClient([_FakeJevResponse(response)])
+        client = HttpJevClient(
+            endpoint="https://example.invalid/v1/systemone",
+            model=DEFAULT_JEV_MODEL,
+            api_key="test-key",
+            client_factory=lambda: fake,
+            sleep=lambda _seconds: None,
+        )
+        chooser = JevChooser(
+            client, chooser_id="jev", chooser_version=DEFAULT_JEV_MODEL
+        )
+        chosen = round_mod.run_choose(self.round_dir, chooser=chooser, workers=1)
+        self.assertEqual(chosen.chosen, 1)
+
+        reduced = round_mod.run_reduce(self.round_dir)
+        self.assertTrue(reduced.complete)
+        self.assertEqual(reduced.reconciliation.proposed, 1)
+        self.assertEqual(reduced.reconciliation.pending, 0)
 
 
 # ---------------------------------------------------------------------------
