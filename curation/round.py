@@ -2121,7 +2121,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("OPENGWASDB_EMBEDDING_SERVED_MODEL"),
         metavar="NAME",
     )
-    embed_traits_parser.add_argument("--batch-size", type=int, default=128)
+    embed_traits_parser.add_argument("--batch-size", type=int, default=DEFAULT_EMBEDDING_BATCH_SIZE)
     embed_traits_parser.add_argument("--chunk-size", type=int, default=1000)
     embed_traits_parser.add_argument("--max-retries", type=int, default=5)
     embed_traits_parser.set_defaults(handler=_main_embed_traits)
