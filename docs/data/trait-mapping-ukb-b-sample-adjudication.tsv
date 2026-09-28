@@ -1,0 +1,61 @@
+trait_label	selected_id	selected_label	confidence	verdict	note
+mouth/teeth dental problems: bleeding gums	HP:0000225	Gingival bleeding	0.94	matches the label	
+diagnoses - main icd10: n20.0 calculus of kidney	MONDO:0008171	nephrolithiasis	0.97	matches the label	
+non-cancer illness code, self-reported: fracture wrist / colles fracture	EFO:0009515	wrist fracture	0.86	matches the label	
+diagnoses - main icd10: k80.5 calculus of bile duct without cholangitis or cholecystitis	MONDO:0006699	choledocholithiasis	0.96	matches the label	
+diagnoses - main icd10: o80.0 spontaneous vertex delivery	EFO:0009638	spontaneous labor and birth	0.93	matches the label	
+operative procedures - main opcs: n30.3 circumcision	EFO:0003953	circumcision	0.99	matches the label	
+operation code: appendicectomy	EFO:0600086	appendectomy	0.99	matches the label	
+illnesses of mother: heart disease	EFO:0900005	family history of heart disease	0.85	matches the label	
+average total household income before tax	EFO:0009695	household income	0.94	matches the label	
+tea intake	EFO:0010091	tea consumption measurement	1.0	matches the label	
+qualifications: o levels/gcses or equivalent	EFO:0011015	educational attainment	0.89	broader than the label	a specific qualification mapped to educational attainment
+snoring	HP:0025267	Snoring	0.92	matches the label	
+illnesses of mother: lung cancer	EFO:0006953	family history of lung cancer	0.91	matches the label	
+illnesses of siblings: diabetes	EFO:0900004	family history of diabetes	0.94	matches the label	
+sleep duration	OBA:2040171	sleep duration trait	0.99	matches the label	
+bring up phlegm/sputum/mucus on most days	EFO:0009824	bringing up phlegm, sputum or mucus on most days, self-reported	1.0	matches the label	
+illness, injury, bereavement, stress in last 2 years: financial difficulties	EFO:0007781	stressful life event measurement	0.91	broader than the label	a specific stressor mapped to stressful life events
+retinol	OBA:1000995	retinol level	0.91	matches the label	
+chest pain or discomfort	HP:0100749	Chest pain	0.93	matches the label	
+illnesses of mother: breast cancer	EFO:0005606	family history of breast cancer	0.85	matches the label	
+operative procedures - main opcs: b27.4 total mastectomy nec	EFO:0020987	mastectomy	0.94	matches the label	
+current employment status: unemployed	EFO:0005241	employment status	0.96	broader than the label	one status mapped to employment status
+operation code: coronary angioplasty (ptca) +/- stent	EFO:0003951	percutaneous transluminal coronary angioplasty	0.97	matches the label	
+illnesses of father: prostate cancer	EFO:0600083	family history of prostate cancer	0.92	matches the label	
+risk taking	EFO:0008579	risk-taking behaviour	1.0	matches the label	
+wheeze or whistling in the chest in last year	HP:0030828	Wheezing	0.95	matches the label	
+age at death	EFO:0005056	age at death	1.0	matches the label	
+age started hormone-replacement therapy (hrt)	EFO:0021780	age at initiation of hormone replacement therapy	1.0	matches the label	
+waist circumference	OBA:1001085	waist circumference	0.99	matches the label	
+vitamin b12	EFO:0004620	vitamin B12 measurement	0.98	matches the label	
+diagnoses - main icd10: r42 dizziness and giddiness	EFO:0009847	dizziness	0.99	matches the label	
+nap during day	EFO:0009818	nap during day, self-reported	0.99	matches the label	
+diagnoses - secondary icd10: e78.0 pure hypercholesterolaemia	HP:0003124	Hypercholesterolemia	0.89	matches the label	
+operative procedures - main opcs: r18.2 lower uterine segment caesarean delivery nec	EFO:0009636	cesarean section	0.96	matches the label	
+particulate matter air pollution (pm10); 2010	EFO:0008255	particulate matter air pollution measurement	0.95	matches the label	
+eye problems/disorders: cataract	HP:0000518	Cataract	0.95	matches the label	
+illnesses of father: high blood pressure	EFO:0900006	family history of high blood pressure	0.86	matches the label	
+diagnoses - main icd10: n32.0 bladder-neck obstruction	MONDO:0006679	bladder neck obstruction	0.91	matches the label	
+systolic blood pressure, manual reading	EFO:0006335	systolic blood pressure	0.98	matches the label	
+diagnoses - secondary icd10: r10.1 pain localised to upper abdomen	HP:0002027	Abdominal pain	0.87	broader than the label	upper abdominal pain mapped to abdominal pain
+qualifications: nvq or hnd or hnc or equivalent	EFO:0011015	educational attainment	0.85	broader than the label	a specific qualification mapped to educational attainment
+illnesses of father: alzheimer's disease/dementia	EFO:0009268	family history of Alzheimer’s disease	0.91	matches the label	
+non-cancer illness code, self-reported: allergy or anaphylactic reaction to drug	MONDO:0000775	drug allergy	0.9	matches the label	
+fractured bone site(s): arm	EFO:0009514	upper extremity fracture	0.96	matches the label	
+diagnoses - main icd10: k44.9 diaphragmatic hernia without obstruction or gangrene	EFO:0008561	diaphragmatic hernia	0.95	matches the label	
+heel bone mineral density (bmd)	EFO:0009270	heel bone mineral density	0.98	matches the label	
+body mass index (bmi)	EFO:0004340	body mass index	1.0	matches the label	
+illnesses of siblings: high blood pressure	EFO:0900006	family history of high blood pressure	0.91	matches the label	
+diagnoses - main icd10: k62.1 rectal polyp	MONDO:0021398	polyp of rectum	0.9495	matches the label	
+diagnoses - main icd10: r04.0 epistaxis	EFO:0003895	epistaxis	1.0	matches the label	
+doctor diagnosed hayfever or allergic rhinitis	MONDO:0011786	allergic rhinitis	0.95	matches the label	
+diagnoses - main icd10: s52.50 fracture of lower end of radius (closed)	MONDO:0005325	radius fracture	0.95	matches the label	
+vitamin and/or mineral supplement use: vitamin c	EFO:0009116	vitamin supplement exposure measurement	0.87	broader than the label	vitamin C supplement mapped to vitamin supplement exposure
+non-cancer illness code, self-reported: deep venous thrombosis (dvt)	EFO:0003907	deep vein thrombosis	0.94	matches the label	
+pack years of smoking	EFO:0006526	pack-years measurement	1.0	matches the label	
+fed-up feelings	EFO:0009588	"feeling \""fed-up\"" measurement"	0.98	matches the label	
+birth weight of first child	EFO:0004344	birth weight	0.94	broader than the label	respondent's child's birth weight; EFO has no offspring birth weight term
+age started smoking in former smokers	EFO:0021784	age at initiation of smoking	0.91	matches the label	
+diagnoses - main icd10: s09.9 unspecified injury of head	EFO:0009505	head injury	0.97	matches the label	
+non-cancer illness code, self-reported: ankylosing spondylitis	MONDO:0005306	ankylosing spondylitis	0.87	matches the label	
