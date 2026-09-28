@@ -1,0 +1,394 @@
+#!/usr/bin/env python3
+"""Chooser interface for the Canonical Trait Mapping Table (issue #167).
+
+This is stage 3 of the curation pipeline (issue #161). Candidate generation
+(:mod:`curation.candidates`) turns a queued Trait label into a shortlist of
+plausible ontology terms. The *choice* stage takes that shortlist and asks a
+:class:`Chooser` which term, if any, should be proposed for the label.
+
+The interface is deliberately narrow. A chooser is a function from
+``(trait_label, candidates)`` to a :class:`ChoiceResult` -- a single selected
+ontology id plus a probability distribution over the shortlist -- or to the
+explicit no-proposal outcome. It is not allowed to reach outside the shortlist:
+
+* :meth:`Chooser.choose` returns ``None`` when the shortlist is empty, rather
+  than letting a chooser pick from nothing.
+* :func:`validate_choice_result` (called by :meth:`Chooser.choose`) raises
+  :class:`SelectionNotInShortlistError` when the selected id is not one of the
+  candidates (or the :data:`NONE_SUITABLE` abstention). This is structural, not
+  advisory: a chooser cannot invent a term that candidate generation did not
+  retrieve, because the shortlist is the ceiling on what the whole pipeline can
+  ever map.
+
+The one value a chooser may select that is not a shortlisted candidate is the
+:data:`NONE_SUITABLE` abstention. It means "none of the retrieved candidates
+denotes this trait" and is carried through to a proposals row rather than
+silently dropped.
+
+Subclasses implement :meth:`Chooser.select`; callers call
+:meth:`Chooser.choose`, which wraps it with the empty-shortlist and shortlist
+membership rules so no chooser can skip them. The stub chooser
+(:mod:`curation.stub_chooser`) replays a recorded fixture for hermetic,
+network-free tests of the entire choice stage.
+"""
+
+from __future__ import annotations
+
+import math
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, replace
+from typing import Any, Mapping, Sequence
+
+# The probability distribution is required to sum to 1 within this tolerance.
+# The tolerance absorbs the rounding a real chooser's float arithmetic leaves
+# behind without admitting a distribution that is meaningfully un-normalised.
+PROBABILITY_TOLERANCE: float = 1e-6
+
+# A real hosted chooser (Jev) returns probabilities rounded to two decimal
+# places, so a wide distribution can sum to 0.99 or 1.01 even though every
+# option is individually valid. The accepted slack therefore grows with the
+# number of options: an N-option distribution may be off by up to half a
+# hundredth per option. The slack is capped: without a ceiling a large
+# distribution (Jev allows 255 options) would accept almost any sum, including
+# a zero one. A distribution outside the band is rejected, and an accepted one
+# is renormalised before anything downstream consumes it.
+PROBABILITY_ROUNDING_PER_OPTION: float = 0.005
+
+# The largest absolute rounding slack any distribution may get. Two decimal
+# places over 255 options cannot plausibly be off by more than this.
+MAX_PROBABILITY_TOLERANCE: float = 0.05
+
+
+def probability_tolerance(n_options: int) -> float:
+    """The rounding slack allowed for an ``n_options``-option distribution."""
+    return min(
+        max(PROBABILITY_TOLERANCE, PROBABILITY_ROUNDING_PER_OPTION * n_options),
+        MAX_PROBABILITY_TOLERANCE,
+    )
+
+# The abstention option every chooser may select when no candidate denotes the
+# trait. It is deliberately *not* an ontology id: it is a sentinel that lives
+# alongside the shortlist in a chooser's distribution. A chooser may select it,
+# and its probability may appear in the distribution, but it is never one of
+# the shortlisted candidates and never becomes a Trait Ontology Mapping.
+NONE_SUITABLE: str = "none_suitable"
+
+# The shortlist columns a Candidate is built from. They are the columns
+# emitted by curation.candidates.SHORTLIST_COLUMNS, minus the per-row
+# trait_label (the chooser receives it separately) and shortlist_rank (the
+# list order carries the rank).
+CANDIDATE_COLUMNS: tuple[str, ...] = (
+    "ontology_release",
+    "ontology_id",
+    "ontology_label",
+    "definition",
+    "parent_id",
+    "parent_label",
+    "channels",
+    "channel_ranks",
+    "is_obsolete",
+)
+
+
+class ChoiceError(ValueError):
+    """Base error for a chooser or choice-stage request that cannot be served."""
+
+
+class SelectionNotInShortlistError(ChoiceError):
+    """Raised when a chooser selects an ontology id not in its shortlist.
+
+    This is the hard structural rule of the choice stage: the shortlist is the
+    only vocabulary a chooser may propose from. A chooser that returns any
+    other id has invented a term, and the pipeline fails loudly rather than
+    letting the fabrication reach a proposal.
+    """
+
+
+class InvalidProbabilityDistributionError(ChoiceError):
+    """Raised when a chooser's probability distribution is malformed.
+
+    A distribution must cover exactly the shortlist, assign a non-negative
+    probability to every candidate, and sum to 1 within
+    :data:`PROBABILITY_TOLERANCE`.
+    """
+
+
+class InconsistentChoiceError(ChoiceError):
+    """Raised when a selection contradicts the chooser's own distribution.
+
+    The selected term must carry the (possibly tied) maximum probability; a
+    chooser that selects a low-probability term while claiming a distribution
+    has produced an incoherent result.
+    """
+
+
+@dataclass(frozen=True)
+class Candidate:
+    """One ontology term in a trait label's shortlist, as a chooser sees it.
+
+    The fields mirror the shortlist schema emitted by :mod:`curation.candidates`
+    (issue #164) minus ``trait_label`` and ``shortlist_rank``: the chooser is
+    handed the label and an ordered candidate list, so neither is repeated on
+    every row. ``channel_ranks`` is the ordered tuple of ``(channel, rank)``
+    pairs that retrieved the term; it is carried so a chooser can weigh the
+    lexical evidence behind each candidate.
+    """
+
+    ontology_id: str
+    ontology_label: str
+    definition: str
+    parent_id: str
+    parent_label: str
+    channels: tuple[str, ...]
+    channel_ranks: tuple[tuple[str, int], ...]
+    is_obsolete: bool
+    ontology_release: str
+
+    @classmethod
+    def from_row(cls, row: Mapping[str, str]) -> "Candidate":
+        """Build a candidate from one shortlist TSV row dictionary."""
+        return cls(
+            ontology_id=(row.get("ontology_id") or "").strip(),
+            ontology_label=row.get("ontology_label") or "",
+            definition=row.get("definition") or "",
+            parent_id=row.get("parent_id") or "",
+            parent_label=row.get("parent_label") or "",
+            channels=_parse_channels(row.get("channels") or ""),
+            channel_ranks=_parse_channel_ranks(row.get("channel_ranks") or ""),
+            is_obsolete=_parse_bool(row.get("is_obsolete") or ""),
+            ontology_release=(row.get("ontology_release") or "").strip(),
+        )
+
+
+def _parse_channels(value: str) -> tuple[str, ...]:
+    """Parse the shortlist's comma-separated ``channels`` field."""
+    return tuple(part.strip() for part in value.split(",") if part.strip())
+
+
+def _parse_channel_ranks(value: str) -> tuple[tuple[str, int], ...]:
+    """Parse the shortlist's ``channel=rank,channel=rank`` attribution field."""
+    ranks: list[tuple[str, int]] = []
+    for part in value.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        channel, _, raw_rank = part.partition("=")
+        try:
+            rank = int(raw_rank)
+        except ValueError:
+            # A malformed rank is a corrupt shortlist, not a chooser concern;
+            # keep the channel but do not fabricate a rank for it.
+            continue
+        ranks.append((channel.strip(), rank))
+    return tuple(ranks)
+
+
+def _parse_bool(value: str) -> bool:
+    """Parse the shortlist's ``true``/``false`` boolean field."""
+    return value.strip().lower() in {"true", "1", "yes"}
+
+
+@dataclass(frozen=True)
+class ChoiceResult:
+    """A chooser's proposal for one trait label.
+
+    ``selected_ontology_id`` must be present in the shortlist the chooser was
+    given, or be the :data:`NONE_SUITABLE` abstention. ``probabilities`` maps
+    every candidate ontology id to a probability and sums to 1 within
+    :data:`PROBABILITY_TOLERANCE`; it may additionally carry a probability for
+    :data:`NONE_SUITABLE`.
+
+    The trailing fields are optional provenance a downstream persistence stage
+    may record: the answering model's version and own confidence, the request's
+    input-token usage and derived cost, the parsed response document, and a
+    deterministic request fingerprint.
+    """
+
+    selected_ontology_id: str
+    probabilities: dict[str, float]
+    chooser_id: str
+    chooser_version: str
+    #: The answering model's own version, when the chooser reports one (Jev's
+    #: response ``model``). Empty for choosers that have no model version.
+    model_version: str = ""
+    #: The model's own confidence in its selection, distinct from the selected
+    #: option's probability under ``probabilities``.
+    model_confidence: float | None = None
+    #: Input tokens the request consumed, when the chooser reports usage.
+    input_tokens: int | None = None
+    #: The cost of the request in USD, when the chooser reports or derives it.
+    cost_usd: float | None = None
+    #: The parsed response document, for durable provenance.
+    raw_response: Mapping[str, Any] | None = None
+    #: A deterministic digest of the request body (including the model id and
+    #: excluding the API key), so a later stage can skip an identical request.
+    request_fingerprint: str = ""
+
+
+def validate_choice_result(
+    result: ChoiceResult,
+    candidates: Sequence[Candidate],
+) -> None:
+    """Enforce the choice-stage invariants on one result.
+
+    Raises :class:`SelectionNotInShortlistError` when the selection (or any
+    probability key) is not a candidate, and
+    :class:`InvalidProbabilityDistributionError` when the distribution does not
+    cover exactly the shortlist, contains a negative probability, or does not
+    sum to 1.
+    """
+    candidate_ids = {candidate.ontology_id for candidate in candidates}
+    allowed_ids = candidate_ids | {NONE_SUITABLE}
+
+    if result.selected_ontology_id not in allowed_ids:
+        raise SelectionNotInShortlistError(
+            f"chooser {result.chooser_id!r} selected "
+            f"{result.selected_ontology_id!r}, which is not one of the "
+            f"{len(candidate_ids)} shortlisted candidate(s) or the "
+            f"{NONE_SUITABLE!r} abstention"
+        )
+
+    probabilities = result.probabilities
+    if not probabilities:
+        raise InvalidProbabilityDistributionError(
+            "chooser returned no probability distribution"
+        )
+
+    invented = sorted(set(probabilities) - allowed_ids)
+    if invented:
+        raise SelectionNotInShortlistError(
+            "chooser assigned probability to term(s) outside the shortlist "
+            "and abstention: " + ", ".join(invented)
+        )
+
+    missing = sorted(candidate_ids - set(probabilities))
+    if missing:
+        raise InvalidProbabilityDistributionError(
+            "chooser omitted a probability for shortlist term(s): "
+            + ", ".join(missing)
+        )
+
+    if result.selected_ontology_id not in probabilities:
+        raise InvalidProbabilityDistributionError(
+            f"chooser selected {result.selected_ontology_id!r} but assigned "
+            "it no probability"
+        )
+
+    for ontology_id, probability in probabilities.items():
+        if isinstance(probability, bool) or not isinstance(probability, (int, float)):
+            raise InvalidProbabilityDistributionError(
+                f"probability for {ontology_id!r} is not a number: {probability!r}"
+            )
+        if not math.isfinite(probability) or probability < 0.0:
+            raise InvalidProbabilityDistributionError(
+                f"probability for {ontology_id!r} must be finite and "
+                f"non-negative, got {probability!r}"
+            )
+
+    total = math.fsum(probabilities.values())
+    tolerance = probability_tolerance(len(probabilities))
+    if total <= 0.0:
+        # A zero (or negative) sum is never a distribution, however wide the
+        # rounding slack is; reject it explicitly rather than letting a large
+        # tolerance accept it as "close to 1.0".
+        raise InvalidProbabilityDistributionError(
+            f"probabilities sum to {total!r}; a zero or non-positive sum is "
+            "not a distribution"
+        )
+    if not math.isclose(total, 1.0, abs_tol=tolerance):
+        raise InvalidProbabilityDistributionError(
+            f"probabilities sum to {total!r}, not 1.0 "
+            f"(tolerance {tolerance})"
+        )
+
+    selected_probability = probabilities[result.selected_ontology_id]
+    best_probability = max(probabilities.values())
+    if selected_probability < best_probability - tolerance:
+        raise InconsistentChoiceError(
+            f"chooser selected {result.selected_ontology_id!r} with probability "
+            f"{selected_probability!r} but {best_probability!r} is the maximum"
+        )
+
+
+def normalise_choice_result(
+    result: ChoiceResult,
+    candidates: Sequence[Candidate],
+) -> ChoiceResult:
+    """Return ``result`` with probabilities rescaled to sum to exactly 1.
+
+    A chooser's rounded distribution is accepted by
+    :func:`validate_choice_result` with a per-option slack, so every consumer
+    downstream -- the promotion gate, the proposal confidence, and the margins
+    -- must see a distribution normalised against the same total. The untouched
+    response remains in ``raw_response``.
+    """
+    probabilities = result.probabilities
+    if not probabilities:
+        return result
+    total = math.fsum(probabilities.values())
+    if total <= 0.0 or math.isclose(total, 1.0, abs_tol=PROBABILITY_TOLERANCE):
+        return result
+    scaled = {key: value / total for key, value in probabilities.items()}
+    return replace(result, probabilities=scaled)
+
+
+class Chooser(ABC):
+    """Abstract choice stage: shortlist in, one proposal (or none) out.
+
+    Subclasses implement :meth:`select`. Callers always call :meth:`choose`,
+    which owns the two invariants no chooser may bypass:
+
+    * an empty shortlist yields the explicit no-proposal outcome ``None``;
+    * the returned selection must be one of the candidates (or the
+      :data:`NONE_SUITABLE` abstention), and its distribution must cover
+      exactly them.
+    """
+
+    def choose(
+        self,
+        trait_label: str,
+        candidates: list[Candidate],
+    ) -> ChoiceResult | None:
+        """Choose one candidate for ``trait_label``, or ``None`` for no proposal.
+
+        An empty shortlist has nothing to choose from, so it returns ``None``
+        rather than an arbitrary or invented selection.
+        """
+        if not candidates:
+            return None
+        result = self.select(trait_label, candidates)
+        try:
+            validate_choice_result(result, candidates)
+        except ChoiceError as exc:
+            # A failure that happens after a paid response still carries that
+            # response so the round can persist a diagnosable error file.
+            if result.raw_response is not None and not hasattr(exc, "raw_response"):
+                exc.raw_response = result.raw_response
+            raise
+        return normalise_choice_result(result, candidates)
+
+    @abstractmethod
+    def select(
+        self,
+        trait_label: str,
+        candidates: list[Candidate],
+    ) -> ChoiceResult:
+        """Return the chooser's result for a non-empty shortlist.
+
+        Implementations must not be called directly: :meth:`choose` enforces
+        the empty-shortlist and shortlist-membership rules around them.
+        """
+        raise NotImplementedError
+
+    def estimate_cost_usd(
+        self,
+        trait_label: str,
+        candidates: Sequence[Candidate],
+    ) -> float | None:
+        """A conservative cost estimate for one request, or ``None``.
+
+        The round uses this to reserve budget for in-flight requests so a
+        concurrent batch cannot collectively overshoot ``--max-cost-usd``. A
+        chooser that cannot estimate its own cost returns ``None``.
+        """
+        return None

@@ -3,7 +3,11 @@ suppressPackageStartupMessages(library(data.table))
 source("resources/generators/lib/metadata_resolvers/ontology_contract.R")
 source("resources/generators/lib/metadata_resolvers/canonical_trait_table.R")
 
-check <- function(x, message) if (!isTRUE(x)) stop(message, call. = FALSE)
+n_checks <- 0L
+check <- function(x, message) {
+  n_checks <<- n_checks + 1L
+  if (!isTRUE(x)) stop(message, call. = FALSE)
+}
 
 # obo_uri_to_curie(): real shapes observed in gwas-ssf-ragged bundles.
 check(
@@ -38,25 +42,95 @@ check(
 )
 
 # Fabricated fixture table, not real curated data -- exercises the exact-
-# match lookup contract documented in
+# match lookup contract and the optional provenance columns documented in
 # resources/reference-resources/canonical-trait-mapping-efo/README.md.
 fixture_path <- tempfile(fileext = ".tsv")
 writeLines(c(
-  "trait_label\ttrait_ontology_id\ttrait_ontology_label",
-  "Fixture height\tEFO:9999001\tFixture height ontology label",
-  "  Fixture Height  \tEFO:9999002\tshould never be reached (first match wins)"
+  paste(
+    "trait_label", "trait_ontology_id", "trait_ontology_label",
+    "ontology_release", "chooser_id", "confidence", "runner_up_margin",
+    "review_status", "reviewer", "reviewed_at",
+    sep = "\t"
+  ),
+  paste(
+    "Fixture height", "EFO:9999001", "Fixture height ontology label",
+    "2024-01-01", "fixture-chooser", "0.97", "0.42", "human_reviewed",
+    "Fixture Reviewer", "2024-02-01",
+    sep = "\t"
+  ),
+  paste(
+    "  Fixture Height  ", "EFO:9999002",
+    "should never be reached (first match wins)",
+    "2024-01-01", "fixture-chooser", "0.90", "0.10", "auto_accepted", "", "",
+    sep = "\t"
+  ),
+  paste(
+    "Fixture hand curated", "EFO:9999003", "Fixture hand-curated ontology label",
+    "", "", "", "", "", "", "",
+    sep = "\t"
+  )
 ), fixture_path)
 canonical_table <- load_canonical_trait_table(fixture_path)
 
+# The resolver loads the provenance columns but reads only the three lookup
+# columns by name -- the added columns must not leak into its output.
+check(
+  all(c("ontology_release", "chooser_id", "confidence", "runner_up_margin",
+        "review_status", "reviewer", "reviewed_at") %in% names(canonical_table)),
+  "load_canonical_trait_table() keeps the provenance columns"
+)
+
+# A row with full provenance resolves as canonical_table_lookup with the
+# correct identifier and label.
 r <- resolve_trait_ontology_mapping(
   trait_label = "fixture height", source_ontology_id = NA_character_,
   source_ontology_label = NA_character_, canonical_table = canonical_table
 )
 check(
   r$resolution_status == "resolved" && r$trait_ontology_mapping_method == "canonical_table_lookup" &&
-    r$trait_ontology_id == "EFO:9999001",
+    r$trait_ontology_id == "EFO:9999001" &&
+    r$trait_ontology_label == "Fixture height ontology label",
   "canonical-table exact match, case/whitespace-insensitive, first match wins"
 )
+check(
+  identical(
+    names(r),
+    c("resolution_status", "trait_ontology_id", "trait_ontology_label",
+      "trait_ontology_mapping_method", "resolution_notes")
+  ),
+  "the resolver ignores the added provenance columns in its output shape"
+)
+
+# A hand-curated row with every provenance column empty still resolves.
+r <- resolve_trait_ontology_mapping(
+  trait_label = "fixture hand curated", source_ontology_id = NA_character_,
+  source_ontology_label = NA_character_, canonical_table = canonical_table
+)
+check(
+  r$resolution_status == "resolved" && r$trait_ontology_mapping_method == "canonical_table_lookup" &&
+    r$trait_ontology_id == "EFO:9999003" &&
+    r$trait_ontology_label == "Fixture hand-curated ontology label",
+  "a hand-curated row with empty provenance columns still resolves"
+)
+
+# A legacy table with no provenance columns at all (the pre-widening shape)
+# still loads and resolves -- missing columns are as acceptable as empty ones.
+legacy_path <- tempfile(fileext = ".tsv")
+writeLines(c(
+  "trait_label\ttrait_ontology_id\ttrait_ontology_label",
+  "Fixture legacy\tEFO:9999004\tFixture legacy ontology label"
+), legacy_path)
+legacy_table <- load_canonical_trait_table(legacy_path)
+r <- resolve_trait_ontology_mapping(
+  trait_label = "fixture legacy", source_ontology_id = NA_character_,
+  source_ontology_label = NA_character_, canonical_table = legacy_table
+)
+check(
+  r$trait_ontology_mapping_method == "canonical_table_lookup" &&
+    r$trait_ontology_id == "EFO:9999004",
+  "a table with missing provenance columns still resolves"
+)
+unlink(legacy_path)
 
 r <- resolve_trait_ontology_mapping(
   trait_label = "Fixture nonexistent trait", source_ontology_id = NA_character_,
@@ -91,4 +165,4 @@ check(
   "vectorised wrapper resolves each row independently"
 )
 
-cat("ALL 10 CHECKS PASSED\n")
+cat(sprintf("ALL %d CHECKS PASSED\n", n_checks))
