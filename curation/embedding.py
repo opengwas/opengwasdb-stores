@@ -1283,6 +1283,11 @@ class SemanticRetriever:
                     f"of shape {vector.shape}, but the store expects dimension "
                     f"{self._store.dimension}"
                 )
+            # Store vectors are L2-normalised, so the dot product in
+            # ``nearest`` is only a cosine when the query is normalised too.
+            norm = float(np.linalg.norm(vector))
+            if norm != 0.0:
+                vector = (vector / norm).astype(np.float32)
             return vector
         raise EmbeddingQueryUnavailable(
             f"no precomputed vector for {text!r} and no embedding endpoint is "

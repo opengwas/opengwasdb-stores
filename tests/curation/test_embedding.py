@@ -405,6 +405,26 @@ class TestCosineAndNeighbours(unittest.TestCase):
         with self.assertRaises(EmbeddingStoreError):
             nearest_neighbours((1.0, 0.0, 0.0), store)
 
+    def test_on_the_fly_query_is_l2_normalised_before_the_dot_product(self) -> None:
+        # The store row is unit length, so a raw dot product is only a cosine
+        # when the query is normalised too. An unnormalised (0.3, 0) query is
+        # a perfect cosine match for (1, 0) and must survive min_score.
+        store = EmbeddingStore(
+            model_id="m",
+            ontology_release="r",
+            ids=("EFO:1",),
+            vectors=np.array([[1.0, 0.0]], dtype=np.float32),
+            text_recipe="r",
+            text_recipe_version="1",
+        )
+        embedder = DictionaryEmbedder(model_id="m", vectors={"q": (0.3, 0.0)})
+        retriever = SemanticRetriever(
+            store=store, embedder=embedder, top_k=1, min_score=0.4
+        )
+        ranked = retriever.rank("q")
+        self.assertEqual([ontology_id for ontology_id, _ in ranked], ["EFO:1"])
+        self.assertAlmostEqual(ranked[0][1], 1.0)
+
 
 class TestHashingEmbedder(unittest.TestCase):
     """The offline stub is deterministic and normalised, and is not semantic."""
