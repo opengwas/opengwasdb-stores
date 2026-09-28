@@ -22,6 +22,7 @@ import io
 import json
 import sys
 import tempfile
+import importlib.util
 import unittest
 from pathlib import Path
 from typing import Mapping, Sequence
@@ -786,6 +787,9 @@ class TestHttpEmbedderRetries(unittest.TestCase):
         self.assertEqual(sleeps, [0.5, 1.0])
         self.assertEqual(len(vectors), 2)
 
+    @unittest.skipUnless(
+        importlib.util.find_spec("httpx"), "httpx ships in the curation environment"
+    )
     def test_transport_error_is_retried(self) -> None:
         server = FlakyServer(["transport", "ok"])
         sleeps: list[float] = []
