@@ -70,6 +70,9 @@ SHIPPED_PROVENANCE = REPO_ROOT / "resources/inventories/gwas-catalog-ssf-eur-hyb
 #: The snapshot 2026-09-22 supersedes. It stays in git so the rescue delta
 #: stays reviewable rather than being replaced in place (issue #151).
 SUPERSEDED_INVENTORY = REPO_ROOT / "resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-10.tsv"
+#: The acquisition mirror the shipped inventory's path columns point into. It
+#: exists only on the build host, never on a CI runner.
+SOURCE_MIRROR = Path("/data/opengwasdb/raw/ebi-gwas-catalog")
 
 SOURCE_CONTENT = {
     "ALPHA": "chromosome\tbase_pair_location\teffect_allele\n1\t100\tA\n",
@@ -1323,6 +1326,7 @@ class TestShippedReleaseArtifacts(unittest.TestCase):
         self.assertEqual(lost, [])
         self.assertEqual(len(gained), 213)
 
+    @unittest.skipUnless(SOURCE_MIRROR.is_dir(), "Source mirror not present on this host")
     def test_a_recorded_local_path_always_names_a_file_that_exists(self) -> None:
         """Every path column is a mirror fact, not an intention.
 
