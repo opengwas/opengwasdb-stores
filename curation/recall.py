@@ -51,9 +51,9 @@ CLI
     python3 -m curation.recall --validation <validation.tsv> \\
         (--index <index.json> | --shortlists <shortlist.tsv>) \\
         [--sizes 1,5,10,20] [--format text|markdown|tsv] [--output <report>] \\
-        [--enable-embedding --embedding-index <embedding.json>]
+        [--enable-embedding --ontology-embeddings <dir> --trait-embeddings <dir>]
 
-With ``--enable-embedding`` (or ``--embedding-index``) and ``--index``, the
+With ``--enable-embedding`` (or an embedding store) and ``--index``, the
 report also carries the semantic channel's delta over the lexical-only
 baseline, per stratum and shortlist size.
 """
@@ -72,6 +72,7 @@ from typing import Iterable, Mapping, Sequence
 
 from curation.candidates import generate_shortlist, normalise_label
 from curation.embedding import (
+    DEFAULT_EMBEDDING_BATCH_SIZE,
     DEFAULT_EMBEDDING_MIN_SCORE,
     DEFAULT_EMBEDDING_TOP_K,
     PINNED_EMBEDDING_MODEL_ID,
@@ -902,10 +903,25 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--ontology-embeddings",
+        default=None,
+        metavar="DIR",
+        help="ontology embedding store directory; supplying it also enables the delta",
+    )
+    parser.add_argument(
         "--embedding-index",
         default=None,
-        metavar="JSON",
-        help="semantic embedding index artifact; supplying it also enables the delta",
+        metavar="DIR",
+        help="deprecated alias for --ontology-embeddings",
+    )
+    parser.add_argument(
+        "--trait-embeddings",
+        default=None,
+        metavar="DIR",
+        help=(
+            "precomputed trait embedding store directory; lets the semantic "
+            "delta run with no network for the labels it covers"
+        ),
     )
     parser.add_argument(
         "--embedding-model",
@@ -945,6 +961,16 @@ def build_parser() -> argparse.ArgumentParser:
             f"(default: {DEFAULT_EMBEDDING_MIN_SCORE})"
         ),
     )
+    parser.add_argument(
+        "--embedding-batch-size",
+        type=int,
+        default=DEFAULT_EMBEDDING_BATCH_SIZE,
+        metavar="N",
+        help=(
+            "texts per hosted embedding request when a label is embedded on "
+            f"the fly (default: {DEFAULT_EMBEDDING_BATCH_SIZE})"
+        ),
+    )
     return parser
 
 
@@ -954,21 +980,32 @@ def _resolve_embedding(
 ) -> SemanticRetriever | None:
     """Resolve the semantic retriever for the delta, or ``None`` with a warning.
 
-    The delta is only requested when the channel is enabled and an index is
-    being scored. Any unavailability is reported and returns ``None`` so the
-    report degrades to the lexical-only baseline rather than failing.
+    The delta is only requested when the channel is enabled (by
+    ``--enable-embedding`` or an embedding store) and an index is being scored.
+    Any unavailability is reported and returns ``None`` so the report degrades
+    to the lexical-only baseline rather than failing.
     """
-    if not (getattr(args, "enable_embedding", False) or args.embedding_index):
+    ontology_path = getattr(args, "ontology_embeddings", None) or getattr(
+        args, "embedding_index", None
+    )
+    trait_path = getattr(args, "trait_embeddings", None)
+    if not (
+        getattr(args, "enable_embedding", False) or ontology_path or trait_path
+    ):
         return None
     try:
         return resolve_retriever(
-            args.embedding_index,
+            ontology_path,
             ontology_release,
             model_id=args.embedding_model,
             endpoint=args.embedding_endpoint,
             api_key=args.embedding_api_key,
             top_k=args.embedding_top_k,
             min_score=args.embedding_min_score,
+            trait_embeddings=trait_path,
+            batch_size=getattr(
+                args, "embedding_batch_size", DEFAULT_EMBEDDING_BATCH_SIZE
+            ),
         )
     except EmbeddingError as exc:
         print(
@@ -983,7 +1020,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     embedding_requested = bool(
-        getattr(args, "enable_embedding", False) or args.embedding_index
+        getattr(args, "enable_embedding", False)
+        or getattr(args, "ontology_embeddings", None)
+        or getattr(args, "embedding_index", None)
+        or getattr(args, "trait_embeddings", None)
     )
     if embedding_requested and not args.index:
         print(

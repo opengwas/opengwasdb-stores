@@ -1,77 +1,89 @@
 #!/usr/bin/env python3
-"""Semantic embedding channel for candidate generation (issue #166).
+"""Semantic embedding channel and the on-disk vector store (issues #166, #161).
 
 Lexical channels (:mod:`curation.candidates`) can only reach a Trait label that
 shares a string or a token with the correct ontology term. This module adds the
 *semantic* channel: it embeds each ontology term's label, synonyms, and
-definition into a nearest-neighbour index, embeds the queued label with the same
-model, and returns the terms whose vectors are closest.
+definition into a nearest-neighbour store, embeds (or looks up a precomputed)
+query vector for the queued label with the same model, and returns the terms
+whose vectors are closest.
 
 The channel is deliberately independent of the lexical channels and of the
 choice stage:
 
-* it is enabled per run (``--enable-embedding`` / ``--embedding-index``), never
-  by default, so the lexical pipeline is unchanged unless asked;
-* it degrades cleanly. A missing, stale, or mismatched index, or a model the
+* it is enabled per run (``--enable-embedding`` / ``--ontology-embeddings``),
+  never by default, so the lexical pipeline is unchanged unless asked;
+* it degrades cleanly. A missing, stale, or mismatched store, or a model the
   run cannot reach, is reported and the run continues lexical-only -- a failure
   in the semantic channel must never fail candidate generation;
-* the embedding model and the index build are pinned and recorded on the index
+* the embedding model and the store build are pinned and recorded on the store
   artifact and on every shortlist row, alongside the ontology release, so a
   later proposal can state exactly which vectors and which ontology release it
   was resolved against.
 
-Model and index
----------------
-The pinned model identifier is :data:`PINNED_EMBEDDING_MODEL_ID`. The index is
-a JSON document versioned by ``index_format_version`` so a stale artifact fails
-loudly rather than being read with the wrong shape::
+Vector store
+------------
+An embedding store is a *directory* rather than a JSON document, because the
+vectors have to be loaded into numpy and queried with a matrix multiply::
 
-    {
-      "index_format_version": 1,
-      "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
-      "ontology_release": "efo/v3.78.0",
-      "built_at": "2024-01-01T00:00:00Z",
-      "dimension": 384,
-      "index_build_id": "blake2b:...",
-      "terms": [
-        {"ontology_id": "EFO:0004340", "vector": [0.01, ...]}
-      ]
-    }
+    <dir>/
+      vectors.npy   float32 (count, dimension), each row L2-normalised
+      ids.tsv       one item id per row, in the same order as vectors.npy
+      meta.yaml     format_version, model_id, ontology_release, text_recipe,
+                    text_recipe_version, dimension, count, built_at, build_id
 
-``index_build_id`` is content-addressed: the same model, release, and vectors
-always produce the same id, and a changed vector changes it. That is what makes
-"the index build" pin-able on a shortlist row rather than just "an index".
+``build_id`` is content-addressed over the model, release, text recipe, ids and
+vector bytes, so the same inputs always produce the same id and a changed
+vector changes it. That is what makes "the store build" pin-able on a shortlist
+row rather than just "a store". The loader refuses a store whose declared
+count, dimension, or build id disagrees with its files, and
+:func:`resolve_retriever` refuses an ontology store and a trait store whose
+model, release, or dimension disagree -- vectors from two different models are
+not commensurable.
 
 Embedders
 ---------
-:class:`Embedder` is the narrow interface. Two implementations ship here:
+:class:`Embedder` is the narrow interface. Three implementations ship here:
 
-* :class:`HashingEmbedder` is a deterministic, stdlib-only, offline embedder.
-  It is what makes the whole channel testable and usable without a network, and
-  it is a genuine (if weak) semantic proxy, not a test double.
+* :class:`HttpEmbedder` calls a hosted HuggingFace
+  text-embeddings-inference server over its OpenAI-compatible
+  ``POST <base>/v1/embeddings`` endpoint. This is the production path, with
+  exponential-backoff retries on 429/5xx/transport errors.
 * :class:`DictionaryEmbedder` replays explicitly registered dense vectors
-  offline. It is how precomputed embeddings from any model are exercised
-  hermetically, with no network, no model execution, and no token-hashing
-  proxy.
-* :class:`HttpEmbedder` calls a hosted OpenAI-compatible ``/embeddings``
-  endpoint. ``httpx`` is imported lazily so the pure-stdlib path, and the test
-  suite, never require it; a response that names a different model is refused.
+  offline. It is how precomputed embeddings (from any model, including a
+  hosted one) are exercised hermetically, with no network and no model
+  execution.
+* :class:`HashingEmbedder` is a deterministic, stdlib-only, *offline stub* built
+  for tests and for exercising the plumbing without a network. It is a feature
+  hash over tokens, **not** a semantic model: it must never be described as one
+  or offered as the production embedding channel.
 
 CLI
 ---
-Rebuild the embedding index from a retrieval index (issue #164)::
+Embed the pinned ontology index into a resumable store::
 
-    python3 -m curation.embedding \\
-        --ontology-index .cache/curation/efo-v3.78.0.index.json \\
-        --output .cache/curation/efo-v3.78.0--local-hashing-v1.embedding.json \\
-        [--model MODEL] [--endpoint URL] [--api-key KEY]
+    python3 -m curation.embedding embed-ontology \\
+        --ontology-index .cache/curation/efo-v3.94.0.index.json \\
+        --output .cache/curation/efo-v3.94.0--BioLORD-2023.ontology-embeddings \\
+        --endpoint "$OPENGWASDB_EMBEDDING_ENDPOINT"
+
+Embed a work queue's trait labels with the same model as an ontology store::
+
+    python3 -m curation.embedding embed-traits \\
+        --work-queue .cache/curation/queue.tsv \\
+        --output .cache/curation/traits.ontology-embeddings \\
+        --model-of .cache/curation/efo-v3.94.0--BioLORD-2023.ontology-embeddings \\
+        --endpoint "$OPENGWASDB_EMBEDDING_ENDPOINT"
+
+Each run writes every finished chunk under ``<output>/chunks/`` before it
+assembles the store, so an interrupted run resumes and only requests the
+chunks it is missing.
 """
 
 from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 import math
 import os
 import re
@@ -80,13 +92,17 @@ import time
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-from typing import Mapping, Protocol, Sequence
+from typing import Callable, Mapping, Protocol, Sequence
+
+import numpy as np
+import yaml
 
 from curation.ontology import (
     IndexFormatError,
     OntologyIndex,
     OntologyTerm,
     load_index,
+    normalise_label,
 )
 
 # ---------------------------------------------------------------------------
@@ -94,71 +110,95 @@ from curation.ontology import (
 # ---------------------------------------------------------------------------
 
 # The embedding model candidate generation embeds queries and ontology terms
-# with. It is recorded on the index artifact and on every shortlist row. Bump
-# only when the vectors are rebuilt with a different model; an index built with
+# with. It is recorded on the store artifact and on every shortlist row. Bump
+# only when the vectors are rebuilt with a different model; a store built with
 # one model must never be queried with another.
-PINNED_EMBEDDING_MODEL_ID: str = "sentence-transformers/all-MiniLM-L6-v2"
+PINNED_EMBEDDING_MODEL_ID: str = "FremyCompany/BioLORD-2023"
 
-# The offline, deterministic embedder's model id. It is a real model (feature
-# hashing over tokens) rather than a fixture stand-in, so a run can build and
-# query a semantic index with no network at all.
+# The offline, deterministic stub embedder's model id. It exists so the
+# plumbing and tests can run with no network; it is a feature hash, not a
+# semantic model, and must not be used for a real curation run.
 HASHING_EMBEDDING_MODEL_ID: str = "local-hashing-v1"
 
 # The explicit-dictionary embedder's model id. It replays precomputed dense
-# vectors offline, so a run or a test can exercise genuine semantic retrieval
-# without a network, a model, or a token-hashing proxy.
+# vectors offline, so a run or a test can exercise genuine nearest-neighbour
+# retrieval without a network.
 DICTIONARY_EMBEDDING_MODEL_ID: str = "local-dictionary-v1"
 
-# The embedding index schema version. A reader refuses an artifact whose version
-# it does not know, so a rebuild is forced rather than a stale shape misread.
-EMBEDDING_INDEX_FORMAT_VERSION: int = 1
+# The store schema version. A reader refuses an artifact whose version it does
+# not know, so a rebuild is forced rather than a stale shape misread.
+EMBEDDING_STORE_FORMAT_VERSION: int = 2
 
 # Rebuildable embedding artifacts live outside the tracked tree, next to the
 # lexical index (see `.gitignore`).
 DEFAULT_EMBEDDING_INDEX_DIR: Path = Path(".cache") / "curation"
 
 # The channel returns at most this many nearest neighbours before the union's
-# own channel limit is applied. Bounded so a common query cannot make the
-# union unbounded.
+# own channel limit is applied.
 DEFAULT_EMBEDDING_TOP_K: int = 50
 
 # A neighbour is kept only when its cosine similarity is strictly greater than
-# this value. The default keeps any positive similarity and drops the noise a
-# cosine near zero carries; a caller can raise it to tighten precision.
+# this value.
 DEFAULT_EMBEDDING_MIN_SCORE: float = 0.0
 
-# Dimension of the offline hashing embedder's vectors.
+# Dimension of the offline hashing stub's vectors.
 DEFAULT_HASHING_DIMENSION: int = 256
 
-# A JSON float round-trips to fewer bits than a Python float. Vectors are
-# rounded here so the on-disk index and the in-memory index agree exactly and
-# the content-addressed build id is stable across a write/read cycle.
-_VECTOR_PRECISION: int = 9
+# Texts per ``POST /v1/embeddings`` request.
+DEFAULT_EMBEDDING_BATCH_SIZE: int = 128
+
+# Texts per resumable chunk file. A finished chunk is written before the next
+# one is requested, so a run resumes at chunk granularity.
+DEFAULT_EMBEDDING_CHUNK_SIZE: int = 1000
+
+# Retry policy for the hosted endpoint.
+DEFAULT_EMBEDDING_MAX_RETRIES: int = 5
+DEFAULT_EMBEDDING_BACKOFF_BASE: float = 0.5
+
+# The text recipes that pin *what* was embedded, independently of the model.
+ONTOLOGY_TEXT_RECIPE: str = "ontology-label-synonyms-definition"
+ONTOLOGY_TEXT_RECIPE_VERSION: str = "1"
+TRAIT_TEXT_RECIPE: str = "trait-label"
+TRAIT_TEXT_RECIPE_VERSION: str = "1"
+
+_META_FILENAME = "meta.yaml"
+_VECTORS_FILENAME = "vectors.npy"
+_IDS_FILENAME = "ids.tsv"
+_CHUNKS_DIRNAME = "chunks"
 
 
 class EmbeddingError(ValueError):
-    """Base error for an embedding index, model, or query that cannot be served."""
+    """Base error for an embedding store, model, or query that cannot be served."""
 
 
-class EmbeddingIndexError(EmbeddingError):
-    """Raised when an embedding index artifact is missing or malformed."""
+class EmbeddingStoreError(EmbeddingError):
+    """Raised when an embedding store directory is missing or malformed."""
 
 
-class EmbeddingIndexCorruptError(EmbeddingIndexError):
-    """Raised when an index artifact's metadata disagrees with its vectors.
+class EmbeddingStoreCorruptError(EmbeddingStoreError):
+    """Raised when a store's metadata disagrees with its vectors.
 
-    The declared ``dimension`` and ``index_build_id`` are a checksum over the
-    stored vectors. When either does not match what the vectors actually
-    compute to, the artifact was truncated, hand-edited, or built by a
-    different writer, and it must not be queried.
+    The declared ``count``, ``dimension``, and ``build_id`` are a checksum over
+    the stored bytes. When any disagrees with the files the artifact was
+    truncated, hand-edited, or built by a different writer, and must not be
+    queried.
     """
 
 
 class EmbeddingUnavailableError(EmbeddingError):
-    """Raised when no embedder can serve the index's pinned model.
+    """Raised when no embedder can serve the store's pinned model.
 
     This is the clean-degradation trigger: callers catch it and run
     lexical-only rather than failing candidate generation.
+    """
+
+
+class EmbeddingQueryUnavailable(EmbeddingError):
+    """Raised when one query has neither a precomputed vector nor an endpoint.
+
+    Unlike :class:`EmbeddingUnavailableError` this is a per-label condition: the
+    run continues, that label is lexical-only, and the channel counts it rather
+    than tripping its circuit breaker.
     """
 
 
@@ -181,14 +221,14 @@ class Embedder(Protocol):
 
 
 class HashingEmbedder:
-    """Deterministic, stdlib-only, offline embedder.
+    """Deterministic, stdlib-only, offline **stub** embedder.
 
-    Each token is hashed to a vector dimension with a stable cryptographic
-    hash (not Python's per-process ``hash``), signed, and the vector is
-    L2-normalised. It is a real feature-hashing model: related labels that share
-    tokens score higher, and an exact label scores a cosine of 1.0 against its
-    own indexed text. It exists so the semantic channel can be built, queried,
-    and tested with no network and no third-party dependency.
+    Each token is hashed to a vector dimension with a stable cryptographic hash
+    (not Python's per-process ``hash``), signed, and the vector is
+    L2-normalised. It exists so the embedding plumbing and its tests can run
+    with no network and no third-party model. It is a feature hash over tokens
+    and **not** a semantic model: use :class:`HttpEmbedder` with the pinned
+    model for a real run.
     """
 
     def __init__(
@@ -229,14 +269,12 @@ class HashingEmbedder:
 class DictionaryEmbedder:
     """Offline embedder backed by an explicit ``text -> vector`` dictionary.
 
-    Unlike :class:`HashingEmbedder`, which derives a vector from the query's
-    tokens, this embedder returns the dense vector registered for the exact
-    text. It is how precomputed embeddings -- from any model, including a
-    hosted one -- are replayed offline: register the texts a run will embed and
-    it performs genuine nearest-neighbour retrieval with no network, no model
-    execution, and no token-hashing constraint. A text that is not registered
-    maps to ``default`` (a zero vector unless one is supplied), so it retrieves
-    nothing rather than fabricating similarity.
+    It returns the dense vector registered for the exact text. It is how
+    precomputed embeddings -- from any model, including a hosted one -- are
+    replayed offline: register the texts a run will embed and it performs
+    genuine nearest-neighbour retrieval with no network and no model execution.
+    A text that is not registered maps to ``default`` (a zero vector unless one
+    is supplied), so it retrieves nothing rather than fabricating similarity.
     """
 
     def __init__(
@@ -297,13 +335,40 @@ class DictionaryEmbedder:
         return [self._vectors.get(text, self._default) for text in texts]
 
 
+def _status_code_of(exc: BaseException) -> int | None:
+    """Return an HTTP status code carried by ``exc``, if any."""
+    status = getattr(exc, "status_code", None)
+    if status is None:
+        response = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None)
+    if status is None:
+        return None
+    try:
+        return int(status)
+    except (TypeError, ValueError):
+        return None
+
+
+def _is_transport_error(exc: BaseException) -> bool:
+    """Whether ``exc`` looks like a transport/connection error worth retrying."""
+    try:
+        import httpx
+    except ImportError:  # pragma: no cover - httpx ships in the curation env
+        return False
+    return isinstance(exc, httpx.TransportError)
+
+
 class HttpEmbedder:
     """Hosted OpenAI-compatible ``/embeddings`` client.
 
-    ``httpx`` is imported lazily so importing this module (and running the test
-    suite) never requires it. Any transport or response error is wrapped as
+    Calls a HuggingFace text-embeddings-inference server over
+    ``POST <base>/v1/embeddings`` with ``{"model": ..., "input": [texts]}`` and
+    reads ``{"data": [{"index", "embedding"}]}``. Requests are batched and
+    retried with exponential backoff on HTTP 429, any 5xx, and transport
+    errors. ``httpx`` is imported lazily so importing this module never
+    requires it; any transport or response error is wrapped as
     :class:`EmbeddingUnavailableError`, which the callers turn into clean
-    degradation rather than a candidate-generation failure.
+    degradation.
     """
 
     def __init__(
@@ -312,13 +377,20 @@ class HttpEmbedder:
         model_id: str = PINNED_EMBEDDING_MODEL_ID,
         api_key: str | None = None,
         timeout: float = 30.0,
-        batch_size: int = 64,
+        batch_size: int = DEFAULT_EMBEDDING_BATCH_SIZE,
+        max_retries: int = DEFAULT_EMBEDDING_MAX_RETRIES,
+        backoff_base: float = DEFAULT_EMBEDDING_BACKOFF_BASE,
+        sleep: Callable[[float], None] | None = None,
         client_factory: object | None = None,
     ) -> None:
         if not endpoint:
             raise EmbeddingError("an embedding endpoint is required")
         if batch_size < 1:
             raise EmbeddingError(f"batch_size must be at least 1, got {batch_size}")
+        if max_retries < 0:
+            raise EmbeddingError(
+                f"max_retries must be non-negative, got {max_retries}"
+            )
         if client_factory is None:
             try:
                 import httpx
@@ -333,6 +405,9 @@ class HttpEmbedder:
         self._api_key = api_key
         self._batch_size = batch_size
         self._timeout = timeout
+        self._max_retries = max_retries
+        self._backoff_base = backoff_base
+        self._sleep = sleep or time.sleep
 
     @property
     def model_id(self) -> str:
@@ -355,45 +430,70 @@ class HttpEmbedder:
         vectors: list[tuple[float, ...]] = []
         for start in range(0, len(texts), self._batch_size):
             batch = list(texts[start : start + self._batch_size])
-            request = {"model": self._model_id, "input": batch}
-            headers = {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
-            response = client.post(self._endpoint, json=request, headers=headers)
-            response.raise_for_status()
-            payload = response.json()
-            if not isinstance(payload, dict):
+            response = self._post_with_retries(client, batch)
+            vectors.extend(self._parse_response(response, batch))
+        return vectors
+
+    def _post_with_retries(self, client: object, batch: Sequence[str]):
+        request = {"model": self._model_id, "input": list(batch)}
+        headers = {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
+        attempt = 0
+        while True:
+            try:
+                response = client.post(self._endpoint, json=request, headers=headers)
+                response.raise_for_status()
+                return response
+            except Exception as exc:  # noqa: BLE001 - decide by status/type below
+                if not self._is_retryable(exc) or attempt >= self._max_retries:
+                    raise
+                self._sleep(self._backoff_base * (2**attempt))
+                attempt += 1
+
+    def _is_retryable(self, exc: BaseException) -> bool:
+        status = _status_code_of(exc)
+        if status is not None:
+            return status == 429 or 500 <= status < 600
+        return _is_transport_error(exc)
+
+    def _parse_response(
+        self, response: object, batch: Sequence[str]
+    ) -> list[tuple[float, ...]]:
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise EmbeddingUnavailableError(
+                "hosted embedding response was not a JSON object"
+            )
+        # An endpoint that reports the model it served must have served the one
+        # we asked for; vectors from a different model are not commensurable
+        # with the store and must not be used.
+        returned_model = payload.get("model")
+        if (
+            isinstance(returned_model, str)
+            and returned_model
+            and returned_model != self._model_id
+        ):
+            raise EmbeddingUnavailableError(
+                f"hosted embedding endpoint returned vectors for model "
+                f"{returned_model!r}, not the requested {self._model_id!r}"
+            )
+        data = payload.get("data")
+        if not isinstance(data, list) or len(data) != len(batch):
+            raise EmbeddingUnavailableError(
+                "hosted embedding response did not return one vector per input"
+            )
+        ordered = sorted(data, key=lambda item: item.get("index", 0))
+        vectors: list[tuple[float, ...]] = []
+        for item in ordered:
+            if not isinstance(item, dict):
                 raise EmbeddingUnavailableError(
-                    "hosted embedding response was not a JSON object"
+                    "hosted embedding response item was not a JSON object"
                 )
-            # An endpoint that reports the model it served must have served the
-            # one we asked for; vectors from a different model are not
-            # commensurable with the index and must not be used.
-            returned_model = payload.get("model")
-            if (
-                isinstance(returned_model, str)
-                and returned_model
-                and returned_model != self._model_id
-            ):
+            vector = item.get("embedding")
+            if not isinstance(vector, list):
                 raise EmbeddingUnavailableError(
-                    f"hosted embedding endpoint returned vectors for model "
-                    f"{returned_model!r}, not the requested {self._model_id!r}"
+                    "hosted embedding response carried no embedding vector"
                 )
-            data = payload.get("data")
-            if not isinstance(data, list) or len(data) != len(batch):
-                raise EmbeddingUnavailableError(
-                    "hosted embedding response did not return one vector per input"
-                )
-            ordered = sorted(data, key=lambda item: item.get("index", 0))
-            for item in ordered:
-                if not isinstance(item, dict):
-                    raise EmbeddingUnavailableError(
-                        "hosted embedding response item was not a JSON object"
-                    )
-                vector = item.get("embedding")
-                if not isinstance(vector, list):
-                    raise EmbeddingUnavailableError(
-                        "hosted embedding response carried no embedding vector"
-                    )
-                vectors.append(tuple(float(component) for component in vector))
+            vectors.append(tuple(float(component) for component in vector))
         return vectors
 
 
@@ -401,24 +501,34 @@ def embedder_for_model(
     model_id: str,
     endpoint: str | None = None,
     api_key: str | None = None,
+    batch_size: int = DEFAULT_EMBEDDING_BATCH_SIZE,
+    max_retries: int = DEFAULT_EMBEDDING_MAX_RETRIES,
+    sleep: Callable[[float], None] | None = None,
 ) -> Embedder:
     """Return an embedder for ``model_id``, or raise if none can serve it.
 
-    The offline hashing model is always available. Any other model needs a
+    The offline hashing stub is always available. Any other model needs a
     hosted endpoint; without one this raises :class:`EmbeddingUnavailableError`
     so the caller can degrade to lexical-only.
     """
     if model_id == HASHING_EMBEDDING_MODEL_ID or model_id.startswith("local-hashing"):
         return HashingEmbedder(model_id=model_id)
     if endpoint:
-        return HttpEmbedder(endpoint, model_id=model_id, api_key=api_key)
+        return HttpEmbedder(
+            endpoint,
+            model_id=model_id,
+            api_key=api_key,
+            batch_size=batch_size,
+            max_retries=max_retries,
+            sleep=sleep,
+        )
     raise EmbeddingUnavailableError(
         f"embedding model {model_id!r} needs an endpoint, but none is configured"
     )
 
 
 # ---------------------------------------------------------------------------
-# Indexing ontology terms
+# Indexing text
 # ---------------------------------------------------------------------------
 
 
@@ -436,195 +546,535 @@ def term_embedding_text(term: OntologyTerm) -> str:
     return "\n".join(part for part in parts if part)
 
 
-@dataclass(frozen=True)
-class EmbeddedTerm:
-    """One ontology term's vector in the embedding index."""
-
-    ontology_id: str
-    vector: tuple[float, ...]
-
-    def to_dict(self) -> dict[str, object]:
-        return {"ontology_id": self.ontology_id, "vector": list(self.vector)}
-
-    @classmethod
-    def from_dict(cls, data: object) -> "EmbeddedTerm":
-        if not isinstance(data, dict):
-            raise EmbeddingIndexError("embedding index term is not a JSON object")
-        ontology_id = data.get("ontology_id")
-        raw_vector = data.get("vector")
-        if not isinstance(ontology_id, str) or not ontology_id:
-            raise EmbeddingIndexError("embedding index term carries no ontology_id")
-        if not isinstance(raw_vector, list) or not raw_vector:
-            raise EmbeddingIndexError(
-                f"embedding index term {ontology_id!r} carries no vector"
-            )
-        try:
-            vector = tuple(float(component) for component in raw_vector)
-        except (TypeError, ValueError) as exc:
-            raise EmbeddingIndexError(
-                f"embedding index term {ontology_id!r} has a non-numeric vector"
-            ) from exc
-        return cls(ontology_id=ontology_id, vector=vector)
+def _utc_now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
-@dataclass(frozen=True)
-class EmbeddingIndex:
-    """A pinned model's vectors for one ontology release's terms."""
+def _l2_normalise(vectors: np.ndarray) -> np.ndarray:
+    """Return ``vectors`` as float32 with each row L2-normalised."""
+    array = np.asarray(vectors, dtype=np.float32)
+    if array.ndim != 2:
+        raise EmbeddingError(
+            f"embedding vectors must be two-dimensional, got shape {array.shape}"
+        )
+    if array.shape[0] == 0:
+        return array
+    norms = np.linalg.norm(array, axis=1, keepdims=True)
+    norms = np.where(norms == 0.0, 1.0, norms)
+    return (array / norms).astype(np.float32)
+
+
+# ---------------------------------------------------------------------------
+# The vector store
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, eq=False)
+class EmbeddingStore:
+    """A pinned model's vectors for a set of item ids.
+
+    ``ids`` and ``vectors`` are row-aligned: ``vectors[i]`` is the vector for
+    ``ids[i]``. Every row is float32 and L2-normalised, so nearest-neighbour
+    search is one matrix multiply. An ontology store's ids are ontology ids; a
+    trait store's ids are normalised trait labels.
+    """
 
     model_id: str
     ontology_release: str
-    terms: tuple[EmbeddedTerm, ...]
+    ids: tuple[str, ...]
+    vectors: np.ndarray
+    text_recipe: str
+    text_recipe_version: str
     built_at: str = ""
+    format_version: int = EMBEDDING_STORE_FORMAT_VERSION
+
+    def __post_init__(self) -> None:
+        if not self.model_id:
+            raise EmbeddingStoreError("embedding store carries no model id")
+        if not self.ontology_release:
+            raise EmbeddingStoreError("embedding store carries no ontology release")
+        vectors = np.asarray(self.vectors, dtype=np.float32)
+        if vectors.ndim != 2:
+            raise EmbeddingStoreError(
+                f"embedding vectors must be two-dimensional, got shape {vectors.shape}"
+            )
+        if vectors.shape[0] != len(self.ids):
+            raise EmbeddingStoreError(
+                f"embedding store has {len(self.ids)} ids but "
+                f"{vectors.shape[0]} vectors"
+            )
+        object.__setattr__(self, "vectors", vectors)
+
+    @property
+    def count(self) -> int:
+        return len(self.ids)
 
     @property
     def dimension(self) -> int:
-        return len(self.terms[0].vector) if self.terms else 0
+        return int(self.vectors.shape[1]) if self.vectors.ndim == 2 else 0
 
     @cached_property
     def build_id(self) -> str:
         """A content-addressed identifier for this exact set of vectors.
 
-        Same model, release, and vectors always hash to the same id; a changed
-        vector changes it. Recording it on a shortlist row therefore pins the
-        index *build*, not merely "some index".
+        Same model, release, text recipe, ids, and vector bytes always hash to
+        the same id; a changed vector changes it. Recording it on a shortlist
+        row therefore pins the store *build*, not merely "some store".
         """
-        payload = {
-            "index_format_version": EMBEDDING_INDEX_FORMAT_VERSION,
-            "embedding_model": self.model_id,
-            "ontology_release": self.ontology_release,
-            "terms": [term.to_dict() for term in self.terms],
-        }
-        blob = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        return "blake2b:" + hashlib.blake2b(blob, digest_size=16).hexdigest()
+        digest = hashlib.blake2b(digest_size=16)
+        for part in (
+            str(self.format_version),
+            self.model_id,
+            self.ontology_release,
+            self.text_recipe,
+            self.text_recipe_version,
+        ):
+            digest.update(part.encode("utf-8"))
+            digest.update(b"\x00")
+        for item_id in self.ids:
+            digest.update(item_id.encode("utf-8"))
+            digest.update(b"\x00")
+        digest.update(np.ascontiguousarray(self.vectors, dtype=np.float32).tobytes())
+        return "blake2b:" + digest.hexdigest()
 
-    def by_id(self) -> dict[str, EmbeddedTerm]:
-        return {term.ontology_id: term for term in self.terms}
+    @cached_property
+    def _row_by_id(self) -> dict[str, int]:
+        return {item_id: row for row, item_id in enumerate(self.ids)}
 
-    def to_dict(self) -> dict[str, object]:
+    def row_for(self, item_id: str) -> int | None:
+        """The vector row for ``item_id``, or ``None`` when it is absent."""
+        return self._row_by_id.get(item_id)
+
+    def nearest(
+        self,
+        query_vectors: np.ndarray,
+        top_k: int = DEFAULT_EMBEDDING_TOP_K,
+        min_score: float = DEFAULT_EMBEDDING_MIN_SCORE,
+    ) -> list[list[tuple[str, float]]]:
+        """Rank the store for each query vector, batched.
+
+        Returns one ``[(item_id, score), ...]`` list per query, highest score
+        first and ties broken by id. Only neighbours strictly above
+        ``min_score`` are kept.
+        """
+        queries = np.asarray(query_vectors, dtype=np.float32)
+        if queries.ndim == 1:
+            queries = queries[None, :]
+        if queries.ndim != 2:
+            raise EmbeddingStoreError(
+                f"query vectors must be two-dimensional, got shape {queries.shape}"
+            )
+        if self.dimension and queries.shape[1] != self.dimension:
+            raise EmbeddingStoreError(
+                f"query vectors have dimension {queries.shape[1]}, but the store "
+                f"expects {self.dimension}; query the store with the model that "
+                "built it"
+            )
+        results: list[list[tuple[str, float]]] = []
+        if top_k < 1 or self.count == 0:
+            return [[] for _ in range(queries.shape[0])]
+
+        scores = queries @ self.vectors.T  # (Q, N)
+        k = min(top_k, self.count)
+        top = np.argpartition(-scores, k - 1, axis=1)[:, :k]
+        for row_index in range(queries.shape[0]):
+            pairs = [
+                (self.ids[column], float(scores[row_index, column]))
+                for column in top[row_index]
+                if scores[row_index, column] > min_score
+            ]
+            pairs.sort(key=lambda pair: (-pair[1], pair[0]))
+            results.append(pairs)
+        return results
+
+    def to_meta(self) -> dict[str, object]:
         return {
-            "index_format_version": EMBEDDING_INDEX_FORMAT_VERSION,
-            "embedding_model": self.model_id,
+            "format_version": self.format_version,
+            "model_id": self.model_id,
             "ontology_release": self.ontology_release,
-            "built_at": self.built_at,
+            "text_recipe": self.text_recipe,
+            "text_recipe_version": self.text_recipe_version,
             "dimension": self.dimension,
-            "index_build_id": self.build_id,
-            "terms": [term.to_dict() for term in self.terms],
+            "count": self.count,
+            "built_at": self.built_at,
+            "build_id": self.build_id,
         }
+
+    def save(self, directory: Path | str) -> None:
+        """Write the store directory, replacing any existing files atomically."""
+        target = Path(directory)
+        target.mkdir(parents=True, exist_ok=True)
+        _atomic_numpy_save(target / _VECTORS_FILENAME, self.vectors)
+        _write_text_atomically(
+            "".join(f"{item_id}\n" for item_id in self.ids),
+            target / _IDS_FILENAME,
+        )
+        _write_text_atomically(
+            yaml.safe_dump(self.to_meta(), sort_keys=False),
+            target / _META_FILENAME,
+        )
 
     @classmethod
-    def from_dict(cls, data: object) -> "EmbeddingIndex":
-        if not isinstance(data, dict):
-            raise EmbeddingIndexError("embedding index artifact is not a JSON object")
-        version = data.get("index_format_version")
-        if version != EMBEDDING_INDEX_FORMAT_VERSION:
-            raise EmbeddingIndexError(
-                f"embedding index format version {version!r} is not the supported "
-                f"{EMBEDDING_INDEX_FORMAT_VERSION}; rebuild the index"
+    def load(cls, directory: Path | str) -> "EmbeddingStore":
+        """Load a store directory, failing loudly on a bad or corrupt shape."""
+        source = Path(directory)
+        if not source.is_dir():
+            raise EmbeddingStoreError(f"embedding store does not exist: {source}")
+        meta_path = source / _META_FILENAME
+        vectors_path = source / _VECTORS_FILENAME
+        ids_path = source / _IDS_FILENAME
+        for path in (meta_path, vectors_path, ids_path):
+            if not path.is_file():
+                raise EmbeddingStoreError(
+                    f"embedding store {source} is missing {path.name}"
+                )
+        try:
+            meta = yaml.safe_load(meta_path.read_text(encoding="utf-8"))
+        except yaml.YAMLError as exc:
+            raise EmbeddingStoreError(
+                f"{meta_path} is not valid YAML: {exc}"
+            ) from exc
+        if not isinstance(meta, dict):
+            raise EmbeddingStoreError(f"{meta_path} is not a mapping")
+
+        version = meta.get("format_version")
+        if version != EMBEDDING_STORE_FORMAT_VERSION:
+            raise EmbeddingStoreError(
+                f"embedding store format version {version!r} is not the supported "
+                f"{EMBEDDING_STORE_FORMAT_VERSION}; rebuild the store"
             )
-        model_id = data.get("embedding_model")
+        model_id = meta.get("model_id")
         if not isinstance(model_id, str) or not model_id:
-            raise EmbeddingIndexError("embedding index artifact carries no embedding_model")
-        release = data.get("ontology_release")
+            raise EmbeddingStoreError("embedding store carries no model_id")
+        release = meta.get("ontology_release")
         if not isinstance(release, str) or not release:
-            raise EmbeddingIndexError("embedding index artifact carries no ontology_release")
-        raw_terms = data.get("terms")
-        if not isinstance(raw_terms, list):
-            raise EmbeddingIndexError("embedding index artifact carries no terms list")
-        terms = tuple(EmbeddedTerm.from_dict(term) for term in raw_terms)
-        dimensions = {len(term.vector) for term in terms}
-        if len(dimensions) > 1:
-            raise EmbeddingIndexError(
-                f"embedding index vectors disagree on dimension: {sorted(dimensions)}"
+            raise EmbeddingStoreError("embedding store carries no ontology_release")
+        recipe = meta.get("text_recipe")
+        if not isinstance(recipe, str) or not recipe:
+            raise EmbeddingStoreError("embedding store carries no text_recipe")
+        recipe_version = meta.get("text_recipe_version")
+        if not isinstance(recipe_version, str) or not recipe_version:
+            raise EmbeddingStoreError("embedding store carries no text_recipe_version")
+        declared_count = meta.get("count")
+        declared_dimension = meta.get("dimension")
+        if (
+            isinstance(declared_count, bool)
+            or not isinstance(declared_count, int)
+            or isinstance(declared_dimension, bool)
+            or not isinstance(declared_dimension, int)
+        ):
+            raise EmbeddingStoreCorruptError(
+                "embedding store carries no integer count/dimension"
             )
-        index = cls(
+
+        ids = tuple(
+            line for line in ids_path.read_text(encoding="utf-8").splitlines() if line
+        )
+        if len(ids) != declared_count:
+            raise EmbeddingStoreCorruptError(
+                f"embedding store declares {declared_count} ids but ids.tsv has "
+                f"{len(ids)}"
+            )
+        vectors = np.load(vectors_path, mmap_mode="r", allow_pickle=False)
+        vectors = np.asarray(vectors, dtype=np.float32)
+        if vectors.ndim != 2:
+            raise EmbeddingStoreCorruptError(
+                f"embedding store vectors are not two-dimensional: {vectors.shape}"
+            )
+        if vectors.shape != (declared_count, declared_dimension):
+            raise EmbeddingStoreCorruptError(
+                f"embedding store declares {declared_count}x{declared_dimension} "
+                f"vectors but vectors.npy is {vectors.shape[0]}x{vectors.shape[1]}"
+            )
+
+        store = cls(
             model_id=model_id,
             ontology_release=release,
-            terms=terms,
-            built_at=str(data.get("built_at", "")),
+            ids=ids,
+            vectors=vectors,
+            text_recipe=recipe,
+            text_recipe_version=recipe_version,
+            built_at=str(meta.get("built_at", "")),
         )
-
-        declared_dimension = data.get("dimension")
-        if isinstance(declared_dimension, bool) or not isinstance(declared_dimension, int):
-            raise EmbeddingIndexCorruptError(
-                "embedding index artifact carries no integer dimension"
-            )
-        if declared_dimension != index.dimension:
-            raise EmbeddingIndexCorruptError(
-                f"embedding index declares dimension {declared_dimension}, but its "
-                f"vectors have dimension {index.dimension}"
-            )
-
-        declared_build_id = data.get("index_build_id")
+        declared_build_id = meta.get("build_id")
         if not isinstance(declared_build_id, str) or not declared_build_id:
-            raise EmbeddingIndexCorruptError(
-                "embedding index artifact carries no index_build_id"
+            raise EmbeddingStoreCorruptError(
+                "embedding store carries no build_id"
             )
-        if declared_build_id != index.build_id:
-            raise EmbeddingIndexCorruptError(
-                f"embedding index build id {declared_build_id!r} does not match the "
-                f"content-address of its vectors ({index.build_id!r}); the artifact "
-                "is corrupt or was edited"
+        if declared_build_id != store.build_id:
+            raise EmbeddingStoreCorruptError(
+                f"embedding store build id {declared_build_id!r} does not match "
+                f"the content-address of its vectors ({store.build_id!r}); the "
+                "store is corrupt or was edited"
             )
-        return index
+        return store
+
+    @classmethod
+    def load_from_directory(cls, directory: Path | str) -> "EmbeddingStore":
+        """Alias for :meth:`load`."""
+        return cls.load(directory)
 
 
-def _round_vector(vector: Sequence[float]) -> tuple[float, ...]:
-    return tuple(round(float(component), _VECTOR_PRECISION) for component in vector)
+def nearest_neighbours(
+    query_vector: Sequence[float],
+    store: EmbeddingStore,
+    top_k: int = DEFAULT_EMBEDDING_TOP_K,
+    min_score: float = DEFAULT_EMBEDDING_MIN_SCORE,
+) -> list[tuple[str, float]]:
+    """Rank a single query vector against a store (see :meth:`EmbeddingStore.nearest`)."""
+    ranked = store.nearest(np.asarray(query_vector, dtype=np.float32), top_k, min_score)
+    return ranked[0] if ranked else []
 
 
-def build_embedding_index(
-    ontology_index: OntologyIndex,
+def cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
+    """Cosine similarity, 0.0 when either vector is empty or zero-length."""
+    if len(left) != len(right) or not left:
+        return 0.0
+    left_array = np.asarray(left, dtype=np.float64)
+    right_array = np.asarray(right, dtype=np.float64)
+    left_norm = float(np.linalg.norm(left_array))
+    right_norm = float(np.linalg.norm(right_array))
+    if left_norm == 0.0 or right_norm == 0.0:
+        return 0.0
+    return float(np.dot(left_array, right_array) / (left_norm * right_norm))
+
+
+# ---------------------------------------------------------------------------
+# Building and persisting: resumable chunks
+# ---------------------------------------------------------------------------
+
+
+def _chunk_path(chunks_dir: Path, chunk_index: int) -> Path:
+    return chunks_dir / f"{chunk_index:05d}.npz"
+
+
+def _load_chunk(
+    path: Path,
+    expected_ids: tuple[str, ...],
+    model_id: str,
+    text_recipe: str,
+    text_recipe_version: str,
+) -> np.ndarray | None:
+    """Return a cached chunk's vectors, or ``None`` when it must be re-embedded."""
+    if not path.is_file():
+        return None
+    try:
+        with np.load(path, allow_pickle=False) as data:
+            stored_ids = tuple(str(item) for item in data["ids"].tolist())
+            if stored_ids != expected_ids:
+                return None
+            if str(data["model_id"].tolist()) != model_id:
+                return None
+            if str(data["text_recipe"].tolist()) != text_recipe:
+                return None
+            if str(data["text_recipe_version"].tolist()) != text_recipe_version:
+                return None
+            return np.asarray(data["vectors"], dtype=np.float32)
+    except (OSError, ValueError, KeyError, EOFError):
+        return None
+
+
+def _save_chunk(
+    path: Path,
+    ids: tuple[str, ...],
+    vectors: np.ndarray,
+    model_id: str,
+    text_recipe: str,
+    text_recipe_version: str,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(
+        f".{path.name}.tmp.{os.getpid()}.{time.time_ns()}.npz"
+    )
+    np.savez(
+        temp_path,
+        ids=np.array(ids),
+        vectors=np.asarray(vectors, dtype=np.float32),
+        model_id=np.array(model_id),
+        text_recipe=np.array(text_recipe),
+        text_recipe_version=np.array(text_recipe_version),
+    )
+    os.replace(temp_path, path)
+
+
+def embed_in_chunks(
+    ids: Sequence[str],
+    texts: Sequence[str],
     embedder: Embedder,
-    built_at: str | None = None,
-) -> EmbeddingIndex:
-    """Embed every term's label, synonyms, and definition into an index.
+    chunks_dir: Path | str,
+    chunk_size: int = DEFAULT_EMBEDDING_CHUNK_SIZE,
+    text_recipe: str = "",
+    text_recipe_version: str = "",
+    on_chunk: Callable[[int, int], None] | None = None,
+) -> np.ndarray:
+    """Embed ``texts`` in resumable chunks and return the concatenated vectors.
 
-    The returned index carries the embedder's ``model_id`` and the ontology
-    release, so the two pins travel together.
+    Each finished chunk is saved under ``chunks_dir`` keyed by its position, its
+    ids, its embedder's model id, and its text recipe. A rerun skips any chunk
+    whose file matches all of those and only requests the rest, so an
+    interrupted run resumes rather than re-embedding from the start.
     """
-    terms = tuple(ontology_index)
-    texts = [term_embedding_text(term) for term in terms]
-    vectors = embedder.embed(texts)
-    if len(vectors) != len(terms):
-        raise EmbeddingIndexError(
-            f"embedder {embedder.model_id!r} returned {len(vectors)} vectors for "
-            f"{len(terms)} terms"
+    if len(ids) != len(texts):
+        raise EmbeddingError(
+            f"got {len(ids)} ids for {len(texts)} texts"
         )
-    dimensions = {len(vector) for vector in vectors}
-    if len(dimensions) > 1:
-        raise EmbeddingIndexError(
-            f"embedder {embedder.model_id!r} returned inconsistent vector "
-            f"dimensions: {sorted(dimensions)}"
+    if chunk_size < 1:
+        raise EmbeddingError(f"chunk_size must be at least 1, got {chunk_size}")
+    directory = Path(chunks_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    chunks = list(range(0, len(ids), chunk_size))
+    arrays: list[np.ndarray] = []
+    dimension: int | None = None
+    for position, start in enumerate(chunks):
+        end = min(start + chunk_size, len(ids))
+        chunk_ids = tuple(ids[start:end])
+        chunk_texts = list(texts[start:end])
+        cache_path = _chunk_path(directory, position)
+        vectors = _load_chunk(
+            cache_path,
+            chunk_ids,
+            embedder.model_id,
+            text_recipe,
+            text_recipe_version,
         )
-    return EmbeddingIndex(
+        if vectors is None:
+            vectors = np.asarray(embedder.embed(chunk_texts), dtype=np.float32)
+            if vectors.ndim != 2 or vectors.shape[0] != len(chunk_ids):
+                raise EmbeddingError(
+                    f"embedder {embedder.model_id!r} returned {vectors.shape[0]} "
+                    f"vectors for {len(chunk_ids)} texts"
+                )
+            _save_chunk(
+                cache_path,
+                chunk_ids,
+                vectors,
+                embedder.model_id,
+                text_recipe,
+                text_recipe_version,
+            )
+        if dimension is None:
+            dimension = int(vectors.shape[1]) if vectors.ndim == 2 else 0
+        elif vectors.shape[1] != dimension:
+            raise EmbeddingError(
+                f"embedder {embedder.model_id!r} returned inconsistent vector "
+                f"dimensions: {dimension} vs {vectors.shape[1]}"
+            )
+        arrays.append(vectors)
+        if on_chunk is not None:
+            on_chunk(position + 1, len(chunks))
+    if not arrays:
+        return np.zeros((0, 0), dtype=np.float32)
+    return np.concatenate(arrays, axis=0).astype(np.float32)
+
+
+def build_embedding_store(
+    ids: Sequence[str],
+    texts: Sequence[str],
+    embedder: Embedder,
+    ontology_release: str,
+    text_recipe: str,
+    text_recipe_version: str,
+    chunks_dir: Path | str,
+    chunk_size: int = DEFAULT_EMBEDDING_CHUNK_SIZE,
+    built_at: str | None = None,
+    on_chunk: Callable[[int, int], None] | None = None,
+) -> EmbeddingStore:
+    """Embed ``texts`` into an L2-normalised store, resuming from chunks.
+
+    The assembled store is written only by :meth:`EmbeddingStore.save`; the
+    chunk files under ``chunks_dir`` are the resume state and may be kept or
+    removed after a successful assembly.
+    """
+    vectors = embed_in_chunks(
+        ids,
+        texts,
+        embedder,
+        chunks_dir,
+        chunk_size=chunk_size,
+        text_recipe=text_recipe,
+        text_recipe_version=text_recipe_version,
+        on_chunk=on_chunk,
+    )
+    return EmbeddingStore(
         model_id=embedder.model_id,
-        ontology_release=ontology_index.ontology_release,
-        terms=tuple(
-            EmbeddedTerm(term.ontology_id, _round_vector(vector))
-            for term, vector in zip(terms, vectors)
-        ),
+        ontology_release=ontology_release,
+        ids=tuple(ids),
+        vectors=_l2_normalise(vectors),
+        text_recipe=text_recipe,
+        text_recipe_version=text_recipe_version,
         built_at=built_at or _utc_now(),
     )
 
 
-def _utc_now() -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+def build_ontology_embedding_store(
+    ontology_index: OntologyIndex,
+    embedder: Embedder,
+    chunks_dir: Path | str,
+    chunk_size: int = DEFAULT_EMBEDDING_CHUNK_SIZE,
+    built_at: str | None = None,
+    on_chunk: Callable[[int, int], None] | None = None,
+) -> EmbeddingStore:
+    """Embed every term's label, synonyms, and definition into a store."""
+    terms = tuple(ontology_index)
+    return build_embedding_store(
+        ids=[term.ontology_id for term in terms],
+        texts=[term_embedding_text(term) for term in terms],
+        embedder=embedder,
+        ontology_release=ontology_index.ontology_release,
+        text_recipe=ONTOLOGY_TEXT_RECIPE,
+        text_recipe_version=ONTOLOGY_TEXT_RECIPE_VERSION,
+        chunks_dir=chunks_dir,
+        chunk_size=chunk_size,
+        built_at=built_at,
+        on_chunk=on_chunk,
+    )
 
 
-# ---------------------------------------------------------------------------
-# Persisting and loading the index
-# ---------------------------------------------------------------------------
-
-
-def default_embedding_index_path(
+def build_trait_embedding_store(
+    labels: Sequence[str],
+    embedder: Embedder,
     ontology_release: str,
-    model_id: str = PINNED_EMBEDDING_MODEL_ID,
-) -> Path:
-    """The default untracked artifact path for a release + model's index."""
-    slug = re.sub(
-        r"[^A-Za-z0-9._-]+", "-", f"{ontology_release}--{model_id}"
-    ).strip("-")
-    return DEFAULT_EMBEDDING_INDEX_DIR / f"{slug}.embedding.json"
+    chunks_dir: Path | str,
+    chunk_size: int = DEFAULT_EMBEDDING_CHUNK_SIZE,
+    built_at: str | None = None,
+    on_chunk: Callable[[int, int], None] | None = None,
+) -> EmbeddingStore:
+    """Embed trait labels into a store keyed by the normalised label.
+
+    Duplicate normalised labels collapse to one row (the first raw label seen),
+    so a lookup by :func:`curation.ontology.normalise_label` is unambiguous.
+    Rows are ordered by the normalised key for determinism.
+    """
+    representatives: dict[str, str] = {}
+    for label in labels:
+        key = normalise_label(label)
+        if not key:
+            continue
+        representative = (label or "").strip()
+        representatives.setdefault(key, representative or key)
+    ids = sorted(representatives)
+    texts = [representatives[key] for key in ids]
+    return build_embedding_store(
+        ids=ids,
+        texts=texts,
+        embedder=embedder,
+        ontology_release=ontology_release,
+        text_recipe=TRAIT_TEXT_RECIPE,
+        text_recipe_version=TRAIT_TEXT_RECIPE_VERSION,
+        chunks_dir=chunks_dir,
+        chunk_size=chunk_size,
+        built_at=built_at,
+        on_chunk=on_chunk,
+    )
+
+
+def _atomic_numpy_save(path: Path, array: np.ndarray) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(
+        f".{path.name}.tmp.{os.getpid()}.{time.time_ns()}.npy"
+    )
+    np.save(temp_path, np.ascontiguousarray(array, dtype=np.float32))
+    os.replace(temp_path, path)
 
 
 def _write_text_atomically(text: str, dest_path: Path) -> None:
@@ -640,132 +1090,138 @@ def _write_text_atomically(text: str, dest_path: Path) -> None:
     os.replace(temp_path, dest_path)
 
 
-def write_embedding_index(index: EmbeddingIndex, path: Path | str) -> None:
-    """Serialize an embedding index to ``path`` atomically."""
-    text = json.dumps(index.to_dict(), ensure_ascii=False, indent=2) + "\n"
-    _write_text_atomically(text, Path(path))
-
-
-def load_embedding_index(path: Path | str) -> EmbeddingIndex:
-    """Load a previously built embedding index, failing loudly on a bad shape."""
-    index_path = Path(path)
-    if not index_path.is_file():
-        raise EmbeddingIndexError(f"embedding index does not exist: {index_path}")
-    try:
-        data = json.loads(index_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise EmbeddingIndexError(
-            f"{index_path} is not valid JSON: {exc}"
-        ) from exc
-    return EmbeddingIndex.from_dict(data)
-
-
 # ---------------------------------------------------------------------------
 # Retrieval
 # ---------------------------------------------------------------------------
 
 
-def cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
-    """Cosine similarity, 0.0 when either vector is empty or zero-length."""
-    if len(left) != len(right) or not left:
-        return 0.0
-    dot = math.fsum(a * b for a, b in zip(left, right))
-    left_norm = math.sqrt(math.fsum(a * a for a in left))
-    right_norm = math.sqrt(math.fsum(b * b for b in right))
-    if left_norm == 0.0 or right_norm == 0.0:
-        return 0.0
-    return dot / (left_norm * right_norm)
-
-
-def nearest_neighbours(
-    query_vector: Sequence[float],
-    index: EmbeddingIndex,
-    top_k: int = DEFAULT_EMBEDDING_TOP_K,
-    min_score: float = DEFAULT_EMBEDDING_MIN_SCORE,
-) -> list[tuple[str, float]]:
-    """Rank indexed terms by cosine similarity to ``query_vector``.
-
-    Returns ``(ontology_id, score)`` pairs, highest score first, ties broken by
-    ontology id so the ranking is deterministic. Only neighbours strictly above
-    ``min_score`` are kept.
-    """
-    if top_k < 1:
-        return []
-    if index.dimension and len(query_vector) != index.dimension:
-        raise EmbeddingIndexError(
-            f"query vector has dimension {len(query_vector)}, but the index "
-            f"expects {index.dimension}; query the index with the model that built it"
-        )
-    scored: list[tuple[float, str]] = []
-    for term in index.terms:
-        score = cosine_similarity(query_vector, term.vector)
-        if score > min_score:
-            scored.append((score, term.ontology_id))
-    scored.sort(key=lambda pair: (-pair[0], pair[1]))
-    return [(ontology_id, score) for score, ontology_id in scored[:top_k]]
-
-
-@dataclass(frozen=True)
 class SemanticRetriever:
-    """An embedding index plus the embedder that queries it.
+    """An ontology vector store plus how to produce query vectors for it.
 
-    The two pins must agree: the embedder's model is the index's model. A
-    mismatch means the vectors are not commensurable, so the retriever refuses
-    to be built rather than returning meaningless neighbours.
+    A query vector comes from a precomputed trait store when one is supplied
+    and carries the label, and otherwise from ``embedder`` (the hosted model).
+    With a trait store the semantic channel needs no network at all for the
+    labels it covers; a label it does not cover raises
+    :class:`EmbeddingQueryUnavailable`, unless an endpoint is configured to
+    embed it on the fly.
     """
 
-    index: EmbeddingIndex
-    embedder: Embedder
-    top_k: int = DEFAULT_EMBEDDING_TOP_K
-    min_score: float = DEFAULT_EMBEDDING_MIN_SCORE
-
-    def __post_init__(self) -> None:
-        if self.embedder.model_id != self.index.model_id:
+    def __init__(
+        self,
+        store: EmbeddingStore,
+        embedder: Embedder | None = None,
+        trait_store: EmbeddingStore | None = None,
+        top_k: int = DEFAULT_EMBEDDING_TOP_K,
+        min_score: float = DEFAULT_EMBEDDING_MIN_SCORE,
+    ) -> None:
+        if top_k < 1:
+            raise EmbeddingError(f"top_k must be at least 1, got {top_k}")
+        if embedder is not None and embedder.model_id != store.model_id:
             raise EmbeddingUnavailableError(
-                f"embedder model {self.embedder.model_id!r} does not match "
-                f"embedding index model {self.index.model_id!r}"
+                f"embedder model {embedder.model_id!r} does not match embedding "
+                f"store model {store.model_id!r}"
             )
-        if self.top_k < 1:
-            raise EmbeddingError(f"top_k must be at least 1, got {self.top_k}")
+        if trait_store is not None:
+            if trait_store.model_id != store.model_id:
+                raise EmbeddingUnavailableError(
+                    f"trait store model {trait_store.model_id!r} does not match "
+                    f"ontology store model {store.model_id!r}"
+                )
+            if trait_store.ontology_release != store.ontology_release:
+                raise EmbeddingUnavailableError(
+                    f"trait store release {trait_store.ontology_release!r} does not "
+                    f"match ontology store release {store.ontology_release!r}"
+                )
+            if trait_store.dimension != store.dimension:
+                raise EmbeddingUnavailableError(
+                    f"trait store dimension {trait_store.dimension} does not match "
+                    f"ontology store dimension {store.dimension}"
+                )
+        self._store = store
+        self._embedder = embedder
+        self._trait_store = trait_store
+        self._top_k = top_k
+        self._min_score = min_score
+
+    @property
+    def store(self) -> EmbeddingStore:
+        return self._store
+
+    @property
+    def trait_store(self) -> EmbeddingStore | None:
+        return self._trait_store
 
     @property
     def model_id(self) -> str:
-        return self.index.model_id
+        return self._store.model_id
 
     @property
     def build_id(self) -> str:
-        return self.index.build_id
+        return self._store.build_id
+
+    @property
+    def top_k(self) -> int:
+        return self._top_k
+
+    @property
+    def min_score(self) -> float:
+        return self._min_score
+
+    def query_vector(self, text: str) -> np.ndarray:
+        """The vector to query ``text`` with.
+
+        Prefers a precomputed trait vector; falls back to the embedder; raises
+        :class:`EmbeddingQueryUnavailable` when neither can serve the label.
+        """
+        if self._trait_store is not None:
+            row = self._trait_store.row_for(normalise_label(text))
+            if row is not None:
+                return self._trait_store.vectors[row]
+        if self._embedder is not None:
+            vectors = self._embedder.embed([text])
+            if len(vectors) != 1:
+                raise EmbeddingUnavailableError(
+                    f"embedder {self._embedder.model_id!r} did not return one "
+                    "query vector"
+                )
+            vector = np.asarray(vectors[0], dtype=np.float32)
+            if vector.ndim != 1 or vector.shape[0] != self._store.dimension:
+                raise EmbeddingUnavailableError(
+                    f"embedder {self._embedder.model_id!r} returned a query vector "
+                    f"of shape {vector.shape}, but the store expects dimension "
+                    f"{self._store.dimension}"
+                )
+            return vector
+        raise EmbeddingQueryUnavailable(
+            f"no precomputed vector for {text!r} and no embedding endpoint is "
+            "configured"
+        )
 
     def embed_query(self, text: str) -> tuple[float, ...]:
-        vectors = self.embedder.embed([text])
-        if len(vectors) != 1:
-            raise EmbeddingUnavailableError(
-                f"embedder {self.embedder.model_id!r} did not return one query vector"
-            )
-        return tuple(float(component) for component in vectors[0])
+        return tuple(float(component) for component in self.query_vector(text))
 
     def rank(self, text: str) -> list[tuple[str, float]]:
-        """Rank the indexed terms for ``text`` by cosine similarity."""
-        return nearest_neighbours(
-            self.embed_query(text), self.index, self.top_k, self.min_score
-        )
+        """Rank the ontology store for ``text`` by cosine similarity."""
+        vector = self.query_vector(text)
+        ranked = self._store.nearest(vector, self._top_k, self._min_score)
+        return ranked[0] if ranked else []
 
 
 class EmbeddingChannel:
     """Run-scoped gate around a :class:`SemanticRetriever`.
 
-    The channel owns two pieces of per-run state that a bare retriever cannot:
+    The channel owns the per-run state a bare retriever cannot:
 
     * **Provenance.** :attr:`last_retrieval_ok` records whether the most recent
-      call actually embedded the query. A disabled channel, or one whose
-      embedder failed, reports ``False`` so the caller does not stamp the
-      shortlist row with an embedding model and index build that were never
-      used.
+      call produced a query vector. A disabled channel, or one that failed,
+      reports ``False`` so the caller does not stamp the shortlist row with a
+      model and store build that were never used.
     * **A circuit breaker.** A connection/endpoint failure
       (:class:`EmbeddingUnavailableError`) is almost always run-wide, so the
       first one trips the channel and every later label is served lexical-only
-      without another embed attempt or timeout. Per-query failures that are not
-      connection problems do not trip it.
+      without another embed attempt or timeout. A label with no precomputed
+      vector and no endpoint (:class:`EmbeddingQueryUnavailable`) is counted
+      instead, because the run can still serve other labels.
     """
 
     def __init__(self, retriever: SemanticRetriever | None = None) -> None:
@@ -773,6 +1229,7 @@ class EmbeddingChannel:
         self._tripped = False
         self._failure = ""
         self._last_retrieval_ok = False
+        self._query_vector_misses = 0
 
     @property
     def retriever(self) -> SemanticRetriever | None:
@@ -795,8 +1252,13 @@ class EmbeddingChannel:
 
     @property
     def last_retrieval_ok(self) -> bool:
-        """Whether the most recent :meth:`retrieve` embedded its query."""
+        """Whether the most recent :meth:`retrieve` produced a query vector."""
         return self._last_retrieval_ok
+
+    @property
+    def query_vector_misses(self) -> int:
+        """Labels with no precomputed vector and no endpoint to embed on the fly."""
+        return self._query_vector_misses
 
     @property
     def model_id(self) -> str:
@@ -812,19 +1274,16 @@ class EmbeddingChannel:
         self._failure = reason
 
     def retrieve(self, label: str) -> list[str]:
-        """Return neighbour ids, or ``[]`` when disabled or failed.
-
-        Sets :attr:`last_retrieval_ok` so a caller can tell a healthy channel
-        that found nothing from one that never ran. A connection/endpoint
-        failure trips the breaker; any other embedding error degrades this
-        query only.
-        """
+        """Return neighbour ids, or ``[]`` when disabled or failed."""
         self._last_retrieval_ok = False
         text = (label or "").strip()
         if not self.available or not text:
             return []
         try:
             ranked = self._retriever.rank(text)
+        except EmbeddingQueryUnavailable:
+            self._query_vector_misses += 1
+            return []
         except EmbeddingUnavailableError as exc:
             self.trip(str(exc))
             return []
@@ -837,61 +1296,151 @@ class EmbeddingChannel:
 def as_embedding_channel(
     embedding: SemanticRetriever | "EmbeddingChannel" | None,
 ) -> EmbeddingChannel | None:
-    """Coerce a retriever (or channel) into a run-scoped channel.
-
-    Passing a bare :class:`SemanticRetriever` wraps it in a fresh channel for a
-    one-shot call. A run that spans many labels should coerce once and pass the
-    channel to every label, so the circuit breaker persists across the run.
-    """
+    """Coerce a retriever (or channel) into a run-scoped channel."""
     if embedding is None or isinstance(embedding, EmbeddingChannel):
         return embedding
     return EmbeddingChannel(embedding)
 
 
+def default_ontology_embeddings_path(
+    ontology_release: str,
+    model_id: str = PINNED_EMBEDDING_MODEL_ID,
+) -> Path:
+    """The default untracked store path for a release + model's ontology vectors."""
+    return DEFAULT_EMBEDDING_INDEX_DIR / f"{_artifact_slug(ontology_release, model_id)}.ontology-embeddings"
+
+
+def default_trait_embeddings_path(
+    ontology_release: str,
+    model_id: str = PINNED_EMBEDDING_MODEL_ID,
+) -> Path:
+    """The default untracked store path for a release + model's trait vectors."""
+    return DEFAULT_EMBEDDING_INDEX_DIR / f"{_artifact_slug(ontology_release, model_id)}.trait-embeddings"
+
+
+def _artifact_slug(ontology_release: str, model_id: str) -> str:
+    return re.sub(
+        r"[^A-Za-z0-9._-]+", "-", f"{ontology_release}--{model_id}"
+    ).strip("-")
+
+
 def resolve_retriever(
-    embedding_index: Path | str | None,
+    ontology_embeddings: Path | str | None,
     ontology_release: str,
     model_id: str = PINNED_EMBEDDING_MODEL_ID,
     endpoint: str | None = None,
     api_key: str | None = None,
     top_k: int = DEFAULT_EMBEDDING_TOP_K,
     min_score: float = DEFAULT_EMBEDDING_MIN_SCORE,
+    trait_embeddings: Path | str | None = None,
+    batch_size: int = DEFAULT_EMBEDDING_BATCH_SIZE,
+    max_retries: int = DEFAULT_EMBEDDING_MAX_RETRIES,
+    sleep: Callable[[float], None] | None = None,
+    embedder: Embedder | None = None,
 ) -> SemanticRetriever:
-    """Load an embedding index and the embedder that can query it.
+    """Load an ontology store and the query-vector source for it.
 
-    The artifact's own model id is authoritative: passing ``model_id`` only
-    chooses the default artifact path when no explicit one is given. Raises
+    The ontology store's own model id is authoritative: passing ``model_id``
+    only chooses the default artifact path when no explicit one is given. The
+    trait store, when supplied, must agree on model, release, and dimension.
+    An embedder is built only when needed -- for labels the trait store does not
+    cover and only when an endpoint is configured. Raises
     :class:`EmbeddingError` for every way the channel can be unavailable, so a
     CLI can catch it once and continue lexical-only.
     """
     path = (
-        Path(embedding_index)
-        if embedding_index
-        else default_embedding_index_path(ontology_release, model_id)
+        Path(ontology_embeddings)
+        if ontology_embeddings
+        else default_ontology_embeddings_path(ontology_release, model_id)
     )
-    index = load_embedding_index(path)
-    if index.ontology_release != ontology_release:
+    store = EmbeddingStore.load(path)
+    if store.ontology_release != ontology_release:
         raise EmbeddingUnavailableError(
-            f"embedding index {path} was built for ontology release "
-            f"{index.ontology_release!r}, not {ontology_release!r}"
+            f"embedding store {path} was built for ontology release "
+            f"{store.ontology_release!r}, not {ontology_release!r}"
         )
-    embedder = embedder_for_model(index.model_id, endpoint=endpoint, api_key=api_key)
+    trait_store: EmbeddingStore | None = None
+    if trait_embeddings:
+        trait_store = EmbeddingStore.load(trait_embeddings)
+        if trait_store.model_id != store.model_id:
+            raise EmbeddingUnavailableError(
+                f"trait store model {trait_store.model_id!r} does not match "
+                f"ontology store model {store.model_id!r}"
+            )
+        if trait_store.ontology_release != store.ontology_release:
+            raise EmbeddingUnavailableError(
+                f"trait store release {trait_store.ontology_release!r} does not "
+                f"match ontology store release {store.ontology_release!r}"
+            )
+        if trait_store.dimension != store.dimension:
+            raise EmbeddingUnavailableError(
+                f"trait store dimension {trait_store.dimension} does not match "
+                f"ontology store dimension {store.dimension}"
+            )
+    if embedder is None:
+        if trait_store is None or endpoint:
+            embedder = embedder_for_model(
+                store.model_id,
+                endpoint=endpoint,
+                api_key=api_key,
+                batch_size=batch_size,
+                max_retries=max_retries,
+                sleep=sleep,
+            )
     return SemanticRetriever(
-        index=index, embedder=embedder, top_k=top_k, min_score=min_score
+        store=store,
+        embedder=embedder,
+        trait_store=trait_store,
+        top_k=top_k,
+        min_score=min_score,
     )
 
 
 # ---------------------------------------------------------------------------
-# CLI: rebuild the embedding index artifact
+# CLI: build the resumable stores
 # ---------------------------------------------------------------------------
 
 
-def build_parser() -> argparse.ArgumentParser:
+def _read_trait_labels(path: Path | str) -> list[str]:
+    """Read the ``trait_label`` column of a gap-scan work queue TSV."""
+    import csv
+
+    label_path = Path(path)
+    if not label_path.is_file():
+        raise EmbeddingError(f"work queue does not exist: {label_path}")
+    with open(label_path, "r", encoding="utf-8", newline="") as f:
+        reader = csv.reader(f, delimiter="\t")
+        header = next(reader, None)
+        columns = list(header) if header is not None else []
+        if "trait_label" not in columns:
+            raise EmbeddingError(
+                f"{label_path} has no trait_label column; is this a gap-scan queue?"
+            )
+        index = columns.index("trait_label")
+        labels: list[str] = []
+        for row_index, fields in enumerate(reader):
+            if len(fields) != len(columns):
+                raise EmbeddingError(
+                    f"{label_path} data row {row_index} has {len(fields)} fields; "
+                    f"header has {len(columns)}"
+                )
+            labels.append(fields[index])
+    return labels
+
+
+def _progress(label: str):
+    def report(done: int, total: int) -> None:
+        print(f"{label}: chunk {done}/{total}", file=sys.stderr)
+
+    return report
+
+
+def build_ontology_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="embedding-index",
+        prog="embedding embed-ontology",
         description=(
-            "Rebuild the untracked semantic embedding index from the pinned "
-            "ontology retrieval index."
+            "Embed the pinned ontology retrieval index into a resumable "
+            "directory vector store."
         ),
     )
     parser.add_argument(
@@ -903,15 +1452,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output",
         default=None,
-        metavar="PATH",
-        help="embedding index artifact path (default: the release+model path)",
+        metavar="DIR",
+        help="store directory (default: the release+model path)",
     )
     parser.add_argument(
         "--model",
         default=PINNED_EMBEDDING_MODEL_ID,
         metavar="MODEL",
         help=(
-            "embedding model identifier; the offline "
+            "embedding model identifier; the offline stub "
             f"{HASHING_EMBEDDING_MODEL_ID!r} needs no endpoint "
             f"(default: {PINNED_EMBEDDING_MODEL_ID})"
         ),
@@ -920,7 +1469,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--endpoint",
         default=os.environ.get("OPENGWASDB_EMBEDDING_ENDPOINT"),
         metavar="URL",
-        help="hosted OpenAI-compatible /embeddings endpoint for a non-offline model",
+        help="hosted OpenAI-compatible /v1/embeddings URL for a non-offline model",
     )
     parser.add_argument(
         "--api-key",
@@ -928,36 +1477,197 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="KEY",
         help="bearer token for the hosted endpoint",
     )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=DEFAULT_EMBEDDING_BATCH_SIZE,
+        metavar="N",
+        help=f"texts per request (default: {DEFAULT_EMBEDDING_BATCH_SIZE})",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=DEFAULT_EMBEDDING_CHUNK_SIZE,
+        metavar="N",
+        help=(
+            "texts per resumable chunk file "
+            f"(default: {DEFAULT_EMBEDDING_CHUNK_SIZE})"
+        ),
+    )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=DEFAULT_EMBEDDING_MAX_RETRIES,
+        metavar="N",
+        help=f"retries per request (default: {DEFAULT_EMBEDDING_MAX_RETRIES})",
+    )
     return parser
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(argv)
+def build_traits_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="embedding embed-traits",
+        description=(
+            "Embed a work queue's trait labels with the same model as an "
+            "ontology vector store, keyed by the normalised trait label."
+        ),
+    )
+    parser.add_argument(
+        "--work-queue",
+        required=True,
+        metavar="TSV",
+        help="gap-scan work queue TSV (trait_label, occurrence_count, store_families)",
+    )
+    parser.add_argument(
+        "--output",
+        default=None,
+        metavar="DIR",
+        help="store directory (default: the release+model trait path)",
+    )
+    parser.add_argument(
+        "--model-of",
+        required=True,
+        metavar="DIR",
+        help="ontology embedding store whose model the trait vectors must match",
+    )
+    parser.add_argument(
+        "--endpoint",
+        default=os.environ.get("OPENGWASDB_EMBEDDING_ENDPOINT"),
+        metavar="URL",
+        help="hosted OpenAI-compatible /v1/embeddings URL for a non-offline model",
+    )
+    parser.add_argument(
+        "--api-key",
+        default=os.environ.get("OPENGWASDB_EMBEDDING_API_KEY"),
+        metavar="KEY",
+        help="bearer token for the hosted endpoint",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=DEFAULT_EMBEDDING_BATCH_SIZE,
+        metavar="N",
+        help=f"texts per request (default: {DEFAULT_EMBEDDING_BATCH_SIZE})",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=DEFAULT_EMBEDDING_CHUNK_SIZE,
+        metavar="N",
+        help=(
+            "texts per resumable chunk file "
+            f"(default: {DEFAULT_EMBEDDING_CHUNK_SIZE})"
+        ),
+    )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=DEFAULT_EMBEDDING_MAX_RETRIES,
+        metavar="N",
+        help=f"retries per request (default: {DEFAULT_EMBEDDING_MAX_RETRIES})",
+    )
+    return parser
 
+
+def _embed_ontology_main(argv: Sequence[str]) -> int:
+    parser = build_ontology_parser()
+    args = parser.parse_args(argv)
     try:
         ontology_index = load_index(args.ontology_index)
         embedder = embedder_for_model(
-            args.model, endpoint=args.endpoint, api_key=args.api_key
+            args.model,
+            endpoint=args.endpoint,
+            api_key=args.api_key,
+            batch_size=args.batch_size,
+            max_retries=args.max_retries,
         )
-        embedding_index = build_embedding_index(ontology_index, embedder)
+        output = (
+            Path(args.output)
+            if args.output
+            else default_ontology_embeddings_path(
+                ontology_index.ontology_release, embedder.model_id
+            )
+        )
+        store = build_ontology_embedding_store(
+            ontology_index,
+            embedder,
+            chunks_dir=output / _CHUNKS_DIRNAME,
+            chunk_size=args.chunk_size,
+            on_chunk=_progress("embed-ontology"),
+        )
+        store.save(output)
     except (EmbeddingError, IndexFormatError) as exc:
-        print(f"embedding-index: error: {exc}", file=sys.stderr)
+        print(f"embed-ontology: error: {exc}", file=sys.stderr)
         return 1
-
-    output = (
-        Path(args.output)
-        if args.output
-        else default_embedding_index_path(ontology_index.ontology_release, embedder.model_id)
-    )
-    write_embedding_index(embedding_index, output)
     print(
-        f"embedding-index: wrote {len(embedding_index.terms)} vectors "
-        f"(dimension {embedding_index.dimension}, model {embedding_index.model_id}) "
-        f"for {embedding_index.ontology_release} to {output}",
+        f"embed-ontology: wrote {store.count} vectors "
+        f"(dimension {store.dimension}, model {store.model_id}) for "
+        f"{store.ontology_release} to {output}",
         file=sys.stderr,
     )
     return 0
+
+
+def _embed_traits_main(argv: Sequence[str]) -> int:
+    parser = build_traits_parser()
+    args = parser.parse_args(argv)
+    try:
+        model_store = EmbeddingStore.load(args.model_of)
+        labels = _read_trait_labels(args.work_queue)
+        embedder = embedder_for_model(
+            model_store.model_id,
+            endpoint=args.endpoint,
+            api_key=args.api_key,
+            batch_size=args.batch_size,
+            max_retries=args.max_retries,
+        )
+        output = (
+            Path(args.output)
+            if args.output
+            else default_trait_embeddings_path(
+                model_store.ontology_release, model_store.model_id
+            )
+        )
+        store = build_trait_embedding_store(
+            labels,
+            embedder,
+            ontology_release=model_store.ontology_release,
+            chunks_dir=output / _CHUNKS_DIRNAME,
+            chunk_size=args.chunk_size,
+            on_chunk=_progress("embed-traits"),
+        )
+        if store.model_id != model_store.model_id:
+            raise EmbeddingError(
+                f"trait embedder model {store.model_id!r} does not match the "
+                f"ontology store model {model_store.model_id!r}"
+            )
+        if store.dimension != model_store.dimension:
+            raise EmbeddingError(
+                f"trait embedding dimension {store.dimension} does not match "
+                f"the ontology store dimension {model_store.dimension}"
+            )
+        store.save(output)
+    except (EmbeddingError, IndexFormatError) as exc:
+        print(f"embed-traits: error: {exc}", file=sys.stderr)
+        return 1
+    print(
+        f"embed-traits: wrote {store.count} vectors "
+        f"(dimension {store.dimension}, model {store.model_id}) for "
+        f"{store.ontology_release} to {output}",
+        file=sys.stderr,
+    )
+    return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments and arguments[0] == "embed-traits":
+        return _embed_traits_main(arguments[1:])
+    if arguments and arguments[0] == "embed-ontology":
+        return _embed_ontology_main(arguments[1:])
+    # Backwards-compatible default: the old ``embedding-index`` invocation is
+    # treated as ``embed-ontology``.
+    return _embed_ontology_main(arguments)
 
 
 if __name__ == "__main__":

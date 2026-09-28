@@ -294,21 +294,26 @@ ld-materialize = { cmd = "python3 resources/scripts/ld-panel/materialize_referen
 [feature.curation.tasks]
 # Curation stages (issues #161/#164/#165). Run in the isolated curation
 # environment:
-#   pixi run -e curation ontology-index --obo <efo.obo> --output .cache/curation/...
+#   pixi run -e curation ontology-index --obo <efo.obo> --output .cache/curation/efo-v3.94.0.index.json
 #   pixi run -e curation lexical-candidates --work-queue <queue.tsv> --index <index.json> --output <shortlist.tsv>
 #   pixi run -e curation harvest <manifest>... --index <index.json> --output <validation.tsv>
 #   pixi run -e curation recall --validation <validation.tsv> --index <index.json>
-#   pixi run -e curation embedding-index --ontology-index <index.json> --output <embedding.json>
-#   pixi run -e curation semantic-candidates --work-queue <queue.tsv> --index <index.json> --enable-embedding --output <shortlist.tsv>
+#   pixi run -e curation embed-ontology --ontology-index <index.json> --output <ontology-store-dir> [--endpoint "$OPENGWASDB_EMBEDDING_ENDPOINT"]
+#   pixi run -e curation embed-traits --work-queue <queue.tsv> --output <trait-store-dir> --model-of <ontology-store-dir> [--endpoint "$OPENGWASDB_EMBEDDING_ENDPOINT"]
+#   pixi run -e curation semantic-candidates --work-queue <queue.tsv> --index <index.json> --ontology-embeddings <ontology-store-dir> --trait-embeddings <trait-store-dir> --output <shortlist.tsv>
 #   pixi run -e curation choice --shortlists <shortlist.tsv> --chooser jev --jev-endpoint <url>
 #   pixi run -e curation validate-chooser --validation <validation.tsv> --shortlists <shortlist.tsv>
 #   pixi run -e curation coverage --manifests <analyses.tsv> --mapping <mapping.tsv>
 #   pixi run -e curation curation-round --index <index.json> --chooser jev --jev-endpoint <url>
 #
+# `embed-ontology` and `embed-traits` write each finished chunk under
+# <store-dir>/chunks/ before assembling vectors.npy/ids.tsv/meta.yaml, so an
+# interrupted run resumes and only re-requests the chunks it is missing.
 # `validate-chooser` is an explicit validation harness, never part of
 # `pixi run test-*`. A live hosted-Jev run additionally requires `--live`.
 ontology-index = { cmd = "python3 -m curation.ontology" }
-embedding-index = { cmd = "python3 -m curation.embedding" }
+embed-ontology = { cmd = "python3 -m curation.embedding embed-ontology" }
+embed-traits = { cmd = "python3 -m curation.embedding embed-traits" }
 lexical-candidates = { cmd = "python3 -m curation.candidates" }
 semantic-candidates = { cmd = "python3 -m curation.candidates --enable-embedding" }
 harvest = { cmd = "python3 -m curation.harvest" }

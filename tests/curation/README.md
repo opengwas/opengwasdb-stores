@@ -94,52 +94,73 @@ fabricated candidate can reach a Release Manifest.
 7. **Index**: the retrieval index round-trips through its rebuildable artifact,
    rejects an unknown format version, and defaults outside the tracked tree
    (`.cache/curation/`).
-8. **CLI surface**: the command reads the gap-scan work queue, resolves against
-   the index, and writes the shortlist table to `--output` or stdout.
+8. **Scale and equivalence**: the channels are served by lookup structures
+   built once per loaded index (exact/normalised label maps, token postings,
+   synonym and acronym maps) and their ids, order, and ranks are identical to
+   the brute-force scans they replace, over both the fixture index and a
+   randomised synthetic index. The full ukb-b queue (2,502 labels) against the
+   real v3.94.0 index runs lexical-only in well under a minute.
+9. **CLI surface**: the command reads the gap-scan work queue, resolves against
+   the index, and writes the shortlist table to `--output` or stdout;
+   `--ontology-embeddings` / `--trait-embeddings` add the semantic channel.
 
 The suite resolves against a tiny in-memory fixture OBO document, never a real
 release, so it is hermetic.
 
-## Embedding suite (`curation.embedding`, issue #166)
+## Embedding suite (`curation.embedding`, issues #166, #161)
 
 ### The contract this suite exists for
 
 Lexical channels cannot reach a Trait label that shares no token with the
-correct ontology term. The semantic channel embeds each term's label,
-synonyms, and definition into a nearest-neighbour index and contributes
-candidates under exactly the same attribution rules as the lexical channels.
-It is individually enableable and must degrade to lexical-only when its index
-or model is unavailable, so no run that worked before stops working.
+correct ontology term. The semantic channel compares a query vector for the
+label against a vector store of each term's label, synonyms, and definition
+and contributes candidates under exactly the same attribution rules as the
+lexical channels. Ontology vectors live in a numpy directory store, and query
+vectors come from a precomputed trait store (no network) when one covers the
+label, or from the pinned hosted model when an endpoint is configured. The
+channel is individually enableable and must degrade to lexical-only when its
+store or model is unavailable, so no run that worked before stops working.
 
 ### Contracts and invariants covered
 
 1. **Reach**: the channel retrieves a term sharing no lexical overlap with the
    query, where every lexical channel returns nothing.
 2. **Indexed text**: a term is indexed by its label, its synonyms, and its
-   definition, not by its label alone.
+   definition, not by its label alone; a trait store is keyed by the
+   normalised trait label.
 3. **Attribution**: a semantic candidate records the `embedding` channel and
    its rank like any other channel, and the shortlist row records the pinned
-   model id and the content-addressed index build alongside the ontology
-   release. Provenance is recorded only when semantic retrieval actually ran
-   for the label; a disabled or degraded channel leaves it empty.
-4. **Pins**: the embedding index round-trips, rejects an unknown format
-   version, and records its model, release, and build metadata; the build id
-   is content-addressed, so a changed vector changes it. Loading also rejects
-   an artifact whose declared dimension or build id disagrees with its vectors.
-5. **Degradation**: no retriever leaves the shortlist lexical-only; a missing,
-   stale, release-mismatched, or model-mismatched index, and an embedder that
+   model id and the content-addressed ontology store build alongside the
+   ontology release. Provenance is recorded only when semantic retrieval
+   actually ran for the label; a disabled or degraded channel leaves it empty,
+   and a label with no precomputed vector and no endpoint is counted as
+   lexical-only.
+4. **Vector store**: the directory artifact (`vectors.npy` float32
+   L2-normalised, `ids.tsv`, `meta.yaml`) round-trips; nearest-neighbour is one
+   matrix multiply plus `argpartition` per query batch; the loader rejects a
+   wrong format version, a count/dimension mismatch, or a build id that
+   disagrees with the vector bytes; and resolution refuses an ontology store
+   and a trait store whose model, release, or dimension disagree.
+5. **Resumable builds**: `embed-ontology` and `embed-traits` write each
+   finished chunk under `<store>/chunks/` and an interrupted run resumes,
+   requesting only the chunks it is missing.
+6. **Hosted client**: the OpenAI-compatible `/v1/embeddings` client batches at
+   128 texts by default, retries 429/5xx/transport errors with exponential
+   backoff, and refuses vectors returned for a different model.
+7. **Degradation**: no retriever leaves the shortlist lexical-only; a missing,
+   stale, release-mismatched, or model-mismatched store, and an embedder that
    fails at query time, all contribute nothing rather than raising. An
    endpoint/connection failure also trips a run-level circuit breaker, so the
    channel is not retried (and does not time out) for every later label.
-6. **CLI surface**: `--enable-embedding` / `--embedding-index` enable the
-   channel, and an unavailable index prints a warning and leaves the run
-   lexical-only with exit 0.
+8. **CLI surface**: `--enable-embedding` / `--ontology-embeddings` /
+   `--trait-embeddings` enable the channel, and an unavailable store prints a
+   warning and leaves the run lexical-only with exit 0.
 
-The suite is hermetic: genuine semantic retrieval is exercised with
+The suite is hermetic: genuine nearest-neighbour retrieval is exercised with
 `DictionaryEmbedder` replaying explicit dense fixture vectors (and the offline
-`HashingEmbedder` for token-based runs), while the `HttpEmbedder` response
-validation is exercised through an injected fake client. Nothing opens a
-socket.
+`HashingEmbedder` *stub*, which is plumbing, not a semantic model), while the
+`HttpEmbedder` retry/backoff and response validation are exercised through an
+injected fake client. Nothing opens a socket.
 
 ## Harvest suite (`curation.harvest`, issue #165)
 
@@ -395,43 +416,83 @@ temporary Reference Resource copies. Nothing opens a socket.
 ## Running the suites
 
 ```sh
-pixi run python tests/curation/test_gap_scan.py
-pixi run python tests/curation/test_candidates.py
-pixi run python tests/curation/test_embedding.py
-pixi run python tests/curation/test_harvest.py
-pixi run python tests/curation/test_recall.py
-pixi run python tests/curation/test_choice.py
-pixi run python tests/curation/test_promotion.py
-pixi run python tests/curation/test_jev_chooser.py
-pixi run python tests/curation/test_validate_chooser.py
-pixi run python tests/curation/test_e2e_pipeline.py
-pixi run python tests/curation/test_coverage.py
+pixi run -e curation python tests/curation/test_gap_scan.py
+pixi run -e curation python tests/curation/test_candidates.py
+pixi run -e curation python tests/curation/test_embedding.py
+pixi run -e curation python tests/curation/test_harvest.py
+pixi run -e curation python tests/curation/test_recall.py
+pixi run -e curation python tests/curation/test_choice.py
+pixi run -e curation python tests/curation/test_promotion.py
+pixi run -e curation python tests/curation/test_jev_chooser.py
+pixi run -e curation python tests/curation/test_validate_chooser.py
+pixi run -e curation python tests/curation/test_e2e_pipeline.py
+pixi run -e curation python tests/curation/test_coverage.py
 # or through the repo orchestrator
 pixi run test-python
 ```
 
-To measure the semantic channel's delta over the lexical-only baseline (the
-recall report re-run required by issue #166):
+To build the lexicon and the semantic stores, then generate candidates. The
+semantic channel needs a HuggingFace text-embeddings-inference server exposing
+`POST <base>/v1/embeddings`; set `OPENGWASDB_EMBEDDING_ENDPOINT` to the full
+URL and (optionally) `OPENGWASDB_EMBEDDING_API_KEY`:
 
 ```sh
-# build the pinned embedding index from the lexical retrieval index
-pixi run -e curation embedding-index \
-    --ontology-index .cache/curation/efo-v3.78.0.index.json \
-    --output .cache/curation/efo-v3.78.0--local-hashing-v1.embedding.json \
+# 1. rebuild the pinned lexical index (v3.94.0)
+pixi run -e curation ontology-index \
+    --obo <efo.obo> \
+    --output .cache/curation/efo-v3.94.0.index.json
+
+# 2. embed every ontology term; resumable under <dir>/chunks/
+pixi run -e curation embed-ontology \
+    --ontology-index .cache/curation/efo-v3.94.0.index.json \
+    --output .cache/curation/efo-v3.94.0--BioLORD-2023.ontology-embeddings \
+    --model FremyCompany/BioLORD-2023 \
+    --endpoint "$OPENGWASDB_EMBEDDING_ENDPOINT"
+
+# 3. precompute the work queue's trait vectors with the SAME model
+pixi run -e curation embed-traits \
+    --work-queue .cache/curation/queue.tsv \
+    --output .cache/curation/efo-v3.94.0--BioLORD-2023.trait-embeddings \
+    --model-of .cache/curation/efo-v3.94.0--BioLORD-2023.ontology-embeddings \
+    --endpoint "$OPENGWASDB_EMBEDDING_ENDPOINT"
+
+# 4. generate shortlists with no network: ontology + precomputed trait vectors
+pixi run -e curation semantic-candidates \
+    --work-queue .cache/curation/queue.tsv \
+    --index .cache/curation/efo-v3.94.0.index.json \
+    --ontology-embeddings .cache/curation/efo-v3.94.0--BioLORD-2023.ontology-embeddings \
+    --trait-embeddings .cache/curation/efo-v3.94.0--BioLORD-2023.trait-embeddings \
+    --output .cache/curation/shortlist.tsv
+```
+
+Each store is a directory (`vectors.npy`, `ids.tsv`, `meta.yaml`);
+`embed-ontology` and `embed-traits` write each finished chunk before assembling,
+so an interrupted run resumes and only re-requests missing chunks. A label the
+trait store does not cover is lexical-only and counted; it is embedded on the
+fly only when an endpoint is configured.
+
+To measure the semantic channel's delta over the lexical-only baseline (the
+recall report re-run required by issue #166), the offline `local-hashing-v1`
+stub keeps the run hermetic (it is plumbing, not a semantic model):
+
+```sh
+# build the ontology store with the offline stub
+pixi run -e curation embed-ontology \
+    --ontology-index .cache/curation/efo-v3.94.0.index.json \
+    --output .cache/curation/efo-v3.94.0--local-hashing-v1.ontology-embeddings \
     --model local-hashing-v1
 
 # score the same validation set lexical-only and with the channel enabled
 pixi run -e curation recall \
     --validation <validation.tsv> \
-    --index .cache/curation/efo-v3.78.0.index.json \
+    --index .cache/curation/efo-v3.94.0.index.json \
     --enable-embedding \
-    --embedding-index .cache/curation/efo-v3.78.0--local-hashing-v1.embedding.json
+    --ontology-embeddings .cache/curation/efo-v3.94.0--local-hashing-v1.ontology-embeddings
 ```
 
-The `local-hashing-v1` model is the offline embedder; a hosted model such as
-the pinned `all-MiniLM-L6-v2` needs `--embedding-endpoint` (or
-`OPENGWASDB_EMBEDDING_ENDPOINT`). An unavailable channel prints a warning and
-the report stays lexical-only.
+A hosted model such as the pinned `FremyCompany/BioLORD-2023` needs
+`--embedding-endpoint` (or `OPENGWASDB_EMBEDDING_ENDPOINT`). An unavailable
+channel prints a warning and the report stays lexical-only.
 
 To validate a chooser's choice accuracy conditional on retrieval (issue #168):
 
@@ -461,13 +522,13 @@ To run a full curation round and report its coverage (issue #170):
 ```sh
 # rehearse the round against a copied Reference Resource; nothing real is written
 pixi run -e curation curation-round \
-    --index .cache/curation/efo-v3.78.0.index.json \
+    --index .cache/curation/efo-v3.94.0.index.json \
     --chooser stub --fixture <fixture.json> \
     --dry-run
 
 # live round: the confident proposals are promoted and the resource version bumped
 pixi run -e curation curation-round \
-    --index .cache/curation/efo-v3.78.0.index.json \
+    --index .cache/curation/efo-v3.94.0.index.json \
     --chooser jev --jev-endpoint "$OPENGWASDB_JEV_ENDPOINT"
 
 # report coverage from an existing round's artifacts (read-only)

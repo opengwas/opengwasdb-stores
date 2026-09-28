@@ -23,6 +23,8 @@ Verifies:
 - obsolete terms are flagged rather than silently offered as live terms;
 - the retrieval index round-trips through its rebuildable artifact, rejects an
   unknown format version, and defaults outside the tracked tree;
+- the prebuilt-lookup lexical channels return exactly what the brute-force
+  scans return, over a fixture index and a randomised synthetic index;
 - the CLI reads the gap-scan work queue and writes the shortlist table.
 """
 
@@ -62,6 +64,7 @@ from curation.ontology import (
     PINNED_ONTOLOGY_RELEASE,
     IndexFormatError,
     OntologyIndex,
+    OntologyTerm,
     build_index_from_obo,
     default_index_path,
     load_index,
@@ -202,6 +205,97 @@ class TestChannels(unittest.TestCase):
         self.assertIn(CHANNEL_EXACT, channels)
         self.assertIn(CHANNEL_NORMALISED, channels)
         self.assertIn(CHANNEL_TOKEN_OVERLAP, channels)
+
+
+class TestLexicalChannelEquivalence(unittest.TestCase):
+    """The prebuilt-lookup channels reproduce the brute-force scans exactly.
+
+    The fast channels must return the same ids, in the same order, with the
+    same ranks as the scans they replace; otherwise the retrieval ceiling
+    moves and every downstream measurement is invalid.
+    """
+
+    CHANNEL_PAIRS = (
+        ("exact", exact_channel, candidates._brute_exact_channel),
+        ("normalised", normalised_channel, candidates._brute_normalised_channel),
+        ("token_overlap", token_overlap_channel, candidates._brute_token_overlap_channel),
+        ("synonym", synonym_channel, candidates._brute_synonym_channel),
+    )
+
+    def setUp(self) -> None:
+        self.index = fixture_index()
+
+    def test_fixture_labels_match_brute_force(self) -> None:
+        self._assert_equivalent(
+            [
+                "Body mass index",
+                "body mass index",
+                "BMI",
+                "Quetelet index",
+                "systolic blood pressure reading",
+                "measurement",
+                "height measurement",
+                "legacy obsolete trait",
+                "",
+                "   ",
+                "!!!",
+                "qwertyuiop asdfghjkl",
+            ]
+        )
+
+    def test_randomised_synthetic_index_matches_brute_force(self) -> None:
+        import random
+
+        rng = random.Random(20240101)
+        vocabulary = [
+            "body", "mass", "index", "measurement", "blood", "pressure",
+            "disease", "level", "serum", "bmi", "height", "weight",
+            "cardio", "metabolic", "glucose", "plasma", "alpha", "beta", "x",
+        ]
+        terms = []
+        for number in range(180):
+            label = " ".join(
+                rng.choice(vocabulary) for _ in range(rng.randint(1, 4))
+            )
+            synonyms = tuple(
+                " ".join(rng.choice(vocabulary) for _ in range(rng.randint(1, 3)))
+                for _ in range(rng.randint(0, 2))
+            )
+            terms.append(
+                OntologyTerm(
+                    ontology_id=f"EFO:{number:07d}",
+                    label=label,
+                    definition="a measurement",
+                    synonyms=synonyms,
+                )
+            )
+        index = OntologyIndex("efo/test", tuple(terms))
+        labels = [
+            " ".join(rng.choice(vocabulary) for _ in range(rng.randint(0, 5)))
+            for _ in range(400)
+        ]
+        labels += [
+            "".join(rng.choice("abcXYZ()- ") for _ in range(rng.randint(0, 12)))
+            for _ in range(100)
+        ]
+        self._assert_equivalent(labels, index=index)
+
+    def test_lookups_are_built_once_per_index(self) -> None:
+        self.assertIs(self.index.lexical_lookups, self.index.lexical_lookups)
+        self.assertIs(self.index.by_id(), self.index.by_id())
+
+    def _assert_equivalent(
+        self, labels: list[str], index: OntologyIndex | None = None
+    ) -> None:
+        target = index or self.index
+        for label in labels:
+            for name, fast, brute in self.CHANNEL_PAIRS:
+                with self.subTest(channel=name, label=label):
+                    self.assertEqual(
+                        fast(label, target),
+                        brute(label, target),
+                        msg=f"{name} mismatch for {label!r}",
+                    )
 
 
 class TestGenerateShortlist(unittest.TestCase):
