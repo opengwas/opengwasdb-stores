@@ -382,6 +382,7 @@ class HttpEmbedder:
         backoff_base: float = DEFAULT_EMBEDDING_BACKOFF_BASE,
         sleep: Callable[[float], None] | None = None,
         client_factory: object | None = None,
+        served_model: str | None = None,
     ) -> None:
         if not endpoint:
             raise EmbeddingError("an embedding endpoint is required")
@@ -408,10 +409,17 @@ class HttpEmbedder:
         self._max_retries = max_retries
         self._backoff_base = backoff_base
         self._sleep = sleep or time.sleep
+        #: The name the server reports for the served model, when it differs
+        #: from the requested id (e.g. a local path). Recorded in store meta.
+        self._served_model = served_model or ""
 
     @property
     def model_id(self) -> str:
         return self._model_id
+
+    @property
+    def served_model(self) -> str:
+        return self._served_model
 
     def embed(self, texts: Sequence[str]) -> list[tuple[float, ...]]:
         try:
@@ -472,10 +480,19 @@ class HttpEmbedder:
             and returned_model
             and returned_model != self._model_id
         ):
-            raise EmbeddingUnavailableError(
-                f"hosted embedding endpoint returned vectors for model "
-                f"{returned_model!r}, not the requested {self._model_id!r}"
-            )
+            # HuggingFace text-embeddings-inference reports the id it was
+            # launched with, which may be a local path or alias. Accept it
+            # only when the operator named that exact served model.
+            if self._served_model and returned_model == self._served_model:
+                pass
+            else:
+                raise EmbeddingUnavailableError(
+                    f"hosted embedding endpoint returned vectors for model "
+                    f"{returned_model!r}, not the requested {self._model_id!r}; "
+                    "if the server reports a local path or alias, pass "
+                    f"--served-model {returned_model!r} (or set "
+                    "OPENGWASDB_EMBEDDING_SERVED_MODEL) to accept it"
+                )
         data = payload.get("data")
         if not isinstance(data, list) or len(data) != len(batch):
             raise EmbeddingUnavailableError(
@@ -504,6 +521,7 @@ def embedder_for_model(
     batch_size: int = DEFAULT_EMBEDDING_BATCH_SIZE,
     max_retries: int = DEFAULT_EMBEDDING_MAX_RETRIES,
     sleep: Callable[[float], None] | None = None,
+    served_model: str | None = None,
 ) -> Embedder:
     """Return an embedder for ``model_id``, or raise if none can serve it.
 
@@ -521,6 +539,7 @@ def embedder_for_model(
             batch_size=batch_size,
             max_retries=max_retries,
             sleep=sleep,
+            served_model=served_model,
         )
     raise EmbeddingUnavailableError(
         f"embedding model {model_id!r} needs an endpoint, but none is configured"
@@ -605,6 +624,9 @@ class EmbeddingStore:
     text_recipe: str
     text_recipe_version: str
     built_at: str = ""
+    #: The name the server reported for the served model, when it differs from
+    #: the requested id. Provenance only; it does not affect ``build_id``.
+    served_model: str = ""
     format_version: int = EMBEDDING_STORE_FORMAT_VERSION
 
     def __post_init__(self) -> None:
@@ -716,6 +738,7 @@ class EmbeddingStore:
             "dimension": self.dimension,
             "count": self.count,
             "built_at": self.built_at,
+            "served_model": self.served_model,
             "build_id": self.build_id,
         }
 
@@ -813,6 +836,7 @@ class EmbeddingStore:
             text_recipe=recipe,
             text_recipe_version=recipe_version,
             built_at=str(meta.get("built_at", "")),
+            served_model=str(meta.get("served_model", "")),
         )
         declared_build_id = meta.get("build_id")
         if not isinstance(declared_build_id, str) or not declared_build_id:
@@ -852,6 +876,7 @@ class EmbeddingStoreMeta:
     text_recipe: str = ""
     text_recipe_version: str = ""
     built_at: str = ""
+    served_model: str = ""
 
 
 def read_embedding_store_meta(directory: Path | str) -> EmbeddingStoreMeta:
@@ -904,6 +929,7 @@ def read_embedding_store_meta(directory: Path | str) -> EmbeddingStoreMeta:
         text_recipe=str(meta.get("text_recipe", "")),
         text_recipe_version=str(meta.get("text_recipe_version", "")),
         built_at=str(meta.get("built_at", "")),
+        served_model=str(meta.get("served_model", "")),
     )
 
 
@@ -1097,6 +1123,7 @@ def build_embedding_store(
         text_recipe=text_recipe,
         text_recipe_version=text_recipe_version,
         built_at=built_at or _utc_now(),
+        served_model=str(getattr(embedder, "served_model", "") or ""),
     )
 
 
@@ -1600,6 +1627,15 @@ def build_ontology_parser() -> argparse.ArgumentParser:
         metavar="N",
         help=f"retries per request (default: {DEFAULT_EMBEDDING_MAX_RETRIES})",
     )
+    parser.add_argument(
+        "--served-model",
+        default=os.environ.get("OPENGWASDB_EMBEDDING_SERVED_MODEL"),
+        metavar="NAME",
+        help=(
+            "the model name the server reports, when it differs from "
+            "--model (e.g. a local path); required to accept such a response"
+        ),
+    )
     return parser
 
 
@@ -1665,6 +1701,15 @@ def build_traits_parser() -> argparse.ArgumentParser:
         metavar="N",
         help=f"retries per request (default: {DEFAULT_EMBEDDING_MAX_RETRIES})",
     )
+    parser.add_argument(
+        "--served-model",
+        default=os.environ.get("OPENGWASDB_EMBEDDING_SERVED_MODEL"),
+        metavar="NAME",
+        help=(
+            "the model name the server reports, when it differs from the "
+            "ontology store's model (e.g. a local path)"
+        ),
+    )
     return parser
 
 
@@ -1679,6 +1724,7 @@ def _embed_ontology_main(argv: Sequence[str]) -> int:
             api_key=args.api_key,
             batch_size=args.batch_size,
             max_retries=args.max_retries,
+            served_model=args.served_model,
         )
         output = (
             Path(args.output)
@@ -1719,6 +1765,7 @@ def _embed_traits_main(argv: Sequence[str]) -> int:
             api_key=args.api_key,
             batch_size=args.batch_size,
             max_retries=args.max_retries,
+            served_model=args.served_model,
         )
         output = (
             Path(args.output)

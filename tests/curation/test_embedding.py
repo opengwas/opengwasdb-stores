@@ -72,6 +72,7 @@ from curation.embedding import (
     default_trait_embeddings_path,
     embedder_for_model,
     nearest_neighbours,
+    read_embedding_store_meta,
     resolve_retriever,
     term_embedding_text,
 )
@@ -517,6 +518,27 @@ class TestBuildEmbeddingStore(unittest.TestCase):
         self.assertEqual(built.ids, ("bmi", "body mass index"))
         self.assertEqual(built.text_recipe, TRAIT_TEXT_RECIPE)
 
+    def test_records_served_model_and_round_trips_it(self) -> None:
+        embedder = HttpEmbedder(
+            "https://example.invalid/v1/embeddings",
+            model_id=FIXTURE_MODEL_ID,
+            client_factory=RecordingServer().client_factory,
+            served_model="/models/local-biolord",
+        )
+        built = build_ontology_embedding_store(
+            self.ontology_index, embedder, self.chunks
+        )
+        self.assertEqual(built.served_model, "/models/local-biolord")
+        directory = Path(self.temp_dir.name) / "served-store"
+        built.save(directory)
+        self.assertEqual(
+            EmbeddingStore.load(directory).served_model, "/models/local-biolord"
+        )
+        self.assertEqual(
+            read_embedding_store_meta(directory).served_model,
+            "/models/local-biolord",
+        )
+
 
 class TestEmbeddingStoreArtifact(unittest.TestCase):
     """The store directory round-trips and is content-addressed."""
@@ -804,8 +826,24 @@ class TestHttpEmbedderRetries(unittest.TestCase):
 
     def test_returned_model_mismatch_is_rejected(self) -> None:
         server = FlakyServer(["ok"], model_id="some-other-model")
-        with self.assertRaises(EmbeddingUnavailableError):
+        with self.assertRaises(EmbeddingUnavailableError) as ctx:
             self._embedder(server).embed(["hello"])
+        message = str(ctx.exception)
+        self.assertIn("some-other-model", message)
+        self.assertIn(FIXTURE_MODEL_ID, message)
+        self.assertIn("--served-model", message)
+
+    def test_served_model_alias_is_accepted_when_named(self) -> None:
+        server = FlakyServer(["ok"], model_id="/models/local-biolord")
+        embedder = self._embedder(server, served_model="/models/local-biolord")
+        self.assertEqual(embedder.embed(["hello"]), [(5.0, 1.0)])
+        self.assertEqual(embedder.served_model, "/models/local-biolord")
+
+    def test_served_model_does_not_accept_another_name(self) -> None:
+        server = FlakyServer(["ok"], model_id="unexpected")
+        embedder = self._embedder(server, served_model="/models/local-biolord")
+        with self.assertRaises(EmbeddingUnavailableError):
+            embedder.embed(["hello"])
 
 
 # ---------------------------------------------------------------------------

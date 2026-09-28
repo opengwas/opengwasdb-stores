@@ -918,6 +918,7 @@ def run_embed_traits(
     embedder: Embedder | None = None,
     endpoint: str | None = None,
     api_key: str | None = None,
+    served_model: str | None = None,
     output: Path | str | None = None,
     chunk_size: int = DEFAULT_EMBEDDING_CHUNK_SIZE,
     batch_size: int = DEFAULT_EMBEDDING_BATCH_SIZE,
@@ -956,6 +957,7 @@ def run_embed_traits(
             api_key=api_key,
             batch_size=batch_size,
             max_retries=max_retries,
+            served_model=served_model,
         )
     if embedder.model_id != ontology_pin.model_id:
         raise RoundPinError(
@@ -2029,6 +2031,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("OPENGWASDB_EMBEDDING_API_KEY"),
         metavar="KEY",
     )
+    embed_traits_parser.add_argument(
+        "--served-model",
+        default=os.environ.get("OPENGWASDB_EMBEDDING_SERVED_MODEL"),
+        metavar="NAME",
+    )
     embed_traits_parser.add_argument("--batch-size", type=int, default=128)
     embed_traits_parser.add_argument("--chunk-size", type=int, default=1000)
     embed_traits_parser.add_argument("--max-retries", type=int, default=5)
@@ -2153,6 +2160,7 @@ def _main_embed_traits(args: argparse.Namespace) -> int:
             _resolve_cli_round_dir(args),
             endpoint=args.endpoint,
             api_key=args.api_key,
+            served_model=args.served_model,
             output=args.output,
             batch_size=args.batch_size,
             chunk_size=args.chunk_size,
