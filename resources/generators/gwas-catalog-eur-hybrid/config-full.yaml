@@ -108,11 +108,12 @@ source:
   # Genotyping technologies exempt from the default MAF floor. An Analysis whose
   # metadata YAML lists technologies that are ALL in this list gets NaN (no MAF
   # filter); missing technology metadata is never an exemption. The operator
-  # decides exemptions here -- candidates are 'Whole genome sequencing' and
-  # 'Exome-wide sequencing' -- so the default is deliberately empty and every
-  # Analysis receives `defaults.maf_threshold`. See the OGS-00011 admission
-  # contract (#176).
-  maf_filter_exempt_genotyping_technologies: []
+  # exempted sequencing-only studies for OGS-00011 (#176, 2026-09-28): their
+  # low-frequency calls are observed, not imputed. That is 158 Analyses (105
+  # WGS, 53 WES); an Analysis that also lists an array is still filtered.
+  maf_filter_exempt_genotyping_technologies:
+    - Whole genome sequencing
+    - Exome-wide sequencing
   inventory:
     snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-22
     path: resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv

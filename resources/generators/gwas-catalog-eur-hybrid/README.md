@@ -287,9 +287,10 @@ Analysis is exempt (emitting literal `NaN`) only when its
 `genotyping_technology` list is non-empty and **every** technology appears in
 `source.maf_filter_exempt_genotyping_technologies`; missing technology metadata
 is never an exemption. `config-full.yaml` sets `maf_threshold: 0.005` and
-defaults `maf_filter_exempt_genotyping_technologies: []` -- the operator decides
-which technologies (candidates: `Whole genome sequencing`,
-`Exome-wide sequencing`) are exempt from this release's floor.
+exempts `Whole genome sequencing` and `Exome-wide sequencing` (operator
+decision, #176): the 158 sequencing-only Analyses carry no MAF floor because
+their low-frequency calls are observed rather than imputed, while an Analysis
+that also lists a genotyping array is filtered.
 
 The resolver manifest carries the derived `maf_threshold` per Analysis.
 Candidate `analyses.tsv` emits the numeric value only on resolver evidence: the
