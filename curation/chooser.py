@@ -362,3 +362,16 @@ class Chooser(ABC):
         the empty-shortlist and shortlist-membership rules around them.
         """
         raise NotImplementedError
+
+    def estimate_cost_usd(
+        self,
+        trait_label: str,
+        candidates: Sequence[Candidate],
+    ) -> float | None:
+        """A conservative cost estimate for one request, or ``None``.
+
+        The round uses this to reserve budget for in-flight requests so a
+        concurrent batch cannot collectively overshoot ``--max-cost-usd``. A
+        chooser that cannot estimate its own cost returns ``None``.
+        """
+        return None

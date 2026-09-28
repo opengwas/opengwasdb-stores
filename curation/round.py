@@ -54,6 +54,7 @@ import argparse
 import concurrent.futures
 import csv
 import hashlib
+import math
 import os
 import re
 import sys
@@ -909,13 +910,57 @@ def choice_file_paths(
     return folder / f"{digest}.yaml", folder / f"{digest}.error.yaml"
 
 
-def _redact_api_keys(message: str) -> str:
+def _redact_api_keys(message: str, extra_keys: Sequence[str] = ()) -> str:
     """Remove any configured API key from a persisted error message."""
-    for variable in _API_KEY_ENV_VARS:
-        value = os.environ.get(variable)
+    keys = [os.environ.get(variable) for variable in _API_KEY_ENV_VARS]
+    keys.extend(extra_keys)
+    for value in keys:
         if value:
             message = message.replace(value, "***")
     return message
+
+
+def _sum_round_recorded_cost(config: RoundConfig) -> float:
+    """The cost already recorded by this round's finished result files.
+
+    Seeding the spend cap from the result files makes ``--max-cost-usd``
+    cumulative across an interrupt/resume rather than per invocation, so
+    repeated resumes cannot spend without bound.
+    """
+    choices_dir = config.choices_dir
+    if not choices_dir.is_dir():
+        return 0.0
+    total = 0.0
+    for path in choices_dir.rglob("*.yaml"):
+        if path.name.endswith(".error.yaml"):
+            continue
+        data = _read_result(path)
+        if data is None:
+            continue
+        cost = _optional_float(data.get("cost_usd"))
+        if cost is not None:
+            total += cost
+    return total
+
+
+def _estimate_request_cost(
+    chooser: Chooser, trait_label: str, candidates: Sequence[Candidate]
+) -> float:
+    """A conservative per-request cost estimate, or 0.0 when unavailable."""
+    estimator = getattr(chooser, "estimate_cost_usd", None)
+    if not callable(estimator):
+        return 0.0
+    try:
+        estimate = estimator(trait_label, list(candidates))
+    except Exception:  # noqa: BLE001 - an estimate must never block a run
+        return 0.0
+    if estimate is None:
+        return 0.0
+    try:
+        value = float(estimate)
+    except (TypeError, ValueError):
+        return 0.0
+    return value if math.isfinite(value) and value > 0.0 else 0.0
 
 
 def _read_result(path: Path) -> Mapping[str, Any] | None:
@@ -982,6 +1027,7 @@ def _choose_label(
     candidates: Sequence[Candidate],
     chooser: Chooser,
     config: RoundConfig,
+    extra_api_keys: Sequence[str] = (),
 ) -> ChooseLabelOutcome:
     normalised = gap_scan.normalize_trait_label(trait_label)
     result_path, error_path = choice_file_paths(config.round_dir, normalised)
@@ -1012,7 +1058,7 @@ def _choose_label(
     except BaseException as exc:  # noqa: BLE001 - persist then continue
         if isinstance(exc, KeyboardInterrupt):
             raise
-        message = _redact_api_keys(str(exc))
+        message = _redact_api_keys(str(exc), extra_api_keys)
         error_data: dict[str, Any] = {
             "trait_label": trait_label,
             "normalised_label": normalised,
@@ -1123,6 +1169,7 @@ def run_choose(
     workers: int = DEFAULT_WORKERS,
     limit: int | None = None,
     max_cost_usd: float | None = None,
+    extra_api_keys: Sequence[str] = (),
 ) -> ChooseOutcome:
     """Choose for every shortlisted label, resumable per trait label.
 
@@ -1148,7 +1195,10 @@ def run_choose(
         chooser = _build_round_chooser(config)
 
     labels = list(grouped.keys())
-    total_cost = 0.0
+    # The cap is cumulative for the round: seed it from the result files a
+    # previous invocation (or a resumed run) already paid for.
+    total_cost = _sum_round_recorded_cost(config)
+    reserved_cost = 0.0
     cost_lock = threading.Lock()
     chosen = skipped = failed = processed = 0
     limit_reached = False
@@ -1156,6 +1206,7 @@ def run_choose(
 
     pending = iter(labels)
     futures: dict[concurrent.futures.Future, str] = {}
+    future_reserved: dict[concurrent.futures.Future, float] = {}
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=workers)
     try:
         while True:
@@ -1177,13 +1228,27 @@ def run_choose(
                     break
                 if max_cost_usd is not None:
                     with cost_lock:
-                        if total_cost >= max_cost_usd:
+                        if total_cost + reserved_cost >= max_cost_usd:
                             cost_cap_reached = True
                             break
                 future = executor.submit(
-                    _choose_label, trait_label, list(candidates), chooser, config
+                    _choose_label,
+                    trait_label,
+                    list(candidates),
+                    chooser,
+                    config,
+                    tuple(extra_api_keys),
                 )
                 futures[future] = trait_label
+                if max_cost_usd is not None:
+                    # Reserve an estimate for the in-flight request so a
+                    # concurrent batch cannot collectively overshoot the cap.
+                    with cost_lock:
+                        reserve = _estimate_request_cost(
+                            chooser, trait_label, candidates
+                        )
+                        reserved_cost += reserve
+                    future_reserved[future] = reserve
                 processed += 1
 
             if not futures:
@@ -1194,6 +1259,7 @@ def run_choose(
             )
             for future in done:
                 futures.pop(future, None)
+                reserved = future_reserved.pop(future, 0.0)
                 outcome = future.result()
                 if outcome.status == "skipped":
                     skipped += 1
@@ -1201,8 +1267,9 @@ def run_choose(
                     chosen += 1
                 else:
                     failed += 1
-                if outcome.cost_usd is not None:
-                    with cost_lock:
+                with cost_lock:
+                    reserved_cost -= reserved
+                    if outcome.cost_usd is not None:
                         total_cost += outcome.cost_usd
     except KeyboardInterrupt:
         executor.shutdown(wait=True, cancel_futures=True)

@@ -902,6 +902,10 @@ class HttpJevClient(JevClient):
     def max_attempts(self) -> int:
         return self._max_attempts
 
+    @property
+    def price_per_mtok_input(self) -> float:
+        return self._price_per_mtok_input
+
     def _make_client(self) -> Any:
         if self._client_factory is not None:
             return self._client_factory()
@@ -1062,6 +1066,23 @@ class JevChooser(Chooser):
     def total_cost_usd(self) -> float:
         """Total recorded spend across every label this chooser has decided."""
         return math.fsum(record.cost_usd for record in self.cost_records)
+
+    def estimate_cost_usd(
+        self,
+        trait_label: str,
+        candidates: Sequence[Candidate],
+    ) -> float | None:
+        """Reserve the request's estimated input-token cost before sending."""
+        price = getattr(self.client, "price_per_mtok_input", None)
+        if price is None:
+            return None
+        try:
+            request = self.configure(trait_label, list(candidates))
+        except JevError:
+            # A request that cannot be configured is never sent, so it costs
+            # nothing; do not let its reserve block later work.
+            return 0.0
+        return request.estimated_input_tokens / 1e6 * float(price)
 
     def configure(
         self,

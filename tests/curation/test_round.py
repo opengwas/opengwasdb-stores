@@ -153,6 +153,9 @@ class RecordingChooser(Chooser):
             cost_usd=cost,
         )
 
+    def estimate_cost_usd(self, trait_label: str, candidates: list) -> float | None:
+        return self.costs.get(trait_label)
+
 
 class RoundTestCase(unittest.TestCase):
     """Shared temporary workspace with an index, manifests, and a resource."""
@@ -528,6 +531,59 @@ class ChooseTest(RoundTestCase):
             self.round_dir / "choices"
         ).exists() else []
         self.assertEqual(temp_files, [])
+
+
+# ---------------------------------------------------------------------------
+# --max-cost-usd caps the whole round
+# ---------------------------------------------------------------------------
+
+
+class CostCapTest(RoundTestCase):
+    """The spend cap is cumulative and accounts for in-flight requests."""
+
+    def _build(self, labels: list[str]) -> RecordingChooser:
+        queue = self.queue_tsv(labels)
+        self.init_round(queue_tsv=queue)
+        round_mod.run_gap_scan(self.round_dir)
+        self.write_shortlists(
+            [shortlist_row(label, f"EFO:{index + 1}", label) for index, label in enumerate(labels)]
+        )
+        return RecordingChooser(
+            {label: (f"EFO:{index + 1}", {f"EFO:{index + 1}": 1.0}) for index, label in enumerate(labels)},
+            costs={label: 0.10 for label in labels},
+        )
+
+    def test_concurrent_requests_cannot_overshoot_the_cap(self) -> None:
+        labels = ["alpha", "beta", "gamma", "delta"]
+        chooser = self._build(labels)
+        outcome = round_mod.run_choose(
+            self.round_dir, chooser=chooser, workers=4, max_cost_usd=0.05
+        )
+        self.assertTrue(outcome.cost_cap_reached)
+        # Only the first in-flight request may be submitted; the rest are
+        # blocked by its reservation.
+        self.assertEqual(outcome.processed, 1)
+        self.assertEqual(len(chooser.calls), 1)
+        self.assertAlmostEqual(outcome.total_cost_usd, 0.10)
+
+    def test_resume_does_not_overshoot_the_cap(self) -> None:
+        labels = ["alpha", "beta", "gamma", "delta"]
+        chooser = self._build(labels)
+        first = round_mod.run_choose(
+            self.round_dir, chooser=chooser, workers=1, limit=1
+        )
+        self.assertEqual(first.processed, 1)
+        self.assertAlmostEqual(first.total_cost_usd, 0.10)
+
+        # The remaining labels start from the recorded $0.10, already over the
+        # $0.05 cap, so nothing new is submitted.
+        resumed = round_mod.run_choose(
+            self.round_dir, chooser=chooser, workers=1, max_cost_usd=0.05
+        )
+        self.assertTrue(resumed.cost_cap_reached)
+        self.assertEqual(resumed.processed, 0)
+        self.assertEqual(len(chooser.calls), 1)
+        self.assertAlmostEqual(resumed.total_cost_usd, 0.10)
 
 
 # ---------------------------------------------------------------------------
