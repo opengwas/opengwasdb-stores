@@ -92,6 +92,7 @@ RESOLVER_MANIFEST_COLUMNS: tuple[str, ...] = (
     "imputation_score_column",
     "imputation_score_kind",
     "imputation_score_provenance",
+    "maf_threshold",
 )
 
 #: The canonical Release Bundle ``analyses.tsv`` columns this generator emits.
@@ -137,6 +138,7 @@ ANALYSES_COLUMNS: tuple[str, ...] = (
     "imputation_score_column",
     "imputation_score_kind",
     "imputation_score_provenance",
+    "maf_threshold",
     "inclusion_reason",
     "exclude_from_build",
 )
@@ -225,6 +227,12 @@ INFO_SCORE_COLUMNS: tuple[str, ...] = (
 #: `disabled` is an explicit zero floor, `filtered` a positive one. A declared
 #: Analysis whose record reports anything else has no usable score evidence.
 USABLE_INFO_SCORE_STATES: frozenset[str] = frozenset({"disabled", "filtered"})
+
+#: The two resolver ``maf_state`` values that mean the threshold was actually
+#: applied: `disabled` is an explicit zero floor, `filtered` a positive one. Any
+#: other value (including the ``unavailable`` of an absent request) is no MAF
+#: evidence, so ``analyses.tsv`` emits literal ``NaN``.
+USABLE_MAF_STATES: frozenset[str] = frozenset({"disabled", "filtered"})
 
 EXCLUSION_COLUMNS: tuple[str, ...] = (
     "analysis_id",
@@ -345,6 +353,14 @@ class CandidateConfiguration:
     target_ancestry: str
     info_score_threshold: str
     imputation_score_declarations: Path | None
+    #: Requested per-Analysis MAF floor, canonical string, or ``None`` when
+    #: ``defaults.maf_threshold`` is omitted (= no MAF filter at all).
+    maf_threshold: str | None
+    #: Genotyping technologies whose Analyses are exempt from the default MAF
+    #: floor (``source.maf_filter_exempt_genotyping_technologies``). An Analysis
+    #: is exempt when it has non-empty technology metadata and every technology
+    #: is in this list.
+    maf_filter_exempt_genotyping_technologies: tuple[str, ...]
 
 
 def _require(document: Mapping[str, Any], key: str, where: str) -> Any:
@@ -391,8 +407,12 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
     info_score_threshold = parse_info_score_threshold(
         defaults.get("info_score_threshold", 0.6)
     )
+    maf_threshold = parse_maf_threshold(defaults.get("maf_threshold"))
     target_ancestry = read_source_label_map(repo_root, base.ancestry_group)
     source = _mapping(document.get("source"))
+    maf_filter_exempt = parse_maf_filter_exempt_technologies(
+        source.get("maf_filter_exempt_genotyping_technologies")
+    )
     declaration_input = source.get("imputation_score_declarations")
     if declaration_input is not None and (
         not isinstance(declaration_input, str) or not declaration_input.strip()
@@ -422,6 +442,8 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         target_ancestry=target_ancestry,
         info_score_threshold=info_score_threshold,
         imputation_score_declarations=declaration_path,
+        maf_threshold=maf_threshold,
+        maf_filter_exempt_genotyping_technologies=maf_filter_exempt,
     )
 
 
@@ -440,6 +462,50 @@ def parse_info_score_threshold(value: Any) -> str:
     return format(number, "f")
 
 
+def parse_maf_threshold(value: Any) -> str | None:
+    """Validate the requested MAF floor; omitted disables it for every Analysis.
+
+    ``None`` (an omitted or null key) means no MAF filter at all and every
+    manifest row emits literal ``NaN``. A numeric value must be finite and in
+    ``[0, 0.5]``; ``0`` disables filtering explicitly, exactly as the INFO floor
+    does. The canonical string is returned so the manifest and fingerprint bind
+    the same spelling the operator wrote.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool) or not str(value).strip():
+        raise PreflightConfigError("defaults.maf_threshold must be a number in [0,0.5]")
+    try:
+        number = Decimal(str(value).strip())
+    except InvalidOperation as exc:
+        raise PreflightConfigError(
+            "defaults.maf_threshold must be a number in [0,0.5]"
+        ) from exc
+    if not number.is_finite() or not 0 <= number <= Decimal("0.5"):
+        raise PreflightConfigError("defaults.maf_threshold must be a number in [0,0.5]")
+    return format(number, "f")
+
+
+def parse_maf_filter_exempt_technologies(value: Any) -> tuple[str, ...]:
+    """Validate the genotyping technologies exempt from the default MAF floor.
+
+    A list of non-empty technology labels (for example
+    ``'Whole genome sequencing'``). An Analysis is exempt only when it has
+    non-empty technology metadata and *every* technology is in this list; an
+    omitted key means no Analysis is exempt.
+    """
+    if value is None:
+        return ()
+    if not isinstance(value, list) or any(
+        not isinstance(item, str) or not item.strip() for item in value
+    ):
+        raise PreflightConfigError(
+            "source.maf_filter_exempt_genotyping_technologies must be a list of "
+            "non-empty technology labels"
+        )
+    return tuple(item.strip() for item in value)
+
+
 def info_score_emission(
     declaration: ResolverRow | None, record: Mapping[str, Any] | None
 ) -> tuple[str, str, str, str]:
@@ -452,8 +518,8 @@ def info_score_emission(
     fingerprint must still bind that exact declaration. Every other Analysis --
     undeclared, a legacy record without the new diagnostics, or a declared one
     whose evidence is unusable -- emits literal ``NaN`` and empty triple cells.
-    A declared-but-unusable Analysis is caught by the release policy before this
-    runs and surfaces as a controlled exclusion naming its Analysis.
+    A declared Analysis with zero usable scores (record state
+    ``no_usable_scores``) is *included* and emits ``NaN``, not excluded (#176).
     """
     if declaration is None or not declaration.imputation_score_column:
         return ("NaN", "", "", "")
@@ -486,6 +552,80 @@ def _positive_int(value: Any) -> bool:
 
 def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def maf_threshold_emission(
+    declaration: ResolverRow | None, record: Mapping[str, Any] | None
+) -> str:
+    """The ``analyses.tsv`` MAF cell for one Analysis (stores #176).
+
+    A numeric floor is emitted only on per-Analysis resolver evidence: the
+    Analysis's manifest row must carry a numeric ``maf_threshold``, its resolver
+    record must report a usable ``maf_state`` (``disabled``/``filtered``), and
+    its fingerprint must still bind that exact value. Every other Analysis --
+    no configured default, an exempt genotyping technology, a legacy record
+    without the diagnostics, or a changed fingerprint -- emits literal ``NaN``.
+    """
+    if declaration is None or declaration.maf_threshold in ("", "NaN"):
+        return "NaN"
+    diagnostics = _record_mapping(record, "diagnostics")
+    if diagnostics.get("maf_state") not in USABLE_MAF_STATES:
+        return "NaN"
+    resolution_config = _record_mapping(
+        _record_mapping(record, "fingerprints"), "resolution_config"
+    )
+    try:
+        wanted = float(declaration.maf_threshold)
+    except ValueError:
+        return "NaN"
+    if resolution_config.get("maf_threshold") != wanted:
+        return "NaN"
+    return declaration.maf_threshold
+
+
+def read_genotyping_technologies(yaml_file: str) -> list[str]:
+    """Read a source metadata YAML's ``genotyping_technology`` list, or ``[]``.
+
+    Missing metadata is not an exemption: a row whose sidecar is absent,
+    unreadable, or carries no technology falls through to the release default.
+    The inventory records the exact YAML path in its ``yaml_file`` column.
+    """
+    if not yaml_file:
+        return []
+    path = Path(yaml_file)
+    if not path.is_file():
+        return []
+    try:
+        document = yaml.safe_load(path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, yaml.YAMLError):
+        return []
+    if not isinstance(document, Mapping):
+        return []
+    raw = document.get("genotyping_technology")
+    if isinstance(raw, str):
+        values: list[Any] = [raw]
+    elif isinstance(raw, list):
+        values = raw
+    else:
+        return []
+    return [value.strip() for value in values if isinstance(value, str) and value.strip()]
+
+
+def analysis_maf_threshold(row: SourceInventoryRow, config: CandidateConfiguration) -> str:
+    """The manifest ``maf_threshold`` for one Analysis: the default or ``NaN``.
+
+    An Analysis is exempt only when it has non-empty technology metadata and
+    *every* technology is in ``source.maf_filter_exempt_genotyping_technologies``.
+    Missing technology metadata is never an exemption (#176).
+    """
+    if config.maf_threshold is None:
+        return "NaN"
+    exempt = set(config.maf_filter_exempt_genotyping_technologies)
+    if exempt:
+        technologies = read_genotyping_technologies(row.yaml_file)
+        if technologies and all(technology in exempt for technology in technologies):
+            return "NaN"
+    return config.maf_threshold
 
 
 def read_source_label_map(repo_root: Path, label: str) -> str:
@@ -702,6 +842,9 @@ class ResolverRow:
     imputation_score_column: str = ""
     imputation_score_kind: str = ""
     imputation_score_provenance: str = ""
+    #: The per-Analysis MAF floor: the configured default, or literal ``NaN``
+    #: for a no-MAF-filter release or a MAF-exempt genotyping technology.
+    maf_threshold: str = "NaN"
 
     def as_dict(self) -> dict[str, str]:
         return {name: getattr(self, name) for name in RESOLVER_MANIFEST_COLUMNS}
@@ -756,6 +899,7 @@ def derive_resolver_manifest(
                 imputation_score_column=column,
                 imputation_score_kind=kind,
                 imputation_score_provenance=provenance,
+                maf_threshold=analysis_maf_threshold(row, config),
             )
         )
     if not manifest:
@@ -1148,6 +1292,16 @@ def _verify_fingerprints(row: ResolverRow, record: Mapping[str, Any]) -> list[st
                         f"{row.analysis_id}: resolver resolution_config.{key} is "
                         f"{resolution_config.get(key)!r}, expected {wanted!r}"
                     )
+    # A numeric MAF request must be bound by the resolver's own fingerprint, so
+    # a record resolved without MAF filtering cannot be frozen as if it had it.
+    # A no-MAF-filter (literal NaN) row binds no key, as for an undeclared score.
+    if row.maf_threshold not in ("", "NaN") and isinstance(resolution_config, Mapping):
+        wanted_maf = float(row.maf_threshold)
+        if resolution_config.get("maf_threshold") != wanted_maf:
+            failures.append(
+                f"{row.analysis_id}: resolver resolution_config.maf_threshold is "
+                f"{resolution_config.get('maf_threshold')!r}, expected {wanted_maf!r}"
+            )
     failures.extend(_verify_source_file_unchanged(row, fingerprints))
     return failures
 
@@ -1307,6 +1461,16 @@ def compute_resolution_contract(config: CandidateConfiguration) -> dict[str, Any
         contract["imputation_score_declarations"] = str(config.imputation_score_declarations)
         contract["imputation_score_declarations_sha256"] = sha256_file(
             config.imputation_score_declarations
+        )
+    # A configured MAF floor is part of the resolution contract: changing the
+    # default or the exemption rule re-derives every manifest row's
+    # maf_threshold, so a receipt resolved under the old rule must be rejected
+    # rather than silently frozen. A no-MAF (omitted) config adds no keys, so the
+    # legacy contract stays byte-for-byte compatible.
+    if config.maf_threshold is not None:
+        contract["maf_threshold"] = config.maf_threshold
+        contract["maf_filter_exempt_genotyping_technologies"] = list(
+            config.maf_filter_exempt_genotyping_technologies
         )
     return contract
 
@@ -1525,6 +1689,9 @@ class AnalysisOutcome:
     info_score_column: str = ""
     info_score_kind: str = ""
     info_score_provenance: str = ""
+    #: The emitted MAF floor (stores #176): the numeric value on resolver
+    #: evidence, else literal ``NaN``. (:func:`maf_threshold_emission`).
+    maf_threshold: str = "NaN"
 
     @property
     def analysis_id(self) -> str:
@@ -1590,6 +1757,7 @@ def _decide(
     n_cases = resolved.n_cases if case_control else ""
     n_controls = resolved.n_controls if case_control else ""
     emitted_info = info_score_emission(declaration, record)
+    emitted_maf = maf_threshold_emission(declaration, record)
 
     def make(
         *,
@@ -1620,6 +1788,7 @@ def _decide(
             info_score_column=emitted_info[1],
             info_score_kind=emitted_info[2],
             info_score_provenance=emitted_info[3],
+            maf_threshold=emitted_maf,
         )
 
     if not sample_size or _non_positive(sample_size):
@@ -1635,25 +1804,11 @@ def _decide(
         error = str(record.get("error") or "resolver returned controlled_failure")
         return make(included=False, reason="resolution_failed", detail=error)
 
-    # A declared score with no usable evidence must not be included on a NaN
-    # threshold. The resolver already reports this as a controlled failure
-    # (handled above); this is the registry-side guard for a record that claims
-    # success without the evidence, so the invariant "included implies usable"
-    # holds no matter what produced the record. The Analysis id is named
-    # through the exclusion row.
-    if declaration is not None and declaration.imputation_score_column:
-        diagnostics = _record_mapping(record, "diagnostics")
-        state = diagnostics.get("info_score_state")
-        usable = diagnostics.get("info_rows_usable")
-        if state not in USABLE_INFO_SCORE_STATES or not _positive_int(usable):
-            return make(
-                included=False,
-                reason="resolution_failed",
-                detail=(
-                    "declared imputation score has no usable evidence "
-                    f"(info_score_state={state!r}, info_rows_usable={usable!r})"
-                ),
-            )
+    # A declared score with no usable evidence is *included*: every row is
+    # retained and this Analysis emits literal ``NaN`` INFO cells (#176). The
+    # record reports ``info_score_state = "no_usable_scores"``, which
+    # :func:`info_score_emission` reads as no evidence; it is never a controlled
+    # failure and never a refusal here.
 
     ancestry = _record_mapping(record, "ancestry")
     assigned = str(ancestry.get("assigned_ancestry") or "").strip()
@@ -2101,6 +2256,7 @@ def _analyses_row(
         "imputation_score_column": outcome.info_score_column,
         "imputation_score_kind": outcome.info_score_kind,
         "imputation_score_provenance": outcome.info_score_provenance,
+        "maf_threshold": outcome.maf_threshold,
         "inclusion_reason": inclusion_reason,
         "exclude_from_build": exclude,
     }
@@ -2659,6 +2815,7 @@ __all__ = [
     "INFO_SCORE_COLUMNS",
     "REFERENCE_OVERLAP_COLUMNS",
     "USABLE_INFO_SCORE_STATES",
+    "USABLE_MAF_STATES",
     "CandidateConfiguration",
     "CandidateError",
     "CandidateFiles",
@@ -2678,6 +2835,7 @@ __all__ = [
     "ResolverRow",
     "ResolverRun",
     "account_records",
+    "analysis_maf_threshold",
     "apply_release_policy",
     "build_candidate_tables",
     "build_resolution_receipt",
@@ -2687,9 +2845,11 @@ __all__ = [
     "derive_resolver_manifest",
     "info_score_emission",
     "load_candidate_configuration",
+    "maf_threshold_emission",
     "now_utc",
     "publish_candidate",
     "read_candidate_metadata",
+    "read_genotyping_technologies",
     "read_resolution_receipt",
     "read_source_label_map",
     "render_build_yaml",

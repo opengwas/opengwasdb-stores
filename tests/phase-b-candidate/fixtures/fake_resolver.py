@@ -155,6 +155,8 @@ def compute_fingerprints(row: dict, options: dict) -> dict:
             "imputation_score_kind": row["imputation_score_kind"],
             "imputation_score_provenance": row["imputation_score_provenance"],
         })
+    if row.get("maf_threshold") not in (None, "", "NaN"):
+        fingerprints["resolution_config"]["maf_threshold"] = float(row["maf_threshold"])
     fingerprints["fingerprint_digest"] = fingerprint_digest(fingerprints)
     return fingerprints
 
@@ -202,15 +204,33 @@ def info_score_state(row: dict, outcome: dict) -> str:
     """The state a real resolver would report for this row (stores #175).
 
     A declared score defaults to the state its threshold implies (zero is
-    `disabled`, positive is `filtered`); an undeclared row has no policy and is
-    `legacy_absent`. Tests override it through the outcome to simulate an
-    unavailable or unusable record.
+    `disabled`, positive is `filtered`); a declared row with no usable scores is
+    `no_usable_scores` and is retained by the registry (#176); an undeclared row
+    has no policy and is `legacy_absent`. Tests override it through the outcome
+    to simulate an unavailable record.
     """
     if "info_score_state" in outcome:
         return outcome["info_score_state"]
     if not row.get("imputation_score_column"):
         return "legacy_absent"
+    if int(outcome.get("info_rows_usable", 2000)) == 0:
+        return "no_usable_scores"
     return "disabled" if float(row.get("info_score_threshold") or 0) == 0 else "filtered"
+
+
+def maf_state(row: dict, outcome: dict) -> str:
+    """The resolver MAF state for this row (stores #176).
+
+    A numeric request is `disabled` (zero) or `filtered` (positive); a literal
+    NaN or absent request is `unavailable`. Tests override it through the
+    outcome to simulate a record that did not apply the floor.
+    """
+    if "maf_state" in outcome:
+        return outcome["maf_state"]
+    value = row.get("maf_threshold")
+    if value in (None, "", "NaN"):
+        return "unavailable"
+    return "disabled" if float(value) == 0 else "filtered"
 
 
 def scan_diagnostics(row: dict, options: dict, outcome: dict) -> dict:
@@ -239,6 +259,9 @@ def scan_diagnostics(row: dict, options: dict, outcome: dict) -> dict:
         "info_rows_out_of_range": outcome.get("info_rows_out_of_range", 0),
         "info_rows_usable": outcome.get("info_rows_usable", 2000),
         "info_score_state": info_score_state(row, outcome),
+        "maf_state": maf_state(row, outcome),
+        "maf_rows_below_threshold": outcome.get("maf_rows_below_threshold", 0),
+        "maf_rows_missing": outcome.get("maf_rows_missing", 0),
         "build_eligible_rows": build_eligible,
     }
     if options.get("variant_reference"):
@@ -260,19 +283,10 @@ def scan_diagnostics(row: dict, options: dict, outcome: dict) -> dict:
 
 def record_for(row: dict, options: dict, outcome: dict) -> dict:
     fingerprints = compute_fingerprints(row, options)
-    declared = bool(row.get("imputation_score_column"))
     status = outcome.get("status", "success")
-    # A declared score with no usable value is a controlled failure in core; the
-    # stand-in reproduces that so the registry's exclusion path is exercised.
-    if status == "success" and declared and outcome.get("info_rows_usable", 2000) == 0:
-        status = "controlled_failure"
-        outcome = {
-            **outcome,
-            "error": outcome.get("error") or (
-                f"Analysis {row['analysis_id']}: declared imputation score has no "
-                "usable scores in scanned canonical rows"
-            ),
-        }
+    # A declared score with no usable scores is no longer a controlled failure:
+    # every row is retained and the record reports info_score_state
+    # `no_usable_scores` (#176), which the registry reads as no evidence.
     if status != "success":
         return {
             "record_schema_version": RECORD_SCHEMA_VERSION,

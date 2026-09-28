@@ -88,6 +88,14 @@ INFO_SCORE_COLUMNS: tuple[str, ...] = (
 )
 INFO_SCORE_KINDS: frozenset[str] = frozenset({"imputation_info", "imputation_r2"})
 
+# The optional per-Analysis MAF floor column (stores #176). A numeric value is
+# the requested floor in [0, 0.5] (0 disables); literal NaN means no validated
+# MAF evidence -- no configured default, an exempt genotyping technology, a
+# legacy record, or unusable evidence. The pinned OpenGWASDB Analysis schema may
+# predate this column, so it is validated here independently rather than being
+# left to the core reader.
+MAF_THRESHOLD_COLUMN: str = "maf_threshold"
+
 # Legacy Trial Store Releases where required Analysis metadata is unpopulated
 # in upstream BESD sources and cannot be resolved without external study metadata
 # (issue #134). Blank required values are tolerated strictly for these two named
@@ -782,6 +790,27 @@ def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
                     f"{sorted(INFO_SCORE_KINDS)}"
                 )
 
+    # Optional per-Analysis MAF floor (stores #176): literal NaN, or a finite
+    # number in [0, 0.5]. The column is a request, not a report of what was
+    # filtered, and its range is the whole truth checkable from the bundle alone.
+    if MAF_THRESHOLD_COLUMN in table.fieldnames:
+        for row in table.rows:
+            analysis_id = row.get("analysis_id") or "<unknown analysis_id>"
+            value = (row.get(MAF_THRESHOLD_COLUMN) or "").strip()
+            if value == "NaN":
+                continue
+            number = Decimal("NaN")
+            if value:
+                try:
+                    number = Decimal(value)
+                except InvalidOperation:
+                    number = Decimal("NaN")
+            if not number.is_finite() or not 0 <= number <= Decimal("0.5"):
+                errors.append(
+                    f"analysis {analysis_id!r} has maf_threshold {value!r}; "
+                    "expected literal NaN or a number in [0,0.5]"
+                )
+
     # A Trait Ontology Mapping is an ontology term plus its trait label. It is
     # never a gene identifier with an authority name standing in for the label:
     # that asserts a gene is the Trait (issue #141). Empty is the correct
@@ -962,6 +991,7 @@ __all__ = [
     "INFO_SCORE_KINDS",
     "LEGACY_BLANK_ANALYSIS_RELEASES",
     "LEGAL_STATUS_TRANSITIONS",
+    "MAF_THRESHOLD_COLUMN",
     "PHASE_B_REQUIRED_COLUMNS",
     "RELEASE_REQUIRED_KEYS",
     "SUPERPOPULATIONS",
