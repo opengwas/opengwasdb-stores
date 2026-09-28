@@ -310,6 +310,7 @@ ld-materialize = { cmd = "python3 resources/scripts/ld-panel/materialize_referen
 # <round-dir>/round.yaml and is idempotent, so a rerun resumes:
 #   pixi run -e curation round-init --round-dir <dir> --index <index.json> --chooser jev --manifests <analyses.tsv>...
 #   pixi run -e curation round-gap-scan --round-dir <dir>
+#   pixi run -e curation round-embed-traits --round-dir <dir> [--endpoint "$OPENGWASDB_EMBEDDING_ENDPOINT"]
 #   pixi run -e curation round-candidates --round-dir <dir>
 #   pixi run -e curation round-choose --round-dir <dir> [--workers 8] [--limit N] [--max-cost-usd X]
 #   pixi run -e curation round-reduce --round-dir <dir> [--allow-incomplete]
@@ -335,6 +336,7 @@ coverage = { cmd = "python3 -m curation.coverage" }
 curation-round = { cmd = "python3 -m curation.curation_round" }
 round-init = { cmd = "python3 -m curation.round round-init" }
 round-gap-scan = { cmd = "python3 -m curation.round gap-scan" }
+round-embed-traits = { cmd = "python3 -m curation.round embed-traits" }
 round-candidates = { cmd = "python3 -m curation.round candidates" }
 round-choose = { cmd = "python3 -m curation.round choose" }
 round-reduce = { cmd = "python3 -m curation.round reduce" }

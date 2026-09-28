@@ -462,12 +462,12 @@ pixi run -e curation embed-ontology \
     --model FremyCompany/BioLORD-2023 \
     --endpoint "$OPENGWASDB_EMBEDDING_ENDPOINT"
 
-# 2. pin the round: ontology index + stores + chooser + thresholds + inputs
+# 2. pin the round: ontology index + ontology store + chooser + thresholds + inputs
+#    (the trait store does not exist yet; it is built from the round's queue)
 pixi run -e curation round-init \
     --round-dir .cache/curation/rounds/ukb-b-2026q1 \
     --index .cache/curation/efo-v3.94.0.index.json \
     --ontology-embeddings .cache/curation/efo-v3.94.0--BioLORD-2023.ontology-embeddings \
-    --trait-embeddings .cache/curation/efo-v3.94.0--BioLORD-2023.trait-embeddings \
     --chooser jev \
     --manifests families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv \
     --threshold-evidence "conf 0.85 / margin 0.20 from the validation curve"
@@ -476,11 +476,10 @@ pixi run -e curation round-init \
 pixi run -e curation round-gap-scan \
     --round-dir .cache/curation/rounds/ukb-b-2026q1
 
-# 4. precompute the queue's trait vectors with the SAME model
-pixi run -e curation embed-traits \
-    --work-queue .cache/curation/rounds/ukb-b-2026q1/queue.tsv \
-    --output .cache/curation/efo-v3.94.0--BioLORD-2023.trait-embeddings \
-    --model-of .cache/curation/efo-v3.94.0--BioLORD-2023.ontology-embeddings \
+# 4. precompute the queue's trait vectors with the SAME model as the ontology
+#    store and record the store pin in round.yaml (no --force needed)
+pixi run -e curation round-embed-traits \
+    --round-dir .cache/curation/rounds/ukb-b-2026q1 \
     --endpoint "$OPENGWASDB_EMBEDDING_ENDPOINT"
 
 # 5. shortlist every queued label from the precomputed vectors (no network)

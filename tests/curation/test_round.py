@@ -31,6 +31,7 @@ from curation.chooser import NONE_SUITABLE, ChoiceResult, Chooser
 from curation.embedding import (
     HASHING_EMBEDDING_MODEL_ID,
     HashingEmbedder,
+    HttpEmbedder,
     build_ontology_embedding_store,
     build_trait_embedding_store,
 )
@@ -402,6 +403,123 @@ class EmbeddingPinTest(RoundTestCase):
 
         with self.assertRaises(round_mod.RoundPinError):
             round_mod.run_candidates(self.round_dir)
+
+
+class _FakeEmbeddingResponse:
+    def __init__(self, payload: dict) -> None:
+        self._payload = payload
+
+    def raise_for_status(self) -> None:
+        pass
+
+    def json(self) -> dict:
+        return self._payload
+
+
+class _FakeEmbeddingClient:
+    def __init__(self, model_id: str) -> None:
+        self.model_id = model_id
+
+    def __enter__(self) -> "_FakeEmbeddingClient":
+        return self
+
+    def __exit__(self, *exc: object) -> bool:
+        return False
+
+    def post(self, url: str, json: dict, headers: dict) -> _FakeEmbeddingResponse:
+        inputs = list(json["input"])
+        return _FakeEmbeddingResponse(
+            {
+                "model": self.model_id,
+                "data": [
+                    {"index": index, "embedding": [float(len(text)), 1.0]}
+                    for index, text in enumerate(inputs)
+                ],
+            }
+        )
+
+
+class _FakeEmbeddingServer:
+    """A fake OpenAI-compatible embeddings endpoint (never a socket)."""
+
+    def __init__(self, model_id: str) -> None:
+        self.model_id = model_id
+
+    def client_factory(self, **kwargs: object) -> _FakeEmbeddingClient:
+        return _FakeEmbeddingClient(self.model_id)
+
+
+class RunbookSequenceTest(RoundTestCase):
+    """The documented runbook order works end to end, including embed-traits."""
+
+    def test_runbook_round_trip_with_fake_embedding_client(self) -> None:
+        model_id = "fixture-embedding-model"
+        server = _FakeEmbeddingServer(model_id)
+        embedder = HttpEmbedder(
+            endpoint="https://fake.invalid/v1/embeddings",
+            model_id=model_id,
+            client_factory=server.client_factory,
+        )
+
+        # 1. embed the ontology terms once.
+        index = load_index(self.index)
+        ontology_store = self.base / "ontology-embeddings"
+        build_ontology_embedding_store(
+            index, embedder, ontology_store / "chunks"
+        ).save(ontology_store)
+
+        # 2. pin the round with the ontology store only (no trait store yet).
+        queue = self.queue_tsv([BMI_LABEL])
+        fixture = self.base / "stub-fixture.json"
+        fixture.write_text(
+            json.dumps(
+                {
+                    BMI_LABEL: {
+                        "selected_ontology_id": BMI_ID,
+                        "probabilities": {BMI_ID: 1.0},
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.init_round(
+            queue_tsv=queue,
+            chooser_id="stub",
+            chooser_version="1",
+            chooser_fixture=fixture,
+            ontology_embeddings=ontology_store,
+        )
+        before_path = self.round_dir / "mapping-before.tsv"
+        before_bytes = before_path.read_bytes()
+
+        # 3. derive the queue.
+        round_mod.run_gap_scan(self.round_dir)
+
+        # 4. embed the queue's trait labels and record the pin (no --force).
+        embedded = round_mod.run_embed_traits(self.round_dir, embedder=embedder)
+        self.assertEqual(embedded.model_id, model_id)
+        self.assertEqual(embedded.count, 1)
+        config = round_mod.read_round_config(self.round_dir)
+        self.assertIsNotNone(config.trait_embeddings)
+        assert config.trait_embeddings is not None
+        self.assertEqual(config.trait_embeddings.model_id, model_id)
+        self.assertEqual(config.trait_embeddings.directory, embedded.store_dir)
+        # The mapping snapshot was not rewritten.
+        self.assertEqual(before_path.read_bytes(), before_bytes)
+
+        # 5-6. shortlist and choose.
+        candidates = round_mod.run_candidates(self.round_dir)
+        self.assertTrue(candidates.embedding_used)
+        chosen = round_mod.run_choose(self.round_dir, workers=1)
+        self.assertEqual(chosen.chosen, 1)
+
+        # 7-9. reduce, promote, cover.
+        reduced = round_mod.run_reduce(self.round_dir)
+        self.assertTrue(reduced.complete)
+        promoted = round_mod.run_promote(self.round_dir)
+        self.assertEqual(len(promoted.promotion.plan.promoted), 1)
+        covered = round_mod.run_coverage(self.round_dir)
+        self.assertEqual(covered.report.rows_added, 1)
 
 
 # ---------------------------------------------------------------------------

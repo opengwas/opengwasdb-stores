@@ -74,10 +74,17 @@ from curation import gap_scan
 from curation import promotion
 from curation.chooser import NONE_SUITABLE, Candidate, ChoiceResult, Chooser
 from curation.embedding import (
+    DEFAULT_EMBEDDING_BATCH_SIZE,
+    DEFAULT_EMBEDDING_CHUNK_SIZE,
+    DEFAULT_EMBEDDING_MAX_RETRIES,
+    Embedder,
     EmbeddingChannel,
     EmbeddingError,
+    EmbeddingStore,
     EmbeddingStoreError,
     PINNED_EMBEDDING_MODEL_ID,
+    build_trait_embedding_store,
+    embedder_for_model,
     read_embedding_store_meta,
     resolve_retriever,
 )
@@ -94,6 +101,7 @@ ROUND_YAML_FILENAME: str = "round.yaml"
 MAPPING_BEFORE_FILENAME: str = "mapping-before.tsv"
 QUEUE_FILENAME: str = "queue.tsv"
 SHORTLISTS_FILENAME: str = "shortlists.tsv"
+TRAIT_EMBEDDINGS_DIRNAME: str = "trait-embeddings"
 CHOICES_DIRNAME: str = "choices"
 PROPOSALS_FILENAME: str = "proposals.tsv"
 COST_LEDGER_FILENAME: str = "cost-ledger.tsv"
@@ -862,6 +870,134 @@ def run_candidates(
         no_candidate_labels=len(queue_labels - shortlisted),
         embedding_used=channel is not None,
     )
+
+
+# ---------------------------------------------------------------------------
+# embed-traits (round step)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class EmbedTraitsOutcome:
+    store_dir: Path
+    model_id: str
+    build_id: str
+    count: int
+    config: RoundConfig
+
+
+def _record_trait_embedding_pin(round_dir: Path | str, pin: EmbeddingPin) -> None:
+    """Record the trait store pin in ``round.yaml`` without a full re-init.
+
+    The runbook cannot pin ``--trait-embeddings`` at ``round-init`` because the
+    store is built from the round's own queue. This updates only the
+    ``trait_embeddings`` key, so ``mapping-before.tsv`` is never re-snapshotted
+    and no ``--force`` is needed.
+    """
+    config_path = Path(round_dir) / ROUND_YAML_FILENAME
+    try:
+        data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:  # pragma: no cover - read_round_config checks
+        raise RoundConfigError(f"{config_path} is not valid YAML: {exc}") from exc
+    if not isinstance(data, Mapping):
+        raise RoundConfigError(f"{config_path} is not a mapping")
+    updated = dict(data)
+    updated["trait_embeddings"] = pin.to_dict()
+    _atomic_write_yaml(updated, config_path)
+
+
+def _read_trait_labels_from_queue(path: Path) -> list[str]:
+    """The ``trait_label`` column of the round's gap-scan queue."""
+    rows = candidates_mod.read_work_queue(path)
+    return [str(row.get("trait_label", "")) for row in rows]
+
+
+def run_embed_traits(
+    round_dir: Path | str,
+    *,
+    embedder: Embedder | None = None,
+    endpoint: str | None = None,
+    api_key: str | None = None,
+    output: Path | str | None = None,
+    chunk_size: int = DEFAULT_EMBEDDING_CHUNK_SIZE,
+    batch_size: int = DEFAULT_EMBEDDING_BATCH_SIZE,
+    max_retries: int = DEFAULT_EMBEDDING_MAX_RETRIES,
+) -> EmbedTraitsOutcome:
+    """Embed the round's queue with the pinned ontology store's model.
+
+    This is the missing link in the runbook: ``round-init`` cannot pin a trait
+    store that only the round's own queue can produce. The step writes the
+    store under the round directory, records its pin in ``round.yaml``, and
+    refuses to build anything that disagrees with the pinned ontology store.
+    """
+    config = read_round_config(round_dir)
+    if config.ontology_embeddings is None:
+        raise RoundPinError(
+            "round.yaml pins no ontology embedding store; run round-init with "
+            "--ontology-embeddings before embedding traits"
+        )
+    if not config.queue_path.is_file():
+        raise RoundStateError(
+            f"the round's queue does not exist: {config.queue_path} "
+            "(run round-gap-scan first)"
+        )
+
+    ontology_pin = config.ontology_embeddings
+    labels = _read_trait_labels_from_queue(config.queue_path)
+    store_dir = (
+        Path(output)
+        if output is not None
+        else config.round_dir / TRAIT_EMBEDDINGS_DIRNAME
+    )
+    if embedder is None:
+        embedder = embedder_for_model(
+            ontology_pin.model_id,
+            endpoint=endpoint,
+            api_key=api_key,
+            batch_size=batch_size,
+            max_retries=max_retries,
+        )
+    if embedder.model_id != ontology_pin.model_id:
+        raise RoundPinError(
+            f"trait embedder model {embedder.model_id!r} does not match the "
+            f"pinned ontology store model {ontology_pin.model_id!r}"
+        )
+
+    store = build_trait_embedding_store(
+        labels,
+        embedder,
+        ontology_release=config.ontology_release,
+        chunks_dir=store_dir / "chunks",
+        chunk_size=chunk_size,
+        on_chunk=_progress_hook("round-embed-traits"),
+    )
+    if store.model_id != ontology_pin.model_id:
+        raise RoundPinError(
+            f"trait embedding store model {store.model_id!r} does not match the "
+            f"pinned ontology store model {ontology_pin.model_id!r}"
+        )
+    if store.dimension != ontology_pin.dimension:
+        raise RoundPinError(
+            f"trait embedding dimension {store.dimension} does not match the "
+            f"pinned ontology store dimension {ontology_pin.dimension}"
+        )
+    store.save(store_dir)
+    pin = _embedding_pin(store_dir)
+    _record_trait_embedding_pin(round_dir, pin)
+    return EmbedTraitsOutcome(
+        store_dir=store_dir,
+        model_id=store.model_id,
+        build_id=store.build_id,
+        count=store.count,
+        config=read_round_config(round_dir),
+    )
+
+
+def _progress_hook(label: str):
+    def report(done: int, total: int) -> None:
+        print(f"{label}: chunk {done}/{total}", file=sys.stderr)
+
+    return report
 
 
 # ---------------------------------------------------------------------------
@@ -1831,6 +1967,27 @@ def build_parser() -> argparse.ArgumentParser:
     _add_round_location(candidates_parser)
     candidates_parser.set_defaults(handler=_main_candidates)
 
+    embed_traits_parser = subparsers.add_parser(
+        "embed-traits",
+        help="embed the round's queue with the pinned ontology store's model",
+    )
+    _add_round_location(embed_traits_parser)
+    embed_traits_parser.add_argument("--output", default=None, metavar="DIR")
+    embed_traits_parser.add_argument(
+        "--endpoint",
+        default=os.environ.get("OPENGWASDB_EMBEDDING_ENDPOINT"),
+        metavar="URL",
+    )
+    embed_traits_parser.add_argument(
+        "--api-key",
+        default=os.environ.get("OPENGWASDB_EMBEDDING_API_KEY"),
+        metavar="KEY",
+    )
+    embed_traits_parser.add_argument("--batch-size", type=int, default=128)
+    embed_traits_parser.add_argument("--chunk-size", type=int, default=1000)
+    embed_traits_parser.add_argument("--max-retries", type=int, default=5)
+    embed_traits_parser.set_defaults(handler=_main_embed_traits)
+
     choose_parser = subparsers.add_parser(
         "choose", help="map each shortlisted label to a choice result"
     )
@@ -1939,6 +2096,28 @@ def _main_candidates(args: argparse.Namespace) -> int:
     print(
         f"candidates: {outcome.candidate_rows} candidate row(s) for "
         f"{outcome.labels} label(s); {outcome.no_candidate_labels} with none",
+        file=sys.stderr,
+    )
+    return 0
+
+
+def _main_embed_traits(args: argparse.Namespace) -> int:
+    try:
+        outcome = run_embed_traits(
+            _resolve_cli_round_dir(args),
+            endpoint=args.endpoint,
+            api_key=args.api_key,
+            output=args.output,
+            batch_size=args.batch_size,
+            chunk_size=args.chunk_size,
+            max_retries=args.max_retries,
+        )
+    except (RoundError, EmbeddingError, IndexFormatError) as exc:
+        print(f"embed-traits: error: {exc}", file=sys.stderr)
+        return 1
+    print(
+        f"embed-traits: wrote {outcome.count} vectors (model "
+        f"{outcome.model_id}) to {outcome.store_dir}",
         file=sys.stderr,
     )
     return 0
