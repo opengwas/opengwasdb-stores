@@ -80,7 +80,6 @@ from curation.embedding import (
     Embedder,
     EmbeddingChannel,
     EmbeddingError,
-    EmbeddingStore,
     EmbeddingStoreError,
     PINNED_EMBEDDING_MODEL_ID,
     build_trait_embedding_store,
