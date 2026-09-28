@@ -143,10 +143,14 @@ threadpoolctl = ">=3.0"
 # pre-#224 code, which spent >21 h in the EAF consensus baseline. Candidate
 # generation and the build must run at this same revision.
 #
-# REVERT CONDITION (#176): the pinned commit stays reachable from `dev` only if
-# that PR is merged with a merge commit. If it is squashed or rebased, repin to
-# the resulting `dev` commit and re-run `pixi lock` before regenerating.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "d0dcfbb179c5f69da845a4187f463d7d008f93fe" }
+# Bumped again for #176 (OGS-00011 row admission): this pins the `dev` merge
+# commit of opengwasdb#235. It reads case-control sources to EOF whenever
+# whole-stream evidence is requested (the #174/#175 counts were previously a
+# ~1% prefix for 880 Analyses), keeps unscored and >1 INFO rows, includes a
+# declared-INFO Analysis with no usable score, and adds the per-Analysis
+# `maf_threshold` with one admission rule shared by the resolver and the Hybrid
+# builder. Candidate generation and the build must run at this same revision.
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "b6bddca5ab99e92f43d0f52317873067733b09e4" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"
