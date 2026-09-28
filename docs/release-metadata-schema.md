@@ -244,6 +244,7 @@ and the matching authority name in `trait_ontology_label` (issue #141).
 | `trait_ontology_id` | No | Ontology or controlled-vocabulary identifier for the analysed Trait, when available. CURIE format, for example `EFO:0001073`; blank when unmapped. Never a gene or protein identifier: `bundle.check()` rejects Ensembl, HGNC, Entrez/NCBI Gene, and UniProt identifiers, bare or authority-qualified (issue #141). Not required to be unique. |
 | `trait_ontology_mapping_method` | Yes | Controlled value describing how `trait_ontology_id`/`trait_ontology_label` were resolved: `source_provided`, `canonical_table_lookup`, or `unmapped`. The #130 `external_authority_lookup` value is retired: gene/target identity is annotation, not a Trait Ontology Mapping (issue #141). Registry-only. |
 | `source_file` | Yes | Source file or filtered source file consumed by the builder. Omitted in legacy monolithic BESD releases (`OGS-00001` and `OGS-00002`), where source identity is currently recorded only as an unverified path prefix (a known integrity gap tracked in issue #134). |
+| `source_reader_capability` | No | The OpenGWASDB reader that consumes `source_file` (for example `opengwasdb.gwas-ssf`). The builder reads it per row and falls back to the Build Recipe's `source-reader-capability` when absent. Required on any row with a numeric `info_score_threshold`. |
 | `source_bundle_id` | No | Identifier for a multi-file Source Bundle when one file is insufficient. |
 | `checksum` | Yes | Checksum for `source_file` or source bundle manifest. Omitted in legacy monolithic BESD releases (`OGS-00001` and `OGS-00002`; known integrity gap tracked in issue #134). When both `checksum` and `checksum_algorithm` are present, `bundle.check()` validates the digest length for `md5` (32), `sha1` (40), or `sha256` (64) hex; an unsupported algorithm is rejected. |
 | `checksum_algorithm` | Yes | Algorithm used for `checksum`, for example `sha256`. |
@@ -279,7 +280,12 @@ The four INFO columns are one policy: `info_score_threshold` is the requested
 floor and `imputation_score_column`/`imputation_score_kind`/
 `imputation_score_provenance` are the exact source-column declaration it
 requires. `bundle.check()` rejects a numeric threshold without the complete
-triple and a triple without a numeric threshold.
+triple and a triple without a numeric threshold. A declared column is only
+meaningful to the GWAS-SSF reader, and the pinned OpenGWASDB validator reads
+the reader from the row, not from the Build Recipe's
+`source-reader-capability` default. A row with a numeric threshold must
+therefore also carry `source_reader_capability` = `opengwasdb.gwas-ssf`. The
+Phase B candidate generator writes that column on every row.
 
 For the Phase B GWAS Catalog EUR Hybrid candidate generator, a separate optional
 `source.imputation_score_declarations` TSV supplies explicit, independently

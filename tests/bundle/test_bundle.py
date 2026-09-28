@@ -107,19 +107,19 @@ class TestBundleContract(unittest.TestCase):
         )
         triple = "\timputation_INFO\timputation_info\tprovider specification: INFO quality"
         candidate = self.make_bundle(analyses=(
-            header + "\tinfo_score_threshold" + triple_header + "\n" + row + "\tNaN\t\t\t\n"
+            header + "\tsource_reader_capability\tinfo_score_threshold" + triple_header + "\n" + row + "\topengwasdb.gwas-ssf\tNaN\t\t\t\n"
         ))
         self.assertEqual(bundle.check(candidate, registry_root=self.tmp_dir), [])
         for value in ("0", "0.6", "1"):
             candidate = self.make_bundle(analyses=(
-                header + "\tinfo_score_threshold" + triple_header + "\n"
-                + row + "\t" + value + triple + "\n"
+                header + "\tsource_reader_capability\tinfo_score_threshold" + triple_header + "\n"
+                + row + "\topengwasdb.gwas-ssf\t" + value + triple + "\n"
             ))
             self.assertEqual(bundle.check(candidate, registry_root=self.tmp_dir), [])
         for value in ("", "nan", "NA", "inf", "-0.01", "1.01", "missing"):
             candidate = self.make_bundle(analyses=(
-                header + "\tinfo_score_threshold" + triple_header + "\n"
-                + row + "\t" + value + triple + "\n"
+                header + "\tsource_reader_capability\tinfo_score_threshold" + triple_header + "\n"
+                + row + "\topengwasdb.gwas-ssf\t" + value + triple + "\n"
             ))
             with self.subTest(value=value):
                 self.assertTrue(any("info_score_threshold" in error for error in
@@ -137,8 +137,8 @@ class TestBundleContract(unittest.TestCase):
 
         def check(threshold: str, declaration: str) -> list[str]:
             candidate = self.make_bundle(analyses=(
-                header + "\tinfo_score_threshold" + triple_header + "\n"
-                + row + "\t" + threshold + declaration + "\n"
+                header + "\tsource_reader_capability\tinfo_score_threshold" + triple_header + "\n"
+                + row + "\topengwasdb.gwas-ssf\t" + threshold + declaration + "\n"
             ))
             return list(bundle.check(candidate, registry_root=self.tmp_dir))
 
@@ -159,6 +159,24 @@ class TestBundleContract(unittest.TestCase):
         # A complete triple with an unsupported kind is rejected.
         errors = check("0.6", "\timputation_INFO\tMAF\tprovider specification: INFO quality")
         self.assertTrue(any("imputation_score_kind" in error for error in errors), errors)
+
+    def test_numeric_info_score_threshold_names_its_reader_in_the_row(self) -> None:
+        """The pinned OpenGWASDB validator reads the reader from the row alone.
+
+        A declared column only means something to the GWAS-SSF reader, and the
+        manifest validator cannot see the Build Recipe's default, so a numeric
+        threshold without a per-row `source_reader_capability` is rejected.
+        """
+        base = self.make_bundle()
+        header, row = (base.root / "analyses.tsv").read_text().strip().split("\n")
+        candidate = self.make_bundle(analyses=(
+            header + "\tinfo_score_threshold\timputation_score_column"
+            "\timputation_score_kind\timputation_score_provenance\n"
+            + row + "\t0.6\timputation_INFO\timputation_info"
+            "\tprovider specification: INFO quality\n"
+        ))
+        errors = list(bundle.check(candidate, registry_root=self.tmp_dir))
+        self.assertTrue(any("source_reader_capability" in error for error in errors), errors)
 
     def test_ci_population_is_all_seven_registered_bundles_and_each_passes(self) -> None:
         registry = REPO_ROOT / "stores"
