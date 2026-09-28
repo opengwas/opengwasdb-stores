@@ -154,6 +154,23 @@ DEFAULT_EMBEDDING_BATCH_SIZE: int = 32
 DEFAULT_EMBEDDING_ENDPOINT: str = "http://localhost:8080"
 
 
+def embeddings_url(endpoint: str) -> str:
+    """The ``/v1/embeddings`` URL for a server base, a ``/v1`` base, or the full URL."""
+    url = endpoint.rstrip("/")
+    if url.endswith("/embeddings"):
+        return url
+    if url.endswith("/v1"):
+        return url + "/embeddings"
+    return url + "/v1/embeddings"
+
+
+def _response_text_of(exc: BaseException, limit: int = 300) -> str:
+    """The start of an HTTP error's response body, when there is one."""
+    response = getattr(exc, "response", None)
+    text = getattr(response, "text", None)
+    return text[:limit] if isinstance(text, str) else ""
+
+
 def default_embedding_endpoint() -> str:
     """The embed CLIs' endpoint: the environment override, else the local server."""
     return os.environ.get("OPENGWASDB_EMBEDDING_ENDPOINT") or DEFAULT_EMBEDDING_ENDPOINT
@@ -412,7 +429,7 @@ class HttpEmbedder:
                 ) from exc
             client_factory = httpx.Client
         self._client_factory = client_factory
-        self._endpoint = endpoint
+        self._endpoint = embeddings_url(endpoint)
         self._model_id = model_id
         self._api_key = api_key
         self._batch_size = batch_size
@@ -439,8 +456,12 @@ class HttpEmbedder:
         except EmbeddingError:
             raise
         except Exception as exc:  # noqa: BLE001 - transport/JSON/HTTP all degrade
+            body = _response_text_of(exc)
+            if self._api_key:
+                body = body.replace(self._api_key, "<redacted>")
+            detail = f"; server said: {body}" if body else ""
             raise EmbeddingUnavailableError(
-                f"hosted embedding request to {self._endpoint!r} failed: {exc}"
+                f"hosted embedding request to {self._endpoint!r} failed: {exc}{detail}"
             ) from exc
 
     def _embed_batches(
@@ -573,7 +594,11 @@ def term_embedding_text(term: OntologyTerm) -> str:
     parts = [term.label, *term.synonyms]
     if term.definition:
         parts.append(term.definition)
-    return "\n".join(part for part in parts if part)
+    text = "\n".join(part for part in parts if part)
+    # A handful of imported terms carry no label, synonym, or definition. An
+    # embedding server refuses empty input, and every index term needs a row,
+    # so such a term is embedded by its id (it will rarely be anyone's neighbour).
+    return text or term.ontology_id
 
 
 def _utc_now() -> str:

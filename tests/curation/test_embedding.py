@@ -1382,6 +1382,25 @@ class DefaultEndpointTest(unittest.TestCase):
         ):
             self.assertEqual(embedding.default_embedding_endpoint(), "http://gpu:9000")
 
+    def test_a_term_without_any_text_is_embedded_by_its_id(self) -> None:
+        self.assertEqual(
+            term_embedding_text(OntologyTerm(ontology_id="GO:0023052", label="")),
+            "GO:0023052",
+        )
+
+    def test_a_base_url_is_completed_to_the_embeddings_route(self) -> None:
+        from curation.embedding import embeddings_url
+
+        for endpoint in (
+            "http://localhost:8080",
+            "http://localhost:8080/",
+            "http://localhost:8080/v1",
+            "http://localhost:8080/v1/embeddings",
+        ):
+            self.assertEqual(
+                embeddings_url(endpoint), "http://localhost:8080/v1/embeddings"
+            )
+
     def test_batch_size_fits_text_embeddings_inference(self) -> None:
         from curation import embedding
 
