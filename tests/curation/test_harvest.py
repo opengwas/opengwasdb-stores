@@ -227,6 +227,21 @@ class TestScanManifest(unittest.TestCase):
         entries = scan_manifest(manifest)
         self.assertEqual([entry.trait_label for entry in entries], ["Has id"])
 
+    def test_multi_term_source_mapping_is_skipped_and_counted(self) -> None:
+        rows = [
+            {"source_label": "Combined", "trait_ontology_label": "a, b",
+             "trait_ontology_id": "http://www.ebi.ac.uk/efo/EFO_1, http://www.ebi.ac.uk/efo/EFO_2",
+             "trait_ontology_mapping_method": "source_provided"},
+            {"source_label": "Single", "trait_ontology_id": "http://www.ebi.ac.uk/efo/EFO_3",
+             "trait_ontology_label": "c", "trait_ontology_mapping_method": "source_provided"},
+        ]
+        manifest = make_bundle(self.td, "family", "releases", "rel", rows=rows)
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            entries = scan_manifest(manifest)
+        self.assertEqual([(e.trait_label, e.ontology_id) for e in entries], [("Single", "EFO:3")])
+        self.assertIn("skipped 1 source-provided row(s)", stderr.getvalue())
+
     def test_missing_mapping_column_is_skipped_with_warning(self) -> None:
         manifest = make_bundle(
             self.td, "legacy",

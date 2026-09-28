@@ -278,11 +278,18 @@ def scan_manifest(
 
     family = derive_store_family(manifest)
     entries: list[HarvestEntry] = []
+    multi_term = 0
 
     for row in rows:
         if _normalise_text(row.get(MAPPING_METHOD_COLUMN)) != SOURCE_PROVIDED:
             continue
         trait_label = (row.get(label_column) or "").strip()
+        raw_ids = [part for part in (row.get(ONTOLOGY_ID_COLUMN) or "").split(",") if part.strip()]
+        if len(raw_ids) > 1:
+            # A source mapping to several terms (the GWAS Catalog's combined
+            # traits) has no single right answer for a one-term chooser.
+            multi_term += 1
+            continue
         ontology_id = normalise_ontology_id(row.get(ONTOLOGY_ID_COLUMN))
         ontology_label = (row.get(ONTOLOGY_LABEL_COLUMN) or "").strip()
         if not trait_label or not ontology_id:
@@ -306,6 +313,12 @@ def scan_manifest(
                     else ()
                 ),
             )
+        )
+    if multi_term:
+        print(
+            f"harvest: {manifest}: skipped {multi_term} source-provided row(s) "
+            "mapped to more than one ontology term",
+            file=sys.stderr,
         )
     return entries
 
