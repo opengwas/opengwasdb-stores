@@ -12,9 +12,13 @@ What a proposal records
 For every trait label with a non-empty shortlist the stage records:
 
 ``selected_ontology_id`` / ``selected_ontology_label``
-    The chooser's choice, which is always a member of the shortlist.
+    The chooser's choice, which is always a member of the shortlist. When the
+    chooser abstains with :data:`~curation.chooser.NONE_SUITABLE`, the id is
+    ``none_suitable`` and the label is empty: an abstention is recorded rather
+    than silently dropped.
 ``confidence``
-    The selected term's probability under the chooser's own distribution.
+    The selected option's probability under the chooser's own distribution
+    (for an abstention, the ``none_suitable`` probability).
 ``runner_up_id`` / ``runner_up_label`` / ``runner_up_confidence``
     The next-best candidate and its probability, blank when the shortlist has
     one candidate.
@@ -58,6 +62,7 @@ from typing import Mapping, Sequence
 
 from curation.chooser import (
     CANDIDATE_COLUMNS,
+    NONE_SUITABLE,
     Candidate,
     ChoiceError,
     ChoiceResult,
@@ -65,10 +70,16 @@ from curation.chooser import (
     validate_choice_result,
 )
 from curation.jev_chooser import (
+    DEFAULT_JEV_BASE_DELAY,
+    DEFAULT_JEV_CONTEXT,
+    DEFAULT_JEV_ENDPOINT,
+    DEFAULT_JEV_MAX_ATTEMPTS,
     DEFAULT_JEV_MODEL,
+    DEFAULT_JEV_TIMEOUT,
     DEFAULT_MAX_INPUT_BYTES,
     DEFAULT_MAX_INPUT_TOKENS,
-    MAX_JEV_OPTIONS,
+    DEFAULT_PRICE_PER_MTOK_INPUT,
+    MAX_JEV_CANDIDATES,
     FixtureJevClient,
     HttpJevClient,
     JevChooser,
@@ -222,18 +233,34 @@ def build_proposal(
     probability among the remaining candidates (ties broken by shortlist
     order). The margin is the gap between them, or
     :data:`SINGLE_CANDIDATE_MARGIN` when the shortlist holds one candidate.
+
+    When the chooser selects the :data:`~curation.chooser.NONE_SUITABLE`
+    abstention the row is still emitted: ``selected_ontology_id`` is
+    ``none_suitable``, ``selected_ontology_label`` is empty, and the
+    runner-up is the highest-probability real candidate. This keeps an
+    abstention visible to the review stage instead of silently dropping it.
     """
     validate_choice_result(result, candidates)
 
     order = {candidate.ontology_id: index for index, candidate in enumerate(candidates)}
     by_id = {candidate.ontology_id: candidate for candidate in candidates}
-    selected = by_id[result.selected_ontology_id]
-    confidence = result.probabilities[selected.ontology_id]
+
+    if result.selected_ontology_id == NONE_SUITABLE:
+        selected_id = NONE_SUITABLE
+        selected_label = ""
+        confidence = result.probabilities[NONE_SUITABLE]
+        ontology_release = candidates[0].ontology_release if candidates else ""
+    else:
+        selected = by_id[result.selected_ontology_id]
+        selected_id = selected.ontology_id
+        selected_label = selected.ontology_label
+        confidence = result.probabilities[selected.ontology_id]
+        ontology_release = selected.ontology_release
 
     others = [
         candidate
         for candidate in candidates
-        if candidate.ontology_id != selected.ontology_id
+        if candidate.ontology_id != result.selected_ontology_id
     ]
     if others:
         runner_up = max(
@@ -255,8 +282,8 @@ def build_proposal(
 
     return Proposal(
         trait_label=trait_label,
-        selected_ontology_id=selected.ontology_id,
-        selected_ontology_label=selected.ontology_label,
+        selected_ontology_id=selected_id,
+        selected_ontology_label=selected_label,
         confidence=confidence,
         runner_up_id=runner_up_id,
         runner_up_label=runner_up_label,
@@ -265,7 +292,7 @@ def build_proposal(
         probabilities=dict(result.probabilities),
         chooser_id=result.chooser_id,
         chooser_version=result.chooser_version,
-        ontology_release=selected.ontology_release,
+        ontology_release=ontology_release,
     )
 
 
@@ -277,7 +304,9 @@ def build_proposals(
 
     A trait label whose shortlist is empty (or that the chooser declines with
     ``None``) contributes no row, so absence in the proposals table means "no
-    proposal", never an arbitrary term.
+    proposal", never an arbitrary term. A chooser that selects the
+    :data:`~curation.chooser.NONE_SUITABLE` abstention still contributes a row,
+    so an explicit abstention is never confused with "no candidate retrieved".
     """
     proposals: list[Proposal] = []
     for trait_label, candidates in shortlists.items():
@@ -303,14 +332,20 @@ def build_chooser(
     jev_model: str = DEFAULT_JEV_MODEL,
     jev_api_key: str | None = None,
     jev_fixture: Path | str | None = None,
-    jev_max_options: int = MAX_JEV_OPTIONS,
+    jev_context: str = DEFAULT_JEV_CONTEXT,
+    jev_max_options: int = MAX_JEV_CANDIDATES,
     jev_max_input_bytes: int = DEFAULT_MAX_INPUT_BYTES,
     jev_max_input_tokens: int = DEFAULT_MAX_INPUT_TOKENS,
+    jev_max_attempts: int = DEFAULT_JEV_MAX_ATTEMPTS,
+    jev_base_delay: float = DEFAULT_JEV_BASE_DELAY,
+    jev_timeout: float = DEFAULT_JEV_TIMEOUT,
+    jev_price_per_mtok_input: float = DEFAULT_PRICE_PER_MTOK_INPUT,
 ) -> Chooser:
     """Resolve a ``--chooser`` name and its options into a chooser.
 
-    ``stub`` replays a recorded fixture. ``jev`` uses a hosted HTTP endpoint or,
-    for hermetic offline runs, a recorded Jev fixture via ``jev_fixture``.
+    ``stub`` replays a recorded fixture. ``jev`` uses a hosted HTTP endpoint
+    (the TypeSafe endpoint by default) or, for hermetic offline runs, a recorded
+    Jev fixture via ``jev_fixture``.
     """
     if name == "stub":
         if fixture is None:
@@ -320,15 +355,19 @@ def build_chooser(
         return StubChooser.from_path(fixture)
     if name == "jev":
         if jev_fixture is not None:
-            client = FixtureJevClient.from_path(jev_fixture)
-        elif jev_endpoint:
-            client = HttpJevClient(
-                jev_endpoint, model=jev_model, api_key=jev_api_key
+            client = FixtureJevClient.from_path(
+                jev_fixture, model=jev_model, context=jev_context
             )
         else:
-            raise ChoiceError(
-                "--jev-endpoint or --jev-fixture is required when "
-                "--chooser is 'jev'"
+            client = HttpJevClient(
+                jev_endpoint or DEFAULT_JEV_ENDPOINT,
+                model=jev_model,
+                api_key=jev_api_key,
+                timeout=jev_timeout,
+                context=jev_context,
+                max_attempts=jev_max_attempts,
+                base_delay=jev_base_delay,
+                price_per_mtok_input=jev_price_per_mtok_input,
             )
         return JevChooser(
             client,
@@ -390,7 +429,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--jev-endpoint",
         default=os.environ.get("OPENGWASDB_JEV_ENDPOINT"),
         metavar="URL",
-        help="hosted Jev decision endpoint (enables --chooser jev)",
+        help=(
+            "hosted Jev decision endpoint "
+            f"(default: {DEFAULT_JEV_ENDPOINT})"
+        ),
     )
     parser.add_argument(
         "--jev-model",
@@ -400,9 +442,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--jev-api-key",
-        default=os.environ.get("OPENGWASDB_JEV_API_KEY"),
+        default=None,
         metavar="KEY",
-        help="bearer token for the hosted Jev endpoint",
+        help=(
+            "bearer token for the hosted Jev endpoint; when omitted it is "
+            "read from TYPESAFE_API_KEY, then key=\"...\" in ~/.typesafe"
+        ),
     )
     parser.add_argument(
         "--jev-fixture",
@@ -411,13 +456,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="recorded Jev decisions for hermetic offline runs (JSON or TSV)",
     )
     parser.add_argument(
+        "--jev-context",
+        default=DEFAULT_JEV_CONTEXT,
+        metavar="TEXT",
+        help="state context describing the trait-label source",
+    )
+    parser.add_argument(
         "--jev-max-options",
         type=int,
-        default=MAX_JEV_OPTIONS,
+        default=MAX_JEV_CANDIDATES,
         metavar="N",
         help=(
-            "maximum Jev enum options (hard cap "
-            f"{MAX_JEV_OPTIONS}; default: {MAX_JEV_OPTIONS})"
+            "maximum real candidates per Jev request (hard cap "
+            f"{MAX_JEV_CANDIDATES} because {NONE_SUITABLE!r} is reserved; "
+            f"default: {MAX_JEV_CANDIDATES})"
         ),
     )
     parser.add_argument(
@@ -440,6 +492,43 @@ def build_parser() -> argparse.ArgumentParser:
             f"(default: {DEFAULT_MAX_INPUT_TOKENS})"
         ),
     )
+    parser.add_argument(
+        "--jev-max-attempts",
+        type=int,
+        default=DEFAULT_JEV_MAX_ATTEMPTS,
+        metavar="N",
+        help=(
+            "maximum attempts for a retryable Jev request "
+            f"(default: {DEFAULT_JEV_MAX_ATTEMPTS})"
+        ),
+    )
+    parser.add_argument(
+        "--jev-base-delay",
+        type=float,
+        default=DEFAULT_JEV_BASE_DELAY,
+        metavar="SECONDS",
+        help=(
+            "base delay for exponential Jev backoff "
+            f"(default: {DEFAULT_JEV_BASE_DELAY})"
+        ),
+    )
+    parser.add_argument(
+        "--jev-timeout",
+        type=float,
+        default=DEFAULT_JEV_TIMEOUT,
+        metavar="SECONDS",
+        help=f"per-request Jev timeout (default: {DEFAULT_JEV_TIMEOUT})",
+    )
+    parser.add_argument(
+        "--jev-price-per-mtok-input",
+        type=float,
+        default=DEFAULT_PRICE_PER_MTOK_INPUT,
+        metavar="USD",
+        help=(
+            "Jev price per million input tokens "
+            f"(default: {DEFAULT_PRICE_PER_MTOK_INPUT})"
+        ),
+    )
     return parser
 
 
@@ -456,9 +545,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             jev_model=args.jev_model,
             jev_api_key=args.jev_api_key,
             jev_fixture=args.jev_fixture,
+            jev_context=args.jev_context,
             jev_max_options=args.jev_max_options,
             jev_max_input_bytes=args.jev_max_input_bytes,
             jev_max_input_tokens=args.jev_max_input_tokens,
+            jev_max_attempts=args.jev_max_attempts,
+            jev_base_delay=args.jev_base_delay,
+            jev_timeout=args.jev_timeout,
+            jev_price_per_mtok_input=args.jev_price_per_mtok_input,
         )
         proposals = build_proposals(shortlists, chooser)
     except ChoiceError as exc:

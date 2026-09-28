@@ -70,8 +70,16 @@ from curation.choice import (
     build_proposal,
     read_shortlists,
 )
-from curation.chooser import Chooser
+from curation.chooser import NONE_SUITABLE, Chooser
 from curation.gap_scan import normalize_trait_label
+from curation.jev_chooser import (
+    DEFAULT_JEV_CONTEXT,
+    DEFAULT_JEV_ENDPOINT,
+    DEFAULT_JEV_MAX_ATTEMPTS,
+    DEFAULT_JEV_MODEL,
+    DEFAULT_JEV_TIMEOUT,
+    DEFAULT_PRICE_PER_MTOK_INPUT,
+)
 from curation.harvest import (
     STRATUM_ANALYTE_MEASUREMENT,
     STRATUM_DISEASE,
@@ -106,7 +114,13 @@ class ValidationInputError(ValidationError):
 
 @dataclass(frozen=True)
 class ChoiceRecord:
-    """One conditional choice: the correct term was retrieved and scored."""
+    """One conditional choice: the correct term was retrieved and scored.
+
+    ``abstained`` marks a record where the chooser selected the
+    ``none_suitable`` abstention rather than a term. Abstentions are counted
+    separately and excluded from the accuracy denominator: they are neither a
+    correct nor a wrong term selection.
+    """
 
     trait_label: str
     stratum: str
@@ -119,6 +133,7 @@ class ChoiceRecord:
     correct: bool
     chooser_id: str
     chooser_version: str
+    abstained: bool = False
 
 
 @dataclass(frozen=True)
@@ -193,6 +208,9 @@ class ValidationReport:
     recommendation: ThresholdRecommendation
     cost: CostReport
     caveats: tuple[str, ...]
+    #: Records where the chooser selected ``none_suitable``. Excluded from
+    #: ``evaluated`` and every accuracy/calibration figure.
+    abstained: int = 0
 
     def stratum(self, name: str) -> StratumReport | None:
         for report in self.strata:
@@ -203,6 +221,12 @@ class ValidationReport:
     @property
     def accuracy(self) -> float:
         return self.aggregate.accuracy
+
+    @property
+    def abstention_rate(self) -> float:
+        """Abstentions as a share of all selection decisions."""
+        decisions = self.evaluated + self.abstained
+        return self.abstained / decisions if decisions else 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -270,6 +294,7 @@ def _select_records(
             continue
 
         proposal = build_proposal(raw_label, candidates, result)
+        abstained = proposal.selected_ontology_id == NONE_SUITABLE
         for pair in eligible:
             records.append(
                 ChoiceRecord(
@@ -281,9 +306,13 @@ def _select_records(
                     selected_ontology_label=proposal.selected_ontology_label,
                     selected_probability=proposal.confidence,
                     runner_up_margin=proposal.runner_up_margin,
-                    correct=proposal.selected_ontology_id == pair.ontology_id,
+                    correct=(
+                        not abstained
+                        and proposal.selected_ontology_id == pair.ontology_id
+                    ),
                     chooser_id=proposal.chooser_id,
                     chooser_version=proposal.chooser_version,
+                    abstained=abstained,
                 )
             )
     return records, counts
@@ -308,6 +337,8 @@ def reliability_bins(
     probability_sums = [0.0] * bins
 
     for record in records:
+        if record.abstained:
+            continue
         probability = min(max(record.selected_probability, 0.0), 1.0)
         index = min(int(probability * bins), bins - 1)
         counts[index] += 1
@@ -331,9 +362,10 @@ def reliability_bins(
 
 
 def _accuracy(records: Sequence[ChoiceRecord]) -> float:
-    if not records:
+    scored = [record for record in records if not record.abstained]
+    if not scored:
         return 0.0
-    return sum(1 for record in records if record.correct) / len(records)
+    return sum(1 for record in scored if record.correct) / len(scored)
 
 
 def _stratum_report(
@@ -396,12 +428,22 @@ def _caveats(
     strata: Mapping[str, StratumReport],
     *,
     min_sample: int,
+    abstained: int = 0,
 ) -> tuple[str, ...]:
     """The honest limits of this validation set, stated plainly."""
     lines: list[str] = []
     total = sum(report.evaluated for report in strata.values())
     analyte = strata.get(STRATUM_ANALYTE_MEASUREMENT)
     disease = strata.get(STRATUM_DISEASE)
+
+    if abstained:
+        decisions = total + abstained
+        lines.append(
+            f"The chooser abstained (none_suitable) on {abstained}/{decisions} "
+            f"retrieval-conditional decisions ({abstained / decisions:.0%}). "
+            "Abstentions are excluded from every accuracy figure below and "
+            "reported separately; they are neither correct nor wrong terms."
+        )
 
     if total == 0:
         lines.append(
@@ -531,8 +573,14 @@ def evaluate_chooser(
     lookup = _shortlist_lookup(shortlists)
     records, counts = _select_records(pairs, lookup, chooser)
 
+    # Abstentions are decisions, but they are neither a correct nor a wrong
+    # term selection: split them out of every accuracy/calibration figure and
+    # report the count and rate separately.
+    scored_records = [record for record in records if not record.abstained]
+    abstained = len(records) - len(scored_records)
+
     strata_records: dict[str, list[ChoiceRecord]] = {}
-    for record in records:
+    for record in scored_records:
         strata_records.setdefault(record.stratum, []).append(record)
 
     ordered_strata = [
@@ -546,17 +594,19 @@ def evaluate_chooser(
         for name in ordered_strata
     )
     strata_map = {report.stratum: report for report in strata}
-    aggregate = _stratum_report("aggregate", records, bins, min_stratum_sample)
+    aggregate = _stratum_report(
+        "aggregate", scored_records, bins, min_stratum_sample
+    )
 
     confidence_threshold, confidence_evidence = _recommend_threshold(
-        records,
+        scored_records,
         lambda record: record.selected_probability,
         target_accuracy=target_accuracy,
         min_sample=min_stratum_sample,
         label="confidence",
     )
     margin_threshold, margin_evidence = _recommend_threshold(
-        records,
+        scored_records,
         lambda record: record.runner_up_margin,
         target_accuracy=target_accuracy,
         min_sample=min_stratum_sample,
@@ -575,14 +625,14 @@ def evaluate_chooser(
         chooser_version=chooser_version,
         validation_size=len(pairs),
         eligible=_eligible_count(pairs, lookup),
-        evaluated=len(records),
+        evaluated=len(scored_records),
         skipped_obsolete=counts["obsolete"],
         skipped_no_shortlist=counts["no_shortlist"],
         skipped_not_retrieved=counts["not_retrieved"],
         skipped_no_proposal=counts["no_proposal"],
         strata=strata,
         aggregate=aggregate,
-        reliability=reliability_bins(records, bins),
+        reliability=reliability_bins(scored_records, bins),
         recommendation=ThresholdRecommendation(
             confidence_threshold=confidence_threshold,
             margin_threshold=margin_threshold,
@@ -590,7 +640,10 @@ def evaluate_chooser(
             margin_evidence=margin_evidence,
         ),
         cost=_collect_cost(chooser, records),
-        caveats=_caveats(strata_map, min_sample=min_stratum_sample),
+        caveats=_caveats(
+            strata_map, min_sample=min_stratum_sample, abstained=abstained
+        ),
+        abstained=abstained,
     )
 
 
@@ -655,10 +708,20 @@ def render_report(report: ValidationReport) -> str:
         f"{report.skipped_not_retrieved} not retrieved, "
         f"{report.skipped_no_proposal} with no proposal"
     )
+    decisions = report.evaluated + report.abstained
+    lines.append(
+        f"abstentions (none_suitable): {report.abstained}/{decisions} "
+        f"decisions ({_format_percent(report.abstention_rate)}); "
+        "excluded from accuracy and calibration"
+    )
     lines.append("")
 
     lines.append("Accuracy by stratum")
     lines.append("-------------------")
+    lines.append(
+        "Abstentions are excluded from the denominator; only real term "
+        "selections are scored."
+    )
     header = f"{'stratum':<22}{'scored':>8}{'correct':>9}{'accuracy':>10}"
     lines.append(header)
     for stratum in report.strata:
@@ -676,6 +739,10 @@ def render_report(report: ValidationReport) -> str:
 
     lines.append("Reliability curve (reported probability vs observed accuracy)")
     lines.append("-------------------------------------------------------------")
+    lines.append(
+        "Only real term selections appear here; none_suitable abstentions "
+        "are reported above and excluded."
+    )
     lines.append(f"{'bin':<16}{'n':>6}{'mean p':>9}{'observed':>10}{'gap':>9}")
     for bin_ in report.reliability:
         if bin_.count == 0:
@@ -751,6 +818,8 @@ def report_to_json(report: ValidationReport) -> str:
         "validation_size": report.validation_size,
         "eligible": report.eligible,
         "evaluated": report.evaluated,
+        "abstained": report.abstained,
+        "abstention_rate": report.abstention_rate,
         "skipped": {
             "obsolete": report.skipped_obsolete,
             "no_shortlist": report.skipped_no_shortlist,
@@ -859,21 +928,60 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--jev-endpoint",
-        default=os.environ.get("OPENGWASDB_JEV_ENDPOINT"),
+        default=os.environ.get("OPENGWASDB_JEV_ENDPOINT", DEFAULT_JEV_ENDPOINT),
         metavar="URL",
-        help="hosted Jev decision endpoint (requires --live)",
+        help=(
+            "hosted Jev decision endpoint "
+            f"(default: {DEFAULT_JEV_ENDPOINT}; requires --live)"
+        ),
     )
     parser.add_argument(
         "--jev-model",
-        default=os.environ.get("OPENGWASDB_JEV_MODEL", "jev-typesafe-v1"),
+        default=os.environ.get("OPENGWASDB_JEV_MODEL", DEFAULT_JEV_MODEL),
         metavar="MODEL",
-        help="Jev model id to request",
+        help=f"Jev model id to request (default: {DEFAULT_JEV_MODEL})",
     )
     parser.add_argument(
         "--jev-api-key",
-        default=os.environ.get("OPENGWASDB_JEV_API_KEY"),
+        default=None,
         metavar="KEY",
-        help="bearer token for the hosted Jev endpoint",
+        help=(
+            "bearer token for the hosted Jev endpoint; when omitted it is "
+            "read from TYPESAFE_API_KEY, then key=\"...\" in ~/.typesafe"
+        ),
+    )
+    parser.add_argument(
+        "--jev-context",
+        default=DEFAULT_JEV_CONTEXT,
+        metavar="TEXT",
+        help="state context describing the trait-label source",
+    )
+    parser.add_argument(
+        "--jev-max-attempts",
+        type=int,
+        default=DEFAULT_JEV_MAX_ATTEMPTS,
+        metavar="N",
+        help=(
+            "maximum attempts for a retryable Jev request "
+            f"(default: {DEFAULT_JEV_MAX_ATTEMPTS})"
+        ),
+    )
+    parser.add_argument(
+        "--jev-timeout",
+        type=float,
+        default=DEFAULT_JEV_TIMEOUT,
+        metavar="SECONDS",
+        help=f"per-request Jev timeout (default: {DEFAULT_JEV_TIMEOUT})",
+    )
+    parser.add_argument(
+        "--jev-price-per-mtok-input",
+        type=float,
+        default=DEFAULT_PRICE_PER_MTOK_INPUT,
+        metavar="USD",
+        help=(
+            "Jev price per million input tokens "
+            f"(default: {DEFAULT_PRICE_PER_MTOK_INPUT})"
+        ),
     )
     parser.add_argument(
         "--live",
@@ -965,6 +1073,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             jev_model=args.jev_model,
             jev_api_key=args.jev_api_key,
             jev_fixture=args.jev_fixture,
+            jev_context=args.jev_context,
+            jev_max_attempts=args.jev_max_attempts,
+            jev_timeout=args.jev_timeout,
+            jev_price_per_mtok_input=args.jev_price_per_mtok_input,
         )
         report = run_validation(
             validation_path=args.validation,
