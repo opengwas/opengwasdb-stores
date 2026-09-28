@@ -17,11 +17,13 @@ curation pipeline (issue #161):
 - `test_promotion.py` — the confidence/margin gate, the review queue, rejection
   persistence, and the Reference Resource version bump (issue #169);
 - `test_jev_chooser.py` — the Jev-backed structured-decision chooser: the
-  255-option cap, byte/token budgets, enum-constrained wire payload, unmodified
-  probabilities, and the hosted/fixture clients (issue #168);
+  254-candidate cap plus the `none_suitable` abstention, byte/token budgets,
+  the real TypeSafe criteria payload and response parsing (model/tokens/cost),
+  unmodified probabilities, retries and key resolution, and the hosted/fixture
+  clients (issue #168);
 - `test_validate_chooser.py` — choice accuracy conditional on retrieval, the
-  reliability curve, stratified reporting, caveats, and cost tracking
-  (issue #168);
+  reliability curve, stratified reporting, caveats, cost tracking, and
+  abstention handling (issue #168);
 - `test_e2e_pipeline.py` — the full pipeline round trip from `analyses.tsv` to
   a promoted Canonical Trait Mapping Table row and the real R resolver
   (issue #168);
@@ -219,18 +221,24 @@ The suite is hermetic: the only chooser exercised is the fixture-backed
 
 1. **Interface**: `Chooser.choose` returns the explicit no-proposal outcome for
    an empty shortlist, and validates that the selection and the distribution
-   cover exactly the shortlist.
+   cover exactly the shortlist (plus an optional `none_suitable` abstention).
 2. **Hard error**: a selection outside the shortlist raises
    `SelectionNotInShortlistError`; the CLI reports it and writes no proposal.
-3. **Stub chooser**: recorded selections and distributions replay
+3. **Abstention**: a chooser may select `NONE_SUITABLE`, meaning no retrieved
+   candidate denotes the trait. Its probability may appear alongside the
+   shortlist, and the outcome becomes a proposals row with
+   `selected_ontology_id = none_suitable` and an empty label rather than being
+   dropped.
+4. **Stub chooser**: recorded selections and distributions replay
    deterministically from a mapping, JSON, or TSV fixture; an unrecorded trait
-   label fails loudly; unmentioned candidates receive probability 0.0.
-4. **Arithmetic**: the winner, runner-up, confidence, and runner-up margin
+   label fails loudly; unmentioned candidates receive probability 0.0; a
+   fixture may select the abstention.
+5. **Arithmetic**: the winner, runner-up, confidence, and runner-up margin
    (`1.0` for a single candidate) are calculated from the distribution, with a
    deterministic shortlist-order tie-break.
-5. **Proposal table**: the documented columns are emitted, carrying
+6. **Proposal table**: the documented columns are emitted, carrying
    `chooser_id`, `chooser_version`, and the pinned `ontology_release`.
-6. **CLI surface**: the command reads a shortlist, runs the stub chooser from a
+7. **CLI surface**: the command reads a shortlist, runs the stub chooser from a
    fixture, and writes the table to `--output` or stdout.
 
 ## Promotion suite (`curation.promotion`, issue #169)
@@ -294,51 +302,67 @@ curated data.
 ### The contract these suites exist for
 
 `curation.stub_chooser` proves the choice stage can be wired together; the Jev
-chooser is the live implementation, and the validation runner is how its
-accuracy is measured. The Jev chooser must be structurally incapable of
-proposing a term outside the shortlist: its request exposes the shortlist as a
-TypeSafe JSON enum, so a conforming model can only return one of those ids. It
-also enforces Jev's hard limits -- 255 enum options and an input byte/token
-budget -- at configuration time, before a request is sent.
+chooser is the live implementation against TypeSafe's `jev-1.13.0` model, and
+the validation runner is how its accuracy is measured. The Jev chooser must be
+structurally incapable of proposing a term outside the shortlist: its request
+exposes the shortlist as a TypeSafe `choice` question's `criteria` map, so a
+conforming model can only return one of those ids -- plus the reserved
+`none_suitable` abstention. It also enforces Jev's limits -- 254 real
+candidates plus the abstention (255 options) and an input byte/token budget --
+at configuration time, before a request is sent. The live client retries
+429/529 and 5xx/transport failures with exponential backoff honouring
+`retry-after`, never retries 401/422, and resolves the API key from the
+explicit argument, then `TYPESAFE_API_KEY`, then `key="..."` in `~/.typesafe`
+without ever echoing it.
 
 Choice accuracy must be measured *conditional on retrieval*. Folding retrieval
 misses into the chooser's score would blame the chooser for a term candidate
 generation never found, so the validation runner excludes those pairs and
-counts them separately.
+counts them separately. A `none_suitable` selection is an abstention:
+reported separately with a count and rate and excluded from both the accuracy
+denominator and the reliability curve.
 
 ### Contracts and invariants covered
 
-1. **Option cap**: a shortlist larger than `MAX_JEV_OPTIONS` (255) raises
-   `JevConfigurationError` before any client call; exactly 255 is accepted.
+1. **Option cap**: a shortlist larger than 254 real candidates raises
+   `JevConfigurationError` before any client call; 254 is accepted and the
+   request carries 255 options including `none_suitable`.
 2. **Budgets**: a payload over `max_input_bytes` or the estimated
    `max_input_tokens` raises at configuration time with an actionable message.
-3. **Enum payload**: the request's response schema exposes exactly the
-   shortlist's ontology ids as the enum (and as the probability property keys),
-   so the model cannot invent a term.
+3. **Criteria payload**: the request's `questions.term.criteria` exposes exactly
+   the shortlist's ontology ids plus `none_suitable`, with a compact
+   deterministic criteria string per candidate (label, parent, truncated
+   definition, obsolete flag), so the model cannot invent a term and an
+   abstention is always available.
 4. **Unmodified probabilities**: the calibrated distribution reaches
-   `ChoiceResult` unchanged; the selection is the model's explicit choice or
-   the argmax (shortlist order breaks ties), and the base class rejects a
-   selection that contradicts it.
-5. **Clients**: the hosted `HttpJevClient` is exercised through an injected
-   fake transport (never a socket) and the `FixtureJevClient` replays recorded
-   decisions from a mapping, JSON, or TSV fixture; an unrecorded label fails
-   loudly.
-6. **Cost**: a response that reports `cost_usd` is recorded per label, and the
-   chooser exposes the per-label records and total spend.
-7. **Conditional accuracy**: pairs whose correct term is not in the shortlist
+   `ChoiceResult` unchanged (plus the reserved abstention option); the
+   selection is the model's explicit `choice` or the argmax (shortlist order
+   breaks ties), and the base class rejects a selection that contradicts it.
+5. **Provenance**: the answering `model`, the model's own `confidence`, input
+   token usage, the derived cost
+   (`input_tokens / 1e6 * price_per_mtok_input`, default `0.042`), the parsed
+   response, and a deterministic request fingerprint reach `ChoiceResult`.
+6. **Clients**: the hosted `HttpJevClient` is exercised through an injected
+   fake transport and injected sleep (never a socket or a real wait) and the
+   `FixtureJevClient` replays recorded decisions from a mapping, JSON, or TSV
+   fixture; an unrecorded label fails loudly.
+7. **Retries and key**: 429/529/5xx retry with exponential backoff honouring
+   `retry-after`, 401/422 never retry, and the API key resolves in the
+   documented order without appearing in any exception message.
+8. **Conditional accuracy**: pairs whose correct term is not in the shortlist
    are excluded from the chooser's score and counted as retrieval misses;
    accuracy is reported per stratum (analyte measurement vs disease, plus
    `other`) and in aggregate.
-8. **Reliability curve**: reported probabilities are binned against observed
-   accuracy, including empty bins.
-9. **Caveats and recommendation**: the report states the analyte-measurement
-   dominance and whether the disease stratum is large enough to be evidence,
-   and recommends a promotion confidence threshold and runner-up margin from
-   the observed curve.
-10. **Explicit live runs**: a hosted Jev validation requires `--live`; the
+9. **Reliability curve**: reported probabilities are binned against observed
+   accuracy, including empty bins; abstentions are excluded.
+10. **Caveats and recommendation**: the report states the analyte-measurement
+    dominance, whether the disease stratum is large enough to be evidence, and
+    the abstention count and rate, and recommends a promotion confidence
+    threshold and runner-up margin from the observed curve.
+11. **Explicit live runs**: a hosted Jev validation requires `--live`; the
     harness never opens a socket otherwise, and it is not registered as a CI
     suite.
-11. **End-to-end round trip**: `analyses.tsv` -> `gap_scan` -> `candidates` ->
+12. **End-to-end round trip**: `analyses.tsv` -> `gap_scan` -> `candidates` ->
     `choice` (stub) -> `promotion` produces a Canonical Trait Mapping Table row
     that the real R `resolve_trait_ontology_mapping()` resolves with
     `resolution_status = "resolved"`,

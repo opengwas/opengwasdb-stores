@@ -25,7 +25,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from curation import candidates, validate_chooser
-from curation.chooser import Candidate
+from curation.chooser import NONE_SUITABLE, Candidate
 from curation.harvest import (
     STRATUM_ANALYTE_MEASUREMENT,
     STRATUM_DISEASE,
@@ -322,6 +322,61 @@ class TestCostTracking(unittest.TestCase):
         )
         report = evaluate_chooser(pairs, shortlists, chooser, min_stratum_sample=1)
         self.assertFalse(report.cost.tracked)
+
+
+class TestAbstentionHandling(unittest.TestCase):
+    """none_suitable is an abstention, not a correct or wrong term."""
+
+    def setUp(self) -> None:
+        self.pairs = [
+            pair("Body mass index", "EFO:1", STRATUM_ANALYTE_MEASUREMENT),
+            pair("Height", "EFO:3", STRATUM_ANALYTE_MEASUREMENT),
+        ]
+        self.shortlists = {
+            "body mass index": [make_candidate("EFO:1"), make_candidate("EFO:2")],
+            "height": [make_candidate("EFO:3")],
+        }
+        self.chooser = StubChooser(
+            {
+                "body mass index": {
+                    "selected_ontology_id": NONE_SUITABLE,
+                    "probabilities": {
+                        "EFO:1": 0.2,
+                        "EFO:2": 0.1,
+                        NONE_SUITABLE: 0.7,
+                    },
+                },
+                "height": {
+                    "selected_ontology_id": "EFO:3",
+                    "probabilities": {"EFO:3": 1.0},
+                },
+            }
+        )
+
+    def evaluate(self) -> validate_chooser.ValidationReport:
+        return evaluate_chooser(
+            self.pairs, self.shortlists, self.chooser, min_stratum_sample=1
+        )
+
+    def test_abstention_is_excluded_from_accuracy(self) -> None:
+        report = self.evaluate()
+        self.assertEqual(report.abstained, 1)
+        self.assertEqual(report.evaluated, 1)
+        self.assertAlmostEqual(report.accuracy, 1.0)
+        self.assertAlmostEqual(report.abstention_rate, 0.5)
+
+    def test_abstention_is_excluded_from_reliability(self) -> None:
+        report = self.evaluate()
+        self.assertEqual(sum(bin_.count for bin_ in report.reliability), 1)
+
+    def test_abstention_is_reported_plainly(self) -> None:
+        report = self.evaluate()
+        self.assertIn("abstain", " ".join(report.caveats).lower())
+        text = render_report(report)
+        self.assertIn("abstention", text.lower())
+        payload = json.loads(report_to_json(report))
+        self.assertEqual(payload["abstained"], 1)
+        self.assertAlmostEqual(payload["abstention_rate"], 0.5)
 
 
 class TestCli(unittest.TestCase):

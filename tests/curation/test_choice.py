@@ -51,6 +51,7 @@ from curation.choice import (
     read_shortlists,
 )
 from curation.chooser import (
+    NONE_SUITABLE,
     Candidate,
     ChoiceResult,
     Chooser,
@@ -537,6 +538,120 @@ class TestBuildProposals(unittest.TestCase):
         )
         self.assertEqual(
             [proposal.trait_label for proposal in proposals], ["Body mass index"]
+        )
+
+
+class TestNoneSuitableAbstention(unittest.TestCase):
+    """A none_suitable selection survives to a proposal row, never dropped."""
+
+    def setUp(self) -> None:
+        self.candidates = [
+            make_candidate("EFO:1", "one"),
+            make_candidate("EFO:2", "two"),
+        ]
+
+    def test_abstention_is_a_valid_selection(self) -> None:
+        result = ChoiceResult(
+            NONE_SUITABLE,
+            {"EFO:1": 0.1, "EFO:2": 0.1, NONE_SUITABLE: 0.8},
+            "stub",
+            "1",
+        )
+        validate_choice_result(result, self.candidates)
+        self.assertEqual(result.selected_ontology_id, NONE_SUITABLE)
+
+    def test_stub_can_select_abstention(self) -> None:
+        chooser = StubChooser(
+            {
+                "label": {
+                    "selected_ontology_id": NONE_SUITABLE,
+                    "probabilities": {"EFO:1": 0.2, NONE_SUITABLE: 0.8},
+                }
+            }
+        )
+        result = chooser.choose("label", self.candidates)
+        assert result is not None
+        self.assertEqual(result.selected_ontology_id, NONE_SUITABLE)
+        self.assertEqual(result.probabilities["EFO:2"], 0.0)
+
+    def test_abstention_becomes_a_proposals_row(self) -> None:
+        result = ChoiceResult(
+            NONE_SUITABLE,
+            {"EFO:1": 0.2, "EFO:2": 0.1, NONE_SUITABLE: 0.7},
+            "stub",
+            "1",
+        )
+        proposal = build_proposal("label", self.candidates, result)
+        row = dict(zip(PROPOSAL_COLUMNS, proposal.to_row()))
+        self.assertEqual(row["selected_ontology_id"], NONE_SUITABLE)
+        self.assertEqual(row["selected_ontology_label"], "")
+        self.assertEqual(row["confidence"], "0.700000")
+        self.assertEqual(row["runner_up_id"], "EFO:1")
+        self.assertEqual(row["runner_up_margin"], "0.500000")
+        self.assertEqual(json.loads(row["probabilities"])[NONE_SUITABLE], 0.7)
+
+    def test_build_proposals_does_not_drop_abstention(self) -> None:
+        chooser = StubChooser(
+            {
+                "label": {
+                    "selected_ontology_id": NONE_SUITABLE,
+                    "probabilities": {"EFO:1": 0.3, NONE_SUITABLE: 0.7},
+                }
+            }
+        )
+        proposals = build_proposals({"label": self.candidates}, chooser)
+        self.assertEqual(
+            [proposal.selected_ontology_id for proposal in proposals],
+            [NONE_SUITABLE],
+        )
+
+    def test_abstention_must_still_be_the_maximum(self) -> None:
+        result = ChoiceResult(
+            NONE_SUITABLE,
+            {"EFO:1": 0.6, "EFO:2": 0.3, NONE_SUITABLE: 0.1},
+            "stub",
+            "1",
+        )
+        chooser = FixedChooser(result)
+        with self.assertRaises(InconsistentChoiceError):
+            chooser.choose("label", self.candidates)
+
+    def test_abstention_without_a_probability_raises(self) -> None:
+        result = ChoiceResult(
+            NONE_SUITABLE, {"EFO:1": 0.5, "EFO:2": 0.5}, "stub", "1"
+        )
+        chooser = FixedChooser(result)
+        with self.assertRaises(InvalidProbabilityDistributionError):
+            chooser.choose("label", self.candidates)
+
+    def test_choice_result_provenance_fields_are_optional(self) -> None:
+        result = ChoiceResult("EFO:1", {"EFO:1": 1.0}, "stub", "1")
+        self.assertEqual(result.model_version, "")
+        self.assertIsNone(result.model_confidence)
+        self.assertIsNone(result.input_tokens)
+        self.assertIsNone(result.cost_usd)
+        self.assertIsNone(result.raw_response)
+        self.assertEqual(result.request_fingerprint, "")
+
+    def test_proposal_table_keeps_its_twelve_columns(self) -> None:
+        # A none_suitable row needs no new column: the id itself is the marker
+        # and the label is empty. The model provenance lives on ChoiceResult.
+        self.assertEqual(
+            PROPOSAL_COLUMNS,
+            (
+                "trait_label",
+                "selected_ontology_id",
+                "selected_ontology_label",
+                "confidence",
+                "runner_up_id",
+                "runner_up_label",
+                "runner_up_confidence",
+                "runner_up_margin",
+                "probabilities",
+                "chooser_id",
+                "chooser_version",
+                "ontology_release",
+            ),
         )
 
 
