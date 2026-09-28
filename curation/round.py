@@ -800,9 +800,13 @@ def _resolve_round_embedding(config: RoundConfig) -> EmbeddingChannel | None:
     """Build the pinned semantic channel, or ``None`` for lexical-only.
 
     The round is offline by construction: it uses the two precomputed stores
-    and never an endpoint. A store pin that is absent or mismatched degrades to
-    lexical-only with a warning rather than failing the stage.
+    and never an endpoint. Whatever *is* pinned is validated first -- even when
+    only one of the pair is present -- and a store that contradicts its pin
+    (changed model/release/build id, or a corrupt vector payload) raises
+    :class:`RoundPinError`. A wrong or unreadable pinned artifact must never
+    silently degrade the round to lexical-only.
     """
+    _validate_embedding_artifacts(config)
     if config.ontology_embeddings is None or config.trait_embeddings is None:
         if config.ontology_embeddings is not None or config.trait_embeddings is not None:
             print(
@@ -813,7 +817,6 @@ def _resolve_round_embedding(config: RoundConfig) -> EmbeddingChannel | None:
             )
         return None
     try:
-        _validate_embedding_artifacts(config)
         retriever = resolve_retriever(
             config.ontology_embeddings.directory,
             config.ontology_release,
@@ -821,11 +824,12 @@ def _resolve_round_embedding(config: RoundConfig) -> EmbeddingChannel | None:
             trait_embeddings=config.trait_embeddings.directory,
         )
     except EmbeddingError as exc:
-        print(
-            f"candidates: warning: semantic channel disabled: {exc}",
-            file=sys.stderr,
-        )
-        return None
+        # Everything about this path is pinned, so any failure is a pin
+        # contradiction (corrupt vectors, or a model/release/dimension
+        # disagreement) rather than something to degrade past.
+        raise RoundPinError(
+            f"pinned embedding stores are unusable: {exc}"
+        ) from exc
     return EmbeddingChannel(retriever)
 
 

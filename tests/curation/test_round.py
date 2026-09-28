@@ -28,8 +28,14 @@ if str(REPO_ROOT) not in sys.path:
 
 from curation import choice, coverage, promotion, round as round_mod
 from curation.chooser import NONE_SUITABLE, ChoiceResult, Chooser
+from curation.embedding import (
+    HASHING_EMBEDDING_MODEL_ID,
+    HashingEmbedder,
+    build_ontology_embedding_store,
+    build_trait_embedding_store,
+)
 from curation.jev_chooser import DEFAULT_JEV_MODEL, HttpJevClient, JevChooser
-from curation.ontology import build_index_from_obo, write_index
+from curation.ontology import build_index_from_obo, load_index, write_index
 from curation.promotion import MAPPING_COLUMNS
 
 RELEASE = "efo/v3.94.0"
@@ -347,6 +353,55 @@ class CandidatesTest(RoundTestCase):
         self.assertEqual(outcome.no_candidate_labels, 1)
         _, rows = parse_tsv(outcome.shortlists_path.read_text(encoding="utf-8"))
         self.assertEqual({row["trait_label"] for row in rows}, {BMI_LABEL})
+
+
+class EmbeddingPinTest(RoundTestCase):
+    """A pinned store that contradicts the pin refuses; it never degrades."""
+
+    def _build_stores(self) -> tuple[Path, Path]:
+        index = load_index(self.index)
+        embedder = HashingEmbedder(model_id=HASHING_EMBEDDING_MODEL_ID)
+        ontology = self.base / "onto-store"
+        build_ontology_embedding_store(
+            index, embedder, ontology / "chunks"
+        ).save(ontology)
+        trait = self.base / "trait-store"
+        build_trait_embedding_store(
+            [BMI_LABEL], embedder, RELEASE, trait / "chunks"
+        ).save(trait)
+        return ontology, trait
+
+    def _prepare_round(self, **init_kwargs: object) -> None:
+        queue = self.queue_tsv([BMI_LABEL])
+        self.init_round(queue_tsv=queue, **init_kwargs)
+        round_mod.run_gap_scan(self.round_dir)
+
+    def test_single_pinned_store_with_mismatched_meta_is_refused(self) -> None:
+        ontology, _ = self._build_stores()
+        self._prepare_round(ontology_embeddings=ontology)
+
+        # Change the store's model id after it was pinned.
+        import yaml as _yaml
+
+        meta_path = ontology / "meta.yaml"
+        meta = _yaml.safe_load(meta_path.read_text(encoding="utf-8"))
+        meta["model_id"] = "some-other-model"
+        meta_path.write_text(_yaml.safe_dump(meta, sort_keys=False), encoding="utf-8")
+
+        with self.assertRaises(round_mod.RoundPinError):
+            round_mod.run_candidates(self.round_dir)
+
+    def test_corrupt_vectors_with_matching_meta_are_refused(self) -> None:
+        ontology, trait = self._build_stores()
+        self._prepare_round(ontology_embeddings=ontology, trait_embeddings=trait)
+
+        # The meta still matches the pin, but the vector payload is truncated.
+        vectors_path = ontology / "vectors.npy"
+        data = vectors_path.read_bytes()
+        vectors_path.write_bytes(data[: max(1, len(data) // 2)])
+
+        with self.assertRaises(round_mod.RoundPinError):
+            round_mod.run_candidates(self.round_dir)
 
 
 # ---------------------------------------------------------------------------

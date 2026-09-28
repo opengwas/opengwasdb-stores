@@ -569,6 +569,25 @@ def _l2_normalise(vectors: np.ndarray) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 
+def _load_store_vectors(path: Path) -> np.ndarray:
+    """Load a store's vectors, wrapping any load failure as corruption.
+
+    A truncated or non-``.npy`` payload makes numpy raise a bare ``ValueError``
+    (or ``OSError``); treating it as ``EmbeddingStoreCorruptError`` lets a
+    caller distinguish a corrupt store from a missing one and refuse a pinned
+    round instead of degrading it.
+    """
+    try:
+        loaded = np.load(path, mmap_mode="r", allow_pickle=False)
+        return np.asarray(loaded, dtype=np.float32)
+    except EmbeddingStoreCorruptError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - any load failure is corruption
+        raise EmbeddingStoreCorruptError(
+            f"embedding store vectors {path} could not be loaded: {exc}"
+        ) from exc
+
+
 @dataclass(frozen=True, eq=False)
 class EmbeddingStore:
     """A pinned model's vectors for a set of item ids.
@@ -775,8 +794,7 @@ class EmbeddingStore:
                 f"embedding store declares {declared_count} ids but ids.tsv has "
                 f"{len(ids)}"
             )
-        vectors = np.load(vectors_path, mmap_mode="r", allow_pickle=False)
-        vectors = np.asarray(vectors, dtype=np.float32)
+        vectors = _load_store_vectors(vectors_path)
         if vectors.ndim != 2:
             raise EmbeddingStoreCorruptError(
                 f"embedding store vectors are not two-dimensional: {vectors.shape}"
