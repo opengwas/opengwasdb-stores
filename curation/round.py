@@ -1943,11 +1943,14 @@ def _main_candidates(args: argparse.Namespace) -> int:
 def _main_choose(args: argparse.Namespace) -> int:
     round_dir = _resolve_cli_round_dir(args)
     chooser = None
-    if args.fixture:
-        try:
-            config = read_round_config(round_dir)
+    extra_api_keys = (args.jev_api_key,) if args.jev_api_key else ()
+    try:
+        config = read_round_config(round_dir)
+        if config.chooser.chooser_id == "jev":
+            # Honour an explicit --jev-endpoint/--jev-api-key even without a
+            # fixture; otherwise the flags would silently do nothing.
             chooser = choice_mod.build_chooser(
-                config.chooser.chooser_id,
+                "jev",
                 args.fixture,
                 jev_endpoint=args.jev_endpoint,
                 jev_model=config.chooser.model or DEFAULT_JEV_MODEL,
@@ -1955,9 +1958,13 @@ def _main_choose(args: argparse.Namespace) -> int:
                 jev_fixture=args.fixture,
                 jev_context=config.chooser.context or DEFAULT_JEV_CONTEXT,
             )
-        except (RoundError, choice_mod.ChoiceError) as exc:
-            print(f"choose: error: {exc}", file=sys.stderr)
-            return 1
+        elif args.fixture:
+            chooser = choice_mod.build_chooser(
+                config.chooser.chooser_id, args.fixture
+            )
+    except (RoundError, choice_mod.ChoiceError) as exc:
+        print(f"choose: error: {exc}", file=sys.stderr)
+        return 1
     try:
         outcome = run_choose(
             round_dir,
@@ -1965,6 +1972,7 @@ def _main_choose(args: argparse.Namespace) -> int:
             workers=args.workers,
             limit=args.limit,
             max_cost_usd=args.max_cost_usd,
+            extra_api_keys=extra_api_keys,
         )
     except KeyboardInterrupt:
         print("choose: interrupted; completed result files are intact", file=sys.stderr)

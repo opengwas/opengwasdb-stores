@@ -458,6 +458,24 @@ class ChooseTest(RoundTestCase):
         self.assertIn("***", error_path.read_text(encoding="utf-8"))
         self.assertNotIn("super-secret-key", error_path.read_text(encoding="utf-8"))
 
+    def test_cli_supplied_api_key_never_reaches_the_error_file(self) -> None:
+        class LeakyChooser(RecordingChooser):
+            def select(self, trait_label, candidates):
+                raise ValueError("bad key cli-secret rejected")
+
+        round_mod.run_choose(
+            self.round_dir,
+            chooser=LeakyChooser(self.chooser.choices),
+            workers=1,
+            extra_api_keys=("cli-secret",),
+        )
+        _, error_path = round_mod.choice_file_paths(
+            self.round_dir, round_mod.gap_scan.normalize_trait_label(HEIGHT_LABEL)
+        )
+        text = error_path.read_text(encoding="utf-8")
+        self.assertIn("***", text)
+        self.assertNotIn("cli-secret", text)
+
     def test_error_file_records_the_raw_response_of_a_paid_answer(self) -> None:
         class PaidFailure(ValueError):
             pass
@@ -884,6 +902,44 @@ class RoundCliTest(RoundTestCase):
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             code = round_mod.main(argv)
         return code, stdout.getvalue(), stderr.getvalue()
+
+    def test_choose_cli_honours_jev_endpoint_and_key(self) -> None:
+        queue = self.queue_tsv([BMI_LABEL])
+        self.init_round(
+            queue_tsv=queue, chooser_id="jev", chooser_version="1"
+        )
+        round_mod.run_gap_scan(self.round_dir)
+        self.write_shortlists([shortlist_row(BMI_LABEL, BMI_ID, "body mass index")])
+
+        captured: dict = {}
+        original = round_mod.choice_mod.build_chooser
+
+        def fake_build(name, fixture, **kwargs):
+            captured.update(kwargs)
+            captured["name"] = name
+            return RecordingChooser(
+                {BMI_LABEL: (BMI_ID, {BMI_ID: 1.0})}
+            )
+
+        round_mod.choice_mod.build_chooser = fake_build
+        try:
+            code, _, err = self._run(
+                [
+                    "choose",
+                    "--round-dir", str(self.round_dir),
+                    "--workers", "1",
+                    "--jev-endpoint", "https://cli.example/v1/systemone",
+                    "--jev-api-key", "cli-secret",
+                ]
+            )
+        finally:
+            round_mod.choice_mod.build_chooser = original
+        self.assertEqual(code, 0, err)
+        self.assertEqual(captured["name"], "jev")
+        self.assertEqual(
+            captured["jev_endpoint"], "https://cli.example/v1/systemone"
+        )
+        self.assertEqual(captured["jev_api_key"], "cli-secret")
 
     def test_round_init_and_gap_scan_cli(self) -> None:
         queue = self.queue_tsv([BMI_LABEL])
