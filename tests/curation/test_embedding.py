@@ -713,6 +713,34 @@ class TestChunkedResume(unittest.TestCase):
         build_ontology_embedding_store(self.index, resumed_embedder, chunks, chunk_size=2)
         self.assertEqual(resumed.requests[0], self.texts[0:2])
 
+    def test_truncated_chunk_is_re_embedded(self) -> None:
+        chunks = self.td / "chunks"
+        embedder = HttpEmbedder(
+            "https://example.invalid/v1/embeddings",
+            model_id=FIXTURE_MODEL_ID,
+            client_factory=RecordingServer().client_factory,
+            batch_size=2,
+            max_retries=0,
+        )
+        build_ontology_embedding_store(self.index, embedder, chunks, chunk_size=2)
+        chunk = chunks / "00000.npz"
+        payload = chunk.read_bytes()
+        chunk.write_bytes(payload[: max(1, len(payload) // 2)])
+
+        resumed = RecordingServer()
+        resumed_embedder = HttpEmbedder(
+            "https://example.invalid/v1/embeddings",
+            model_id=FIXTURE_MODEL_ID,
+            client_factory=resumed.client_factory,
+            batch_size=2,
+            max_retries=0,
+        )
+        build_ontology_embedding_store(
+            self.index, resumed_embedder, chunks, chunk_size=2
+        )
+        # The truncated first chunk was treated as missing and re-requested.
+        self.assertEqual(resumed.requests[0], self.texts[0:2])
+
 
 class TestHttpEmbedderRetries(unittest.TestCase):
     """429/5xx/transport errors are retried with exponential backoff; 4xx is not."""

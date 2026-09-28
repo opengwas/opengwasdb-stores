@@ -962,7 +962,9 @@ def _load_chunk(
             if str(data["text_recipe_version"].tolist()) != text_recipe_version:
                 return None
             return np.asarray(data["vectors"], dtype=np.float32)
-    except (OSError, ValueError, KeyError, EOFError):
+    except Exception:  # noqa: BLE001 - any load failure means re-embed
+        # Includes zipfile.BadZipFile from a truncated .npz and every other
+        # unreadable-payload failure; the chunk is simply re-requested.
         return None
 
 
