@@ -1,41 +1,17 @@
 #!/usr/bin/env python3
-"""Run a full Canonical Trait Mapping Table curation round (issue #170).
+"""Thin convenience runner for a resumable Canonical Trait Mapping round.
 
-This module wires the four curation stages (issues #163-#169) into one
-end-to-end round over a Release Manifest and emits the coverage report that
-says what the round achieved. It is the "first ukb-b curation round" driver:
-the default Manifest is the committed ukb-b Dense observed VCF release, whose
-~2,500 free-text field labels are the whole reason the curation pipeline
-exists.
+The real work lives in :mod:`curation.round`, whose stages are idempotent and
+resumable: ``round-init`` pins the run, ``gap-scan`` builds the queue,
+``candidates`` shortlists it, ``choose`` maps each label to an atomically
+written result file, ``reduce`` reconciles the results, ``promote`` writes the
+confident proposals, and ``coverage`` reports the after state. This module
+keeps the historical ``curation-round`` entry point: it wires the stages into
+one call, returns the same :class:`CurationRoundResult` a caller has always
+used, and stops after ``reduce`` when the round is incomplete.
 
-The pipeline
-------------
-::
-
-    analyses.tsv (ukb-b by default)
-      -> curation.gap_scan     (unmapped Trait work queue)
-      -> curation.candidates   (multi-channel ontology shortlist)
-      -> curation.choice       (proposal; stub or Jev chooser)
-      -> curation.promotion    (gate: confidence >= 0.85 and margin >= 0.20)
-      -> curation.coverage     (before/after unmapped rate per Store Family)
-
-Only the promotion stage writes the Canonical Trait Mapping Table
-(``resources/reference-resources/canonical-trait-mapping-efo/mapping.tsv``) and
-bumps its ``resource.yaml`` version; every other stage writes only the
-intermediate artifacts under the round's work directory. A proposal that clears
-both thresholds is promoted; everything else is routed to the review queue.
-A Trait label for which no channel retrieved any candidate is left unmapped by
-design -- the pipeline never forces an approximate term onto it -- and the
-coverage report counts it.
-
-Strict boundaries
------------------
-A round writes to exactly two kinds of place: the round work directory
-(work queue, shortlists, proposals, review queue, coverage report) and the
-Reference Resource directory promotion owns. It **never** modifies a Release
-Manifest, an accepted Release Bundle, or a built Store Release. ``--dry-run``
-copies the Reference Resource into the work directory first, so a rehearsal
-cannot touch the real table either.
+The default Manifest is the committed ukb-b Dense observed VCF release, whose
+~2,500 free-text field labels are the whole reason the pipeline exists.
 
 CLI
 ---
@@ -43,11 +19,11 @@ CLI
 
     python3 -m curation.curation_round \\
         --index <ontology-index.json> --chooser stub --fixture <fixture.json> \\
-        [--manifests <analyses.tsv> ...] \\
-        [--resource-dir <dir>] [--work-dir <dir>] \\
-        [--shortlist-size 10] [--confidence-threshold 0.85] \\
-        [--margin-threshold 0.20] [--as-of YYYY-MM-DD] \\
-        [--format text|markdown|tsv] [--report <path>] [--dry-run]
+        [--manifests <analyses.tsv> ...] [--work-dir <dir>] \\
+        [--resource-dir <dir>] [--shortlist-size 10] \\
+        [--confidence-threshold 0.85] [--margin-threshold 0.20] \\
+        [--as-of YYYY-MM-DD] [--format text|markdown|tsv] \\
+        [--report <path>] [--dry-run]
 """
 
 from __future__ import annotations
@@ -56,16 +32,15 @@ import argparse
 import os
 import shutil
 import sys
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
 from curation import candidates as candidates_mod
-from curation import choice as choice_mod
 from curation import coverage
-from curation import gap_scan
 from curation import promotion
+from curation import round as round_mod
+from curation import stub_chooser
 from curation.chooser import ChoiceError, Chooser
 from curation.embedding import (
     DEFAULT_EMBEDDING_MIN_SCORE,
@@ -73,7 +48,7 @@ from curation.embedding import (
     PINNED_EMBEDDING_MODEL_ID,
     EmbeddingChannel,
 )
-from curation.jev_chooser import DEFAULT_JEV_MODEL
+from curation.jev_chooser import DEFAULT_JEV_CONTEXT, DEFAULT_JEV_MODEL
 from curation.ontology import IndexFormatError, load_index
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[1]
@@ -124,17 +99,14 @@ class CurationRoundResult:
     report_text: str
 
 
-def _write_text_atomically(text: str, dest_path: Path) -> None:
-    """Atomically write text via a temp file + os.replace, matching run.py/manifest.py."""
-    dest_path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = dest_path.with_name(
-        f".{dest_path.name}.tmp.{os.getpid()}.{time.time_ns()}"
-    )
-    with open(temp_path, "w", encoding="utf-8", newline="") as f:
-        f.write(text)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(temp_path, dest_path)
+def _chooser_pins(chooser: Chooser) -> tuple[str, str, str, str]:
+    """The id/version/model/context to pin for a caller-supplied chooser."""
+    chooser_id = str(getattr(chooser, "chooser_id", "stub"))
+    chooser_version = str(getattr(chooser, "chooser_version", "1"))
+    client = getattr(chooser, "client", None)
+    model = str(getattr(client, "model", "")) if client is not None else ""
+    context = str(getattr(client, "context", "")) if client is not None else ""
+    return chooser_id, chooser_version, model, context
 
 
 def run_curation_round(
@@ -154,10 +126,10 @@ def run_curation_round(
     report_format: str = coverage.DEFAULT_FORMAT,
     report_path: Path | str | None = None,
 ) -> CurationRoundResult:
-    """Run gap scan -> candidates -> choice -> promotion -> coverage.
+    """Run round-init -> gap-scan -> candidates -> choose -> reduce -> promote.
 
-    Intermediate artifacts are written under ``work_dir``. The Canonical Trait
-    Mapping Table and its ``resource.yaml`` are written by promotion inside
+    The work directory holds ``round.yaml`` and every stage artifact. Promotion
+    writes the Canonical Trait Mapping Table and its ``resource.yaml`` inside
     ``resource_dir``; pass a copy to rehearse without touching the real table
     (the CLI's ``--dry-run`` does this). No Release Manifest, bundle, or store
     is ever written.
@@ -168,76 +140,56 @@ def run_curation_round(
         )
 
     work = Path(work_dir)
-    work.mkdir(parents=True, exist_ok=True)
-    work_queue_path = work / "work-queue.tsv"
-    shortlists_path = work / "shortlists.tsv"
-    proposals_path = work / "proposals.tsv"
-    review_queue_path = work / "review-queue.tsv"
+    chooser_id, chooser_version, chooser_model, chooser_context = _chooser_pins(chooser)
+    try:
+        config = round_mod.init_round(
+            work,
+            index_path=index_path,
+            chooser_id=chooser_id,
+            chooser_version=chooser_version,
+            chooser_model=chooser_model,
+            chooser_context=chooser_context or DEFAULT_JEV_CONTEXT,
+            manifests=manifests,
+            resource_dir=resource_dir,
+            shortlist_size=shortlist_size,
+            confidence_threshold=confidence_threshold,
+            margin_threshold=margin_threshold,
+        )
+    except (round_mod.RoundError, IndexFormatError) as exc:
+        raise CurationRoundError(str(exc)) from exc
 
-    # 1. Gap scan: the unmapped Trait work queue.
-    entries = gap_scan.scan_manifests(manifests)
-    _write_text_atomically(gap_scan.format_queue_tsv(entries), work_queue_path)
-    labels = [entry.trait_label for entry in entries]
+    try:
+        outcome = round_mod.run_round(
+            config.round_dir,
+            chooser=chooser,
+            embedding=embedding,
+            reviewed_queue=reviewed_queue_path,
+            rejections=rejections_path,
+            as_of=as_of,
+            report_format=report_format,
+            report_path=report_path,
+        )
+    except (round_mod.RoundError, IndexFormatError, ChoiceError) as exc:
+        raise CurationRoundError(str(exc)) from exc
 
-    # 2. Candidate generation: a lexical (optionally semantic) shortlist.
-    index = load_index(index_path)
-    candidate_rows = candidates_mod.generate_shortlists(
-        labels, index, shortlist_size, embedding
+    if outcome.promote is None or outcome.coverage is None:
+        raise CurationRoundError(
+            "round is incomplete (pending or errored labels); re-run to "
+            "resume, or use the stage commands directly"
+        )
+
+    report_text = outcome.coverage.report_text
+    resolved_report_path = (
+        outcome.coverage.report_path if report_path is not None else None
     )
-    _write_text_atomically(
-        candidates_mod.format_shortlist_tsv(candidate_rows), shortlists_path
-    )
-
-    # 3. Choice: one proposal per label with a non-empty shortlist. A label
-    #    with no candidate contributes no row and is never forced to a term.
-    grouped = choice_mod.read_shortlists(shortlists_path)
-    proposals = choice_mod.build_proposals(grouped, chooser)
-    _write_text_atomically(
-        choice_mod.format_proposals_tsv(proposals), proposals_path
-    )
-
-    # 4. Promotion: gate on confidence and margin, promote the confident rows,
-    #    queue the rest, and bump the Reference Resource version.
-    outcome = promotion.run_promotion(
-        proposals_path=proposals_path,
-        review_queue_path=review_queue_path,
-        resource_dir=resource_dir,
-        shortlists_path=shortlists_path,
-        rejections_path=rejections_path,
-        reviewed_queue_path=reviewed_queue_path,
-        confidence_threshold=confidence_threshold,
-        margin_threshold=margin_threshold,
-        as_of=as_of,
-    )
-
-    # 5. Coverage: before/after unmapped rate per Store Family, in Analyses.
-    family_stats = coverage.scan_coverage_manifests(manifests)
-    promoted_labels = {row.trait_label for row in outcome.plan.promoted}
-    no_candidate_count = coverage.count_no_candidate_labels(labels, grouped.keys())
-    cost_usd, cost_tracked = coverage.chooser_cost(chooser)
-    report = coverage.compute_coverage(
-        family_stats,
-        promoted_labels=promoted_labels,
-        review_queue_size=len(outcome.plan.queued),
-        no_candidate_count=no_candidate_count,
-        cost_usd=cost_usd,
-        cost_tracked=cost_tracked,
-    )
-    report_text = coverage.render_report(report, report_format)
-
-    resolved_report_path: Path | None = None
-    if report_path is not None:
-        resolved_report_path = Path(report_path)
-        _write_text_atomically(report_text, resolved_report_path)
-
     return CurationRoundResult(
-        work_queue_path=work_queue_path,
-        shortlists_path=shortlists_path,
-        proposals_path=proposals_path,
-        review_queue_path=review_queue_path,
+        work_queue_path=outcome.gap_scan.queue_path,
+        shortlists_path=outcome.candidates.shortlists_path,
+        proposals_path=outcome.reduce.proposals_path,
+        review_queue_path=outcome.promote.review_queue_path,
         report_path=resolved_report_path,
-        coverage=report,
-        promotion=outcome,
+        coverage=outcome.coverage.report,
+        promotion=outcome.promote.promotion,
         report_text=report_text,
     )
 
@@ -377,10 +329,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="add the semantic embedding channel to candidate generation",
     )
     parser.add_argument(
+        "--ontology-embeddings",
+        default=None,
+        metavar="DIR",
+        help="pinned ontology embedding store directory",
+    )
+    parser.add_argument(
         "--embedding-index",
         default=None,
-        metavar="JSON",
-        help="semantic embedding index artifact; supplying it also enables the channel",
+        metavar="DIR",
+        help="deprecated alias for --ontology-embeddings",
+    )
+    parser.add_argument(
+        "--trait-embeddings",
+        default=None,
+        metavar="DIR",
+        help="precomputed trait embedding store directory",
     )
     parser.add_argument(
         "--embedding-model",
@@ -483,7 +447,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             resource_dir = _stage_resource_copy(resource_dir, work_dir)
         except OSError as exc:
-            print(f"curation-round: error: dry-run staging failed: {exc}", file=sys.stderr)
+            print(
+                f"curation-round: error: dry-run staging failed: {exc}",
+                file=sys.stderr,
+            )
             return 1
 
     report_path = args.report
@@ -494,14 +461,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         index = load_index(args.index)
         embedding = _resolve_embedding(args, index.ontology_release)
-        chooser = choice_mod.build_chooser(
-            args.chooser,
-            args.fixture,
-            jev_endpoint=args.jev_endpoint,
-            jev_model=args.jev_model,
-            jev_api_key=args.jev_api_key,
-            jev_fixture=args.jev_fixture,
-        )
+        chooser = _build_chooser(args)
         result = run_curation_round(
             manifests=args.manifests,
             index_path=args.index,
@@ -518,8 +478,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             report_format=args.format,
             report_path=report_path,
         )
-    except (CurationRoundError, coverage.CoverageError, gap_scan.GapScanError,
-            promotion.PromotionError, ChoiceError, IndexFormatError) as exc:
+    except (
+        CurationRoundError,
+        coverage.CoverageError,
+        round_mod.RoundError,
+        promotion.PromotionError,
+        ChoiceError,
+        IndexFormatError,
+    ) as exc:
         print(f"curation-round: error: {exc}", file=sys.stderr)
         return 1
 
@@ -533,6 +499,26 @@ def main(argv: Sequence[str] | None = None) -> int:
         file=sys.stderr,
     )
     return 0
+
+
+def _build_chooser(args: argparse.Namespace) -> Chooser:
+    """Build the chooser from the historical CLI flags."""
+    if args.chooser == "stub":
+        if args.fixture is None:
+            raise CurationRoundError("--fixture is required when --chooser is 'stub'")
+        return stub_chooser.StubChooser.from_path(args.fixture)
+    if args.chooser == "jev":
+        from curation import choice as choice_mod
+
+        return choice_mod.build_chooser(
+            "jev",
+            None,
+            jev_endpoint=args.jev_endpoint,
+            jev_model=args.jev_model,
+            jev_api_key=args.jev_api_key,
+            jev_fixture=args.jev_fixture,
+        )
+    raise CurationRoundError(f"unknown chooser: {args.chooser!r}")
 
 
 if __name__ == "__main__":
