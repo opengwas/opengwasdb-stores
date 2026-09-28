@@ -33,6 +33,12 @@ whose ``review_decision`` is ``reject``/``amend``) is read on every run, and any
 ``(trait_label, ontology_id)`` pair it records is suppressed: it is neither
 promoted nor re-queued, on this or any later run.
 
+Abstentions are never mappings. A proposal whose selection is
+:data:`~curation.chooser.NONE_SUITABLE` is never written to the table. A
+confident abstention (both thresholds cleared) is recorded in the round's
+``no-suitable-term.tsv`` as unmapped by design; an uncertain one goes to the
+review queue, where a curator may amend in a real term or reject it.
+
 Human review round-trip
 -----------------------
 A review queue is meant to be edited in place and read back. Existing curator
@@ -85,7 +91,7 @@ from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
 from curation.choice import PROPOSAL_COLUMNS, read_shortlists
-from curation.chooser import Candidate, ChoiceError
+from curation.chooser import NONE_SUITABLE, Candidate, ChoiceError
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[1]
 
@@ -155,6 +161,24 @@ REVIEW_DECISION_COLUMNS: tuple[str, ...] = (
 REASON_BELOW_CONFIDENCE: str = "below_confidence"
 REASON_BELOW_MARGIN: str = "below_margin"
 REASON_BELOW_BOTH: str = "below_confidence_and_margin"
+
+# A ``none_suitable`` proposal that clears both thresholds is not a mapping:
+# the chooser is confident that no retrieved candidate denotes the trait, so
+# the label is recorded as unmapped by design rather than written to the table.
+# Only an abstention that falls below a threshold reaches a curator, who may
+# still substitute a term by amending.
+NO_SUITABLE_COLUMNS: tuple[str, ...] = (
+    "trait_label",
+    "confidence",
+    "runner_up_margin",
+    "runner_up_id",
+    "runner_up_label",
+    "probabilities",
+    "chooser_id",
+    "chooser_version",
+    "ontology_release",
+    "recorded_at",
+)
 
 # A rejection registry row names a rejected pair; a reviewed queue names it via
 # the proposal columns plus its decision.
@@ -768,7 +792,9 @@ def build_candidate_evidence(
     by_id = {candidate.ontology_id: candidate for candidate in shortlist}
     order = {candidate.ontology_id: index for index, candidate in enumerate(shortlist)}
 
-    outside = sorted(set(proposal.probabilities) - set(by_id))
+    # The reserved abstention is never a shortlist row, so it is excluded from
+    # the evidence-coverage check rather than reported as a missing candidate.
+    outside = sorted(set(proposal.probabilities) - set(by_id) - {NONE_SUITABLE})
     if outside:
         raise MissingShortlistEvidenceError(
             f"shortlist for {proposal.trait_label!r} is missing candidate(s) "
@@ -969,6 +995,36 @@ class ReviewEntry:
 
 
 @dataclass(frozen=True)
+class NoSuitableEntry:
+    """A confident abstention recorded as unmapped by design.
+
+    The chooser is sure no retrieved candidate denotes the trait. The label is
+    never written to the Canonical Trait Mapping Table; it is recorded in the
+    round's ``no-suitable-term.tsv`` so the residual unmapped work is visible
+    rather than silently dropped. A curator can still substitute a term via the
+    review queue when the abstention falls below a threshold.
+    """
+
+    proposal: ProposalRecord
+    recorded_at: str
+
+    def to_row(self) -> list[str]:
+        proposal = self.proposal
+        return [
+            _tsv_field(proposal.trait_label),
+            _format_number(proposal.confidence),
+            _format_number(proposal.runner_up_margin),
+            _tsv_field(proposal.runner_up_id),
+            _tsv_field(proposal.runner_up_label),
+            _serialize_probabilities(proposal.probabilities),
+            _tsv_field(proposal.chooser_id),
+            _tsv_field(proposal.chooser_version),
+            _tsv_field(proposal.ontology_release),
+            _tsv_field(self.recorded_at),
+        ]
+
+
+@dataclass(frozen=True)
 class PromotionPlan:
     """The result of gating a proposals table: promoted, queued, suppressed."""
 
@@ -978,6 +1034,8 @@ class PromotionPlan:
     # The subset of ``promoted`` that came from a curator's accept/amend
     # decision rather than the automatic confidence/margin gate.
     human_reviewed: tuple[PromotedRow, ...] = ()
+    # Confident ``none_suitable`` abstentions, recorded as unmapped by design.
+    no_suitable: tuple[NoSuitableEntry, ...] = ()
 
 
 def build_promotion_plan(
@@ -1021,13 +1079,15 @@ def build_promotion_plan(
     human_reviewed: list[PromotedRow] = []
     queued: list[ReviewEntry] = []
     suppressed: list[ProposalRecord] = []
+    no_suitable: list[NoSuitableEntry] = []
     seen_labels: set[str] = set()
     decided_pairs: set[tuple[str, str]] = set()
 
     # Curator decisions first. Reject is handled through rejected_pairs (a
     # reviewed queue is also a rejection registry); accept/amend promote a
     # human_reviewed row from the proposal's selection or the curator's
-    # override.
+    # override. A ``none_suitable`` abstention can never be accepted as a term:
+    # a curator must amend it to a real candidate or reject it.
     for key, decision in decisions.items():
         if decision.decision == DECISION_REJECT:
             continue
@@ -1035,6 +1095,15 @@ def build_promotion_plan(
         normalized_label = normalize_trait_label(decision.proposal.trait_label)
         if normalized_label in already_mapped or normalized_label in seen_labels:
             continue
+        if (
+            decision.decision == DECISION_ACCEPT
+            and decision.proposal.selected_ontology_id == NONE_SUITABLE
+        ):
+            raise PromotionError(
+                f"cannot accept the {NONE_SUITABLE!r} abstention for "
+                f"{decision.proposal.trait_label!r}; amend it to a real term "
+                "or reject it"
+            )
         seen_labels.add(normalized_label)
         row = PromotedRow.from_review_decision(decision, reviewed_at)
         promoted.append(row)
@@ -1053,6 +1122,25 @@ def build_promotion_plan(
         seen_labels.add(normalized_label)
 
         reason = gate_reason(proposal, confidence_threshold, margin_threshold)
+        if proposal.selected_ontology_id == NONE_SUITABLE:
+            # An abstention is never a Trait Ontology Mapping. A confident one
+            # is recorded as unmapped by design; an uncertain one reaches a
+            # curator, who may amend in a real term.
+            if reason is None:
+                no_suitable.append(
+                    NoSuitableEntry(proposal=proposal, recorded_at=reviewed_at)
+                )
+            else:
+                queued.append(
+                    ReviewEntry(
+                        proposal=proposal,
+                        review_reason=reason,
+                        candidates=build_candidate_evidence(
+                            proposal, evidence_by_label.get(normalized_label)
+                        ),
+                    )
+                )
+            continue
         if reason is None:
             promoted.append(PromotedRow.from_proposal(proposal, reviewed_at))
         else:
@@ -1071,6 +1159,7 @@ def build_promotion_plan(
         queued=tuple(queued),
         suppressed=tuple(suppressed),
         human_reviewed=tuple(human_reviewed),
+        no_suitable=tuple(no_suitable),
     )
 
 
@@ -1086,6 +1175,13 @@ def format_review_queue_tsv(
     """
     lines = ["\t".join(REVIEW_QUEUE_COLUMNS)]
     lines.extend("\t".join(row) for row in decided_rows)
+    lines.extend("\t".join(entry.to_row()) for entry in entries)
+    return "\n".join(lines) + "\n"
+
+
+def format_no_suitable_tsv(entries: Sequence[NoSuitableEntry]) -> str:
+    """Render the no-suitable-term table; the header is always present."""
+    lines = ["\t".join(NO_SUITABLE_COLUMNS)]
     lines.extend("\t".join(entry.to_row()) for entry in entries)
     return "\n".join(lines) + "\n"
 
@@ -1125,6 +1221,7 @@ def run_promotion(
     shortlists_path: Path | str | None = None,
     rejections_path: Path | str | None = None,
     reviewed_queue_path: Path | str | None = None,
+    no_suitable_path: Path | str | None = None,
     confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
     margin_threshold: float = DEFAULT_MARGIN_THRESHOLD,
     as_of: str | None = None,
@@ -1186,6 +1283,14 @@ def run_promotion(
     _write_text_atomically(
         format_review_queue_tsv(plan.queued, decided_rows), Path(review_queue_path)
     )
+
+    # Confident abstentions are recorded separately from the mapping table (they
+    # are unmapped by design) and from the review queue (no curator action is
+    # needed). They never touch ``mapping.tsv``.
+    if no_suitable_path is not None:
+        _write_text_atomically(
+            format_no_suitable_tsv(plan.no_suitable), Path(no_suitable_path)
+        )
 
     return PromotionOutcome(plan=plan, version=version, mapping_written=mapping_written)
 
@@ -1294,6 +1399,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="rejection registry (or reviewed queue) of pairs never to re-propose",
     )
     parser.add_argument(
+        "--no-suitable-term",
+        default=None,
+        metavar="TSV",
+        help=(
+            "record confident none_suitable abstentions here as unmapped by "
+            "design; they are never written to the mapping table"
+        ),
+    )
+    parser.add_argument(
         "--reviewed-queue",
         default=None,
         metavar="TSV",
@@ -1362,6 +1476,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             shortlists_path=args.shortlists,
             rejections_path=args.rejections,
             reviewed_queue_path=args.reviewed_queue,
+            no_suitable_path=args.no_suitable_term,
             confidence_threshold=args.confidence_threshold,
             margin_threshold=args.margin_threshold,
             as_of=args.as_of,
@@ -1373,6 +1488,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(
         f"promotion: {len(outcome.plan.promoted)} promoted, "
         f"{len(outcome.plan.queued)} queued for review, "
+        f"{len(outcome.plan.no_suitable)} recorded as no-suitable, "
         f"{len(outcome.plan.suppressed)} suppressed as rejected; "
         f"resource version {outcome.version}",
         file=sys.stderr,

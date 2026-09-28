@@ -72,7 +72,7 @@ from curation.promotion import (
     run_promotion,
 )
 
-RELEASE = "efo/v3.78.0"
+RELEASE = "efo/v3.94.0"
 SHORTLIST_COLUMNS = list(candidates.SHORTLIST_COLUMNS)
 
 RESOURCE_YAML = """\
@@ -1443,6 +1443,65 @@ class TestBuildPromotionPlan(unittest.TestCase):
         )
         self.assertEqual(len(plan.promoted), 1)
         self.assertEqual(plan.promoted[0].trait_ontology_id, "EFO:1")
+
+    def test_confident_none_suitable_is_recorded_not_promoted(self) -> None:
+        from curation.chooser import NONE_SUITABLE
+
+        proposal = proposal_record(
+            "Abstain",
+            NONE_SUITABLE,
+            "",
+            0.99,
+            0.98,
+            probabilities={"EFO:2": 0.01, NONE_SUITABLE: 0.99},
+        )
+        plan = build_promotion_plan(
+            [proposal],
+            confidence_threshold=0.85,
+            margin_threshold=0.20,
+            reviewed_at="2026-01-02",
+        )
+        self.assertEqual(plan.promoted, ())
+        self.assertEqual(plan.queued, ())
+        self.assertEqual(len(plan.no_suitable), 1)
+        self.assertEqual(plan.no_suitable[0].proposal.selected_ontology_id, NONE_SUITABLE)
+
+    def test_uncertain_none_suitable_is_queued_with_evidence(self) -> None:
+        from curation.chooser import NONE_SUITABLE
+
+        proposal = proposal_record(
+            "Abstain",
+            NONE_SUITABLE,
+            "",
+            0.50,
+            0.10,
+            probabilities={"EFO:2": 0.50, NONE_SUITABLE: 0.50},
+        )
+        evidence = {
+            "abstain": [
+                Candidate(
+                    ontology_id="EFO:2",
+                    ontology_label="two",
+                    definition="",
+                    parent_id="",
+                    parent_label="",
+                    channels=("exact",),
+                    channel_ranks=(("exact", 1),),
+                    is_obsolete=False,
+                    ontology_release=RELEASE,
+                )
+            ]
+        }
+        plan = build_promotion_plan(
+            [proposal],
+            confidence_threshold=0.85,
+            margin_threshold=0.20,
+            shortlist_evidence=evidence,
+            reviewed_at="2026-01-02",
+        )
+        self.assertEqual(plan.promoted, ())
+        self.assertEqual(plan.no_suitable, ())
+        self.assertEqual(len(plan.queued), 1)
 
 
 # ---------------------------------------------------------------------------
