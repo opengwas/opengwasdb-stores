@@ -57,6 +57,7 @@ SUITES: list[tuple[str, str, list[str]]] = [
     ("opengwas-gwas-vcf-dense", "r", ["tests/opengwas-gwas-vcf-dense/run_tests.R"]),
     ("opengwas-gwas-vcf-dense annotation", "python", ["tests/opengwas-gwas-vcf-dense/test_annotation.py"]),
     ("phase-b-candidate", "python", ["tests/phase-b-candidate/test_phase_b_candidate.py"]),
+    ("score-declarations", "python", ["tests/phase-b-candidate/test_derive_score_declarations.py"]),
     ("plan", "python", ["tests/plan/test_plan.py"]),
     ("qc-panel-concordance", "python", ["tests/qc-panel-concordance/test_qc_panel_concordance.py"]),
     ("qc-panel-retention", "r", ["tests/qc-panel-retention/run_tests.R"]),

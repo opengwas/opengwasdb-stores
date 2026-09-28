@@ -132,7 +132,25 @@ threadpoolctl = ">=3.0"
 # REVERT CONDITION (#153): once opengwasdb#208 is merged to `dev`, move this pin
 # back to the `dev` revision (or `main` after the #106 reversion), and re-run
 # `pixi lock`.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "d2b243313669719a8a303cd29d4379430dab80d9" }
+#
+# Bumped for #176 (OGS-00011 release and build readiness): opengwasdb#208 has
+# since merged, and this pins the OGS-00011 build-readiness integration commit
+# on top of `dev` (opengwasdb PR from feat/ogs00011-build-readiness). It adds
+# the resolver's build-eligible on/off-reference counts and lowercase-allele
+# routing parity (#174), declared GWAS-SSF imputation-score filtering in the
+# resolver and the Hybrid builder (#175), and the bounded/streamed Hybrid tail
+# with opt-in checkpoint/resume (opengwasdb#226-#233). The previous pin ran
+# pre-#224 code, which spent >21 h in the EAF consensus baseline. Candidate
+# generation and the build must run at this same revision.
+#
+# Bumped again for #176 (OGS-00011 row admission): this pins the `dev` merge
+# commit of opengwasdb#235. It reads case-control sources to EOF whenever
+# whole-stream evidence is requested (the #174/#175 counts were previously a
+# ~1% prefix for 880 Analyses), keeps unscored and >1 INFO rows, includes a
+# declared-INFO Analysis with no usable score, and adds the per-Analysis
+# `maf_threshold` with one admission rule shared by the resolver and the Hybrid
+# builder. Candidate generation and the build must run at this same revision.
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "b6bddca5ab99e92f43d0f52317873067733b09e4" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"

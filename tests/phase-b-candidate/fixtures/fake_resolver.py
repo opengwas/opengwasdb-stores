@@ -73,6 +73,7 @@ def parse_args(argv: list[str]) -> dict:
         "--ancestry-reference": "ancestry_reference",
         "--ancestry-groups": "ancestry_groups",
         "--extraction-panel": "extraction_panel",
+        "--variant-reference": "variant_reference",
         "--af-reference": "af_reference",
         "--default-source-reader-capability": "capability",
         "--maf-floor": "maf_floor",
@@ -147,6 +148,15 @@ def compute_fingerprints(row: dict, options: dict) -> dict:
             },
         },
     }
+    if row.get("imputation_score_column"):
+        fingerprints["resolution_config"].update({
+            "info_score_threshold": float(row["info_score_threshold"]),
+            "imputation_score_column": row["imputation_score_column"],
+            "imputation_score_kind": row["imputation_score_kind"],
+            "imputation_score_provenance": row["imputation_score_provenance"],
+        })
+    if row.get("maf_threshold") not in (None, "", "NaN"):
+        fingerprints["resolution_config"]["maf_threshold"] = float(row["maf_threshold"])
     fingerprints["fingerprint_digest"] = fingerprint_digest(fingerprints)
     return fingerprints
 
@@ -190,15 +200,100 @@ def phenotype_sd_payload(outcome: dict) -> dict:
     }
 
 
+def info_score_state(row: dict, outcome: dict) -> str:
+    """The state a real resolver would report for this row (stores #175).
+
+    A declared score defaults to the state its threshold implies (zero is
+    `disabled`, positive is `filtered`); a declared row with no usable scores is
+    `no_usable_scores` and is retained by the registry (#176); an undeclared row
+    has no policy and is `legacy_absent`. Tests override it through the outcome
+    to simulate an unavailable record.
+    """
+    if "info_score_state" in outcome:
+        return outcome["info_score_state"]
+    if not row.get("imputation_score_column"):
+        return "legacy_absent"
+    if int(outcome.get("info_rows_usable", 2000)) == 0:
+        return "no_usable_scores"
+    return "disabled" if float(row.get("info_score_threshold") or 0) == 0 else "filtered"
+
+
+def maf_state(row: dict, outcome: dict) -> str:
+    """The resolver MAF state for this row (stores #176).
+
+    A numeric request is `disabled` (zero) or `filtered` (positive); a literal
+    NaN or absent request is `unavailable`. Tests override it through the
+    outcome to simulate a record that did not apply the floor.
+    """
+    if "maf_state" in outcome:
+        return outcome["maf_state"]
+    value = row.get("maf_threshold")
+    if value in (None, "", "NaN"):
+        return "unavailable"
+    return "disabled" if float(value) == 0 else "filtered"
+
+
+def scan_diagnostics(row: dict, options: dict, outcome: dict) -> dict:
+    """The additive diagnostics a v1 resolver record carries (stores #175)."""
+    rows_read = outcome.get("rows_read", 2000)
+    ancestry_n = outcome.get("ancestry_rows_read", rows_read)
+    ancestry_matched = outcome.get("ancestry_reference_rows_matched", ancestry_n)
+    build_eligible = outcome.get("build_eligible_rows", rows_read)
+    diagnostics = {
+        "source_file": row["source_file"],
+        "rows_read": rows_read,
+        "ancestry_sites": ancestry_n,
+        "stop_reason": outcome.get("stop_reason", "eof"),
+        "ancestry_rows_read": ancestry_n,
+        "ancestry_stop_reason": "eof",
+        "ancestry_reference_rows_matched": ancestry_matched,
+        "variant_reference_rows_matched": outcome.get(
+            "variant_reference_rows_matched", rows_read
+        ),
+        "canonical_rows_observed": outcome.get("canonical_rows_observed", rows_read),
+        "canonical_rows_retained": outcome.get("canonical_rows_retained", rows_read),
+        "info_rows_below_threshold": outcome.get("info_rows_below_threshold", 0),
+        "info_rows_missing": outcome.get("info_rows_missing", 0),
+        "info_rows_malformed": outcome.get("info_rows_malformed", 0),
+        "info_rows_nonfinite": outcome.get("info_rows_nonfinite", 0),
+        "info_rows_out_of_range": outcome.get("info_rows_out_of_range", 0),
+        "info_rows_usable": outcome.get("info_rows_usable", 2000),
+        "info_score_state": info_score_state(row, outcome),
+        "maf_state": maf_state(row, outcome),
+        "maf_rows_below_threshold": outcome.get("maf_rows_below_threshold", 0),
+        "maf_rows_missing": outcome.get("maf_rows_missing", 0),
+        "build_eligible_rows": build_eligible,
+    }
+    if options.get("variant_reference"):
+        # The partition defaults to the pre-INFO matched count so a fixture can
+        # still project off-reference overflow by varying that one number.
+        on = outcome.get(
+            "build_eligible_rows_on_variant_reference",
+            min(build_eligible, diagnostics["variant_reference_rows_matched"]),
+        )
+        diagnostics["build_eligible_rows_on_variant_reference"] = on
+        diagnostics["build_eligible_rows_off_variant_reference"] = outcome.get(
+            "build_eligible_rows_off_variant_reference", build_eligible - on
+        )
+    else:
+        diagnostics["build_eligible_rows_on_variant_reference"] = None
+        diagnostics["build_eligible_rows_off_variant_reference"] = None
+    return diagnostics
+
+
 def record_for(row: dict, options: dict, outcome: dict) -> dict:
     fingerprints = compute_fingerprints(row, options)
-    if outcome.get("status") == "controlled_failure":
+    status = outcome.get("status", "success")
+    # A declared score with no usable scores is no longer a controlled failure:
+    # every row is retained and the record reports info_score_state
+    # `no_usable_scores` (#176), which the registry reads as no evidence.
+    if status != "success":
         return {
             "record_schema_version": RECORD_SCHEMA_VERSION,
             "analysis_id": row["analysis_id"],
             "status": "controlled_failure",
             "fingerprints": fingerprints,
-            "diagnostics": {"source_file": row["source_file"], "rows_read": 0, "ancestry_sites": 0},
+            "diagnostics": scan_diagnostics(row, options, outcome),
             "ancestry": None,
             "phenotype_sd": None,
             "error": outcome.get("error", "simulated source failure"),
@@ -210,7 +305,7 @@ def record_for(row: dict, options: dict, outcome: dict) -> dict:
         "analysis_id": row["analysis_id"],
         "status": "success",
         "fingerprints": fingerprints,
-        "diagnostics": {"source_file": row["source_file"], "rows_read": 2000, "ancestry_sites": 2000},
+        "diagnostics": scan_diagnostics(row, options, outcome),
         "ancestry": ancestry_payload(outcome),
         "phenotype_sd": phenotype_sd_payload(outcome),
         "error": None,

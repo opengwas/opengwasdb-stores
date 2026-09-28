@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -40,7 +41,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from unittest import mock
 
@@ -58,17 +59,25 @@ from resources.generators.lib.candidate_workflow import (  # noqa: E402
     EXCLUSION_REASONS,
     RECEIPT_FILENAME,
     RESOLVER_MANIFEST_COLUMNS,
+    USABLE_MAF_STATES,
     CandidateError,
     CandidateMetadata,
     ResolverRow,
     account_records,
+    analysis_maf_threshold,
     apply_release_policy,
     build_candidate_tables,
     check_staged_candidate,
     derive_resolver_manifest,
+    info_score_emission,
     load_candidate_configuration,
+    maf_threshold_emission,
+    parse_maf_filter_exempt_technologies,
+    parse_maf_threshold,
     read_candidate_metadata,
+    read_genotyping_technologies,
     read_resolution_receipt,
+    render_validation_yaml,
     render_resolver_manifest,
     resolver_argv,
     validate_candidate_analyses,
@@ -561,7 +570,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertTrue((bundle_dir / "build.yaml").is_file())
         self.assertTrue((bundle_dir / "validation.yaml").is_file())
         self.assertTrue((bundle_dir / "analyses.tsv").is_file())
-        for sidecar in ("source_readiness", "ancestry", "sd_estimation", "exclusions"):
+        for sidecar in ("source_readiness", "ancestry", "sd_estimation", "exclusions", "reference_overlap"):
             self.assertTrue((bundle_dir / "sidecars" / f"{sidecar}.tsv").is_file())
 
         analyses = _read_tsv(bundle_dir / "analyses.tsv")
@@ -571,6 +580,9 @@ class CandidateWorkflowTests(unittest.TestCase):
         }
         self.assertEqual(included, EXPECTED_INCLUDED)
         self.assertEqual(set(excluded), set(EXPECTED_EXCLUDED))
+        # The pinned GWAS-SSF reader has no validated imputation INFO/R²
+        # projection; MAF and lookalike header spellings are not substitutes.
+        self.assertEqual({row["info_score_threshold"] for row in analyses}, {"NaN"})
 
         # Case-control rows carry log_or/binary_trait and counts; quantitative
         # rows carry the computable SD tier.
@@ -599,6 +611,12 @@ class CandidateWorkflowTests(unittest.TestCase):
         sd_rows = _read_tsv(bundle_dir / "sidecars/sd_estimation.tsv")
         self.assertEqual({row["analysis_id"] for row in ancestry}, selected_ids)
         self.assertEqual({row["analysis_id"] for row in sd_rows}, selected_ids)
+        overlap_rows = _read_tsv(bundle_dir / "sidecars/reference_overlap.tsv")
+        self.assertEqual({row["analysis_id"] for row in overlap_rows}, selected_ids)
+        self.assertEqual(
+            {row["rows_scanned"] for row in overlap_rows if row["exclude_from_build"] != "true"},
+            {"2000"},
+        )
         sd_by_id = {row["analysis_id"]: row for row in sd_rows}
         self.assertEqual(sd_by_id["GCST90000004"]["status"], "skipped")
         self.assertEqual(
@@ -648,6 +666,8 @@ class CandidateWorkflowTests(unittest.TestCase):
         validation = yaml.safe_load((bundle_dir / "validation.yaml").read_text(encoding="utf-8"))
         self.assertIn(validation["status"], {"passed", "passed_with_warnings"})
         self.assertEqual(validation["checks"]["schema"], "passed")
+        self.assertEqual(validation["checks"]["reference_overlap"], "passed")
+        self.assertEqual(validation["reference_overlap"]["median_rate"], 1.0)
 
         # The complete bundle passes the executable contract, and the active
         # (non-excluded) analyses pass the pinned OpenGWASDB schema.
@@ -658,6 +678,495 @@ class CandidateWorkflowTests(unittest.TestCase):
         steps = plan(loaded)
         self.assertEqual(steps[0].name, "build")
         self.assertIn("build-hybrid", steps[0].argv)
+
+    def test_info_threshold_configuration_and_no_declaration_emission(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertEqual(config.info_score_threshold, "0.6")
+        for value in ("0", "1", "0.6"):
+            document = yaml.safe_load(self.fixture.config_path.read_text())
+            document["defaults"]["info_score_threshold"] = value
+            self.fixture.config_path.write_text(yaml.safe_dump(document))
+            loaded = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+            self.assertEqual(loaded.info_score_threshold, value)
+        # With no declaration configured every Analysis emits literal NaN, even
+        # for an explicit zero request: the requested floor alone is not evidence.
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["defaults"]["info_score_threshold"] = 0
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        emitted = _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
+        self.assertEqual({row["info_score_threshold"] for row in emitted}, {"NaN"})
+        self.assertEqual({row["imputation_score_column"] for row in emitted}, {""})
+
+        for invalid in ("NaN", "inf", "-0.1", "1.1", "", True):
+            document = yaml.safe_load(self.fixture.config_path.read_text())
+            document["defaults"]["info_score_threshold"] = invalid
+            self.fixture.config_path.write_text(yaml.safe_dump(document))
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(
+                ValueError, "info_score_threshold"
+            ):
+                load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+
+    def _declare_scores(self, rows: list[dict[str, str]]) -> Path:
+        path = self.fixture.root / "score-declarations.tsv"
+        _write_tsv(path, list(candidate_workflow.SCORE_DECLARATION_COLUMNS), rows)
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["source"]["imputation_score_declarations"] = str(path)
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        return path
+
+    def _set_outcome(self, analysis_id: str, **values: object) -> None:
+        outcomes = json.loads(self.fixture.outcomes_path.read_text())
+        outcomes.setdefault(analysis_id, {}).update(values)
+        self.fixture.outcomes_path.write_text(json.dumps(outcomes))
+
+    def _set_threshold(self, value: object) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["defaults"]["info_score_threshold"] = value
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+
+    def _set_maf_threshold(self, value: object) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        if value is None:
+            document["defaults"].pop("maf_threshold", None)
+        else:
+            document["defaults"]["maf_threshold"] = value
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+
+    def _set_maf_exempt(self, technologies: object) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        if technologies is None:
+            document["source"].pop("maf_filter_exempt_genotyping_technologies", None)
+        else:
+            document["source"]["maf_filter_exempt_genotyping_technologies"] = technologies
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+
+    def _write_metadata_yaml(self, name: str, technologies: object) -> Path:
+        path = self.fixture.root / name
+        document: dict[str, object] = {
+            "genome_assembly": "GRCh38",
+            "is_harmonised": True,
+        }
+        if technologies is not None:
+            document["genotyping_technology"] = technologies
+        path.write_text(yaml.safe_dump(document), encoding="utf-8")
+        return path
+
+    def test_declared_usable_analysis_emits_threshold_and_triple(self) -> None:
+        analysis_id = "GCST90000001"
+        self._declare_scores([{
+            "analysis_id": analysis_id,
+            "imputation_score_column": "imputation_INFO",
+            "imputation_score_kind": "imputation_info",
+            "imputation_score_provenance": "provider specification: INFO is imputation quality",
+        }])
+        self._set_threshold(0.8)
+        self._set_outcome(analysis_id, info_score_state="filtered", info_rows_usable=1500)
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        by_id = {
+            row["analysis_id"]: row
+            for row in _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
+        }
+        row = by_id[analysis_id]
+        self.assertEqual(row["info_score_threshold"], "0.8")
+        self.assertEqual(row["imputation_score_column"], "imputation_INFO")
+        self.assertEqual(row["imputation_score_kind"], "imputation_info")
+        self.assertEqual(
+            row["imputation_score_provenance"],
+            "provider specification: INFO is imputation quality",
+        )
+        # An undeclared Analysis gets literal NaN and empty triple cells.
+        undeclared = by_id["GCST90000002"]
+        self.assertEqual(undeclared["info_score_threshold"], "NaN")
+        self.assertEqual(undeclared["imputation_score_column"], "")
+        self.assertEqual(undeclared["imputation_score_kind"], "")
+        self.assertEqual(undeclared["imputation_score_provenance"], "")
+
+    def test_zero_threshold_with_usable_scores_emits_zero(self) -> None:
+        analysis_id = "GCST90000001"
+        self._declare_scores([{
+            "analysis_id": analysis_id,
+            "imputation_score_column": "imputation_INFO",
+            "imputation_score_kind": "imputation_info",
+            "imputation_score_provenance": "provider specification: INFO is imputation quality",
+        }])
+        self._set_threshold(0)
+        self._set_outcome(analysis_id, info_score_state="disabled", info_rows_usable=1500)
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        by_id = {
+            row["analysis_id"]: row
+            for row in _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
+        }
+        # Zero is a real requested floor, emitted as "0", not treated as absence.
+        self.assertEqual(by_id[analysis_id]["info_score_threshold"], "0")
+        self.assertEqual(by_id[analysis_id]["imputation_score_column"], "imputation_INFO")
+
+    # -- MAF threshold (issue #176) -------------------------------------------
+
+    def test_maf_threshold_configuration_parsing(self) -> None:
+        self.assertIsNone(parse_maf_threshold(None))
+        self.assertEqual(parse_maf_threshold(0), "0")
+        self.assertEqual(parse_maf_threshold("0"), "0")
+        self.assertEqual(parse_maf_threshold(0.005), "0.005")
+        self.assertEqual(parse_maf_threshold("0.5"), "0.5")
+        for invalid in (True, "", "NaN", "inf", "-0.01", "0.5001", "abc"):
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(
+                ValueError, "maf_threshold"
+            ):
+                parse_maf_threshold(invalid)
+        self.assertEqual(parse_maf_filter_exempt_technologies(None), ())
+        self.assertEqual(
+            parse_maf_filter_exempt_technologies([" Whole genome sequencing "]),
+            ("Whole genome sequencing",),
+        )
+        for invalid in ("Whole genome sequencing", [""], [1], ["ok", ""]):
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(
+                ValueError, "maf_filter_exempt_genotyping_technologies"
+            ):
+                parse_maf_filter_exempt_technologies(invalid)
+
+    def test_maf_threshold_is_per_analysis_from_metadata_yaml(self) -> None:
+        # Omitted defaults.maf_threshold means no MAF filter at all.
+        base = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertIsNone(base.maf_threshold)
+        self.assertEqual(base.maf_filter_exempt_genotyping_technologies, ())
+
+        self._set_maf_threshold(0.005)
+        self._set_maf_exempt(["Whole genome sequencing", "Exome-wide sequencing"])
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertEqual(config.maf_threshold, "0.005")
+        self.assertEqual(
+            config.maf_filter_exempt_genotyping_technologies,
+            ("Whole genome sequencing", "Exome-wide sequencing"),
+        )
+        missing = _synthetic_inventory_row()
+        absent_yaml = self.fixture.root / "absent.yaml"
+        self.assertEqual(
+            read_genotyping_technologies(str(absent_yaml)), []
+        )
+        # Missing technology metadata is never an exemption.
+        self.assertEqual(
+            analysis_maf_threshold(replace(missing, yaml_file=str(absent_yaml)), config),
+            "0.005",
+        )
+        exempt_path = self._write_metadata_yaml("wgs.yaml", ["Whole genome sequencing"])
+        self.assertEqual(
+            read_genotyping_technologies(str(exempt_path)), ["Whole genome sequencing"]
+        )
+        exempt = replace(missing, yaml_file=str(exempt_path))
+        # Every technology in the exempt list -> NaN (no MAF filter).
+        self.assertEqual(analysis_maf_threshold(exempt, config), "NaN")
+        # An empty technology list is not "all in the list".
+        empty_path = self._write_metadata_yaml("empty.yaml", [])
+        self.assertEqual(
+            analysis_maf_threshold(replace(missing, yaml_file=str(empty_path)), config),
+            "0.005",
+        )
+        # One technology outside the list -> not exempt.
+        mixed_path = self._write_metadata_yaml(
+            "mixed.yaml", ["Whole genome sequencing", "Genome-wide genotyping array"]
+        )
+        self.assertEqual(
+            analysis_maf_threshold(replace(missing, yaml_file=str(mixed_path)), config),
+            "0.005",
+        )
+        # A no-MAF-filter release ignores exemptions entirely.
+        self._set_maf_threshold(None)
+        no_filter = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertEqual(analysis_maf_threshold(exempt, no_filter), "NaN")
+
+    def test_maf_threshold_emission_is_per_analysis_evidence(self) -> None:
+        declared = ResolverRow(
+            "GCST1", "/tmp/a.h.tsv.gz", "opengwasdb.gwas-ssf", "sd",
+            "estimated_from_source_maf", "100", "a" * 64, "sha256", "10",
+            maf_threshold="0.005",
+        )
+        matching = {
+            "diagnostics": {"maf_state": "filtered"},
+            "fingerprints": {"resolution_config": {"maf_threshold": 0.005}},
+        }
+        self.assertEqual(maf_threshold_emission(declared, matching), "0.005")
+        self.assertEqual(maf_threshold_emission(None, matching), "NaN")
+        self.assertEqual(
+            maf_threshold_emission(replace(declared, maf_threshold="NaN"), matching),
+            "NaN",
+        )
+        # A record that did not apply MAF (unavailable), or one without the
+        # #176 diagnostics, has no evidence: NaN.
+        unavailable = {
+            "diagnostics": {"maf_state": "unavailable"},
+            "fingerprints": {"resolution_config": {"maf_threshold": 0.005}},
+        }
+        self.assertEqual(maf_threshold_emission(declared, unavailable), "NaN")
+        self.assertEqual(maf_threshold_emission(declared, {"diagnostics": {}}), "NaN")
+        # A fingerprint that no longer binds the value emits NaN.
+        stale = {
+            "diagnostics": {"maf_state": "filtered"},
+            "fingerprints": {"resolution_config": {"maf_threshold": 0.01}},
+        }
+        self.assertEqual(maf_threshold_emission(declared, stale), "NaN")
+        # Zero is a real requested floor, emitted as "0", not treated as absence.
+        zero = replace(declared, maf_threshold="0")
+        disabled = {
+            "diagnostics": {"maf_state": "disabled"},
+            "fingerprints": {"resolution_config": {"maf_threshold": 0}},
+        }
+        self.assertEqual(maf_threshold_emission(zero, disabled), "0")
+        self.assertEqual(USABLE_MAF_STATES, frozenset({"disabled", "filtered"}))
+
+    def test_maf_threshold_manifest_receipt_and_candidate_emission(self) -> None:
+        self._set_maf_threshold(0.005)
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        run_root = self.fixture.work_root / STORE_ID / "resolver"
+        self.assertIn("maf_threshold", RESOLVER_MANIFEST_COLUMNS)
+        manifest = _read_tsv(run_root / "analyses.tsv")
+        self.assertEqual({row["maf_threshold"] for row in manifest}, {"0.005"})
+        record = json.loads((run_root / "records" / "GCST90000001.json").read_text())
+        self.assertEqual(
+            record["fingerprints"]["resolution_config"]["maf_threshold"], 0.005
+        )
+        self.assertEqual(record["diagnostics"]["maf_state"], "filtered")
+        emitted = _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
+        self.assertEqual({row["maf_threshold"] for row in emitted}, {"0.005"})
+        receipt = read_resolution_receipt(run_root / RECEIPT_FILENAME)
+        self.assertEqual(receipt["contract"]["maf_threshold"], "0.005")
+        self.assertEqual(
+            receipt["contract"]["maf_filter_exempt_genotyping_technologies"], []
+        )
+
+    def test_maf_threshold_requires_resolver_fingerprint(self) -> None:
+        self._set_maf_threshold(0.005)
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        run_root = self.fixture.work_root / STORE_ID / "resolver"
+        record_path = run_root / "records" / "GCST90000001.json"
+        record = json.loads(record_path.read_text())
+        del record["fingerprints"]["resolution_config"]["maf_threshold"]
+        record["fingerprints"]["fingerprint_digest"] = _fingerprint_digest(
+            record["fingerprints"]
+        )
+        record_path.write_text(json.dumps(record))
+        inventory = read_inventory(self.fixture.inventory_path)
+        metadata = read_candidate_metadata(
+            self.fixture.candidates_path,
+            (row.analysis_id for row in inventory if row.ready),
+        )
+        manifest = derive_resolver_manifest(
+            inventory,
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            metadata,
+        )
+        _, failures = account_records(manifest, run_root / "records")
+        self.assertTrue(
+            any("resolution_config.maf_threshold" in error for error in failures), failures
+        )
+        stale = _run_cli(self.fixture, "--stage", "emit")
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn("resolution_config.maf_threshold", stale.stderr + stale.stdout)
+
+    def test_changed_maf_threshold_makes_the_receipt_stale(self) -> None:
+        self._set_maf_threshold(0.005)
+        self._resolved_candidate()
+        self._set_maf_threshold(0.01)
+        self._assert_emit_rejects_and_preserves("resolution contract changed")
+
+    def test_declared_analysis_with_no_usable_scores_is_included_with_nan_info(self) -> None:
+        # Core no longer treats zero usable scores as a controlled failure, and
+        # the registry no longer refuses the Analysis (#176): every row is
+        # retained and the emitted INFO cells are literal NaN / empty.
+        analysis_id = "GCST90000001"
+        self._declare_scores([{
+            "analysis_id": analysis_id,
+            "imputation_score_column": "imputation_INFO",
+            "imputation_score_kind": "imputation_info",
+            "imputation_score_provenance": "provider specification: INFO is imputation quality",
+        }])
+        self._set_outcome(analysis_id, info_rows_usable=0)
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        exclusions = {
+            row["analysis_id"]: row
+            for row in _read_tsv(self.fixture.registry_root / STORE_ID / "sidecars/exclusions.tsv")
+        }
+        self.assertNotIn(analysis_id, exclusions)
+        by_id = {
+            row["analysis_id"]: row
+            for row in _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
+        }
+        self.assertEqual(by_id[analysis_id]["exclude_from_build"], "")
+        self.assertEqual(by_id[analysis_id]["info_score_threshold"], "NaN")
+        self.assertEqual(by_id[analysis_id]["imputation_score_column"], "")
+        self.assertEqual(by_id[analysis_id]["imputation_score_kind"], "")
+        self.assertEqual(by_id[analysis_id]["imputation_score_provenance"], "")
+
+    def test_info_score_emission_is_per_analysis_evidence(self) -> None:
+        declared = ResolverRow(
+            "GCST1", "/tmp/a.h.tsv.gz", "opengwasdb.gwas-ssf", "sd",
+            "estimated_from_source_maf", "100", "a" * 64, "sha256", "10",
+            info_score_threshold="0.6", imputation_score_column="imputation_INFO",
+            imputation_score_kind="imputation_info",
+            imputation_score_provenance="provider: INFO quality",
+        )
+        matching_fingerprint = {
+            "resolution_config": {
+                "info_score_threshold": 0.6,
+                "imputation_score_column": "imputation_INFO",
+                "imputation_score_kind": "imputation_info",
+                "imputation_score_provenance": "provider: INFO quality",
+            }
+        }
+        usable = {
+            "diagnostics": {"info_score_state": "filtered", "info_rows_usable": 5},
+            "fingerprints": matching_fingerprint,
+        }
+        self.assertEqual(
+            info_score_emission(declared, usable),
+            ("0.6", "imputation_INFO", "imputation_info", "provider: INFO quality"),
+        )
+        # Undeclared: NaN whatever the record says.
+        undeclared = replace(
+            declared, info_score_threshold="NaN", imputation_score_column="",
+            imputation_score_kind="", imputation_score_provenance="",
+        )
+        self.assertEqual(info_score_emission(undeclared, usable), ("NaN", "", "", ""))
+        # Legacy record without the #175 diagnostics: NaN, never read as a pass.
+        self.assertEqual(
+            info_score_emission(declared, {"diagnostics": {"rows_read": 100}}),
+            ("NaN", "", "", ""),
+        )
+        # Declared but no usable score: NaN.
+        self.assertEqual(
+            info_score_emission(
+                declared,
+                {"diagnostics": {"info_score_state": "filtered", "info_rows_usable": 0},
+                 "fingerprints": matching_fingerprint},
+            ),
+            ("NaN", "", "", ""),
+        )
+        # Declared and usable, but the fingerprint no longer binds it: NaN.
+        stale = {
+            "diagnostics": {"info_score_state": "filtered", "info_rows_usable": 5},
+            "fingerprints": {"resolution_config": {"info_score_threshold": 0.6}},
+        }
+        self.assertEqual(info_score_emission(declared, stale), ("NaN", "", "", ""))
+
+    def test_declared_score_manifest_receipt_and_candidate_handoff(self) -> None:
+        analysis_id = "GCST90000004"
+        path = self._declare_scores([{
+            "analysis_id": analysis_id,
+            "imputation_score_column": "imputation_INFO",
+            "imputation_score_kind": "imputation_info",
+            "imputation_score_provenance": "provider specification: INFO is imputation quality",
+        }])
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["defaults"]["info_score_threshold"] = 0
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        run_root = self.fixture.work_root / STORE_ID / "resolver"
+        manifest = _read_tsv(run_root / "analyses.tsv")
+        self.assertEqual(tuple(manifest[0]), RESOLVER_MANIFEST_COLUMNS)
+        by_id = {row["analysis_id"]: row for row in manifest}
+        declared = by_id[analysis_id]
+        self.assertEqual(declared["info_score_threshold"], "0")
+        self.assertEqual(declared["imputation_score_column"], "imputation_INFO")
+        self.assertEqual(declared["imputation_score_kind"], "imputation_info")
+        self.assertEqual(declared["imputation_score_provenance"],
+                         "provider specification: INFO is imputation quality")
+        self.assertEqual(by_id["GCST90000001"]["info_score_threshold"], "NaN")
+        self.assertEqual(by_id["GCST90000001"]["imputation_score_column"], "")
+        record = json.loads((run_root / "records" / f"{analysis_id}.json").read_text())
+        self.assertEqual(record["fingerprints"]["resolution_config"]["imputation_score_column"],
+                         "imputation_INFO")
+        receipt = read_resolution_receipt(run_root / RECEIPT_FILENAME)
+        self.assertEqual(receipt["contract"]["imputation_score_declarations_sha256"],
+                         hashlib.sha256(path.read_bytes()).hexdigest())
+        self.assertEqual(receipt["manifest_sha256"],
+                         hashlib.sha256((run_root / "analyses.tsv").read_bytes()).hexdigest())
+        final = _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
+        by_id = {row["analysis_id"]: row for row in final}
+        # An approved declaration with usable resolver evidence emits the exact
+        # requested floor and triple; the undeclared Analysis stays NaN.
+        self.assertEqual(by_id[analysis_id]["info_score_threshold"], "0")
+        self.assertEqual(by_id[analysis_id]["imputation_score_column"], "imputation_INFO")
+        self.assertEqual(by_id[analysis_id]["imputation_score_kind"], "imputation_info")
+        self.assertEqual(
+            by_id[analysis_id]["imputation_score_provenance"],
+            "provider specification: INFO is imputation quality",
+        )
+        self.assertEqual(by_id["GCST90000001"]["info_score_threshold"], "NaN")
+        self.assertEqual(by_id["GCST90000001"]["imputation_score_column"], "")
+        self.assertEqual(_run_cli(self.fixture, "--stage", "verify").returncode, 0)
+        path.write_text(path.read_text().replace("imputation_INFO", "imputation_R2"))
+        stale = _run_cli(self.fixture, "--stage", "verify")
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn("resolution contract changed", stale.stderr + stale.stdout)
+
+    def test_declared_score_requires_resolver_fingerprint(self) -> None:
+        analysis_id = "GCST90000004"
+        self._declare_scores([{
+            "analysis_id": analysis_id, "imputation_score_column": "imputation_r2",
+            "imputation_score_kind": "imputation_r2",
+            "imputation_score_provenance": "provider dictionary: imputation r2",
+        }])
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        run_root = self.fixture.work_root / STORE_ID / "resolver"
+        record_path = run_root / "records" / f"{analysis_id}.json"
+        record = json.loads(record_path.read_text())
+        del record["fingerprints"]["resolution_config"]["imputation_score_kind"]
+        record["fingerprints"]["fingerprint_digest"] = _fingerprint_digest(
+            record["fingerprints"]
+        )
+        record_path.write_text(json.dumps(record))
+        inventory = read_inventory(self.fixture.inventory_path)
+        metadata = read_candidate_metadata(self.fixture.candidates_path,
+                                           (row.analysis_id for row in inventory if row.ready))
+        manifest = derive_resolver_manifest(inventory, load_candidate_configuration(
+            self.fixture.config_path, REPO_ROOT), metadata)
+        _, failures = account_records(manifest, run_root / "records")
+        self.assertTrue(any("resolution_config.imputation_score_kind" in error
+                            for error in failures), failures)
+        stale = _run_cli(self.fixture, "--stage", "emit")
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn("resolution_config.imputation_score_kind", stale.stderr + stale.stdout)
+
+    def test_score_declaration_validation_and_legacy_manifest(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        rows = read_inventory(self.fixture.inventory_path)
+        metadata = read_candidate_metadata(self.fixture.candidates_path,
+                                           (row.analysis_id for row in rows if row.ready))
+        legacy = derive_resolver_manifest(rows, config, metadata)
+        self.assertEqual({row.info_score_threshold for row in legacy}, {"NaN"})
+        self.assertEqual({row.imputation_score_kind for row in legacy}, {""})
+        valid = {"analysis_id": "GCST90000001", "imputation_score_column": "r2",
+                 "imputation_score_kind": "imputation_r2",
+                 "imputation_score_provenance": "provider data dictionary: imputation R2"}
+        for broken, message in (
+            ([{**valid, "analysis_id": "unknown"}], "unknown analysis_id"),
+            ([valid, valid], "duplicate analysis_id"),
+            ([{**valid, "imputation_score_column": " r2"}], "exact non-empty"),
+            ([{**valid, "imputation_score_kind": "MAF"}], "invalid imputation_score_kind"),
+            ([{**valid, "imputation_score_provenance": ""}], "independent provider evidence"),
+        ):
+            with self.subTest(broken=broken):
+                self._declare_scores(broken)
+                configured = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+                with self.assertRaisesRegex(CandidateError, message):
+                    derive_resolver_manifest(rows, configured, metadata)
+        path = self._declare_scores([valid])
+        path.write_text(path.read_text().replace("imputation_score_kind", "score_kind"))
+        with self.assertRaisesRegex(CandidateError, "exact TSV headers"):
+            derive_resolver_manifest(rows, load_candidate_configuration(
+                self.fixture.config_path, REPO_ROOT), metadata)
+        path.unlink()
+        with self.assertRaisesRegex(CandidateError, "table not found"):
+            derive_resolver_manifest(rows, load_candidate_configuration(
+                self.fixture.config_path, REPO_ROOT), metadata)
 
     def test_worker_count_byte_equivalence(self) -> None:
         single_root = self.fixture.root / "stores-1"
@@ -1083,6 +1592,126 @@ class CandidateWorkflowTests(unittest.TestCase):
         })
         self.assertEqual(tables.ancestry_check, "passed_with_warnings")
         self.assertEqual(tables.sd_check, "passed_with_warnings")
+
+    def test_high_projected_overflow_blocks_candidate_publication(self) -> None:
+        config = yaml.safe_load(self.fixture.config_path.read_text())
+        config["build"]["options"]["variant-reference"] = "/axis.gz"
+        self.fixture.config_path.write_text(yaml.safe_dump(config))
+        outcomes = json.loads(self.fixture.outcomes_path.read_text())
+        outcomes["GCST90000001"]["variant_reference_rows_matched"] = 0
+        self.fixture.outcomes_path.write_text(json.dumps(outcomes))
+        run = _run_cli(self.fixture)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn("GCST90000001", run.stderr + run.stdout)
+        self.assertIn("off-reference share", run.stderr + run.stdout)
+        self.assertFalse((self.fixture.registry_root / STORE_ID).exists())
+
+    def test_bundle_overlap_sidecar_and_gate_name_worst_contributor(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
+        first = _synthetic_inventory_row()
+        second = replace(first, analysis_id="GCST90000002", data_file="/mirror/second.gz")
+        records = []
+        for row, matches in ((first, 100), (second, 0)):
+            record = _synthetic_resolver_record()
+            record["analysis_id"] = row.analysis_id
+            record["diagnostics"].update(
+                ancestry_rows_read=100, ancestry_reference_rows_matched=90,
+                variant_reference_rows_matched=matches,
+            )
+            records.append(record)
+        outcomes = apply_release_policy(
+            [first, second], config,
+            {row.analysis_id: _synthetic_candidate_metadata() for row in (first, second)},
+            {record["analysis_id"]: record for record in records},
+        )
+        tables = build_candidate_tables(
+            inventory_rows=[first, second], outcomes=outcomes, config=config, index_summary={}
+        )
+        overlap = list(csv.DictReader(io.StringIO(tables.reference_overlap_tsv), delimiter="\t"))
+        self.assertEqual([row["variant_reference_rate"] for row in overlap], ["1", "0"])
+        self.assertEqual([row["rows_scanned"] for row in overlap], ["100", "100"])
+        validation = yaml.safe_load(render_validation_yaml(
+            tables=tables, index_summary={}, validated_at="now", validator_name="test"
+        ))
+        self.assertEqual(validation["checks"]["reference_overlap"], "failed")
+        self.assertEqual(validation["reference_overlap"]["projected_off_reference_share"], 0.5)
+        self.assertEqual(validation["reference_overlap"]["low_overlap_analyses"], ["GCST90000002"])
+        self.assertIn("GCST90000002", " ".join(validation["errors"]))
+
+    def test_overlap_gate_prefers_post_info_build_eligible_counts(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
+        first = _synthetic_inventory_row()
+        second = replace(first, analysis_id="GCST90000002", data_file="/mirror/second.gz")
+        records = []
+        # The pre-INFO legacy counts say every row matched, but the post-INFO
+        # eligible rows do not: 40/50 for the first and 0/50 for the second.
+        for row, eligible, on, legacy_matched in ((first, 50, 40, 100), (second, 50, 0, 100)):
+            record = _synthetic_resolver_record()
+            record["analysis_id"] = row.analysis_id
+            record["diagnostics"].update(
+                ancestry_rows_read=100, ancestry_reference_rows_matched=90,
+                variant_reference_rows_matched=legacy_matched,
+                build_eligible_rows=eligible,
+                build_eligible_rows_on_variant_reference=on,
+                build_eligible_rows_off_variant_reference=eligible - on,
+                info_score_state="filtered", info_rows_usable=eligible,
+            )
+            records.append(record)
+        outcomes = apply_release_policy(
+            [first, second], config,
+            {row.analysis_id: _synthetic_candidate_metadata() for row in (first, second)},
+            {record["analysis_id"]: record for record in records},
+        )
+        tables = build_candidate_tables(
+            inventory_rows=[first, second], outcomes=outcomes, config=config, index_summary={}
+        )
+        overlap = list(csv.DictReader(io.StringIO(tables.reference_overlap_tsv), delimiter="\t"))
+        # The legacy columns are left describing the pre-INFO rows, unchanged.
+        self.assertEqual([row["variant_reference_rate"] for row in overlap], ["1", "1"])
+        self.assertEqual([row["rows_scanned"] for row in overlap], ["100", "100"])
+        self.assertEqual(
+            [row["build_eligible_rows"] for row in overlap], ["50", "50"]
+        )
+        self.assertEqual(
+            [row["build_eligible_rows_on_variant_reference"] for row in overlap], ["40", "0"]
+        )
+        self.assertEqual([row["build_eligible_rate"] for row in overlap], ["0.8", "0"])
+        validation = yaml.safe_load(render_validation_yaml(
+            tables=tables, index_summary={}, validated_at="now", validator_name="test"
+        ))
+        summary = validation["reference_overlap"]
+        self.assertEqual(summary["projected_off_reference_basis"], "build_eligible_rows")
+        self.assertEqual(summary["projected_off_reference_share"], 0.6)
+        self.assertEqual(summary["low_overlap_analyses"], ["GCST90000002"])
+        self.assertEqual(validation["checks"]["reference_overlap"], "failed")
+
+    def test_overlap_gate_falls_back_to_legacy_counts_without_diagnostics(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
+        row = _synthetic_inventory_row()
+        record = _synthetic_resolver_record()
+        record["analysis_id"] = row.analysis_id
+        record["diagnostics"].update(
+            rows_read=100, ancestry_rows_read=100, ancestry_reference_rows_matched=100,
+            variant_reference_rows_matched=80,
+        )
+        outcomes = apply_release_policy(
+            [row], config, {row.analysis_id: _synthetic_candidate_metadata()},
+            {row.analysis_id: record},
+        )
+        tables = build_candidate_tables(
+            inventory_rows=[row], outcomes=outcomes, config=config, index_summary={}
+        )
+        overlap = list(csv.DictReader(io.StringIO(tables.reference_overlap_tsv), delimiter="\t"))
+        self.assertEqual([r["build_eligible_rows"] for r in overlap], [""])
+        validation = yaml.safe_load(render_validation_yaml(
+            tables=tables, index_summary={}, validated_at="now", validator_name="test"
+        ))
+        summary = validation["reference_overlap"]
+        self.assertEqual(summary["projected_off_reference_basis"], "legacy_rows_read")
+        self.assertEqual(summary["projected_off_reference_share"], 0.2)
 
     # -- EAF orientation vocabulary (issue #115 / #154) -----------------------
 
