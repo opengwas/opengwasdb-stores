@@ -86,6 +86,7 @@ from curation.harvest import (
     STRATUM_ORDER,
 )
 from curation.recall import ValidationPair, read_validation
+from curation.ontology import normalise_ontology_id
 
 # The number of equal-width probability bins in the reliability curve.
 DEFAULT_RELIABILITY_BINS: int = 10
@@ -281,7 +282,11 @@ def _select_records(
             continue
         raw_label, candidates = entry
         candidate_ids = {candidate.ontology_id for candidate in candidates}
-        eligible = [pair for pair in label_pairs if pair.ontology_id in candidate_ids]
+        eligible = [
+            pair
+            for pair in label_pairs
+            if normalise_ontology_id(pair.ontology_id) in candidate_ids
+        ]
         counts["not_retrieved"] += len(label_pairs) - len(eligible)
         if not eligible:
             continue
@@ -300,7 +305,7 @@ def _select_records(
                 ChoiceRecord(
                     trait_label=raw_label,
                     stratum=pair.stratum,
-                    correct_ontology_id=pair.ontology_id,
+                    correct_ontology_id=normalise_ontology_id(pair.ontology_id),
                     correct_ontology_label=pair.ontology_label,
                     selected_ontology_id=proposal.selected_ontology_id,
                     selected_ontology_label=proposal.selected_ontology_label,
@@ -308,7 +313,8 @@ def _select_records(
                     runner_up_margin=proposal.runner_up_margin,
                     correct=(
                         not abstained
-                        and proposal.selected_ontology_id == pair.ontology_id
+                        and proposal.selected_ontology_id
+                        == normalise_ontology_id(pair.ontology_id)
                     ),
                     chooser_id=proposal.chooser_id,
                     chooser_version=proposal.chooser_version,

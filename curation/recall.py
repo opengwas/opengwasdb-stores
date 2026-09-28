@@ -86,7 +86,12 @@ from curation.harvest import (
     STRATUM_ORDER,
     STRATUM_OTHER,
 )
-from curation.ontology import IndexFormatError, OntologyIndex, load_index
+from curation.ontology import (
+    IndexFormatError,
+    OntologyIndex,
+    load_index,
+    normalise_ontology_id,
+)
 
 DEFAULT_SIZES: tuple[int, ...] = (1, 5, 10, 20)
 
@@ -232,7 +237,7 @@ def read_validation(path: Path | str) -> list[ValidationPair]:
     pairs: list[ValidationPair] = []
     for row in rows:
         trait_label = (row.get("trait_label") or "").strip()
-        ontology_id = (row.get("ontology_id") or "").strip()
+        ontology_id = normalise_ontology_id(row.get("ontology_id"))
         if not trait_label or not ontology_id:
             continue
         pairs.append(

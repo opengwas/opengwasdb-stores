@@ -75,7 +75,7 @@ from curation.gap_scan import (
     read_analyses,
     resolve_manifest_path,
 )
-from curation.ontology import OntologyIndex
+from curation.ontology import OntologyIndex, normalise_ontology_id
 
 SOURCE_PROVIDED: str = "source_provided"
 
@@ -188,7 +188,7 @@ def categorize_stratum(
     4. A disease Store Family (GWAS Catalog hybrid, FinnGen, ...) is a disease.
     5. Anything else is ``other``.
     """
-    identifier = (ontology_id or "").strip().upper()
+    identifier = normalise_ontology_id(ontology_id).upper()
     if identifier.startswith(DISEASE_ONTOLOGY_PREFIXES):
         return STRATUM_DISEASE
     if identifier.startswith(ANALYTE_ONTOLOGY_PREFIXES):
@@ -220,7 +220,7 @@ def detect_obsolete(
     in the data rather than guessed.
     """
     if index_by_id:
-        term = index_by_id.get(ontology_id)
+        term = index_by_id.get(normalise_ontology_id(ontology_id))
         if term is not None:
             return bool(getattr(term, "is_obsolete", False))
     return _normalise_text(ontology_label).startswith("obsolete")
@@ -270,7 +270,7 @@ def scan_manifest(
         if _normalise_text(row.get(MAPPING_METHOD_COLUMN)) != SOURCE_PROVIDED:
             continue
         trait_label = (row.get(label_column) or "").strip()
-        ontology_id = (row.get(ONTOLOGY_ID_COLUMN) or "").strip()
+        ontology_id = normalise_ontology_id(row.get(ONTOLOGY_ID_COLUMN))
         ontology_label = (row.get(ONTOLOGY_LABEL_COLUMN) or "").strip()
         if not trait_label or not ontology_id:
             # A source-provided row with no label or no identifier has nothing

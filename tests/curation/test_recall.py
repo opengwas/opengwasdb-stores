@@ -660,5 +660,31 @@ class TestCli(unittest.TestCase):
         self.assertIn("requires --index", err)
 
 
+class TestCanonicalValidationIds(unittest.TestCase):
+    """A source-provided OBO id matches the canonical index id."""
+
+    def test_lower_prefix_id_reads_as_curie_and_scores(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "validation.tsv"
+            write_tsv(
+                path,
+                VALIDATION_COLUMNS,
+                [
+                    {
+                        "trait_label": "Body mass index",
+                        "ontology_id": "efo:EFO_0004340",
+                        "ontology_label": "Body mass index",
+                        "stratum": STRATUM_ANALYTE_MEASUREMENT,
+                        "store_families": "family",
+                        "is_obsolete": "false",
+                    }
+                ],
+            )
+            pairs = read_validation(path)
+        self.assertEqual([pair.ontology_id for pair in pairs], ["EFO:0004340"])
+        result = evaluate_recall(pairs, index=_fixture_index(), sizes=(1, 5))
+        self.assertEqual(result.aggregate_hits[1], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

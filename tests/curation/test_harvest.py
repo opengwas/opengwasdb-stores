@@ -429,5 +429,48 @@ class TestCli(unittest.TestCase):
         self.assertIn("harvest: error:", err)
 
 
+class TestCanonicalOntologyIds(unittest.TestCase):
+    """Source-provided ids are normalised before they meet the index."""
+
+    def test_lower_prefix_source_id_matches_and_is_canonicalised(self) -> None:
+        import tempfile as _tempfile
+
+        with _tempfile.TemporaryDirectory() as tmp:
+            obo = Path(tmp) / "efo.obo"
+            obo.write_text(FIXTURE_OBO, encoding="utf-8")
+            index = build_index_from_obo(obo, "efo/vfixture")
+
+        index_by_id = index.by_id()
+        # EFO v3.94.0 writes its native ids as efo:EFO_..., and the harvest's
+        # obsolete lookup must still find the canonical index term.
+        self.assertTrue(
+            detect_obsolete("efo:EFO_9999001", "legacy obsolete trait", index_by_id)
+        )
+
+    def test_scan_manifest_emits_the_canonical_id(self) -> None:
+        import tempfile as _tempfile
+
+        with _tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle = make_bundle(
+                root,
+                "families",
+                "fam",
+                "releases",
+                "rel",
+                rows=[
+                    {
+                        "analysis_id": "1",
+                        "source_label": "Asthma",
+                        "trait_ontology_id": "efo:EFO_0000270",
+                        "trait_ontology_label": "asthma",
+                        "trait_ontology_mapping_method": "source_provided",
+                    }
+                ],
+            )
+            entries = scan_manifest(bundle)
+        self.assertEqual([entry.ontology_id for entry in entries], ["EFO:0000270"])
+
+
 if __name__ == "__main__":
     unittest.main()

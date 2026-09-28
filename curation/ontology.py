@@ -22,8 +22,9 @@ The index is a small JSON document, versioned by ``index_format_version`` so a
 stale artifact fails loudly rather than being read with the wrong shape::
 
     {
-      "index_format_version": 1,
+      "index_format_version": 2,
       "ontology_release": "efo/v3.94.0",
+      "excluded_non_curie_count": 6583,
       "terms": [
         {
           "ontology_id": "EFO:0004340",
@@ -32,6 +33,7 @@ stale artifact fails loudly rather than being read with the wrong shape::
           "parent_id": "EFO:0004338",
           "parent_label": "body weights and measures",
           "synonyms": ["BMI", "Quetelet index"],
+          "alt_ids": [],
           "is_obsolete": false,
           "replaced_by": ""
         }
@@ -70,7 +72,9 @@ PINNED_ONTOLOGY_RELEASE: str = "efo/v3.94.0"
 
 # The index schema version. A reader refuses an artifact whose version it does
 # not know, so a rebuild is forced rather than a stale shape being misread.
-INDEX_FORMAT_VERSION: int = 1
+# Bumped to 2 when canonical id normalisation was added: a version-1 index
+# carried the OBO's native ``efo:EFO_...`` ids and IRI ids and must be rebuilt.
+INDEX_FORMAT_VERSION: int = 2
 
 # Rebuildable index artifacts live outside the tracked tree. See `.gitignore`.
 DEFAULT_INDEX_DIR: Path = Path(".cache") / "curation"
@@ -86,6 +90,78 @@ class IndexFormatError(OntologyError):
 
 class ObOFormatError(OntologyError):
     """Raised when an OBO source document cannot be parsed."""
+
+
+# ---------------------------------------------------------------------------
+# Canonical ontology identifiers
+# ---------------------------------------------------------------------------
+#
+# An OBO release does not spell every term id the way the rest of the repository
+# does. EFO v3.94.0's native terms use a lower-case, underscore form
+# (``efo:EFO_0003939``), some imported terms are already CURIEs
+# (``MONDO:0000001``), and many more carry a full IRI. Every Release Manifest
+# and every shortlist row uses the canonical CURIE form, so the index must
+# normalise before it stores or looks anything up.
+
+# ``<lower>:<PREFIX>_<local>`` -> ``<PREFIX>:<local>`` (e.g. efo:EFO_0000270).
+_LOWER_PREFIX_RE = re.compile(
+    r"^([a-z][a-z0-9]*):([A-Za-z][A-Za-z0-9]*)_([^:]+)$"
+)
+# OBO PURL, in either the ``X_N`` or the ``X:N`` spelling.
+_OBO_PURL_RE = re.compile(
+    r"^https?://purl\.obolibrary\.org/obo/([A-Za-z][A-Za-z0-9]*)[_:]([^:]+)$"
+)
+# EBI's EFO-repository IRI form.
+_EBI_EFO_RE = re.compile(r"^https?://www\.ebi\.ac\.uk/efo/EFO[_:]([^:]+)$")
+# ORDO's Orphanet IRI form.
+_ORPHA_IRI_RE = re.compile(
+    r"^https?://www\.orpha\.net/ORDO/Orphanet[_:]([^:]+)$"
+)
+# A canonical CURIE: a non-empty alphabetic prefix, a colon, and a local id.
+_CURIE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]*:[^\s:]+$")
+
+
+def normalise_ontology_id(ontology_id: str | None) -> str:
+    """Return the canonical CURIE form of an ontology identifier.
+
+    Normalises the OBO release's spelling variants to the form used by Release
+    Manifests and shortlist rows:
+
+    * ``efo:EFO_0000270`` -> ``EFO:0000270``;
+    * ``http://purl.obolibrary.org/obo/MONDO_0004979`` -> ``MONDO:0004979``;
+    * ``http://www.ebi.ac.uk/efo/EFO_0000270`` -> ``EFO:0000270``;
+    * ``http://www.orpha.net/ORDO/Orphanet_58`` -> ``Orphanet:58``.
+
+    An id that is already a CURIE is returned unchanged, as is one that no rule
+    recognises (a gene or dbpedia IRI). Idempotent, so it is safe to apply at
+    both index-build time and every comparison against a source-provided id.
+    """
+    value = (ontology_id or "").strip()
+    if not value:
+        return ""
+    match = _OBO_PURL_RE.match(value)
+    if match:
+        return f"{match.group(1)}:{match.group(2)}"
+    match = _EBI_EFO_RE.match(value)
+    if match:
+        return f"EFO:{match.group(1)}"
+    match = _ORPHA_IRI_RE.match(value)
+    if match:
+        return f"Orphanet:{match.group(1)}"
+    match = _LOWER_PREFIX_RE.match(value)
+    if match:
+        return f"{match.group(2)}:{match.group(3)}"
+    return value
+
+
+def is_curie(ontology_id: str | None) -> bool:
+    """Whether ``ontology_id`` is a canonical ``PREFIX:local`` CURIE."""
+    value = (ontology_id or "").strip()
+    # An ``http:``/``https:`` IRI trivially matches the prefix:local shape, so
+    # reject any URL before the CURIE regex can accept it.
+    if "://" in value:
+        return False
+    return bool(_CURIE_RE.match(value))
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +184,7 @@ class OntologyTerm:
     parent_id: str = ""
     parent_label: str = ""
     synonyms: tuple[str, ...] = ()
+    alt_ids: tuple[str, ...] = ()
     is_obsolete: bool = False
     replaced_by: str = ""
 
@@ -119,6 +196,7 @@ class OntologyTerm:
             "parent_id": self.parent_id,
             "parent_label": self.parent_label,
             "synonyms": list(self.synonyms),
+            "alt_ids": list(self.alt_ids),
             "is_obsolete": self.is_obsolete,
             "replaced_by": self.replaced_by,
         }
@@ -132,6 +210,7 @@ class OntologyTerm:
             parent_id=str(data.get("parent_id", "")),
             parent_label=str(data.get("parent_label", "")),
             synonyms=tuple(str(s) for s in data.get("synonyms", []) or []),
+            alt_ids=tuple(str(s) for s in data.get("alt_ids", []) or []),
             is_obsolete=bool(data.get("is_obsolete", False)),
             replaced_by=str(data.get("replaced_by", "")),
         )
@@ -305,6 +384,10 @@ class OntologyIndex:
 
     ontology_release: str
     terms: tuple[OntologyTerm, ...]
+    #: How many source terms were dropped because their id could not be
+    #: normalised to a CURIE (gene/dbpedia IRIs). Reported by the builder so a
+    #: surprising corpus is visible rather than silently smaller.
+    excluded_non_curie_count: int = 0
 
     def __len__(self) -> int:
         return len(self.terms)
@@ -329,6 +412,7 @@ class OntologyIndex:
         return {
             "index_format_version": INDEX_FORMAT_VERSION,
             "ontology_release": self.ontology_release,
+            "excluded_non_curie_count": self.excluded_non_curie_count,
             "terms": [term.to_dict() for term in self.terms],
         }
 
@@ -399,16 +483,20 @@ def _parse_obo_term(body: Sequence[str]) -> OntologyTerm | None:
 
     definition = _extract_quoted(fields["def"][0]) if fields.get("def") else ""
     synonyms = tuple(_extract_quoted(s) for s in fields.get("synonym", []))
+    alt_ids = tuple(
+        normalise_ontology_id(value) for value in fields.get("alt_id", [])
+    )
 
     return OntologyTerm(
-        ontology_id=fields["id"][0],
+        ontology_id=normalise_ontology_id(fields["id"][0]),
         label=fields.get("name", [""])[0],
         definition=definition,
-        parent_id=parent_id,
+        parent_id=normalise_ontology_id(parent_id),
         parent_label=parent_label,
         synonyms=synonyms,
+        alt_ids=alt_ids,
         is_obsolete=any(v.lower() == "true" for v in fields.get("is_obsolete", [])),
-        replaced_by=fields.get("replaced_by", [""])[0],
+        replaced_by=normalise_ontology_id(fields.get("replaced_by", [""])[0]),
     )
 
 
@@ -453,12 +541,39 @@ def build_index_from_obo(
     obo_path: Path | str,
     ontology_release: str = PINNED_ONTOLOGY_RELEASE,
 ) -> OntologyIndex:
-    """Rebuild the retrieval index from a pinned release's OBO document."""
+    """Rebuild the retrieval index from a pinned release's OBO document.
+
+    Term, parent, ``replaced_by`` and alternate ids are all normalised to the
+    canonical CURIE form. A term whose id is still not a CURIE after that (a
+    gene or dbpedia IRI) cannot be retrieved or matched, so it is excluded and
+    counted on the index.
+    """
     source = Path(obo_path)
-    terms = parse_obo(_read_source_text(source))
-    if not terms:
+    parsed = parse_obo(_read_source_text(source))
+    if not parsed:
         raise ObOFormatError(f"{source} contains no [Term] stanzas")
-    return OntologyIndex(ontology_release=ontology_release, terms=tuple(terms))
+    terms: list[OntologyTerm] = []
+    excluded = 0
+    for term in parsed:
+        if not is_curie(term.ontology_id):
+            excluded += 1
+            continue
+        terms.append(term)
+    if not terms:
+        raise ObOFormatError(
+            f"{source} contains no [Term] stanzas with a canonical ontology id"
+        )
+    if excluded:
+        print(
+            f"ontology-index: excluded {excluded} term(s) whose id is not a "
+            "canonical CURIE (gene/dbpedia-style IRIs)",
+            file=sys.stderr,
+        )
+    return OntologyIndex(
+        ontology_release=ontology_release,
+        terms=tuple(terms),
+        excluded_non_curie_count=excluded,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -512,7 +627,13 @@ def index_from_dict(data: object) -> OntologyIndex:
         for term in raw_terms
         if isinstance(term, dict)
     )
-    return OntologyIndex(ontology_release=release, terms=terms)
+    excluded = data.get("excluded_non_curie_count")
+    excluded_count = int(excluded) if isinstance(excluded, int) and not isinstance(excluded, bool) else 0
+    return OntologyIndex(
+        ontology_release=release,
+        terms=terms,
+        excluded_non_curie_count=excluded_count,
+    )
 
 
 def load_index(path: Path | str) -> OntologyIndex:
