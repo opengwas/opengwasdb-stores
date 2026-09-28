@@ -473,6 +473,19 @@ class ChooseTest(RoundTestCase):
         self.assertTrue(outcome.limit_reached)
         self.assertEqual(outcome.processed, 1)
 
+    def test_limit_counts_new_work_not_already_finished_labels(self) -> None:
+        round_mod.run_choose(
+            self.round_dir, chooser=self.chooser, workers=1, limit=1
+        )
+        # BMI is already done; a second pilot must not spend its budget
+        # skipping it -- it should choose HEIGHT.
+        outcome = round_mod.run_choose(
+            self.round_dir, chooser=self.chooser, workers=1, limit=1
+        )
+        self.assertEqual(outcome.processed, 1)
+        self.assertEqual(outcome.chosen, 1)
+        self.assertEqual(outcome.skipped, 1)
+
     def test_interrupt_leaves_only_complete_files(self) -> None:
         class InterruptingChooser(RecordingChooser):
             def select(self, trait_label, candidates):

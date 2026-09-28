@@ -1069,6 +1069,23 @@ def _validate_shortlist_release(
                 )
 
 
+def _result_is_current(
+    config: RoundConfig,
+    trait_label: str,
+    candidates: Sequence[Candidate],
+    chooser: Chooser,
+) -> bool:
+    """True when a stored result already answers this exact request."""
+    chooser_id, chooser_version, model, context = _chooser_identity(chooser, config)
+    fingerprint = choice_fingerprint(
+        chooser_id, chooser_version, model, context, trait_label, candidates
+    )
+    normalised = gap_scan.normalize_trait_label(trait_label)
+    result_path, _ = choice_file_paths(config.round_dir, normalised)
+    data = _read_result(result_path)
+    return data is not None and data.get("fingerprint") == fingerprint
+
+
 def run_choose(
     round_dir: Path | str,
     *,
@@ -1117,6 +1134,14 @@ def run_choose(
                     trait_label = next(pending)
                 except StopIteration:
                     break
+                candidates = grouped[trait_label]
+                if not candidates:
+                    continue
+                if _result_is_current(config, trait_label, candidates, chooser):
+                    # A finished label costs nothing and does not consume the
+                    # pilot budget; count it as skipped and move on.
+                    skipped += 1
+                    continue
                 if limit is not None and processed >= limit:
                     limit_reached = True
                     break
@@ -1125,9 +1150,6 @@ def run_choose(
                         if total_cost >= max_cost_usd:
                             cost_cap_reached = True
                             break
-                candidates = grouped[trait_label]
-                if not candidates:
-                    continue
                 future = executor.submit(
                     _choose_label, trait_label, list(candidates), chooser, config
                 )
