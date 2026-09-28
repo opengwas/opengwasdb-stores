@@ -947,6 +947,9 @@ class CoverageTest(RoundTestCase):
             ],
         )
         self.init_round(manifests=[manifest])
+        round_mod.run_gap_scan(self.round_dir)
+        self.write_shortlists([])
+        round_mod.run_reduce(self.round_dir, allow_incomplete=True)
         outcome = round_mod.run_coverage(self.round_dir)
 
         report = outcome.report
@@ -958,6 +961,25 @@ class CoverageTest(RoundTestCase):
         assert family is not None
         self.assertEqual(family.unmapped_before, 2)
         self.assertEqual(family.unmapped_after, 1)
+
+    def test_missing_reconciliation_is_refused(self) -> None:
+        manifest = self.manifest("fam-a", [])
+        self.init_round(manifests=[manifest])
+        with self.assertRaises(round_mod.RoundStateError):
+            round_mod.run_coverage(self.round_dir)
+
+    def test_stale_reconciliation_is_refused(self) -> None:
+        queue = self.queue_tsv([BMI_LABEL])
+        self.init_round(queue_tsv=queue)
+        round_mod.run_gap_scan(self.round_dir)
+        self.write_shortlists([shortlist_row(BMI_LABEL, BMI_ID, "body mass index")])
+        round_mod.run_reduce(self.round_dir, allow_incomplete=True)
+
+        # A result arrives after reduce ran, changing BMI from pending to
+        # proposed; the stored reconciliation is now stale.
+        self.write_choice_result(BMI_LABEL, BMI_ID, {BMI_ID: 1.0})
+        with self.assertRaises(round_mod.RoundStateError):
+            round_mod.run_coverage(self.round_dir)
 
 
 # ---------------------------------------------------------------------------

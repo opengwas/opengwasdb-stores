@@ -1548,20 +1548,15 @@ def _read_reconciliation(path: Path) -> dict[str, str]:
     return values
 
 
-def run_reduce(
-    round_dir: Path | str, *, allow_incomplete: bool = False
-) -> ReduceOutcome:
-    """Fold the result files into proposals, a cost ledger, and a reconciliation.
+def _reconcile_round(
+    config: RoundConfig,
+) -> tuple[Reconciliation, list[choice_mod.Proposal], list[list[str]]]:
+    """Classify every queued label and build the proposals and cost ledger.
 
-    Every queued label is classified into exactly one bucket: ``no_candidate``
-    (nothing retrieved), ``pending`` (no result, or a result for a stale
-    shortlist), ``error`` (the request failed), ``none_suitable`` (a confident
-    abstention), or ``proposed``. ``complete`` is false when any label is
-    pending or errored; the CLI turns that into a non-zero exit unless
-    ``--allow-incomplete`` was given. ``allow_incomplete`` is accepted for
-    callers that want to proceed regardless and is otherwise informational.
+    This is the single classification used by both ``reduce`` and coverage's
+    staleness check, so the two can never disagree about the buckets. Every
+    queued label lands in exactly one bucket.
     """
-    config = read_round_config(round_dir)
     queue_rows = candidates_mod.read_work_queue(config.queue_path)
     queue_entries: list[tuple[str, str]] = []
     for row in queue_rows:
@@ -1658,6 +1653,25 @@ def run_reduce(
             "internal error: reconciliation buckets do not sum to the queue"
         )
 
+    return reconciliation, proposals, ledger_rows
+
+
+def run_reduce(
+    round_dir: Path | str, *, allow_incomplete: bool = False
+) -> ReduceOutcome:
+    """Fold the result files into proposals, a cost ledger, and a reconciliation.
+
+    Every queued label is classified into exactly one bucket: ``no_candidate``
+    (nothing retrieved), ``pending`` (no result, or a result for a stale
+    shortlist), ``error`` (the request failed), ``none_suitable`` (a confident
+    abstention), or ``proposed``. ``complete`` is false when any label is
+    pending or errored; the CLI turns that into a non-zero exit unless
+    ``--allow-incomplete`` was given. ``allow_incomplete`` is accepted for
+    callers that want to proceed regardless and is otherwise informational.
+    """
+    config = read_round_config(round_dir)
+    reconciliation, proposals, ledger_rows = _reconcile_round(config)
+
     _atomic_write_text(choice_mod.format_proposals_tsv(proposals), config.proposals_path)
     ledger_lines = ["\t".join(COST_LEDGER_COLUMNS)]
     ledger_lines.extend("\t".join(row) for row in ledger_rows)
@@ -1741,6 +1755,38 @@ class CoverageOutcome:
     report_path: Path | None
 
 
+def _verify_reconciliation(config: RoundConfig) -> dict[str, str]:
+    """Require a current ``reconciliation.tsv`` before coverage reports it.
+
+    Coverage must never present bucket counts that do not describe the current
+    queue/shortlists/results, so a missing or stale reconciliation fails loudly
+    rather than silently reporting zeros.
+    """
+    if not config.reconciliation_path.is_file():
+        raise RoundStateError(
+            f"reconciliation.tsv does not exist: {config.reconciliation_path} "
+            "(run round-reduce first)"
+        )
+    stored = _read_reconciliation(config.reconciliation_path)
+    current, _, _ = _reconcile_round(config)
+    expected = dict(current.as_rows())
+    mismatched = {
+        key: (stored.get(key), value)
+        for key, value in expected.items()
+        if stored.get(key) != value
+    }
+    if mismatched:
+        detail = ", ".join(
+            f"{key}: recorded {recorded!r} vs current {value!r}"
+            for key, (recorded, value) in sorted(mismatched.items())
+        )
+        raise RoundStateError(
+            f"reconciliation.tsv is stale relative to the current "
+            f"shortlists/results; re-run round-reduce ({detail})"
+        )
+    return stored
+
+
 def run_coverage(
     round_dir: Path | str,
     *,
@@ -1767,7 +1813,7 @@ def run_coverage(
         config.mapping_before_path if config.mapping_before_path.is_file() else None,
     )
     mapped_after_labels = coverage.read_mapping_labels(mapping_after)
-    reconciliation = _read_reconciliation(config.reconciliation_path)
+    reconciliation = _verify_reconciliation(config)
 
     def _count(bucket: str) -> int:
         raw = reconciliation.get(bucket, "0")
