@@ -384,6 +384,43 @@ def generate_shortlist(
     )
 
 
+def _live_successor(ontology_id: str, by_id: Mapping[str, object]) -> str | None:
+    """The live term an obsolete one was replaced by, following a short chain."""
+    seen: set[str] = set()
+    current = ontology_id
+    while current not in seen and len(seen) < 8:
+        seen.add(current)
+        term = by_id.get(current)
+        if term is None:
+            return None
+        if not term.is_obsolete:
+            return current
+        current = term.replaced_by
+        if not current:
+            return None
+    return None
+
+
+def _fold_obsolete_terms(
+    ranks: dict[str, dict[str, int]], by_id: Mapping[str, object]
+) -> dict[str, dict[str, int]]:
+    """Credit an obsolete term's channel ranks to its live replacement.
+
+    An obsolete term must never be offered for mapping: it is replaced by its
+    ``replaced_by`` successor (keeping the better rank per channel) or dropped
+    when it has none in the index.
+    """
+    folded: dict[str, dict[str, int]] = {}
+    for ontology_id, channel_ranks in ranks.items():
+        live = _live_successor(ontology_id, by_id)
+        if live is None:
+            continue
+        merged = folded.setdefault(live, {})
+        for channel, rank in channel_ranks.items():
+            merged[channel] = min(rank, merged.get(channel, rank))
+    return folded
+
+
 def _generate_shortlist(
     trait_label: str,
     index: OntologyIndex,
@@ -412,6 +449,8 @@ def _generate_shortlist(
         for rank, ontology_id in enumerate(channels[channel], start=1):
             ranks.setdefault(ontology_id, {}).setdefault(channel, rank)
 
+    by_id = index.by_id()
+    ranks = _fold_obsolete_terms(ranks, by_id)
     if not ranks:
         return []
 
@@ -421,7 +460,6 @@ def _generate_shortlist(
     embedding_model = embedding.model_id if embedding_ran else ""
     embedding_index_build = embedding.build_id if embedding_ran else ""
 
-    by_id = index.by_id()
     ranked: list[tuple[float, str, dict[str, int]]] = [
         (_rrf_score(channel_ranks), ontology_id, channel_ranks)
         for ontology_id, channel_ranks in ranks.items()

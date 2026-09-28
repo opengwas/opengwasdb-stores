@@ -20,7 +20,8 @@ Verifies:
 - candidates from several channels are deduplicated by ontology id;
 - the shortlist size is configurable and respected;
 - a label no channel matches yields an empty shortlist, never a fabricated term;
-- obsolete terms are flagged rather than silently offered as live terms;
+- an obsolete term is never offered: it is replaced by its live successor or
+  dropped;
 - the retrieval index round-trips through its rebuildable artifact, rejects an
   unknown format version, and defaults outside the tracked tree;
 - the prebuilt-lookup lexical channels return exactly what the brute-force
@@ -344,11 +345,35 @@ class TestGenerateShortlist(unittest.TestCase):
     def test_unmatched_label_yields_empty_shortlist(self) -> None:
         self.assertEqual(generate_shortlist("qwertyuiop asdfghjkl", self.index), [])
 
-    def test_obsolete_term_is_flagged(self) -> None:
+    def test_obsolete_term_is_replaced_by_its_successor(self) -> None:
         shortlist = generate_shortlist("legacy obsolete trait", self.index)
         self.assertTrue(shortlist)
-        self.assertTrue(shortlist[0].is_obsolete)
-        self.assertFalse(generate_shortlist("Body mass index", self.index)[0].is_obsolete)
+        self.assertEqual(shortlist[0].ontology_id, "EFO:0004340")
+        self.assertIn("exact", shortlist[0].channels)
+        self.assertFalse(any(candidate.is_obsolete for candidate in shortlist))
+
+    def test_obsolete_term_without_a_live_successor_is_dropped(self) -> None:
+        from types import SimpleNamespace
+
+        from curation.candidates import _fold_obsolete_terms
+
+        by_id = {
+            "EFO:1": SimpleNamespace(is_obsolete=False, replaced_by=""),
+            "EFO:2": SimpleNamespace(is_obsolete=True, replaced_by="EFO:1"),
+            "EFO:3": SimpleNamespace(is_obsolete=True, replaced_by=""),
+            "EFO:4": SimpleNamespace(is_obsolete=True, replaced_by="EFO:5"),
+            "EFO:5": SimpleNamespace(is_obsolete=True, replaced_by="EFO:4"),
+        }
+        folded = _fold_obsolete_terms(
+            {
+                "EFO:1": {"embedding": 3},
+                "EFO:2": {"embedding": 1, "exact": 1},
+                "EFO:3": {"embedding": 2},
+                "EFO:4": {"embedding": 4},
+            },
+            by_id,
+        )
+        self.assertEqual(folded, {"EFO:1": {"embedding": 1, "exact": 1}})
 
     def test_generate_shortlists_skips_unmatched_labels(self) -> None:
         rows = generate_shortlists(
