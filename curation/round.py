@@ -80,6 +80,7 @@ from curation.embedding import (
     Embedder,
     EmbeddingChannel,
     EmbeddingError,
+    EmbeddingStore,
     EmbeddingStoreError,
     PINNED_EMBEDDING_MODEL_ID,
     build_trait_embedding_store,
@@ -688,6 +689,30 @@ def _validate_embedding_artifacts(config: RoundConfig) -> None:
             )
 
 
+def _load_and_verify_pinned_store(name: str, pin: EmbeddingPin) -> EmbeddingStore:
+    """Load a pinned store and refuse it when its vectors no longer match.
+
+    Meta-only checks cannot see a corrupt or edited vector payload. Loading
+    the store re-checks its declared content address against the vector bytes,
+    so a pinned store that is unusable refuses instead of silently degrading a
+    round to lexical-only.
+    """
+    try:
+        store = EmbeddingStore.load(pin.directory)
+    except EmbeddingStoreError as exc:
+        raise RoundPinError(f"{name} embedding store is unusable: {exc}") from exc
+    if (
+        store.model_id != pin.model_id
+        or store.ontology_release != pin.ontology_release
+        or store.build_id != pin.build_id
+    ):
+        raise RoundPinError(
+            f"{name} embedding store {pin.directory} no longer matches the "
+            "pinned model/release/build_id; rebuild it or re-run round-init"
+        )
+    return store
+
+
 # ---------------------------------------------------------------------------
 # gap-scan
 # ---------------------------------------------------------------------------
@@ -815,7 +840,12 @@ def _resolve_round_embedding(config: RoundConfig) -> EmbeddingChannel | None:
     """
     _validate_embedding_artifacts(config)
     if config.ontology_embeddings is None or config.trait_embeddings is None:
-        if config.ontology_embeddings is not None or config.trait_embeddings is not None:
+        pinned = config.ontology_embeddings or config.trait_embeddings
+        if pinned is not None:
+            # A single pinned store cannot form the semantic channel, but it is
+            # still pinned: load it so a corrupt vector payload refuses rather
+            # than silently degrading the round to lexical-only.
+            _load_and_verify_pinned_store("pinned", pinned)
             print(
                 "candidates: warning: both --ontology-embeddings and "
                 "--trait-embeddings are required for the offline semantic "

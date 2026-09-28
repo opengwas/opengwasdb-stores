@@ -404,6 +404,20 @@ class EmbeddingPinTest(RoundTestCase):
         with self.assertRaises(round_mod.RoundPinError):
             round_mod.run_candidates(self.round_dir)
 
+    def test_single_pinned_corrupt_vectors_are_refused(self) -> None:
+        # Only one of the store pair is pinned, so there is no semantic channel
+        # to build -- but the pinned store is still loaded and verified rather
+        # than silently degrading the round to lexical-only.
+        ontology, _ = self._build_stores()
+        self._prepare_round(ontology_embeddings=ontology)
+
+        vectors_path = ontology / "vectors.npy"
+        data = vectors_path.read_bytes()
+        vectors_path.write_bytes(data[: max(1, len(data) // 2)])
+
+        with self.assertRaises(round_mod.RoundPinError):
+            round_mod.run_candidates(self.round_dir)
+
 
 class _FakeEmbeddingResponse:
     def __init__(self, payload: dict) -> None:
