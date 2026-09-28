@@ -156,5 +156,28 @@ class BuildIndexNormalisationTest(unittest.TestCase):
             index_from_dict(data)
 
 
+class EquivalentIdsTest(unittest.TestCase):
+    """Replacement and alias closure for scoring a source id."""
+
+    def setUp(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            obo = Path(tmp) / "efo.obo"
+            obo.write_text(OBO, encoding="utf-8")
+            self.index = build_index_from_obo(obo, RELEASE)
+
+    def test_term_aliases_and_replacement_are_equivalent(self) -> None:
+        self.assertEqual(
+            set(self.index.equivalent_ids("EFO:0000270")),
+            {"EFO:0003939", "EFO:0000271", "EFO:0000272"},
+        )
+
+    def test_alt_id_resolves_to_its_owning_term(self) -> None:
+        self.assertIn("EFO:0000270", self.index.equivalent_ids("EFO:0003939"))
+
+    def test_unknown_or_unreplaced_id_has_no_equivalents(self) -> None:
+        self.assertEqual(self.index.equivalent_ids("MONDO:0004979"), ())
+        self.assertEqual(self.index.equivalent_ids("EFO:9999999"), ())
+
+
 if __name__ == "__main__":
     unittest.main()

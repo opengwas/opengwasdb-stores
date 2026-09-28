@@ -19,7 +19,8 @@ Verifies:
   analyte families, measurement labels, disease families, else other);
 - obsolete terms are flagged from the pinned index and from the source
   `obsolete_` label convention, never guessed from absence;
-- the TSV carries the six documented columns and boolean strings;
+- the TSV carries the documented columns and boolean strings, including the
+  canonical ids a source id is equivalent to (its replacement/aliases);
 - the CLI resolves files and bundle directories, writes to `--output` or
   stdout, and fails loudly on a missing Manifest.
 """
@@ -324,6 +325,24 @@ class TestHarvest(unittest.TestCase):
         self.assertEqual(len(entries), 1)
         self.assertTrue(entries[0].is_obsolete)
 
+    def test_obsolete_replacement_is_recorded_as_an_equivalent(self) -> None:
+        manifest = make_bundle(
+            self.td, "pqtl-interval-2018", "releases", "rel",
+            rows=[
+                {"source_label": "Legacy trait", "trait_ontology_id": "EFO:9999001",
+                 "trait_ontology_label": "legacy obsolete trait",
+                 "trait_ontology_mapping_method": "source_provided"},
+            ],
+        )
+        index = _fixture_index()
+        entries = harvest_pairs([manifest], index)
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].equivalent_ids, ("EFO:0004340",))
+
+        header, rows = parse_tsv(format_harvest_tsv(entries))
+        self.assertIn("equivalent_ids", header)
+        self.assertEqual(rows[0]["equivalent_ids"], "EFO:0004340")
+
     def test_ordered_by_stratum_then_label(self) -> None:
         hybrid = make_bundle(
             self.td, "gwas-catalog-eur-hybrid", "releases", "rel",
@@ -369,6 +388,7 @@ class TestFormatHarvestTsv(unittest.TestCase):
         self.assertEqual(rows[0]["stratum"], STRATUM_ANALYTE_MEASUREMENT)
         self.assertEqual(rows[0]["store_families"], "metabolome-plasma-2023")
         self.assertEqual(rows[0]["is_obsolete"], "false")
+        self.assertEqual(rows[0]["equivalent_ids"], "")
 
 
 class TestCli(unittest.TestCase):

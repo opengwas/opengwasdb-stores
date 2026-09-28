@@ -192,7 +192,10 @@ correct validation set, without modifying a Manifest, a generator, or a bundle.
 4. **Obsolete**: a term found in the pinned index reports its own obsolete
    flag; an absent term is never assumed obsolete and only the explicit
    `obsolete_` source-label convention flags it.
-5. **CLI surface**: manifest files and bundle directories are accepted; output
+5. **Equivalents**: each pair carries the canonical ids its source id is
+   equivalent to (an obsolete term's `replaced_by` successor, or the term's
+   aliases), so scoring can credit a successor without re-reading the index.
+6. **CLI surface**: manifest files and bundle directories are accepted; output
    goes to stdout or `--output`; the header is always present.
 
 ## Recall suite (`curation.recall`, issue #165)
@@ -211,7 +214,11 @@ terms, enumerate misses, and always state the ukb-b stratum-gap caveat.
 2. **Sizes**: a correct id inside the shortlist is a hit at every size at or
    above its rank, and a miss below it; recall is computed per stratum and in
    aggregate.
-3. **Obsolete**: obsolete pairs are excluded from scoring and counted.
+3. **Obsolete**: an obsolete pair whose source id resolves to a `replaced_by`
+   successor (or to the term owning its alternate id) is scored against that
+   id and counted as remapped; an obsolete pair with no such equivalent stays
+   excluded and counted. When the validation set does not carry the resolved
+   set, an index resolves it on the fly.
 4. **Misses**: misses are enumerated per size with the rank at which the id was
    found, so near-misses are inspectable.
 5. **Disclaimer**: every format (text, markdown, tsv) states plainly that no
@@ -375,10 +382,12 @@ denominator and the reliability curve.
 7. **Retries and key**: 429/529/5xx retry with exponential backoff honouring
    `retry-after`, 401/422 never retry, and the API key resolves in the
    documented order without appearing in any exception message.
-8. **Conditional accuracy**: pairs whose correct term is not in the shortlist
-   are excluded from the chooser's score and counted as retrieval misses;
-   accuracy is reported per stratum (analyte measurement vs disease, plus
-   `other`) and in aggregate.
+8. **Conditional accuracy**: pairs whose correct term (or its equivalent
+   replacement/alias) is not in the shortlist are excluded from the chooser's
+   score and counted as retrieval misses; an obsolete source id that resolves
+   to a replacement is scored against that replacement and counted as
+   remapped; accuracy is reported per stratum (analyte measurement vs disease,
+   plus `other`) and in aggregate.
 9. **Reliability curve**: reported probabilities are binned against observed
    accuracy, including empty bins; abstentions are excluded.
 10. **Caveats and recommendation**: the report states the analyte-measurement

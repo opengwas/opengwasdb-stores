@@ -38,13 +38,15 @@ What it does
 
 Output
 ------
-A six-column TSV to stdout or `--output`::
+A seven-column TSV to stdout or `--output`::
 
-    trait_label  ontology_id  ontology_label  stratum  store_families  is_obsolete
+    trait_label  ontology_id  ontology_label  stratum  store_families  is_obsolete  equivalent_ids
 
 The obsolete flag is a boolean string (``true``/``false``). Obsolete pairs are
 *flagged*, not dropped here, because scoring decides whether to exclude them
-(see :mod:`curation.recall`).
+(see :mod:`curation.recall`). ``equivalent_ids`` is a comma-separated list of
+the canonical ids the source id resolves to (its ``replaced_by`` successor or
+its term's aliases); scoring credits a retrieval of any of them.
 
 CLI
 ---
@@ -63,7 +65,7 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Mapping, Sequence
+from typing import Callable, Iterable, Mapping, Sequence
 
 from curation.gap_scan import (
     MAPPING_METHOD_COLUMN,
@@ -130,6 +132,11 @@ OUTPUT_COLUMNS: tuple[str, ...] = (
     "stratum",
     "store_families",
     "is_obsolete",
+    # Canonical ids the source id is equivalent to (an obsolete term's
+    # ``replaced_by`` successor, or the aliases of its term), as a
+    # comma-separated list. Scoring credits a retrieval or selection of any of
+    # them. Empty for a term with no replacements and no aliases.
+    "equivalent_ids",
 )
 
 
@@ -143,6 +150,10 @@ class HarvestEntry:
     stratum: str
     store_families: tuple[str, ...]
     is_obsolete: bool
+    #: Canonical ids equivalent to ``ontology_id`` (replacement successors or
+    #: aliases), excluding the id itself. Populated by :func:`harvest` from the
+    #: pinned index so scoring is self-contained.
+    equivalent_ids: tuple[str, ...] = ()
 
     def key(self) -> tuple[str, str, str, str]:
         """The uniqueness key: the pair plus its stratum."""
@@ -156,6 +167,7 @@ class HarvestEntry:
             self.stratum,
             ",".join(self.store_families),
             "true" if self.is_obsolete else "false",
+            ",".join(self.equivalent_ids),
         ]
 
 
@@ -229,6 +241,7 @@ def detect_obsolete(
 def scan_manifest(
     manifest_path: Path | str,
     index_by_id: Mapping[str, object] | None = None,
+    equivalent_ids: Callable[[str], tuple[str, ...]] | None = None,
 ) -> list[HarvestEntry]:
     """Harvest one Manifest's source-provided validation pairs.
 
@@ -287,6 +300,11 @@ def scan_manifest(
                 stratum=stratum,
                 store_families=(family,),
                 is_obsolete=detect_obsolete(ontology_id, ontology_label, index_by_id),
+                equivalent_ids=(
+                    equivalent_ids(ontology_id)
+                    if equivalent_ids is not None
+                    else ()
+                ),
             )
         )
     return entries
@@ -304,12 +322,13 @@ def harvest(
     ontology id, so the output is deterministic.
     """
     index_by_id = index.by_id() if index is not None else None
+    equivalent_of = index.equivalent_ids if index is not None else None
     families: dict[tuple[str, str, str, str], set[str]] = defaultdict(set)
     obsolete: dict[tuple[str, str, str, str], bool] = {}
     fields: dict[tuple[str, str, str, str], HarvestEntry] = {}
 
     for manifest_path in manifest_paths:
-        for entry in scan_manifest(manifest_path, index_by_id):
+        for entry in scan_manifest(manifest_path, index_by_id, equivalent_of):
             key = entry.key()
             fields[key] = entry
             families[key].update(entry.store_families)
@@ -324,6 +343,7 @@ def harvest(
             stratum=key[3],
             store_families=tuple(sorted(families[key])),
             is_obsolete=obsolete[key],
+            equivalent_ids=fields[key].equivalent_ids,
         )
         for key in fields
     ]
@@ -338,7 +358,7 @@ def harvest(
 
 
 def format_harvest_tsv(entries: Sequence[HarvestEntry]) -> str:
-    """Render the validation set as the six-column TSV (header always present)."""
+    """Render the validation set as the seven-column TSV (header always present)."""
     lines = ["\t".join(OUTPUT_COLUMNS)]
     lines.extend("\t".join(entry.to_row()) for entry in entries)
     return "\n".join(lines) + "\n"

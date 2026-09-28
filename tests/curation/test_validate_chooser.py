@@ -63,6 +63,7 @@ def pair(
     stratum: str,
     *,
     is_obsolete: bool = False,
+    equivalent_ids: tuple[str, ...] = (),
 ) -> ValidationPair:
     return ValidationPair(
         trait_label=trait_label,
@@ -71,6 +72,7 @@ def pair(
         stratum=stratum,
         store_families=("gwas-ssf-ragged",),
         is_obsolete=is_obsolete,
+        equivalent_ids=equivalent_ids,
     )
 
 
@@ -212,6 +214,51 @@ class TestConditionalAccuracy(ValidateChooserTestCase):
         )
         evaluate_chooser(self.pairs, self.shortlists, chooser, min_stratum_sample=1)
         self.assertEqual(calls, ["body mass index", "height"])
+
+
+class TestEquivalentIdRemapping(unittest.TestCase):
+    """A selection of an obsolete source id's replacement counts as correct."""
+
+    def test_replacement_selection_is_correct(self) -> None:
+        pairs = [
+            pair(
+                "Asthma",
+                "EFO:0000270",
+                STRATUM_DISEASE,
+                is_obsolete=True,
+                equivalent_ids=("MONDO:0004979",),
+            )
+        ]
+        shortlists = {"asthma": [make_candidate("MONDO:0004979")]}
+        chooser = StubChooser(
+            {
+                "asthma": {
+                    "selected_ontology_id": "MONDO:0004979",
+                    "probabilities": {"MONDO:0004979": 1.0},
+                }
+            }
+        )
+        report = evaluate_chooser(pairs, shortlists, chooser, min_stratum_sample=1)
+        self.assertEqual(report.evaluated, 1)
+        self.assertEqual(report.skipped_obsolete, 0)
+        self.assertEqual(report.remapped, 1)
+        self.assertEqual(report.aggregate.correct, 1)
+
+    def test_obsolete_without_replacement_stays_excluded(self) -> None:
+        pairs = [pair("Old", "EFO:9", STRATUM_DISEASE, is_obsolete=True)]
+        shortlists = {"old": [make_candidate("EFO:9")]}
+        chooser = StubChooser(
+            {
+                "old": {
+                    "selected_ontology_id": "EFO:9",
+                    "probabilities": {"EFO:9": 1.0},
+                }
+            }
+        )
+        report = evaluate_chooser(pairs, shortlists, chooser, min_stratum_sample=1)
+        self.assertEqual(report.evaluated, 0)
+        self.assertEqual(report.skipped_obsolete, 1)
+        self.assertEqual(report.remapped, 0)
 
 
 class TestReliabilityCurve(ValidateChooserTestCase):

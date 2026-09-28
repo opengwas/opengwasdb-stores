@@ -212,6 +212,8 @@ class ValidationReport:
     #: Records where the chooser selected ``none_suitable``. Excluded from
     #: ``evaluated`` and every accuracy/calibration figure.
     abstained: int = 0
+    #: Pairs scored against a replacement/alias id rather than their source id.
+    remapped: int = 0
 
     def stratum(self, name: str) -> StratumReport | None:
         for report in self.strata:
@@ -253,6 +255,20 @@ def _shortlist_lookup(
     return lookup
 
 
+def _equivalent_ids(pair: ValidationPair) -> tuple[str, ...]:
+    """The normalised canonical ids equivalent to a pair's source id.
+
+    The harvested validation set carries the ``replaced_by``/alias closure in
+    ``equivalent_ids``, so the validation runner can credit a selection of a
+    replacement term (or an alias) without needing the ontology index.
+    """
+    return tuple(
+        normalise_ontology_id(value)
+        for value in pair.equivalent_ids
+        if value
+    )
+
+
 def _select_records(
     pairs: Sequence[ValidationPair],
     lookup: Mapping[str, tuple[str, list[Candidate]]],
@@ -261,33 +277,42 @@ def _select_records(
     """Run the chooser once per retrievable label and build choice records."""
     counts = {
         "obsolete": 0,
+        "remapped": 0,
         "no_shortlist": 0,
         "not_retrieved": 0,
         "no_proposal": 0,
     }
 
-    by_label: "OrderedDict[str, list[ValidationPair]]" = OrderedDict()
+    by_label: "OrderedDict[str, list[tuple[ValidationPair, frozenset[str]]]]" = (
+        OrderedDict()
+    )
     for pair in pairs:
-        if pair.is_obsolete:
+        equivalents = _equivalent_ids(pair)
+        if pair.is_obsolete and not equivalents:
+            # An obsolete source id with no replacement stays excluded; one
+            # that resolves to a successor is scored against that successor.
             counts["obsolete"] += 1
             continue
+        if equivalents:
+            counts["remapped"] += 1
+        accepted = frozenset({normalise_ontology_id(pair.ontology_id), *equivalents})
         key = normalize_trait_label(pair.trait_label)
-        by_label.setdefault(key, []).append(pair)
+        by_label.setdefault(key, []).append((pair, accepted))
 
     records: list[ChoiceRecord] = []
-    for key, label_pairs in by_label.items():
+    for key, entries in by_label.items():
         entry = lookup.get(key)
         if entry is None:
-            counts["no_shortlist"] += len(label_pairs)
+            counts["no_shortlist"] += len(entries)
             continue
         raw_label, candidates = entry
         candidate_ids = {candidate.ontology_id for candidate in candidates}
         eligible = [
-            pair
-            for pair in label_pairs
-            if normalise_ontology_id(pair.ontology_id) in candidate_ids
+            (pair, accepted)
+            for pair, accepted in entries
+            if accepted & candidate_ids
         ]
-        counts["not_retrieved"] += len(label_pairs) - len(eligible)
+        counts["not_retrieved"] += len(entries) - len(eligible)
         if not eligible:
             continue
 
@@ -300,7 +325,7 @@ def _select_records(
 
         proposal = build_proposal(raw_label, candidates, result)
         abstained = proposal.selected_ontology_id == NONE_SUITABLE
-        for pair in eligible:
+        for pair, accepted in eligible:
             records.append(
                 ChoiceRecord(
                     trait_label=raw_label,
@@ -313,8 +338,7 @@ def _select_records(
                     runner_up_margin=proposal.runner_up_margin,
                     correct=(
                         not abstained
-                        and proposal.selected_ontology_id
-                        == normalise_ontology_id(pair.ontology_id)
+                        and proposal.selected_ontology_id in accepted
                     ),
                     chooser_id=proposal.chooser_id,
                     chooser_version=proposal.chooser_version,
@@ -539,15 +563,17 @@ def _eligible_count(
     pairs: Sequence[ValidationPair],
     lookup: Mapping[str, tuple[str, list[Candidate]]],
 ) -> int:
-    """Count non-obsolete pairs whose correct term is in their shortlist."""
+    """Count scorable pairs whose correct term (or equivalent) is shortlisted."""
     total = 0
     for pair in pairs:
-        if pair.is_obsolete:
+        equivalents = _equivalent_ids(pair)
+        if pair.is_obsolete and not equivalents:
             continue
         entry = lookup.get(normalize_trait_label(pair.trait_label))
         if entry is None:
             continue
-        if pair.ontology_id in {candidate.ontology_id for candidate in entry[1]}:
+        accepted = {normalise_ontology_id(pair.ontology_id), *equivalents}
+        if accepted & {candidate.ontology_id for candidate in entry[1]}:
             total += 1
     return total
 
@@ -636,6 +662,7 @@ def evaluate_chooser(
         skipped_no_shortlist=counts["no_shortlist"],
         skipped_not_retrieved=counts["not_retrieved"],
         skipped_no_proposal=counts["no_proposal"],
+        remapped=counts["remapped"],
         strata=strata,
         aggregate=aggregate,
         reliability=reliability_bins(scored_records, bins),
@@ -707,6 +734,9 @@ def render_report(report: ValidationReport) -> str:
         f"validation pairs: {report.validation_size}; "
         f"correct term retrieved: {report.eligible}; "
         f"scored (choice conditional on retrieval): {report.evaluated}"
+    )
+    lines.append(
+        f"remapped to a replacement/alias: {report.remapped}"
     )
     lines.append(
         f"excluded: {report.skipped_obsolete} obsolete, "
@@ -826,6 +856,7 @@ def report_to_json(report: ValidationReport) -> str:
         "evaluated": report.evaluated,
         "abstained": report.abstained,
         "abstention_rate": report.abstention_rate,
+        "remapped": report.remapped,
         "skipped": {
             "obsolete": report.skipped_obsolete,
             "no_shortlist": report.skipped_no_shortlist,

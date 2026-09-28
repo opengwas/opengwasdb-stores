@@ -111,7 +111,41 @@ def _fixture_index(release: str = "efo/vfixture"):
         Path(tmp.name).unlink(missing_ok=True)
 
 
-def pair(label: str, ontology_id: str, stratum: str, obsolete: bool = False) -> ValidationPair:
+REPLACEMENT_OBO = """
+format-version: 1.2
+ontology: efo
+
+[Term]
+id: MONDO:0004979
+name: asthma
+
+[Term]
+id: EFO:0000270
+name: obsolete_asthma
+is_obsolete: true
+replaced_by: MONDO:0004979
+"""
+
+
+def _replacement_index():
+    import tempfile as _tempfile
+
+    tmp = _tempfile.NamedTemporaryFile("w", suffix=".obo", delete=False, encoding="utf-8")
+    try:
+        tmp.write(REPLACEMENT_OBO)
+        tmp.close()
+        return build_index_from_obo(Path(tmp.name), "efo/vreplacement")
+    finally:
+        Path(tmp.name).unlink(missing_ok=True)
+
+
+def pair(
+    label: str,
+    ontology_id: str,
+    stratum: str,
+    obsolete: bool = False,
+    equivalent_ids: tuple[str, ...] = (),
+) -> ValidationPair:
     return ValidationPair(
         trait_label=label,
         ontology_id=ontology_id,
@@ -119,6 +153,7 @@ def pair(label: str, ontology_id: str, stratum: str, obsolete: bool = False) -> 
         stratum=stratum,
         store_families=("family",),
         is_obsolete=obsolete,
+        equivalent_ids=equivalent_ids,
     )
 
 
@@ -293,6 +328,71 @@ class TestObsoleteExclusion(unittest.TestCase):
             "EFO:9999001",
             {miss.ontology_id for miss in result.misses[1]},
         )
+
+
+class TestEquivalentIdRemapping(unittest.TestCase):
+    """An obsolete source id is credited to its replacement; aliases too."""
+
+    def test_obsolete_with_replacement_is_scored_not_excluded(self) -> None:
+        obsolete = pair(
+            "asthma",
+            "EFO:0000270",
+            STRATUM_DISEASE,
+            obsolete=True,
+            equivalent_ids=("MONDO:0004979",),
+        )
+        result = evaluate_recall(
+            [obsolete], shortlists={"asthma": ("MONDO:0004979",)}, sizes=(1,)
+        )
+        self.assertEqual(result.scored, 1)
+        self.assertEqual(result.excluded_obsolete, 0)
+        self.assertEqual(result.remapped, 1)
+        self.assertEqual(result.aggregate_hits[1], 1)
+
+    def test_replacement_not_shortlisted_is_a_miss(self) -> None:
+        obsolete = pair(
+            "asthma",
+            "EFO:0000270",
+            STRATUM_DISEASE,
+            obsolete=True,
+            equivalent_ids=("MONDO:0004979",),
+        )
+        result = evaluate_recall(
+            [obsolete], shortlists={"asthma": ("MONDO:1",)}, sizes=(1,)
+        )
+        self.assertEqual(result.aggregate_hits[1], 0)
+        self.assertEqual(result.misses[1][0].ontology_id, "EFO:0000270")
+
+    def test_obsolete_without_replacement_stays_excluded(self) -> None:
+        obsolete = pair("legacy", "EFO:9999001", STRATUM_DISEASE, obsolete=True)
+        result = evaluate_recall(
+            [obsolete], shortlists={"legacy": ("EFO:9999001",)}, sizes=(1,)
+        )
+        self.assertEqual(result.scored, 0)
+        self.assertEqual(result.excluded_obsolete, 1)
+        self.assertEqual(result.remapped, 0)
+
+    def test_alias_is_credited(self) -> None:
+        aliased = pair(
+            "body mass index",
+            "EFO:0004340",
+            STRATUM_ANALYTE_MEASUREMENT,
+            equivalent_ids=("EFO:0004341",),
+        )
+        result = evaluate_recall(
+            [aliased], shortlists={"body mass index": ("EFO:0004341",)}, sizes=(1,)
+        )
+        self.assertEqual(result.aggregate_hits[1], 1)
+        self.assertEqual(result.remapped, 1)
+
+    def test_index_resolves_a_replacement_when_the_set_lacks_it(self) -> None:
+        # An older validation set has no equivalent_ids; the index resolves the
+        # obsolete source id to its replacement on the fly.
+        obsolete = pair("asthma", "EFO:0000270", STRATUM_DISEASE, obsolete=True)
+        result = evaluate_recall([obsolete], index=_replacement_index(), sizes=(1, 5))
+        self.assertEqual(result.scored, 1)
+        self.assertEqual(result.remapped, 1)
+        self.assertEqual(result.aggregate_hits[1], 1)
 
 
 class TestEvaluateWithIndex(unittest.TestCase):

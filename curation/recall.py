@@ -31,10 +31,15 @@ shortlists come from exactly one of:
 Scoring
 -------
 An obsolete validation pair is excluded from scoring (it is counted separately)
-because a retrieval that avoids offering a retired term is not a failure.
-A pair is a hit at shortlist size *N* when the known ontology id is among the
-first *N* candidates, and a miss otherwise; the rank at which it was found is
-retained on the miss so near-misses can be inspected.
+because a retrieval that avoids offering a retired term is not a failure --
+unless the source id resolves to a ``replaced_by`` successor (or to the term
+owning its alternate id), in which case the pair is scored against the
+equivalent id and counted as remapped, so a retrieval that offers the
+successor is a hit rather than a failure.
+A pair is a hit at shortlist size *N* when the known ontology id (or one of
+its equivalents) is among the first *N* candidates, and a miss otherwise; the
+rank at which it was found is retained on the miss so near-misses can be
+inspected.
 
 Semantic delta
 --------------
@@ -135,6 +140,10 @@ class ValidationPair:
     stratum: str
     store_families: tuple[str, ...]
     is_obsolete: bool
+    #: Canonical ids the source id is equivalent to (an obsolete term's
+    #: ``replaced_by`` successor or its term's aliases). Scoring credits a
+    #: retrieval of any of them. Empty when the source id has no equivalents.
+    equivalent_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -159,6 +168,9 @@ class RecallResult:
     sizes: tuple[int, ...]
     scored: int
     excluded_obsolete: int
+    #: Pairs scored against a replacement/alias id rather than their own
+    #: source id.
+    remapped: int = 0
     stratum_totals: dict[str, int] = field(default_factory=dict)
     #: stratum -> {shortlist_size: hits}
     stratum_hits: dict[str, dict[int, int]] = field(default_factory=dict)
@@ -250,6 +262,11 @@ def read_validation(path: Path | str) -> list[ValidationPair]:
                     part for part in (row.get("store_families") or "").split(",") if part
                 ),
                 is_obsolete=_parse_bool(row.get("is_obsolete")),
+                equivalent_ids=tuple(
+                    normalise_ontology_id(part)
+                    for part in (row.get("equivalent_ids") or "").split(",")
+                    if part.strip()
+                ),
             )
         )
     return pairs
@@ -340,6 +357,23 @@ def _shortlist_lookup(
     return generated
 
 
+def _equivalent_ids(
+    pair: ValidationPair, index: OntologyIndex | None
+) -> tuple[str, ...]:
+    """The canonical ids a pair's source id is equivalent to.
+
+    The harvested validation set carries the resolved set in
+    ``equivalent_ids``. When it does not (an older validation set) and an index
+    is available, resolve the replacement/alias closure from the index instead.
+    """
+    ids = list(pair.equivalent_ids)
+    if index is not None:
+        for candidate in index.equivalent_ids(pair.ontology_id):
+            if candidate not in ids:
+                ids.append(candidate)
+    return tuple(ids)
+
+
 def evaluate_recall(
     pairs: Iterable[ValidationPair],
     index: OntologyIndex | None = None,
@@ -349,12 +383,15 @@ def evaluate_recall(
 ) -> RecallResult:
     """Score retrieval recall for the validation pairs.
 
-    Exactly one of ``index`` or ``shortlists`` must be supplied. Obsolete pairs
-    are excluded from scoring and counted; recall is computed per stratum and
-    in aggregate at every size, and misses are enumerated per size. When
-    ``embedding`` is supplied with ``index``, shortlists are generated with the
-    semantic channel enabled; passing ``None`` yields the lexical-only
-    baseline, and the two results can be compared with :func:`compare_recall`.
+    Exactly one of ``index`` or ``shortlists`` must be supplied. An obsolete
+    pair whose source id resolves to a ``replaced_by`` successor (or to the
+    term owning its alternate id) is scored against that id rather than
+    excluded; an obsolete pair with no such equivalent is excluded and
+    counted. Recall is computed per stratum and in aggregate at every size, and
+    misses are enumerated per size. When ``embedding`` is supplied with
+    ``index``, shortlists are generated with the semantic channel enabled;
+    passing ``None`` yields the lexical-only baseline, and the two results can
+    be compared with :func:`compare_recall`.
     """
     if (index is None) == (shortlists is None):
         raise RecallError("supply exactly one of index or shortlists")
@@ -367,8 +404,19 @@ def evaluate_recall(
     max_size = ordered_sizes[-1]
 
     all_pairs = list(pairs)
-    scored_pairs = [pair for pair in all_pairs if not pair.is_obsolete]
-    excluded_obsolete = len(all_pairs) - len(scored_pairs)
+    scored: list[tuple[ValidationPair, frozenset[str]]] = []
+    excluded_obsolete = 0
+    remapped = 0
+    for pair in all_pairs:
+        source = normalise_ontology_id(pair.ontology_id)
+        equivalents = _equivalent_ids(pair, index)
+        if pair.is_obsolete and not equivalents:
+            excluded_obsolete += 1
+            continue
+        if equivalents:
+            remapped += 1
+        scored.append((pair, frozenset({source, *equivalents})))
+    scored_pairs = [pair for pair, _ in scored]
 
     lookup = _shortlist_lookup(scored_pairs, index, shortlists, max_size, embedding)
 
@@ -383,15 +431,16 @@ def evaluate_recall(
         sizes=ordered_sizes,
         scored=len(scored_pairs),
         excluded_obsolete=excluded_obsolete,
+        remapped=remapped,
     )
     result.aggregate_hits = {size: 0 for size in ordered_sizes}
     result.misses = {size: [] for size in ordered_sizes}
 
-    for pair in scored_pairs:
+    for pair, accepted in scored:
         ids = lookup.get(pair.trait_label, ())
         found_rank: int | None = None
         for rank, ontology_id in enumerate(ids, start=1):
-            if ontology_id == pair.ontology_id:
+            if ontology_id in accepted:
                 found_rank = rank
                 break
 
@@ -586,6 +635,7 @@ def render_text(result: RecallResult, delta: RecallDelta | None = None) -> str:
     if result.ontology_release:
         lines.append(f"Ontology release: {result.ontology_release}")
     lines.append(f"Scored pairs: {result.scored}")
+    lines.append(f"Remapped via replacement/alias: {result.remapped}")
     lines.append(f"Excluded obsolete pairs: {result.excluded_obsolete}")
     lines.append("")
     lines.append("DISCLAIMER")
@@ -642,6 +692,7 @@ def render_markdown(result: RecallResult, delta: RecallDelta | None = None) -> s
     if result.ontology_release:
         lines.append(f"**Ontology release:** {result.ontology_release}")
     lines.append(f"**Scored pairs:** {result.scored}")
+    lines.append(f"**Remapped via replacement/alias:** {result.remapped}")
     lines.append(f"**Excluded obsolete pairs:** {result.excluded_obsolete}")
     lines.append("")
     lines.append(f"> **Disclaimer:** {STRATUM_GAP_DISCLAIMER}")
@@ -717,6 +768,7 @@ def render_tsv(result: RecallResult, delta: RecallDelta | None = None) -> str:
     lines: list[str] = []
     lines.append(f"# ontology_release: {result.ontology_release}")
     lines.append(f"# scored: {result.scored}")
+    lines.append(f"# remapped: {result.remapped}")
     lines.append(f"# excluded_obsolete: {result.excluded_obsolete}")
     lines.append(f"# disclaimer: {STRATUM_GAP_DISCLAIMER}")
     if delta is not None:

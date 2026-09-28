@@ -408,6 +408,52 @@ class OntologyIndex:
         """The lexical channels' prebuilt lookup structures, built once."""
         return LexicalLookups.build(self)
 
+    @cached_property
+    def _alt_id_owner(self) -> dict[str, str]:
+        """Map every declared alternate id to the canonical term owning it."""
+        owners: dict[str, str] = {}
+        for term in self.terms:
+            for alt_id in term.alt_ids:
+                owners.setdefault(alt_id, term.ontology_id)
+        return owners
+
+    def equivalent_ids(self, ontology_id: str | None) -> tuple[str, ...]:
+        """Canonical ids equivalent to a source id, excluding the id itself.
+
+        Two relationships make ids equivalent:
+
+        * a term's ``alt_ids`` are aliases of the term, so an id that is an
+          ``alt_id`` of a term is treated as that term and vice versa;
+        * an obsolete term's ``replaced_by`` target is its successor.
+
+        The closure is followed transitively and de-duplicated, so a chain of
+        replacements (or an alias of a replaced term) resolves fully. Unknown
+        ids, and obsolete terms with no replacement, yield an empty tuple.
+        """
+        source = normalise_ontology_id(ontology_id)
+        if not source:
+            return ()
+        accepted: list[str] = []
+        seen: set[str] = {source}
+        frontier: list[str] = [source]
+        while frontier:
+            current = frontier.pop(0)
+            candidates: list[str] = []
+            term = self._by_id.get(current)
+            if term is not None:
+                candidates.extend(term.alt_ids)
+                if term.replaced_by:
+                    candidates.append(term.replaced_by)
+            owner_id = self._alt_id_owner.get(current)
+            if owner_id is not None:
+                candidates.append(owner_id)
+            for candidate in candidates:
+                if candidate and candidate not in seen:
+                    seen.add(candidate)
+                    accepted.append(candidate)
+                    frontier.append(candidate)
+        return tuple(accepted)
+
     def to_dict(self) -> dict[str, object]:
         return {
             "index_format_version": INDEX_FORMAT_VERSION,
