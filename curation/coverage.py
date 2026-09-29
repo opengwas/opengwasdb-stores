@@ -244,11 +244,12 @@ class CoverageReport:
     one promoted row can resolve many Analyses, and collapsing the two would
     overstate or understate the round depending on which one was quoted.
 
-    The bucket counts (``no_candidate_count``, ``none_suitable_count``,
-    ``pending_count``, ``error_count``) partition the work queue: every queued
-    label is in exactly one of no-candidate, none-suitable, pending, error, or
-    the proposed bucket (which has no count of its own because it is the
-    remainder, and its rows appear in the proposals table).
+    The bucket counts (``no_candidate_count``, ``pending_count``,
+    ``error_count``) come from reduce's reconciliation of the work queue.
+    ``none_suitable_count`` is narrower than reduce's bucket of the same name:
+    it counts only the confident abstentions promote recorded, because an
+    uncertain abstention is awaiting a curator and is counted in
+    ``review_queue_size`` instead.
     """
 
     families: tuple[FamilyCoverage, ...]
@@ -454,6 +455,26 @@ def read_review_queue_size(path: Path | str | None) -> int:
         if label:
             awaiting.add(label)
     return len(awaiting)
+
+
+def read_no_suitable_count(path: Path | str | None) -> int:
+    """Count distinct Trait labels in a round's ``no-suitable-term.tsv``.
+
+    That file holds only the *confident* abstentions promote recorded; an
+    uncertain abstention went to the review queue instead, so it is not
+    unmapped by design yet. A missing file (promote has not run) counts zero.
+    """
+    if path is None:
+        return 0
+    no_suitable_path = Path(path)
+    if not no_suitable_path.is_file():
+        return 0
+    columns, rows = _read_tsv(no_suitable_path)
+    if "trait_label" not in columns:
+        raise CoverageFormatError(f"{no_suitable_path} has no trait_label column")
+    labels = {normalize_trait_label(row.get("trait_label")) for row in rows}
+    labels.discard("")
+    return len(labels)
 
 
 def count_no_candidate_labels(

@@ -1050,6 +1050,33 @@ class CoverageTest(RoundTestCase):
         self.assertEqual(family.unmapped_before, 2)
         self.assertEqual(family.unmapped_after, 1)
 
+    def _abstain_and_promote(self, none_suitable: float) -> coverage.CoverageReport:
+        queue = self.queue_tsv([BMI_LABEL])
+        self.init_round(queue_tsv=queue)
+        round_mod.run_gap_scan(self.round_dir)
+        self.write_shortlists([shortlist_row(BMI_LABEL, BMI_ID, "body mass index")])
+        self.write_choice_result(
+            BMI_LABEL,
+            NONE_SUITABLE,
+            {NONE_SUITABLE: none_suitable, BMI_ID: 1.0 - none_suitable},
+        )
+        round_mod.run_reduce(self.round_dir)
+        round_mod.run_promote(self.round_dir)
+        return round_mod.run_coverage(self.round_dir).report
+
+    def test_confident_abstention_is_counted_as_no_suitable_term(self) -> None:
+        report = self._abstain_and_promote(0.99)
+        self.assertEqual(report.none_suitable_count, 1)
+        self.assertEqual(report.review_queue_size, 0)
+
+    def test_uncertain_abstention_is_counted_only_in_the_review_queue(self) -> None:
+        # reduce buckets every none_suitable choice together; promote sends an
+        # uncertain one to review, so it must not also be reported as a
+        # confident abstention.
+        report = self._abstain_and_promote(0.55)
+        self.assertEqual(report.none_suitable_count, 0)
+        self.assertEqual(report.review_queue_size, 1)
+
     def test_missing_reconciliation_is_refused(self) -> None:
         manifest = self.manifest("fam-a", [])
         self.init_round(manifests=[manifest])
