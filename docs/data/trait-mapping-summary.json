@@ -1,0 +1,56 @@
+{
+  "index": {
+    "release": "efo/v3.94.0",
+    "terms": 87709,
+    "excluded_non_curie": 6585,
+    "obsolete": 9914
+  },
+  "validation": {
+    "labels": 2228,
+    "cost_usd": 0.0887,
+    "input_tokens": 2111188,
+    "round": {
+      "round_id": "validation-ogs-00011",
+      "created_at": "2026-09-28T22:10:13.640065+00:00",
+      "ontology_release": "efo/v3.94.0",
+      "embedding_model": "FremyCompany/BioLORD-2023",
+      "embedding_build_id": "blake2b:5328e64d77fdaf5847e565c01bb94c2d",
+      "chooser": {
+        "id": "jev",
+        "version": "jev-1.13.0",
+        "model": "jev-1.13.0",
+        "context": "Each trait label is a source field description used as a GWAS phenotype. Map it to the EFO ontology term that denotes the same trait. Choose none_suitable if no option denotes the same trait; do not pick a merely related term."
+      },
+      "shortlist_size": 10,
+      "thresholds": {
+        "confidence": 0.85,
+        "margin": 0.2,
+        "evidence": "calibration round"
+      }
+    }
+  },
+  "production": {
+    "labels": 2502,
+    "cost_usd": 0.0965,
+    "input_tokens": 2297185,
+    "round": {
+      "round_id": "ukb-b-2026q3",
+      "created_at": "2026-09-28T22:14:34.660010+00:00",
+      "ontology_release": "efo/v3.94.0",
+      "embedding_model": "FremyCompany/BioLORD-2023",
+      "embedding_build_id": "blake2b:5328e64d77fdaf5847e565c01bb94c2d",
+      "chooser": {
+        "id": "jev",
+        "version": "jev-1.13.0",
+        "model": "jev-1.13.0",
+        "context": "Each trait label is a source field description used as a GWAS phenotype. Map it to the EFO ontology term that denotes the same trait. Choose none_suitable if no option denotes the same trait; do not pick a merely related term."
+      },
+      "shortlist_size": 10,
+      "thresholds": {
+        "confidence": 0.85,
+        "margin": 0.2,
+        "evidence": "OGS-00011 GWAS Catalog validation (2,228 labels, Jev jev-1.13.0, BioLORD+lexical top-10): at conf>=0.85 756 promoted, 87.8% agree with the Catalog term; most disagreements are a more specific correct term"
+      }
+    }
+  }
+}

@@ -28,6 +28,9 @@ quarto render resources/scripts/beta-scale-estimation.qmd --to html
 echo "==> query walkthrough"
 quarto render resources/scripts/query-walkthrough.qmd --to html
 
+echo "==> canonical trait mapping report (reads the committed docs/data/trait-mapping-* exports)"
+quarto render resources/scripts/trait-mapping-report.qmd --to html
+
 echo "==> prioritisation dashboard"
 Rscript resources/scripts/make-dashboard.r
 
@@ -36,6 +39,7 @@ install_html() { cp -f "$1" "$2" && echo "    $(basename "$2")"; }
 install_html resources/scripts/ebi-studies.html                         "$DOCS/store-curation.html"
 install_html resources/scripts/beta-scale-estimation.html               "$DOCS/beta-scale-estimation.html"
 install_html resources/scripts/query-walkthrough.html                   "$DOCS/query-walkthrough.html"
+install_html resources/scripts/trait-mapping-report.html                 "$DOCS/trait-mapping-report.html"
 install_html resources/data/derived/store-prioritisation-dashboard.html "$DOCS/prioritisation-dashboard.html"
 if [ -f resources/scripts/mvp-imputation-filters.html ]; then
   install_html resources/scripts/mvp-imputation-filters.html            "$DOCS/imputation-filters.html"

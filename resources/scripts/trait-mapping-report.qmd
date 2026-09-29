@@ -1,0 +1,394 @@
+---
+title: "Canonical trait mapping: pipeline, validation, and the first ukb-b round"
+subtitle: "Mapping free-text GWAS trait labels to EFO terms with BioLORD retrieval and the Jev chooser (issue #161)"
+date: 2026-09-28
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    embed-resources: true
+    code-fold: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(jsonlite)
+library(DT)
+
+data_dir <- if (dir.exists("docs/data")) "docs/data" else "../../docs/data"
+read_tsv_df <- function(name) {
+  read.delim(file.path(data_dir, name), sep = "\t", quote = "",
+             stringsAsFactors = FALSE, na.strings = "")
+}
+summary_json <- fromJSON(file.path(data_dir, "trait-mapping-summary.json"))
+val <- read_tsv_df("trait-mapping-validation-ogs00011.tsv") |>
+  mutate(correct = correct == "True", abstained = abstained == "True",
+         hit = !is.na(source_rank))
+ukb <- read_tsv_df("trait-mapping-ukb-b-round1.tsv")
+adj <- read_tsv_df("trait-mapping-ogs00011-adjudication.tsv")
+ukb_adj <- read_tsv_df("trait-mapping-ukb-b-sample-adjudication.tsv")
+
+conf_t <- summary_json$production$round$thresholds$confidence
+margin_t <- summary_json$production$round$thresholds$margin
+pct <- function(x, digits = 1) sprintf(paste0("%.", digits, "f%%"), 100 * x)
+comma <- function(x) format(x, big.mark = ",", scientific = FALSE, trim = TRUE)
+
+confident <- function(d) d$confidence >= conf_t & d$margin >= margin_t
+val_promoted <- val |> filter(!abstained, confident(val))
+catalog_precision <- mean(val_promoted$correct)
+defensible <- adj |> filter(verdict %in% c("pick more specific or more accurate", "equivalent"))
+adjusted_precision <- (sum(val_promoted$correct) + nrow(defensible)) / nrow(val_promoted)
+recall10 <- mean(val$hit)
+
+bucket_n <- ukb |> count(bucket)
+bn <- function(b) bucket_n$n[bucket_n$bucket == b]
+auto <- ukb |> filter(bucket == "auto-accepted")
+```
+
+## Summary
+
+The Canonical Trait Mapping Table maps free-text trait labels, such as UK
+Biobank field descriptions, to ontology terms, so Analyses from different
+sources can be joined on a shared trait. This report covers:
+
+- the curation pipeline built for epic #161;
+- its validation against the GWAS Catalog's own EFO curation (Store OGS-00011);
+- the first production round over the ukb-b queue.
+
+**Headline results**
+
+- **Validation (OGS-00011, `r comma(nrow(val))` labels).**
+  - Retrieval puts the Catalog's term in the top 10 for `r pct(recall10)` of labels.
+  - At the promotion thresholds (confidence ≥ `r conf_t`, margin ≥ `r margin_t`), `r comma(nrow(val_promoted))` labels would be auto-accepted.
+  - `r pct(catalog_precision)` of those agree exactly with the Catalog's term.
+  - We reviewed the `r nrow(adj)` confident disagreements one by one. None is a clear chooser error: most choose a more specific or equivalent term. Counting those as correct, the estimated precision is **`r pct(adjusted_precision)`**.
+- **Production (ukb-b, `r comma(nrow(ukb))` labels).**
+  - `r bn("auto-accepted")` rows were auto-accepted; they resolve `r comma(sum(auto$analyses))` Analyses (PR #180).
+  - `r comma(bn("review (uncertain pick)") + bn("review (uncertain abstention)"))` labels go to human review.
+  - `r comma(bn("no suitable term"))` labels are confidently unmappable, because EFO has no term for them (individual foods, keratometry, many questionnaire items).
+  - In a random sample of 60 auto-accepted rows, `r sum(ukb_adj$verdict == "matches the label")` match the label exactly. The other `r sum(ukb_adj$verdict != "matches the label")` use a broader term where EFO has nothing more specific. None is wrong.
+- **Cost.** Both rounds together cost **$`r sprintf("%.2f", summary_json$validation$cost_usd + summary_json$production$cost_usd)`**: `r comma(summary_json$validation$input_tokens + summary_json$production$input_tokens)` input tokens over `r comma(nrow(val) + nrow(ukb))` per-trait requests.
+
+::: {.callout-important}
+## Issues found only by running on real data
+
+Several defects passed a hermetic test suite of more than 500 tests. They
+showed up only against the live Jev API, the real EFO release, or the real
+embedding server. These classes of failure need live smoke tests. They are
+listed in [Issues found by live runs](#issues).
+:::
+
+## The pipeline
+
+```{mermaid}
+flowchart LR
+  M[Release Manifests<br/>analyses.tsv] --> G[gap-scan<br/>unmapped labels]
+  O[EFO v3.94.0 OBO] --> I[ontology index<br/>canonical CURIEs]
+  I --> EO[embed-ontology<br/>BioLORD-2023, once]
+  G --> ET[embed-traits<br/>per round]
+  I --> C[candidates<br/>lexical + semantic, RRF, top 10]
+  EO --> C
+  ET --> C
+  C --> CH[choose<br/>one Jev request per trait]
+  CH --> R[reduce<br/>proposals, ledger, buckets]
+  R --> P[promote<br/>thresholds gate]
+  P --> T[(mapping.tsv)]
+  P --> Q[review queue]
+  P --> N[no-suitable-term]
+```
+
+Each stage is an idempotent `pixi run -e curation round-*` task. It reads
+its pins (ontology release, embedding model and store `build_id`, chooser
+model, thresholds) from `<round-dir>/round.yaml`, and it refuses to run when
+an artifact contradicts a pin.
+
+| Stage | What it does |
+|---|---|
+| `ontology-index` | Parses the EFO OBO and normalises every id to a canonical CURIE (`efo:EFO_0003939` → `EFO:0003939`, OBO PURLs → `PREFIX:local`). It drops `r comma(summary_json$index$excluded_non_curie)` gene and dbpedia IRIs, leaving `r comma(summary_json$index$terms)` terms. |
+| `embed-ontology` | Embeds each term's label, synonyms and definition with BioLORD-2023, served by Text Embeddings Inference. The result is a resumable numpy store, content-addressed by `build_id`. |
+| `gap-scan` | Queues every distinct normalised trait label that is not already in the mapping table. |
+| `embed-traits` | Embeds the queued labels with the same model. |
+| `candidates` | Runs four lexical channels (exact, normalised, token overlap, synonym) and cosine nearest neighbours, fuses them by reciprocal rank, and keeps the top 10. An obsolete term is replaced by its `replaced_by` successor, or dropped if it has none. |
+| `choose` | Sends one Jev request per trait, with `none_suitable` always offered. Each result is written atomically to its own YAML file, keyed by a request fingerprint. A rerun skips traits whose fingerprint is unchanged. A cumulative cost cap (`--max-cost-usd`) bounds spend across reruns. |
+| `reduce` | Aggregates the per-trait results into proposals, a cost ledger, and a bucket reconciliation. The buckets must sum to the queue. |
+| `promote` | Appends a proposal only if confidence ≥ `r conf_t` and runner-up margin ≥ `r margin_t`. Uncertain picks and uncertain abstentions go to the review queue. Confident abstentions are recorded as unmapped by design. `none_suitable` never reaches the table. |
+
+### Design decisions
+
+**One request per trait, not packed batches.** TypeSafe has no asynchronous
+or discounted batch API. We compared packing 19 traits into one request with
+sending them individually:
+
+- Packing saved about 20% of input tokens: roughly 3 cents over the whole ukb-b queue.
+- Packing changed the answers:
+  - single and packed requests disagreed on 1 of 19 choices;
+  - two packed orderings of the same traits disagreed on 2 of 19;
+  - confidence moved by up to 0.39 depending on which other traits shared the request.
+
+We chose per-trait requests: each answer depends only on its own shortlist,
+can be cached, and can be retried on its own.
+
+**Always offer `none_suitable`.** Most ukb-b labels have no EFO term. Without
+an explicit way to abstain, the chooser has to pick the nearest related term.
+In the validation run, when the Catalog's term was *not* in the shortlist, Jev
+abstained on `r pct(mean(val$abstained[!val$hit]))` of labels rather than
+picking a wrong term.
+
+**Thresholds taken from validation, not guessed.** The defaults (0.85 / 0.20)
+were kept after calibration (below). Above confidence 0.8 the margin
+threshold is redundant: a confident pick has a large margin by construction.
+
+## Issues found by live runs {#issues}
+
+Every row below had passing unit tests at the time. Each one is now fixed and
+covered by a regression test.
+
+| Issue | Found by | Impact if unfixed |
+|---|---|---|
+| Jev returns probabilities rounded to 2 decimal places, so a 21-option distribution summed to 0.99 and failed a 1e-6 check | Live Jev pilot, 25 labels | 3 of 25 paid answers were thrown away |
+| EFO v3.94.0 spells native ids as `efo:EFO_0003939`; every manifest uses `EFO:0003939` | Live pilot shortlist | No mapping would ever match a source id, and every promoted row would have had a non-canonical id |
+| 12% of shortlist rows (3,055 of 25,020) were obsolete terms | ukb-b shortlist inspection | Obsolete terms could be chosen and written to the table |
+| TEI accepts at most 32 inputs per request; the client sent 128 | Live TEI server | Every embedding request would fail |
+| 6 imported terms have no label, synonym, or definition; TEI refuses empty input | Live TEI server | Ontology embedding aborted |
+| The client posted to the base URL, not `/v1/embeddings` | Live TEI server | Every embedding request would fail |
+| 332 GWAS Catalog rows map one trait to several terms (a comma-joined IRI list) | OGS-00011 harvest | Each would score as a certain error, biasing calibration down |
+| `choose` and `reduce` computed different fingerprints for a Jev round | Code review | A real round could never complete |
+| The cost cap reset on every rerun and was overshot by requests in flight | Code review | Unbounded spend across resumed runs |
+| A stub or fixture round could promote into the tracked mapping table (the default resource) | A reviewer running the runbook | Test rows written to `mapping.tsv` and the version bumped |
+| A curator `amend` could write `none_suitable` into the table | Code review | The sentinel stored as a term |
+
+## Validation on OGS-00011 {#validation}
+
+OGS-00011 is the GWAS Catalog EUR hybrid Store. Almost every Analysis carries
+a curator-assigned EFO term (`source_provided`). We harvested its
+single-term mappings, excluding 332 multi-term rows. That left
+`r comma(nrow(val))` distinct labels, which we ran through exactly the same
+round as production.
+
+The Catalog's curation is a **silver standard**: it is often deliberately
+broad (e.g. *pulmonary function measurement* for FEV1). A pick that differs
+from it is not necessarily wrong. That is why confident disagreements were
+reviewed individually below.
+
+### Retrieval
+
+```{r retrieval}
+recall_at <- tibble(k = 1:10) |>
+  rowwise() |>
+  mutate(recall = mean(!is.na(val$source_rank) & val$source_rank <= k)) |>
+  ungroup()
+by_stratum <- val |> group_by(stratum) |>
+  summarise(labels = n(), recall_at_10 = mean(hit), .groups = "drop")
+
+ggplot(recall_at, aes(k, recall)) +
+  geom_line() + geom_point() +
+  scale_x_continuous(breaks = 1:10) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+  labs(x = "shortlist size k", y = "Catalog term within top k",
+       title = "Retrieval recall@k (lexical + BioLORD, reciprocal rank fusion)") +
+  theme_minimal()
+knitr::kable(by_stratum |> mutate(recall_at_10 = pct(recall_at_10)),
+             col.names = c("Stratum", "Labels", "Recall@10"))
+```
+
+Retrieval sets the ceiling on accuracy: the chooser can only pick from the
+shortlist. The Catalog's exact term is missing for `r pct(1 - recall10)` of
+labels. Often a close alternative is present instead, as the adjudication
+shows.
+
+### Choice
+
+```{r choice}
+choice_tab <- val |>
+  mutate(retrieval = if_else(hit, "Catalog term shortlisted", "Catalog term not shortlisted"),
+         outcome = case_when(abstained ~ "abstained (none_suitable)",
+                             correct ~ "picked the Catalog term",
+                             TRUE ~ "picked another term")) |>
+  count(retrieval, outcome) |>
+  group_by(retrieval) |> mutate(share = pct(n / sum(n))) |> ungroup()
+knitr::kable(choice_tab, col.names = c("Retrieval", "Jev outcome", "Labels", "Share"))
+```
+
+### Thresholds: precision against yield
+
+```{r thresholds, fig.height=4}
+grid <- expand_grid(conf = seq(0.5, 0.95, by = 0.05)) |>
+  rowwise() |>
+  mutate(promoted = sum(!val$abstained & val$confidence >= conf & val$margin >= margin_t),
+         precision = mean(val$correct[!val$abstained & val$confidence >= conf & val$margin >= margin_t]),
+         yield = sum(val$correct & !val$abstained & val$confidence >= conf & val$margin >= margin_t) / nrow(val)) |>
+  ungroup()
+grid |>
+  rename(`agreement with Catalog` = precision) |>
+  pivot_longer(c(`agreement with Catalog`, yield)) |>
+  ggplot(aes(conf, value, colour = name)) +
+  geom_line() + geom_point() +
+  geom_vline(xintercept = conf_t, linetype = "dashed") +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+  labs(x = "confidence threshold (margin ≥ 0.2)", y = NULL, colour = NULL,
+       title = "Exact agreement with the Catalog term, and yield (correct / all labels)") +
+  theme_minimal()
+knitr::kable(grid |> mutate(precision = pct(precision), yield = pct(yield)),
+             col.names = c("Confidence ≥", "Promoted", "Agreement", "Yield"))
+```
+
+```{r reliability, fig.height=3.5}
+val |> filter(!abstained) |>
+  mutate(bin = cut(confidence, breaks = seq(0.3, 1, by = 0.1), include.lowest = TRUE)) |>
+  group_by(bin) |> summarise(n = n(), accuracy = mean(correct), .groups = "drop") |>
+  ggplot(aes(bin, accuracy)) +
+  geom_col(fill = "grey60") +
+  geom_text(aes(label = paste0("n=", n)), vjust = -0.3, size = 3) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+  labs(x = "Jev confidence", y = "agreement with Catalog",
+       title = "Reliability: agreement rises with confidence") +
+  theme_minimal()
+```
+
+### Adjudicating the confident disagreements
+
+We reviewed all `r nrow(adj)` promoted-but-disagreeing picks. The Catalog's
+term was sometimes itself wrong: "nonsyndromic cleft palate" is mapped to
+*cleft lip*, and "collagen band thickness" to *blood protein amount*.
+
+::: {.callout-note}
+These verdicts were made by the AI assistant (Claude) that built the
+pipeline, by reading labels and term names. They are not a human curator's
+review, and they are published here in full so they can be checked.
+:::
+
+```{r adjudication}
+knitr::kable(adj |> count(verdict, sort = TRUE), col.names = c("Verdict", "Labels"))
+datatable(adj |> select(trait_label, source_label, selected_label, confidence, verdict, note),
+          colnames = c("Trait label", "Catalog term", "Jev pick", "Conf.", "Verdict", "Note"),
+          rownames = FALSE, options = list(pageLength = 10, scrollX = TRUE))
+```
+
+Counting *more specific or more accurate* and *equivalent* picks as correct,
+the estimated precision at the production thresholds is
+**`r pct(adjusted_precision)`**, compared with `r pct(catalog_precision)`
+agreement with the Catalog's own term.
+
+## ukb-b round 1 {#ukb-b}
+
+The ukb-b queue has `r comma(nrow(ukb))` distinct labels, covering
+`r comma(sum(ukb$analyses))` Analyses. None was in the mapping table
+beforehand. The round cost $`r sprintf("%.4f", summary_json$production$cost_usd)`,
+with no failed requests.
+
+```{r ukb-buckets}
+knitr::kable(ukb |> group_by(bucket) |>
+               summarise(labels = n(), analyses = sum(analyses), .groups = "drop") |>
+               arrange(desc(labels)),
+             col.names = c("Outcome", "Labels", "Analyses"))
+```
+
+```{r ukb-fields, fig.height=4.5}
+ukb |>
+  mutate(bucket = factor(bucket, levels = c("auto-accepted", "review (uncertain pick)",
+                                            "review (uncertain abstention)", "no suitable term"))) |>
+  count(field, bucket) |>
+  ggplot(aes(reorder(field, n, sum), n, fill = bucket)) +
+  geom_col() + coord_flip() +
+  scale_fill_manual(values = c("#2a9d8f", "#e9c46a", "#f4a261", "#bcbcbc")) +
+  labs(x = NULL, y = "labels", fill = NULL, title = "Outcome by UK Biobank field family") +
+  guides(fill = guide_legend(nrow = 2)) +
+  theme_minimal() + theme(legend.position = "bottom")
+knitr::kable(ukb |> count(field, bucket) |>
+               pivot_wider(names_from = bucket, values_from = n, values_fill = 0) |>
+               mutate(total = rowSums(across(where(is.numeric)))) |>
+               arrange(desc(total)) |>
+               select(field, total, `auto-accepted`, `review (uncertain pick)`,
+                      `review (uncertain abstention)`, `no suitable term`),
+             col.names = c("Field family", "Labels", "Auto-accepted", "Review: pick",
+                           "Review: abstention", "No suitable term"))
+admin <- ukb |> filter(field == "Hospital administrative field")
+```
+
+Clinical codes map well: ICD-10 diagnoses, self-reported illnesses and
+symptoms, and family history. Diet items ("beef intake", "dried fruit
+intake") and keratometry fields mostly have no EFO term, so abstention is the
+right answer for them. Medications are rarely auto-accepted: EFO has few
+drug-exposure terms, so they go to review.
+
+::: {.callout-warning}
+## `r nrow(admin)` ukb-b "traits" are hospital administrative fields
+
+For example: "PCT where patient's GP was registered", "main speciality of
+consultant", and hospital admission or discharge methods. These are not
+phenotypes. Jev correctly declined `r sum(admin$bucket == "no suitable term")`
+of them outright. Only one was auto-accepted: "methods of discharge: patient
+death" → *dead (follow-up status)*, which is defensible. These fields should
+arguably be excluded from the mapping queue, or from trait-level use, upstream.
+:::
+
+### Checking a sample of auto-accepted rows
+
+We drew a random sample of 60 of the `r nrow(auto)` auto-accepted rows and
+reviewed them the same way (AI assistant review, not a human curator):
+`r sum(ukb_adj$verdict == "matches the label")` match the label, and
+`r sum(ukb_adj$verdict != "matches the label")` use a broader term where EFO
+has nothing more specific. For example, "qualifications: O levels" maps to
+*educational attainment*, and "birth weight of first child" maps to *birth
+weight* (EFO has no offspring-birth-weight term). None was wrong.
+
+```{r ukb-sample}
+datatable(ukb_adj |> select(trait_label, selected_id, selected_label, confidence, verdict, note),
+          colnames = c("Trait label", "Term", "Label", "Conf.", "Verdict", "Note"),
+          rownames = FALSE, options = list(pageLength = 10, scrollX = TRUE))
+```
+
+### All ukb-b outcomes
+
+```{r ukb-all}
+datatable(ukb |> select(trait_label, field, analyses, selected_id, selected_label, confidence, bucket),
+          colnames = c("Trait label", "Field", "Analyses", "Term", "Label", "Conf.", "Outcome"),
+          rownames = FALSE, filter = "top",
+          options = list(pageLength = 15, scrollX = TRUE))
+```
+
+## Limitations and next steps
+
+- **The review queue is unreviewed.** `r comma(bn("review (uncertain pick)") + bn("review (uncertain abstention)"))` ukb-b labels are waiting for a human curator. The reviewed-queue round trip (accept, amend, reject) is implemented but has not been used on real data yet.
+- **Adjudication was done by AI.** The disagreement and sample verdicts are the assistant's, not a curator's. A human spot check of the auto-accepted rows in PR #180 should come before relying on them widely.
+- **Retrieval is the ceiling.** Recall@10 is `r pct(recall10)`. A larger shortlist would raise it: Jev accepts up to 254 options, and cost grows roughly linearly with shortlist size. Measure this before the next round.
+- **The Catalog is a silver standard.** Exact agreement understates precision. Some Catalog mappings are coarser than the label, and a few are simply wrong.
+- **Lower thresholds may be viable.** Agreement at confidence ≥ 0.7 is `r pct(grid$precision[grid$conf == 0.7])` against the Catalog, before adjudication. Adjudicating that band would show whether the threshold can drop and raise yield.
+- **The `none_suitable` rate is inherent to ukb-b.** Many labels have no EFO counterpart. Mapping them needs new EFO terms (an upstream request) or a non-EFO target, not a better chooser.
+
+## Reproducing
+
+```sh
+# once per EFO release (TEI serving BioLORD-2023 on localhost:8080)
+pixi run -e curation ontology-index --obo efo.obo --release efo/v3.94.0 \
+    --output .cache/curation/efo-v3.94.0.index.json
+pixi run -e curation embed-ontology --ontology-index .cache/curation/efo-v3.94.0.index.json \
+    --output .cache/curation/efo-v3.94.0--BioLORD-2023.ontology-embeddings
+
+# a round (production: --manifests; validation: --queue-tsv from `harvest`)
+pixi run -e curation round-init --round-dir <dir> --index <index> \
+    --ontology-embeddings <store> --chooser jev --manifests <analyses.tsv> \
+    --threshold-evidence "<calibration>"
+for step in gap-scan embed-traits candidates; do pixi run -e curation round-$step --round-dir <dir>; done
+pixi run -e curation round-choose --round-dir <dir> --workers 8 --max-cost-usd 1
+pixi run -e curation round-reduce --round-dir <dir>
+pixi run -e curation round-promote --round-dir <dir>
+
+# this report's data, then the page
+pixi run -e curation python resources/scripts/export-trait-mapping-report.py \
+    --index <index> --validation <ogs-00011.tsv> \
+    --validation-round <validation dir> --production-round <ukb-b dir>
+pixi run --environment docs quarto render resources/scripts/trait-mapping-report.qmd --to html
+```
+
+Pins for both rounds: EFO `r summary_json$production$round$ontology_release`;
+`r summary_json$production$round$embedding_model` (ontology store
+`r summary_json$production$round$embedding_build_id`); Jev
+`r summary_json$production$round$chooser$model`; shortlist size
+`r summary_json$production$round$shortlist_size`.
