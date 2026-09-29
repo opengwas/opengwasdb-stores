@@ -24,9 +24,15 @@ STORE_ID=OGS-00016
 ARTIFACT_ROOT=/data/opengwasdb/stores
 SOURCE_DIR=/data/opengwasdb/finngen-r13/releases/r13-full/source
 LOG="$ARTIFACT_ROOT/$STORE_ID/build.log"
+# OpenGWASDB's Dense Pass 1 spills variant shards through Python's tempfile,
+# which defaults to /tmp -- the small root filesystem, not /data. A 2,754-file
+# union needs far more scratch than / (70 GB total) can hold, so point TMPDIR
+# at the data volume before Snakemake computes its default tmpdir resource.
+TMPDIR_BUILD=/data/opengwasdb/tmp/ogs-00016
+export TMPDIR="$TMPDIR_BUILD"
 
 cd "$REPO" || exit 1
-mkdir -p "$ARTIFACT_ROOT/$STORE_ID"
+mkdir -p "$ARTIFACT_ROOT/$STORE_ID" "$TMPDIR_BUILD"
 
 exec > >(tee -a "$LOG") 2>&1
 echo "=== $STORE_ID Phase A build ==="
