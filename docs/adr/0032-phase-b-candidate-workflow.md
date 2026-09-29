@@ -36,8 +36,8 @@ It runs five stages — `preflight`, `prepare`, `resolve`, `verify`, `emit` — 
   is `resolution_failed`, `ancestry_unassigned`, `ancestry_not_eur`,
   `orientation_failure`, `sd_no_reference_resource_for_ancestry`,
   `sd_no_qualifying_evidence`, `sd_no_usable_sample_size`, `sd_failed`,
-  `missing_sample_size` and `missing_case_control_counts`; each is explained in
-  `sidecars/exclusions.tsv`.
+  `missing_sample_size`, `missing_case_control_counts` and
+  `no_build_eligible_rows`; each is explained in `sidecars/exclusions.tsv`.
 
 - **Every record is accounted before anything is replaced.** Finalisation refuses
   a selected Analysis with no record, a record that names an Analysis the

@@ -172,8 +172,10 @@ stores/OGS-xxxxx/
   source-AF-only quantitative estimation; case-control rows on
   `log_or`/`binary_trait`; and controlled exclusions (with the reason recorded in
   `sidecars/exclusions.tsv`) for non-target or unassigned ancestry, EAF
-  orientation failures, unusable source AF, incomplete metadata and ordinary
-  resolution failures.
+  orientation failures, unusable source AF, incomplete metadata, ordinary
+  resolution failures, and a successful record whose own tally of build-eligible
+  rows is zero (`no_build_eligible_rows`: no row has a finite effect and a
+  positive standard error).
 * Duplicate-content accessions (`GCST90565871`/`GCST90565872` and
   `GCST90624704`/`GCST90624705`) are surfaced in `sidecars/source_readiness.tsv`
   and a warning; they are never silently collapsed.
@@ -193,9 +195,12 @@ falls back to the legacy pre-INFO `rows_scanned` /
 the new diagnostics; the legacy columns are always kept so an older record is
 still reviewable. The summary names the denominator it used in
 `projected_off_reference_basis` (`build_eligible_rows`, `legacy_rows_read`, or
-`mixed`). A carried-but-unusable count (for example a zero build-eligible
-denominator) is treated as a missing measurement, never as a zero off-axis
-share.
+`mixed`). A carried-but-unusable count (an invalid or inconsistent on/off split,
+or an absent count with no usable legacy fallback) is treated as a missing
+measurement, never as a zero off-axis share. An *explicit integer zero* is not a
+measurement at all: the membership policy excludes such an Analysis up front as
+`no_build_eligible_rows` (#176), so it is never reported as a missing overlap and
+never refuses the candidate.
 
 ### INFO threshold contract and core integration (#175)
 
@@ -292,14 +297,35 @@ decision, #176): the 158 sequencing-only Analyses carry no MAF floor because
 their low-frequency calls are observed rather than imputed, while an Analysis
 that also lists a genotyping array is filtered.
 
+An optional `source.maf_filter_exempt_analyses` path may point to a reviewed TSV
+(relative to the repository root or absolute) that exempts individual Analyses
+with a recorded reason. It must have **exactly** these headers in order:
+
+```text
+analysis_id\treason
+```
+
+Each `analysis_id` must be non-empty and occur at most once, and `reason` must
+be non-empty; a missing file, a different header, a blank id and a duplicate id
+all fail configuration with the file and line. `config-full.yaml` sets this path
+to the committed `maf-filter-exemptions.tsv`, which exempts `GCST90428462` and
+`GCST90428463`: every row of both carries `effect_allele_frequency = 0.0`, a
+placeholder the study metadata's own `minor_allele_freq_lower_limit` (0.01) says
+is not a real frequency, so core reads the frequency as missing and a MAF floor
+would compare against a fabricated zero (operator decision, #176, 2026-09-29).
+An exempt Analysis emits the same literal `NaN` as an exempt technology; the
+resolution receipt contract records the exemption file and its
+`analysis_id -> reason` mapping, so changing either makes the receipt stale and
+requires a re-resolve.
+
 The resolver manifest carries the derived `maf_threshold` per Analysis.
 Candidate `analyses.tsv` emits the numeric value only on resolver evidence: the
 record's `diagnostics.maf_state` is `disabled` or `filtered` **and** the
 per-Analysis fingerprint still binds the same `maf_threshold`. Every other
 Analysis emits literal `NaN`. `verify` requires a numeric request to be bound
 by the fingerprint, exactly as it does for the INFO threshold, and the
-resolution receipt's contract records the configured default and exemption
-list, so changing either makes the receipt stale. `bundle.check()` rejects any
+resolution receipt's contract records the configured default and both exemption
+rules, so changing any of them makes the receipt stale. `bundle.check()` rejects any
 `maf_threshold` value that is not literal `NaN` or a finite number in
 `[0, 0.5]`.
 
