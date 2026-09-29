@@ -1,11 +1,11 @@
 status: passed_with_warnings
-validated_at: '2026-09-22T21:03:39Z'
+validated_at: '2026-09-29T13:14:20Z'
 validator:
   name: resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py
   version: null
 build_environment:
   opengwasdb_version: 0.3.0
-  opengwasdb_commit: d0b34c94cec2d40dfca3558a1d1bba9833e36e57
+  opengwasdb_commit: a0656c0d073875c17088972b24cbb9568c0467a2
 observed:
   format_version: null
   n_analyses: null
@@ -20,17 +20,137 @@ checks:
   ancestry: passed_with_warnings
   effect_scale: passed_with_warnings
   sd_estimation: passed_with_warnings
+  reference_overlap: passed
+reference_overlap:
+  low_overlap_threshold: 0.05
+  max_off_reference_share: 0.25
+  included_measured: 3344
+  ancestry_median_rate: 0.5504456605690415
+  ancestry_p05_rate: 0.0769270597494194
+  ancestry_low_overlap_analyses:
+  - GCST003898
+  - GCST005898
+  - GCST90104085
+  - GCST90104086
+  - GCST90104087
+  - GCST90245765
+  - GCST90245766
+  - GCST90245767
+  - GCST90245768
+  - GCST90245773
+  - GCST90245774
+  - GCST90245775
+  - GCST90245776
+  - GCST90270075
+  - GCST90270076
+  - GCST90292488
+  - GCST90297793
+  - GCST90444373
+  - GCST90444374
+  - GCST90444375
+  - GCST90444376
+  - GCST90449045
+  - GCST90449046
+  - GCST90449047
+  - GCST90449048
+  - GCST90449049
+  - GCST90449050
+  - GCST90449051
+  - GCST90449052
+  - GCST90455659
+  - GCST90455660
+  - GCST90487900
+  - GCST90502821
+  - GCST90502822
+  - GCST90502823
+  - GCST90558035
+  - GCST90558036
+  - GCST90558037
+  - GCST90558086
+  - GCST90558087
+  - GCST90558088
+  - GCST90558089
+  - GCST90558090
+  - GCST90558091
+  - GCST90558092
+  - GCST90558093
+  - GCST90558094
+  - GCST90558095
+  - GCST90558096
+  - GCST90558097
+  - GCST90558098
+  - GCST90558099
+  - GCST90558100
+  - GCST90558101
+  - GCST90559107
+  - GCST90559108
+  - GCST90559109
+  - GCST90559110
+  - GCST90559111
+  - GCST90559112
+  - GCST90559113
+  - GCST90559114
+  - GCST90559115
+  - GCST90559116
+  - GCST90559117
+  - GCST90559119
+  - GCST90559120
+  - GCST90559121
+  - GCST90559122
+  - GCST90559124
+  - GCST90559125
+  - GCST90559126
+  - GCST90559127
+  - GCST90559131
+  - GCST90559132
+  - GCST90559135
+  - GCST90559136
+  - GCST90559137
+  - GCST90559139
+  - GCST90559140
+  - GCST90559141
+  - GCST90559142
+  - GCST90559143
+  - GCST90559144
+  - GCST90559145
+  - GCST90559148
+  - GCST90559149
+  - GCST90559150
+  - GCST90559152
+  - GCST90559154
+  - GCST90570521
+  - GCST90570524
+  - GCST90572755
+  - GCST90651074
+  median_rate: 0.953072250137853
+  p05_rate: 0.649561103116756
+  p10_rate: 0.8102836164136173
+  low_overlap_count: 0
+  low_overlap_analyses: []
+  projected_off_reference_share: 0.1087049192936684
+  projected_off_reference_basis: build_eligible_rows
+  worst_contributors:
+  - GCST90502911
+  - GCST90446475
+  - GCST90455660
+  - GCST90455659
+  - GCST90296333
+  - GCST90002232
+  - GCST90002244
+  - GCST90274713
+  - GCST90461907
+  - GCST90624411
 reports:
   source_readiness: sidecars/source_readiness.tsv
   ancestry: sidecars/ancestry.tsv
   sd_estimation: sidecars/sd_estimation.tsv
   exclusions: sidecars/exclusions.tsv
+  reference_overlap: sidecars/reference_overlap.tsv
 warnings:
-- 1499 Analysis/Analyses excluded by ancestry policy (unassigned, non-target, or orientation failure);
+- 1162 Analysis/Analyses excluded by ancestry policy (unassigned, non-target, or orientation failure);
   see sidecars/exclusions.tsv
-- 2 quantitative Analysis/Analyses had no usable phenotype SD and were excluded; see sidecars/sd_estimation.tsv
-- 187 included Analysis/Analyses have a high-dispersion SD estimate; see sidecars/sd_estimation.tsv
+- 173 included Analysis/Analyses have a high-dispersion SD estimate; see sidecars/sd_estimation.tsv
 - 1 Analysis/Analyses failed resolution and were excluded; see sidecars/exclusions.tsv
-- 19 Analysis/Analyses had incomplete resolved metadata and were excluded; see sidecars/exclusions.tsv
+- 20 Analysis/Analyses had incomplete resolved metadata and were excluded; see sidecars/exclusions.tsv
 - '2 duplicate-content group(s) surfaced for review, not collapsed: GCST90565871+GCST90565872; GCST90624704+GCST90624705'
 errors: []

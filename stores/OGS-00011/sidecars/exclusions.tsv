@@ -1,7 +1,7 @@
 analysis_id	source_analysis_id	study_design	category	reason	detail	resolver_status	exclude_from_build
-GCST000028	GCST000028	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST000392	GCST000392	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST000553	GCST000553	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST000028	GCST000028	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=389134, canonical_rows_retained=389134)	success	true
+GCST000392	GCST000392	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST000553	GCST000553	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
 GCST000568	GCST000568	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST000571	GCST000571	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST000612	GCST000612	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -10,11 +10,11 @@ GCST000755	GCST000755	quantitative	ancestry	ancestry_unassigned	gate_reason=over
 GCST000758	GCST000758	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST000759	GCST000759	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST000760	GCST000760	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST000879	GCST000879	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST000879	GCST000879	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
 GCST000922	GCST000922	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST001198	GCST001198	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST001212	GCST001212	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
-GCST001255	GCST001255	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST001255	GCST001255	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
 GCST001475	GCST001475	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST001592	GCST001592	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST001790	GCST001790	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -25,14 +25,14 @@ GCST002222	GCST002222	quantitative	ancestry	ancestry_unassigned	gate_reason=over
 GCST002223	GCST002223	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST002245	GCST002245	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST002318	GCST002318	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST002548	GCST002548	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST002548	GCST002548	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
 GCST002598	GCST002598	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST002783	GCST002783	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST002920	GCST002920	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST003129	GCST003129	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST003143	GCST003143	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003143	GCST003143	case-control	metadata	missing_case_control_counts	n_cases=6365 n_controls=0	success	true
 GCST003156	GCST003156	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST003219	GCST003219	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003219	GCST003219	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=12005182, canonical_rows_retained=12005182)	success	true
 GCST003367	GCST003367	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST003368	GCST003368	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST003371	GCST003371	quantitative	ancestry	ancestry_not_eur	assigned_ancestry=AFR (release target EUR)	success	true
@@ -50,29 +50,28 @@ GCST003740	GCST003740	case-control	ancestry	ancestry_unassigned	gate_reason=over
 GCST003766	GCST003766	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST003769	GCST003769	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST003770	GCST003770	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST003795	GCST003795	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003795	GCST003795	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2470731, canonical_rows_retained=2470731)	success	true
 GCST003814	GCST003814	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST003898	GCST003898	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
-GCST003900	GCST003900	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST003965	GCST003965	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST003966	GCST003966	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST003967	GCST003967	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST003968	GCST003968	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST003969	GCST003969	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST003970	GCST003970	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST003971	GCST003971	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST003972	GCST003972	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST003973	GCST003973	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST003965	GCST003965	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2930810, canonical_rows_retained=2930810)	success	true
+GCST003966	GCST003966	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2932098, canonical_rows_retained=2932098)	success	true
+GCST003967	GCST003967	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2932111, canonical_rows_retained=2932111)	success	true
+GCST003968	GCST003968	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2634846, canonical_rows_retained=2634846)	success	true
+GCST003969	GCST003969	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2495430, canonical_rows_retained=2495430)	success	true
+GCST003970	GCST003970	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2495311, canonical_rows_retained=2495311)	success	true
+GCST003971	GCST003971	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2634854, canonical_rows_retained=2634854)	success	true
+GCST003972	GCST003972	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2872915, canonical_rows_retained=2872915)	success	true
+GCST003973	GCST003973	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2874706, canonical_rows_retained=2874706)	success	true
 GCST004074	GCST004074	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST004075	GCST004075	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST004076	GCST004076	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST004137	GCST004137	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST004158	GCST004158	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST004198	GCST004198	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004198	GCST004198	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
 GCST004292	GCST004292	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST004293	GCST004293	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST004296	GCST004296	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST004364	GCST004364	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.12018047073299706	success	true
+GCST004364	GCST004364	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.12106506363193613	success	true
 GCST004420	GCST004420	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST004421	GCST004421	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST004422	GCST004422	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -117,22 +116,22 @@ GCST004460	GCST004460	quantitative	ancestry	ancestry_unassigned	gate_reason=over
 GCST004692	GCST004692	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST004824	GCST004824	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST004826	GCST004826	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST004833	GCST004833	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004833	GCST004833	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
 GCST004901	GCST004901	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST004924	GCST004924	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST004925	GCST004925	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST004926	GCST004926	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST004927	GCST004927	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST004928	GCST004928	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST004929	GCST004929	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST004930	GCST004930	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST004931	GCST004931	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST004932	GCST004932	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004924	GCST004924	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST004925	GCST004925	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST004926	GCST004926	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST004927	GCST004927	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST004928	GCST004928	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST004929	GCST004929	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST004930	GCST004930	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST004931	GCST004931	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST004932	GCST004932	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
 GCST004939	GCST004939	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST004940	GCST004940	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST004941	GCST004941	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST004952	GCST004952	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST004954	GCST004954	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST004952	GCST004952	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST004954	GCST004954	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8659766, canonical_rows_retained=8659766)	success	true
 GCST005038	GCST005038	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST005047	GCST005047	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST005058	GCST005058	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -158,22 +157,22 @@ GCST005180	GCST005180	quantitative	ancestry	ancestry_unassigned	gate_reason=resi
 GCST005185	GCST005185	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST005186	GCST005186	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST005212	GCST005212	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST005215	GCST005215	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.25245389628134535	success	true
-GCST005216	GCST005216	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.23725909183500954	success	true
-GCST005217	GCST005217	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.008968449187878324	success	true
-GCST005218	GCST005218	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.41603093275041125	success	true
-GCST005219	GCST005219	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.023769019484166935	success	true
-GCST005220	GCST005220	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.023685066776740895	success	true
-GCST005221	GCST005221	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.25302074958701065	success	true
-GCST005222	GCST005222	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.2528752058430076	success	true
-GCST005223	GCST005223	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.028216941263907717	success	true
+GCST005215	GCST005215	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.25236624418586323	success	true
+GCST005216	GCST005216	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.2374450329449619	success	true
+GCST005217	GCST005217	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.0076974015749646674	success	true
+GCST005218	GCST005218	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.41585297308959907	success	true
+GCST005219	GCST005219	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.022099186724280354	success	true
+GCST005220	GCST005220	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.021863545977163102	success	true
+GCST005221	GCST005221	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.2536594090726031	success	true
+GCST005222	GCST005222	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.2528945284436514	success	true
+GCST005223	GCST005223	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.027178864739210263	success	true
 GCST005232	GCST005232	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST005362	GCST005362	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST005367	GCST005367	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST005413	GCST005413	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST005522	GCST005522	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST005523	GCST005523	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST005524	GCST005524	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005524	GCST005524	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
 GCST005527	GCST005527	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST005528	GCST005528	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST005529	GCST005529	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -185,8 +184,8 @@ GCST005543	GCST005543	case-control	ancestry	ancestry_unassigned	gate_reason=over
 GCST005569	GCST005569	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST005581	GCST005581	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST005626	GCST005626	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST005686	GCST005686	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST005831	GCST005831	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST005686	GCST005686	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST005831	GCST005831	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8290406, canonical_rows_retained=8290406)	success	true
 GCST005841	GCST005841	case-control	ancestry	ancestry_unassigned	gate_reason=proportion	success	true
 GCST005845	GCST005845	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST005846	GCST005846	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -199,123 +198,121 @@ GCST005920	GCST005920	case-control	ancestry	ancestry_unassigned	gate_reason=over
 GCST005921	GCST005921	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST005923	GCST005923	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST005964	GCST005964	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006044	GCST006044	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006045	GCST006045	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006046	GCST006046	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006047	GCST006047	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006044	GCST006044	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2465107, canonical_rows_retained=2465107)	success	true
+GCST006045	GCST006045	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2470101, canonical_rows_retained=2470101)	success	true
+GCST006046	GCST006046	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2470408, canonical_rows_retained=2470408)	success	true
+GCST006047	GCST006047	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2471827, canonical_rows_retained=2471827)	success	true
 GCST006061	GCST006061	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST006065	GCST006065	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006227	GCST006227	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006228	GCST006228	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006229	GCST006229	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006230	GCST006230	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006231	GCST006231	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006227	GCST006227	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST006228	GCST006228	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST006229	GCST006229	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST006230	GCST006230	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST006231	GCST006231	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
 GCST006250	GCST006250	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006258	GCST006258	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006259	GCST006259	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006258	GCST006258	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=128203, canonical_rows_retained=128203)	success	true
+GCST006259	GCST006259	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=128207, canonical_rows_retained=128207)	success	true
 GCST006268	GCST006268	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST006326	GCST006326	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST006327	GCST006327	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST006328	GCST006328	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
-GCST006329	GCST006329	quantitative	resolution	resolution_failed	ValueError: Duplicate effect column 'beta' in header	controlled_failure	true
+GCST006329	GCST006329	quantitative	resolution	resolution_failed	Analysis GCST006329: ValueError: Duplicate effect column 'beta' in header	controlled_failure	true
 GCST006368	GCST006368	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
-GCST006390	GCST006390	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006390	GCST006390	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
 GCST006407	GCST006407	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006476	GCST006476	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006477	GCST006477	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006476	GCST006476	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10848971, canonical_rows_retained=10848971)	success	true
+GCST006477	GCST006477	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10847293, canonical_rows_retained=7872163)	success	true
 GCST006478	GCST006478	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006489	GCST006489	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006490	GCST006490	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006533	GCST006533	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006534	GCST006534	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006537	GCST006537	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006538	GCST006538	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006540	GCST006540	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006542	GCST006542	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006543	GCST006543	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006544	GCST006544	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006545	GCST006545	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006546	GCST006546	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006547	GCST006547	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006548	GCST006548	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006549	GCST006549	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006550	GCST006550	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006551	GCST006551	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006552	GCST006552	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006553	GCST006553	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006554	GCST006554	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST006489	GCST006489	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=6732720, canonical_rows_retained=6732720)	success	true
+GCST006490	GCST006490	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=6756463, canonical_rows_retained=6756463)	success	true
+GCST006533	GCST006533	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2483925, canonical_rows_retained=2483925)	success	true
+GCST006534	GCST006534	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2476796, canonical_rows_retained=2476796)	success	true
+GCST006537	GCST006537	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2483621, canonical_rows_retained=2483621)	success	true
+GCST006538	GCST006538	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2476569, canonical_rows_retained=2476569)	success	true
+GCST006540	GCST006540	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2476822, canonical_rows_retained=2476822)	success	true
+GCST006542	GCST006542	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2483997, canonical_rows_retained=2483997)	success	true
+GCST006543	GCST006543	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2514221, canonical_rows_retained=2514221)	success	true
+GCST006544	GCST006544	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2529873, canonical_rows_retained=2529873)	success	true
+GCST006545	GCST006545	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2514332, canonical_rows_retained=2514332)	success	true
+GCST006546	GCST006546	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2530107, canonical_rows_retained=2530107)	success	true
+GCST006547	GCST006547	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2459160, canonical_rows_retained=2459160)	success	true
+GCST006548	GCST006548	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2466871, canonical_rows_retained=2466871)	success	true
+GCST006549	GCST006549	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2458867, canonical_rows_retained=2458867)	success	true
+GCST006550	GCST006550	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2466667, canonical_rows_retained=2466667)	success	true
+GCST006551	GCST006551	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2483610, canonical_rows_retained=2483610)	success	true
+GCST006552	GCST006552	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2476567, canonical_rows_retained=2476567)	success	true
+GCST006553	GCST006553	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2484444, canonical_rows_retained=2484444)	success	true
+GCST006554	GCST006554	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2477324, canonical_rows_retained=2477324)	success	true
 GCST006620	GCST006620	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST006661	GCST006661	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST006862	GCST006862	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST006937	GCST006937	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST006938	GCST006938	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006957	GCST006957	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST006980	GCST006980	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST007320	GCST007320	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST007515	GCST007515	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST007516	GCST007516	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST007518	GCST007518	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST007638	GCST007638	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST007638	GCST007638	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10196764, canonical_rows_retained=10196764)	success	true
 GCST007857	GCST007857	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST007858	GCST007858	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST008225	GCST008225	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST009541	GCST009541	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST009722	GCST009722	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST009760	GCST009760	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010003	GCST010003	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010003	GCST010003	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8679200, canonical_rows_retained=8679200)	success	true
 GCST010004	GCST010004	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST010005	GCST010005	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010116	GCST010116	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010696	GCST010696	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010697	GCST010697	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010698	GCST010698	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010699	GCST010699	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010700	GCST010700	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010701	GCST010701	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010702	GCST010702	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010703	GCST010703	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010763	GCST010763	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010764	GCST010764	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010765	GCST010765	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010766	GCST010766	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010767	GCST010767	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010768	GCST010768	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010769	GCST010769	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010770	GCST010770	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010771	GCST010771	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010772	GCST010772	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010773	GCST010773	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST010774	GCST010774	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST010116	GCST010116	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=326663, canonical_rows_retained=326663)	success	true
+GCST010696	GCST010696	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7428290, canonical_rows_retained=7428290)	success	true
+GCST010697	GCST010697	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7428290, canonical_rows_retained=7428290)	success	true
+GCST010698	GCST010698	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7428290, canonical_rows_retained=7428290)	success	true
+GCST010699	GCST010699	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7428290, canonical_rows_retained=7428290)	success	true
+GCST010700	GCST010700	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7428290, canonical_rows_retained=7428290)	success	true
+GCST010701	GCST010701	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7428290, canonical_rows_retained=7428290)	success	true
+GCST010702	GCST010702	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7428290, canonical_rows_retained=7428290)	success	true
+GCST010703	GCST010703	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7428290, canonical_rows_retained=7428290)	success	true
+GCST010763	GCST010763	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST010764	GCST010764	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST010765	GCST010765	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST010766	GCST010766	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST010767	GCST010767	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST010768	GCST010768	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST010769	GCST010769	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST010770	GCST010770	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST010771	GCST010771	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST010772	GCST010772	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST010773	GCST010773	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST010774	GCST010774	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
 GCST011079	GCST011079	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
-GCST011321	GCST011321	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011322	GCST011322	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011323	GCST011323	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011324	GCST011324	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011325	GCST011325	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011326	GCST011326	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011327	GCST011327	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011328	GCST011328	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011329	GCST011329	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011330	GCST011330	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011331	GCST011331	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011332	GCST011332	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011333	GCST011333	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011334	GCST011334	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011335	GCST011335	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011336	GCST011336	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011337	GCST011337	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011338	GCST011338	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011339	GCST011339	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011340	GCST011340	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011341	GCST011341	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011342	GCST011342	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011343	GCST011343	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011344	GCST011344	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011321	GCST011321	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2348640, canonical_rows_retained=2348640)	success	true
+GCST011322	GCST011322	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2348640, canonical_rows_retained=2348640)	success	true
+GCST011323	GCST011323	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2331053, canonical_rows_retained=2331053)	success	true
+GCST011324	GCST011324	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2350157, canonical_rows_retained=2350157)	success	true
+GCST011325	GCST011325	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2350157, canonical_rows_retained=2350157)	success	true
+GCST011326	GCST011326	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2348640, canonical_rows_retained=2348640)	success	true
+GCST011327	GCST011327	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2348640, canonical_rows_retained=2348640)	success	true
+GCST011328	GCST011328	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2348640, canonical_rows_retained=2348640)	success	true
+GCST011329	GCST011329	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2348640, canonical_rows_retained=2348640)	success	true
+GCST011330	GCST011330	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2348640, canonical_rows_retained=2348640)	success	true
+GCST011331	GCST011331	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2331053, canonical_rows_retained=2331053)	success	true
+GCST011332	GCST011332	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2350157, canonical_rows_retained=2350157)	success	true
+GCST011333	GCST011333	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2350157, canonical_rows_retained=2350157)	success	true
+GCST011334	GCST011334	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2348640, canonical_rows_retained=2348640)	success	true
+GCST011335	GCST011335	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2348640, canonical_rows_retained=2348640)	success	true
+GCST011336	GCST011336	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2348640, canonical_rows_retained=2348640)	success	true
+GCST011337	GCST011337	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2348640, canonical_rows_retained=2348640)	success	true
+GCST011338	GCST011338	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2348640, canonical_rows_retained=2348640)	success	true
+GCST011339	GCST011339	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2331053, canonical_rows_retained=2331053)	success	true
+GCST011340	GCST011340	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2350157, canonical_rows_retained=2350157)	success	true
+GCST011341	GCST011341	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2350157, canonical_rows_retained=2350157)	success	true
+GCST011342	GCST011342	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2348640, canonical_rows_retained=2348640)	success	true
+GCST011343	GCST011343	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2348640, canonical_rows_retained=2348640)	success	true
+GCST011344	GCST011344	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2348640, canonical_rows_retained=2348640)	success	true
 GCST011833	GCST011833	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST011834	GCST011834	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011887	GCST011887	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST011889	GCST011889	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST012431	GCST012431	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST011887	GCST011887	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=29644874, canonical_rows_retained=12448750)	success	true
+GCST011889	GCST011889	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=13032177, canonical_rows_retained=11079131)	success	true
+GCST012431	GCST012431	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
 GCST012597	GCST012597	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90000014	GCST90000014	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90000015	GCST90000015	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -326,11 +323,11 @@ GCST90000047	GCST90000047	quantitative	ancestry	ancestry_unassigned	gate_reason=
 GCST90000048	GCST90000048	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90000049	GCST90000049	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90000050	GCST90000050	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90000060	GCST90000060	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90000064	GCST90000064	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000060	GCST90000060	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=234622, canonical_rows_retained=75963)	success	true
+GCST90000064	GCST90000064	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=241137, canonical_rows_retained=53606)	success	true
 GCST90000255	GCST90000255	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90000256	GCST90000256	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90000296	GCST90000296	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000296	GCST90000296	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=13404339, canonical_rows_retained=10545158)	success	true
 GCST90000437	GCST90000437	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90000438	GCST90000438	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90000439	GCST90000439	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -404,14 +401,14 @@ GCST90000506	GCST90000506	quantitative	ancestry	ancestry_unassigned	gate_reason=
 GCST90000512	GCST90000512	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90000513	GCST90000513	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90000529	GCST90000529	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90000584	GCST90000584	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90000584	GCST90000584	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=11128857, canonical_rows_retained=11128857)	success	true
 GCST90000654	GCST90000654	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90001389	GCST90001389	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90002409	GCST90002409	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90006790	GCST90006790	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90006791	GCST90006791	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90010423	GCST90010423	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90010715	GCST90010715	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90010423	GCST90010423	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90010715	GCST90010715	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7453009, canonical_rows_retained=7453009)	success	true
 GCST90011766	GCST90011766	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90011767	GCST90011767	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90011770	GCST90011770	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -431,116 +428,72 @@ GCST90011818	GCST90011818	case-control	ancestry	ancestry_unassigned	gate_reason=
 GCST90011819	GCST90011819	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90011820	GCST90011820	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90011821	GCST90011821	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90011874	GCST90011874	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90011875	GCST90011875	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011874	GCST90011874	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7305672, canonical_rows_retained=7305672)	success	true
+GCST90011875	GCST90011875	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7305672, canonical_rows_retained=7305672)	success	true
 GCST90011885	GCST90011885	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90011898	GCST90011898	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90011899	GCST90011899	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90011898	GCST90011898	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90011899	GCST90011899	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
 GCST90012003	GCST90012003	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
-GCST90012088	GCST90012088	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012088	GCST90012088	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=9977, canonical_rows_retained=9977)	success	true
 GCST90012115	GCST90012115	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012174	GCST90012174	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012175	GCST90012175	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012176	GCST90012176	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012177	GCST90012177	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012178	GCST90012178	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012179	GCST90012179	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012180	GCST90012180	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012181	GCST90012181	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012182	GCST90012182	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012183	GCST90012183	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012184	GCST90012184	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012185	GCST90012185	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012186	GCST90012186	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012187	GCST90012187	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012188	GCST90012188	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012189	GCST90012189	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012190	GCST90012190	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012191	GCST90012191	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012192	GCST90012192	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012193	GCST90012193	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012194	GCST90012194	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012195	GCST90012195	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012196	GCST90012196	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012197	GCST90012197	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012198	GCST90012198	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012199	GCST90012199	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012200	GCST90012200	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012201	GCST90012201	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90012202	GCST90012202	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90012174	GCST90012174	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012175	GCST90012175	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012176	GCST90012176	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012177	GCST90012177	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012178	GCST90012178	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012179	GCST90012179	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012180	GCST90012180	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012181	GCST90012181	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012182	GCST90012182	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012183	GCST90012183	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012184	GCST90012184	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012185	GCST90012185	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012186	GCST90012186	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012187	GCST90012187	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012188	GCST90012188	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012189	GCST90012189	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012190	GCST90012190	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012191	GCST90012191	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012192	GCST90012192	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012193	GCST90012193	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012194	GCST90012194	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012195	GCST90012195	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012196	GCST90012196	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012197	GCST90012197	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012198	GCST90012198	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012199	GCST90012199	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012200	GCST90012200	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012201	GCST90012201	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90012202	GCST90012202	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
 GCST90013411	GCST90013411	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90013414	GCST90013414	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013421	GCST90013421	quantitative	effect_scale	sd_no_qualifying_evidence	no_qualifying_evidence	success	true
+GCST90013421	GCST90013421	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10685679, canonical_rows_retained=10685679)	success	true
 GCST90013423	GCST90013423	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90013442	GCST90013442	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90013445	GCST90013445	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90013446	GCST90013446	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90013473	GCST90013473	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013537	GCST90013537	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013538	GCST90013538	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013539	GCST90013539	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013540	GCST90013540	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013541	GCST90013541	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013542	GCST90013542	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013543	GCST90013543	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013544	GCST90013544	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013545	GCST90013545	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013546	GCST90013546	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013547	GCST90013547	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013548	GCST90013548	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013549	GCST90013549	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013550	GCST90013550	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013551	GCST90013551	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013552	GCST90013552	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013553	GCST90013553	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013554	GCST90013554	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013555	GCST90013555	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013556	GCST90013556	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013557	GCST90013557	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013558	GCST90013558	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013559	GCST90013559	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013560	GCST90013560	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013561	GCST90013561	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013562	GCST90013562	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013563	GCST90013563	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013564	GCST90013564	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013565	GCST90013565	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013566	GCST90013566	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013567	GCST90013567	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013568	GCST90013568	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013569	GCST90013569	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013570	GCST90013570	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013571	GCST90013571	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013572	GCST90013572	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013573	GCST90013573	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013574	GCST90013574	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013575	GCST90013575	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013576	GCST90013576	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013577	GCST90013577	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013578	GCST90013578	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013579	GCST90013579	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013580	GCST90013580	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013581	GCST90013581	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013582	GCST90013582	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013537	GCST90013537	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=5770944, canonical_rows_retained=5770944)	success	true
+GCST90013538	GCST90013538	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=4860323, canonical_rows_retained=4860323)	success	true
 GCST90013658	GCST90013658	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013662	GCST90013662	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013663	GCST90013663	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90013664	GCST90013664	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90013662	GCST90013662	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=11737365, canonical_rows_retained=11737365)	success	true
+GCST90013663	GCST90013663	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=20961199, canonical_rows_retained=20961199)	success	true
+GCST90013664	GCST90013664	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=20961199, canonical_rows_retained=20961199)	success	true
 GCST90014054	GCST90014054	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90014122	GCST90014122	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90014268	GCST90014268	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90016585	GCST90016585	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90016585	GCST90016585	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=9689019, canonical_rows_retained=9689019)	success	true
 GCST90016586	GCST90016586	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90016587	GCST90016587	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90016588	GCST90016588	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90016589	GCST90016589	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90016590	GCST90016590	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90016590	GCST90016590	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=9689017, canonical_rows_retained=9689017)	success	true
 GCST90016591	GCST90016591	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90016592	GCST90016592	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90016593	GCST90016593	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90016594	GCST90016594	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90017147	GCST90017147	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90017148	GCST90017148	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90017147	GCST90017147	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90017148	GCST90017148	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
 GCST90019016	GCST90019016	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90019017	GCST90019017	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90019492	GCST90019492	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -580,9 +533,6 @@ GCST90019525	GCST90019525	quantitative	ancestry	ancestry_unassigned	gate_reason=
 GCST90019526	GCST90019526	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90020034	GCST90020034	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90020035	GCST90020035	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90020070	GCST90020070	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90020071	GCST90020071	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90020072	GCST90020072	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90020165	GCST90020165	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90020166	GCST90020166	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90020167	GCST90020167	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -601,21 +551,21 @@ GCST90026610	GCST90026610	quantitative	ancestry	ancestry_unassigned	gate_reason=
 GCST90026611	GCST90026611	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90027163	GCST90027163	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90027266	GCST90027266	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90027272	GCST90027272	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90027273	GCST90027273	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90027272	GCST90027272	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90027273	GCST90027273	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
 GCST90029070	GCST90029070	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90044700	GCST90044700	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90044763	GCST90044763	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90044763	GCST90044763	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=9397031, canonical_rows_retained=8199086)	success	true
 GCST90044773	GCST90044773	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90044774	GCST90044774	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90044775	GCST90044775	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90044776	GCST90044776	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90044902	GCST90044902	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90044903	GCST90044903	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90054778	GCST90054778	quantitative	effect_scale	sd_no_qualifying_evidence	no_qualifying_evidence	success	true
-GCST90054782	GCST90054782	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90054778	GCST90054778	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=5434825, canonical_rows_retained=5434825)	success	true
+GCST90054782	GCST90054782	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90061440	GCST90061440	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90085698	GCST90085698	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90085698	GCST90085698	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7259564, canonical_rows_retained=7259564)	success	true
 GCST90085822	GCST90085822	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90085834	GCST90085834	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90085836	GCST90085836	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
@@ -627,8 +577,8 @@ GCST90085874	GCST90085874	quantitative	ancestry	ancestry_unassigned	gate_reason=
 GCST90085878	GCST90085878	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90085889	GCST90085889	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90085893	GCST90085893	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
-GCST90091060	GCST90091060	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90091061	GCST90091061	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90091060	GCST90091060	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=9056226, canonical_rows_retained=9056226)	success	true
+GCST90091061	GCST90091061	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=9056226, canonical_rows_retained=9056226)	success	true
 GCST90092003	GCST90092003	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90093074	GCST90093074	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90093075	GCST90093075	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -638,7 +588,7 @@ GCST90093078	GCST90093078	quantitative	ancestry	ancestry_unassigned	gate_reason=
 GCST90093079	GCST90093079	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90093080	GCST90093080	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90093081	GCST90093081	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90093325	GCST90093325	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90093325	GCST90093325	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=9614095, canonical_rows_retained=9614095)	success	true
 GCST90094643	GCST90094643	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90094644	GCST90094644	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90094646	GCST90094646	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -653,9 +603,9 @@ GCST90094889	GCST90094889	quantitative	ancestry	ancestry_unassigned	gate_reason=
 GCST90094890	GCST90094890	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90095079	GCST90095079	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90095080	GCST90095080	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90095129	GCST90095129	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90095130	GCST90095130	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90095131	GCST90095131	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90095129	GCST90095129	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=9055956, canonical_rows_retained=9055956)	success	true
+GCST90095130	GCST90095130	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=9055956, canonical_rows_retained=9055956)	success	true
+GCST90095131	GCST90095131	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=9047248, canonical_rows_retained=9047248)	success	true
 GCST90096892	GCST90096892	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90096893	GCST90096893	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90096894	GCST90096894	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -780,25 +730,7 @@ GCST90134600	GCST90134600	case-control	ancestry	ancestry_unassigned	gate_reason=
 GCST90134601	GCST90134601	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90134602	GCST90134602	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90134661	GCST90134661	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90162552	GCST90162552	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90162553	GCST90162553	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90162554	GCST90162554	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90162555	GCST90162555	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90165257	GCST90165257	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90165259	GCST90165259	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90165261	GCST90165261	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90165267	GCST90165267	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90165271	GCST90165271	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90165273	GCST90165273	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90165275	GCST90165275	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90165277	GCST90165277	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90165279	GCST90165279	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90165281	GCST90165281	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90165283	GCST90165283	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90165285	GCST90165285	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90165287	GCST90165287	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90165289	GCST90165289	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90165290	GCST90165290	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9902675260151453	success	true
+GCST90165290	GCST90165290	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9902674796337204	success	true
 GCST90165291	GCST90165291	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9918795039815018	success	true
 GCST90204167	GCST90204167	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90225499	GCST90225499	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -807,28 +739,28 @@ GCST90225550	GCST90225550	case-control	ancestry	ancestry_unassigned	gate_reason=
 GCST90239652	GCST90239652	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90239748	GCST90239748	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90239749	GCST90239749	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90239750	GCST90239750	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90239750	GCST90239750	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7772525, canonical_rows_retained=7754216)	success	true
 GCST90239856	GCST90239856	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90243957	GCST90243957	case-control	metadata	missing_case_control_counts	n_cases=10771 n_controls=0	success	true
 GCST90243963	GCST90243963	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90244103	GCST90244103	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90244822	GCST90244822	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90244823	GCST90244823	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90244824	GCST90244824	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90244825	GCST90244825	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90244828	GCST90244828	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90244829	GCST90244829	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90244832	GCST90244832	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90244833	GCST90244833	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90244834	GCST90244834	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90244835	GCST90244835	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90244837	GCST90244837	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90244838	GCST90244838	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90244839	GCST90244839	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90244840	GCST90244840	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90244842	GCST90244842	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90244845	GCST90244845	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90244846	GCST90244846	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90244822	GCST90244822	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=183285, canonical_rows_retained=183285)	success	true
+GCST90244823	GCST90244823	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=185906, canonical_rows_retained=185906)	success	true
+GCST90244824	GCST90244824	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=187209, canonical_rows_retained=187209)	success	true
+GCST90244825	GCST90244825	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=186344, canonical_rows_retained=186344)	success	true
+GCST90244828	GCST90244828	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=186113, canonical_rows_retained=186113)	success	true
+GCST90244829	GCST90244829	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=186910, canonical_rows_retained=186910)	success	true
+GCST90244832	GCST90244832	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=180778, canonical_rows_retained=180778)	success	true
+GCST90244833	GCST90244833	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=183596, canonical_rows_retained=183596)	success	true
+GCST90244834	GCST90244834	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=182314, canonical_rows_retained=182314)	success	true
+GCST90244835	GCST90244835	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=184640, canonical_rows_retained=184640)	success	true
+GCST90244837	GCST90244837	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=185766, canonical_rows_retained=185766)	success	true
+GCST90244838	GCST90244838	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=179541, canonical_rows_retained=179541)	success	true
+GCST90244839	GCST90244839	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=185021, canonical_rows_retained=185021)	success	true
+GCST90244840	GCST90244840	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=188389, canonical_rows_retained=188389)	success	true
+GCST90244842	GCST90244842	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=186257, canonical_rows_retained=186257)	success	true
+GCST90244845	GCST90244845	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=188228, canonical_rows_retained=188228)	success	true
+GCST90244846	GCST90244846	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=183643, canonical_rows_retained=183643)	success	true
 GCST90245765	GCST90245765	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90245766	GCST90245766	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90245767	GCST90245767	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -1037,24 +969,24 @@ GCST90268420	GCST90268420	case-control	ancestry	ancestry_unassigned	gate_reason=
 GCST90268421	GCST90268421	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90268422	GCST90268422	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90269769	GCST90269769	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
-GCST90270074	GCST90270074	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270074	GCST90270074	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=12513457, canonical_rows_retained=12513457)	success	true
 GCST90270075	GCST90270075	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90270076	GCST90270076	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90270327	GCST90270327	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90270328	GCST90270328	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90270329	GCST90270329	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90270330	GCST90270330	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90270331	GCST90270331	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90270332	GCST90270332	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90270333	GCST90270333	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90270334	GCST90270334	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90270335	GCST90270335	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90270336	GCST90270336	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90270337	GCST90270337	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90270338	GCST90270338	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90270339	GCST90270339	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90270340	GCST90270340	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90270341	GCST90270341	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90270327	GCST90270327	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10612942, canonical_rows_retained=10612942)	success	true
+GCST90270328	GCST90270328	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10612942, canonical_rows_retained=10612942)	success	true
+GCST90270329	GCST90270329	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10612942, canonical_rows_retained=10612942)	success	true
+GCST90270330	GCST90270330	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10612942, canonical_rows_retained=10612942)	success	true
+GCST90270331	GCST90270331	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10612942, canonical_rows_retained=10612942)	success	true
+GCST90270332	GCST90270332	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10612942, canonical_rows_retained=10612942)	success	true
+GCST90270333	GCST90270333	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10612942, canonical_rows_retained=10612942)	success	true
+GCST90270334	GCST90270334	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10612942, canonical_rows_retained=10612942)	success	true
+GCST90270335	GCST90270335	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10612942, canonical_rows_retained=10612942)	success	true
+GCST90270336	GCST90270336	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10612942, canonical_rows_retained=10612942)	success	true
+GCST90270337	GCST90270337	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10612942, canonical_rows_retained=10612942)	success	true
+GCST90270338	GCST90270338	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10612942, canonical_rows_retained=10612942)	success	true
+GCST90270339	GCST90270339	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10612942, canonical_rows_retained=10612942)	success	true
+GCST90270340	GCST90270340	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10612942, canonical_rows_retained=10612942)	success	true
+GCST90270341	GCST90270341	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=10612942, canonical_rows_retained=10612942)	success	true
 GCST90270930	GCST90270930	case-control	ancestry	ancestry_unassigned	gate_reason=margin	success	true
 GCST90270931	GCST90270931	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EAS (release target EUR)	success	true
 GCST90270932	GCST90270932	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EAS (release target EUR)	success	true
@@ -1062,38 +994,38 @@ GCST90271315	GCST90271315	quantitative	ancestry	ancestry_unassigned	gate_reason=
 GCST90271641	GCST90271641	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90271755	GCST90271755	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9709459293177205	success	true
 GCST90271789	GCST90271789	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90275135	GCST90275135	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.676123040183046	success	true
-GCST90275136	GCST90275136	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.676123040183046	success	true
-GCST90275137	GCST90275137	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.676123040183046	success	true
-GCST90275138	GCST90275138	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760655194709643	success	true
-GCST90275139	GCST90275139	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760655194709643	success	true
-GCST90275140	GCST90275140	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760655194709643	success	true
-GCST90275141	GCST90275141	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760451808789918	success	true
-GCST90275142	GCST90275142	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760451808789918	success	true
-GCST90275143	GCST90275143	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760451808789918	success	true
-GCST90275144	GCST90275144	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760889769609099	success	true
-GCST90275145	GCST90275145	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760889769609099	success	true
-GCST90275146	GCST90275146	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760889769609099	success	true
-GCST90275147	GCST90275147	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.676123040183046	success	true
-GCST90275148	GCST90275148	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.676123040183046	success	true
-GCST90275149	GCST90275149	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.676123040183046	success	true
-GCST90275150	GCST90275150	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760655194709643	success	true
-GCST90275151	GCST90275151	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760655194709643	success	true
-GCST90275152	GCST90275152	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760655194709643	success	true
-GCST90275153	GCST90275153	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760451808789918	success	true
-GCST90275154	GCST90275154	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760451808789918	success	true
-GCST90275155	GCST90275155	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760451808789918	success	true
-GCST90275156	GCST90275156	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760889769609099	success	true
-GCST90275157	GCST90275157	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760889769609099	success	true
-GCST90275158	GCST90275158	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760889769609099	success	true
-GCST90275159	GCST90275159	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.676123040183046	success	true
-GCST90275160	GCST90275160	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.676123040183046	success	true
-GCST90275161	GCST90275161	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760655194709643	success	true
-GCST90275162	GCST90275162	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760655194709643	success	true
-GCST90275163	GCST90275163	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760451808789918	success	true
-GCST90275164	GCST90275164	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760451808789918	success	true
-GCST90275165	GCST90275165	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760889769609099	success	true
-GCST90275166	GCST90275166	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6760889769609099	success	true
+GCST90275135	GCST90275135	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6724395611350132	success	true
+GCST90275136	GCST90275136	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6724395611350132	success	true
+GCST90275137	GCST90275137	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6724395611350132	success	true
+GCST90275138	GCST90275138	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.672462042090507	success	true
+GCST90275139	GCST90275139	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.672462042090507	success	true
+GCST90275140	GCST90275140	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.672462042090507	success	true
+GCST90275141	GCST90275141	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6724587113499109	success	true
+GCST90275142	GCST90275142	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6724587113499109	success	true
+GCST90275143	GCST90275143	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6724587113499109	success	true
+GCST90275144	GCST90275144	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6725898449448204	success	true
+GCST90275145	GCST90275145	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6725898449448204	success	true
+GCST90275146	GCST90275146	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6725898449448204	success	true
+GCST90275147	GCST90275147	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6724395611350132	success	true
+GCST90275148	GCST90275148	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6724395611350132	success	true
+GCST90275149	GCST90275149	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6724395611350132	success	true
+GCST90275150	GCST90275150	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.672462042090507	success	true
+GCST90275151	GCST90275151	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.672462042090507	success	true
+GCST90275152	GCST90275152	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.672462042090507	success	true
+GCST90275153	GCST90275153	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6724587113499109	success	true
+GCST90275154	GCST90275154	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6724587113499109	success	true
+GCST90275155	GCST90275155	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6724587113499109	success	true
+GCST90275156	GCST90275156	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6725898449448204	success	true
+GCST90275157	GCST90275157	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6725898449448204	success	true
+GCST90275158	GCST90275158	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6725898449448204	success	true
+GCST90275159	GCST90275159	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6724395611350132	success	true
+GCST90275160	GCST90275160	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6724395611350132	success	true
+GCST90275161	GCST90275161	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.672462042090507	success	true
+GCST90275162	GCST90275162	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.672462042090507	success	true
+GCST90275163	GCST90275163	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6724587113499109	success	true
+GCST90275164	GCST90275164	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6724587113499109	success	true
+GCST90275165	GCST90275165	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6725898449448204	success	true
+GCST90275166	GCST90275166	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6725898449448204	success	true
 GCST90275189	GCST90275189	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90275190	GCST90275190	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90275191	GCST90275191	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
@@ -1123,55 +1055,55 @@ GCST90281180	GCST90281180	case-control	metadata	missing_case_control_counts	n_ca
 GCST90292488	GCST90292488	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90293085	GCST90293085	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90293086	GCST90293086	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
-GCST90296697	GCST90296697	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9740418506888578	success	true
-GCST90296698	GCST90296698	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9739075143647095	success	true
-GCST90296699	GCST90296699	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9739041380490776	success	true
-GCST90296700	GCST90296700	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9739233853796522	success	true
-GCST90297560	GCST90297560	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90297561	GCST90297561	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90296697	GCST90296697	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9737268698397883	success	true
+GCST90296698	GCST90296698	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9736023388278172	success	true
+GCST90296699	GCST90296699	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9735995163612724	success	true
+GCST90296700	GCST90296700	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9735915123063638	success	true
+GCST90297560	GCST90297560	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8431670, canonical_rows_retained=8431670)	success	true
+GCST90297561	GCST90297561	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8431670, canonical_rows_retained=8431670)	success	true
 GCST90297793	GCST90297793	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=residual r=-0.023708829239883704	success	true
 GCST90302879	GCST90302879	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6738243272562536	success	true
-GCST90319487	GCST90319487	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90319488	GCST90319488	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90319489	GCST90319489	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399874	GCST90399874	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399875	GCST90399875	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399876	GCST90399876	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399877	GCST90399877	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399878	GCST90399878	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399879	GCST90399879	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399880	GCST90399880	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399881	GCST90399881	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399882	GCST90399882	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399883	GCST90399883	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399884	GCST90399884	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399885	GCST90399885	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399886	GCST90399886	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399887	GCST90399887	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399888	GCST90399888	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399889	GCST90399889	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399890	GCST90399890	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399891	GCST90399891	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399892	GCST90399892	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399893	GCST90399893	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399894	GCST90399894	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399895	GCST90399895	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399896	GCST90399896	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399897	GCST90399897	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399898	GCST90399898	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399899	GCST90399899	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399900	GCST90399900	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399901	GCST90399901	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399902	GCST90399902	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399903	GCST90399903	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399904	GCST90399904	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399905	GCST90399905	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399906	GCST90399906	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399907	GCST90399907	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399908	GCST90399908	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399909	GCST90399909	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399910	GCST90399910	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90399911	GCST90399911	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90319487	GCST90319487	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=9032432, canonical_rows_retained=9032432)	success	true
+GCST90319488	GCST90319488	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=9032432, canonical_rows_retained=9032432)	success	true
+GCST90319489	GCST90319489	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=9032432, canonical_rows_retained=9032432)	success	true
+GCST90399874	GCST90399874	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7297964, canonical_rows_retained=7297964)	success	true
+GCST90399875	GCST90399875	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7902264, canonical_rows_retained=7902264)	success	true
+GCST90399876	GCST90399876	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399877	GCST90399877	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399878	GCST90399878	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399879	GCST90399879	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399880	GCST90399880	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399881	GCST90399881	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399882	GCST90399882	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399883	GCST90399883	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399884	GCST90399884	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399885	GCST90399885	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399886	GCST90399886	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399887	GCST90399887	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399888	GCST90399888	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399889	GCST90399889	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399890	GCST90399890	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399891	GCST90399891	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399892	GCST90399892	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399893	GCST90399893	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7297964, canonical_rows_retained=7297964)	success	true
+GCST90399894	GCST90399894	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399895	GCST90399895	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7297964, canonical_rows_retained=7297964)	success	true
+GCST90399896	GCST90399896	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399897	GCST90399897	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399898	GCST90399898	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399899	GCST90399899	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399900	GCST90399900	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399901	GCST90399901	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399902	GCST90399902	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399903	GCST90399903	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399904	GCST90399904	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399905	GCST90399905	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399906	GCST90399906	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399907	GCST90399907	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7297964, canonical_rows_retained=7297964)	success	true
+GCST90399908	GCST90399908	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399909	GCST90399909	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399910	GCST90399910	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
+GCST90399911	GCST90399911	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8177769, canonical_rows_retained=8177769)	success	true
 GCST90421022	GCST90421022	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90421023	GCST90421023	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90421024	GCST90421024	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
@@ -1224,8 +1156,8 @@ GCST90428435	GCST90428435	quantitative	ancestry	ancestry_unassigned	gate_reason=
 GCST90428436	GCST90428436	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90428437	GCST90428437	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90428438	GCST90428438	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
-GCST90428462	GCST90428462	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
-GCST90428463	GCST90428463	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90428462	GCST90428462	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90428463	GCST90428463	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90428625	GCST90428625	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90435377	GCST90435377	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90435378	GCST90435378	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
@@ -1246,23 +1178,23 @@ GCST90446168	GCST90446168	quantitative	orientation	orientation_failure	eaf_orien
 GCST90446169	GCST90446169	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6623936894238955	success	true
 GCST90446466	GCST90446466	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90446643	GCST90446643	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
-GCST90446758	GCST90446758	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
-GCST90446759	GCST90446759	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
-GCST90446760	GCST90446760	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
-GCST90446761	GCST90446761	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
-GCST90446762	GCST90446762	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
-GCST90446763	GCST90446763	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
-GCST90446764	GCST90446764	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
-GCST90446765	GCST90446765	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
-GCST90446766	GCST90446766	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
-GCST90446767	GCST90446767	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
-GCST90446768	GCST90446768	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
-GCST90446769	GCST90446769	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
-GCST90446770	GCST90446770	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
-GCST90446771	GCST90446771	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
-GCST90446772	GCST90446772	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
-GCST90446773	GCST90446773	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
-GCST90446774	GCST90446774	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9828599179674637	success	true
+GCST90446758	GCST90446758	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.982824774327929	success	true
+GCST90446759	GCST90446759	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.982824774327929	success	true
+GCST90446760	GCST90446760	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.982824774327929	success	true
+GCST90446761	GCST90446761	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.982824774327929	success	true
+GCST90446762	GCST90446762	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.982824774327929	success	true
+GCST90446763	GCST90446763	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.982824774327929	success	true
+GCST90446764	GCST90446764	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.982824774327929	success	true
+GCST90446765	GCST90446765	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.982824774327929	success	true
+GCST90446766	GCST90446766	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.982824774327929	success	true
+GCST90446767	GCST90446767	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.982824774327929	success	true
+GCST90446768	GCST90446768	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.982824774327929	success	true
+GCST90446769	GCST90446769	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.982824774327929	success	true
+GCST90446770	GCST90446770	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.982824774327929	success	true
+GCST90446771	GCST90446771	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.982824774327929	success	true
+GCST90446772	GCST90446772	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.982824774327929	success	true
+GCST90446773	GCST90446773	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.982824774327929	success	true
+GCST90446774	GCST90446774	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.982824774327929	success	true
 GCST90446775	GCST90446775	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.980229550306733	success	true
 GCST90446776	GCST90446776	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9802474033744794	success	true
 GCST90446777	GCST90446777	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9802635733279719	success	true
@@ -1280,17 +1212,17 @@ GCST90446788	GCST90446788	quantitative	orientation	orientation_failure	eaf_orien
 GCST90446789	GCST90446789	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9809445606614008	success	true
 GCST90446790	GCST90446790	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.980200310236884	success	true
 GCST90446791	GCST90446791	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9805708682507384	success	true
-GCST90448480	GCST90448480	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6602817942312714	success	true
-GCST90448481	GCST90448481	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6602594950986417	success	true
-GCST90448482	GCST90448482	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6602571738160956	success	true
-GCST90448483	GCST90448483	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.66025294484797	success	true
-GCST90448484	GCST90448484	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6602552661195862	success	true
-GCST90448485	GCST90448485	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6602759706055367	success	true
-GCST90448486	GCST90448486	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.660276696990041	success	true
-GCST90448487	GCST90448487	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.660276696990041	success	true
-GCST90448488	GCST90448488	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6602594950986417	success	true
-GCST90448489	GCST90448489	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6602810877463978	success	true
-GCST90448490	GCST90448490	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.554126363857749	success	true
+GCST90448480	GCST90448480	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6597491974811618	success	true
+GCST90448481	GCST90448481	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6597491974811618	success	true
+GCST90448482	GCST90448482	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6597491974811618	success	true
+GCST90448483	GCST90448483	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6597491974811618	success	true
+GCST90448484	GCST90448484	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6597491974811618	success	true
+GCST90448485	GCST90448485	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6597491974811618	success	true
+GCST90448486	GCST90448486	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6597491974811618	success	true
+GCST90448487	GCST90448487	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6597491974811618	success	true
+GCST90448488	GCST90448488	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6597491974811618	success	true
+GCST90448489	GCST90448489	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6597491974811618	success	true
+GCST90448490	GCST90448490	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.5548329531646282	success	true
 GCST90449045	GCST90449045	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90449046	GCST90449046	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90449047	GCST90449047	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -1299,8 +1231,6 @@ GCST90449049	GCST90449049	case-control	ancestry	ancestry_unassigned	gate_reason=
 GCST90449050	GCST90449050	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90449051	GCST90449051	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90449052	GCST90449052	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90454200	GCST90454200	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90454201	GCST90454201	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90454344	GCST90454344	case-control	metadata	missing_case_control_counts	n_cases=0 n_controls=91477	success	true
 GCST90454345	GCST90454345	case-control	metadata	missing_case_control_counts	n_cases=0 n_controls=91477	success	true
 GCST90454346	GCST90454346	case-control	metadata	missing_case_control_counts	n_cases=0 n_controls=91477	success	true
@@ -1336,9 +1266,9 @@ GCST90503313	GCST90503313	quantitative	ancestry	ancestry_unassigned	gate_reason=
 GCST90503314	GCST90503314	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90503315	GCST90503315	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90503316	GCST90503316	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
-GCST90551884	GCST90551884	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9789964120864073	success	true
-GCST90551885	GCST90551885	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.979010849594426	success	true
-GCST90551886	GCST90551886	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9789383650667114	success	true
+GCST90551884	GCST90551884	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9785867290700108	success	true
+GCST90551885	GCST90551885	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9785804997031987	success	true
+GCST90551886	GCST90551886	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9785265308944131	success	true
 GCST90558035	GCST90558035	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90558036	GCST90558036	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90558037	GCST90558037	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -1430,28 +1360,17 @@ GCST90559226	GCST90559226	quantitative	ancestry	ancestry_unassigned	gate_reason=
 GCST90559227	GCST90559227	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90565360	GCST90565360	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90565869	GCST90565869	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
-GCST90566392	GCST90566392	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6873125576476798	success	true
-GCST90566393	GCST90566393	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6866832652900563	success	true
+GCST90566392	GCST90566392	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6865671603282172	success	true
+GCST90566393	GCST90566393	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6860889775226438	success	true
 GCST90566696	GCST90566696	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90566697	GCST90566697	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90566699	GCST90566699	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
-GCST90566795	GCST90566795	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90566796	GCST90566796	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90566797	GCST90566797	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90566798	GCST90566798	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90566799	GCST90566799	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90566800	GCST90566800	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90566801	GCST90566801	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90566802	GCST90566802	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90566803	GCST90566803	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90566804	GCST90566804	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90566805	GCST90566805	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90570521	GCST90570521	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90570522	GCST90570522	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90570524	GCST90570524	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90570525	GCST90570525	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90570526	GCST90570526	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
-GCST90572755	GCST90572755	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6140274903553035	success	true
+GCST90572755	GCST90572755	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7158924086711678	success	true
 GCST90572789	GCST90572789	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90572790	GCST90572790	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90572791	GCST90572791	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
@@ -1470,21 +1389,20 @@ GCST90651074	GCST90651074	case-control	ancestry	ancestry_unassigned	gate_reason=
 GCST90651075	GCST90651075	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90651076	GCST90651076	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90651077	GCST90651077	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
-GCST90652244	GCST90652244	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6784414451129875	success	true
+GCST90652244	GCST90652244	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6781423836723466	success	true
 GCST90652505	GCST90652505	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90652529	GCST90652529	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90652530	GCST90652530	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90652531	GCST90652531	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90652532	GCST90652532	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
-GCST90652550	GCST90652550	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90652550	GCST90652550	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7710484, canonical_rows_retained=7710484)	success	true
 GCST90654630	GCST90654630	case-control	ancestry	ancestry_unassigned	gate_reason=margin	success	true
 GCST90671996	GCST90671996	quantitative	ancestry	ancestry_unassigned	gate_reason=proportion	success	true
 GCST90672045	GCST90672045	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9761138489204356	success	true
-GCST90707271	GCST90707271	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7990928263989932	success	true
-GCST90707272	GCST90707272	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7920038654724125	success	true
-GCST90707273	GCST90707273	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7930885071442779	success	true
-GCST90707274	GCST90707274	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7969720036676159	success	true
-GCST90726346	GCST90726346	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90707271	GCST90707271	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7989540559590528	success	true
+GCST90707272	GCST90707272	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7920584341344703	success	true
+GCST90707273	GCST90707273	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7930926356879094	success	true
+GCST90707274	GCST90707274	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7969024437209167	success	true
 GCST90726396	GCST90726396	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90726397	GCST90726397	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90726398	GCST90726398	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -1516,7 +1434,7 @@ GCST90797612	GCST90797612	quantitative	orientation	orientation_failure	eaf_orien
 GCST90797613	GCST90797613	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768060646408082	success	true
 GCST90809294	GCST90809294	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90809296	GCST90809296	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
-GCST90824163	GCST90824163	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9783262536811252	success	true
+GCST90824163	GCST90824163	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9781431974739067	success	true
 GCST90832109	GCST90832109	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9766232899767854	success	true
 GCST90832110	GCST90832110	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9642854516395474	success	true
 GCST90841074	GCST90841074	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6668718425845486	success	true
