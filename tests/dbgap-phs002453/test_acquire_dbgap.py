@@ -242,7 +242,7 @@ def build_fixture(root: Path, verified: bool = True, candidates: list[dict[str, 
     listing = [f"drwxrwsr-x huffmanj/med112 0 2023-08-22 11:32 {INNER}/\n"]
     for name, data in payload.items():
         listing.append(f"-rw-rw-r-- huffmanj/med112 {len(data)} 2023-08-22 11:27 {name}\n")
-    (meta_dir / f"phs002453.{TAR}.table_of_contents.txt").write_text("".join(listing), encoding="utf-8")
+    (meta_dir / f"{TAR}.table_of_contents.txt").write_text("".join(listing), encoding="utf-8")
     (meta_dir / "tars.txt").write_text(TAR + "\n", encoding="utf-8")
 
     digest = hashlib.md5(tar_path.read_bytes()).hexdigest()

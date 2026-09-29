@@ -297,9 +297,11 @@ def parse_tar_listing(path: Path) -> dict[str, tuple[str, int]]:
     """``member path -> (tar name, size)`` from one ``tar -tv`` table of contents.
 
     A TOC line is ``<mode> <owner> <size> <date> <time> <member>``; directories
-    are listed too and are skipped.
+    are listed too and are skipped.  The TOC is named ``<tar>.table_of_contents.txt``
+    (keeping the tar's own ``phs002453.`` prefix), so the tar name is the file
+    name with that suffix removed.
     """
-    tar_name = path.name[len("phs002453."):-len(".table_of_contents.txt")]
+    tar_name = path.name[: -len(".table_of_contents.txt")]
     members: dict[str, tuple[str, int]] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         parts = line.split()
