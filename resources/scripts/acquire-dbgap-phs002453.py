@@ -7,7 +7,8 @@ PMID 39024449 (Verma et al. 2024, VA Million Veteran Program) deposited its
 columns renamed and reordered and ``NA`` written ``#NA``; EBI was serving them
 at ~0.3 MB/s, dbGaP serves the same bytes at ~37 MB/s per stream.  This script
 reproduces EBI's conversion so every downstream consumer (inventory freeze,
-preflight, the GWAS-SSF reader) sees the same bytes it would have seen from EBI.
+preflight, the GWAS-SSF reader) sees the same bytes it would have seen from EBI,
+except for round positions EBI blanked (see ``position`` in the converter).
 
 Subcommands, in order:
 
@@ -141,10 +142,20 @@ function pyfloat(v,   x, p, s) {
     if (index(s, ".") == 0 && index(s, "e") == 0 && index(s, "E") == 0) s = s ".0"
     return s
 }
-# EBI int-parses base_pair_location and writes an empty cell, keeping the row,
-# when the value is not an integer -- 6 such rows exist in every Analysis of
-# this deposit (the source writes positions like "2.4e+07").
-function pyint(v) { return (v ~ /^[+-]?[0-9]+$/) ? sprintf("%d", v + 0) : "" }
+# The deposit writes 6 positions per Analysis in scientific notation
+# ("2.4e+07" for 24000000: R prints a round integer that way).  EBI's
+# converter int-parses the cell and leaves it empty, so the reader drops those
+# variants; here an exact integer is written as one, which is the only place the
+# mirror deliberately differs from EBI.  Anything else that is not an integer
+# still becomes an empty cell, as in EBI's file.
+function position(v,   x) {
+    if (v ~ /^[+-]?[0-9]+$/) return sprintf("%d", v + 0)
+    if (v ~ /^[0-9]+(\.[0-9]+)?[eE]\+?[0-9]+$/) {
+        x = v + 0
+        if (x == int(x)) return sprintf("%.0f", x)
+    }
+    return ""
+}
 BEGIN {
     FS = "\t"; OFS = "\t"
     # EBI writes the raw files with CRLF line endings (its converter is a CSV
@@ -219,7 +230,7 @@ FNR == 1 {
         }
         else if (i == 2) {
             pv = field(col["pos"])
-            v = (pv == "" || pv == "NA") ? "#NA" : pyint(pv)
+            v = (pv == "" || pv == "NA") ? "#NA" : position(pv)
         }
         else if (i == 9) {
             pv = field(col["pval"])

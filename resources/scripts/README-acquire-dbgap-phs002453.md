@@ -13,7 +13,8 @@ pass could not use.
 
 The output is a GWAS-SSF mirror with EBI's layout, so downstream consumers (the
 inventory freeze, preflight, the `opengwasdb.gwas-ssf` reader) see the same
-bytes they would have seen from EBI.
+bytes they would have seen from EBI, except for six round positions per
+Analysis that EBI blanked and the mirror keeps (see below).
 
 ## Inputs
 
@@ -99,21 +100,23 @@ An unrecognised source column, a missing required column, a row with more fields
 than the header, or an effect allele that is neither `ref` nor `alt` fails the
 file loudly (non-zero exit, no output file) instead of guessing.
 
-Two exceptions to "copied verbatim" are not in the source data but in EBI's own
-output, and are reproduced because the mirror's purpose is byte-identity with
-EBI (both established by comparing complete EBI raw files against the converted
-dbGaP member, see "Verification"):
+Two exceptions to "copied verbatim" come from comparing complete EBI raw files
+against the converted dbGaP member (see "Verification"):
 
-* **p_value goes through a float.** EBI's file has `1.0` where the deposit has
-  `1`, and `0.0006` where the deposit has `6e-04` — the shortest decimal that
-  round-trips, plus `.0` for an integer-valued float (518 + 5 rows per Analysis).
-  No other column is reformatted: `r2`, `odds_ratio`, `ci_upper`/`ci_lower`,
-  `n`, `num_cases`/`num_controls` and `chromosome` are copied through unchanged
-  even where they hold integer-like values.
-* **base_pair_location is int-parsed, and an unparsable position becomes an empty
-  cell** (the row is kept). Six rows per Analysis of this deposit write the
-  position in scientific notation (`2.4e+07`, `8e+06`, ...), and EBI's file has
-  an empty `base_pair_location` for exactly those six rows.
+* **p_value goes through a float, as in EBI's files.** EBI's file has `1.0` where
+  the deposit has `1`, and `0.0006` where the deposit has `6e-04` — the shortest
+  decimal that round-trips, plus `.0` for an integer-valued float (518 + 5 rows
+  per Analysis). This is reproduced. No other column is reformatted: `r2`,
+  `odds_ratio`, `ci_upper`/`ci_lower`, `n`, `num_cases`/`num_controls` and
+  `chromosome` are copied through unchanged even where they hold integer-like
+  values.
+* **Round positions written in scientific notation are written as integers.**
+  Six rows per Analysis give the position as `2.4e+07`, `8e+06`, ... (R prints
+  a round integer that way). EBI's converter leaves `base_pair_location` empty
+  for those rows, so the reader drops those variants; the mirror writes
+  `24000000`, `8000000`, ... instead. This is the only place the mirror
+  deliberately differs from EBI. A position that is not an integer at all still
+  gets an empty cell (the row is kept), as in EBI's file.
 
 EBI's raw files also use **CRLF line endings** (its converter is a CSV writer
 with the default terminator); the conversion writes CRLF for the same reason.
@@ -146,16 +149,19 @@ covers extraction, mapping (including the ambiguity and unmatched cases),
 golden row equality against EBI's published rows, the META shape without `r2`,
 unrecognised headers, idempotence/atomicity and the inventory freeze.
 
-The end-to-end check on real data is a byte-for-byte comparison with EBI:
+The end-to-end check on real data is a line-by-line comparison with EBI's raw
+file (on the decompressed streams; our gzip settings differ from EBI's):
 
 ```
-# decompressed bytes of EBI's raw file and of the converted dbGaP member must
-# be identical
-cmp <(gzip -dc <ebi>/GCST90476552.tsv.gz) <(gzip -dc <out>/gwas-ssf/GCST90476001-GCST90477000/GCST90476552/GCST90476552.tsv.gz)
+diff <(gzip -dc <ebi>/GCST90476552.tsv.gz) \
+     <(gzip -dc <out>/gwas-ssf/GCST90476001-GCST90477000/GCST90476552/GCST90476552.tsv.gz)
 ```
 
-EBI is slow (~0.1 MB/s per stream, ~2.5-3.5 MB/s with 24 range streams), so
-pick the smallest Analyses of a store for this check.  `cmp` on the decompressed
-streams (not on the `.gz` bytes: our gzip settings differ from EBI's) is the
-contract, and it holds for GCST90476552 and GCST90477848 — the two smallest EAS
-Analyses — at 780,225,806 and 1,067,744,778 bytes respectively.
+The only differences allowed are the recovered positions: rows where EBI's
+`base_pair_location` is empty and the mirror has the integer. For GCST90476552
+(EAS quantitative, 9,337,549 rows) and GCST90477848 (EAS binary, 9,337,844 rows),
+the two smallest EAS Analyses, exactly 6 lines differ in each file, all of them
+this kind (chr9:24000000, chr10:28000000, chr10:120000000, chr10:124000000,
+chr20:8000000, chr20:62000000); every other byte is identical. EBI is slow
+(~0.1 MB/s per stream, ~2.5-3.5 MB/s with 24 range streams), so pick the
+smallest Analyses of a store for this check.

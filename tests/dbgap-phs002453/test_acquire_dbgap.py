@@ -80,6 +80,8 @@ QUANT_ROWS = [
     "rs3000\t4\t2.4e+07\tG\tT\tT\t0.1\t338640\t0.05\t0.2\t1\t0.1\tNA\tNA\tNA",
     # p_value in scientific notation
     "rs3001\t5\t123\tA\tC\tC\t0.2\t338640\t0.1\t0.2\t6e-04\t0.1\tNA\tNA\tNA",
+    # a position in scientific notation that is not an integer
+    "rs3002\t6\t1.5e+00\tA\tC\tC\t0.2\t338640\t0.1\t0.2\t0.5\t0.1\tNA\tNA\tNA",
 ]
 QUANT_OUT_HEADER = (
     "chromosome\tbase_pair_location\teffect_allele\tother_allele\tbeta\tstandard_error\t"
@@ -407,10 +409,13 @@ class AcquisitionTest(unittest.TestCase):
                 "2\t456\tA\tT\t-0.5\t0.1\t0.25\t1e-09\trs999\tT\t338640\t0.2\t#NA\t#NA\t#NA",
                 # a row shorter than the header keeps its missing fields as #NA
                 "3\t789\tC\tA\t0\t0.1\t1\t0.5\trs1000\tC\t338640\t0.3\t#NA\t#NA\t#NA",
-                # a position EBI cannot int-parse gets an empty cell, the row stays
-                "4\t\tT\tG\t0.05\t0.2\t0.1\t1.0\trs3000\tT\t338640\t0.1\t#NA\t#NA\t#NA",
+                # a round position the source wrote as 2.4e+07 is written as the
+                # integer (EBI's own file has an empty cell here)
+                "4\t24000000\tT\tG\t0.05\t0.2\t0.1\t1.0\trs3000\tT\t338640\t0.1\t#NA\t#NA\t#NA",
                 # p_value is rendered through a float, as EBI's own files are
                 "5\t123\tC\tA\t0.1\t0.2\t0.2\t0.0006\trs3001\tC\t338640\t0.1\t#NA\t#NA\t#NA",
+                # a non-integer position gets an empty cell, the row stays
+                "6\t\tC\tA\t0.1\t0.2\t0.2\t0.5\trs3002\tC\t338640\t0.1\t#NA\t#NA\t#NA",
             ]) + "\r\n",
         )
 
