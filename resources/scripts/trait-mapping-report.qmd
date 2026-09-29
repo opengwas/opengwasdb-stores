@@ -71,7 +71,7 @@ sources can be joined on a shared trait. This report covers:
 - **Production (ukb-b, `r comma(nrow(ukb))` labels).**
   - `r bn("auto-accepted")` rows were auto-accepted; they resolve `r comma(sum(auto$analyses))` Analyses (PR #180).
   - `r comma(bn("review (uncertain pick)") + bn("review (uncertain abstention)"))` labels go to human review.
-  - `r comma(bn("no suitable term"))` labels are confidently unmappable, because EFO has no term for them (individual foods, keratometry, many questionnaire items).
+  - `r comma(bn("no suitable term"))` labels were confidently abstained: no candidate their shortlist offered denoted the trait. Many of them genuinely have no EFO term (individual foods, keratometry, many questionnaire items), but some are retrieval misses — a valid EFO term exists and was simply not shortlisted (e.g. the ICD-10 labels C61 prostate cancer, K59.0 constipation, and H00.1 chalazion), so they may become mappable once retrieval improves.
   - In a random sample of 60 auto-accepted rows, `r sum(ukb_adj$verdict == "matches the label")` match the label exactly. The other `r sum(ukb_adj$verdict != "matches the label")` use a broader term where EFO has nothing more specific. None is wrong.
 - **Cost.** Both rounds together cost **$`r sprintf("%.2f", summary_json$validation$cost_usd + summary_json$production$cost_usd)`**: `r comma(summary_json$validation$input_tokens + summary_json$production$input_tokens)` input tokens over `r comma(nrow(val) + nrow(ukb))` per-trait requests.
 
@@ -314,7 +314,13 @@ admin <- ukb |> filter(field == "Hospital administrative field")
 Clinical codes map well: ICD-10 diagnoses, self-reported illnesses and
 symptoms, and family history. Diet items ("beef intake", "dried fruit
 intake") and keratometry fields mostly have no EFO term, so abstention is the
-right answer for them. Medications are rarely auto-accepted: EFO has few
+right answer for them. But not every abstention is a missing term: the
+ICD-10-coded labels `diagnoses - main icd10: c61 malignant neoplasm of
+prostate`, `... k59.0 constipation`, and `... h00.1 chalazion` were abstained
+because no candidate was retrieved, even though EFO has terms for prostate
+cancer, constipation, and chalazion — their ICD-10 xrefs exist, but the
+label's full text did not shortlist them at retrieval time, so the chooser
+never saw them. Medications are rarely auto-accepted: EFO has few
 drug-exposure terms, so they go to review.
 
 ::: {.callout-warning}
@@ -360,7 +366,7 @@ datatable(ukb |> select(trait_label, field, analyses, selected_id, selected_labe
 - **Retrieval is the ceiling.** Recall@10 is `r pct(recall10)`. A larger shortlist would raise it: Jev accepts up to 254 options, and cost grows roughly linearly with shortlist size. Measure this before the next round.
 - **The Catalog is a silver standard.** Exact agreement understates precision. Some Catalog mappings are coarser than the label, and a few are simply wrong.
 - **Lower thresholds may be viable.** Agreement at confidence ≥ 0.7 is `r pct(grid$precision[grid$conf == 0.7])` against the Catalog, before adjudication. Adjudicating that band would show whether the threshold can drop and raise yield.
-- **The `none_suitable` rate is inherent to ukb-b.** Many labels have no EFO counterpart. Mapping them needs new EFO terms (an upstream request) or a non-EFO target, not a better chooser.
+- **The `none_suitable` list is not all missing terms.** It mixes labels EFO genuinely has no term for (individual foods, keratometry fields, hospital administrative fields) with retrieval misses — labels whose term exists in EFO but was not shortlisted, such as the ICD-10 codes C61 (prostate cancer), K59.0 (constipation), and H00.1 (chalazion); see the ukb-b section. Mapping the first group needs new EFO terms (an upstream request) or a non-EFO target; the second group may map once #185 lands, so a better chooser is not ruled out.
 
 ## Reproducing
 
