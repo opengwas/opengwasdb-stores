@@ -36,6 +36,7 @@ SUITES: list[tuple[str, str, list[str]]] = [
     ("curation/promotion", "python", ["tests/curation/test_promotion.py"]),
     ("curation/jev-chooser", "python", ["tests/curation/test_jev_chooser.py"]),
     ("curation/validate-chooser", "python", ["tests/curation/test_validate_chooser.py"]),
+    ("curation/ontology", "python", ["tests/curation/test_ontology.py"]),
     ("curation/e2e-pipeline", "python", ["tests/curation/test_e2e_pipeline.py"]),
     ("curation/ukb", "python", ["tests/curation/test_ukb.py"]),
     ("curation/coverage", "python", ["tests/curation/test_coverage.py"]),

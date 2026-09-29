@@ -147,8 +147,8 @@ CHANNEL_ORDER: tuple[str, ...] = (
 
 #: The default shortlist size (issue #185). 100 candidates comfortably fit the
 #: chooser's 60k-token / 1 MiB input budget with 200-character definitions (see
-#: ``tests/curation/test_jev_chooser.py``), and the larger surface measurably
-#: raised recall of the two-thousand-label ukb-b queue.
+#: ``tests/curation/test_jev_chooser.py``), and the larger surface offers the
+#: chooser the correct term more often than the old default of 10.
 DEFAULT_SHORTLIST_SIZE: int = 100
 
 # Reciprocal Rank Fusion constant. 60 is the value from the original RRF work

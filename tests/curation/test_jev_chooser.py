@@ -232,6 +232,7 @@ class TestConfigurationLimits(unittest.TestCase):
         self.assertTrue(
             all(len(option.criteria_text()) >= 200 for option in request.options)
         )
+
     def test_max_options_cannot_exceed_candidate_cap(self) -> None:
         with self.assertRaises(JevConfigurationError):
             JevChooser(self.client, max_options=255)
