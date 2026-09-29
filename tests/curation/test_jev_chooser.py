@@ -42,6 +42,8 @@ from curation.jev_chooser import (
     DEFAULT_JEV_CONTEXT,
     DEFAULT_JEV_ENDPOINT,
     DEFAULT_JEV_MODEL,
+    DEFAULT_MAX_INPUT_BYTES,
+    DEFAULT_MAX_INPUT_TOKENS,
     DEFAULT_PRICE_PER_MTOK_INPUT,
     MAX_JEV_CANDIDATES,
     MAX_JEV_OPTIONS,
@@ -207,6 +209,29 @@ class TestConfigurationLimits(unittest.TestCase):
         self.assertEqual(len(request.response_option_ids), 255)
         self.assertIn(NONE_SUITABLE, request.payload["questions"]["term"]["criteria"])
 
+    def test_default_shortlist_size_stays_within_the_budgets(self) -> None:
+        # The default shortlist size is 100 (issue #185). 100 candidates with
+        # full 200-character definitions -- the shape Jev actually sees -- must
+        # fit both the byte and the token budget at the module defaults.
+        from curation.candidates import DEFAULT_SHORTLIST_SIZE
+
+        self.assertEqual(DEFAULT_SHORTLIST_SIZE, 100)
+        candidates = [
+            make_candidate(
+                f"EFO:{index:07d}",
+                ontology_label=f"trait {index:02d}",
+                definition="d" * 200,
+            )
+            for index in range(DEFAULT_SHORTLIST_SIZE)
+        ]
+        request = self.chooser.configure("waist circumference", candidates)
+        self.assertEqual(len(request.options), DEFAULT_SHORTLIST_SIZE)
+        self.assertLessEqual(request.payload_bytes, DEFAULT_MAX_INPUT_BYTES)
+        self.assertLessEqual(request.estimated_input_tokens, DEFAULT_MAX_INPUT_TOKENS)
+        # Every option's criteria text carries the full definition block.
+        self.assertTrue(
+            all(len(option.criteria_text()) >= 200 for option in request.options)
+        )
     def test_max_options_cannot_exceed_candidate_cap(self) -> None:
         with self.assertRaises(JevConfigurationError):
             JevChooser(self.client, max_options=255)

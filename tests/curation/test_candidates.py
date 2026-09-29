@@ -12,8 +12,12 @@ The suite is hermetic: it resolves against a tiny fixture ontology parsed from
 an in-memory OBO document, never a real release.
 
 Verifies:
-- exact, normalised, token-overlap, and synonym/acronym channels each contribute
-  candidates;
+- exact, icd10, normalised, token-overlap, and synonym/acronym channels each
+  contribute candidates;
+- the icd10 channel retrieves by exact code and by three-character chapter
+  prefix, never by an obsolete term's code, and is recorded in provenance;
+- the candidate-space restriction drops cell-line/cell-type lineage terms and
+  banned prefixes while keeping a normal phenotype, after obsolete folding;
 - a candidate records which channels found it and each channel's rank;
 - a candidate carries the term's label, definition, and parent term;
 - the pinned ontology release travels on every shortlist row;
@@ -45,6 +49,7 @@ if str(REPO_ROOT) not in sys.path:
 from curation import candidates, ontology
 from curation.candidates import (
     CHANNEL_EXACT,
+    CHANNEL_ICD10,
     CHANNEL_NORMALISED,
     CHANNEL_SYNONYM,
     CHANNEL_TOKEN_OVERLAP,
@@ -53,6 +58,7 @@ from curation.candidates import (
     format_shortlist_tsv,
     generate_shortlist,
     generate_shortlists,
+    icd10_channel,
     normalise_label,
     normalised_channel,
     read_work_queue,
@@ -80,7 +86,11 @@ from curation.ontology import (
 #   EFO:0004324 -- a lowercase label that matches a lowercase queue label exactly;
 #   EFO:0004518 -- token overlap with no exact/normalised/synonym match;
 #   EFO:100000x -- enough "measurement" terms to overflow a shortlist;
-#   EFO:9999001 -- an obsolete term.
+#   EFO:9999001 -- an obsolete term;
+#   EFO:0004350..4354 -- ICD-10 xrefs (exact code, chapter-level code,
+#       obsolete-with-code), for the icd10 channel equivalence tests;
+#   EFO:1002000..1002005, BTO:0000001 -- cell-line/cell-type terms the
+#       candidate-space restriction must drop, and a kept phenotype.
 FIXTURE_OBO = """
 format-version: 1.2
 ontology: efo
@@ -139,6 +149,64 @@ id: EFO:9999001
 name: legacy obsolete trait
 is_obsolete: true
 replaced_by: EFO:0004340
+
+[Term]
+id: EFO:0004350
+name: non-insulin-dependent diabetes mellitus
+xref: ICD10:E11
+
+[Term]
+id: EFO:0004351
+name: malignant neoplasm of rectum
+xref: ICD10CM:C20
+
+[Term]
+id: EFO:0004352
+name: malignant neoplasm of bronchus and lung
+xref: ICD10WHO:C34
+
+[Term]
+id: EFO:0004353
+name: viral infection, unspecified
+xref: ICD10:B34.9
+is_obsolete: true
+replaced_by: EFO:0004354
+
+[Term]
+id: EFO:0004354
+name: viral infection
+
+[Term]
+id: EFO:1002000
+name: cell line
+
+[Term]
+id: EFO:1002001
+name: HeLa cell line
+is_a: EFO:1002000 ! cell line
+
+[Term]
+id: EFO:1002002
+name: cell type
+
+[Term]
+id: EFO:1002003
+name: pancreatic islet cell
+is_a: EFO:1002002 ! cell type
+
+[Term]
+id: EFO:1002004
+name: type 2 diabetes mellitus
+
+[Term]
+id: EFO:1002005
+name: antique cell suspension
+is_obsolete: true
+replaced_by: EFO:1002000
+
+[Term]
+id: BTO:0000001
+name: breast cancer cell line share
 """
 
 
@@ -204,8 +272,164 @@ class TestChannels(unittest.TestCase):
         self.assertEqual(channels[CHANNEL_SYNONYM], ["EFO:0004340"])
         # The channels are independent keys, even when only some fire.
         self.assertIn(CHANNEL_EXACT, channels)
+        self.assertIn(CHANNEL_ICD10, channels)
         self.assertIn(CHANNEL_NORMALISED, channels)
         self.assertIn(CHANNEL_TOKEN_OVERLAP, channels)
+
+
+class TestIcd10Channel(unittest.TestCase):
+    """The ICD-10 cross-reference channel (issue #185)."""
+
+    def setUp(self) -> None:
+        self.index = fixture_index()
+
+    def test_exact_code_finds_the_term(self) -> None:
+        self.assertEqual(
+            icd10_channel(
+                "diagnoses - main icd10: c20 malignant neoplasm of rectum",
+                self.index,
+            ),
+            ["EFO:0004351"],
+        )
+
+    def test_three_character_prefix_fallback(self) -> None:
+        # The index has only the C34 chapter code; the label's C34.9 key
+        # falls back to its three-character prefix.
+        self.assertEqual(
+            icd10_channel(
+                "type of cancer: icd10: c34.9 upper lobe, bronchus or lung",
+                self.index,
+            ),
+            ["EFO:0004352"],
+        )
+
+    def test_obsolete_term_is_never_retrieved_by_its_code(self) -> None:
+        # EFO:0004353 carries ICD10:B34.9 but is obsolete; its live successor
+        # carries no xref, so the code retrieves nothing.
+        self.assertEqual(
+            icd10_channel(
+                "diagnoses - secondary icd10: b34.9 viral infection, unspecified",
+                self.index,
+            ),
+            [],
+        )
+
+    def test_label_without_a_code_contributes_nothing(self) -> None:
+        self.assertEqual(icd10_channel("Body mass index", self.index), [])
+        # An opcs-coded label is not an ICD-10 label.
+        self.assertEqual(
+            icd10_channel(
+                "operative procedures - main opcs: a52.1 therapeutic lumbar epidural injection",
+                self.index,
+            ),
+            [],
+        )
+
+    def test_channel_is_recorded_in_provenance(self) -> None:
+        shortlist = generate_shortlist(
+            "diagnoses - main icd10: c20 malignant neoplasm of rectum",
+            self.index,
+            shortlist_size=10,
+        )
+        self.assertTrue(shortlist)
+        top = shortlist[0]
+        self.assertEqual(top.ontology_id, "EFO:0004351")
+        self.assertIn(CHANNEL_ICD10, top.channels)
+        self.assertEqual(dict(top.channel_ranks)[CHANNEL_ICD10], 1)
+
+
+class TestCandidateSpaceRestriction(unittest.TestCase):
+    """Phenotype-only candidate spaces (issue #185)."""
+
+    def setUp(self) -> None:
+        self.index = fixture_index()
+        self.by_id = self.index.by_id()
+
+    def test_marker_term_itself_is_excluded(self) -> None:
+        self.assertTrue(
+            candidates._term_is_excluded("EFO:1002000", self.by_id)
+        )
+        self.assertTrue(
+            candidates._term_is_excluded("EFO:1002002", self.by_id)
+        )
+
+    def test_marker_lineage_is_excluded(self) -> None:
+        # "HeLa cell line" is not a marker but its lineage passes through
+        # "cell line"; "pancreatic islet cell" passes through "cell type".
+        self.assertTrue(
+            candidates._term_is_excluded("EFO:1002001", self.by_id)
+        )
+        self.assertTrue(
+            candidates._term_is_excluded("EFO:1002003", self.by_id)
+        )
+
+    def test_banned_prefix_is_excluded(self) -> None:
+        self.assertTrue(
+            candidates._term_is_excluded("BTO:0000001", self.by_id)
+        )
+
+    def test_normal_phenotype_is_kept(self) -> None:
+        self.assertFalse(
+            candidates._term_is_excluded("EFO:1002004", self.by_id)
+        )
+
+    def test_predicate_is_configurable(self) -> None:
+        # Turning a list off is observable on the same term, so the pins are
+        # parameters, not baked-in behaviour.
+        self.assertFalse(
+            candidates._term_is_excluded(
+                "BTO:0000001", self.by_id, excluded_prefixes=frozenset()
+            )
+        )
+        self.assertFalse(
+            candidates._term_is_excluded(
+                "EFO:1002000", self.by_id, lineage_markers=frozenset()
+            )
+        )
+
+    def test_excluded_ids_are_countable(self) -> None:
+        ranks = {
+            "EFO:1002001": {"exact": 1},
+            "EFO:1002004": {"exact": 1},
+            "BTO:0000001": {"exact": 1},
+        }
+        excluded = candidates._excluded_candidate_ids(ranks, self.by_id)
+        self.assertEqual(excluded, frozenset({"EFO:1002001", "BTO:0000001"}))
+
+    def test_shortlist_drops_excluded_terms(self) -> None:
+        # The only lexical matches for these labels are excluded terms.
+        self.assertEqual(
+            generate_shortlist("HeLa cell line", self.index, shortlist_size=10),
+            [],
+        )
+        self.assertEqual(
+            generate_shortlist(
+                "breast cancer cell line share", self.index, shortlist_size=10
+            ),
+            [],
+        )
+
+    def test_shortlist_keeps_normal_phenotype(self) -> None:
+        shortlist = generate_shortlist(
+            "type 2 diabetes mellitus", self.index, shortlist_size=10
+        )
+        self.assertTrue(shortlist)
+        self.assertEqual(shortlist[0].ontology_id, "EFO:1002004")
+        self.assertFalse(
+            any(
+                candidates._term_is_excluded(c.ontology_id, self.by_id)
+                for c in shortlist
+            )
+        )
+
+    def test_exclusion_applies_after_obsolete_folding(self) -> None:
+        # The only match for the label is the obsolete "antique cell
+        # suspension", which folds to the live "cell line" successor; the
+        # restriction must drop the folded successor, not the obsolete id.
+        self.assertEqual(
+            generate_shortlist("antique cell suspension", self.index, shortlist_size=10),
+            [],
+        )
 
 
 class TestLexicalChannelEquivalence(unittest.TestCase):
@@ -218,6 +442,7 @@ class TestLexicalChannelEquivalence(unittest.TestCase):
 
     CHANNEL_PAIRS = (
         ("exact", exact_channel, candidates._brute_exact_channel),
+        ("icd10", icd10_channel, candidates._brute_icd10_channel),
         ("normalised", normalised_channel, candidates._brute_normalised_channel),
         ("token_overlap", token_overlap_channel, candidates._brute_token_overlap_channel),
         ("synonym", synonym_channel, candidates._brute_synonym_channel),
@@ -237,6 +462,10 @@ class TestLexicalChannelEquivalence(unittest.TestCase):
                 "measurement",
                 "height measurement",
                 "legacy obsolete trait",
+                "diagnoses - main icd10: c20 malignant neoplasm of rectum",
+                "diagnoses - secondary icd10: b34.9 viral infection, unspecified",
+                "type of cancer: icd10: c34.9 upper lobe, bronchus or lung",
+                "operative procedures - main opcs: a52.1 therapeutic lumbar epidural injection",
                 "",
                 "   ",
                 "!!!",

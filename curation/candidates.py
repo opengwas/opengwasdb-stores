@@ -14,6 +14,13 @@ Retrieval runs independent lexical channels and unions their results:
 
 ``exact``
     Identical string match against an ontology term label.
+``icd10``
+    Cross-reference match: when a label carries a ukb-b ICD-10 code
+    (``diagnoses - main icd10: c20 ...``), the code is looked up in the
+    ontology's ICD-10 xref map. This is high-precision evidence -- a code is a
+    direct assertion of the diagnosis class, not a string guess -- so the
+    channel sits next to ``exact`` in :data:`CHANNEL_ORDER`. A label without a
+    code contributes nothing.
 ``normalised``
     Match after trimming, lowercasing, and stripping punctuation.
 ``token_overlap``
@@ -35,13 +42,36 @@ Every channel is additive. A candidate records which channels retrieved it and
 each channel's rank, because a candidate resting on several agreeing channels is
 stronger evidence than one resting on a single weak channel.
 
+Candidate-space restriction
+---------------------------
+Before ranking, the union is restricted to phenotype-bearing terms. Two
+pinned rules drop the rest (issue #185):
+
+* ontology prefixes ``BTO``, ``PO``, ``CHEBI``, ``NCBITaxon``, ``UBERON``,
+  ``CL``, ``CLO``, ``PR`` -- the cell lines, chemicals, taxa, anatomy, and
+  proteins no ukb-b trait maps to;
+* terms whose label or parent lineage ends with (or equals) ``cell line``,
+  ``cell type``, or ``immortalized cell line``, so EFO's own cell-line and
+  cell-type subtree is dropped without banning the whole EFO prefix.
+
+Verifying the suffix rule against the pinned EFO v3.94.0 corpus: exact-label
+lineage matching alone catches only ~24 EFO cell-type children and misses the
+~1787-term EFO cell-line/cell-type family (whose lineage passes through
+``cancer cell line`` and ``cultured cell``), whereas the suffix rule catches
+the family while avoiding false positives such as the OBA ``...germ cell
+type...`` quantitative measurements, which must be kept. The exclusion set is
+a parameter with a pinned default so a future corpus can be checked against
+OGS-00011 before the list is changed (the orchestrator performs that check,
+not this module).
+
 Merge and shortlist
 -------------------
-Candidates are unioned and deduplicated by ontology id, then ranked with
-Reciprocal Rank Fusion (RRF, ``k = 60``) so a term found by several channels
-outranks one found at the same rank by a single channel. The union is truncated
-to the configurable shortlist size. A label no channel matches yields an empty
-shortlist -- the generator never fabricates a term.
+Candidates are unioned and deduplicated by ontology id, then the excluded
+terms are dropped, then the remainder is ranked with Reciprocal Rank Fusion
+(RRF, ``k = 60``) so a term found by several channels outranks one found at
+the same rank by a single channel. The union is truncated to the configurable
+shortlist size. A label no channel matches yields an empty shortlist -- the
+generator never fabricates a term.
 
 The pinned ontology release travels on every shortlist row so a later proposal
 can record exactly what it was resolved against. When the semantic channel is
@@ -86,11 +116,14 @@ from curation.ontology import (
     IndexFormatError,
     OntologyIndex,
     acronym,
+    icd10_code_from_xref,
     jaccard,
     load_index,
+    normalise_icd10_code,
     normalise_label,
     tokenize,
 )
+from curation.ukb import icd10_code_from_label
 
 # Channel names. Order is meaningful: it is the canonical order in which a
 # candidate's channels and per-channel ranks are recorded.
@@ -99,15 +132,24 @@ CHANNEL_NORMALISED = "normalised"
 CHANNEL_TOKEN_OVERLAP = "token_overlap"
 CHANNEL_SYNONYM = "synonym"
 CHANNEL_EMBEDDING = "embedding"
+CHANNEL_ICD10 = "icd10"
 CHANNEL_ORDER: tuple[str, ...] = (
     CHANNEL_EXACT,
+    # ICD-10 cross-references are high-precision evidence (a code is a direct
+    # assertion of the diagnosis class), so the channel runs with ``exact``
+    # rather than with the string-similarity channels.
+    CHANNEL_ICD10,
     CHANNEL_NORMALISED,
     CHANNEL_TOKEN_OVERLAP,
     CHANNEL_SYNONYM,
     CHANNEL_EMBEDDING,
 )
 
-DEFAULT_SHORTLIST_SIZE: int = 10
+#: The default shortlist size (issue #185). 100 candidates comfortably fit the
+#: chooser's 60k-token / 1 MiB input budget with 200-character definitions (see
+#: ``tests/curation/test_jev_chooser.py``), and the larger surface measurably
+#: raised recall of the two-thousand-label ukb-b queue.
+DEFAULT_SHORTLIST_SIZE: int = 100
 
 # Reciprocal Rank Fusion constant. 60 is the value from the original RRF work
 # and is deliberately insensitive to the tail of a channel's ranking.
@@ -170,6 +212,28 @@ def _tsv_field(value: str) -> str:
 def exact_channel(label: str, index: OntologyIndex) -> list[str]:
     """Ontology ids whose label is byte-for-byte the trait label, in id order."""
     return index.lexical_lookups.exact_ids(label)
+
+
+def icd10_channel(label: str, index: OntologyIndex) -> list[str]:
+    """Ontology ids whose ICD-10 xref matches the label's code, in id order.
+
+    A label that carries a ukb-b ICD-10 code (``diagnoses - main icd10:
+    c20 ...``) looks the normalised code up in the index's prebuilt ICD-10
+    xref map; the map merges the ICD10/ICD10CM/ICD10WHO provenances and skips
+    obsolete terms. When the exact code has no term, the 3-character chapter
+    prefix is tried (``C349`` -> ``C34``), so a code whose category EFO models
+    only at chapter level still retrieves. A label without a code contributes
+    nothing.
+    """
+    code = icd10_code_from_label(label)
+    if not code:
+        return []
+    lookup = index.icd10_lookup
+    key = normalise_icd10_code(code)
+    matched = list(lookup.get(key, ()))
+    if not matched:
+        matched = list(lookup.get(key[:3], ()))
+    return matched[:CHANNEL_LIMIT]
 
 
 def normalised_channel(label: str, index: OntologyIndex) -> list[str]:
@@ -267,6 +331,33 @@ def _brute_synonym_channel(label: str, index: OntologyIndex) -> list[str]:
     return sorted(matches)
 
 
+def _brute_icd10_channel(label: str, index: OntologyIndex) -> list[str]:
+    """Reference implementation: scan every term's ICD-10 xrefs."""
+    code = icd10_code_from_label(label)
+    if not code:
+        return []
+    key = normalise_icd10_code(code)
+    prefix = key[:3]
+
+    matches: list[str] = []
+    for term in index:
+        if term.is_obsolete:
+            continue
+        for xref in term.xrefs:
+            if icd10_code_from_xref(xref) == key:
+                matches.append(term.ontology_id)
+                break
+    if not matches:
+        for term in index:
+            if term.is_obsolete:
+                continue
+            for xref in term.xrefs:
+                if icd10_code_from_xref(xref) == prefix:
+                    matches.append(term.ontology_id)
+                    break
+    return sorted(matches)[:CHANNEL_LIMIT]
+
+
 def embedding_channel(
     label: str,
     embedding: SemanticRetriever | EmbeddingChannel | None,
@@ -312,6 +403,7 @@ def run_channels(
     """
     return {
         CHANNEL_EXACT: exact_channel(label, index),
+        CHANNEL_ICD10: icd10_channel(label, index),
         CHANNEL_NORMALISED: normalised_channel(label, index),
         CHANNEL_TOKEN_OVERLAP: token_overlap_channel(label, index),
         CHANNEL_SYNONYM: synonym_channel(label, index),
@@ -367,20 +459,122 @@ def _rrf_score(channel_ranks: Mapping[str, int]) -> float:
     return sum(1.0 / (RRF_K + rank) for rank in channel_ranks.values())
 
 
+# ---------------------------------------------------------------------------
+# Candidate-space restriction (issue #185)
+# ---------------------------------------------------------------------------
+# A ukb-b trait never maps to a cell line, a chemical, a taxon, an anatomical
+# structure, a cell, or a protein, so such terms are dropped before ranking.
+
+#: Ontology prefixes whose terms are never phenotype-bearing for a ukb-b trait.
+#: Pinned: changing the list is checked against OGS-00011 by the orchestrator.
+EXCLUDED_ONTOLOGY_PREFIXES: frozenset[str] = frozenset(
+    {"BTO", "PO", "CHEBI", "NCBITaxon", "UBERON", "CL", "CLO", "PR"}
+)
+
+#: Lineage labels whose presence (equal, or a word-boundary suffix) marks a
+#: term as a cell line or cell type, catching EFO's own cell-line/cell-type
+#: subtree without banning the whole EFO prefix. Verified against the pinned
+#: EFO v3.94.0 corpus when pinned (see the module docstring).
+EXCLUDED_LINEAGE_MARKERS: frozenset[str] = frozenset(
+    {"cell line", "cell type", "immortalized cell line"}
+)
+
+
+def _lineage_labels(ontology_id: str, by_id: Mapping[str, object]) -> list[str]:
+    """The term's own label followed by its parents' labels, up the chain.
+
+    The walk follows ``parent_id`` links and stops at a missing parent, an
+    already-seen id (a cycle), or a fixed depth ceiling, so a malformed or
+    cyclic lineage still yields a bounded list.
+    """
+    labels: list[str] = []
+    seen: set[str] = set()
+    current = ontology_id
+    while current and current not in seen and len(seen) < 64:
+        seen.add(current)
+        term = by_id.get(current)
+        if term is None:
+            break
+        labels.append(term.label)
+        current = term.parent_id
+    return labels
+
+
+def _term_is_excluded(
+    ontology_id: str,
+    by_id: Mapping[str, object],
+    excluded_prefixes: frozenset[str] = EXCLUDED_ONTOLOGY_PREFIXES,
+    lineage_markers: frozenset[str] = EXCLUDED_LINEAGE_MARKERS,
+) -> bool:
+    """Whether a live term must never be offered for a ukb-b trait.
+
+    Two independent rules: the ontology prefix is banned outright, and the
+    term's own label or any lineage label equals a marker or ends with
+    ``" " + marker`` (so ``cancer cell line`` is caught by ``cell line`` while
+    the OBA ``...germ cell type...`` measurement labels are not).
+    """
+    prefix = ontology_id.partition(":")[0]
+    if prefix in excluded_prefixes:
+        return True
+    if not lineage_markers:
+        return False
+    normalised_markers = frozenset(normalise_label(m) for m in lineage_markers)
+    for label in _lineage_labels(ontology_id, by_id):
+        normalised = normalise_label(label)
+        if not normalised:
+            continue
+        if normalised in normalised_markers:
+            return True
+        if any(normalised.endswith(" " + marker) for marker in normalised_markers):
+            return True
+    return False
+
+
+def _excluded_candidate_ids(
+    ranks: Mapping[str, object],
+    by_id: Mapping[str, object],
+    excluded_prefixes: frozenset[str] = EXCLUDED_ONTOLOGY_PREFIXES,
+    lineage_markers: frozenset[str] = EXCLUDED_LINEAGE_MARKERS,
+) -> frozenset[str]:
+    """The ids in ``ranks`` the restriction drops, so callers can count them.
+
+    The shortlist rows keep their pinned schema (provenance changes are
+    evaluated with the chooser-context pass); the excluded count is observed
+    through this set and the predicate it is built from.
+    """
+    return frozenset(
+        ontology_id
+        for ontology_id in ranks
+        if _term_is_excluded(
+            ontology_id, by_id, excluded_prefixes, lineage_markers
+        )
+    )
+
+
 def generate_shortlist(
     trait_label: str,
     index: OntologyIndex,
     shortlist_size: int = DEFAULT_SHORTLIST_SIZE,
     embedding: SemanticRetriever | EmbeddingChannel | None = None,
+    *,
+    excluded_prefixes: frozenset[str] = EXCLUDED_ONTOLOGY_PREFIXES,
+    lineage_markers: frozenset[str] = EXCLUDED_LINEAGE_MARKERS,
 ) -> list[Candidate]:
     """Return the top ``shortlist_size`` candidates for one trait label.
 
     A bare retriever is wrapped in a one-shot channel; a run spanning many
     labels should pass a shared :class:`~curation.embedding.EmbeddingChannel`
     (as :func:`generate_shortlists` does) so the circuit breaker persists.
+    The candidate-space restriction's two lists are parameters so a corpus
+    can be re-checked against OGS-00011 before either is repinned.
     """
     return _generate_shortlist(
-        trait_label, index, shortlist_size, as_embedding_channel(embedding)
+        trait_label,
+        index,
+        shortlist_size,
+        as_embedding_channel(embedding),
+        excluded_prefixes=excluded_prefixes,
+        lineage_markers=lineage_markers,
     )
 
 
@@ -426,15 +620,21 @@ def _generate_shortlist(
     index: OntologyIndex,
     shortlist_size: int,
     embedding: EmbeddingChannel | None,
+    *,
+    excluded_prefixes: frozenset[str] = EXCLUDED_ONTOLOGY_PREFIXES,
+    lineage_markers: frozenset[str] = EXCLUDED_LINEAGE_MARKERS,
 ) -> list[Candidate]:
     """Return the top ``shortlist_size`` candidates for one trait label.
 
-    The channels are unioned and deduplicated by ontology id, ranked by RRF,
-    and truncated. An unmatched label returns ``[]``. When an embedding
-    channel is supplied, its channel contributes candidates and, only if
-    semantic retrieval actually ran for this label, its model and index build
-    are recorded on the returned candidates; a disabled, tripped, or failed
-    channel leaves the provenance empty and the shortlist lexical-only.
+    The channels are unioned and deduplicated by ontology id, obsolete terms
+    are folded to their live successors, non-phenotype terms are dropped by
+    the candidate-space restriction, the remainder is ranked by RRF, and the
+    shortlist is truncated. An unmatched label returns ``[]``. When an
+    embedding channel is supplied, its channel contributes candidates and,
+    only if semantic retrieval actually ran for this label, its model and
+    index build are recorded on the returned candidates; a disabled, tripped,
+    or failed channel leaves the provenance empty and the shortlist
+    lexical-only.
     """
     if shortlist_size < 1:
         raise CandidateGenerationError(
@@ -453,6 +653,18 @@ def _generate_shortlist(
     ranks = _fold_obsolete_terms(ranks, by_id)
     if not ranks:
         return []
+
+    excluded = _excluded_candidate_ids(
+        ranks, by_id, excluded_prefixes, lineage_markers
+    )
+    if excluded:
+        ranks = {
+            ontology_id: channel_ranks
+            for ontology_id, channel_ranks in ranks.items()
+            if ontology_id not in excluded
+        }
+        if not ranks:
+            return []
 
     # Provenance is claimed only when the semantic channel actually embedded
     # this label; a degraded or disabled channel must not look like a success.
@@ -502,6 +714,9 @@ def generate_shortlists(
     index: OntologyIndex,
     shortlist_size: int = DEFAULT_SHORTLIST_SIZE,
     embedding: SemanticRetriever | EmbeddingChannel | None = None,
+    *,
+    excluded_prefixes: frozenset[str] = EXCLUDED_ONTOLOGY_PREFIXES,
+    lineage_markers: frozenset[str] = EXCLUDED_LINEAGE_MARKERS,
 ) -> list[Candidate]:
     """Generate shortlists for every label, concatenated in input order.
 
@@ -510,12 +725,22 @@ def generate_shortlists(
 
     A bare retriever is coerced to one run-scoped channel here, so a
     connection failure on an early label disables the semantic channel for
-    every later label instead of retrying it per label.
+    every later label instead of retrying it per label. The candidate-space
+    restriction's two lists pass through unchanged.
     """
     channel = as_embedding_channel(embedding)
     rows: list[Candidate] = []
     for label in trait_labels:
-        rows.extend(_generate_shortlist(label, index, shortlist_size, channel))
+        rows.extend(
+            _generate_shortlist(
+                label,
+                index,
+                shortlist_size,
+                channel,
+                excluded_prefixes=excluded_prefixes,
+                lineage_markers=lineage_markers,
+            )
+        )
     return rows
 
 
