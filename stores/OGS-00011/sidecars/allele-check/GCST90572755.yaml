@@ -1,0 +1,67 @@
+analysis_id: GCST90572755
+trait: Response to COVID-19 vaccine (immunogenicity)
+trait_ontology_id: http://www.ebi.ac.uk/efo/EFO_0803358, http://www.ebi.ac.uk/efo/EFO_0803362
+publication_pmid: '41249154'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90572001-GCST90573000/GCST90572755/harmonised/GCST90572755.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.614027
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90305767
+  trait: Response to BNT162b2 vaccine (anti-SARS-CoV-2 Spike antibody levels after second dose)
+  publication_pmid: '38575714'
+  match_type: ontology
+  trait_similarity: 0.5
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90305001-GCST90306000/GCST90305767/harmonised/GCST90305767.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 7
+  effect_measure: beta_vs_beta
+  pearson_r: -0.47158
+  spearman_r: -0.678571
+  verdict: inconclusive
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90448693
+  trait: Seroconversion induced by one dose of COVID-19 vaccine
+  publication_pmid: '39384777'
+  match_type: ontology
+  trait_similarity: 0.2857
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90448001-GCST90449000/GCST90448693/harmonised/GCST90448693.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 15
+  effect_measure: beta_vs_beta
+  pearson_r: -0.346311
+  spearman_r: -0.185714
+  verdict: inconclusive
+- source_bundle: OGS-00011
+  analysis_id: GCST90448694
+  trait: Seroconversion induced by two doses of COVID-19 vaccine
+  publication_pmid: '39384777'
+  match_type: ontology
+  trait_similarity: 0.2857
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90448001-GCST90449000/GCST90448694/harmonised/GCST90448694.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 16
+  effect_measure: beta_vs_beta
+  pearson_r: 0.027891
+  spearman_r: 0.120588
+  verdict: inconclusive
+check:
+  n_comparisons: 3
+  verdict_tally:
+    inconclusive: 3
+  n_variants_checked: 100
+  n_variants_overlapping: 7
+  effect_measure: beta_vs_beta
+  pearson_r: -0.47158
+  spearman_r: -0.678571
+  verdict: inconclusive
+recommendation: inconclusive
+notes: '3 comparison analyses evaluated; verdicts {''inconclusive'': 3}; no comparison resolved a direction (overlapping
+  variants: 7, 15, 16; 20 needed)'
+measured_at: '2026-09-23T09:05:21Z'

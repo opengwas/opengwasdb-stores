@@ -1,0 +1,36 @@
+status: passed_with_warnings
+validated_at: '2026-09-22T21:03:39Z'
+validator:
+  name: resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py
+  version: null
+build_environment:
+  opengwasdb_version: 0.3.0
+  opengwasdb_commit: d0b34c94cec2d40dfca3558a1d1bba9833e36e57
+observed:
+  format_version: null
+  n_analyses: null
+  n_variants: null
+  n_associations: null
+  store_bytes: null
+  build_elapsed_s: null
+  validate_status: null
+checks:
+  schema: passed
+  files: passed
+  ancestry: passed_with_warnings
+  effect_scale: passed_with_warnings
+  sd_estimation: passed_with_warnings
+reports:
+  source_readiness: sidecars/source_readiness.tsv
+  ancestry: sidecars/ancestry.tsv
+  sd_estimation: sidecars/sd_estimation.tsv
+  exclusions: sidecars/exclusions.tsv
+warnings:
+- 1499 Analysis/Analyses excluded by ancestry policy (unassigned, non-target, or orientation failure);
+  see sidecars/exclusions.tsv
+- 2 quantitative Analysis/Analyses had no usable phenotype SD and were excluded; see sidecars/sd_estimation.tsv
+- 187 included Analysis/Analyses have a high-dispersion SD estimate; see sidecars/sd_estimation.tsv
+- 1 Analysis/Analyses failed resolution and were excluded; see sidecars/exclusions.tsv
+- 19 Analysis/Analyses had incomplete resolved metadata and were excluded; see sidecars/exclusions.tsv
+- '2 duplicate-content group(s) surfaced for review, not collapsed: GCST90565871+GCST90565872; GCST90624704+GCST90624705'
+errors: []

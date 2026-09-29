@@ -1,0 +1,70 @@
+analysis_id: GCST90797594
+trait: Left ventricular ejection fraction or Left ventricular global function index (MTAG)
+trait_ontology_id: http://www.ebi.ac.uk/efo/EFO_0008373, http://www.ebi.ac.uk/efo/EFO_0004295
+publication_pmid: '41760662'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90797001-GCST90798000/GCST90797594/harmonised/GCST90797594.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.976808
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90268125
+  trait: Left ventricular ejection fraction
+  publication_pmid: '37126556'
+  match_type: ontology
+  trait_similarity: 0.5714
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90268001-GCST90269000/GCST90268125/harmonised/GCST90268125.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: -0.988916
+  spearman_r: -0.816454
+  verdict: swap_alleles
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90268134
+  trait: Left ventricular ejection fraction (adjusted without BSA and SBP)
+  publication_pmid: '37126556'
+  match_type: ontology
+  trait_similarity: 0.5714
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90268001-GCST90269000/GCST90268134/harmonised/GCST90268134.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: -0.988508
+  spearman_r: -0.820738
+  verdict: swap_alleles
+- source_bundle: OGS-00011
+  analysis_id: GCST90268128
+  trait: Left ventricular peak ejection rate
+  publication_pmid: '37126556'
+  match_type: ontology
+  trait_similarity: 0.3333
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90268001-GCST90269000/GCST90268128/harmonised/GCST90268128.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.222705
+  spearman_r: 0.274263
+  verdict: flip_frequency
+check:
+  n_comparisons: 3
+  verdict_tally:
+    flip_frequency: 1
+    swap_alleles: 2
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: -0.988916
+  spearman_r: -0.816454
+  verdict: swap_alleles
+recommendation: swap_alleles
+notes: '3 comparison analyses evaluated; verdicts {''flip_frequency'': 1, ''swap_alleles'': 2}; canonical-allele
+  effects are inverted against the comparison analysis/analyses (OGS-00011:GCST90268125 r=-0.988916 over 100, OGS-00011:GCST90268134
+  r=-0.988508 over 100, OGS-00011:GCST90268128 r=0.222705 over 100), so the source''s effect and other alleles are
+  swapped relative to the reported betas'
+measured_at: '2026-09-23T09:05:21Z'

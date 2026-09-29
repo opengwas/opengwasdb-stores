@@ -120,7 +120,44 @@ threadpoolctl = ">=3.0"
 # to a `main` revision. Tracking a long-lived non-default branch is a temporary
 # accommodation for the current `main` freeze, not the intended steady state.
 # Issue #106 tracks this reversion.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", branch = "dev" }
+#
+# Bumped for issue #153: the Phase B candidate workflow invokes the canonical
+# `opengwasdb resolve-analyses` subcommand, which lands in opengwasdb#208 and is
+# not yet merged to `dev`. Pinning the immutable feature commit keeps the
+# resolver's atomic per-Analysis records and resume semantics under the
+# registry's control without vendoring its code (ADR 0012/0017); this commit is
+# a descendant of the #106 dev revision above, so every capability it names is
+# still present.
+#
+# REVERT CONDITION (#153): once opengwasdb#208 is merged to `dev`, move this pin
+# back to the `dev` revision (or `main` after the #106 reversion), and re-run
+# `pixi lock`.
+#
+# Bumped for #176 (OGS-00011 release and build readiness): opengwasdb#208 has
+# since merged, and this pins the OGS-00011 build-readiness integration commit
+# on top of `dev` (opengwasdb PR from feat/ogs00011-build-readiness). It adds
+# the resolver's build-eligible on/off-reference counts and lowercase-allele
+# routing parity (#174), declared GWAS-SSF imputation-score filtering in the
+# resolver and the Hybrid builder (#175), and the bounded/streamed Hybrid tail
+# with opt-in checkpoint/resume (opengwasdb#226-#233). The previous pin ran
+# pre-#224 code, which spent >21 h in the EAF consensus baseline. Candidate
+# generation and the build must run at this same revision.
+#
+# Bumped again for #176 (OGS-00011 row admission): this pins the `dev` merge
+# commit of opengwasdb#235. It reads case-control sources to EOF whenever
+# whole-stream evidence is requested (the #174/#175 counts were previously a
+# ~1% prefix for 880 Analyses), keeps unscored and >1 INFO rows, includes a
+# declared-INFO Analysis with no usable score, and adds the per-Analysis
+# `maf_threshold` with one admission rule shared by the resolver and the Hybrid
+# builder.
+#
+# Bumped again for #176 (effect/SE recovery): this pins the `dev` merge commit
+# of opengwasdb#236. It recovers a row's effect from `odds_ratio` when `beta` is
+# empty and its SE from a 95% CI or the p-value, reads a source frequency of
+# exactly 0 or 1 as missing, and fingerprints resolver records with the core's
+# own commit rather than this repository's. Candidate generation and the build
+# must run at this same revision.
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "a0656c0d073875c17088972b24cbb9568c0467a2" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"
@@ -166,6 +203,23 @@ snakemake-minimal = ">=9,<10"
 # every semantic step is an `opengwasdb` subcommand (ADR 0023).
 snakemake-minimal = ">=9,<10"
 
+[feature.curation.dependencies]
+# Canonical Trait Mapping Table curation tooling (issues #161/#164).
+#
+# This feature is deliberately kept out of the `main` solve group so retrieval
+# and model-client dependencies can never change what a Manifest Generator or a
+# build resolves. The lexical candidate generation in `curation/` is pure
+# Python standard library and needs none of these; they seed the isolated
+# environment for the stages that follow:
+#   - rapidfuzz: fuzzy lexical scoring available to retrieval as its channels
+#     grow;
+#   - httpx: the hosted-model and embedding clients the choice (#167) and
+#     semantic (#166) stages are built around.
+# Do not add a `store-build` dependency here, and do not add this feature to
+# any environment in `solve-group = "main"`.
+rapidfuzz = ">=3.0"
+httpx = ">=0.27"
+
 # ---------------------------------------------------------------------------
 # Environments
 # ---------------------------------------------------------------------------
@@ -179,15 +233,42 @@ docs = { features = ["r", "reporting"], solve-group = "main" }
 ld-panel = { features = ["python", "ld-panel"], solve-group = "main" }
 dev = { features = ["python", "store-build", "r", "reporting", "ld-panel", "dev"], solve-group = "main" }
 workflow = { features = ["python", "store-build", "workflow"], solve-group = "main" }
+# Curation tooling resolves on its own, outside the `main` solve group, so its
+# retrieval/model-client dependencies cannot perturb a generator or build solve
+# (issue #164). Run it with `pixi run -e curation <task>`.
+curation = { features = ["python", "curation"] }
 
 # ---------------------------------------------------------------------------
 # Tasks
 # ---------------------------------------------------------------------------
 
+[feature.store-build.tasks]
+# Phase B candidate generation (issue #153). One operator entry point runs
+# preflight, invokes `opengwasdb resolve-analyses`, accounts every record, and
+# atomically emits a candidate Release Bundle. It needs `opengwasdb` (the
+# resolver) and `ogstores` (bundle.check()), so it lives in the store-build
+# environment.
+#
+#   pixi run generate-candidate OGS-00011 \
+#     --config resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
+#     --cores 64 --resume
+#
+generate-candidate = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py" }
+
+[feature.python.tasks]
+# Phase B: freeze the Source Inventory a release selects from, then prove the
+# frozen snapshot before the resolution run reads a single association row
+# (issue #151). Both are pure Python (no opengwasdb, no R), so they run in the
+# default environment.
+inventory-freeze = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/inventory.py freeze" }
+preflight = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/inventory.py preflight" }
+concordance-sample = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/sample_concordance.py" }
+
 [feature.dev.tasks]
 test = { cmd = "python3 resources/scripts/run_all_tests.py" }
 test-python = { cmd = "python3 resources/scripts/run_all_tests.py --only python" }
 test-r = { cmd = "python3 resources/scripts/run_all_tests.py --only r" }
+concordance-run = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/run_concordance_study.py" }
 bundle-check = { cmd = "python3 resources/scripts/check_bundles.py" }
 env-check = { cmd = "python3 resources/scripts/env_check.py" }
 index-ci = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
@@ -216,3 +297,55 @@ docs-smoke = { cmd = "quarto render resources/scripts/beta-scale-estimation.qmd 
 [feature.ld-panel.tasks]
 ld-acquire = { cmd = "python3 resources/scripts/ld-panel/acquire_hgdp1kgp.py" }
 ld-materialize = { cmd = "python3 resources/scripts/ld-panel/materialize_reference.py" }
+
+[feature.curation.tasks]
+# Curation stages (issues #161/#164/#165). Run in the isolated curation
+# environment:
+#   pixi run -e curation ontology-index --obo <efo.obo> --output .cache/curation/efo-v3.94.0.index.json
+#   pixi run -e curation lexical-candidates --work-queue <queue.tsv> --index <index.json> --output <shortlist.tsv>
+#   pixi run -e curation harvest <manifest>... --index <index.json> --output <validation.tsv>
+#   pixi run -e curation recall --validation <validation.tsv> --index <index.json>
+#   pixi run -e curation embed-ontology --ontology-index <index.json> --output <ontology-store-dir> [--endpoint "$OPENGWASDB_EMBEDDING_ENDPOINT"]
+#   pixi run -e curation embed-traits --work-queue <queue.tsv> --output <trait-store-dir> --model-of <ontology-store-dir> [--endpoint "$OPENGWASDB_EMBEDDING_ENDPOINT"]
+#   pixi run -e curation semantic-candidates --work-queue <queue.tsv> --index <index.json> --ontology-embeddings <ontology-store-dir> --trait-embeddings <trait-store-dir> --output <shortlist.tsv>
+#   pixi run -e curation choice --shortlists <shortlist.tsv> --chooser jev --jev-endpoint <url>
+#   pixi run -e curation validate-chooser --validation <validation.tsv> --shortlists <shortlist.tsv>
+#   pixi run -e curation coverage --manifests <analyses.tsv> --mapping <mapping.tsv>
+#   pixi run -e curation curation-round --index <index.json> --chooser jev --jev-endpoint <url>
+#
+# Resumable round stages (issue #161). Each reads the pins from
+# <round-dir>/round.yaml and is idempotent, so a rerun resumes:
+#   pixi run -e curation round-init --round-dir <dir> --index <index.json> --chooser jev --manifests <analyses.tsv>...
+#   pixi run -e curation round-gap-scan --round-dir <dir>
+#   pixi run -e curation round-embed-traits --round-dir <dir> [--endpoint "$OPENGWASDB_EMBEDDING_ENDPOINT"]
+#   pixi run -e curation round-candidates --round-dir <dir>
+#   pixi run -e curation round-choose --round-dir <dir> [--workers 8] [--limit N] [--max-cost-usd X]
+#   pixi run -e curation round-reduce --round-dir <dir> [--allow-incomplete]
+#   pixi run -e curation round-promote --round-dir <dir> [--reviewed-queue <tsv>]
+#   pixi run -e curation round-coverage --round-dir <dir> [--format markdown]
+#
+# `embed-ontology` and `embed-traits` write each finished chunk under
+# <store-dir>/chunks/ before assembling vectors.npy/ids.tsv/meta.yaml, so an
+# interrupted run resumes and only re-requests the chunks it is missing.
+# `validate-chooser` is an explicit validation harness, never part of
+# `pixi run test-*`. A live hosted-Jev run additionally requires `--live`.
+ontology-index = { cmd = "python3 -m curation.ontology" }
+embed-ontology = { cmd = "python3 -m curation.embedding embed-ontology" }
+embed-traits = { cmd = "python3 -m curation.embedding embed-traits" }
+lexical-candidates = { cmd = "python3 -m curation.candidates" }
+semantic-candidates = { cmd = "python3 -m curation.candidates --enable-embedding" }
+harvest = { cmd = "python3 -m curation.harvest" }
+recall = { cmd = "python3 -m curation.recall" }
+choice = { cmd = "python3 -m curation.choice" }
+promotion = { cmd = "python3 -m curation.promotion" }
+validate-chooser = { cmd = "python3 -m curation.validate_chooser" }
+coverage = { cmd = "python3 -m curation.coverage" }
+curation-round = { cmd = "python3 -m curation.curation_round" }
+round-init = { cmd = "python3 -m curation.round round-init" }
+round-gap-scan = { cmd = "python3 -m curation.round gap-scan" }
+round-embed-traits = { cmd = "python3 -m curation.round embed-traits" }
+round-candidates = { cmd = "python3 -m curation.round candidates" }
+round-choose = { cmd = "python3 -m curation.round choose" }
+round-reduce = { cmd = "python3 -m curation.round reduce" }
+round-promote = { cmd = "python3 -m curation.round promote" }
+round-coverage = { cmd = "python3 -m curation.round coverage" }

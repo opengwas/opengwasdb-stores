@@ -1,0 +1,70 @@
+analysis_id: GCST90302879
+trait: Poverty (general factor)
+trait_ontology_id: http://www.ebi.ac.uk/efo/EFO_0009695, http://www.ebi.ac.uk/efo/EFO_0009696
+publication_pmid: '38987359'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90302001-GCST90303000/GCST90302879/harmonised/GCST90302879.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.673824
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90566698
+  trait: Household income
+  publication_pmid: '40360725'
+  match_type: ontology
+  trait_similarity: 0.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90566001-GCST90567000/GCST90566698/harmonised/GCST90566698.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.996318
+  spearman_r: 0.91826
+  verdict: flip_frequency
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90566700
+  trait: Household income (MTAG)
+  publication_pmid: '40360725'
+  match_type: ontology
+  trait_similarity: 0.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90566001-GCST90567000/GCST90566700/harmonised/GCST90566700.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.997247
+  spearman_r: 0.790075
+  verdict: flip_frequency
+- source_bundle: OGS-00011
+  analysis_id: GCST90566704
+  trait: Social deprivation
+  publication_pmid: '40360725'
+  match_type: ontology
+  trait_similarity: 0.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90566001-GCST90567000/GCST90566704/harmonised/GCST90566704.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: -0.983376
+  spearman_r: -0.926049
+  verdict: swap_alleles
+check:
+  n_comparisons: 3
+  verdict_tally:
+    flip_frequency: 2
+    swap_alleles: 1
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.996318
+  spearman_r: 0.91826
+  verdict: flip_frequency
+recommendation: flip_frequency
+notes: '3 comparison analyses evaluated; verdicts {''flip_frequency'': 2, ''swap_alleles'': 1}; canonical-allele
+  effects agree with the comparison analysis/analyses (OGS-00011:GCST90566698 r=0.996318 over 100, OGS-00011:GCST90566700
+  r=0.997247 over 100, OGS-00011:GCST90566704 r=-0.983376 over 100), so the source''s allele labels and beta are
+  self-consistent and only its effect_allele_frequency column is inverted'
+measured_at: '2026-09-23T09:05:21Z'

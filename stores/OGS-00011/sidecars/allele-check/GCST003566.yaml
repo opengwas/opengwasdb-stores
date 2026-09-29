@@ -1,0 +1,69 @@
+analysis_id: GCST003566
+trait: Multiple sclerosis
+trait_ontology_id: MONDO:0005301
+publication_pmid: '27386562'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST003001-GCST004000/GCST003566/harmonised/GCST003566.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.975186
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90014448
+  trait: Multiple sclerosis
+  publication_pmid: '34278373'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90014001-GCST90015000/GCST90014448/harmonised/GCST90014448.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 99
+  effect_measure: beta_vs_beta
+  pearson_r: 0.99765
+  spearman_r: 0.90214
+  verdict: flip_frequency
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90014449
+  trait: Multiple sclerosis
+  publication_pmid: '34278373'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90014001-GCST90015000/GCST90014449/harmonised/GCST90014449.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 99
+  effect_measure: beta_vs_beta
+  pearson_r: 0.997255
+  spearman_r: 0.856042
+  verdict: flip_frequency
+- source_bundle: OGS-00011
+  analysis_id: GCST90705066
+  trait: Multiple sclerosis
+  publication_pmid: '41791023'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90705001-GCST90706000/GCST90705066/harmonised/GCST90705066.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 98
+  effect_measure: beta_vs_beta
+  pearson_r: 0.995239
+  spearman_r: 0.895645
+  verdict: flip_frequency
+check:
+  n_comparisons: 3
+  verdict_tally:
+    flip_frequency: 3
+  n_variants_checked: 100
+  n_variants_overlapping: 99
+  effect_measure: beta_vs_beta
+  pearson_r: 0.99765
+  spearman_r: 0.90214
+  verdict: flip_frequency
+recommendation: flip_frequency
+notes: '3 comparison analyses evaluated; verdicts {''flip_frequency'': 3}; canonical-allele effects agree with the
+  comparison analysis/analyses (OGS-00011:GCST90014448 r=0.99765 over 99, OGS-00011:GCST90014449 r=0.997255 over
+  99, OGS-00011:GCST90705066 r=0.995239 over 98), so the source''s allele labels and beta are self-consistent and
+  only its effect_allele_frequency column is inverted'
+measured_at: '2026-09-23T09:05:21Z'

@@ -8,6 +8,12 @@ planned argv, so drift between what was documented and what ran is caught.
 Staged release transaction lifecycle (ADR 0022, ADR 0023):
 * Staged isolation: All release execution steps ('build' / 'complete' -> 'top-hits'
   -> 'rho' -> 'overview' -> 'validate') execute against `store.opengwasdb.partial`.
+* Variant-reference pre-stage (#145/#147): 'variant-reference' is not store-producing
+  and takes no staging rewrite. If its declared destination already exists at runtime
+  no subprocess runs and a success record is written with `skipped: true`; otherwise
+  `extract-variant-reference` writes to a staged sibling that is atomically renamed
+  into place on success and removed on failure, so a partial artifact is never left
+  behind to satisfy a later existence check.
 * Exact canonical destination rewriting: planned argv targets `store.opengwasdb`;
   `rewrite_argv_for_staging()` rewrites the single target store token/substring to
   `store.opengwasdb.partial` during execution while preserving parent inputs.
@@ -66,9 +72,11 @@ from ogstores.bundle import Bundle
 from ogstores.plan import Step
 
 STORE_PRODUCING_STEPS: frozenset[str] = frozenset({"build", "complete"})
+VARIANT_REFERENCE_STEP: str = "variant-reference"
 VALID_STEP_NAMES: frozenset[str] = frozenset({
     "build",
     "complete",
+    "variant-reference",
     "top-hits",
     "rho",
     "overview",
@@ -132,6 +140,8 @@ class StepResult:
     stderr: str
     record_path: str
     published_store: str | None = None
+    skipped: bool = False
+    skip_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert result to a JSON-serializable dictionary for records/<step>.json."""
@@ -359,6 +369,69 @@ def rewrite_argv_for_staging(
         )
 
     return rewritten
+
+
+def variant_reference_partial_path(target: Path | str) -> Path:
+    """Sibling path a variant-reference extraction writes before atomic rename.
+
+    The declared destination is never written directly: a failed or interrupted
+    extraction must not leave a file that a later run's existence check would
+    mistake for a provided reference (#147). The staged name is deterministic so
+    `register` can normalise the executed argv back to the planned argv.
+    """
+    target_p = Path(target)
+    return target_p.with_name(f"{target_p.name}.partial")
+
+
+def rewrite_argv_for_variant_reference(step: Step, target: Path | str) -> list[str]:
+    """Rewrite the extraction's `--output-path` to its staged sibling path.
+
+    Exactly one `--output-path` token (space- or `=`-separated) is required; a
+    missing or ambiguous destination is rejected before execution.
+    """
+    partial = variant_reference_partial_path(target)
+    rewritten: list[str] = []
+    replacement_count = 0
+    i = 0
+    argv = step.argv
+    while i < len(argv):
+        token = argv[i]
+        if token == "--output-path" and i + 1 < len(argv):
+            rewritten.extend([token, str(partial)])
+            replacement_count += 1
+            i += 2
+            continue
+        if token.startswith("--output-path="):
+            rewritten.append(f"--output-path={partial}")
+            replacement_count += 1
+            i += 1
+            continue
+        rewritten.append(token)
+        i += 1
+
+    if replacement_count == 0:
+        raise ValueError(
+            f"Step {step.name!r} is missing a '--output-path' destination in argv: {argv}"
+        )
+    if replacement_count > 1:
+        raise ValueError(
+            f"Step {step.name!r} contains multiple ({replacement_count}) ambiguous "
+            f"'--output-path' destinations in argv: {argv}"
+        )
+    return rewritten
+
+
+def _remove_path_if_exists(p: Path) -> None:
+    """Best-effort removal of a staged file or symlink, never following links."""
+    try:
+        if os.path.islink(p):
+            p.unlink()
+        elif p.is_dir():
+            shutil.rmtree(p)
+        elif _lstat_exists(p):
+            p.unlink()
+    except Exception:
+        pass
 
 
 def _fsync_dir(dir_path: Path) -> None:
@@ -723,6 +796,8 @@ def execute_step(
     backup_store_p = paths.store_dir(store_id, root=resolved_root) / "store.opengwasdb.backup"
     record_p = paths.record_path(store_id, step.name, root=resolved_root)
     is_producing = is_store_producing_step(step)
+    is_variant_reference = step.name == VARIANT_REFERENCE_STEP
+    ref_target_p = step.outputs[0] if (is_variant_reference and step.outputs) else None
 
     # 3. Preflight paths and recover any stale backup from prior crash/interruption
     _preflight_paths(store_id, resolved_root)
@@ -739,7 +814,14 @@ def execute_step(
 
     # 5. Prepare executed argv (with staging rewrite) and provenance
     try:
-        executed_argv = rewrite_argv_for_staging(step, store_id, artifact_root=resolved_root)
+        if is_variant_reference:
+            if ref_target_p is None:
+                raise ValueError(
+                    f"Step {step.name!r} requires a declared output path to extract to"
+                )
+            executed_argv = rewrite_argv_for_variant_reference(step, ref_target_p)
+        else:
+            executed_argv = rewrite_argv_for_staging(step, store_id, artifact_root=resolved_root)
     except ValueError as rewrite_err:
         # Preflight failure record: write failed record before raising
         err_res = StepResult(
@@ -773,6 +855,37 @@ def execute_step(
     )
     ogdb_rev = get_opengwasdb_revision(executable=ogdb_exe, env=env)
     ogdb_ver = get_opengwasdb_version()
+
+    # Variant-reference skip-if-provided: an artifact already on disk (a shared
+    # or pre-computed reference) is used as-is, so no subprocess is launched and
+    # the record states the skip explicitly. Existence is a runtime fact, which
+    # is why the planner never checks it (#145/#147).
+    if is_variant_reference and ref_target_p is not None and _lstat_exists(ref_target_p):
+        skipped_at = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+        skip_result = StepResult(
+            step=step.name,
+            store_id=store_id,
+            exit_code=0,
+            success=True,
+            start_time=skipped_at,
+            end_time=skipped_at,
+            elapsed_seconds=0.0,
+            argv=planned_argv,
+            planned_argv=planned_argv,
+            inputs=[str(p) for p in step.inputs],
+            outputs=[str(p) for p in step.outputs],
+            opengwasdb_rev=ogdb_rev,
+            opengwasdb_version=ogdb_ver,
+            opengwasdb_executable=ogdb_exe,
+            stdout="",
+            stderr="",
+            record_path=str(record_p),
+            published_store=None,
+            skipped=True,
+            skip_reason="provided",
+        )
+        _write_record_atomically(skip_result.to_dict(), record_p)
+        return skip_result
 
     # 6. Execute subprocess in its own process group and capture timing/outputs
     start_dt = datetime.datetime.now(datetime.timezone.utc)
@@ -901,6 +1014,35 @@ def execute_step(
     success = (exit_code == 0 and not interrupted and proc_error is None)
     published_store_str: str | None = None
     publication_error: BaseException | None = None
+
+    # 7a. Variant-reference: atomically publish the staged artifact, or remove
+    # the staged file on failure so no incomplete reference is left behind.
+    if is_variant_reference and ref_target_p is not None:
+        ref_partial_p = variant_reference_partial_path(ref_target_p)
+        if success:
+            if not _lstat_exists(ref_partial_p):
+                success = False
+                exit_code = 1
+                err_msg = (
+                    f"Step {step.name!r} exited with code 0 but produced no staged "
+                    f"artifact at {ref_partial_p}"
+                )
+                stderr_captured = (stderr_captured or "") + f"\n{err_msg}"
+                proc_error = FileNotFoundError(err_msg)
+            else:
+                try:
+                    os.replace(ref_partial_p, ref_target_p)
+                    _fsync_dir(ref_target_p.parent)
+                except BaseException as exc:
+                    success = False
+                    exit_code = 1
+                    stderr_captured = (
+                        stderr_captured or ""
+                    ) + f"\nVariant reference publish error: {exc}"
+                    proc_error = exc
+                    _remove_path_if_exists(ref_partial_p)
+        else:
+            _remove_path_if_exists(ref_partial_p)
 
     # 7. Verify partial output on exit code 0 for store-producing steps
     if success and is_producing:
@@ -1074,6 +1216,7 @@ __all__ = [
     "StoreExistsError",
     "UNAVAILABLE",
     "VALID_STEP_NAMES",
+    "VARIANT_REFERENCE_STEP",
     "execute_step",
     "get_opengwasdb_executable",
     "get_opengwasdb_revision",
@@ -1083,7 +1226,9 @@ __all__ = [
     "load_record",
     "publish_store",
     "rewrite_argv_for_staging",
+    "rewrite_argv_for_variant_reference",
     "run_plan",
     "run_step",
     "validate_step_name",
+    "variant_reference_partial_path",
 ]

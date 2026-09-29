@@ -1,0 +1,18 @@
+analysis_id: GCST90707271
+trait: Acute myeloid leukemia (all cytogenetic sub-types)
+trait_ontology_id: MONDO:0018874
+publication_pmid: '41610418'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90707001-GCST90708000/GCST90707271/harmonised/GCST90707271.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.799093
+matched_study: null
+supporting_comparisons: []
+check:
+  n_comparisons: 0
+  verdict_tally: {}
+recommendation: no_matching_trait
+notes: no independent analysis of this trait was found in OGS-00011's included analyses or in OGS-00010; the orientation
+  failure stays an exclusion
+measured_at: '2026-09-23T09:05:21Z'

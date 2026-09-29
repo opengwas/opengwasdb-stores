@@ -1,0 +1,69 @@
+analysis_id: GCST90275143
+trait: Depression (ADuLT model)
+trait_ontology_id: MONDO:0002009
+publication_pmid: '37689771'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90275001-GCST90276000/GCST90275143/harmonised/GCST90275143.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.676045
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST005902
+  trait: Depression (broad)
+  publication_pmid: '29662059'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST005001-GCST006000/GCST005902/harmonised/29662059-GCST005902-EFO_0003761.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 96
+  effect_measure: beta_vs_beta
+  pearson_r: 0.594565
+  spearman_r: 0.494045
+  verdict: flip_frequency
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90014436
+  trait: Depression
+  publication_pmid: '34278373'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90014001-GCST90015000/GCST90014436/harmonised/GCST90014436.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 17
+  effect_measure: beta_vs_beta
+  pearson_r: 0.945899
+  spearman_r: 0.803922
+  verdict: inconclusive
+- source_bundle: OGS-00011
+  analysis_id: GCST90014437
+  trait: Depression
+  publication_pmid: '34278373'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90014001-GCST90015000/GCST90014437/harmonised/GCST90014437.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 17
+  effect_measure: beta_vs_beta
+  pearson_r: 0.793419
+  spearman_r: 0.654412
+  verdict: inconclusive
+check:
+  n_comparisons: 3
+  verdict_tally:
+    flip_frequency: 1
+    inconclusive: 2
+  n_variants_checked: 100
+  n_variants_overlapping: 96
+  effect_measure: beta_vs_beta
+  pearson_r: 0.594565
+  spearman_r: 0.494045
+  verdict: flip_frequency
+recommendation: flip_frequency
+notes: '3 comparison analyses evaluated; verdicts {''flip_frequency'': 1, ''inconclusive'': 2}; canonical-allele
+  effects agree with the comparison analysis/analyses (OGS-00011:GCST005902 r=0.594565 over 96), so the source''s
+  allele labels and beta are self-consistent and only its effect_allele_frequency column is inverted'
+measured_at: '2026-09-23T09:05:21Z'

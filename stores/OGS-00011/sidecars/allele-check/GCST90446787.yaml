@@ -1,0 +1,70 @@
+analysis_id: GCST90446787
+trait: Retinal ratio vascular density
+trait_ontology_id: http://www.ebi.ac.uk/efo/EFO_0010554
+publication_pmid: '39505872'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90446001-GCST90447000/GCST90446787/harmonised/GCST90446787.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.980288
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90270397
+  trait: Retinal arteriolar tortuosity
+  publication_pmid: '36757925'
+  match_type: ontology
+  trait_similarity: 0.1667
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90270001-GCST90271000/GCST90270397/harmonised/GCST90270397.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: -0.269564
+  spearman_r: -0.230327
+  verdict: swap_alleles
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90270398
+  trait: Retinal arteriolar width
+  publication_pmid: '36757925'
+  match_type: ontology
+  trait_similarity: 0.1667
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90270001-GCST90271000/GCST90270398/harmonised/GCST90270398.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: -0.5422
+  spearman_r: -0.387843
+  verdict: swap_alleles
+- source_bundle: OGS-00011
+  analysis_id: GCST90270399
+  trait: Retinal venular tortuosity
+  publication_pmid: '36757925'
+  match_type: ontology
+  trait_similarity: 0.1667
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90270001-GCST90271000/GCST90270399/harmonised/GCST90270399.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.325011
+  spearman_r: 0.442724
+  verdict: flip_frequency
+check:
+  n_comparisons: 3
+  verdict_tally:
+    flip_frequency: 1
+    swap_alleles: 2
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: -0.269564
+  spearman_r: -0.230327
+  verdict: swap_alleles
+recommendation: swap_alleles
+notes: '3 comparison analyses evaluated; verdicts {''flip_frequency'': 1, ''swap_alleles'': 2}; canonical-allele
+  effects are inverted against the comparison analysis/analyses (OGS-00011:GCST90270397 r=-0.269564 over 100, OGS-00011:GCST90270398
+  r=-0.5422 over 100, OGS-00011:GCST90270399 r=0.325011 over 100), so the source''s effect and other alleles are
+  swapped relative to the reported betas'
+measured_at: '2026-09-23T09:05:21Z'

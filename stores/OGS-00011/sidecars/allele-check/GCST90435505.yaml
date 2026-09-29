@@ -1,0 +1,67 @@
+analysis_id: GCST90435505
+trait: Gynoid total mass (UKB data field 23265)
+trait_ontology_id: http://www.ebi.ac.uk/efo/EFO_0005106
+publication_pmid: '38872030'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90435001-GCST90436000/GCST90435505/harmonised/GCST90435505.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.990906
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90652380
+  trait: Bone marrow fat fraction of thoracic vertebra 8
+  publication_pmid: '40796918'
+  match_type: ontology
+  trait_similarity: 0.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90652001-GCST90653000/GCST90652380/harmonised/GCST90652380.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: -0.040383
+  spearman_r: -0.053513
+  verdict: inconclusive
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90652381
+  trait: Bone marrow fat fraction of thoracic vertebra 9
+  publication_pmid: '40796918'
+  match_type: ontology
+  trait_similarity: 0.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90652001-GCST90653000/GCST90652381/harmonised/GCST90652381.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: -0.034249
+  spearman_r: -0.097666
+  verdict: inconclusive
+- source_bundle: OGS-00011
+  analysis_id: GCST90652382
+  trait: Bone marrow fat fraction of thoracic vertebra 10
+  publication_pmid: '40796918'
+  match_type: ontology
+  trait_similarity: 0.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90652001-GCST90653000/GCST90652382/harmonised/GCST90652382.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.004685
+  spearman_r: -0.14063
+  verdict: inconclusive
+check:
+  n_comparisons: 3
+  verdict_tally:
+    inconclusive: 3
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: -0.040383
+  spearman_r: -0.053513
+  verdict: inconclusive
+recommendation: inconclusive
+notes: '3 comparison analyses evaluated; verdicts {''inconclusive'': 3}; no comparison resolved a direction (overlapping
+  variants: 100, 100, 100; 20 needed)'
+measured_at: '2026-09-23T09:05:21Z'

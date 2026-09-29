@@ -1,1 +1,410 @@
-trait_label	trait_ontology_id	trait_ontology_label
+trait_label	trait_ontology_id	trait_ontology_label	ontology_release	chooser_id	confidence	runner_up_margin	review_status	reviewer	reviewed_at
+body mass index (bmi)	EFO:0004340	body mass index	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+weight	EFO:0004338	body weight	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+able to walk or cycle unaided for 10 minutes	EFO:0009822	ability to walk or cycle unaided for 10 minutes, self-reported	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+age at cancer diagnosis	EFO:0004918	age at diagnosis	efo/v3.94.0	jev:jev-1.13.0	0.880000	0.830000	auto_accepted		2026-09-28
+age at death	EFO:0005056	age at death	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+age at first live birth	EFO:0009101	age at first birth measurement	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+age first had sexual intercourse	EFO:0009749	age at first sexual intercourse measurement	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+age of primiparous women at birth of child	EFO:0009101	age at first birth measurement	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+age started hormone-replacement therapy (hrt)	EFO:0021780	age at initiation of hormone replacement therapy	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+age started oral contraceptive pill	EFO:0021782	age at initiation of oral contraceptive pill use	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+age started smoking in current smokers	EFO:0021784	age at initiation of smoking	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+age started smoking in former smokers	EFO:0021784	age at initiation of smoking	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.900000	auto_accepted		2026-09-28
+age started wearing glasses or contact lenses	EFO:0021781	age at initiation of corrective lens use	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+age when periods started (menarche)	EFO:0004703	age at menarche	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+alcohol intake versus 10 years previously	EFO:0007645	longitudinal alcohol consumption measurement	efo/v3.94.0	jev:jev-1.13.0	0.850000	0.840000	auto_accepted		2026-09-28
+average 16-hour sound level of noise pollution	EFO:0600015	noise exposure measurement	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.910000	auto_accepted		2026-09-28
+average 24-hour sound level of noise pollution	EFO:0600015	noise exposure measurement	efo/v3.94.0	jev:jev-1.13.0	0.900000	0.900000	auto_accepted		2026-09-28
+average evening sound level of noise pollution	EFO:0600015	noise exposure measurement	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.910000	auto_accepted		2026-09-28
+average night-time sound level of noise pollution	EFO:0600015	noise exposure measurement	efo/v3.94.0	jev:jev-1.13.0	0.850000	0.850000	auto_accepted		2026-09-28
+average total household income before tax	EFO:0009695	household income	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+basal metabolic rate	EFO:0007777	base metabolic rate measurement	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.970000	auto_accepted		2026-09-28
+bilateral oophorectomy (both ovaries removed)	EFO:0009717	bilateral oophorectomy	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.940000	auto_accepted		2026-09-28
+birth weight	EFO:0004344	birth weight	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+birth weight of first child	EFO:0004344	birth weight	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+blood clot, dvt, bronchitis, emphysema, asthma, rhinitis, eczema, allergy diagnosed by doctor: blood clot in the leg (dvt)	HP:0004936	Venous thrombosis	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+body fat percentage	EFO:0007800	body fat percentage	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+bring up phlegm/sputum/mucus on most days	EFO:0009824	bringing up phlegm, sputum or mucus on most days, self-reported	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+calcium	EFO:0004838	calcium measurement	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.840000	auto_accepted		2026-09-28
+cancer code, self-reported: basal cell carcinoma	MONDO:0020804	basal cell carcinoma	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+cancer year/age first occurred	OBA:2040153	age of onset of cancer	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.940000	auto_accepted		2026-09-28
+cascot confidence score	EFO:0009815	CASCOT confidence score measurement	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.900000	auto_accepted		2026-09-28
+chest pain or discomfort	HP:0100749	Chest pain	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.920000	auto_accepted		2026-09-28
+comparative body size at age 10	EFO:0009819	comparative body size at age 10, self-reported	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.960000	auto_accepted		2026-09-28
+corneal hysteresis (left)	EFO:0010066	corneal hysteresis	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.930000	auto_accepted		2026-09-28
+corneal hysteresis (right)	EFO:0010066	corneal hysteresis	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.970000	auto_accepted		2026-09-28
+corneal resistance factor (left)	EFO:0010067	corneal resistance factor	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.930000	auto_accepted		2026-09-28
+corneal resistance factor (right)	EFO:0010067	corneal resistance factor	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.910000	auto_accepted		2026-09-28
+current employment status: in paid employment or self-employed	EFO:0005241	employment status	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+current employment status: retired	EFO:0005241	employment status	efo/v3.94.0	jev:jev-1.13.0	0.850000	0.850000	auto_accepted		2026-09-28
+current employment status: unemployed	EFO:0005241	employment status	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.960000	auto_accepted		2026-09-28
+delivery methods: elective caesarean section	EFO:0009636	cesarean section	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.930000	auto_accepted		2026-09-28
+delivery methods: spontaneous vertex	EFO:0009638	spontaneous labor and birth	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.870000	auto_accepted		2026-09-28
+delivery methods: ventouse, vacuum extraction	HP:0011412	Ventouse delivery	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.970000	auto_accepted		2026-09-28
+diagnoses - main icd10: c20 malignant neoplasm of rectum	MONDO:0006519	rectal cancer	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+diagnoses - main icd10: d22.3 melanocytic naevi of other and unspecified parts of face	MONDO:0005073	melanocytic nevus	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.860000	auto_accepted		2026-09-28
+diagnoses - main icd10: d24 benign neoplasm of breast	MONDO:0000620	breast benign neoplasm	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.930000	auto_accepted		2026-09-28
+diagnoses - main icd10: d25.9 leiomyoma of uterus, unspecified	MONDO:0007886	uterine corpus leiomyoma	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+diagnoses - main icd10: d50.9 iron deficiency anaemia, unspecified	HP:0001891	Iron deficiency anemia	efo/v3.94.0	jev:jev-1.13.0	0.880000	0.860000	auto_accepted		2026-09-28
+diagnoses - main icd10: d64.9 anaemia, unspecified	MONDO:0002280	anemia	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+diagnoses - main icd10: g43.9 migraine, unspecified	MONDO:0005277	migraine disorder	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.910000	auto_accepted		2026-09-28
+diagnoses - main icd10: g45.9 transient cerebral ischaemic attack, unspecified	MONDO:0005264	transient ischemic attack	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+diagnoses - main icd10: g47.3 sleep apnoea	HP:0010535	Sleep apnea	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.880000	auto_accepted		2026-09-28
+diagnoses - main icd10: g56.0 carpal tunnel syndrome	MONDO:0007275	carpal tunnel syndrome	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.920000	auto_accepted		2026-09-28
+diagnoses - main icd10: i20.0 unstable angina	EFO:0020925	angina unstable	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.880000	auto_accepted		2026-09-28
+diagnoses - main icd10: i20.9 angina pectoris, unspecified	EFO:0003913	angina pectoris	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.970000	auto_accepted		2026-09-28
+diagnoses - main icd10: i21.1 acute transmural myocardial infarction of inferior wall	MONDO:0006803	inferior myocardial infarction	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.830000	auto_accepted		2026-09-28
+diagnoses - main icd10: i21.9 acute myocardial infarction, unspecified	MONDO:0004781	acute myocardial infarction	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.890000	auto_accepted		2026-09-28
+diagnoses - main icd10: i25.1 atherosclerotic heart disease	MONDO:0005010	coronary artery disorder	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.920000	auto_accepted		2026-09-28
+diagnoses - main icd10: i25.9 chronic ischaemic heart disease, unspecified	MONDO:0005010	coronary artery disorder	efo/v3.94.0	jev:jev-1.13.0	0.850000	0.830000	auto_accepted		2026-09-28
+diagnoses - main icd10: i47.1 supraventricular tachycardia	HP:0004755	Supraventricular tachycardia	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.910000	auto_accepted		2026-09-28
+diagnoses - main icd10: i48 atrial fibrillation and flutter	MONDO:0004981	atrial fibrillation	efo/v3.94.0	jev:jev-1.13.0	0.880000	0.880000	auto_accepted		2026-09-28
+diagnoses - main icd10: i80.2 phlebitis and thrombophlebitis of other deep vessels of lower extremities	HP:0004418	Thrombophlebitis	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.930000	auto_accepted		2026-09-28
+diagnoses - main icd10: i84.1 internal haemorrhoids with other complications	MONDO:0004872	hemorrhoid	efo/v3.94.0	jev:jev-1.13.0	0.900000	0.900000	auto_accepted		2026-09-28
+diagnoses - main icd10: i84.6 residual haemorrhoidal skin tags	MONDO:0006549	fibroepithelial polyp of the anus	efo/v3.94.0	jev:jev-1.13.0	0.860000	0.840000	auto_accepted		2026-09-28
+diagnoses - main icd10: i84.8 unspecified haemorrhoids with other complications	MONDO:0004872	hemorrhoid	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.920000	auto_accepted		2026-09-28
+diagnoses - main icd10: i84.9 unspecified haemorrhoids without complication	MONDO:0004872	hemorrhoid	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.910000	auto_accepted		2026-09-28
+diagnoses - main icd10: j34.2 deviated nasal septum	HP:0004411	Deviated nasal septum	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.910000	auto_accepted		2026-09-28
+diagnoses - main icd10: k01.1 impacted teeth	HP:0011079	Impacted tooth	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.910000	auto_accepted		2026-09-28
+diagnoses - main icd10: k02.9 dental caries, unspecified	MONDO:0005276	dental caries	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.910000	auto_accepted		2026-09-28
+diagnoses - main icd10: k20 oesophagitis	MONDO:0001409	esophagitis	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.850000	auto_accepted		2026-09-28
+diagnoses - main icd10: k21.9 gastro-oesophageal reflux disease without oesophagitis	MONDO:0007186	gastroesophageal reflux disease	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.970000	auto_accepted		2026-09-28
+diagnoses - main icd10: k22.1 ulcer of oesophagus	MONDO:0044782	esophageal ulcer	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.970000	auto_accepted		2026-09-28
+diagnoses - main icd10: k29.5 chronic gastritis, unspecified	MONDO:0005001	chronic gastritis	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.930000	auto_accepted		2026-09-28
+diagnoses - main icd10: k30 dyspepsia	MONDO:0002268	dyspepsia	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+diagnoses - main icd10: k35.9 acute appendicitis, unspecified	MONDO:0005649	appendicitis	efo/v3.94.0	jev:jev-1.13.0	0.900000	0.900000	auto_accepted		2026-09-28
+diagnoses - main icd10: k40.2 bilateral inguinal hernia, without obstruction or gangrene	HP:0000023	Inguinal hernia	efo/v3.94.0	jev:jev-1.13.0	0.860000	0.860000	auto_accepted		2026-09-28
+diagnoses - main icd10: k40.9 unilateral or unspecified inguinal hernia, without obstruction or gangrene	HP:0000023	Inguinal hernia	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.870000	auto_accepted		2026-09-28
+diagnoses - main icd10: k42.9 umbilical hernia without obstruction or gangrene	HP:0001537	Umbilical hernia	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.920000	auto_accepted		2026-09-28
+diagnoses - main icd10: k43.9 ventral hernia without obstruction or gangrene	EFO:1001866	ventral hernia	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.960000	auto_accepted		2026-09-28
+diagnoses - main icd10: k44.9 diaphragmatic hernia without obstruction or gangrene	EFO:0008561	diaphragmatic hernia	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+diagnoses - main icd10: k57.3 diverticular disease of large intestine without perforation or abscess	EFO:0009959	diverticular disease	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.960000	auto_accepted		2026-09-28
+diagnoses - main icd10: k57.9 diverticular disease of intestine, part unspecified, without perforation or abscess	EFO:0009959	diverticular disease	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+diagnoses - main icd10: k58.9 irritable bowel syndrome without diarrhoea	MONDO:0005052	irritable bowel syndrome	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.890000	auto_accepted		2026-09-28
+diagnoses - main icd10: k60.2 anal fissure, unspecified	HP:0012390	Anal fissure	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+diagnoses - main icd10: k60.3 anal fistula	HP:0010447	Anal fistula	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.920000	auto_accepted		2026-09-28
+diagnoses - main icd10: k62.1 rectal polyp	MONDO:0021398	polyp of rectum	efo/v3.94.0	jev:jev-1.13.0	0.949495	0.939394	auto_accepted		2026-09-28
+diagnoses - main icd10: k63.5 polyp of colon	MONDO:0021400	polyp of colon	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.860000	auto_accepted		2026-09-28
+diagnoses - main icd10: k80.5 calculus of bile duct without cholangitis or cholecystitis	MONDO:0006699	choledocholithiasis	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.950000	auto_accepted		2026-09-28
+diagnoses - main icd10: k92.2 gastro-intestinal haemorrhage, unspecified	HP:0002239	Gastrointestinal hemorrhage	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.920000	auto_accepted		2026-09-28
+diagnoses - main icd10: l72.0 epidermal cyst	EFO:1000243	Epidermal Inclusion Cyst	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.960000	auto_accepted		2026-09-28
+diagnoses - main icd10: l82 seborrhoeic keratosis	MONDO:0008420	seborrheic keratosis	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+diagnoses - main icd10: m16.1 other primary coxarthrosis	MONDO:0006629	osteoarthritis, hip	efo/v3.94.0	jev:jev-1.13.0	0.860000	0.860000	auto_accepted		2026-09-28
+diagnoses - main icd10: m20.1 hallux valgus (acquired)	HP:0001822	Hallux valgus	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.960000	auto_accepted		2026-09-28
+diagnoses - main icd10: m20.2 hallux rigidus	HP:0025004	Hallux rigidus	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.790000	auto_accepted		2026-09-28
+diagnoses - main icd10: m25.5 pain in joint	HP:0002829	Arthralgia	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+diagnoses - main icd10: m51.2 other specified intervertebral disk displacement	EFO:1001800	Intervertebral Disc Displacement	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.940000	auto_accepted		2026-09-28
+diagnoses - main icd10: m54.5 low back pain	HP:0003419	Low back pain	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.900000	auto_accepted		2026-09-28
+diagnoses - main icd10: m54.56 low back pain (lumbar region)	HP:0003419	Low back pain	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.930000	auto_accepted		2026-09-28
+diagnoses - main icd10: m54.59 low back pain (site unspecified)	HP:0003419	Low back pain	efo/v3.94.0	jev:jev-1.13.0	0.850000	0.820000	auto_accepted		2026-09-28
+diagnoses - main icd10: m65.3 trigger finger	EFO:0010822	stenosing tenosynovitis	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.900000	auto_accepted		2026-09-28
+diagnoses - main icd10: m72.04 palmar fascial fibromatosis [dupuytren]-hand	EFO:0004229	Dupuytren Contracture	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.860000	auto_accepted		2026-09-28
+diagnoses - main icd10: m75.0 adhesive capsulitis of shoulder	MONDO:0006763	frozen shoulder	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.970000	auto_accepted		2026-09-28
+diagnoses - main icd10: m75.1 rotator cuff syndrome	MONDO:0007028	rotator cuff syndrome	efo/v3.94.0	jev:jev-1.13.0	0.900000	0.880000	auto_accepted		2026-09-28
+diagnoses - main icd10: m75.4 impingement syndrome of shoulder	MONDO:0006968	shoulder impingement syndrome	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.890000	auto_accepted		2026-09-28
+diagnoses - main icd10: m79.66 pain in limb (lower leg)	HP:0012514	Lower limb pain	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.930000	auto_accepted		2026-09-28
+diagnoses - main icd10: n20.0 calculus of kidney	MONDO:0008171	nephrolithiasis	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.950000	auto_accepted		2026-09-28
+diagnoses - main icd10: n20.1 calculus of ureter	MONDO:0007009	ureterolithiasis	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+diagnoses - main icd10: n23 unspecified renal colic	EFO:1001412	renal colic	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.970000	auto_accepted		2026-09-28
+diagnoses - main icd10: n32.0 bladder-neck obstruction	MONDO:0006679	bladder neck obstruction	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.910000	auto_accepted		2026-09-28
+diagnoses - main icd10: n35.9 urethral stricture, unspecified	HP:0012227	Urethral stricture	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.860000	auto_accepted		2026-09-28
+diagnoses - main icd10: n39.3 stress incontinence	HP:0010992	Stress urinary incontinence	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+diagnoses - main icd10: n40 hyperplasia of prostate	MONDO:0010811	benign prostatic hyperplasia	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.960000	auto_accepted		2026-09-28
+diagnoses - main icd10: n81.6 rectocele	EFO:1001837	rectocele	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+diagnoses - main icd10: n83.2 other and unspecified ovarian cysts	HP:0000138	Ovarian cyst	efo/v3.94.0	jev:jev-1.13.0	0.900000	0.890000	auto_accepted		2026-09-28
+diagnoses - main icd10: n92.0 excessive and frequent menstruation with regular cycle	HP:0000132	Menorrhagia	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.940000	auto_accepted		2026-09-28
+diagnoses - main icd10: n92.6 irregular menstruation, unspecified	HP:0000858	Irregular menstruation	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.840000	auto_accepted		2026-09-28
+diagnoses - main icd10: o70.0 first degree perineal laceration during delivery	EFO:0009816	perineal laceration during delivery	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+diagnoses - main icd10: o70.1 second degree perineal laceration during delivery	EFO:0009816	perineal laceration during delivery	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+diagnoses - main icd10: o80.0 spontaneous vertex delivery	EFO:0009638	spontaneous labor and birth	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.930000	auto_accepted		2026-09-28
+diagnoses - main icd10: r00.2 palpitations	HP:0001962	Palpitations	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+diagnoses - main icd10: r04.0 epistaxis	EFO:0003895	epistaxis	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+diagnoses - main icd10: r04.2 haemoptysis	HP:0002105	Hemoptysis	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.920000	auto_accepted		2026-09-28
+diagnoses - main icd10: r06.0 dyspnoea	EFO:0009727	shortness of breath	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.960000	auto_accepted		2026-09-28
+diagnoses - main icd10: r07.3 other chest pain	HP:0100749	Chest pain	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.910000	auto_accepted		2026-09-28
+diagnoses - main icd10: r07.4 chest pain, unspecified	HP:0100749	Chest pain	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.960000	auto_accepted		2026-09-28
+diagnoses - main icd10: r10.1 pain localised to upper abdomen	HP:0002027	Abdominal pain	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.870000	auto_accepted		2026-09-28
+diagnoses - main icd10: r10.3 pain localised to other parts of lower abdomen	HP:0002027	Abdominal pain	efo/v3.94.0	jev:jev-1.13.0	0.900000	0.890000	auto_accepted		2026-09-28
+diagnoses - main icd10: r10.4 other and unspecified abdominal pain	HP:0002027	Abdominal pain	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+diagnoses - main icd10: r11 nausea and vomiting	HP:0002017	Nausea and vomiting	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.910000	auto_accepted		2026-09-28
+diagnoses - main icd10: r13 dysphagia	HP:0002015	Dysphagia	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.910000	auto_accepted		2026-09-28
+diagnoses - main icd10: r31 unspecified haematuria	HP:0000790	Hematuria	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.960000	auto_accepted		2026-09-28
+diagnoses - main icd10: r32 unspecified urinary incontinence	HP:0000020	Urinary incontinence	efo/v3.94.0	jev:jev-1.13.0	0.900000	0.900000	auto_accepted		2026-09-28
+diagnoses - main icd10: r33 retention of urine	HP:0000016	Urinary retention	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.970000	auto_accepted		2026-09-28
+diagnoses - main icd10: r35 polyuria	HP:0000103	Polyuria	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.880000	auto_accepted		2026-09-28
+diagnoses - main icd10: r42 dizziness and giddiness	EFO:0009847	dizziness	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+diagnoses - main icd10: r51 headache	HP:0002315	Headache	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.810000	auto_accepted		2026-09-28
+diagnoses - main icd10: r55 syncope and collapse	HP:0001279	Syncope	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.930000	auto_accepted		2026-09-28
+diagnoses - main icd10: s09.9 unspecified injury of head	EFO:0009505	head injury	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.970000	auto_accepted		2026-09-28
+diagnoses - main icd10: s52.50 fracture of lower end of radius (closed)	MONDO:0005325	radius fracture	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.940000	auto_accepted		2026-09-28
+diagnoses - main icd10: s82.80 fractures of other parts of lower leg (closed)	EFO:0009512	lower extremity fracture	efo/v3.94.0	jev:jev-1.13.0	0.900000	0.890000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: d25.9 leiomyoma of uterus, unspecified	MONDO:0007886	uterine corpus leiomyoma	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.960000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: d50.9 iron deficiency anaemia, unspecified	HP:0001891	Iron deficiency anemia	efo/v3.94.0	jev:jev-1.13.0	0.880000	0.860000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: e78.0 pure hypercholesterolaemia	HP:0003124	Hypercholesterolemia	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.870000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: e86 volume depletion	HP:0011106	Hypovolemia	efo/v3.94.0	jev:jev-1.13.0	0.880000	0.880000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: f10.0 acute intoxication	EFO:0009574	intoxication	efo/v3.94.0	jev:jev-1.13.0	0.900000	0.900000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: f41.9 anxiety disorder, unspecified	MONDO:0005618	anxiety disorder	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.870000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: g47.3 sleep apnoea	HP:0010535	Sleep apnea	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.910000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: i10 essential (primary) hypertension	MONDO:0001134	essential hypertension	efo/v3.94.0	jev:jev-1.13.0	0.850000	0.840000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: i20.0 unstable angina	EFO:0020925	angina unstable	efo/v3.94.0	jev:jev-1.13.0	0.880000	0.790000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: i20.9 angina pectoris, unspecified	EFO:0003913	angina pectoris	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.970000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: i25.1 atherosclerotic heart disease	MONDO:0005010	coronary artery disorder	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.920000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: i34.0 mitral (valve) insufficiency	MONDO:1030008	mitral valve insufficiency	efo/v3.94.0	jev:jev-1.13.0	0.860000	0.760000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: i84.2 internal haemorrhoids without complication	MONDO:0004872	hemorrhoid	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.930000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: i84.9 unspecified haemorrhoids without complication	MONDO:0004872	hemorrhoid	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.960000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: j44.9 chronic obstructive pulmonary disease, unspecified	MONDO:0005002	chronic obstructive pulmonary disease	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.960000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: j45.9 asthma, unspecified	HP:0002099	Asthma	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.870000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: j90 pleural effusion, not elsewhere classified	HP:0002202	Pleural effusion	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: k21.9 gastro-oesophageal reflux disease without oesophagitis	MONDO:0007186	gastroesophageal reflux disease	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.970000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: k22.1 ulcer of oesophagus	MONDO:0044782	esophageal ulcer	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.940000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: k29.5 chronic gastritis, unspecified	MONDO:0005001	chronic gastritis	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.920000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: k30 dyspepsia	MONDO:0002268	dyspepsia	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.960000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: k44.9 diaphragmatic hernia without obstruction or gangrene	EFO:0008561	diaphragmatic hernia	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: k57.3 diverticular disease of large intestine without perforation or abscess	EFO:0009959	diverticular disease	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.960000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: k57.9 diverticular disease of intestine, part unspecified, without perforation or abscess	EFO:0009959	diverticular disease	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: k58.9 irritable bowel syndrome without diarrhoea	MONDO:0005052	irritable bowel syndrome	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.930000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: k59.0 constipation	MONDO:0002203	constipation disorder	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: k62.1 rectal polyp	MONDO:0021398	polyp of rectum	efo/v3.94.0	jev:jev-1.13.0	0.939394	0.919192	auto_accepted		2026-09-28
+diagnoses - secondary icd10: k63.5 polyp of colon	MONDO:0021400	polyp of colon	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.900000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: n39.3 stress incontinence	HP:0010992	Stress urinary incontinence	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: n40 hyperplasia of prostate	MONDO:0010811	benign prostatic hyperplasia	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: n81.6 rectocele	EFO:1001837	rectocele	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: n83.2 other and unspecified ovarian cysts	HP:0000138	Ovarian cyst	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.950000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: n92.0 excessive and frequent menstruation with regular cycle	HP:0000132	Menorrhagia	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.950000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: n94.6 dysmenorrhoea, unspecified	HP:0100607	Dysmenorrhea	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.880000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: o70.1 second degree perineal laceration during delivery	EFO:0009816	perineal laceration during delivery	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: r00.1 bradycardia, unspecified	HP:0001662	Bradycardia	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.940000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: r03.0 elevated blood-pressure reading, without diagnosis of hypertension	HP:0032263	Increased blood pressure	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.960000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: r05 cough	HP:0012735	Cough	efo/v3.94.0	jev:jev-1.13.0	0.860000	0.850000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: r07.4 chest pain, unspecified	HP:0100749	Chest pain	efo/v3.94.0	jev:jev-1.13.0	0.900000	0.900000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: r10.1 pain localised to upper abdomen	HP:0002027	Abdominal pain	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.850000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: r10.4 other and unspecified abdominal pain	HP:0002027	Abdominal pain	efo/v3.94.0	jev:jev-1.13.0	0.900000	0.900000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: r11 nausea and vomiting	HP:0002017	Nausea and vomiting	efo/v3.94.0	jev:jev-1.13.0	0.860000	0.850000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: r13 dysphagia	HP:0002015	Dysphagia	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: r31 unspecified haematuria	HP:0000790	Hematuria	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: r33 retention of urine	HP:0000016	Urinary retention	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.960000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: r35 polyuria	HP:0000103	Polyuria	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: r42 dizziness and giddiness	EFO:0009847	dizziness	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.950000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: r51 headache	HP:0002315	Headache	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.890000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: r55 syncope and collapse	HP:0001279	Syncope	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: z80.3 family history of malignant neoplasm of breast	EFO:0005606	family history of breast cancer	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+diagnoses - secondary icd10: z82.4 family history of ischaemic heart disease and other diseases of the circulatory system	EFO:0900005	family history of heart disease	efo/v3.94.0	jev:jev-1.13.0	0.860000	0.860000	auto_accepted		2026-09-28
+diastolic blood pressure, automated reading	EFO:0006336	diastolic blood pressure	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+diastolic blood pressure, manual reading	EFO:0006336	diastolic blood pressure	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+doctor diagnosed asthma	HP:0002099	Asthma	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.920000	auto_accepted		2026-09-28
+doctor diagnosed chronic bronchitis	MONDO:0005607	chronic bronchitis	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.960000	auto_accepted		2026-09-28
+doctor diagnosed copd (chronic obstructive pulmonary disease)	MONDO:0005002	chronic obstructive pulmonary disease	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.920000	auto_accepted		2026-09-28
+doctor diagnosed hayfever or allergic rhinitis	MONDO:0011786	allergic rhinitis	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.940000	auto_accepted		2026-09-28
+drinking water intake	EFO:0004315	drinking behavior	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.860000	auto_accepted		2026-09-28
+duration to first press of snap-button in each round	EFO:0008393	reaction time measurement	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.900000	auto_accepted		2026-09-28
+englyst dietary fibre	EFO:0020088	dietary fiber intake measurement	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.870000	auto_accepted		2026-09-28
+ever had eye surgery	EFO:0010722	ophthalmic procedure	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.870000	auto_accepted		2026-09-28
+ever had hysterectomy (womb removed)	EFO:0003881	hysterectomy	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.930000	auto_accepted		2026-09-28
+ever manic/hyper for 2 days	EFO:0007706	manic or hypomanic episode	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.850000	auto_accepted		2026-09-28
+ever smoked	EFO:0006527	smoking status measurement	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.980000	auto_accepted		2026-09-28
+ever stopped smoking for 6+ months	EFO:0004319	smoking cessation	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.930000	auto_accepted		2026-09-28
+ever used hormone-replacement therapy (hrt)	EFO:0003961	hormone replacement therapy	efo/v3.94.0	jev:jev-1.13.0	0.860000	0.850000	auto_accepted		2026-09-28
+eye problems/disorders: cataract	HP:0000518	Cataract	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+eye problems/disorders: diabetes related eye disease	EFO:0009486	diabetic eye disease	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.960000	auto_accepted		2026-09-28
+father's age at death	EFO:0009712	father's age at death	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+fed-up feelings	EFO:0009588	feeling \"fed-up\" measurement	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+financial situation satisfaction	EFO:0009726	financial situation satisfaction measurement	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+forced expiratory volume in 1-second (fev1)	EFO:0004314	forced expiratory volume	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+forced expiratory volume in 1-second (fev1), best measure	EFO:0004314	forced expiratory volume	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+fractured bone site(s): ankle	EFO:0009615	ankle fracture	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+fractured bone site(s): arm	EFO:0009514	upper extremity fracture	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.950000	auto_accepted		2026-09-28
+fractured bone site(s): leg	EFO:0009512	lower extremity fracture	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.970000	auto_accepted		2026-09-28
+fractured bone site(s): spine	MONDO:0005309	spinal fracture	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.910000	auto_accepted		2026-09-28
+fractured bone site(s): wrist	EFO:0009515	wrist fracture	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.950000	auto_accepted		2026-09-28
+friendships satisfaction	EFO:0009725	friendship satisfaction measurement	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.970000	auto_accepted		2026-09-28
+getting up in morning	EFO:0009817	ease of getting up in the morning, self-reported	efo/v3.94.0	jev:jev-1.13.0	0.900000	0.820000	auto_accepted		2026-09-28
+grapefruit juice intake	EFO:0010094	grapefruit juice consumption measurement	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+green tea intake	EFO:0010091	tea consumption measurement	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+guilty feelings	EFO:0009595	guilt measurement	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+hand grip strength (left)	EFO:0006941	grip strength measurement	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+hand grip strength (right)	EFO:0006941	grip strength measurement	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+health satisfaction	EFO:0009724	health satisfaction measurement	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+heel bone mineral density (bmd)	EFO:0009270	heel bone mineral density	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.970000	auto_accepted		2026-09-28
+heel bone mineral density (bmd) (left)	EFO:0009270	heel bone mineral density	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.970000	auto_accepted		2026-09-28
+heel bone mineral density (bmd) (right)	EFO:0009270	heel bone mineral density	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.960000	auto_accepted		2026-09-28
+heel bone mineral density (bmd) t-score, automated	EFO:0009270	heel bone mineral density	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.880000	auto_accepted		2026-09-28
+heel bone mineral density (bmd) t-score, automated (left)	EFO:0009270	heel bone mineral density	efo/v3.94.0	jev:jev-1.13.0	0.860000	0.850000	auto_accepted		2026-09-28
+heel bone mineral density (bmd), manual entry	EFO:0009270	heel bone mineral density	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.970000	auto_accepted		2026-09-28
+heel broadband ultrasound attenuation (bua), manual entry	EFO:0004514	bone quantitative ultrasound measurement	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.900000	auto_accepted		2026-09-28
+heel quantitative ultrasound index (qui), manual entry	EFO:0004514	bone quantitative ultrasound measurement	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.850000	auto_accepted		2026-09-28
+hip circumference	OBA:1000032	hip circumference	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.950000	auto_accepted		2026-09-28
+hip pain for 3+ months	EFO:0022863	chronic hip pain	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.970000	auto_accepted		2026-09-28
+illness, injury, bereavement, stress in last 2 years: financial difficulties	EFO:0007781	stressful life event measurement	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.900000	auto_accepted		2026-09-28
+illness, injury, bereavement, stress in last 2 years: serious illness, injury or assault of a close relative	EFO:0007781	stressful life event measurement	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.920000	auto_accepted		2026-09-28
+illnesses of father: alzheimer's disease/dementia	EFO:0009268	family history of Alzheimer’s disease	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.890000	auto_accepted		2026-09-28
+illnesses of father: diabetes	EFO:0900004	family history of diabetes	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.940000	auto_accepted		2026-09-28
+illnesses of father: heart disease	EFO:0900005	family history of heart disease	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.900000	auto_accepted		2026-09-28
+illnesses of father: high blood pressure	EFO:0900006	family history of high blood pressure	efo/v3.94.0	jev:jev-1.13.0	0.860000	0.790000	auto_accepted		2026-09-28
+illnesses of father: lung cancer	EFO:0006953	family history of lung cancer	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.940000	auto_accepted		2026-09-28
+illnesses of father: prostate cancer	EFO:0600083	family history of prostate cancer	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.900000	auto_accepted		2026-09-28
+illnesses of mother: alzheimer's disease/dementia	EFO:0009268	family history of Alzheimer’s disease	efo/v3.94.0	jev:jev-1.13.0	0.880000	0.850000	auto_accepted		2026-09-28
+illnesses of mother: breast cancer	EFO:0005606	family history of breast cancer	efo/v3.94.0	jev:jev-1.13.0	0.850000	0.750000	auto_accepted		2026-09-28
+illnesses of mother: heart disease	EFO:0900005	family history of heart disease	efo/v3.94.0	jev:jev-1.13.0	0.850000	0.770000	auto_accepted		2026-09-28
+illnesses of mother: lung cancer	EFO:0006953	family history of lung cancer	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.880000	auto_accepted		2026-09-28
+illnesses of siblings: alzheimer's disease/dementia	EFO:0009268	family history of Alzheimer’s disease	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.860000	auto_accepted		2026-09-28
+illnesses of siblings: breast cancer	EFO:0005606	family history of breast cancer	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.960000	auto_accepted		2026-09-28
+illnesses of siblings: diabetes	EFO:0900004	family history of diabetes	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.930000	auto_accepted		2026-09-28
+illnesses of siblings: heart disease	EFO:0900005	family history of heart disease	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.890000	auto_accepted		2026-09-28
+illnesses of siblings: high blood pressure	EFO:0900006	family history of high blood pressure	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.890000	auto_accepted		2026-09-28
+illnesses of siblings: lung cancer	EFO:0006953	family history of lung cancer	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+illnesses of siblings: prostate cancer	EFO:0600083	family history of prostate cancer	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.910000	auto_accepted		2026-09-28
+intended management of patient (recoded): one or more nights hospital stay	EFO:0020922	hospitalisation	efo/v3.94.0	jev:jev-1.13.0	0.850000	0.850000	auto_accepted		2026-09-28
+interpolated age of participant when operation took place	EFO:0021783	age at medical procedure	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+intra-ocular pressure, goldmann-correlated (left)	EFO:0004695	intraocular pressure measurement	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.900000	auto_accepted		2026-09-28
+intra-ocular pressure, goldmann-correlated (right)	EFO:0004695	intraocular pressure measurement	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.910000	auto_accepted		2026-09-28
+loneliness, isolation	EFO:0007865	loneliness measurement	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.970000	auto_accepted		2026-09-28
+medication for cholesterol, blood pressure or diabetes: blood pressure medication	CHEBI:35674	antihypertensive agent	efo/v3.94.0	jev:jev-1.13.0	0.860000	0.850000	auto_accepted		2026-09-28
+medication for cholesterol, blood pressure, diabetes, or take exogenous hormones: hormone replacement therapy	EFO:0003961	hormone replacement therapy	efo/v3.94.0	jev:jev-1.13.0	0.880000	0.880000	auto_accepted		2026-09-28
+methods of discharge from hospital (recoded): patient death	EFO:0030049	dead (follow-up status)	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.850000	auto_accepted		2026-09-28
+miserableness	EFO:0009598	feeling miserable measurement	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.940000	auto_accepted		2026-09-28
+mood swings	HP:0000712	Emotional lability	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.900000	auto_accepted		2026-09-28
+mother's age at death	EFO:0009721	mother's age at death	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+mouth/teeth dental problems: bleeding gums	HP:0000225	Gingival bleeding	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.930000	auto_accepted		2026-09-28
+mouth/teeth dental problems: dentures	EFO:0010078	dentures	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.930000	auto_accepted		2026-09-28
+mouth/teeth dental problems: mouth ulcers	HP:0000155	Oral ulcer	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.880000	auto_accepted		2026-09-28
+mouth/teeth dental problems: toothache	EFO:0010072	toothache	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+nap during day	EFO:0009818	nap during day, self-reported	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+nervous feelings	EFO:0009597	feeling nervous measurement	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.940000	auto_accepted		2026-09-28
+neuroticism score	EFO:0007660	neuroticism measurement	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: allergy or anaphylactic reaction to drug	MONDO:0000775	drug allergy	efo/v3.94.0	jev:jev-1.13.0	0.900000	0.890000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: ankylosing spondylitis	MONDO:0005306	ankylosing spondylitis	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.840000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: atrial fibrillation	MONDO:0004981	atrial fibrillation	efo/v3.94.0	jev:jev-1.13.0	0.860000	0.860000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: benign breast lump	HP:0032408	Breast mass	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.850000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: breast cysts	EFO:1000848	breast cyst	efo/v3.94.0	jev:jev-1.13.0	0.939394	0.929293	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: chronic obstructive airways disease/copd	MONDO:0005002	chronic obstructive pulmonary disease	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: deep venous thrombosis (dvt)	EFO:0003907	deep vein thrombosis	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.920000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: diverticular disease/diverticulitis	EFO:0009959	diverticular disease	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.860000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: enlarged prostate	MONDO:0010811	benign prostatic hyperplasia	efo/v3.94.0	jev:jev-1.13.0	0.939394	0.929293	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: fracture wrist / colles fracture	EFO:0009515	wrist fracture	efo/v3.94.0	jev:jev-1.13.0	0.860000	0.820000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: gastric/stomach ulcers	MONDO:0001126	gastric ulcer	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.820000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: gastro-oesophageal reflux (gord) / gastric reflux	MONDO:0007186	gastroesophageal reflux disease	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.900000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: glaucoma	MONDO:0005041	glaucoma	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.890000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: hayfever/allergic rhinitis	MONDO:0011786	allergic rhinitis	efo/v3.94.0	jev:jev-1.13.0	0.900000	0.880000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: irritable bowel syndrome	MONDO:0005052	irritable bowel syndrome	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.860000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: mania/bipolar disorder/manic depression	MONDO:0004985	bipolar disorder	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.860000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: meniere's disease	MONDO:0007972	Meniere disease	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.860000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: multiple sclerosis	MONDO:0005301	multiple sclerosis	efo/v3.94.0	jev:jev-1.13.0	0.880000	0.870000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: pernicious anaemia	MONDO:0008228	pernicious anemia	efo/v3.94.0	jev:jev-1.13.0	0.850000	0.810000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: tonsiltis	MONDO:0001039	tonsillitis	efo/v3.94.0	jev:jev-1.13.0	0.880000	0.850000	auto_accepted		2026-09-28
+non-cancer illness code, self-reported: trapped nerve/compressed nerve	MONDO:0003615	nerve compression syndrome	efo/v3.94.0	jev:jev-1.13.0	0.860000	0.830000	auto_accepted		2026-09-28
+number of children fathered	EFO:0009814	number of children fathered measurement	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.970000	auto_accepted		2026-09-28
+number of cigarettes currently smoked daily (current cigarette smokers)	EFO:0006525	cigarettes per day measurement	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.960000	auto_accepted		2026-09-28
+number of depression episodes	EFO:0007704	depressive episode measurement	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+number of live births	EFO:0009102	number of children ever born measurement	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.890000	auto_accepted		2026-09-28
+number of operations, self-reported	EFO:0009802	number of operations, self-reported	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+number of self-reported cancers	EFO:0009800	number of cancers, self-reported	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+number of self-reported non-cancer illnesses	EFO:0009801	number of non-cancer illnesses, self-reported	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+number of stillbirths	EFO:0009722	number of stillbirths	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+number of treatments/medications taken	EFO:0009803	number of treatments or medications taken, self-reported	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+operation code: appendicectomy	EFO:0600086	appendectomy	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+operation code: bilateral oophorectomy	EFO:0009717	bilateral oophorectomy	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.970000	auto_accepted		2026-09-28
+operation code: caesarean section / caesarian section	EFO:0009636	cesarean section	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+operation code: cholecystectomy/gall bladder removal	EFO:0022929	cholecystectomy	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+operation code: coronary angioplasty (ptca) +/- stent	EFO:0003951	percutaneous transluminal coronary angioplasty	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.950000	auto_accepted		2026-09-28
+operation code: coronary artery bypass grafts (cabg)	EFO:0003776	coronary artery bypass	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.970000	auto_accepted		2026-09-28
+operation code: dilatation and curettage/d+c	EFO:0010728	curettage	efo/v3.94.0	jev:jev-1.13.0	0.900000	0.900000	auto_accepted		2026-09-28
+operation code: eye surgery	EFO:0010722	ophthalmic procedure	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+operation code: hysterectomy	EFO:0003881	hysterectomy	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+operation code: male circumcision	EFO:0003953	circumcision	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.930000	auto_accepted		2026-09-28
+operation code: mastectomy	EFO:0020987	mastectomy	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+operation code: radical prostatectomy	EFO:0020684	radical prostatectomy	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+operation code: termination of pregnancy/top	EFO:1001491	abortion	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.960000	auto_accepted		2026-09-28
+operation code: tonsillectomy +/- adenoids	EFO:0010174	tonsillectomy	efo/v3.94.0	jev:jev-1.13.0	0.880000	0.870000	auto_accepted		2026-09-28
+operation code: tonsillectomy / tonsil surgery	EFO:0010174	tonsillectomy	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+operative procedures - main opcs: a55.9 unspecified diagnostic spinal puncture	EFO:0010960	lumbar puncture	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+operative procedures - main opcs: b27.4 total mastectomy nec	EFO:0020987	mastectomy	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+operative procedures - main opcs: h01.2 emergency excision of abnormal appendix nec	EFO:0600086	appendectomy	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.920000	auto_accepted		2026-09-28
+operative procedures - main opcs: j18.3 total cholecystectomy nec	EFO:0022929	cholecystectomy	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.970000	auto_accepted		2026-09-28
+operative procedures - main opcs: k45.3 anastomosis of mammary artery to left anterior descending coronary artery	EFO:0003776	coronary artery bypass	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.960000	auto_accepted		2026-09-28
+operative procedures - main opcs: k49.1 percutaneous transluminal balloon angioplasty of one coronary artery	EFO:0003951	percutaneous transluminal coronary angioplasty	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+operative procedures - main opcs: k75.1 percutaneous transluminal balloon angioplasty and insertion of 1-2 drug-eluting stents into coronary artery	EFO:0003951	percutaneous transluminal coronary angioplasty	efo/v3.94.0	jev:jev-1.13.0	0.880000	0.830000	auto_accepted		2026-09-28
+operative procedures - main opcs: k75.3 percutaneous transluminal balloon angioplasty and insertion of 1-2 stents into coronary artery	EFO:0003951	percutaneous transluminal coronary angioplasty	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.910000	auto_accepted		2026-09-28
+operative procedures - main opcs: m61.1 total excision of prostate and capsule of prostate	EFO:0020684	radical prostatectomy	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.910000	auto_accepted		2026-09-28
+operative procedures - main opcs: n30.3 circumcision	EFO:0003953	circumcision	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+operative procedures - main opcs: q07.4 total abdominal hysterectomy nec	EFO:0003881	hysterectomy	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+operative procedures - main opcs: q11.1 vacuum aspiration of products of conception from uterus nec	EFO:0010727	vacuum aspiration	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.860000	auto_accepted		2026-09-28
+operative procedures - main opcs: r17.2 elective lower uterine segment caesarean delivery	EFO:0009636	cesarean section	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+operative procedures - main opcs: r18.2 lower uterine segment caesarean delivery nec	EFO:0009636	cesarean section	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.960000	auto_accepted		2026-09-28
+operative procedures - main opcs: w37.1 primary total prosthetic replacement of hip joint using cement	EFO:0009806	total hip arthroplasty	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+operative procedures - main opcs: w40.1 primary total prosthetic replacement of knee joint using cement	EFO:0020975	total knee arthroplasty	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.960000	auto_accepted		2026-09-28
+operative procedures - main opcs: x33.9 unspecified other blood transfusion	EFO:0020988	blood transfusion	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+operative procedures - secondary opcs: k40.2 saphenous vein graft replacement of two coronary arteries	EFO:0003776	coronary artery bypass	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.830000	auto_accepted		2026-09-28
+operative procedures - secondary opcs: x33.9 unspecified other blood transfusion	EFO:0020988	blood transfusion	efo/v3.94.0	jev:jev-1.13.0	0.900000	0.900000	auto_accepted		2026-09-28
+other fish intake	EFO:0010139	fish consumption measurement	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.940000	auto_accepted		2026-09-28
+overall health rating	EFO:0004778	self rated health	efo/v3.94.0	jev:jev-1.13.0	0.860000	0.800000	auto_accepted		2026-09-28
+pack years of smoking	EFO:0006526	pack-years measurement	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+pain type(s) experienced in last month: back pain	HP:0003418	Back pain	efo/v3.94.0	jev:jev-1.13.0	0.860000	0.840000	auto_accepted		2026-09-28
+pain type(s) experienced in last month: facial pain	EFO:0009625	facial pain	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+pain type(s) experienced in last month: headache	HP:0002315	Headache	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.920000	auto_accepted		2026-09-28
+pain type(s) experienced in last month: hip pain	HP:0030838	Hip pain	efo/v3.94.0	jev:jev-1.13.0	0.900000	0.890000	auto_accepted		2026-09-28
+pain type(s) experienced in last month: knee pain	HP:0030839	Knee pain	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.960000	auto_accepted		2026-09-28
+pain type(s) experienced in last month: stomach or abdominal pain	HP:0002027	Abdominal pain	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+particulate matter air pollution (pm10); 2007	EFO:0008255	particulate matter air pollution measurement	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.900000	auto_accepted		2026-09-28
+particulate matter air pollution (pm10); 2010	EFO:0008255	particulate matter air pollution measurement	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.940000	auto_accepted		2026-09-28
+particulate matter air pollution (pm2.5) absorbance; 2010	EFO:0008255	particulate matter air pollution measurement	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.890000	auto_accepted		2026-09-28
+particulate matter air pollution (pm2.5); 2010	EFO:0008255	particulate matter air pollution measurement	efo/v3.94.0	jev:jev-1.13.0	0.940000	0.930000	auto_accepted		2026-09-28
+particulate matter air pollution 2.5-10um; 2010	EFO:0008255	particulate matter air pollution measurement	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.860000	auto_accepted		2026-09-28
+past tobacco smoking	EFO:0006527	smoking status measurement	efo/v3.94.0	jev:jev-1.13.0	0.880000	0.840000	auto_accepted		2026-09-28
+peak expiratory flow (pef)	EFO:0009718	peak expiratory flow	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+pregnant	EFO:0002950	pregnancy	efo/v3.94.0	jev:jev-1.13.0	0.960000	0.950000	auto_accepted		2026-09-28
+pulse rate	OBA:1001087	heart rate	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.920000	auto_accepted		2026-09-28
+pulse rate (during blood-pressure measurement)	OBA:1001087	heart rate	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.890000	auto_accepted		2026-09-28
+pulse wave reflection index	EFO:0009804	pulse wave reflection index measurement	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+qualifications: college or university degree	EFO:0004784	self reported educational attainment	efo/v3.94.0	jev:jev-1.13.0	0.860000	0.820000	auto_accepted		2026-09-28
+qualifications: nvq or hnd or hnc or equivalent	EFO:0011015	educational attainment	efo/v3.94.0	jev:jev-1.13.0	0.850000	0.850000	auto_accepted		2026-09-28
+qualifications: o levels/gcses or equivalent	EFO:0011015	educational attainment	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.880000	auto_accepted		2026-09-28
+reason for glasses/contact lenses: for a 'lazy' eye or an eye with poor vision since childhood (called 'amblyopia')	MONDO:0001020	amblyopia	efo/v3.94.0	jev:jev-1.13.0	0.880000	0.820000	auto_accepted		2026-09-28
+reason for glasses/contact lenses: for just reading/near work as you are getting older (called 'presbyopia')	MONDO:0001330	presbyopia	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.920000	auto_accepted		2026-09-28
+relative age voice broke	EFO:0007888	age at voice drop	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.970000	auto_accepted		2026-09-28
+reported occurrences of cancer	EFO:0009800	number of cancers, self-reported	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+retinol	OBA:1000995	retinol level	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.900000	auto_accepted		2026-09-28
+risk taking	EFO:0008579	risk-taking behaviour	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+satsuma intake	EFO:0020897	citrus intake measurement	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.890000	auto_accepted		2026-09-28
+seen a psychiatrist for nerves, anxiety, tension or depression	EFO:0009821	seeing a psychiatrist for nerves, anxiety, tension or depression, self-reported	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+seen doctor (gp) for nerves, anxiety, tension or depression	EFO:0009820	seeing a general practitioner for nerves, anxiety, tension or depression, self-reported	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+sensitivity / hurt feelings	EFO:0009599	feeling emotionally hurt measurement	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+sex of baby: female	PATO:0000383	female	efo/v3.94.0	jev:jev-1.13.0	0.880000	0.850000	auto_accepted		2026-09-28
+sex of baby: male	PATO:0000384	male	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.860000	auto_accepted		2026-09-28
+sitting height	EFO:0011011	sitting height measurement	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+skin colour	OBA:VT0002095	skin pigmentation	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.910000	auto_accepted		2026-09-28
+sleep duration	OBA:2040171	sleep duration trait	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+smoking/smokers in household	ECTO:6000029	exposure to tobacco smoking	efo/v3.94.0	jev:jev-1.13.0	0.880000	0.880000	auto_accepted		2026-09-28
+snoring	HP:0025267	Snoring	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.910000	auto_accepted		2026-09-28
+spells in hospital	EFO:0020922	hospitalisation	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.970000	auto_accepted		2026-09-28
+standard tea intake	EFO:0010091	tea consumption measurement	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+standing height	OBA:VT0001253	body height	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+suffer from 'nerves'	EFO:0009597	feeling nervous measurement	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.930000	auto_accepted		2026-09-28
+surgery on leg arteries (other than for varicose veins)	EFO:0009729	surgery on leg artery	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.970000	auto_accepted		2026-09-28
+sweets intake	EFO:0010158	sugar consumption measurement	efo/v3.94.0	jev:jev-1.13.0	0.880000	0.860000	auto_accepted		2026-09-28
+systolic blood pressure, automated reading	EFO:0006335	systolic blood pressure	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+systolic blood pressure, manual reading	EFO:0006335	systolic blood pressure	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+target heart rate achieved	EFO:0009823	achievement of target heart rate, self-reported	efo/v3.94.0	jev:jev-1.13.0	0.910000	0.890000	auto_accepted		2026-09-28
+tea consumed	EFO:0010091	tea consumption measurement	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+tea intake	EFO:0010091	tea consumption measurement	efo/v3.94.0	jev:jev-1.13.0	1.000000	1.000000	auto_accepted		2026-09-28
+tense / 'highly strung'	EFO:0009596	feeling tense measurement	efo/v3.94.0	jev:jev-1.13.0	0.939394	0.909091	auto_accepted		2026-09-28
+time from waking to first cigarette	EFO:0010126	time to first cigarette measurement	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+time spend outdoors in summer	EFO:0600081	time spent outdoors measurement	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.930000	auto_accepted		2026-09-28
+time to answer	EFO:0008393	reaction time measurement	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.930000	auto_accepted		2026-09-28
+townsend deprivation index at recruitment	EFO:0009711	Townsend deprivation index	efo/v3.94.0	jev:jev-1.13.0	0.970000	0.960000	auto_accepted		2026-09-28
+type of cancer: icd10: c18.7 sigmoid colon	MONDO:0001464	sigmoid colon cancer	efo/v3.94.0	jev:jev-1.13.0	0.900000	0.880000	auto_accepted		2026-09-28
+type of cancer: icd10: c20 malignant neoplasm of rectum	MONDO:0006519	rectal cancer	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.890000	auto_accepted		2026-09-28
+type of cancer: icd10: c44.9 malignant neoplasm of skin, unspecified	MONDO:0002898	skin cancer	efo/v3.94.0	jev:jev-1.13.0	0.890000	0.870000	auto_accepted		2026-09-28
+type of cancer: icd10: d05.1 intraductal carcinoma in situ	MONDO:0005023	ductal breast carcinoma in situ	efo/v3.94.0	jev:jev-1.13.0	0.930000	0.920000	auto_accepted		2026-09-28
+vascular/heart problems diagnosed by doctor: heart attack	MONDO:0005068	myocardial infarction	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.940000	auto_accepted		2026-09-28
+vitamin and/or mineral supplement use: vitamin c	EFO:0009116	vitamin supplement exposure measurement	efo/v3.94.0	jev:jev-1.13.0	0.870000	0.860000	auto_accepted		2026-09-28
+vitamin and/or mineral supplement use: vitamin d	EFO:0009116	vitamin supplement exposure measurement	efo/v3.94.0	jev:jev-1.13.0	0.880000	0.850000	auto_accepted		2026-09-28
+vitamin b12	EFO:0004620	vitamin B12 measurement	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+vitamin b6	EFO:0004621	vitamin B6 measurement	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.970000	auto_accepted		2026-09-28
+vitamin c	EFO:0600003	vitamin C measurement	efo/v3.94.0	jev:jev-1.13.0	0.920000	0.900000	auto_accepted		2026-09-28
+waist circumference	OBA:1001085	waist circumference	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+wheeze or whistling in the chest in last year	HP:0030828	Wheezing	efo/v3.94.0	jev:jev-1.13.0	0.950000	0.950000	auto_accepted		2026-09-28
+whole body fat mass	OBA:VT0010482	body fat mass	efo/v3.94.0	jev:jev-1.13.0	0.980000	0.980000	auto_accepted		2026-09-28
+whole body fat-free mass	EFO:0004995	lean body mass	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+whole body water mass	EFO:0009805	whole body water mass	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28
+work/job satisfaction	EFO:0009723	job satisfaction measurement	efo/v3.94.0	jev:jev-1.13.0	0.990000	0.990000	auto_accepted		2026-09-28

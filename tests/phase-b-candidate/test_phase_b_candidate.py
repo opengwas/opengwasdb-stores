@@ -1,0 +1,2078 @@
+#!/usr/bin/env python3
+"""Hermetic tests for the Phase B candidate workflow (issue #153).
+
+These are fixture-scale and network-free: a temporary mirror, candidate
+metadata table, frozen Source Inventory and config are built in a temp
+directory, and a fake `opengwasdb resolve-analyses` (``fixtures/fake_resolver.py``)
+supplies the resolver contract -- atomic per-Analysis records, a deterministic
+``index.json``, fingerprint inputs and ``--resume`` semantics -- with outcomes
+the test chooses. The real resolver's statistics, reference loading and worker
+pool are exercised upstream, not here.
+
+Covered contracts:
+
+1. mixed study designs and every controlled exclusion outcome (#152 policy);
+2. duplicate-content accessions surfaced, not collapsed;
+3. malformed/controlled-failure sources isolated to the affected Analysis;
+4. resolver accounting: missing, stale, duplicate and extra records all fail
+   finalisation before any bundle is replaced;
+5. resume reuses unchanged successful records and reproduces the same bytes;
+6. an interrupted resolver leaves a prior candidate untouched and no partial one;
+7. 1 worker and many workers produce byte-identical bundle tables/sidecars;
+8. the emitted analyses.tsv passes the pinned OpenGWASDB schema and the whole
+   bundle passes bundle.check();
+9. the operator entry point binds the frozen inventory, the #152 policy and the
+   executed command log into release.yaml, and never writes anything but a
+   candidate.
+
+Run from the repository root:
+    python3 tests/phase-b-candidate/test_phase_b_candidate.py
+"""
+
+from __future__ import annotations
+
+import csv
+import hashlib
+import io
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from dataclasses import dataclass, replace
+from pathlib import Path
+from unittest import mock
+
+import yaml
+
+REPO_ROOT: Path = Path(__file__).resolve().parents[2]
+for extra in (str(REPO_ROOT), str(REPO_ROOT / "src")):
+    if extra not in sys.path:
+        sys.path.insert(0, extra)
+
+import resources.generators.lib.candidate_workflow as candidate_workflow  # noqa: E402
+from ogstores import bundle as bundle_module  # noqa: E402
+from ogstores.plan import plan  # noqa: E402
+from resources.generators.lib.candidate_workflow import (  # noqa: E402
+    EXCLUSION_REASONS,
+    RECEIPT_FILENAME,
+    RESOLVER_MANIFEST_COLUMNS,
+    USABLE_MAF_STATES,
+    CandidateError,
+    CandidateMetadata,
+    ResolverRow,
+    account_records,
+    analysis_maf_threshold,
+    apply_release_policy,
+    build_candidate_tables,
+    check_staged_candidate,
+    derive_resolver_manifest,
+    info_score_emission,
+    load_candidate_configuration,
+    maf_threshold_emission,
+    parse_maf_filter_exempt_technologies,
+    parse_maf_threshold,
+    read_candidate_metadata,
+    read_genotyping_technologies,
+    read_maf_filter_exempt_analyses,
+    read_resolution_receipt,
+    render_validation_yaml,
+    render_resolver_manifest,
+    resolver_argv,
+    validate_candidate_analyses,
+    verify_records,
+)
+from resources.generators.lib.source_inventory import (  # noqa: E402
+    ACQUISITION_MANIFEST_COLUMNS,
+    AcquisitionPass,
+    SourceInventoryRow,
+    build_snapshot,
+    read_candidate_selection,
+    read_inventory,
+    write_snapshot,
+)
+
+CLI = REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py"
+FAKE_RESOLVER = Path(__file__).resolve().parent / "fixtures/fake_resolver.py"
+SNAKEMAKE = shutil.which("snakemake")
+STORE_KEY = "hybrid__European"
+SNAPSHOT_ID = "fixture-snapshot"
+STORE_ID = "OGS-99001"
+
+# (analysis_id, study_design, sample_size, readiness, content, n_cases, n_controls)
+READY_ANALYSES = [
+    ("GCST90000001", "quantitative", "5000", "ok", "A", "", ""),
+    ("GCST90000002", "quantitative", "6000", "ok", "A", "", ""),
+    ("GCST90000003", "quantitative", "7000", "ok", "B", "", ""),
+    ("GCST90000004", "case-control", "8000", "ok", "C", "4000", "4000"),
+    ("GCST90000005", "case-control", "9000", "ok", "D", "4500", "4500"),
+    ("GCST90000006", "quantitative", "3000", "ok", "E", "", ""),
+    ("GCST90000007", "quantitative", "4000", "ok", "F", "", ""),
+    ("GCST90000008", "quantitative", "2000", "ok", "G", "", ""),
+    ("GCST90000009", "case-control", "1000", "ok", "H", "", ""),
+]
+NON_READY = ("GCST90000010", "quantitative", "1000", "header_rejected", "", "", "")
+
+# outcome per analysis_id, fed to the fake resolver
+OUTCOMES = {
+    # included quantitative, but high dispersion -> warning
+    "GCST90000001": {"sd": 1.2, "sd_dispersion": 0.6},
+    "GCST90000002": {"sd": 0.8, "sd_dispersion": 0.05},
+    "GCST90000003": {"sd_status": "unavailable", "sd_reason": "no_qualifying_evidence"},
+    "GCST90000004": {},
+    "GCST90000005": {"assigned_ancestry": "EAS"},
+    "GCST90000006": {"assigned_ancestry": None, "gate_reason": "overlap"},
+    "GCST90000007": {
+        "assigned_ancestry": None,
+        "gate_reason": "eaf_orientation",
+        "eaf_orientation": "failed",
+        "eaf_orientation_r": -0.98,
+    },
+    "GCST90000008": {"status": "controlled_failure", "error": "simulated parse failure"},
+    "GCST90000009": {},  # counts blank in the candidate table -> excluded
+}
+
+EXPECTED_INCLUDED = {"GCST90000001", "GCST90000002", "GCST90000004"}
+EXPECTED_EXCLUDED = {
+    "GCST90000003": "sd_no_qualifying_evidence",
+    "GCST90000005": "ancestry_not_eur",
+    "GCST90000006": "ancestry_unassigned",
+    "GCST90000007": "orientation_failure",
+    "GCST90000008": "resolution_failed",
+    "GCST90000009": "missing_case_control_counts",
+}
+
+META_TEMPLATE = "gwas_id: {analysis_id}\ngenome_assembly: GRCh38\nis_harmonised: true\ncoordinate_system: 1-based\n"
+
+
+@dataclass
+class Fixture:
+    root: Path
+    config_path: Path
+    inventory_path: Path
+    candidates_path: Path
+    outcomes_path: Path
+    registry_root: Path
+    work_root: Path
+
+
+def _sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+class FixtureBuilder:
+    """Build one self-consistent fixture tree in a temporary directory."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        self.mirror = root / "mirror"
+        self.mirror.mkdir(parents=True, exist_ok=True)
+        self.reference = root / "reference"
+        self.reference.mkdir(parents=True, exist_ok=True)
+        self.acq = root / "acq"
+        self.acq.mkdir(parents=True, exist_ok=True)
+        self.inventory_dir = root / "inventory"
+        self.inventory_dir.mkdir(parents=True, exist_ok=True)
+
+    def build(self) -> Fixture:
+        (self.reference / "ref_freqs.tsv.gz").write_bytes(b"fixture reference\n")
+        (self.reference / "ancestry_groups.tsv").write_text(
+            "fine_group\tsuper_population\nEUR_A\tEUR\nEAS_A\tEAS\n", encoding="utf-8"
+        )
+
+        all_rows = READY_ANALYSES + [NON_READY]
+        manifest_rows: list[dict[str, str]] = []
+        for analysis_id, design, sample_size, readiness, content, _n_cases, _n_controls in all_rows:
+            row = {name: "" for name in ACQUISITION_MANIFEST_COLUMNS}
+            row["analysis_id"] = analysis_id
+            row["publication_pmid"] = "12345678"
+            row["trait"] = f"Trait {analysis_id}"
+            row["study_design"] = design
+            row["sample_size"] = sample_size
+            row["status"] = readiness
+            if readiness in {"ok", "already_present"}:
+                body = (f"source-body-{content}\n" * (1 + ord(content[0]) % 3)).encode()
+                data_path = self.mirror / f"{analysis_id}.h.tsv.gz"
+                data_path.write_bytes(body)
+                meta_path = self.mirror / f"{analysis_id}.h.tsv.gz-meta.yaml"
+                meta_path.write_text(
+                    META_TEMPLATE.format(analysis_id=analysis_id), encoding="utf-8"
+                )
+                row["data_url"] = f"https://example.invalid/{analysis_id}.h.tsv.gz"
+                row["yaml_url"] = f"https://example.invalid/{analysis_id}.h.tsv.gz-meta.yaml"
+                row["data_file"] = str(data_path)
+                row["yaml_file"] = str(meta_path)
+                row["data_bytes"] = str(len(body))
+                row["yaml_bytes"] = str(meta_path.stat().st_size)
+                row["sha256"] = _sha256_bytes(body)
+            manifest_rows.append(row)
+
+        base_manifest = self.acq / "base.tsv"
+        retry_manifest = self.acq / "retry.tsv"
+        for path in (base_manifest, retry_manifest):
+            _write_tsv(path, ACQUISITION_MANIFEST_COLUMNS, manifest_rows)
+
+        candidates_path = self.root / "candidates.tsv"
+        candidate_rows = []
+        for analysis_id, design, sample_size, _readiness, _content, n_cases, n_controls in all_rows:
+            candidate_rows.append(
+                {
+                    "STUDY.ACCESSION": analysis_id,
+                    "store_key": STORE_KEY,
+                    "study_design": design,
+                    "n_cases": n_cases,
+                    "n_controls": n_controls,
+                    "sample_size": sample_size,
+                    "DISEASE.TRAIT": f"Trait {analysis_id}",
+                    "MAPPED_TRAIT": f"mapped {analysis_id}",
+                    "MAPPED_TRAIT_URI": "http://purl.obolibrary.org/obo/MONDO_0005148",
+                    "PUBMED.ID": "12345678",
+                    "FIRST.AUTHOR": "Author A",
+                }
+            )
+        _write_tsv(
+            candidates_path,
+            [
+                "STUDY.ACCESSION",
+                "store_key",
+                "study_design",
+                "n_cases",
+                "n_controls",
+                "sample_size",
+                "DISEASE.TRAIT",
+                "MAPPED_TRAIT",
+                "MAPPED_TRAIT_URI",
+                "PUBMED.ID",
+                "FIRST.AUTHOR",
+            ],
+            candidate_rows,
+        )
+
+        selection = read_candidate_selection(candidates_path, STORE_KEY)
+        snapshot = build_snapshot(
+            snapshot_id=SNAPSHOT_ID,
+            source_collection_id="gwas-catalog-ssf",
+            store_key=STORE_KEY,
+            ancestry_group="European",
+            manifests=[
+                AcquisitionPass(role="base", path=base_manifest),
+                AcquisitionPass(role="retry_transient", path=retry_manifest),
+            ],
+            candidates=selection,
+            frozen_at="2026-09-21T00:00:00Z",
+        )
+        inventory_path = self.inventory_dir / f"{SNAPSHOT_ID}.tsv"
+        provenance_path = self.inventory_dir / f"{SNAPSHOT_ID}.meta.yaml"
+        write_snapshot(snapshot, inventory_path, provenance_path)
+
+        work_root = self.root / "work"
+        registry_root = self.root / "stores"
+        registry_root.mkdir(parents=True, exist_ok=True)
+
+        config = {
+            "label": "fixture-candidate",
+            "access_posture": "public",
+            "description": "fixture candidate",
+            "notes": "fixture notes",
+            "source": {
+                "source_collection_id": "gwas-catalog-ssf",
+                "store_key": STORE_KEY,
+                "ancestry_group": "European",
+                "candidates": str(candidates_path),
+                "inventory": {
+                    "snapshot_id": SNAPSHOT_ID,
+                    "path": str(inventory_path),
+                    "provenance_path": str(provenance_path),
+                    "freeze_inputs": [
+                        {"role": "base", "path": str(base_manifest)},
+                        {"role": "retry_transient", "path": str(retry_manifest)},
+                    ],
+                },
+            },
+            "defaults": {
+                "source_genome_build": "GRCh38",
+                "license": "fixture license",
+                "sample_size_scope": "analysis_level",
+                "ancestry_assignment_method": "source_trusted_no_af",
+                "by_study_design": {
+                    "quantitative": {
+                        "stored_effect_scale": "sd",
+                        "original_effect_scale": "sd",
+                        "original_sd_method": "estimated_from_source_maf",
+                        "sample_size_kind": "total",
+                    },
+                    "case-control": {
+                        "stored_effect_scale": "log_or",
+                        "original_effect_scale": "log_or",
+                        "original_sd_method": "binary_trait",
+                        "sample_size_kind": "case_control",
+                    },
+                },
+            },
+            "reference_resources": [
+                {
+                    "resource_id": "fixture-ancestry-mixture",
+                    "kind": "ancestry_mixture",
+                    "ancestry": "multi",
+                    "super_populations": ["AFR", "AMR", "EAS", "EUR", "MID", "NAF", "SAS"],
+                    "genome_build": "GRCh38",
+                    "variant_id_convention": "chr:pos:A1:A2",
+                    "location": str(self.reference / "ref_freqs.tsv.gz"),
+                    "location_kind": "external_file",
+                    "version": "fixture-v1",
+                    "fine_group_map": str(self.reference / "ancestry_groups.tsv"),
+                }
+            ],
+            "ancestry_assignment": {
+                "enabled": True,
+                "reference_resource_id": "fixture-ancestry-mixture",
+                "maf_floor": 0.01,
+                "extraction_panel": None,
+                "gates": {"tau": 0.50, "delta": 0.20, "n_min": 5000, "residual_max": 0.06},
+            },
+            "effect_scale_validation": {
+                "enabled": True,
+                "maf_min": 0.01,
+                "maf_max": 0.5,
+                "min_overlap_variants": 20,
+                "sd_tolerance": 0.15,
+                "warning_multiplier": 2.0,
+                "dispersion_max": 0.5,
+                "reference_resources": [],
+            },
+            "runtime": {"cores": 4, "min_free_gb": 0},
+            "output": {"work_root": str(work_root)},
+            "build": {
+                "layout": "hybrid",
+                "completion_state": "observed_only",
+                "command": "build-hybrid",
+                "options": {
+                    "source-reader-capability": "opengwasdb.gwas-ssf",
+                    "source-assembly": "hg38",
+                },
+                "post": {"top_hits": False, "overview": True},
+            },
+        }
+        config_path = self.root / "config.yaml"
+        config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+
+        outcomes_path = self.root / "outcomes.json"
+        outcomes_path.write_text(json.dumps(OUTCOMES), encoding="utf-8")
+
+        return Fixture(
+            root=self.root,
+            config_path=config_path,
+            inventory_path=inventory_path,
+            candidates_path=candidates_path,
+            outcomes_path=outcomes_path,
+            registry_root=registry_root,
+            work_root=work_root,
+        )
+
+
+def _write_tsv(path: Path, columns: list[str], rows: list[dict[str, str]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=columns, delimiter="\t")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({name: row.get(name, "") for name in columns})
+
+
+def _fingerprint_digest(fingerprints: dict) -> str:
+    """The resolver's canonical digest, so a test can forge a self-consistent record."""
+    clean = {key: value for key, value in fingerprints.items() if key != "fingerprint_digest"}
+    payload = json.dumps(clean, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _two_resolver_rows() -> list[ResolverRow]:
+    """Two minimal resolver rows for unit-level accounting tests."""
+    return [
+        ResolverRow("GCST1", "/tmp/a.h.tsv.gz", "opengwasdb.gwas-ssf", "sd",
+                    "estimated_from_source_maf", "100", "a" * 64, "sha256", "10"),
+        ResolverRow("GCST2", "/tmp/b.h.tsv.gz", "opengwasdb.gwas-ssf", "sd",
+                    "estimated_from_source_maf", "200", "b" * 64, "sha256", "20"),
+    ]
+
+
+def _run_cli(
+    fixture: Fixture,
+    *args: str,
+    cores: int = 1,
+    resume: bool = False,
+    outcomes: Path | None = None,
+    fail_after: int | None = None,
+    registry_root: Path | None = None,
+    work_root: Path | None = None,
+) -> subprocess.CompletedProcess:
+    command = [
+        sys.executable,
+        str(CLI),
+        STORE_ID,
+        "--config",
+        str(fixture.config_path),
+        "--cores",
+        str(cores),
+        "--resolver",
+        str(FAKE_RESOLVER),
+        "--repo-root",
+        str(REPO_ROOT),
+        "--registry-root",
+        str(registry_root or fixture.registry_root),
+        "--work-root",
+        str(work_root or fixture.work_root),
+    ]
+    if resume:
+        command.append("--resume")
+    command.extend(args)
+    # The fake resolver is exec'd through its shebang, so put this interpreter's
+    # directory first on PATH: it then runs under the same environment (and the
+    # same installed opengwasdb) as the registry process.
+    interpreter_dir = str(Path(sys.executable).resolve().parent)
+    env = {
+        **os.environ,
+        "PATH": interpreter_dir + os.pathsep + os.environ.get("PATH", ""),
+        "FAKE_RESOLVER_OUTCOMES": str(outcomes or fixture.outcomes_path),
+    }
+    if fail_after is not None:
+        env["FAKE_RESOLVER_FAIL_AFTER"] = str(fail_after)
+    return subprocess.run(
+        command, cwd=str(REPO_ROOT), env=env, capture_output=True, text=True, check=False
+    )
+
+
+def _read_tsv(path: Path) -> list[dict[str, str]]:
+    with path.open(newline="", encoding="utf-8") as fh:
+        return list(csv.DictReader(fh, delimiter="\t"))
+
+
+def _candidate_tables_bytes(registry_root: Path) -> dict[str, bytes]:
+    root = registry_root / STORE_ID
+    return {
+        "analyses.tsv": (root / "analyses.tsv").read_bytes(),
+        "source_readiness.tsv": (root / "sidecars/source_readiness.tsv").read_bytes(),
+        "ancestry.tsv": (root / "sidecars/ancestry.tsv").read_bytes(),
+        "sd_estimation.tsv": (root / "sidecars/sd_estimation.tsv").read_bytes(),
+        "exclusions.tsv": (root / "sidecars/exclusions.tsv").read_bytes(),
+    }
+
+
+def _synthetic_inventory_row(
+    *, study_design: str = "quantitative", sample_size: str = "5000", readiness: str = "ok"
+) -> SourceInventoryRow:
+    return SourceInventoryRow(
+        analysis_id="GCST90000001",
+        publication_pmid="12345678",
+        trait="Trait",
+        study_design=study_design,
+        sample_size=sample_size,
+        readiness_status=readiness,
+        data_url="https://example.invalid/x.h.tsv.gz",
+        yaml_url="https://example.invalid/x.h.tsv.gz-meta.yaml",
+        data_file="/mirror/GCST90000001.h.tsv.gz",
+        yaml_file="/mirror/GCST90000001.h.tsv.gz-meta.yaml",
+        data_bytes="100",
+        yaml_bytes="10",
+        sha256="a" * 64,
+        error="",
+    )
+
+
+def _synthetic_candidate_metadata(
+    *, sample_size: str = "5000", n_cases: str = "", n_controls: str = ""
+) -> CandidateMetadata:
+    return CandidateMetadata(
+        analysis_id="GCST90000001",
+        source_label="Trait",
+        trait_ontology_label="",
+        trait_ontology_id="",
+        trait_ontology_mapping_method="unmapped",
+        publication_pmid="12345678",
+        first_author="Author",
+        n_cases=n_cases,
+        n_controls=n_controls,
+        sample_size=sample_size,
+    )
+
+
+def _synthetic_resolver_record(
+    *,
+    gate_reason: str = "ok",
+    eaf_orientation: str = "passed",
+    eaf_orientation_r: float = 0.99,
+    assigned_ancestry: str | None = "EUR",
+    status: str = "success",
+    phenotype_sd_status: str = "estimated",
+    phenotype_sd_reason: str | None = None,
+) -> dict:
+    """A resolver record in the pinned real shape, including the EafOrientationOutcome."""
+    estimate = (
+        {"sd": 1.0, "dispersion": 0.05, "method": "estimated_from_source_maf", "notes": ""}
+        if phenotype_sd_status == "estimated"
+        else None
+    )
+    return {
+        "record_schema_version": 1,
+        "analysis_id": "GCST90000001",
+        "status": status,
+        "fingerprints": {},
+        "diagnostics": {
+            "source_file": "/mirror/GCST90000001.h.tsv.gz",
+            "rows_read": 100,
+            "ancestry_sites": 100,
+        },
+        "ancestry": {
+            "assigned_ancestry": assigned_ancestry,
+            "dominant_superpop": assigned_ancestry,
+            "dominant_proportion": 0.9 if assigned_ancestry else 0.2,
+            "runner_up_margin": 0.7 if assigned_ancestry else 0.1,
+            "af_overlap": 100000,
+            "residual": 0.01,
+            "gate_reason": gate_reason,
+            "eaf_orientation": eaf_orientation,
+            "eaf_orientation_r": eaf_orientation_r,
+            "superpop_composition": {assigned_ancestry: 0.9} if assigned_ancestry else {},
+            "fine_composition": {},
+        },
+        "phenotype_sd": {
+            "status": phenotype_sd_status,
+            "reason": phenotype_sd_reason,
+            "estimate": estimate,
+            "reference_id": "",
+            "n_evidence_considered": 100,
+            "n_estimate_inputs": 90 if estimate else 0,
+            "evidence_sampled": False,
+        },
+        "error": None if status == "success" else "controlled failure",
+        "warnings": [],
+        "metrics": {"elapsed_seconds": 0.0, "peak_memory_bytes": 0},
+    }
+
+
+class CandidateWorkflowTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="phase-b-candidate-")
+        self.fixture = FixtureBuilder(Path(self._tmp.name)).build()
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    # -- happy path and policy -------------------------------------------------
+
+    def test_full_pipeline_mixed_designs_and_controlled_outcomes(self) -> None:
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+
+        bundle_dir = self.fixture.registry_root / STORE_ID
+        self.assertTrue((bundle_dir / "release.yaml").is_file())
+        self.assertTrue((bundle_dir / "build.yaml").is_file())
+        self.assertTrue((bundle_dir / "validation.yaml").is_file())
+        self.assertTrue((bundle_dir / "analyses.tsv").is_file())
+        for sidecar in ("source_readiness", "ancestry", "sd_estimation", "exclusions", "reference_overlap"):
+            self.assertTrue((bundle_dir / "sidecars" / f"{sidecar}.tsv").is_file())
+
+        analyses = _read_tsv(bundle_dir / "analyses.tsv")
+        included = {row["analysis_id"] for row in analyses if row["exclude_from_build"] != "true"}
+        excluded = {
+            row["analysis_id"]: row for row in analyses if row["exclude_from_build"] == "true"
+        }
+        self.assertEqual(included, EXPECTED_INCLUDED)
+        self.assertEqual(set(excluded), set(EXPECTED_EXCLUDED))
+        # The pinned GWAS-SSF reader has no validated imputation INFO/R²
+        # projection; MAF and lookalike header spellings are not substitutes.
+        self.assertEqual({row["info_score_threshold"] for row in analyses}, {"NaN"})
+
+        # Case-control rows carry log_or/binary_trait and counts; quantitative
+        # rows carry the computable SD tier.
+        by_id = {row["analysis_id"]: row for row in analyses}
+        self.assertEqual(by_id["GCST90000004"]["stored_effect_scale"], "log_or")
+        self.assertEqual(by_id["GCST90000004"]["original_sd_method"], "binary_trait")
+        self.assertEqual(by_id["GCST90000004"]["n_cases"], "4000")
+        self.assertEqual(by_id["GCST90000004"]["n_controls"], "4000")
+        self.assertEqual(by_id["GCST90000001"]["stored_effect_scale"], "sd")
+        self.assertEqual(by_id["GCST90000001"]["original_sd_method"], "estimated_from_source_maf")
+        self.assertEqual(by_id["GCST90000001"]["assigned_ancestry"], "EUR")
+        self.assertNotEqual(by_id["GCST90000001"]["original_sd"], "")
+
+        # Every excluded row carries its controlled reason in its audit row.
+        for analysis_id, reason in EXPECTED_EXCLUDED.items():
+            self.assertIn(reason, excluded[analysis_id]["inclusion_reason"])
+            self.assertIn(reason, EXCLUSION_REASONS)
+
+        exclusions = _read_tsv(bundle_dir / "sidecars/exclusions.tsv")
+        reasons = {row["analysis_id"]: row["reason"] for row in exclusions}
+        self.assertEqual(reasons, EXPECTED_EXCLUDED)
+
+        # Every selected Analysis (included or excluded) has ancestry + SD rows.
+        selected_ids = EXPECTED_INCLUDED | set(EXPECTED_EXCLUDED)
+        ancestry = _read_tsv(bundle_dir / "sidecars/ancestry.tsv")
+        sd_rows = _read_tsv(bundle_dir / "sidecars/sd_estimation.tsv")
+        self.assertEqual({row["analysis_id"] for row in ancestry}, selected_ids)
+        self.assertEqual({row["analysis_id"] for row in sd_rows}, selected_ids)
+        overlap_rows = _read_tsv(bundle_dir / "sidecars/reference_overlap.tsv")
+        self.assertEqual({row["analysis_id"] for row in overlap_rows}, selected_ids)
+        self.assertEqual(
+            {row["rows_scanned"] for row in overlap_rows if row["exclude_from_build"] != "true"},
+            {"2000"},
+        )
+        sd_by_id = {row["analysis_id"]: row for row in sd_rows}
+        self.assertEqual(sd_by_id["GCST90000004"]["status"], "skipped")
+        self.assertEqual(
+            sd_by_id["GCST90000004"]["skip_reason"], "non_quantitative_effect_scale"
+        )
+        self.assertEqual(sd_by_id["GCST90000003"]["status"], "failed")
+        self.assertEqual(sd_by_id["GCST90000001"]["status"], "warning")
+
+        # The 6,035-row-style inventory evidence stays distinct from membership.
+        readiness = _read_tsv(bundle_dir / "sidecars/source_readiness.tsv")
+        self.assertEqual(len(readiness), len(READY_ANALYSES) + 1)
+        membership = {row["analysis_id"]: row["candidate_membership"] for row in readiness}
+        self.assertEqual(membership["GCST90000010"], "not_ready")
+        self.assertEqual(membership["GCST90000001"], "included")
+        self.assertEqual(membership["GCST90000003"], "excluded")
+
+        # Duplicate content is surfaced, not collapsed: both are included.
+        duplicate_rows = {
+            row["analysis_id"]: row["duplicate_content_group"]
+            for row in readiness
+            if row["duplicate_content_group"]
+        }
+        self.assertEqual(set(duplicate_rows), {"GCST90000001", "GCST90000002"})
+
+        # release.yaml is a candidate that binds the frozen snapshot and the run.
+        release = yaml.safe_load((bundle_dir / "release.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(release["status"], "candidate")
+        self.assertEqual(release["source_snapshot_id"], SNAPSHOT_ID)
+        self.assertEqual(release["source_snapshot"]["inventory_tsv_sha256"],
+                         _sha256_bytes(self.fixture.inventory_path.read_bytes()))
+        commands = " ".join(release["generator"]["commands"])
+        self.assertIn("resolve-analyses", commands)
+        self.assertIn("--n-workers 1", commands)
+        self.assertIn("generate_candidate.py", commands)
+        receipt_path = self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME
+        self.assertEqual(
+            release["source_snapshot"]["resolver_receipt_sha256"],
+            hashlib.sha256(receipt_path.read_bytes()).hexdigest(),
+        )
+
+        build = yaml.safe_load((bundle_dir / "build.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(build["layout"], "hybrid")
+        self.assertEqual(build["completion_state"], "observed_only")
+        self.assertEqual(build["build"]["command"], "build-hybrid")
+        self.assertNotIn("artifacts", build)
+
+        validation = yaml.safe_load((bundle_dir / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertIn(validation["status"], {"passed", "passed_with_warnings"})
+        self.assertEqual(validation["checks"]["schema"], "passed")
+        self.assertEqual(validation["checks"]["reference_overlap"], "passed")
+        self.assertEqual(validation["reference_overlap"]["median_rate"], 1.0)
+
+        # The complete bundle passes the executable contract, and the active
+        # (non-excluded) analyses pass the pinned OpenGWASDB schema.
+        loaded = bundle_module.load(STORE_ID, registry_root=self.fixture.registry_root)
+        self.assertEqual(list(bundle_module.check(loaded, registry_root=self.fixture.registry_root)), [])
+        self.assertEqual(validate_candidate_analyses((bundle_dir / "analyses.tsv").read_text()), [])
+        # The observed-only Hybrid recipe is plannable exactly as ADR 0023 requires.
+        steps = plan(loaded)
+        self.assertEqual(steps[0].name, "build")
+        self.assertIn("build-hybrid", steps[0].argv)
+
+    def test_info_threshold_configuration_and_no_declaration_emission(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertEqual(config.info_score_threshold, "0.6")
+        for value in ("0", "1", "0.6"):
+            document = yaml.safe_load(self.fixture.config_path.read_text())
+            document["defaults"]["info_score_threshold"] = value
+            self.fixture.config_path.write_text(yaml.safe_dump(document))
+            loaded = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+            self.assertEqual(loaded.info_score_threshold, value)
+        # With no declaration configured every Analysis emits literal NaN, even
+        # for an explicit zero request: the requested floor alone is not evidence.
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["defaults"]["info_score_threshold"] = 0
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        emitted = _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
+        self.assertEqual({row["info_score_threshold"] for row in emitted}, {"NaN"})
+        self.assertEqual({row["imputation_score_column"] for row in emitted}, {""})
+
+        for invalid in ("NaN", "inf", "-0.1", "1.1", "", True):
+            document = yaml.safe_load(self.fixture.config_path.read_text())
+            document["defaults"]["info_score_threshold"] = invalid
+            self.fixture.config_path.write_text(yaml.safe_dump(document))
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(
+                ValueError, "info_score_threshold"
+            ):
+                load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+
+    def _declare_scores(self, rows: list[dict[str, str]]) -> Path:
+        path = self.fixture.root / "score-declarations.tsv"
+        _write_tsv(path, list(candidate_workflow.SCORE_DECLARATION_COLUMNS), rows)
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["source"]["imputation_score_declarations"] = str(path)
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        return path
+
+    def _set_outcome(self, analysis_id: str, **values: object) -> None:
+        outcomes = json.loads(self.fixture.outcomes_path.read_text())
+        outcomes.setdefault(analysis_id, {}).update(values)
+        self.fixture.outcomes_path.write_text(json.dumps(outcomes))
+
+    def _set_threshold(self, value: object) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["defaults"]["info_score_threshold"] = value
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+
+    def _set_maf_threshold(self, value: object) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        if value is None:
+            document["defaults"].pop("maf_threshold", None)
+        else:
+            document["defaults"]["maf_threshold"] = value
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+
+    def _set_maf_exempt(self, technologies: object) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        if technologies is None:
+            document["source"].pop("maf_filter_exempt_genotyping_technologies", None)
+        else:
+            document["source"]["maf_filter_exempt_genotyping_technologies"] = technologies
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+
+    def _set_maf_exempt_analyses(self, path: object) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        if path is None:
+            document["source"].pop("maf_filter_exempt_analyses", None)
+        else:
+            document["source"]["maf_filter_exempt_analyses"] = path
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+
+    def _write_exemptions(
+        self, rows: str, header: str = "analysis_id\treason\n"
+    ) -> Path:
+        path = self.fixture.root / "maf-filter-exemptions.tsv"
+        path.write_text(header + rows, encoding="utf-8")
+        return path
+
+    def _write_metadata_yaml(self, name: str, technologies: object) -> Path:
+        path = self.fixture.root / name
+        document: dict[str, object] = {
+            "genome_assembly": "GRCh38",
+            "is_harmonised": True,
+        }
+        if technologies is not None:
+            document["genotyping_technology"] = technologies
+        path.write_text(yaml.safe_dump(document), encoding="utf-8")
+        return path
+
+    def test_declared_usable_analysis_emits_threshold_and_triple(self) -> None:
+        analysis_id = "GCST90000001"
+        self._declare_scores([{
+            "analysis_id": analysis_id,
+            "imputation_score_column": "imputation_INFO",
+            "imputation_score_kind": "imputation_info",
+            "imputation_score_provenance": "provider specification: INFO is imputation quality",
+        }])
+        self._set_threshold(0.8)
+        self._set_outcome(analysis_id, info_score_state="filtered", info_rows_usable=1500)
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        by_id = {
+            row["analysis_id"]: row
+            for row in _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
+        }
+        row = by_id[analysis_id]
+        self.assertEqual(row["info_score_threshold"], "0.8")
+        self.assertEqual(row["imputation_score_column"], "imputation_INFO")
+        self.assertEqual(row["imputation_score_kind"], "imputation_info")
+        self.assertEqual(
+            row["imputation_score_provenance"],
+            "provider specification: INFO is imputation quality",
+        )
+        # An undeclared Analysis gets literal NaN and empty triple cells.
+        undeclared = by_id["GCST90000002"]
+        self.assertEqual(undeclared["info_score_threshold"], "NaN")
+        self.assertEqual(undeclared["imputation_score_column"], "")
+        self.assertEqual(undeclared["imputation_score_kind"], "")
+        self.assertEqual(undeclared["imputation_score_provenance"], "")
+
+    def test_zero_threshold_with_usable_scores_emits_zero(self) -> None:
+        analysis_id = "GCST90000001"
+        self._declare_scores([{
+            "analysis_id": analysis_id,
+            "imputation_score_column": "imputation_INFO",
+            "imputation_score_kind": "imputation_info",
+            "imputation_score_provenance": "provider specification: INFO is imputation quality",
+        }])
+        self._set_threshold(0)
+        self._set_outcome(analysis_id, info_score_state="disabled", info_rows_usable=1500)
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        by_id = {
+            row["analysis_id"]: row
+            for row in _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
+        }
+        # Zero is a real requested floor, emitted as "0", not treated as absence.
+        self.assertEqual(by_id[analysis_id]["info_score_threshold"], "0")
+        self.assertEqual(by_id[analysis_id]["imputation_score_column"], "imputation_INFO")
+
+    # -- MAF threshold (issue #176) -------------------------------------------
+
+    def test_maf_threshold_configuration_parsing(self) -> None:
+        self.assertIsNone(parse_maf_threshold(None))
+        self.assertEqual(parse_maf_threshold(0), "0")
+        self.assertEqual(parse_maf_threshold("0"), "0")
+        self.assertEqual(parse_maf_threshold(0.005), "0.005")
+        self.assertEqual(parse_maf_threshold("0.5"), "0.5")
+        for invalid in (True, "", "NaN", "inf", "-0.01", "0.5001", "abc"):
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(
+                ValueError, "maf_threshold"
+            ):
+                parse_maf_threshold(invalid)
+        self.assertEqual(parse_maf_filter_exempt_technologies(None), ())
+        self.assertEqual(
+            parse_maf_filter_exempt_technologies([" Whole genome sequencing "]),
+            ("Whole genome sequencing",),
+        )
+        for invalid in ("Whole genome sequencing", [""], [1], ["ok", ""]):
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(
+                ValueError, "maf_filter_exempt_genotyping_technologies"
+            ):
+                parse_maf_filter_exempt_technologies(invalid)
+
+    def test_maf_threshold_is_per_analysis_from_metadata_yaml(self) -> None:
+        # Omitted defaults.maf_threshold means no MAF filter at all.
+        base = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertIsNone(base.maf_threshold)
+        self.assertEqual(base.maf_filter_exempt_genotyping_technologies, ())
+
+        self._set_maf_threshold(0.005)
+        self._set_maf_exempt(["Whole genome sequencing", "Exome-wide sequencing"])
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertEqual(config.maf_threshold, "0.005")
+        self.assertEqual(
+            config.maf_filter_exempt_genotyping_technologies,
+            ("Whole genome sequencing", "Exome-wide sequencing"),
+        )
+        missing = _synthetic_inventory_row()
+        absent_yaml = self.fixture.root / "absent.yaml"
+        self.assertEqual(
+            read_genotyping_technologies(str(absent_yaml)), []
+        )
+        # Missing technology metadata is never an exemption.
+        self.assertEqual(
+            analysis_maf_threshold(replace(missing, yaml_file=str(absent_yaml)), config),
+            "0.005",
+        )
+        exempt_path = self._write_metadata_yaml("wgs.yaml", ["Whole genome sequencing"])
+        self.assertEqual(
+            read_genotyping_technologies(str(exempt_path)), ["Whole genome sequencing"]
+        )
+        exempt = replace(missing, yaml_file=str(exempt_path))
+        # Every technology in the exempt list -> NaN (no MAF filter).
+        self.assertEqual(analysis_maf_threshold(exempt, config), "NaN")
+        # An empty technology list is not "all in the list".
+        empty_path = self._write_metadata_yaml("empty.yaml", [])
+        self.assertEqual(
+            analysis_maf_threshold(replace(missing, yaml_file=str(empty_path)), config),
+            "0.005",
+        )
+        # One technology outside the list -> not exempt.
+        mixed_path = self._write_metadata_yaml(
+            "mixed.yaml", ["Whole genome sequencing", "Genome-wide genotyping array"]
+        )
+        self.assertEqual(
+            analysis_maf_threshold(replace(missing, yaml_file=str(mixed_path)), config),
+            "0.005",
+        )
+        # A no-MAF-filter release ignores exemptions entirely.
+        self._set_maf_threshold(None)
+        no_filter = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertEqual(analysis_maf_threshold(exempt, no_filter), "NaN")
+
+    def test_maf_threshold_emission_is_per_analysis_evidence(self) -> None:
+        declared = ResolverRow(
+            "GCST1", "/tmp/a.h.tsv.gz", "opengwasdb.gwas-ssf", "sd",
+            "estimated_from_source_maf", "100", "a" * 64, "sha256", "10",
+            maf_threshold="0.005",
+        )
+        matching = {
+            "diagnostics": {"maf_state": "filtered"},
+            "fingerprints": {"resolution_config": {"maf_threshold": 0.005}},
+        }
+        self.assertEqual(maf_threshold_emission(declared, matching), "0.005")
+        self.assertEqual(maf_threshold_emission(None, matching), "NaN")
+        self.assertEqual(
+            maf_threshold_emission(replace(declared, maf_threshold="NaN"), matching),
+            "NaN",
+        )
+        # A record that did not apply MAF (unavailable), or one without the
+        # #176 diagnostics, has no evidence: NaN.
+        unavailable = {
+            "diagnostics": {"maf_state": "unavailable"},
+            "fingerprints": {"resolution_config": {"maf_threshold": 0.005}},
+        }
+        self.assertEqual(maf_threshold_emission(declared, unavailable), "NaN")
+        self.assertEqual(maf_threshold_emission(declared, {"diagnostics": {}}), "NaN")
+        # A fingerprint that no longer binds the value emits NaN.
+        stale = {
+            "diagnostics": {"maf_state": "filtered"},
+            "fingerprints": {"resolution_config": {"maf_threshold": 0.01}},
+        }
+        self.assertEqual(maf_threshold_emission(declared, stale), "NaN")
+        # Zero is a real requested floor, emitted as "0", not treated as absence.
+        zero = replace(declared, maf_threshold="0")
+        disabled = {
+            "diagnostics": {"maf_state": "disabled"},
+            "fingerprints": {"resolution_config": {"maf_threshold": 0}},
+        }
+        self.assertEqual(maf_threshold_emission(zero, disabled), "0")
+        self.assertEqual(USABLE_MAF_STATES, frozenset({"disabled", "filtered"}))
+
+    def test_maf_threshold_manifest_receipt_and_candidate_emission(self) -> None:
+        self._set_maf_threshold(0.005)
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        run_root = self.fixture.work_root / STORE_ID / "resolver"
+        self.assertIn("maf_threshold", RESOLVER_MANIFEST_COLUMNS)
+        manifest = _read_tsv(run_root / "analyses.tsv")
+        self.assertEqual({row["maf_threshold"] for row in manifest}, {"0.005"})
+        record = json.loads((run_root / "records" / "GCST90000001.json").read_text())
+        self.assertEqual(
+            record["fingerprints"]["resolution_config"]["maf_threshold"], 0.005
+        )
+        self.assertEqual(record["diagnostics"]["maf_state"], "filtered")
+        emitted = _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
+        self.assertEqual({row["maf_threshold"] for row in emitted}, {"0.005"})
+        receipt = read_resolution_receipt(run_root / RECEIPT_FILENAME)
+        self.assertEqual(receipt["contract"]["maf_threshold"], "0.005")
+        self.assertEqual(
+            receipt["contract"]["maf_filter_exempt_genotyping_technologies"], []
+        )
+
+    def test_maf_threshold_requires_resolver_fingerprint(self) -> None:
+        self._set_maf_threshold(0.005)
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        run_root = self.fixture.work_root / STORE_ID / "resolver"
+        record_path = run_root / "records" / "GCST90000001.json"
+        record = json.loads(record_path.read_text())
+        del record["fingerprints"]["resolution_config"]["maf_threshold"]
+        record["fingerprints"]["fingerprint_digest"] = _fingerprint_digest(
+            record["fingerprints"]
+        )
+        record_path.write_text(json.dumps(record))
+        inventory = read_inventory(self.fixture.inventory_path)
+        metadata = read_candidate_metadata(
+            self.fixture.candidates_path,
+            (row.analysis_id for row in inventory if row.ready),
+        )
+        manifest = derive_resolver_manifest(
+            inventory,
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            metadata,
+        )
+        _, failures = account_records(manifest, run_root / "records")
+        self.assertTrue(
+            any("resolution_config.maf_threshold" in error for error in failures), failures
+        )
+        stale = _run_cli(self.fixture, "--stage", "emit")
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn("resolution_config.maf_threshold", stale.stderr + stale.stdout)
+
+    def test_changed_maf_threshold_makes_the_receipt_stale(self) -> None:
+        self._set_maf_threshold(0.005)
+        self._resolved_candidate()
+        self._set_maf_threshold(0.01)
+        self._assert_emit_rejects_and_preserves("resolution contract changed")
+
+    def test_maf_filter_exemption_file_parsing(self) -> None:
+        # An absent path is no exemptions, never an error.
+        self.assertEqual(read_maf_filter_exempt_analyses(None), {})
+        good = self._write_exemptions(
+            "GCST90428462\tplaceholder frequency one\n"
+            "GCST90428463\tplaceholder frequency two\n"
+        )
+        self.assertEqual(
+            read_maf_filter_exempt_analyses(good),
+            {
+                "GCST90428462": "placeholder frequency one",
+                "GCST90428463": "placeholder frequency two",
+            },
+        )
+        duplicate = self._write_exemptions("GCST1\tone\nGCST1\ttwo\n")
+        with self.assertRaises(CandidateError) as caught:
+            read_maf_filter_exempt_analyses(duplicate)
+        self.assertIn(f"{duplicate}:3: duplicate analysis_id", str(caught.exception))
+        blank_id = self._write_exemptions("\treason\n")
+        with self.assertRaises(CandidateError) as caught:
+            read_maf_filter_exempt_analyses(blank_id)
+        self.assertIn(f"{blank_id}:2: analysis_id must be non-empty", str(caught.exception))
+        blank_reason = self._write_exemptions("GCST1\t \n")
+        with self.assertRaises(CandidateError) as caught:
+            read_maf_filter_exempt_analyses(blank_reason)
+        self.assertIn(f"{blank_reason}:2: reason must be non-empty", str(caught.exception))
+        bad_header = self._write_exemptions(
+            "GCST1\treason\n", header="analysis_id\trationale\n"
+        )
+        with self.assertRaises(CandidateError) as caught:
+            read_maf_filter_exempt_analyses(bad_header)
+        self.assertIn(f"{bad_header}: expected exact TSV headers", str(caught.exception))
+        missing = self.fixture.root / "absent-exemptions.tsv"
+        with self.assertRaises(CandidateError) as caught:
+            read_maf_filter_exempt_analyses(missing)
+        self.assertIn(f"not found: {missing}", str(caught.exception))
+
+    def test_committed_maf_filter_exemptions_resolve_against_the_repo_root(self) -> None:
+        # `source.maf_filter_exempt_analyses` is a repo-root-relative path and the
+        # committed table records the operator's reason for each exemption.
+        self._set_maf_exempt_analyses(
+            "resources/generators/gwas-catalog-eur-hybrid/maf-filter-exemptions.tsv"
+        )
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertEqual(
+            config.maf_filter_exempt_analyses_path,
+            REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/maf-filter-exemptions.tsv",
+        )
+        self.assertEqual(
+            set(config.maf_filter_exempt_analyses), {"GCST90428462", "GCST90428463"}
+        )
+        for analysis_id in ("GCST90428462", "GCST90428463"):
+            reason = config.maf_filter_exempt_analyses[analysis_id]
+            self.assertIn("effect_allele_frequency is 0.0 on every row", reason)
+            self.assertIn("minor_allele_freq_lower_limit 0.01", reason)
+
+    def test_listed_analysis_emits_nan_maf_threshold_in_manifest_and_receipt(self) -> None:
+        self._set_maf_threshold(0.005)
+        exempt = self._write_exemptions("GCST90000001\tplaceholder frequency (fixture)\n")
+        self._set_maf_exempt_analyses(str(exempt))
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        rows = read_inventory(self.fixture.inventory_path)
+        metadata = read_candidate_metadata(
+            self.fixture.candidates_path, (row.analysis_id for row in rows if row.ready)
+        )
+        manifest = derive_resolver_manifest(rows, config, metadata)
+        by_id = {row.analysis_id: row for row in manifest}
+        # The exempt Analysis carries the NaN the manifest already understands;
+        # every other Analysis keeps the configured floor.
+        self.assertEqual(by_id["GCST90000001"].maf_threshold, "NaN")
+        self.assertEqual(by_id["GCST90000002"].maf_threshold, "0.005")
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        emitted = {
+            row["analysis_id"]: row
+            for row in _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
+        }
+        # No resolver evidence for an exempt Analysis -> literal NaN, as for an
+        # exempt genotyping technology.
+        self.assertEqual(emitted["GCST90000001"]["maf_threshold"], "NaN")
+        self.assertEqual(emitted["GCST90000002"]["maf_threshold"], "0.005")
+        receipt = read_resolution_receipt(
+            self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME
+        )
+        self.assertEqual(receipt["contract"]["maf_filter_exempt_analyses"], str(exempt))
+        self.assertEqual(
+            receipt["contract"]["maf_filter_exempt_analyses_reasons"],
+            {"GCST90000001": "placeholder frequency (fixture)"},
+        )
+
+    def test_changed_maf_exemption_makes_the_receipt_stale(self) -> None:
+        self._set_maf_threshold(0.005)
+        exempt = self._write_exemptions("GCST90000001\tfirst reason\n")
+        self._set_maf_exempt_analyses(str(exempt))
+        self._resolved_candidate()
+        self._write_exemptions("GCST90000001\tsecond reason\n")
+        self._assert_emit_rejects_and_preserves("resolution contract changed")
+
+    def test_declared_analysis_with_no_usable_scores_is_included_with_nan_info(self) -> None:
+        # Core no longer treats zero usable scores as a controlled failure, and
+        # the registry no longer refuses the Analysis (#176): every row is
+        # retained and the emitted INFO cells are literal NaN / empty.
+        analysis_id = "GCST90000001"
+        self._declare_scores([{
+            "analysis_id": analysis_id,
+            "imputation_score_column": "imputation_INFO",
+            "imputation_score_kind": "imputation_info",
+            "imputation_score_provenance": "provider specification: INFO is imputation quality",
+        }])
+        self._set_outcome(analysis_id, info_rows_usable=0)
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        exclusions = {
+            row["analysis_id"]: row
+            for row in _read_tsv(self.fixture.registry_root / STORE_ID / "sidecars/exclusions.tsv")
+        }
+        self.assertNotIn(analysis_id, exclusions)
+        by_id = {
+            row["analysis_id"]: row
+            for row in _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
+        }
+        self.assertEqual(by_id[analysis_id]["exclude_from_build"], "")
+        self.assertEqual(by_id[analysis_id]["info_score_threshold"], "NaN")
+        self.assertEqual(by_id[analysis_id]["imputation_score_column"], "")
+        self.assertEqual(by_id[analysis_id]["imputation_score_kind"], "")
+        self.assertEqual(by_id[analysis_id]["imputation_score_provenance"], "")
+
+    def test_info_score_emission_is_per_analysis_evidence(self) -> None:
+        declared = ResolverRow(
+            "GCST1", "/tmp/a.h.tsv.gz", "opengwasdb.gwas-ssf", "sd",
+            "estimated_from_source_maf", "100", "a" * 64, "sha256", "10",
+            info_score_threshold="0.6", imputation_score_column="imputation_INFO",
+            imputation_score_kind="imputation_info",
+            imputation_score_provenance="provider: INFO quality",
+        )
+        matching_fingerprint = {
+            "resolution_config": {
+                "info_score_threshold": 0.6,
+                "imputation_score_column": "imputation_INFO",
+                "imputation_score_kind": "imputation_info",
+                "imputation_score_provenance": "provider: INFO quality",
+            }
+        }
+        usable = {
+            "diagnostics": {"info_score_state": "filtered", "info_rows_usable": 5},
+            "fingerprints": matching_fingerprint,
+        }
+        self.assertEqual(
+            info_score_emission(declared, usable),
+            ("0.6", "imputation_INFO", "imputation_info", "provider: INFO quality"),
+        )
+        # Undeclared: NaN whatever the record says.
+        undeclared = replace(
+            declared, info_score_threshold="NaN", imputation_score_column="",
+            imputation_score_kind="", imputation_score_provenance="",
+        )
+        self.assertEqual(info_score_emission(undeclared, usable), ("NaN", "", "", ""))
+        # Legacy record without the #175 diagnostics: NaN, never read as a pass.
+        self.assertEqual(
+            info_score_emission(declared, {"diagnostics": {"rows_read": 100}}),
+            ("NaN", "", "", ""),
+        )
+        # Declared but no usable score: NaN.
+        self.assertEqual(
+            info_score_emission(
+                declared,
+                {"diagnostics": {"info_score_state": "filtered", "info_rows_usable": 0},
+                 "fingerprints": matching_fingerprint},
+            ),
+            ("NaN", "", "", ""),
+        )
+        # Declared and usable, but the fingerprint no longer binds it: NaN.
+        stale = {
+            "diagnostics": {"info_score_state": "filtered", "info_rows_usable": 5},
+            "fingerprints": {"resolution_config": {"info_score_threshold": 0.6}},
+        }
+        self.assertEqual(info_score_emission(declared, stale), ("NaN", "", "", ""))
+
+    def test_declared_score_manifest_receipt_and_candidate_handoff(self) -> None:
+        analysis_id = "GCST90000004"
+        path = self._declare_scores([{
+            "analysis_id": analysis_id,
+            "imputation_score_column": "imputation_INFO",
+            "imputation_score_kind": "imputation_info",
+            "imputation_score_provenance": "provider specification: INFO is imputation quality",
+        }])
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["defaults"]["info_score_threshold"] = 0
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        run_root = self.fixture.work_root / STORE_ID / "resolver"
+        manifest = _read_tsv(run_root / "analyses.tsv")
+        self.assertEqual(tuple(manifest[0]), RESOLVER_MANIFEST_COLUMNS)
+        by_id = {row["analysis_id"]: row for row in manifest}
+        declared = by_id[analysis_id]
+        self.assertEqual(declared["info_score_threshold"], "0")
+        self.assertEqual(declared["imputation_score_column"], "imputation_INFO")
+        self.assertEqual(declared["imputation_score_kind"], "imputation_info")
+        self.assertEqual(declared["imputation_score_provenance"],
+                         "provider specification: INFO is imputation quality")
+        self.assertEqual(by_id["GCST90000001"]["info_score_threshold"], "NaN")
+        self.assertEqual(by_id["GCST90000001"]["imputation_score_column"], "")
+        record = json.loads((run_root / "records" / f"{analysis_id}.json").read_text())
+        self.assertEqual(record["fingerprints"]["resolution_config"]["imputation_score_column"],
+                         "imputation_INFO")
+        receipt = read_resolution_receipt(run_root / RECEIPT_FILENAME)
+        self.assertEqual(receipt["contract"]["imputation_score_declarations_sha256"],
+                         hashlib.sha256(path.read_bytes()).hexdigest())
+        self.assertEqual(receipt["manifest_sha256"],
+                         hashlib.sha256((run_root / "analyses.tsv").read_bytes()).hexdigest())
+        final = _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
+        by_id = {row["analysis_id"]: row for row in final}
+        # An approved declaration with usable resolver evidence emits the exact
+        # requested floor and triple; the undeclared Analysis stays NaN.
+        self.assertEqual(by_id[analysis_id]["info_score_threshold"], "0")
+        self.assertEqual(by_id[analysis_id]["imputation_score_column"], "imputation_INFO")
+        self.assertEqual(by_id[analysis_id]["imputation_score_kind"], "imputation_info")
+        self.assertEqual(
+            by_id[analysis_id]["imputation_score_provenance"],
+            "provider specification: INFO is imputation quality",
+        )
+        self.assertEqual(by_id["GCST90000001"]["info_score_threshold"], "NaN")
+        self.assertEqual(by_id["GCST90000001"]["imputation_score_column"], "")
+        self.assertEqual(_run_cli(self.fixture, "--stage", "verify").returncode, 0)
+        path.write_text(path.read_text().replace("imputation_INFO", "imputation_R2"))
+        stale = _run_cli(self.fixture, "--stage", "verify")
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn("resolution contract changed", stale.stderr + stale.stdout)
+
+    def test_declared_score_requires_resolver_fingerprint(self) -> None:
+        analysis_id = "GCST90000004"
+        self._declare_scores([{
+            "analysis_id": analysis_id, "imputation_score_column": "imputation_r2",
+            "imputation_score_kind": "imputation_r2",
+            "imputation_score_provenance": "provider dictionary: imputation r2",
+        }])
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        run_root = self.fixture.work_root / STORE_ID / "resolver"
+        record_path = run_root / "records" / f"{analysis_id}.json"
+        record = json.loads(record_path.read_text())
+        del record["fingerprints"]["resolution_config"]["imputation_score_kind"]
+        record["fingerprints"]["fingerprint_digest"] = _fingerprint_digest(
+            record["fingerprints"]
+        )
+        record_path.write_text(json.dumps(record))
+        inventory = read_inventory(self.fixture.inventory_path)
+        metadata = read_candidate_metadata(self.fixture.candidates_path,
+                                           (row.analysis_id for row in inventory if row.ready))
+        manifest = derive_resolver_manifest(inventory, load_candidate_configuration(
+            self.fixture.config_path, REPO_ROOT), metadata)
+        _, failures = account_records(manifest, run_root / "records")
+        self.assertTrue(any("resolution_config.imputation_score_kind" in error
+                            for error in failures), failures)
+        stale = _run_cli(self.fixture, "--stage", "emit")
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn("resolution_config.imputation_score_kind", stale.stderr + stale.stdout)
+
+    def test_score_declaration_validation_and_legacy_manifest(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        rows = read_inventory(self.fixture.inventory_path)
+        metadata = read_candidate_metadata(self.fixture.candidates_path,
+                                           (row.analysis_id for row in rows if row.ready))
+        legacy = derive_resolver_manifest(rows, config, metadata)
+        self.assertEqual({row.info_score_threshold for row in legacy}, {"NaN"})
+        self.assertEqual({row.imputation_score_kind for row in legacy}, {""})
+        valid = {"analysis_id": "GCST90000001", "imputation_score_column": "r2",
+                 "imputation_score_kind": "imputation_r2",
+                 "imputation_score_provenance": "provider data dictionary: imputation R2"}
+        for broken, message in (
+            ([{**valid, "analysis_id": "unknown"}], "unknown analysis_id"),
+            ([valid, valid], "duplicate analysis_id"),
+            ([{**valid, "imputation_score_column": " r2"}], "exact non-empty"),
+            ([{**valid, "imputation_score_kind": "MAF"}], "invalid imputation_score_kind"),
+            ([{**valid, "imputation_score_provenance": ""}], "independent provider evidence"),
+        ):
+            with self.subTest(broken=broken):
+                self._declare_scores(broken)
+                configured = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+                with self.assertRaisesRegex(CandidateError, message):
+                    derive_resolver_manifest(rows, configured, metadata)
+        path = self._declare_scores([valid])
+        path.write_text(path.read_text().replace("imputation_score_kind", "score_kind"))
+        with self.assertRaisesRegex(CandidateError, "exact TSV headers"):
+            derive_resolver_manifest(rows, load_candidate_configuration(
+                self.fixture.config_path, REPO_ROOT), metadata)
+        path.unlink()
+        with self.assertRaisesRegex(CandidateError, "table not found"):
+            derive_resolver_manifest(rows, load_candidate_configuration(
+                self.fixture.config_path, REPO_ROOT), metadata)
+
+    def test_worker_count_byte_equivalence(self) -> None:
+        single_root = self.fixture.root / "stores-1"
+        multi_root = self.fixture.root / "stores-4"
+        single_root.mkdir()
+        multi_root.mkdir()
+        one = _run_cli(
+            self.fixture, cores=1, registry_root=single_root, work_root=self.fixture.root / "work-1"
+        )
+        self.assertEqual(one.returncode, 0, one.stderr)
+        four = _run_cli(
+            self.fixture, cores=4, registry_root=multi_root, work_root=self.fixture.root / "work-4"
+        )
+        self.assertEqual(four.returncode, 0, four.stderr)
+        self.assertEqual(_candidate_tables_bytes(single_root), _candidate_tables_bytes(multi_root))
+
+    def test_resume_reuses_records_and_reproduces_bytes(self) -> None:
+        first = _run_cli(self.fixture, resume=False)
+        self.assertEqual(first.returncode, 0, first.stderr)
+        before = _candidate_tables_bytes(self.fixture.registry_root)
+
+        second = _run_cli(self.fixture, resume=True)
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertIn("--resume", second.stdout)
+        after = _candidate_tables_bytes(self.fixture.registry_root)
+        self.assertEqual(before, after)
+
+        index = json.loads(
+            (self.fixture.work_root / STORE_ID / "resolver/records/index.json").read_text()
+        )
+        self.assertGreater(index["n_resumed"], 0)
+
+    def test_kill_then_resume_matches_uninterrupted_run(self) -> None:
+        ok_root = self.fixture.root / "stores-ok"
+        ok_root.mkdir()
+        ok = _run_cli(
+            self.fixture, registry_root=ok_root, work_root=self.fixture.root / "work-ok"
+        )
+        self.assertEqual(ok.returncode, 0, ok.stderr)
+        expected = _candidate_tables_bytes(ok_root)
+
+        resume_root = self.fixture.root / "stores-resume"
+        resume_root.mkdir()
+        resume_work = self.fixture.root / "work-resume"
+        killed = _run_cli(
+            self.fixture,
+            registry_root=resume_root,
+            work_root=resume_work,
+            fail_after=3,
+        )
+        self.assertNotEqual(killed.returncode, 0)
+        self.assertFalse((resume_root / STORE_ID).exists())
+
+        resumed = _run_cli(
+            self.fixture,
+            resume=True,
+            registry_root=resume_root,
+            work_root=resume_work,
+        )
+        self.assertEqual(resumed.returncode, 0, resumed.stderr)
+        self.assertEqual(_candidate_tables_bytes(resume_root), expected)
+        index = json.loads(
+            (resume_work / STORE_ID / "resolver/records/index.json").read_text()
+        )
+        self.assertEqual(index["n_resumed"], 3)
+
+    def test_interrupted_run_preserves_prior_candidate(self) -> None:
+        first = _run_cli(self.fixture)
+        self.assertEqual(first.returncode, 0, first.stderr)
+        before = _candidate_tables_bytes(self.fixture.registry_root)
+        release_before = (self.fixture.registry_root / STORE_ID / "release.yaml").read_bytes()
+
+        interrupted = _run_cli(self.fixture, fail_after=2)
+        self.assertNotEqual(interrupted.returncode, 0)
+        self.assertIn("resolver exited", interrupted.stderr)
+
+        self.assertEqual(_candidate_tables_bytes(self.fixture.registry_root), before)
+        self.assertEqual(
+            (self.fixture.registry_root / STORE_ID / "release.yaml").read_bytes(), release_before
+        )
+        self.assertFalse((self.fixture.registry_root / ".staging").exists())
+
+    def test_failed_finalisation_does_not_create_a_candidate(self) -> None:
+        result = _run_cli(self.fixture, fail_after=1)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((self.fixture.registry_root / STORE_ID).exists())
+        self.assertFalse((self.fixture.registry_root / ".staging").exists())
+
+    # -- accounting ------------------------------------------------------------
+
+    def _run_emit_only(self) -> subprocess.CompletedProcess:
+        return _run_cli(self.fixture, "--stage", "emit")
+
+    def test_missing_record_fails_before_replacement(self) -> None:
+        self.assertEqual(_run_cli(self.fixture).returncode, 0)
+        before = _candidate_tables_bytes(self.fixture.registry_root)
+        records = self.fixture.work_root / STORE_ID / "resolver/records"
+        (records / "GCST90000002.json").unlink()
+        result = self._run_emit_only()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing", result.stderr)
+        self.assertEqual(_candidate_tables_bytes(self.fixture.registry_root), before)
+        self.assertFalse((self.fixture.registry_root / ".staging").exists())
+
+    def test_extra_record_fails_before_replacement(self) -> None:
+        self.assertEqual(_run_cli(self.fixture).returncode, 0)
+        records = self.fixture.work_root / STORE_ID / "resolver/records"
+        (records / "GCST99999999.json").write_text("{}", encoding="utf-8")
+        result = self._run_emit_only()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("extra resolver record", result.stderr)
+
+    def test_record_schema_version_mismatch_fails_before_replacement(self) -> None:
+        self.assertEqual(_run_cli(self.fixture).returncode, 0)
+        records = self.fixture.work_root / STORE_ID / "resolver/records"
+        record_path = records / "GCST90000001.json"
+        record = json.loads(record_path.read_text())
+        record["record_schema_version"] = 2
+        record_path.write_text(json.dumps(record), encoding="utf-8")
+        result = self._run_emit_only()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("record_schema_version", result.stderr)
+
+    def test_index_schema_version_mismatch_fails_before_replacement(self) -> None:
+        self.assertEqual(_run_cli(self.fixture).returncode, 0)
+        records = self.fixture.work_root / STORE_ID / "resolver/records"
+        index_path = records / "index.json"
+        index = json.loads(index_path.read_text())
+        index["record_schema_version"] = 2
+        index_path.write_text(json.dumps(index), encoding="utf-8")
+        result = self._run_emit_only()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("record_schema_version", result.stderr)
+
+    # -- stale-contract (resolution receipt) -----------------------------------
+
+    def _resolved_candidate(self) -> None:
+        """Produce a successful candidate whose records and receipt are on disk."""
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def _assert_emit_rejects_and_preserves(self, expected_message: str) -> None:
+        before = _candidate_tables_bytes(self.fixture.registry_root)
+        result = self._run_emit_only()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(expected_message, result.stderr)
+        self.assertEqual(_candidate_tables_bytes(self.fixture.registry_root), before)
+        self.assertFalse((self.fixture.registry_root / ".staging").exists())
+
+    def test_changed_gate_makes_the_receipt_stale(self) -> None:
+        self._resolved_candidate()
+        document = yaml.safe_load(self.fixture.config_path.read_text(encoding="utf-8"))
+        document["ancestry_assignment"]["gates"]["tau"] = 0.9
+        self.fixture.config_path.write_text(
+            yaml.safe_dump(document, sort_keys=False), encoding="utf-8"
+        )
+        self._assert_emit_rejects_and_preserves("resolution contract changed")
+
+    def test_changed_ancestry_reference_makes_the_receipt_stale(self) -> None:
+        self._resolved_candidate()
+        reference = self.fixture.root / "reference/ref_freqs.tsv.gz"
+        reference.write_bytes(reference.read_bytes() + b"# changed content\n")
+        self._assert_emit_rejects_and_preserves("ancestry_reference_sha256")
+
+    def test_changed_ancestry_groups_makes_the_receipt_stale(self) -> None:
+        self._resolved_candidate()
+        groups = self.fixture.root / "reference/ancestry_groups.tsv"
+        groups.write_text(
+            groups.read_text(encoding="utf-8") + "AFR_A\tAFR\n", encoding="utf-8"
+        )
+        self._assert_emit_rejects_and_preserves("ancestry_groups_sha256")
+
+    def test_missing_receipt_fails_before_replacement(self) -> None:
+        self._resolved_candidate()
+        receipt = self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME
+        receipt.unlink()
+        self._assert_emit_rejects_and_preserves("resolution receipt is missing")
+
+    def test_receipt_binds_every_record_digest(self) -> None:
+        self._resolved_candidate()
+        receipt = json.loads(
+            (self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME).read_text()
+        )
+        records = self.fixture.work_root / STORE_ID / "resolver/records"
+        for analysis_id in receipt["analysis_ids"]:
+            record = json.loads((records / f"{analysis_id}.json").read_text())
+            self.assertEqual(
+                receipt["record_digests"][analysis_id],
+                record["fingerprints"]["fingerprint_digest"],
+            )
+        self.assertIn("resolve-analyses", " ".join(receipt["resolver"]["argv"]))
+
+    def test_tampered_fingerprint_with_valid_self_digest_is_rejected(self) -> None:
+        # The exact hole review found: mutate a gate/evidence fingerprint input
+        # and recompute a *valid* self-digest. The record is internally
+        # consistent, so only the receipt can reject it.
+        self._resolved_candidate()
+        records = self.fixture.work_root / STORE_ID / "resolver/records"
+        record_path = records / "GCST90000001.json"
+        record = json.loads(record_path.read_text())
+        record["fingerprints"]["resolution_config"]["gates"]["tau"] = 0.99
+        record["fingerprints"]["resolution_config"]["evidence_sample"] = 123
+        record["fingerprints"]["opengwasdb_git_hash"] = "a-different-revision"
+        record["fingerprints"]["fingerprint_digest"] = _fingerprint_digest(
+            record["fingerprints"]
+        )
+        record_path.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
+        self._assert_emit_rejects_and_preserves("bound")
+
+    def test_changed_tool_identity_makes_the_receipt_stale(self) -> None:
+        self._resolved_candidate()
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        manifest = derive_resolver_manifest(
+            read_inventory(self.fixture.inventory_path),
+            config,
+            read_candidate_metadata(
+                self.fixture.candidates_path,
+                [row.analysis_id for row in read_inventory(self.fixture.inventory_path) if row.ready],
+            ),
+        )
+        run_root = self.fixture.work_root / STORE_ID / "resolver"
+        with mock.patch.object(
+            candidate_workflow,
+            "_opengwasdb_tool_identity",
+            return_value=("0.3.0", "0" * 64),
+        ):
+            _, failures = verify_records(
+                manifest,
+                run_root / "records",
+                config=config,
+                manifest_path=run_root / "analyses.tsv",
+                receipt_path=run_root / RECEIPT_FILENAME,
+            )
+        self.assertTrue(
+            any("opengwasdb_resolver_sha256" in failure for failure in failures), failures
+        )
+
+    def test_stale_record_fails_before_replacement(self) -> None:
+        self.assertEqual(_run_cli(self.fixture).returncode, 0)
+        records = self.fixture.work_root / STORE_ID / "resolver/records"
+        record_path = records / "GCST90000001.json"
+        record = json.loads(record_path.read_text())
+        record["fingerprints"]["source_recorded_sha256"] = "0" * 64
+        record_path.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
+        result = self._run_emit_only()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("fingerprint", result.stderr)
+
+    def test_account_records_flags_missing_duplicate_and_extra(self) -> None:
+        rows = _two_resolver_rows()
+        with tempfile.TemporaryDirectory() as tmp:
+            records = Path(tmp)
+            base_index = {
+                "record_schema_version": 1,
+                "n_total": 2,
+                "analyses": [
+                    {"analysis_id": "GCST1", "status": "success"},
+                    {"analysis_id": "GCST2", "status": "success"},
+                ],
+            }
+            # index present but a record missing
+            (records / "index.json").write_text(json.dumps(base_index))
+            _, failures = account_records(rows, records)
+            self.assertTrue(any("missing" in failure for failure in failures))
+
+            # duplicate id in the index
+            duplicate_index = dict(base_index)
+            duplicate_index["analyses"] = [
+                {"analysis_id": "GCST1", "status": "success"},
+                {"analysis_id": "GCST1", "status": "success"},
+            ]
+            (records / "index.json").write_text(json.dumps(duplicate_index))
+            _, failures = account_records(rows, records)
+            self.assertTrue(any("duplicate analysis_id" in failure for failure in failures))
+
+            # an extra record the manifest does not account for
+            (records / "index.json").write_text(json.dumps(base_index))
+            (records / "GCST99999999.json").write_text("{}")
+            _, failures = account_records(rows, records)
+            self.assertTrue(any("extra resolver record" in failure for failure in failures))
+
+    def test_account_records_rejects_incompatible_schema_versions(self) -> None:
+        rows = _two_resolver_rows()[:1]
+        with tempfile.TemporaryDirectory() as tmp:
+            records = Path(tmp)
+            (records / "index.json").write_text(
+                json.dumps(
+                    {
+                        "record_schema_version": 2,
+                        "n_total": 1,
+                        "analyses": [{"analysis_id": "GCST1", "status": "success"}],
+                    }
+                )
+            )
+            _, failures = account_records(rows, records)
+            self.assertTrue(any("record_schema_version" in failure for failure in failures))
+
+            (records / "index.json").write_text(
+                json.dumps(
+                    {
+                        "record_schema_version": 1,
+                        "n_total": 1,
+                        "analyses": [{"analysis_id": "GCST1", "status": "success"}],
+                    }
+                )
+            )
+            (records / "GCST1.json").write_text(
+                json.dumps(
+                    {
+                        "record_schema_version": 2,
+                        "analysis_id": "GCST1",
+                        "status": "success",
+                    }
+                )
+            )
+            _, failures = account_records(rows, records)
+            self.assertTrue(any("record_schema_version" in failure for failure in failures))
+
+    def test_read_resolution_receipt_rejects_incompatible_schema_versions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / RECEIPT_FILENAME
+            path.write_text(json.dumps({"receipt_schema_version": 2}))
+            with self.assertRaises(CandidateError):
+                read_resolution_receipt(path)
+            path.write_text(
+                json.dumps({"receipt_schema_version": 1, "record_schema_version": 9})
+            )
+            with self.assertRaises(CandidateError):
+                read_resolution_receipt(path)
+            with self.assertRaises(CandidateError):
+                read_resolution_receipt(Path(tmp) / "missing.json")
+
+    # -- units -----------------------------------------------------------------
+
+    def test_resolver_argv_composes_declared_facts(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        argv = resolver_argv(
+            resolver_bin="opengwasdb",
+            manifest_path=Path("/tmp/analyses.tsv"),
+            records_dir=Path("/tmp/records"),
+            config=config,
+            cores=64,
+            resume=True,
+        )
+        self.assertEqual(argv[:2], ["opengwasdb", "resolve-analyses"])
+        for flag in (
+            "--ancestry-reference",
+            "--ancestry-groups",
+            "--default-source-reader-capability",
+            "--maf-floor",
+            "--tau",
+            "--delta",
+            "--n-min",
+            "--residual-max",
+            "--n-workers",
+            "--resume",
+        ):
+            self.assertIn(flag, argv)
+        self.assertEqual(argv[argv.index("--n-workers") + 1], "64")
+        self.assertNotIn("--af-reference", argv)  # source-AF-only policy (#152)
+
+    def test_resolver_manifest_uses_exact_inventory_paths(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        rows = read_inventory(self.fixture.inventory_path)
+        metadata = read_candidate_metadata(
+            self.fixture.candidates_path, [row.analysis_id for row in rows if row.ready]
+        )
+        manifest = derive_resolver_manifest(rows, config, metadata)
+        self.assertEqual(len(manifest), len(READY_ANALYSES))
+        rendered = render_resolver_manifest(manifest)
+        header = rendered.splitlines()[0].split("\t")
+        self.assertEqual(tuple(header), RESOLVER_MANIFEST_COLUMNS)
+        inventory_by_id = {row.analysis_id: row for row in rows}
+        for entry in manifest:
+            self.assertEqual(entry.source_file, inventory_by_id[entry.analysis_id].data_file)
+            self.assertEqual(entry.checksum, inventory_by_id[entry.analysis_id].sha256)
+
+    def test_apply_release_policy_is_total_and_controlled(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        rows = read_inventory(self.fixture.inventory_path)
+        ready_ids = [row.analysis_id for row in rows if row.ready]
+        metadata = read_candidate_metadata(self.fixture.candidates_path, ready_ids)
+        manifest = derive_resolver_manifest(rows, config, metadata)
+        # Synthesise records straight from the manifest, using the fake's shape.
+        run = _run_cli(self.fixture, "--stage", "resolve")
+        self.assertEqual(run.returncode, 0, run.stderr)
+        records, failures = verify_records(
+            manifest,
+            self.fixture.work_root / STORE_ID / "resolver/records",
+            config=config,
+            manifest_path=self.fixture.work_root / STORE_ID / "resolver/analyses.tsv",
+            receipt_path=self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME,
+        )
+        self.assertEqual(failures, [])
+        index = json.loads(
+            (self.fixture.work_root / STORE_ID / "resolver/records/index.json").read_text()
+        )
+        outcomes = apply_release_policy(
+            rows, config, metadata, {record["analysis_id"]: record for record in records}
+        )
+        self.assertEqual(
+            {outcome.analysis_id for outcome in outcomes if outcome.included},
+            EXPECTED_INCLUDED,
+        )
+        self.assertTrue(
+            all(
+                outcome.exclusion_reason in EXCLUSION_REASONS
+                for outcome in outcomes
+                if not outcome.included
+            )
+        )
+        tables = build_candidate_tables(
+            inventory_rows=rows, outcomes=outcomes, config=config, index_summary=index
+        )
+        self.assertEqual(tables.included_rows, len(EXPECTED_INCLUDED))
+        self.assertEqual(dict(tables.exclusion_counts), {
+            "ancestry_not_eur": 1,
+            "ancestry_unassigned": 1,
+            "missing_case_control_counts": 1,
+            "orientation_failure": 1,
+            "resolution_failed": 1,
+            "sd_no_qualifying_evidence": 1,
+        })
+        self.assertEqual(tables.ancestry_check, "passed_with_warnings")
+        self.assertEqual(tables.sd_check, "passed_with_warnings")
+
+    def test_high_projected_overflow_blocks_candidate_publication(self) -> None:
+        config = yaml.safe_load(self.fixture.config_path.read_text())
+        config["build"]["options"]["variant-reference"] = "/axis.gz"
+        self.fixture.config_path.write_text(yaml.safe_dump(config))
+        outcomes = json.loads(self.fixture.outcomes_path.read_text())
+        outcomes["GCST90000001"]["variant_reference_rows_matched"] = 0
+        self.fixture.outcomes_path.write_text(json.dumps(outcomes))
+        run = _run_cli(self.fixture)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn("GCST90000001", run.stderr + run.stdout)
+        self.assertIn("off-reference share", run.stderr + run.stdout)
+        self.assertFalse((self.fixture.registry_root / STORE_ID).exists())
+
+    def test_zero_build_eligible_rows_excludes_and_publication_succeeds(self) -> None:
+        # OGS-00011's blocker: 476 successful records with zero build-eligible
+        # rows refused the candidate through the overlap gate. They now carry
+        # one audited exclusion reason and the overlap gate never sees them.
+        config = yaml.safe_load(self.fixture.config_path.read_text())
+        config["build"]["options"]["variant-reference"] = "/axis.gz"
+        self.fixture.config_path.write_text(yaml.safe_dump(config))
+        self._set_outcome("GCST90000001", build_eligible_rows=0)
+        self._set_outcome("GCST90000001", build_eligible_rows_on_variant_reference=0)
+        self._set_outcome("GCST90000001", build_eligible_rows_off_variant_reference=0)
+        run = _run_cli(self.fixture)
+        self.assertEqual(run.returncode, 0, run.stderr + run.stdout)
+        bundle = self.fixture.registry_root / STORE_ID
+        analyses = {row["analysis_id"]: row for row in _read_tsv(bundle / "analyses.tsv")}
+        self.assertEqual(analyses["GCST90000001"]["exclude_from_build"], "true")
+        self.assertIn(
+            "excluded: no_build_eligible_rows:",
+            analyses["GCST90000001"]["inclusion_reason"],
+        )
+        exclusions = {
+            row["analysis_id"]: row for row in _read_tsv(bundle / "sidecars/exclusions.tsv")
+        }
+        row = exclusions["GCST90000001"]
+        self.assertEqual(row["reason"], "no_build_eligible_rows")
+        self.assertEqual(row["category"], "effect_scale")
+        self.assertEqual(row["resolver_status"], "success")
+        self.assertEqual(row["exclude_from_build"], "true")
+        self.assertIn("finite effect and positive standard error", row["detail"])
+        self.assertIn("canonical_rows_retained=2000", row["detail"])
+        overlap = {
+            row["analysis_id"]: row
+            for row in _read_tsv(bundle / "sidecars/reference_overlap.tsv")
+        }
+        self.assertEqual(overlap["GCST90000001"]["build_eligible_rows"], "0")
+        self.assertEqual(overlap["GCST90000001"]["exclude_from_build"], "true")
+        validation = yaml.safe_load((bundle / "validation.yaml").read_text())
+        self.assertEqual(validation["checks"]["reference_overlap"], "passed")
+        self.assertEqual(validation["errors"], [])
+
+    def test_bundle_overlap_sidecar_and_gate_name_worst_contributor(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
+        first = _synthetic_inventory_row()
+        second = replace(first, analysis_id="GCST90000002", data_file="/mirror/second.gz")
+        records = []
+        for row, matches in ((first, 100), (second, 0)):
+            record = _synthetic_resolver_record()
+            record["analysis_id"] = row.analysis_id
+            record["diagnostics"].update(
+                ancestry_rows_read=100, ancestry_reference_rows_matched=90,
+                variant_reference_rows_matched=matches,
+            )
+            records.append(record)
+        outcomes = apply_release_policy(
+            [first, second], config,
+            {row.analysis_id: _synthetic_candidate_metadata() for row in (first, second)},
+            {record["analysis_id"]: record for record in records},
+        )
+        tables = build_candidate_tables(
+            inventory_rows=[first, second], outcomes=outcomes, config=config, index_summary={}
+        )
+        overlap = list(csv.DictReader(io.StringIO(tables.reference_overlap_tsv), delimiter="\t"))
+        self.assertEqual([row["variant_reference_rate"] for row in overlap], ["1", "0"])
+        self.assertEqual([row["rows_scanned"] for row in overlap], ["100", "100"])
+        validation = yaml.safe_load(render_validation_yaml(
+            tables=tables, index_summary={}, validated_at="now", validator_name="test"
+        ))
+        self.assertEqual(validation["checks"]["reference_overlap"], "failed")
+        self.assertEqual(validation["reference_overlap"]["projected_off_reference_share"], 0.5)
+        self.assertEqual(validation["reference_overlap"]["low_overlap_analyses"], ["GCST90000002"])
+        self.assertIn("GCST90000002", " ".join(validation["errors"]))
+
+    def test_overlap_gate_prefers_post_info_build_eligible_counts(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
+        first = _synthetic_inventory_row()
+        second = replace(first, analysis_id="GCST90000002", data_file="/mirror/second.gz")
+        records = []
+        # The pre-INFO legacy counts say every row matched, but the post-INFO
+        # eligible rows do not: 40/50 for the first and 0/50 for the second.
+        for row, eligible, on, legacy_matched in ((first, 50, 40, 100), (second, 50, 0, 100)):
+            record = _synthetic_resolver_record()
+            record["analysis_id"] = row.analysis_id
+            record["diagnostics"].update(
+                ancestry_rows_read=100, ancestry_reference_rows_matched=90,
+                variant_reference_rows_matched=legacy_matched,
+                build_eligible_rows=eligible,
+                build_eligible_rows_on_variant_reference=on,
+                build_eligible_rows_off_variant_reference=eligible - on,
+                info_score_state="filtered", info_rows_usable=eligible,
+            )
+            records.append(record)
+        outcomes = apply_release_policy(
+            [first, second], config,
+            {row.analysis_id: _synthetic_candidate_metadata() for row in (first, second)},
+            {record["analysis_id"]: record for record in records},
+        )
+        tables = build_candidate_tables(
+            inventory_rows=[first, second], outcomes=outcomes, config=config, index_summary={}
+        )
+        overlap = list(csv.DictReader(io.StringIO(tables.reference_overlap_tsv), delimiter="\t"))
+        # The legacy columns are left describing the pre-INFO rows, unchanged.
+        self.assertEqual([row["variant_reference_rate"] for row in overlap], ["1", "1"])
+        self.assertEqual([row["rows_scanned"] for row in overlap], ["100", "100"])
+        self.assertEqual(
+            [row["build_eligible_rows"] for row in overlap], ["50", "50"]
+        )
+        self.assertEqual(
+            [row["build_eligible_rows_on_variant_reference"] for row in overlap], ["40", "0"]
+        )
+        self.assertEqual([row["build_eligible_rate"] for row in overlap], ["0.8", "0"])
+        validation = yaml.safe_load(render_validation_yaml(
+            tables=tables, index_summary={}, validated_at="now", validator_name="test"
+        ))
+        summary = validation["reference_overlap"]
+        self.assertEqual(summary["projected_off_reference_basis"], "build_eligible_rows")
+        self.assertEqual(summary["projected_off_reference_share"], 0.6)
+        self.assertEqual(summary["low_overlap_analyses"], ["GCST90000002"])
+        self.assertEqual(validation["checks"]["reference_overlap"], "failed")
+
+    def test_overlap_gate_falls_back_to_legacy_counts_without_diagnostics(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
+        row = _synthetic_inventory_row()
+        record = _synthetic_resolver_record()
+        record["analysis_id"] = row.analysis_id
+        record["diagnostics"].update(
+            rows_read=100, ancestry_rows_read=100, ancestry_reference_rows_matched=100,
+            variant_reference_rows_matched=80,
+        )
+        outcomes = apply_release_policy(
+            [row], config, {row.analysis_id: _synthetic_candidate_metadata()},
+            {row.analysis_id: record},
+        )
+        tables = build_candidate_tables(
+            inventory_rows=[row], outcomes=outcomes, config=config, index_summary={}
+        )
+        overlap = list(csv.DictReader(io.StringIO(tables.reference_overlap_tsv), delimiter="\t"))
+        self.assertEqual([r["build_eligible_rows"] for r in overlap], [""])
+        validation = yaml.safe_load(render_validation_yaml(
+            tables=tables, index_summary={}, validated_at="now", validator_name="test"
+        ))
+        summary = validation["reference_overlap"]
+        self.assertEqual(summary["projected_off_reference_basis"], "legacy_rows_read")
+        self.assertEqual(summary["projected_off_reference_share"], 0.2)
+
+    def test_zero_build_eligible_rows_is_excluded_and_not_missing(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
+        first = _synthetic_inventory_row()
+        second = replace(first, analysis_id="GCST90000002", data_file="/mirror/second.gz")
+        records = []
+        # A successful record whose own build-eligible tally is an explicit
+        # integer zero contributes no association at all.
+        for row, eligible, on in ((first, 50, 40), (second, 0, 0)):
+            record = _synthetic_resolver_record()
+            record["analysis_id"] = row.analysis_id
+            record["diagnostics"].update(
+                ancestry_rows_read=100, ancestry_reference_rows_matched=90,
+                variant_reference_rows_matched=100,
+                canonical_rows_retained=100,
+                build_eligible_rows=eligible,
+                build_eligible_rows_on_variant_reference=on,
+                build_eligible_rows_off_variant_reference=eligible - on,
+            )
+            records.append(record)
+        outcomes = apply_release_policy(
+            [first, second], config,
+            {row.analysis_id: _synthetic_candidate_metadata() for row in (first, second)},
+            {record["analysis_id"]: record for record in records},
+        )
+        by_id = {outcome.analysis_id: outcome for outcome in outcomes}
+        self.assertTrue(by_id["GCST90000001"].included)
+        self.assertFalse(by_id["GCST90000002"].included)
+        self.assertEqual(
+            by_id["GCST90000002"].exclusion_reason, "no_build_eligible_rows"
+        )
+        self.assertIn(
+            "no row with a finite effect and positive standard error",
+            by_id["GCST90000002"].exclusion_detail,
+        )
+        self.assertIn("rows_read=100", by_id["GCST90000002"].exclusion_detail)
+        self.assertIn(
+            "canonical_rows_retained=100", by_id["GCST90000002"].exclusion_detail
+        )
+        tables = build_candidate_tables(
+            inventory_rows=[first, second], outcomes=outcomes, config=config, index_summary={}
+        )
+        # The excluded Analysis is not an included Analysis with a missing
+        # measurement: the zero-eligible count is reported, never a failure.
+        self.assertEqual(tables.reference_overlap_errors, ())
+        self.assertEqual(dict(tables.exclusion_counts), {"no_build_eligible_rows": 1})
+        overlap = list(csv.DictReader(io.StringIO(tables.reference_overlap_tsv), delimiter="\t"))
+        self.assertEqual([row["build_eligible_rows"] for row in overlap], ["50", "0"])
+        self.assertEqual([row["exclude_from_build"] for row in overlap], ["", "true"])
+        validation = yaml.safe_load(render_validation_yaml(
+            tables=tables, index_summary={}, validated_at="now", validator_name="test"
+        ))
+        self.assertEqual(validation["checks"]["reference_overlap"], "passed")
+        self.assertEqual(validation["errors"], [])
+
+    def test_invalid_build_eligible_counts_still_fail_the_overlap_gate(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
+        row = _synthetic_inventory_row()
+        invalid = {
+            "absent": {},
+            "non-integer": {"build_eligible_rows": "50"},
+            "negative": {"build_eligible_rows": -1},
+            "inconsistent-partition": {
+                "build_eligible_rows": 50,
+                "build_eligible_rows_on_variant_reference": 20,
+                "build_eligible_rows_off_variant_reference": 20,
+            },
+            "out-of-range-partition": {
+                "build_eligible_rows": 50,
+                "build_eligible_rows_on_variant_reference": 60,
+                "build_eligible_rows_off_variant_reference": -10,
+            },
+        }
+        for name, diagnostics in invalid.items():
+            with self.subTest(case=name):
+                record = _synthetic_resolver_record()
+                record["analysis_id"] = row.analysis_id
+                record["diagnostics"].update(
+                    ancestry_rows_read=100, ancestry_reference_rows_matched=100,
+                )
+                record["diagnostics"].update(diagnostics)
+                outcomes = apply_release_policy(
+                    [row], config, {row.analysis_id: _synthetic_candidate_metadata()},
+                    {row.analysis_id: record},
+                )
+                # Only an explicit integer zero is a policy exclusion; every other
+                # unusable count stays an included Analysis whose measurement is
+                # missing, exactly as before #176.
+                self.assertTrue(outcomes[0].included, outcomes[0].exclusion_reason)
+                tables = build_candidate_tables(
+                    inventory_rows=[row], outcomes=outcomes, config=config, index_summary={}
+                )
+                self.assertTrue(tables.reference_overlap_errors, name)
+                self.assertIn(row.analysis_id, " ".join(tables.reference_overlap_errors))
+
+    # -- EAF orientation vocabulary (issue #115 / #154) -----------------------
+
+    def _orientation_outcome(
+        self, *, eaf_orientation: str, gate_reason: str, assigned: str | None, r: float = 0.99
+    ):
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        row = _synthetic_inventory_row()
+        metadata = _synthetic_candidate_metadata()
+        record = _synthetic_resolver_record(
+            eaf_orientation=eaf_orientation,
+            gate_reason=gate_reason,
+            assigned_ancestry=assigned,
+            eaf_orientation_r=r,
+        )
+        return apply_release_policy(
+            [row], config, {row.analysis_id: metadata}, {row.analysis_id: record}
+        )[0]
+
+    def test_orientation_passed_eur_is_includable(self) -> None:
+        outcome = self._orientation_outcome(
+            eaf_orientation="passed", gate_reason="ok", assigned="EUR"
+        )
+        self.assertTrue(outcome.included, outcome.exclusion_reason)
+        self.assertEqual(outcome.assigned_ancestry, "EUR")
+
+    def test_orientation_failed_is_orientation_failure(self) -> None:
+        # Real shape: a negative sign is also the assignment gate that names it.
+        outcome = self._orientation_outcome(
+            eaf_orientation="failed", gate_reason="eaf_orientation", assigned=None, r=-0.98
+        )
+        self.assertFalse(outcome.included)
+        self.assertEqual(outcome.exclusion_reason, "orientation_failure")
+
+    def test_orientation_failed_excludes_even_with_ok_gate(self) -> None:
+        # A mildly negative correlation is `failed` without tripping the gate.
+        outcome = self._orientation_outcome(
+            eaf_orientation="failed", gate_reason="ok", assigned="EUR", r=-0.2
+        )
+        self.assertFalse(outcome.included)
+        self.assertEqual(outcome.exclusion_reason, "orientation_failure")
+
+    def test_orientation_unverified_follows_assignment_policy(self) -> None:
+        # `unverified` is not a verdict: the ordinary policy decides the row.
+        included = self._orientation_outcome(
+            eaf_orientation="unverified", gate_reason="ok", assigned="EUR", r=float("nan")
+        )
+        self.assertTrue(included.included, included.exclusion_reason)
+        unassigned = self._orientation_outcome(
+            eaf_orientation="unverified", gate_reason="overlap", assigned=None, r=float("nan")
+        )
+        self.assertFalse(unassigned.included)
+        self.assertEqual(unassigned.exclusion_reason, "ancestry_unassigned")
+
+    def test_unknown_eaf_orientation_fails_loudly(self) -> None:
+        # `ok` is a gate_reason, not an EafOrientationOutcome; it must not read as passed.
+        with self.assertRaises(CandidateError):
+            self._orientation_outcome(eaf_orientation="ok", gate_reason="ok", assigned="EUR")
+
+    def test_validate_candidate_analyses_rejects_blank_included_required_value(self) -> None:
+        header = "analysis_id\tstored_effect_scale\tsample_size_kind\tsample_size_scope\tsample_size\toriginal_effect_scale\toriginal_sd_method\tancestry_assignment_method\n"
+        blank = "GCST1\tsd\ttotal\tanalysis_level\t\tsd\testimated_from_source_maf\taf_assigned\n"
+        self.assertTrue(validate_candidate_analyses(header + blank))
+
+    def test_staged_candidate_check_detects_invalid_bundle(self) -> None:
+        staging_parent = self.fixture.root / "staging"
+        store_dir = staging_parent / STORE_ID
+        store_dir.mkdir(parents=True)
+        (store_dir / "release.yaml").write_text("store_id: OGS-99001\n", encoding="utf-8")
+        errors = check_staged_candidate(STORE_ID, staging_parent)
+        self.assertTrue(errors)
+
+    # -- snakemake wiring ------------------------------------------------------
+
+    @unittest.skipUnless(
+        SNAKEMAKE, "snakemake is not on PATH; run under `pixi run --environment dev`"
+    )
+    def test_generate_smk_dry_run_wires_every_stage(self) -> None:
+        snakefile = REPO_ROOT / "workflow/generate.smk"
+        work_root = self.fixture.root / "smk-work"
+        registry_root = self.fixture.root / "smk-stores"
+        command = [
+            str(SNAKEMAKE),
+            "--snakefile",
+            str(snakefile),
+            "--dry-run",
+            "--cores",
+            "1",
+            "--config",
+            f"store_id={STORE_ID}",
+            f"config={self.fixture.config_path}",
+            f"snapshot_id={SNAPSHOT_ID}",
+            f"work_root={work_root}",
+            f"registry_root={registry_root}",
+        ]
+        result = subprocess.run(
+            command, cwd=str(self.fixture.root), capture_output=True, text=True, check=False
+        )
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        for rule in ("preflight", "resolver_manifest", "resolve", "verify", "finalise"):
+            self.assertIn(rule, result.stdout)
+        # The same DAG refuses to run without its required configuration.
+        missing = subprocess.run(
+            [str(SNAKEMAKE), "--snakefile", str(snakefile), "--dry-run", "--cores", "1"],
+            cwd=str(self.fixture.root),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertIn("store_id", missing.stderr + missing.stdout)
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

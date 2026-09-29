@@ -1,0 +1,62 @@
+[
+  {
+    "name": "variant-reference",
+    "argv": [
+      "opengwasdb",
+      "extract-variant-reference",
+      "/data/opengwasdb/stores/OGS-00094/work/analyses.tsv",
+      "--output-path",
+      "/data/opengwasdb/stores/OGS-00094/work/variant-ref.tsv.gz",
+      "--n-workers",
+      "8",
+      "--source-reader-capability",
+      "opengwasdb.gwas-vcf",
+      "--source-assembly",
+      "hg38"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00094/work/analyses.tsv"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00094/work/variant-ref.tsv.gz"
+    ]
+  },
+  {
+    "name": "build",
+    "argv": [
+      "opengwasdb",
+      "build-dense-vcf",
+      "/data/opengwasdb/stores/OGS-00094/work/analyses.tsv",
+      "/data/opengwasdb/stores/OGS-00094/store.opengwasdb",
+      "--store-id",
+      "OGS-00094",
+      "--release-id",
+      "OGS-00094",
+      "--variant-reference",
+      "/data/opengwasdb/stores/OGS-00094/work/variant-ref.tsv.gz",
+      "--source-reader-capability",
+      "opengwasdb.gwas-vcf",
+      "--source-assembly",
+      "hg38"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00094/work/analyses.tsv",
+      "/data/opengwasdb/stores/OGS-00094/work/variant-ref.tsv.gz"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00094/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "validate",
+    "argv": [
+      "opengwasdb",
+      "validate",
+      "/data/opengwasdb/stores/OGS-00094/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00094/store.opengwasdb"
+    ],
+    "outputs": []
+  }
+]

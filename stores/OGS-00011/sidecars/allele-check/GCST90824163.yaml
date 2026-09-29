@@ -1,0 +1,69 @@
+analysis_id: GCST90824163
+trait: Type 1 diabetes
+trait_ontology_id: MONDO:0005147
+publication_pmid: '42062540'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90824001-GCST90825000/GCST90824163/harmonised/GCST90824163.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.978326
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST010681
+  trait: Type 1 diabetes
+  publication_pmid: '32005708'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST010001-GCST011000/GCST010681/harmonised/32005708-GCST010681-EFO_0001359.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 79
+  effect_measure: beta_vs_beta
+  pearson_r: 0.99648
+  spearman_r: 0.925876
+  verdict: flip_frequency
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90013791
+  trait: Type 1 diabetes
+  publication_pmid: '39749473'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90013001-GCST90014000/GCST90013791/harmonised/GCST90013791.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 54
+  effect_measure: beta_vs_beta
+  pearson_r: 0.999368
+  spearman_r: 0.923537
+  verdict: flip_frequency
+- source_bundle: OGS-00011
+  analysis_id: GCST90014023
+  trait: Type 1 diabetes
+  publication_pmid: '34012112'
+  match_type: ontology
+  trait_similarity: 1.0
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90014001-GCST90015000/GCST90014023/harmonised/34012112-GCST90014023-EFO_0001359.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.999243
+  spearman_r: 0.983054
+  verdict: flip_frequency
+check:
+  n_comparisons: 3
+  verdict_tally:
+    flip_frequency: 3
+  n_variants_checked: 100
+  n_variants_overlapping: 79
+  effect_measure: beta_vs_beta
+  pearson_r: 0.99648
+  spearman_r: 0.925876
+  verdict: flip_frequency
+recommendation: flip_frequency
+notes: '3 comparison analyses evaluated; verdicts {''flip_frequency'': 3}; canonical-allele effects agree with the
+  comparison analysis/analyses (OGS-00011:GCST010681 r=0.99648 over 79, OGS-00011:GCST90013791 r=0.999368 over 54,
+  OGS-00011:GCST90014023 r=0.999243 over 100), so the source''s allele labels and beta are self-consistent and only
+  its effect_allele_frequency column is inverted'
+measured_at: '2026-09-23T09:05:21Z'

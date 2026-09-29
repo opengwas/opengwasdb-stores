@@ -1,0 +1,69 @@
+analysis_id: GCST90797608
+trait: Right ventricular ejection fraction or Body surface area-indexed right ventricular end-systolic volume (MTAG)
+trait_ontology_id: http://www.ebi.ac.uk/efo/EFO_0021816, http://www.ebi.ac.uk/efo/EFO_0021815
+publication_pmid: '41760662'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90797001-GCST90798000/GCST90797608/harmonised/GCST90797608.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.976809
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90134589
+  trait: Right ventricular end systolic volume
+  publication_pmid: '35697868'
+  match_type: ontology
+  trait_similarity: 0.4545
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90134001-GCST90135000/GCST90134589/harmonised/GCST90134589.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.998112
+  spearman_r: 0.980822
+  verdict: flip_frequency
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90134593
+  trait: Right ventricular end systolic volume (MTAG)
+  publication_pmid: '35697868'
+  match_type: ontology
+  trait_similarity: 0.4545
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90134001-GCST90135000/GCST90134593/harmonised/GCST90134593.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.997949
+  spearman_r: 0.980738
+  verdict: flip_frequency
+- source_bundle: OGS-00011
+  analysis_id: GCST90268118
+  trait: Right ventricular end systolic volume
+  publication_pmid: '37126556'
+  match_type: ontology
+  trait_similarity: 0.4545
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90268001-GCST90269000/GCST90268118/harmonised/GCST90268118.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.997818
+  spearman_r: 0.974281
+  verdict: flip_frequency
+check:
+  n_comparisons: 3
+  verdict_tally:
+    flip_frequency: 3
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.998112
+  spearman_r: 0.980822
+  verdict: flip_frequency
+recommendation: flip_frequency
+notes: '3 comparison analyses evaluated; verdicts {''flip_frequency'': 3}; canonical-allele effects agree with the
+  comparison analysis/analyses (OGS-00011:GCST90134589 r=0.998112 over 100, OGS-00011:GCST90134593 r=0.997949 over
+  100, OGS-00011:GCST90268118 r=0.997818 over 100), so the source''s allele labels and beta are self-consistent
+  and only its effect_allele_frequency column is inverted'
+measured_at: '2026-09-23T09:05:21Z'

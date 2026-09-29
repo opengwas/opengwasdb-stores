@@ -1,0 +1,18 @@
+analysis_id: GCST90551884
+trait: Lifespan
+trait_ontology_id: OBA:VT0005372
+publication_pmid: '40021682'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90551001-GCST90552000/GCST90551884/harmonised/GCST90551884.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.978996
+matched_study: null
+supporting_comparisons: []
+check:
+  n_comparisons: 0
+  verdict_tally: {}
+recommendation: no_matching_trait
+notes: no independent analysis of this trait was found in OGS-00011's included analyses or in OGS-00010; the orientation
+  failure stays an exclusion
+measured_at: '2026-09-23T09:05:21Z'

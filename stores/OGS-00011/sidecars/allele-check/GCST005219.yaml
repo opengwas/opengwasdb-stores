@@ -1,0 +1,38 @@
+analysis_id: GCST005219
+trait: Incremental insulin
+trait_ontology_id: http://www.ebi.ac.uk/efo/EFO_0004467
+publication_pmid: '24699409'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST005001-GCST006000/GCST005219/harmonised/24699409-GCST005219-EFO_0004467.h.tsv.gz
+orientation_gate:
+  gate_reason: residual
+  eaf_orientation: failed
+  eaf_orientation_r: -0.023769
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90002238
+  trait: Fasting insulin
+  publication_pmid: '34059833'
+  match_type: ontology
+  trait_similarity: 0.3333
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90002001-GCST90003000/GCST90002238/harmonised/34059833-GCST90002238-EFO_0004467.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.088171
+  spearman_r: 0.068299
+  verdict: inconclusive
+supporting_comparisons: []
+check:
+  n_comparisons: 1
+  verdict_tally:
+    inconclusive: 1
+  n_variants_checked: 100
+  n_variants_overlapping: 100
+  effect_measure: beta_vs_beta
+  pearson_r: 0.088171
+  spearman_r: 0.068299
+  verdict: inconclusive
+recommendation: inconclusive
+notes: 'no comparison resolved a direction (overlapping variants: 100; 20 needed)'
+measured_at: '2026-09-23T09:05:21Z'

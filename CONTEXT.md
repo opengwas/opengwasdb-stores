@@ -86,7 +86,7 @@ A deliberately small Store Release used to exercise a distinct Source Collection
 _Avoid_: pilot store, pilot release
 
 **Preflight Run**:
-A representative subset run within the production workflow for a Store Release that produces stage reports for one explicit human review gate before the full build proceeds.
+A representative subset run within the production workflow for a Store Release that produces stage reports for one explicit human review gate before the full build proceeds. Distinct from the Phase B `preflight` inventory-readiness gate command, which proves a frozen Source Inventory before candidate selection and reads no association rows.
 _Avoid_: pilot run, pilot phase, trial run
 
 **Release Artifact**:
@@ -126,7 +126,7 @@ Metadata that affects the interpretation of association statistics in a Store Re
 _Avoid_: trait annotation, display metadata
 
 **Trait Ontology Mapping**:
-The association between an Analysis's Trait and a controlled-vocabulary identifier appropriate to that Trait — an EFO, MONDO, OBA, or GO term — resolved before build and frozen into the Release Manifest as Analytical Metadata. Source-provided when the Source Collection already supplies one; otherwise resolved against a Canonical Trait Mapping Table, or left unmapped. Where no acceptable term exists it is left empty rather than backfilled with an identifier of another kind: a gene's Ensembl ID is Target annotation, not a Trait identity, and belongs in the target sidecar and the cis coordinates. A wrong mapping is corrected the same way any other Analytical Metadata error is: via a Release Erratum, not a silent edit.
+The association between an Analysis's Trait and a controlled-vocabulary identifier appropriate to that Trait — an EFO, MONDO, OBA, or GO term — resolved before build and frozen into the Release Manifest as Analytical Metadata. Source-provided when the Source Collection already supplies one; otherwise resolved against a Canonical Trait Mapping Table, or left unmapped. The paired `trait_ontology_label` is the human-readable name of that ontology term (`carnitine measurement`, `multiple sclerosis`), never the name of the vocabulary or identifier authority that issued the identifier. Where no acceptable term exists it is left empty rather than backfilled with an identifier of another kind: a gene's Ensembl ID is Target annotation, not a Trait identity, and belongs in the target sidecar and the cis coordinates. A wrong mapping is corrected the same way any other Analytical Metadata error is: via a Release Erratum, not a silent edit.
 _Avoid_: trait annotation, ontology term
 
 **Analysis Label**:

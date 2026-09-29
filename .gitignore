@@ -35,6 +35,11 @@ __pycache__/
 .pixi/
 *.egg-info/
 
+# Rebuildable curation artifacts (issue #164): the ontology retrieval index is
+# derived from a pinned ontology release and held outside the tracked tree. It
+# is not a Reference Resource (ADR-0011) and no Build Recipe consumes it.
+.cache/
+
 # Local secrets (e.g. OPENGWAS_JWT for resources/lib/metadata_resolvers/
 # opengwas_api.R's fetch_opengwas_gwasinfo()); never committed.
 .Renviron
@@ -42,6 +47,10 @@ __pycache__/
 # Throwaway workflow-prototype runtime state.
 .prototype-state/
 .snakemake/
+.scratch/
+*.png
+*.pdf
+*.ipynb
 
 # Per-run outputs of the LD-panel eigendecomposition suite (the committed
 # fixtures are the sequential .ldeig.npz; -par/-seq are comparison artifacts).
@@ -61,7 +70,10 @@ tests/ld-panel-eigendecomposition/fixtures/panel/**/*.ldeig-seq.npz
 # do `release/build.yaml` and `release/release.yaml`, which sit alongside
 # generated files in the same directory but are inputs.
 tests/ancestry-assignment/fixtures/reference/ref_freqs.hg38.tsv.gz
+tests/ancestry-assignment/fixtures/release/analyses.tsv
+tests/ancestry-assignment/fixtures/release/validation.yaml
 tests/ancestry-assignment/fixtures/release/filtered/
+tests/ancestry-assignment/fixtures/release/sidecars/
 tests/effect-scale-validation/fixtures/release/analyses.tsv
 tests/effect-scale-validation/fixtures/release/validation.yaml
 tests/effect-scale-validation/fixtures/release/filtered/
@@ -70,3 +82,6 @@ tests/ld-panel-eigendecomposition/fixtures/panel/
 tests/no-cis-region-policy/fixtures/output/
 tests/qc-panel-retention/fixtures/output-with-panel/
 tests/qc-panel-retention/fixtures/output-without-panel/
+
+# Remote tabix indexes bcftools caches into the cwd when streaming a URL.
+gnomad.genomes.*.vcf.bgz.tbi

@@ -74,6 +74,28 @@ PHASE_B_REQUIRED_COLUMNS: tuple[str, ...] = (
     "original_sd_method",
 )
 
+# The optional per-Analysis INFO policy columns (stores #175). A requested
+# floor (`info_score_threshold`) and an imputation score declaration
+# (`imputation_score_column`, `imputation_score_kind`,
+# `imputation_score_provenance`) are one policy: a numeric threshold without the
+# complete triple, or any triple cell without a numeric threshold, is
+# incoherent and rejected. Older bundles may omit all of them.
+INFO_SCORE_COLUMNS: tuple[str, ...] = (
+    "info_score_threshold",
+    "imputation_score_column",
+    "imputation_score_kind",
+    "imputation_score_provenance",
+)
+INFO_SCORE_KINDS: frozenset[str] = frozenset({"imputation_info", "imputation_r2"})
+
+# The optional per-Analysis MAF floor column (stores #176). A numeric value is
+# the requested floor in [0, 0.5] (0 disables); literal NaN means no validated
+# MAF evidence -- no configured default, an exempt genotyping technology, a
+# legacy record, or unusable evidence. The pinned OpenGWASDB Analysis schema may
+# predate this column, so it is validated here independently rather than being
+# left to the core reader.
+MAF_THRESHOLD_COLUMN: str = "maf_threshold"
+
 # Legacy Trial Store Releases where required Analysis metadata is unpopulated
 # in upstream BESD sources and cannot be resolved without external study metadata
 # (issue #134). Blank required values are tolerated strictly for these two named
@@ -713,6 +735,82 @@ def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
                 f"Analysis column {column!r}"
             )
 
+    # Optional for older bundles. A literal NaN means no validated score
+    # evidence; zero is the explicit disabled filter, not an absent value. The
+    # threshold is a request, not a fact: it is coherent only alongside the
+    # complete per-Analysis declaration (`imputation_score_column`, kind and
+    # provenance), so a numeric threshold with a partial triple and a triple
+    # with no numeric threshold are both rejected (stores #175).
+    if any(column in table.fieldnames for column in INFO_SCORE_COLUMNS):
+        for row in table.rows:
+            analysis_id = row.get("analysis_id") or "<unknown analysis_id>"
+            value = (row.get("info_score_threshold") or "").strip()
+            declaration = {
+                column: (row.get(column) or "").strip()
+                for column in INFO_SCORE_COLUMNS[1:]
+            }
+            numeric = False
+            if value == "NaN":
+                pass
+            elif value:
+                try:
+                    number = Decimal(value)
+                except InvalidOperation:
+                    number = Decimal("NaN")
+                if number.is_finite() and 0 <= number <= 1:
+                    numeric = True
+                else:
+                    errors.append(
+                        f"analysis {analysis_id!r} has info_score_threshold "
+                        f"{value!r}; expected literal NaN or a number in [0,1]"
+                    )
+            else:
+                errors.append(
+                    f"analysis {analysis_id!r} has info_score_threshold {value!r}; "
+                    "expected literal NaN or a number in [0,1]"
+                )
+            declaration_present = any(declaration.values())
+            complete = all(declaration.values())
+            if numeric and not complete:
+                missing = [column for column, cell in declaration.items() if not cell]
+                errors.append(
+                    f"analysis {analysis_id!r} has a numeric info_score_threshold "
+                    "but an incomplete imputation score declaration; missing "
+                    + ", ".join(missing)
+                )
+            if declaration_present and (value == "" or value == "NaN"):
+                errors.append(
+                    f"analysis {analysis_id!r} has an imputation score declaration "
+                    "but no numeric info_score_threshold"
+                )
+            if complete and declaration["imputation_score_kind"] not in INFO_SCORE_KINDS:
+                errors.append(
+                    f"analysis {analysis_id!r} has invalid imputation_score_kind "
+                    f"{declaration['imputation_score_kind']!r}; expected one of "
+                    f"{sorted(INFO_SCORE_KINDS)}"
+                )
+
+    # Optional per-Analysis MAF floor (stores #176): literal NaN, or a finite
+    # number in [0, 0.5]. The column is a request, not a report of what was
+    # filtered, and its range is the whole truth checkable from the bundle alone.
+    if MAF_THRESHOLD_COLUMN in table.fieldnames:
+        for row in table.rows:
+            analysis_id = row.get("analysis_id") or "<unknown analysis_id>"
+            value = (row.get(MAF_THRESHOLD_COLUMN) or "").strip()
+            if value == "NaN":
+                continue
+            number = Decimal("NaN")
+            if value:
+                try:
+                    number = Decimal(value)
+                except InvalidOperation:
+                    number = Decimal("NaN")
+            if not number.is_finite() or not 0 <= number <= Decimal("0.5"):
+                errors.append(
+                    f"analysis {analysis_id!r} has maf_threshold {value!r}; "
+                    "expected literal NaN or a number in [0,0.5]"
+                )
+
     # A Trait Ontology Mapping is an ontology term plus its trait label. It is
     # never a gene identifier with an authority name standing in for the label:
     # that asserts a gene is the Trait (issue #141). Empty is the correct
@@ -889,8 +987,11 @@ __all__ = [
     "BUILD_REQUIRED_KEYS",
     "Bundle",
     "CheckResult",
+    "INFO_SCORE_COLUMNS",
+    "INFO_SCORE_KINDS",
     "LEGACY_BLANK_ANALYSIS_RELEASES",
     "LEGAL_STATUS_TRANSITIONS",
+    "MAF_THRESHOLD_COLUMN",
     "PHASE_B_REQUIRED_COLUMNS",
     "RELEASE_REQUIRED_KEYS",
     "SUPERPOPULATIONS",

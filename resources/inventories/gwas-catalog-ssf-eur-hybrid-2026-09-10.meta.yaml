@@ -1,0 +1,66 @@
+snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-10
+source_collection_id: gwas-catalog-ssf
+store_key: hybrid__European
+ancestry_group: European
+frozen_at: '2026-09-10T09:30:00Z'
+rows: 6035
+readiness_counts:
+  data_failed: 52
+  header_rejected: 278
+  metadata_rejected: 1
+  missing_remote_harmonised_yaml: 1134
+  ok: 4570
+ready_rows: 4570
+ready_bytes: 1766662881302
+study_design_counts:
+  case-control: 1636
+  quantitative: 4399
+ready_study_design_counts:
+  case-control: 1057
+  quantitative: 3513
+duplicate_content_groups:
+- sha256: cd25e71f21e7072bf6d1446b60c293df8eec6cff4c1f40161901c0ca04ae45d4
+  analysis_ids:
+  - GCST90565871
+  - GCST90565872
+  data_bytes: 329444995
+- sha256: 9d21dc27c45ae82cc497c7b8ca013807265caa5c80f977a77e4748e6a17f06b3
+  analysis_ids:
+  - GCST90624704
+  - GCST90624705
+  data_bytes: 388828307
+inventory_tsv_sha256: d22e857c5c2880438cf3659c865c375755dcccb95e86d141f0b5df31b9a252f7
+inputs:
+- role: base_manifest
+  path: /data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-manifest.tsv
+  sha256: a548e3516babf550ab437bbcce3ee3c8b83e99d13e63c9c8646b63e8bb8bec79
+  bytes: 3536854
+  rows: 6035
+  readiness_counts:
+    data_failed: 96
+    header_rejected: 276
+    metadata_rejected: 1
+    missing_remote_harmonised_yaml: 1132
+    ok: 4527
+    yaml_failed: 3
+  overrides: 0
+- role: retry_manifest
+  path: /data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-retry-transient-manifest.tsv
+  sha256: 11e838d573fbf360455d85b9a5437830ba1e79707413327aae078097105fc704
+  bytes: 65903
+  rows: 99
+  readiness_counts:
+    data_failed: 52
+    header_rejected: 2
+    missing_remote_harmonised_yaml: 2
+    ok: 43
+  overrides: 99
+candidates:
+  path: /home/gh13047/repo/opengwasdb-stores/resources/data/derived/store-candidates-analyses.tsv
+  sha256: aef4dbe2515be177797f60a2c567a5e6b2d02557efb64abf4156889db085c4e7
+  bytes: 63106034
+  store_key: hybrid__European
+  selected_rows: 6035
+  study_design_counts:
+    case-control: 1636
+    quantitative: 4399

@@ -1,0 +1,54 @@
+analysis_id: GCST90297793
+trait: Pediatric steroid sensitive nephrotic syndrome
+trait_ontology_id: MONDO:0005377
+publication_pmid: '37547536'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90297001-GCST90298000/GCST90297793/harmonised/GCST90297793.h.tsv.gz
+orientation_gate:
+  gate_reason: residual
+  eaf_orientation: failed
+  eaf_orientation_r: -0.0237088
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90705042
+  trait: Steroid-sensitive nephrotic syndrome
+  publication_pmid: '41748071'
+  match_type: ontology
+  trait_similarity: 0.8
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90705001-GCST90706000/GCST90705042/harmonised/GCST90705042.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 20
+  effect_measure: beta_vs_beta
+  pearson_r: -0.349207
+  spearman_r: -0.442105
+  verdict: swap_alleles
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90705038
+  trait: Nephrotic syndrome
+  publication_pmid: '41748071'
+  match_type: ontology
+  trait_similarity: 0.4
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90705001-GCST90706000/GCST90705038/harmonised/GCST90705038.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 20
+  effect_measure: beta_vs_beta
+  pearson_r: -0.367745
+  spearman_r: -0.445113
+  verdict: swap_alleles
+check:
+  n_comparisons: 2
+  verdict_tally:
+    swap_alleles: 2
+  n_variants_checked: 100
+  n_variants_overlapping: 20
+  effect_measure: beta_vs_beta
+  pearson_r: -0.349207
+  spearman_r: -0.442105
+  verdict: swap_alleles
+recommendation: swap_alleles
+notes: '2 comparison analyses evaluated; verdicts {''swap_alleles'': 2}; canonical-allele effects are inverted against
+  the comparison analysis/analyses (OGS-00011:GCST90705042 r=-0.349207 over 20, OGS-00011:GCST90705038 r=-0.367745
+  over 20), so the source''s effect and other alleles are swapped relative to the reported betas'
+measured_at: '2026-09-23T09:05:21Z'

@@ -1,7 +1,0 @@
-analysis_id	source_analysis_id	source_ancestry_label	assigned_ancestry	ancestry_assignment_method	ancestry_reference_id	af_overlap	dominant_superpop	dominant_proportion	runner_up_margin	nnls_residual	gate_reason	ancestry_prop_AFR	ancestry_prop_EAS	ancestry_prop_EUR	ancestry_prop_SAS	source_assigned_mismatch	ancestry_notes
-FIXT_EUR	FIXT_EUR	European	EUR	af_assigned	fixture-ancestry-mixture	40	EUR	1	1	0	ok	0	0	1	0	false	dominant=EUR proportion=1.000 margin=1.000 overlap=40 residual=0.0000
-FIXT_AFR	FIXT_AFR	African	AFR	af_assigned	fixture-ancestry-mixture	40	AFR	1	1	0	ok	1	0	0	0	false	dominant=AFR proportion=1.000 margin=1.000 overlap=40 residual=0.0000
-FIXT_MIXED	FIXT_MIXED	European		unassigned	fixture-ancestry-mixture	40	EUR	0.55	0.1	0	margin	0	0	0.55	0.45	false	dominant=EUR proportion=0.550 margin=0.100 overlap=40 residual=0.0000
-FIXT_LOW_OVERLAP	FIXT_LOW_OVERLAP	European		unassigned	fixture-ancestry-mixture	3	EUR	1	1	0	overlap	0	0	1	0	false	dominant=EUR proportion=1.000 margin=1.000 overlap=3 residual=0.0000
-FIXT_NO_AF	FIXT_NO_AF	European		source_trusted_no_af							no_usable_source_af						No usable source allele frequencies; left at source-trusted ancestry.
-FIXT_MISMATCH	FIXT_MISMATCH	European	AFR	af_assigned	fixture-ancestry-mixture	40	AFR	1	1	0	ok	1	0	0	0	true	dominant=AFR proportion=1.000 margin=1.000 overlap=40 residual=0.0000

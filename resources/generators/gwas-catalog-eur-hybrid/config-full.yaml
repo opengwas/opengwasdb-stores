@@ -1,0 +1,253 @@
+# Full-release Phase B configuration for the EBI GWAS Catalog hybrid__European pool.
+#
+# Scope: issue #150 ("Produce the full GWAS Catalog EUR Hybrid Release Bundle
+# through a resumable Phase B resolver"). This file is Phase B only: it declares
+# which frozen Source Inventory the release selects from, how each Analysis's
+# Analytical Metadata is interpreted, and what the resolution run is allowed to
+# spend. It never declares how to build a Store -- that is the Release Bundle's
+# `build.yaml`, derived by `ogstores.plan` after acceptance (ADR 0023).
+#
+# Membership comes from the frozen Source Inventory at
+# `source.inventory.path`, not from a glob over the acquisition mirror. Which
+# readiness values count as "has a verified source file" is owned by
+# `resources/generators/lib/source_inventory.py` (READY_STATUSES) rather than
+# restated here, so the vocabulary has one spelling.
+#
+# Acquisition is already done: the mirror under
+# /data/opengwasdb/raw/ebi-gwas-catalog is ~1.8 TB, is never copied, and Phase B
+# reads it through the exact `data_file` paths the inventory records.
+
+release_kind: full
+association_coverage: full_gwas
+description: >
+  Every ready Analysis in the hybrid__European candidate pool of the EBI GWAS
+  Catalog harmonised GWAS-SSF Source Collection, resolved through AF-based
+  ancestry assignment and phenotype-SD effect-scale estimation. Mixed study
+  designs: quantitative Analyses carry an empirically estimated phenotype SD,
+  and case-control Analyses are stored on the log-OR scale with SD estimation
+  explicitly skipped rather than defaulted.
+notes: >
+  The candidate pool is 6,035 Analyses across 1,007 publications. Only the
+  subset the frozen Source Inventory records as ready becomes release membership;
+  the remaining inputs stay inventory facts and are never selected. Two
+  accession pairs are byte-identical under different accessions and are reported
+  for an explicit review decision instead of being silently collapsed
+  (`sidecars/source_readiness.tsv` and `duplicates` in the preflight report).
+
+# Release identity the Phase B candidate workflow writes into release.yaml
+# (issue #153). `label` is source-natural provenance, never an identifier.
+label: eur-hybrid-full
+access_posture: public
+
+# The observed-only Hybrid Build Recipe the candidate carries (issue #153).
+# It is a registry fact plus opengwasdb flags: the artifact root is deployment
+# configuration, never a bundle field (issue #126), and `command` names a
+# subcommand, never an import path (ADR 0023). The Dense-Component axis
+# (--variant-reference / --reference-panel) is deliberately not declared here:
+# the full release's dense panel is a Reference Resource decision for
+# acceptance, and inventing a host path for it would bind this candidate to one
+# machine. A candidate with no variant reference is schema-valid and planned;
+# acceptance may add one before the Store is built.
+build:
+  layout: hybrid
+  completion_state: observed_only
+  command: build-hybrid
+  options:
+    # The Dense Component axis. Deliberately undeclared until acceptance, because
+    # it is a Reference Resource decision rather than a Phase B one: declaring it
+    # earlier would bind the candidate to one host's reference root.
+    #
+    # gnomAD v4.1 common variants at MAF >= 1% (13,415,936 ALIDs; chr1-22, X, Y,
+    # MT), declared by resources/reference-resources/gnomad-v4-common-hg38.
+    # Replaces alid-panel/EUR-variants.tsv.gz, which is autosome-only and whose
+    # real floor is 3.24% MAF rather than the 1% this release needs.
+    #
+    # The X, Y and MT rows do not resolve yet: `normalise_chromosome` does not
+    # alias the numeric PLINK encodings, so a source spelling the chromosome
+    # `23` misses an axis spelling it `X` (opengwas/opengwasdb#216). Those rows
+    # therefore still route to the Ragged Overflow exactly as they do today; the
+    # autosomal rows resolve at 80.27% against this axis versus 78.11% against
+    # the panel it replaces.
+    variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz
+    # Pass 2 routes every association of every study, and forks only when this is
+    # > 1 -- the CLI default is 1, which is a single core on a 224-core host. A
+    # Dense build can afford the serial default because it reads only panel sites;
+    # a Hybrid build must read every row to route off-panel variants into the
+    # Ragged Overflow, so leaving it unset cost OGS-00011 ~159 s/Analysis and a ~6
+    # day projection (151 of 3,262 Analyses in 6h40m at 100% of one core, against
+    # OGS-00010's 19 s/Analysis).
+    #
+    # 32 rather than 64 is the issue #154 measurement: throughput is flat above 8
+    # workers (0.0277 / 0.0280 / 0.0273 analyses/s at 8 / 32 / 64), and at 64 the
+    # ancestry reference is re-read 53x against an allowed 1-4x -- a fork-sharing
+    # defect, not a speedup. 32 gives the best measured throughput with sharing at
+    # 2.1x, inside tolerance. #154 also recorded PSS over its self-imposed 68.7 GB
+    # budget at 32 and 64; that budget is not binding on this host (1,006 GB RAM).
+    n-workers: 32
+    source-reader-capability: opengwasdb.gwas-ssf
+    source-assembly: hg38
+  post:
+    top_hits: false
+    overview: true
+
+source:
+  source_collection_id: gwas-catalog-ssf
+  store_key: hybrid__European
+  ancestry_group: European
+  # The candidate pool acquisition was asked to fetch. It is gitignored
+  # generated data (`.gitignore`: resources/data/derived/), regenerated by
+  # `resources/scripts/ebi-studies.r`; the freeze records its checksum so the
+  # selection scope is pinned rather than implied.
+  candidates: resources/data/derived/store-candidates-analyses.tsv
+  # Optional reviewed per-Analysis provider score declarations (TSV; see README).
+  # Derived deterministically by `derive_score_declarations.py`, which scans the
+  # header of every ready inventory row against the fixed synonym table in the
+  # OGS-00011 admission contract (#176). Every other ready Analysis is unmapped
+  # and the candidate emits literal NaN for it.
+  imputation_score_declarations: resources/generators/gwas-catalog-eur-hybrid/score-declarations.tsv
+  # Genotyping technologies exempt from the default MAF floor. An Analysis whose
+  # metadata YAML lists technologies that are ALL in this list gets NaN (no MAF
+  # filter); missing technology metadata is never an exemption. The operator
+  # exempted sequencing-only studies for OGS-00011 (#176, 2026-09-28): their
+  # low-frequency calls are observed, not imputed. That is 158 Analyses (105
+  # WGS, 53 WES); an Analysis that also lists an array is still filtered.
+  maf_filter_exempt_genotyping_technologies:
+    - Whole genome sequencing
+    - Exome-wide sequencing
+  # Reviewed per-Analysis MAF-floor exemptions (TSV; see README). Each listed
+  # Analysis emits literal NaN (no MAF filter) together with the recorded
+  # reason, which is carried into the resolution receipt contract. OGS-00011
+  # exempts GCST90428462 and GCST90428463: every row carries
+  # effect_allele_frequency 0.0 (a placeholder the study metadata says is below
+  # its own declared minor_allele_freq_lower_limit 0.01), so core reads the
+  # frequency as missing and a MAF floor would compare against a fabricated
+  # zero (#176, 2026-09-29). Absent = no Analysis is exempt.
+  maf_filter_exempt_analyses: resources/generators/gwas-catalog-eur-hybrid/maf-filter-exemptions.tsv
+  inventory:
+    snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-22
+    path: resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv
+    provenance_path: resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.meta.yaml
+    # Written by resources/scripts/download-ebi-gwas-catalog-eur-hybrid.py.
+    # The retry pass re-attempted the 99 transiently failed accessions; its rows
+    # are authoritative for every analysis_id they cover.
+    #
+    # This is an ORDERED list and the order is the precedence rule: earliest pass
+    # first, and for an analysis_id two passes both cover the later one wins. Add a
+    # further acquisition pass (a deliberate rescue re-run, say) by appending it,
+    # never by editing an earlier pass's manifest.
+    freeze_inputs:
+      - role: base
+        path: /data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-manifest.tsv
+      - role: retry_transient
+        path: /data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-retry-transient-manifest.tsv
+      # Re-attempted every row the 2026-09-10 snapshot recorded as non-ready,
+      # resolving filenames through EBI's harmonised_list.txt index instead of
+      # a per-accession FTP probe. It recovered 33 Analyses that upstream had
+      # harmonised since acquisition, and reclassified 49 as
+      # `data_absent_upstream` -- listed in the index but served as HTTP 404.
+      - role: rescue_upstream_harmonised
+        path: /data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-rescue-upstream-harmonised-manifest.tsv
+
+defaults:
+  # Facts this release asserts about every source, carried into analyses.tsv.
+  source_genome_build: GRCh38
+  license: EBI GWAS Catalog terms of use
+  sample_size_scope: analysis_level
+  # Requested floor once a per-Analysis declaration and resolver evidence prove
+  # a usable per-association imputation INFO/R² score. With no OGS-00011
+  # declaration approved, candidate analyses.tsv emits literal NaN for every
+  # Analysis; a declared Analysis emits this floor only when its resolver record
+  # reports a usable post-INFO state and at least one usable score.
+  # Explicit 0 disables filtering; values outside [0,1] fail configuration.
+  info_score_threshold: 0.6
+  # Requested per-Analysis MAF floor (#176): a number in [0,0.5], or omitted for
+  # no MAF filter at all. `0` disables filtering explicitly. The candidate emits
+  # this value per Analysis only on resolver evidence (record maf_state
+  # disabled/filtered and a fingerprint that binds the same value); every other
+  # Analysis -- including one exempt through
+  # source.maf_filter_exempt_genotyping_technologies -- emits literal NaN.
+  # 0.005 is the floor the operator chose for this release; it is independent of
+  # the Dense-Component panel's own MAF >= 1% axis.
+  maf_threshold: 0.005
+  # Issue #11's settled trust-vs-validate policy: a row with no usable source
+  # allele frequencies keeps this method, and AF-based assignment replaces it
+  # only where an assignment is actually attempted.
+  ancestry_assignment_method: source_trusted_no_af
+  # One method tier per study design, because this release deliberately mixes
+  # designs: a single release-wide stored_effect_scale cannot describe both a
+  # quantitative trait on the SD scale and a case-control trait on the log-OR
+  # scale. A study design with no tier here fails preflight rather than being
+  # resolved with a guessed tier.
+  by_study_design:
+    quantitative:
+      stored_effect_scale: sd
+      original_effect_scale: sd
+      # Source-provided allele frequencies are preferred (ADR 0019); a
+      # quantitative row whose source AF is unusable is excluded, not estimated
+      # against a reference this release does not declare (see
+      # effect_scale_validation.reference_resources below).
+      original_sd_method: estimated_from_source_maf
+      sample_size_kind: total
+    case-control:
+      stored_effect_scale: log_or
+      original_effect_scale: log_or
+      # Not "estimated": case-control effects are already on the log-OR scale, so
+      # phenotype-SD estimation is explicitly skipped for these rows.
+      original_sd_method: binary_trait
+      sample_size_kind: case_control
+
+reference_resources:
+  - resource_id: ukb-ancestry-mixture-hg38
+    kind: ancestry_mixture
+    ancestry: multi
+    super_populations: [AFR, AMR, EAS, EUR, MID, NAF, SAS]
+    genome_build: GRCh38
+    variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+    location: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
+    location_kind: external_file
+    fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+    # Canonical declaration: resources/reference-resources/ukb-ancestry-mixture-hg38/resource.yaml
+
+ancestry_assignment:
+  enabled: true
+  reference_resource_id: ukb-ancestry-mixture-hg38
+  maf_floor: 0.01
+  # Extraction method decision (issue #152, docs/qc-panel-concordance-report.md):
+  # Method A (full 5.8M reference scan, `extraction_panel: null`) is retained.
+  # The 10k panel (`qc-panel-hg38`) failed the preregistered genome-wide
+  # concordance gate (95.1% < 98.0%) due to overlap drop on non-standard arrays;
+  # under the preregistered rule without gate tuning, qc-panel-hg38 was rejected.
+  extraction_panel: null
+  gates:
+    tau: 0.50
+    delta: 0.20
+    n_min: 5000
+    residual_max: 0.06
+
+effect_scale_validation:
+  enabled: true
+  maf_min: 0.01
+  maf_max: 0.5
+  min_overlap_variants: 20
+  sd_tolerance: 0.15
+  warning_multiplier: 2.0
+  dispersion_max: 0.5
+  # Source-AF-only policy settled under issue #152 (Option 3). No ancestry-keyed
+  # reference-AF fallback panel is declared because /data/opengwasdb/reference/ukb-hg38
+  # is absent on this host. Quantitative Analyses lacking usable source AF receive
+  # an explicit `no_reference_resource_for_ancestry` skip and are excluded from the
+  # candidate release manifest.
+  reference_resources: []
+
+runtime:
+  # Issue #150 caps this release at 64 cores. `--cores` may lower it per run;
+  # preflight refuses anything above the cap rather than silently clamping.
+  cores: 64
+  min_free_gb: 50
+
+output:
+  # Phase B records, logs and reports live outside git (ADR 0015) in this work/log
+  # root. Override per-run with `--work-root`. The Release Bundle itself is a
+  # `stores/OGS-xxxxx/` directory, allocated when the candidate is emitted rather
+  # than declared here.
+  work_root: /data/opengwasdb/work/gwas-catalog-eur-hybrid

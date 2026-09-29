@@ -1,0 +1,70 @@
+analysis_id: GCST90652244
+trait: Response to statins (LDL cholesterol percent change)(baseline-unadjusted)
+trait_ontology_id: GO:0036273, http://www.ebi.ac.uk/efo/EFO_0007804
+publication_pmid: '31969989'
+source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90652001-GCST90653000/GCST90652244/harmonised/GCST90652244.h.tsv.gz
+orientation_gate:
+  gate_reason: eaf_orientation
+  eaf_orientation: failed
+  eaf_orientation_r: -0.678441
+matched_study:
+  source_bundle: OGS-00011
+  analysis_id: GCST90455607
+  trait: Total cholesterol response to statins (absolute difference)
+  publication_pmid: '40133288'
+  match_type: ontology
+  trait_similarity: 0.5
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90455001-GCST90456000/GCST90455607/harmonised/GCST90455607.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 59
+  effect_measure: beta_vs_beta
+  pearson_r: 0.790455
+  spearman_r: 0.657101
+  verdict: flip_frequency
+supporting_comparisons:
+- source_bundle: OGS-00011
+  analysis_id: GCST90455608
+  trait: Total cholesterol response to statins (relative logarithmic difference)
+  publication_pmid: '40133288'
+  match_type: ontology
+  trait_similarity: 0.5
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90455001-GCST90456000/GCST90455608/harmonised/GCST90455608.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 59
+  effect_measure: beta_vs_beta
+  pearson_r: 0.96623
+  spearman_r: 0.831853
+  verdict: flip_frequency
+- source_bundle: OGS-00011
+  analysis_id: GCST90455603
+  trait: High-density lipoprotein response to statins (absolute difference)
+  publication_pmid: '40133288'
+  match_type: ontology
+  trait_similarity: 0.4
+  independent: true
+  source_file: /data/opengwasdb/raw/ebi-gwas-catalog/GCST90455001-GCST90456000/GCST90455603/harmonised/GCST90455603.h.tsv.gz
+  n_variants_checked: 100
+  n_variants_overlapping: 59
+  effect_measure: beta_vs_beta
+  pearson_r: 0.003037
+  spearman_r: 0.030567
+  verdict: inconclusive
+check:
+  n_comparisons: 3
+  verdict_tally:
+    flip_frequency: 2
+    inconclusive: 1
+  n_variants_checked: 100
+  n_variants_overlapping: 59
+  effect_measure: beta_vs_beta
+  pearson_r: 0.790455
+  spearman_r: 0.657101
+  verdict: flip_frequency
+recommendation: flip_frequency
+notes: '3 comparison analyses evaluated; verdicts {''flip_frequency'': 2, ''inconclusive'': 1}; canonical-allele
+  effects agree with the comparison analysis/analyses (OGS-00011:GCST90455607 r=0.790455 over 59, OGS-00011:GCST90455608
+  r=0.96623 over 59), so the source''s allele labels and beta are self-consistent and only its effect_allele_frequency
+  column is inverted'
+measured_at: '2026-09-23T09:05:21Z'
