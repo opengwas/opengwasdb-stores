@@ -160,7 +160,13 @@ class FixedChooser(Chooser):
     def __init__(self, result: ChoiceResult) -> None:
         self.result = result
 
-    def select(self, trait_label: str, candidates: list[Candidate]) -> ChoiceResult:
+    def select(
+        self,
+        trait_label: str,
+        candidates: list[Candidate],
+        *,
+        trait_context: str = "",
+    ) -> ChoiceResult:
         return self.result
 
 

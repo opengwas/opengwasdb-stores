@@ -1088,12 +1088,23 @@ class JevChooser(Chooser):
         self,
         trait_label: str,
         candidates: Sequence[Candidate],
+        *,
+        trait_context: str = "",
     ) -> JevRequest:
         """Build and validate the Jev request for one shortlist.
 
         Raises :class:`JevConfigurationError` before any client call when the
         shortlist exceeds :data:`MAX_JEV_CANDIDATES`, or when the serialized
         candidate payload exceeds the byte or token budget.
+
+        ``trait_context`` is per-trait prose (a ukb-b field's question text)
+        appended to the client's base context in the request
+        ``state.context`` -- ``base + "\n\n" + trait_context``. Composing it
+        into the existing ``context`` keeps the round's pinned base context
+        intact and makes the field question text part of what the model reads,
+        without inventing a new ``state`` key whose rendering cannot be
+        verified against the live API. An empty context leaves the request
+        exactly as before.
         """
         if len(candidates) > self.max_options:
             raise JevConfigurationError(
@@ -1136,11 +1147,14 @@ class JevChooser(Chooser):
                 )
             )
 
+        context = self.client.context
+        if trait_context:
+            context = f"{context}\n\n{trait_context}"
         payload = build_request_payload(
             trait_label,
             options,
             model=self.client.model,
-            context=self.client.context,
+            context=context,
         )
         serialized = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
         payload_bytes = len(serialized.encode("utf-8"))
@@ -1172,9 +1186,13 @@ class JevChooser(Chooser):
         self,
         trait_label: str,
         candidates: list[Candidate],
+        *,
+        trait_context: str = "",
     ) -> ChoiceResult:
         """Ask Jev to decide among ``candidates`` and return the proposal."""
-        request = self.configure(trait_label, candidates)
+        request = self.configure(
+            trait_label, candidates, trait_context=trait_context
+        )
         response = self.client.decide(request)
 
         try:

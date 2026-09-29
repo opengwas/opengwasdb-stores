@@ -362,6 +362,50 @@ class TestRequestPayload(unittest.TestCase):
         self.assertEqual(request.payload["model"], "jev-test-9")
         self.assertEqual(request.payload["state"]["context"], "A custom source description.")
 
+    def test_trait_context_is_appended_after_the_base_context(self) -> None:
+        candidates = [make_candidate("EFO:0004340", "body mass index")]
+        trait_context = (
+            "field 5141 'waist circumference'. Waist circumference was "
+            "measured using a Seca 200 device."
+        )
+        request = self.chooser.configure(
+            "waist circumference", candidates, trait_context=trait_context
+        )
+        self.assertEqual(
+            request.payload["state"]["context"],
+            DEFAULT_JEV_CONTEXT + "\n\n" + trait_context,
+        )
+        # The base context stays intact as a prefix; only the per-trait prose
+        # is appended.
+        self.assertTrue(
+            request.payload["state"]["context"].startswith(DEFAULT_JEV_CONTEXT)
+        )
+        self.assertIn("field 5141", request.payload["state"]["context"])
+
+    def test_empty_trait_context_leaves_the_base_context_unchanged(self) -> None:
+        request = self.chooser.configure(
+            "waist circumference", [make_candidate("EFO:0004340")], trait_context=""
+        )
+        self.assertEqual(request.payload["state"]["context"], DEFAULT_JEV_CONTEXT)
+
+    def test_trait_context_reaches_the_payload_through_select(self) -> None:
+        client = FixtureJevClient(
+            {"waist circumference": {"probabilities": {"EFO:0004340": 1.0}}}
+        )
+        chooser = JevChooser(client)
+        result = chooser.choose(
+            "waist circumference",
+            [make_candidate("EFO:0004340", "body mass index")],
+            trait_context="field 5141 'waist circumference'",
+        )
+        assert result is not None
+        self.assertEqual(result.selected_ontology_id, "EFO:0004340")
+        request = client.calls[0]
+        self.assertEqual(
+            request.payload["state"]["context"],
+            DEFAULT_JEV_CONTEXT + "\n\n" + "field 5141 'waist circumference'",
+        )
+
     def test_build_request_payload_returns_structured_document(self) -> None:
         from curation.jev_chooser import JevOption
 
