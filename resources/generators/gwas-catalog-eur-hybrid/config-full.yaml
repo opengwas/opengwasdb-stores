@@ -83,7 +83,11 @@ build:
     # defect, not a speedup. 32 gives the best measured throughput with sharing at
     # 2.1x, inside tolerance. #154 also recorded PSS over its self-imposed 68.7 GB
     # budget at 32 and 64; that budget is not binding on this host (1,006 GB RAM).
-    n-workers: 32
+    # 24, not 32: this build shares the host with the OGS-00016 build, and
+    # throughput is flat above 8 workers anyway.  --checkpoint keeps each build
+    # phase's output so a failed build can --resume (#227) instead of restarting.
+    n-workers: 24
+    checkpoint: true
     source-reader-capability: opengwasdb.gwas-ssf
     source-assembly: hg38
   post:
