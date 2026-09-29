@@ -338,6 +338,61 @@ class TestIcd10Channel(unittest.TestCase):
         self.assertEqual(dict(top.channel_ranks)[CHANNEL_ICD10], 1)
 
 
+class TestQueryText(unittest.TestCase):
+    """Coded ukb-b labels retrieve on their value text (issue #185)."""
+
+    CODED_LABEL = "diagnoses - main icd10: c20 malignant neoplasm of rectum"
+    VALUE_TEXT = "malignant neoplasm of rectum"
+
+    def setUp(self) -> None:
+        self.index = fixture_index()
+
+    def test_run_channels_substitutes_the_value_text(self) -> None:
+        # The exact and normalised channels match the value text, and the
+        # icd10 channel still fires from the raw label's code.
+        channels = run_channels(
+            self.CODED_LABEL, self.index, query_text=self.VALUE_TEXT
+        )
+        self.assertEqual(channels[CHANNEL_EXACT], ["EFO:0004351"])
+        self.assertEqual(channels[CHANNEL_NORMALISED], ["EFO:0004351"])
+        self.assertEqual(channels[CHANNEL_ICD10], ["EFO:0004351"])
+
+    def test_run_channels_without_query_text_retrieves_on_the_raw_label(self) -> None:
+        # Without the substitution the full label matches nothing exactly; only
+        # the icd10 channel fires.
+        channels = run_channels(self.CODED_LABEL, self.index)
+        self.assertEqual(channels[CHANNEL_EXACT], [])
+        self.assertEqual(channels[CHANNEL_ICD10], ["EFO:0004351"])
+
+    def test_shortlist_keeps_the_raw_label_but_matches_on_the_value_text(self) -> None:
+        shortlist = generate_shortlist(
+            self.CODED_LABEL, self.index, shortlist_size=10, query_text=self.VALUE_TEXT
+        )
+        self.assertTrue(shortlist)
+        top = shortlist[0]
+        # The candidate's trait_label is the raw queue label so the mapping
+        # key never changes…
+        self.assertEqual(top.trait_label, self.CODED_LABEL)
+        self.assertEqual(top.ontology_id, "EFO:0004351")
+        # …while the exact/normalised channels matched the value text and the
+        # icd10 channel still ran on the raw label's code.
+        self.assertIn(CHANNEL_EXACT, top.channels)
+        self.assertIn(CHANNEL_NORMALISED, top.channels)
+        self.assertIn(CHANNEL_ICD10, top.channels)
+
+    def test_generate_shortlists_applies_the_query_text_to_every_label(self) -> None:
+        rows = generate_shortlists(
+            [self.CODED_LABEL], self.index, shortlist_size=10,
+            query_text=self.VALUE_TEXT,
+        )
+        self.assertTrue(rows)
+        # The value sentence ranks first, retrieved on the value text while
+        # still carrying the raw queue label.
+        self.assertEqual(rows[0].ontology_id, "EFO:0004351")
+        self.assertEqual(rows[0].trait_label, self.CODED_LABEL)
+        self.assertIn(CHANNEL_EXACT, rows[0].channels)
+
+
 class TestCandidateSpaceRestriction(unittest.TestCase):
     """Phenotype-only candidate spaces (issue #185)."""
 

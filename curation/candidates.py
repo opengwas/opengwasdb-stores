@@ -394,20 +394,29 @@ def run_channels(
     label: str,
     index: OntologyIndex,
     embedding: SemanticRetriever | EmbeddingChannel | None = None,
+    *,
+    query_text: str | None = None,
 ) -> dict[str, list[str]]:
     """Run every channel for one label, returning ``{channel: [ontology_id]}``.
 
     The lexical channels always run. The semantic channel runs only when a
     retriever is supplied; its key is always present so a caller can attribute
     an empty result to a disabled channel rather than a missing key.
+
+    ``query_text`` is the text the string-shape channels retrieve on when it
+    is given (a ukb-b coded field's value text, e.g. ``malignant neoplasm of
+    rectum``); it defaults to ``label``. The icd10 channel is deliberately
+    excluded from the substitution: it extracts the code from the raw label,
+    so it must always run on ``label`` (issue #185).
     """
+    text = query_text or label
     return {
-        CHANNEL_EXACT: exact_channel(label, index),
+        CHANNEL_EXACT: exact_channel(text, index),
         CHANNEL_ICD10: icd10_channel(label, index),
-        CHANNEL_NORMALISED: normalised_channel(label, index),
-        CHANNEL_TOKEN_OVERLAP: token_overlap_channel(label, index),
-        CHANNEL_SYNONYM: synonym_channel(label, index),
-        CHANNEL_EMBEDDING: embedding_channel(label, embedding),
+        CHANNEL_NORMALISED: normalised_channel(text, index),
+        CHANNEL_TOKEN_OVERLAP: token_overlap_channel(text, index),
+        CHANNEL_SYNONYM: synonym_channel(text, index),
+        CHANNEL_EMBEDDING: embedding_channel(text, embedding),
     }
 
 
@@ -559,6 +568,7 @@ def generate_shortlist(
     *,
     excluded_prefixes: frozenset[str] = EXCLUDED_ONTOLOGY_PREFIXES,
     lineage_markers: frozenset[str] = EXCLUDED_LINEAGE_MARKERS,
+    query_text: str | None = None,
 ) -> list[Candidate]:
     """Return the top ``shortlist_size`` candidates for one trait label.
 
@@ -567,6 +577,11 @@ def generate_shortlist(
     (as :func:`generate_shortlists` does) so the circuit breaker persists.
     The candidate-space restriction's two lists are parameters so a corpus
     can be re-checked against OGS-00011 before either is repinned.
+
+    ``query_text`` substitutes the text the lexical/embedding channels
+    retrieve on (a coded field's value text); the candidate's ``trait_label``
+    is always the raw label, and the icd10 channel always runs on the raw
+    label (issue #185).
     """
     return _generate_shortlist(
         trait_label,
@@ -575,6 +590,7 @@ def generate_shortlist(
         as_embedding_channel(embedding),
         excluded_prefixes=excluded_prefixes,
         lineage_markers=lineage_markers,
+        query_text=query_text,
     )
 
 
@@ -623,6 +639,7 @@ def _generate_shortlist(
     *,
     excluded_prefixes: frozenset[str] = EXCLUDED_ONTOLOGY_PREFIXES,
     lineage_markers: frozenset[str] = EXCLUDED_LINEAGE_MARKERS,
+    query_text: str | None = None,
 ) -> list[Candidate]:
     """Return the top ``shortlist_size`` candidates for one trait label.
 
@@ -635,13 +652,19 @@ def _generate_shortlist(
     index build are recorded on the returned candidates; a disabled, tripped,
     or failed channel leaves the provenance empty and the shortlist
     lexical-only.
+
+    ``query_text`` substitutes the text the lexical/embedding channels
+    retrieve on; the candidate's ``trait_label`` is always the raw label
+    (issue #185).
     """
     if shortlist_size < 1:
         raise CandidateGenerationError(
             f"shortlist_size must be at least 1, got {shortlist_size}"
         )
 
-    channels = run_channels(trait_label, index, embedding)
+    channels = run_channels(
+        trait_label, index, embedding, query_text=query_text
+    )
 
     # ontology_id -> {channel: rank}, first rank wins if a channel ever repeats.
     ranks: dict[str, dict[str, int]] = {}
@@ -717,6 +740,7 @@ def generate_shortlists(
     *,
     excluded_prefixes: frozenset[str] = EXCLUDED_ONTOLOGY_PREFIXES,
     lineage_markers: frozenset[str] = EXCLUDED_LINEAGE_MARKERS,
+    query_text: str | None = None,
 ) -> list[Candidate]:
     """Generate shortlists for every label, concatenated in input order.
 
@@ -726,7 +750,9 @@ def generate_shortlists(
     A bare retriever is coerced to one run-scoped channel here, so a
     connection failure on an early label disables the semantic channel for
     every later label instead of retrying it per label. The candidate-space
-    restriction's two lists pass through unchanged.
+    restriction's two lists pass through unchanged. ``query_text`` applies to
+    every label when given; pass it per label via :func:`generate_shortlist`
+    when labels need different retrieval text (issue #185).
     """
     channel = as_embedding_channel(embedding)
     rows: list[Candidate] = []
@@ -739,6 +765,7 @@ def generate_shortlists(
                 channel,
                 excluded_prefixes=excluded_prefixes,
                 lineage_markers=lineage_markers,
+                query_text=query_text,
             )
         )
     return rows
