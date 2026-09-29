@@ -50,24 +50,25 @@ still resolve normally; they exist to carry evidence, not to gate lookup. The
 resolver ignores any column it does not know, so widening this table never
 changes lookup behaviour — it only adds provenance for reviewers.
 
-## Why this table is empty today
+## Where the rows come from
 
 Exact-match lookup only works when trait labels are already reasonably
 clean and consistent. `gwas-ssf-ragged`'s GWAS Catalog-derived labels rarely
 need this fallback (0 unmapped rows across every currently-built bundle at
 time of writing). `opengwas-gwas-vcf-dense` (ukb-b)'s ~2,500 free-text UK
 Biobank field descriptions (e.g. `"Operative procedures - secondary OPCS:
-Z84.6 Knee joint"`) are exactly the opposite case: too numerous and too messy
-for hand curation at this granularity, and exact string matching against them
-would have a very low hit rate. Populating ukb-b-scale coverage needs the
-candidate-generation-and-review tooling described in "How rows are added"
-(see `docs/adr/0021-trait-ontology-mapping-lookup-lives-in-registry.md`); that
-tooling exists, but this table stays empty until a real curation run promotes
-rows through it -- no fabricated rows here.
+Z84.6 Knee joint"`) are the opposite case: too numerous and too messy for
+hand curation. Those rows come from the curation pipeline described in "How
+rows are added".
 
-Add a row only when a real, currently-unmapped trait needs one. Fill in the
-provenance columns when a candidate-generation-and-review process produced the
-row; leave them empty for a hand-curated row.
+The first round, `ukb-b-2026q3` (EFO v3.94.0, BioLORD-2023 retrieval, Jev
+`jev-1.13.0`), auto-accepted 409 rows. It queued 1,056 labels for review and
+recorded 1,037 as having no suitable EFO term. The validation and the
+per-label outcomes are in `docs/trait-mapping-report.html`.
+
+Add a hand-curated row only when a real, currently-unmapped trait needs one.
+Fill in the provenance columns when a candidate-generation-and-review process
+produced the row; leave them empty for a hand-curated row.
 
 ## How rows are added
 
@@ -107,3 +108,43 @@ A queued row can be reviewed in place: a curator sets `review_decision` to
 itself (or from `--reviewed-queue`), appends the rows as
 `review_status = human_reviewed`, bumps the resource `version`, and preserves
 the decided rows -- including `reject` decisions -- in the rewritten queue.
+
+## Review queues
+
+Each curation round's review queue is committed here as
+`review-queue-<round_id>.tsv`, for example `review-queue-ukb-b-2026q3.tsv`.
+A queue holds every label the round did not auto-accept:
+
+- an uncertain pick (`review_reason` `below_confidence` or `below_margin`);
+- an uncertain abstention (`selected_ontology_id` `none_suitable`).
+
+Each row carries the chooser's probabilities and its full candidate shortlist
+(`candidates`, a JSON list with definitions and parent terms). Confident
+abstentions are not queued; they stay in the round directory's
+`no-suitable-term.tsv`.
+
+To review, fill in `review_decision` (`accept`, `amend` or `reject`) and, for
+`amend`, `override_ontology_id` and `override_ontology_label`. Also fill in
+`curator` and `curated_at`, and commit the edited queue. Then apply the
+decisions by passing the committed queue as **`--reviewed-queue`**, with a
+scratch `--review-queue`:
+
+```sh
+# an empty proposals table: apply the committed decisions only
+pixi run -e curation python -c "from curation.choice import PROPOSAL_COLUMNS; print(*PROPOSAL_COLUMNS, sep='\t')" > /tmp/no-proposals.tsv
+pixi run -e curation python -m curation.promotion \
+    --proposals /tmp/no-proposals.tsv \
+    --reviewed-queue resources/reference-resources/canonical-trait-mapping-efo/review-queue-ukb-b-2026q3.tsv \
+    --review-queue /tmp/review-queue-scratch.tsv \
+    --resource-dir resources/reference-resources/canonical-trait-mapping-efo
+```
+
+`accept` and `amend` rows are appended to `mapping.tsv` as
+`review_status = human_reviewed`. `reject` pairs are suppressed in every later
+run. Rerunning is idempotent: a label already in the table is not appended
+again.
+
+Do **not** pass the committed queue as `--review-queue`. That file is
+rewritten from the decided rows plus the rows re-queued from `--proposals`.
+Without that round's proposals, every undecided row would be dropped.
+
