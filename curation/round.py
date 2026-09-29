@@ -1886,7 +1886,10 @@ def run_coverage(
     The after state is read from every row of ``mapping.tsv``, so a row that
     existed before this round still resolves the Analyses it covers. The bucket
     counts come from ``reconciliation.tsv`` and the cost from
-    ``cost-ledger.tsv``.
+    ``cost-ledger.tsv``, except the no-suitable-term count: reduce's
+    ``none_suitable`` bucket holds every abstention, but promote sends the
+    uncertain ones to the review queue, so only ``no-suitable-term.tsv`` holds
+    the labels that are unmapped by design.
     """
     config = read_round_config(round_dir)
     manifest_paths = tuple(manifests) if manifests is not None else config.manifests
@@ -1919,7 +1922,7 @@ def run_coverage(
         promoted_labels=promoted_labels,
         review_queue_size=coverage.read_review_queue_size(config.review_queue_path),
         no_candidate_count=_count(BUCKET_NO_CANDIDATE),
-        none_suitable_count=_count(BUCKET_NONE_SUITABLE),
+        none_suitable_count=coverage.read_no_suitable_count(config.no_suitable_path),
         pending_count=_count(BUCKET_PENDING),
         error_count=_count(BUCKET_ERROR),
         cost_usd=cost_usd,
