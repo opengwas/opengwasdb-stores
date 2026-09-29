@@ -57,6 +57,7 @@ import csv
 import io
 import re
 from dataclasses import dataclass, replace
+from html import unescape
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
@@ -414,6 +415,27 @@ def _classify_coded(parsed: UkbLabel, field: ShowcaseField | None) -> bool:
     return False
 
 
+# Showcase notes reference sibling fields as ``~F1234~``; the marker is
+# provenance about another field, not part of the question's prose.
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_FIELD_REFERENCE_RE = re.compile(r"~F\d+~")
+
+
+def _plain_text(value: str | None) -> str:
+    """Strip light HTML and Showcase field references from a notes cell.
+
+    The real schema's question notes carry ``<p>``/``<i>``/``<ul><li>`` tags,
+    ``&nbsp;`` and friends, and ``~F1234~`` references to sibling fields. The
+    chooser context must be clean prose, so tags and field references are
+    dropped (a field reference is not part of the question), the common HTML
+    entities are unescaped, and whitespace is collapsed.
+    """
+    text = unescape(value or "")
+    text = _HTML_TAG_RE.sub(" ", text)
+    text = _FIELD_REFERENCE_RE.sub(" ", text)
+    return " ".join(text.split())
+
+
 def _compose_trait_context(field: ShowcaseField | None) -> str:
     """The question text plus field metadata for a non-coded field.
 
@@ -421,7 +443,7 @@ def _compose_trait_context(field: ShowcaseField | None) -> str:
     tail makes the provenance of the context explicit without the boilerplate
     of a coded field's notes.
     """
-    question = (field.notes if field is not None else "") or ""
+    question = _plain_text(field.notes) if field is not None else ""
     details: list[str] = []
     if field is not None:
         if field.field_id and field.title:

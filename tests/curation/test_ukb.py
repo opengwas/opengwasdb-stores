@@ -37,7 +37,7 @@ field_id\ttitle\tavailability\tstability\tprivate\tvalue_type\tbase_type\titem_t
 40006\tType of cancer: ICD10\t0\t2\t0\t21\t41\t0\t0\t1\t0\t0\t\t100092\t19\t9000002\t0\t21\t0\t0\tThe ICD-10 code for the type of cancer.\t2013-06-25\t2025-08-29\t30890\t47044\t79\t0\t1\t0
 41248\tDestinations on discharge from hospital (recoded)\t0\t3\t0\t22\t11\t0\t0\t0\t1\t0\t\t2001\t267\t0\t0\t0\t0\t11\tThis field is a summary of the distinct destination on discharge codes a participant has had recorded across all their hospital inpatient records.\t2013-06-25\t2025-08-29\t7364\t7394\t86\t0\t1\t0
 6150\tVascular/heart problems diagnosed by doctor\t0\t0\t0\t22\t11\t0\t0\t1\t1\t0\t\t100044\t100605\t2\t0\t2\t0\t3\tACE touchscreen question "Has a doctor ever told you that you have had any of the following conditions?"\t2009-08-04\t2025-08-30\t457723\t2196078\t258\t0\t1\t1
-48\tWaist circumference\t0\t0\t0\t31\t11\t0\t0\t1\t1\t0\tcm\t100046\t0\t2\t0\t1\t0\t0\tWaist circumference was measured using a Seca 200 device.\t2006-03-14\t2025-08-30\t502252\t502252\t77\t0\t1\t1
+48\tWaist circumference\t0\t0\t0\t31\t11\t0\t0\t1\t1\t0\tcm\t100046\t0\t2\t0\t1\t0\t0\t<p>Waist circumference was measured using a Seca&nbsp;200 device.</p>\t2006-03-14\t2025-08-30\t502252\t502252\t77\t0\t1\t1
 """
 
 SCHEMA_3 = """\
@@ -81,6 +81,33 @@ def write_fixture_schema(directory: Path) -> Path:
     (directory / "schema-3.tsv").write_text(SCHEMA_3, encoding="utf-8")
     (directory / "schema-13.tsv").write_text(SCHEMA_13, encoding="utf-8")
     return directory
+
+
+class PlainTextTest(unittest.TestCase):
+    """Showcase notes are stripped to clean prose before they reach Jev."""
+
+    def test_plain_text_strips_html_entities_and_field_references(self) -> None:
+        plain = ukb._plain_text(
+            "<p>Has a doctor ever told you that you&nbsp;have <i>any</i> of the "
+            "following conditions?</p><ul><li>less than 5 glasses per "
+            "week</li></ul><p>See field ~F1234~ for the coding.</p>"
+        )
+        self.assertEqual(
+            plain,
+            "Has a doctor ever told you that you have any of the following "
+            "conditions? less than 5 glasses per week See field for the "
+            "coding.",
+        )
+
+    def test_plain_text_is_unchanged_for_plain_prose(self) -> None:
+        self.assertEqual(
+            ukb._plain_text("Waist circumference was measured."),
+            "Waist circumference was measured.",
+        )
+        self.assertEqual(ukb._plain_text(None), "")
+
+    def test_plain_text_unescapes_common_entities(self) -> None:
+        self.assertEqual(ukb._plain_text("one&amp;two &lt; three"), "one&two < three")
 
 
 class ParseTraitLabelTest(unittest.TestCase):
@@ -293,6 +320,10 @@ class ShowcaseResolverTest(unittest.TestCase):
         self.assertIn("Waist circumference was measured", field.trait_context)
         self.assertIn("units: cm", field.trait_context)
         self.assertIn("field 48 'Waist circumference'", field.trait_context)
+        # The notes' HTML and entities are stripped before the context is
+        # composed, so Jev never reads markup.
+        self.assertNotIn("<p>", field.trait_context)
+        self.assertNotIn("&nbsp;", field.trait_context)
 
     def test_continuous_title_value_label_is_not_coded(self) -> None:
         field = self.resolver.resolve("waist circumference: 102.3")
