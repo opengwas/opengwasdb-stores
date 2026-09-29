@@ -22,7 +22,7 @@ The index is a small JSON document, versioned by ``index_format_version`` so a
 stale artifact fails loudly rather than being read with the wrong shape::
 
     {
-      "index_format_version": 2,
+      "index_format_version": 3,
       "ontology_release": "efo/v3.94.0",
       "excluded_non_curie_count": 6583,
       "terms": [
@@ -34,6 +34,7 @@ stale artifact fails loudly rather than being read with the wrong shape::
           "parent_label": "body weights and measures",
           "synonyms": ["BMI", "Quetelet index"],
           "alt_ids": [],
+          "xrefs": ["ICD10:E11"],
           "is_obsolete": false,
           "replaced_by": ""
         }
@@ -74,7 +75,10 @@ PINNED_ONTOLOGY_RELEASE: str = "efo/v3.94.0"
 # not know, so a rebuild is forced rather than a stale shape being misread.
 # Bumped to 2 when canonical id normalisation was added: a version-1 index
 # carried the OBO's native ``efo:EFO_...`` ids and IRI ids and must be rebuilt.
-INDEX_FORMAT_VERSION: int = 2
+# Bumped to 3 when ``xrefs`` storage was added (issue #185): a version-2 index
+# has no xrefs, so its ``icd10_lookup`` would silently be wrong; every artifact
+# must be rebuilt.
+INDEX_FORMAT_VERSION: int = 3
 
 # Rebuildable index artifacts live outside the tracked tree. See `.gitignore`.
 DEFAULT_INDEX_DIR: Path = Path(".cache") / "curation"
@@ -185,6 +189,7 @@ class OntologyTerm:
     parent_label: str = ""
     synonyms: tuple[str, ...] = ()
     alt_ids: tuple[str, ...] = ()
+    xrefs: tuple[str, ...] = ()
     is_obsolete: bool = False
     replaced_by: str = ""
 
@@ -197,6 +202,7 @@ class OntologyTerm:
             "parent_label": self.parent_label,
             "synonyms": list(self.synonyms),
             "alt_ids": list(self.alt_ids),
+            "xrefs": list(self.xrefs),
             "is_obsolete": self.is_obsolete,
             "replaced_by": self.replaced_by,
         }
@@ -211,6 +217,7 @@ class OntologyTerm:
             parent_label=str(data.get("parent_label", "")),
             synonyms=tuple(str(s) for s in data.get("synonyms", []) or []),
             alt_ids=tuple(str(s) for s in data.get("alt_ids", []) or []),
+            xrefs=tuple(str(s) for s in data.get("xrefs", []) or []),
             is_obsolete=bool(data.get("is_obsolete", False)),
             replaced_by=str(data.get("replaced_by", "")),
         )
@@ -409,6 +416,27 @@ class OntologyIndex:
         return LexicalLookups.build(self)
 
     @cached_property
+    def icd10_lookup(self) -> dict[str, tuple[str, ...]]:
+        """Normalised ICD-10 xref code to the live terms carrying it.
+
+        Keys are the xref code uppercased and stripped of its decimal point
+        (``ICD10:C34.9`` -> ``C349``), so a ukb-b label code normalised the
+        same way probes the map directly. The provenances (``ICD10``,
+        ``ICD10CM``, ``ICD10WHO``) are merged per code, obsolete terms are
+        skipped (an obsolete term is never a retrievable candidate), and ids
+        are sorted so the order is deterministic.
+        """
+        by_code: dict[str, set[str]] = {}
+        for term in self.terms:
+            if term.is_obsolete:
+                continue
+            for xref in term.xrefs:
+                code = icd10_code_from_xref(xref)
+                if code:
+                    by_code.setdefault(code, set()).add(term.ontology_id)
+        return {code: tuple(sorted(ids)) for code, ids in by_code.items()}
+
+    @cached_property
     def _alt_id_owner(self) -> dict[str, str]:
         """Map every declared alternate id to the canonical term owning it."""
         owners: dict[str, str] = {}
@@ -461,6 +489,43 @@ class OntologyIndex:
             "excluded_non_curie_count": self.excluded_non_curie_count,
             "terms": [term.to_dict() for term in self.terms],
         }
+
+
+# ---------------------------------------------------------------------------
+# ICD-10 xrefs
+# ---------------------------------------------------------------------------
+# EFO imports ICD-10 codes as term xrefs in three provenances. The lookup key
+# is the code itself, uppercased and with the decimal point removed, so both a
+# ``ICD10:Q51`` and a ``ICD10CM:C34.9`` xref land in one map an ICD-10 code
+# can probe directly.
+
+_ICD10_XREF_PREFIXES: tuple[str, ...] = ("ICD10:", "ICD10CM:", "ICD10WHO:")
+
+
+def normalise_icd10_code(code: str | None) -> str:
+    """Return an ICD-10 code's lookup key: uppercase, no decimal point.
+
+    An annotation suffix (the ``{source=...}`` block EFO appends to imported
+    xrefs) and trailing whitespace are dropped first, so ``"c34.9 "`` and
+    ``"C34.9 {source=\"MONDO:equivalentTo\"}"`` both key as ``"C349"``.
+    """
+    value = (code or "").strip()
+    value = value.split("{", 1)[0].strip()
+    value = value.split()[0] if value else value
+    return value.upper().replace(".", "")
+
+
+def icd10_code_from_xref(xref: str | None) -> str:
+    """The normalised ICD-10 code key a term xref carries, or ``""``.
+
+    Only xrefs in the ``ICD10``/``ICD10CM``/``ICD10WHO`` provenances are read;
+    a MONDO or MESH xref is not an ICD-10 code and yields nothing.
+    """
+    value = (xref or "").strip()
+    for prefix in _ICD10_XREF_PREFIXES:
+        if value.startswith(prefix):
+            return normalise_icd10_code(value[len(prefix):])
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -532,6 +597,10 @@ def _parse_obo_term(body: Sequence[str]) -> OntologyTerm | None:
     alt_ids = tuple(
         normalise_ontology_id(value) for value in fields.get("alt_id", [])
     )
+    # Xrefs are kept as the raw OBO values (e.g. ``ICD10:E11``,
+    # ``ICD10CM:E30.1 {source=...}``); the ICD-10 lookup indexes them, so a
+    # malformed or unrecognised xref simply contributes nothing there.
+    xrefs = tuple(fields.get("xref", []))
 
     return OntologyTerm(
         ontology_id=normalise_ontology_id(fields["id"][0]),
@@ -541,6 +610,7 @@ def _parse_obo_term(body: Sequence[str]) -> OntologyTerm | None:
         parent_label=parent_label,
         synonyms=synonyms,
         alt_ids=alt_ids,
+        xrefs=xrefs,
         is_obsolete=any(v.lower() == "true" for v in fields.get("is_obsolete", [])),
         replaced_by=normalise_ontology_id(fields.get("replaced_by", [""])[0]),
     )
