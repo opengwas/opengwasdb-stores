@@ -1,0 +1,27 @@
+store_id: OGS-00016
+label: r13-full
+access_posture: public
+status: accepted
+derived_from: ~
+created_at: '2026-09-28T13:03:04Z'
+accepted_at: '2026-09-28T13:10:00Z'
+source_snapshot_id: finngen-r13-manifest-2026-05-12
+source_snapshot:
+  manifest_url: https://storage.googleapis.com/finngen-public-data-r13/summary_stats/finngen_R13_manifest.tsv
+  manifest_sha256: c9caafa9b98ee5ef050a705766bd1c451fc2154fb8e81b069022012a2f75ae20
+  manifest_size_bytes: 820805
+  manifest_etag: a70f4ecb57acf7c23e8f5d71be11d936
+  manifest_last_modified: '2026-05-12T12:48:15Z'
+generator:
+  version: sha256:e1caf8e44d8fd7cff99518afa619d2d8589c9ce7cdfa3ca2d954cd2c5cd72239
+  commands:
+  - Rscript resources/generators/lib/source-formats/finngen-r13-dense/generate.R --config=resources/generators/finngen-r13/config-full.yaml
+    --mode=emit
+  - python resources/generators/lib/source-formats/finngen-r13-dense/acquire.py --release-dir=families/finngen-r13/releases/r13-full
+    --workers=8
+  - Rscript resources/generators/lib/source-formats/finngen-r13-dense/generate.R --config=resources/generators/finngen-r13/config-full.yaml
+    --mode=emit-registry
+description: |
+  Full FinnGen R13 release: every endpoint in the frozen public summary-statistics manifest (2,754 endpoints -- three inverse-rank-normalised quantitative endpoints plus every case-control endpoint), selected in the manifest's own order. Production-scale sibling of the 20-Analysis r13-pilot-20 trial (OGS-00003); the pilot assessment is the onboarding evidence, and this release carries no analysis cap.
+notes: |
+  Selection is the whole frozen provider manifest, so the release membership is exactly what FinnGen publishes and the pinned manifest checksum makes the Analysis order reproducible. Every endpoint must still be honestly classified by the metadata resolver (a quantitative endpoint with num_cases=N, or a case-control endpoint with positive case and control counts); an endpoint the resolver cannot classify fails the emit rather than being dropped.

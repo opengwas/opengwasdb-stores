@@ -17,6 +17,7 @@ Generated master list of Store Releases in this registry.
 | `OGS-00009` | ukb-b-full-observed | dense | observed_only | candidate | - | 2,024 | - | - | - |
 | `OGS-00010` | ukb-b-full-completed | dense | reference_completed | candidate | - | 2,024 | - | - | - |
 | `OGS-00011` | eur-hybrid-full | hybrid | observed_only | accepted | - | 4,783 | - | - | passed_with_warnings |
+| `OGS-00016` | r13-full | dense | observed_only | accepted | - | 2,754 | - | - | passed |
 
 ## Derived membership summaries
 
@@ -35,6 +36,7 @@ Every value below is derived from the Release Bundle's `analyses.tsv`; `NA` mean
 | `OGS-00009` | Ben Elsworth | NA | NA | NA | EUR | 10339-463010 | NA |
 | `OGS-00010` | Ben Elsworth | NA | NA | NA | EUR | 10339-463010 | NA |
 | `OGS-00011` | mixed (662) | mixed (758) | NA | NA | NA | 15-2586691 | https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
+| `OGS-00016` | NA | NA | NA | NA | NA | 68562-500186 | https://storage.googleapis.com/finngen-public-data-r13/summary_stats/ |
 
 ## Tolerated gaps
 

@@ -1,0 +1,28 @@
+status: passed
+validated_at: '2026-09-28T13:03:04Z'
+validator:
+  name: resources/generators/lib/source-formats/finngen-r13-dense/acquire.py
+  version: ~
+build_environment:
+  repo_commit: 524755be5214d65bf48866fe24731b8f93247b5f
+  opengwasdb_version: 0.3.0
+  opengwasdb_commit: 99bd904b0e3d6a00be9556fc2bcc2e3eb663b335
+  pixi_lock_sha256: a9b02f63b79d91b3ee0fcd3800f511ab5579211d8323ceb092c8865ae63e7d41
+  pixi_environment: default
+  platform: Linux-4.18.0-553.155.1.el8_10.x86_64-x86_64-with-glibc2.28
+  python_version: 3.11.15
+checks:
+  schema: passed
+  files: passed
+  reader_smoke_test: not_run
+  ancestry: not_run
+  effect_scale: not_run
+  sd_estimation: not_run
+  selection: passed
+  metadata_resolution: passed
+reports:
+  selection: sidecars/selection.tsv
+  metadata_resolution: sidecars/derivations.tsv
+  downloads: sidecars/downloads.tsv
+warnings: []
+errors: []

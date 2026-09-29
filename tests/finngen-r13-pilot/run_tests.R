@@ -158,4 +158,92 @@ checksum_status <- attr(checksum_result, "status")
 check(!is.null(checksum_status) && checksum_status != 0L,
       "generator should reject a source manifest that does not match its pinned SHA-256")
 
+# Full mode selects every endpoint in the frozen manifest, in manifest order,
+# and records the full-release inclusion reason. The pilot selection above must
+# stay untouched by this branch.
+full_release_dir <- file.path(tmp, "full-release")
+full_config <- config
+full_config$family_release_id <- "r13-full"
+full_config$release_kind <- "full"
+full_config$selection <- list(mode = "full")
+full_config$output$release_dir <- full_release_dir
+full_config$output$artifact_subdir <- "finngen-r13/releases/r13-full"
+full_config_path <- file.path(tmp, "full-config.yaml")
+writeLines(as.yaml(full_config), full_config_path)
+full_result <- system2(
+  "Rscript",
+  c(
+    "resources/generators/lib/source-formats/finngen-r13-dense/generate.R",
+    paste0("--config=", full_config_path),
+    "--mode=emit"
+  ),
+  stdout = TRUE,
+  stderr = TRUE
+)
+full_status <- attr(full_result, "status")
+check(is.null(full_status) || full_status == 0L,
+      "full-mode emit failed:\n%s", paste(full_result, collapse = "\n"))
+full_analyses <- fread(file.path(full_release_dir, "analyses.tsv"), sep = "\t", na.strings = "")
+check(nrow(full_analyses) == nrow(manifest), "full mode should select every manifest row")
+check(identical(full_analyses$source_analysis_id, manifest$phenocode),
+      "full mode should preserve the manifest's own endpoint order")
+check(all(grepl("^all endpoints in the frozen FinnGen R13", full_analyses$inclusion_reason)),
+      "full mode should record the full-release inclusion reason")
+
+# emit-registry projects the acquired working bundle into the current
+# stores/<OGS-id>/ contract without re-resolving a row. The fixture has no
+# downloads, so stamp well-formed checksums to satisfy the emitted-bundle
+# precondition, then assert the flat identity/build documents.
+registry_root <- file.path(tmp, "registry")
+full_config$label <- "r13-full"
+full_config$access_posture <- "public"
+full_config$output$store_id <- "OGS-99001"
+full_config$output$registry_root <- registry_root
+full_config$build <- list(
+  layout = "dense",
+  completion_state = "observed_only",
+  command = "build-dense-vcf",
+  options = list(
+    `source-reader-capability` = "opengwasdb.finngen-r13",
+    `source-assembly` = "hg38",
+    `n-workers` = 8L
+  ),
+  post = list(top_hits = TRUE, overview = TRUE)
+)
+stamped <- copy(full_analyses)
+stamped[, checksum := as.character(checksum)]
+stamped[is.na(checksum), checksum := paste(rep("a", 64), collapse = "")]
+fwrite(stamped, file.path(full_release_dir, "analyses.tsv"), sep = "\t", na = "")
+writeLines(as.yaml(full_config), full_config_path)
+registry_result <- system2(
+  "Rscript",
+  c(
+    "resources/generators/lib/source-formats/finngen-r13-dense/generate.R",
+    paste0("--config=", full_config_path),
+    "--mode=emit-registry"
+  ),
+  stdout = TRUE,
+  stderr = TRUE
+)
+registry_status <- attr(registry_result, "status")
+check(is.null(registry_status) || registry_status == 0L,
+      "emit-registry failed:\n%s", paste(registry_result, collapse = "\n"))
+bundle_dir <- file.path(registry_root, "OGS-99001")
+check(file.exists(file.path(bundle_dir, "release.yaml")), "registry release.yaml missing")
+check(file.exists(file.path(bundle_dir, "build.yaml")), "registry build.yaml missing")
+registry_release <- read_yaml(file.path(bundle_dir, "release.yaml"))
+check(identical(registry_release$store_id, "OGS-99001"), "registry store_id mismatch")
+check(identical(registry_release$status, "candidate"), "registry status should be candidate")
+check(length(registry_release$generator$commands) == 3L,
+      "registry generator.commands should log emit, acquire and emit-registry")
+check(identical(registry_release$generator$commands[[2]],
+                paste("python resources/generators/lib/source-formats/finngen-r13-dense/acquire.py",
+                      paste0("--release-dir=", full_release_dir), "--workers=8")),
+      "registry command log should record the acquire invocation")
+registry_build <- read_yaml(file.path(bundle_dir, "build.yaml"))
+check(identical(registry_build$build$command, "build-dense-vcf"),
+      "registry build command mismatch")
+check(nrow(fread(file.path(bundle_dir, "analyses.tsv"), sep = "\t")) == nrow(manifest),
+      "registry analyses.tsv should carry every manifest row")
+
 cat(sprintf("ALL %d CHECKS PASSED\n", n_checks))

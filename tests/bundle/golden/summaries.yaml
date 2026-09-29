@@ -97,3 +97,12 @@ OGS-00011:
   assigned_ancestry: NA
   sample_size: 15-2586691
   source_url: https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
+OGS-00016:
+  n_analyses: 2754
+  first_author: NA
+  publication_pmid: NA
+  tissue: NA
+  context: NA
+  assigned_ancestry: NA
+  sample_size: 68562-500186
+  source_url: https://storage.googleapis.com/finngen-public-data-r13/summary_stats/
