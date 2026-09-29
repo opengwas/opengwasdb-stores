@@ -114,6 +114,15 @@ source:
   maf_filter_exempt_genotyping_technologies:
     - Whole genome sequencing
     - Exome-wide sequencing
+  # Reviewed per-Analysis MAF-floor exemptions (TSV; see README). Each listed
+  # Analysis emits literal NaN (no MAF filter) together with the recorded
+  # reason, which is carried into the resolution receipt contract. OGS-00011
+  # exempts GCST90428462 and GCST90428463: every row carries
+  # effect_allele_frequency 0.0 (a placeholder the study metadata says is below
+  # its own declared minor_allele_freq_lower_limit 0.01), so core reads the
+  # frequency as missing and a MAF floor would compare against a fabricated
+  # zero (#176, 2026-09-29). Absent = no Analysis is exempt.
+  maf_filter_exempt_analyses: resources/generators/gwas-catalog-eur-hybrid/maf-filter-exemptions.tsv
   inventory:
     snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-22
     path: resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv

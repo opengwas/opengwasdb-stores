@@ -259,6 +259,7 @@ EXCLUSION_REASONS: frozenset[str] = frozenset(
         "sd_failed",
         "missing_sample_size",
         "missing_case_control_counts",
+        "no_build_eligible_rows",
     }
 )
 
@@ -274,6 +275,7 @@ EXCLUSION_CATEGORIES: Mapping[str, str] = {
     "sd_failed": "effect_scale",
     "missing_sample_size": "metadata",
     "missing_case_control_counts": "metadata",
+    "no_build_eligible_rows": "effect_scale",
 }
 
 #: Resolver record statuses that this module treats as a completed resolution.
@@ -361,6 +363,14 @@ class CandidateConfiguration:
     #: is exempt when it has non-empty technology metadata and every technology
     #: is in this list.
     maf_filter_exempt_genotyping_technologies: tuple[str, ...]
+    #: The reviewed per-Analysis MAF-floor exemption file
+    #: (``source.maf_filter_exempt_analyses``), or ``None`` when the key is
+    #: absent (= no Analysis is exempt).
+    maf_filter_exempt_analyses_path: Path | None
+    #: ``analysis_id -> recorded reason`` read from that file. An exempt
+    #: Analysis emits literal ``NaN`` exactly as an exempt technology does, and
+    #: the reason is carried into the resolution receipt.
+    maf_filter_exempt_analyses: Mapping[str, str]
 
 
 def _require(document: Mapping[str, Any], key: str, where: str) -> Any:
@@ -413,6 +423,17 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
     maf_filter_exempt = parse_maf_filter_exempt_technologies(
         source.get("maf_filter_exempt_genotyping_technologies")
     )
+    exemption_input = source.get("maf_filter_exempt_analyses")
+    if exemption_input is not None and (
+        not isinstance(exemption_input, str) or not exemption_input.strip()
+    ):
+        raise PreflightConfigError(
+            "source.maf_filter_exempt_analyses must be a non-empty TSV path"
+        )
+    exemption_path = Path(exemption_input) if exemption_input else None
+    if exemption_path is not None and not exemption_path.is_absolute():
+        exemption_path = repo_root / exemption_path
+    maf_filter_exempt_analyses = read_maf_filter_exempt_analyses(exemption_path)
     declaration_input = source.get("imputation_score_declarations")
     if declaration_input is not None and (
         not isinstance(declaration_input, str) or not declaration_input.strip()
@@ -444,6 +465,8 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         imputation_score_declarations=declaration_path,
         maf_threshold=maf_threshold,
         maf_filter_exempt_genotyping_technologies=maf_filter_exempt,
+        maf_filter_exempt_analyses_path=exemption_path,
+        maf_filter_exempt_analyses=maf_filter_exempt_analyses,
     )
 
 
@@ -504,6 +527,47 @@ def parse_maf_filter_exempt_technologies(value: Any) -> tuple[str, ...]:
             "non-empty technology labels"
         )
     return tuple(item.strip() for item in value)
+
+
+#: The exact reviewed MAF-floor exemption table header
+#: (``source.maf_filter_exempt_analyses``); see ``analysis_maf_threshold``.
+MAF_FILTER_EXEMPTION_COLUMNS: tuple[str, ...] = ("analysis_id", "reason")
+
+
+def read_maf_filter_exempt_analyses(path: Path | None) -> dict[str, str]:
+    """Read the reviewed per-Analysis MAF-floor exemptions, or ``{}`` when absent.
+
+    The table is the operator's explicit, auditable record of *why* an Analysis
+    carries no MAF floor -- for example an ``effect_allele_frequency`` column
+    that is ``0.0`` on every row, which core reads as a missing frequency. The
+    reason is kept so the exemption is a reviewed fact rather than an implicit
+    ``NaN``. A duplicate or blank ``analysis_id``, a blank ``reason``, a
+    different header, or an unreadable file is an error (never a skipped row).
+    """
+    if path is None:
+        return {}
+    if not path.is_file():
+        raise CandidateError(f"MAF filter exemption table not found: {path}")
+    found: dict[str, str] = {}
+    with path.open(newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh, delimiter="\t")
+        if reader.fieldnames != list(MAF_FILTER_EXEMPTION_COLUMNS):
+            raise CandidateError(
+                f"{path}: expected exact TSV headers {MAF_FILTER_EXEMPTION_COLUMNS!r}"
+            )
+        for number, row in enumerate(reader, 2):
+            if None in row or any(value is None for value in row.values()):
+                raise CandidateError(f"{path}:{number}: malformed exemption row")
+            analysis_id = row["analysis_id"].strip()
+            reason = row["reason"].strip()
+            if not analysis_id:
+                raise CandidateError(f"{path}:{number}: analysis_id must be non-empty")
+            if not reason:
+                raise CandidateError(f"{path}:{number}: reason must be non-empty")
+            if analysis_id in found:
+                raise CandidateError(f"{path}:{number}: duplicate analysis_id {analysis_id!r}")
+            found[analysis_id] = reason
+    return found
 
 
 def info_score_emission(
@@ -614,11 +678,15 @@ def read_genotyping_technologies(yaml_file: str) -> list[str]:
 def analysis_maf_threshold(row: SourceInventoryRow, config: CandidateConfiguration) -> str:
     """The manifest ``maf_threshold`` for one Analysis: the default or ``NaN``.
 
-    An Analysis is exempt only when it has non-empty technology metadata and
-    *every* technology is in ``source.maf_filter_exempt_genotyping_technologies``.
-    Missing technology metadata is never an exemption (#176).
+    An Analysis is exempt when ``source.maf_filter_exempt_analyses`` lists it
+    (the operator's reviewed reason is carried into the resolution receipt), or
+    when it has non-empty technology metadata and *every* technology is in
+    ``source.maf_filter_exempt_genotyping_technologies``. Missing technology
+    metadata is never an exemption (#176).
     """
     if config.maf_threshold is None:
+        return "NaN"
+    if row.analysis_id in config.maf_filter_exempt_analyses:
         return "NaN"
     exempt = set(config.maf_filter_exempt_genotyping_technologies)
     if exempt:
@@ -1472,6 +1540,16 @@ def compute_resolution_contract(config: CandidateConfiguration) -> dict[str, Any
         contract["maf_filter_exempt_genotyping_technologies"] = list(
             config.maf_filter_exempt_genotyping_technologies
         )
+        # The reviewed per-Analysis exemptions and their recorded reasons are
+        # named here too, so the rationale for a ``NaN`` floor is auditable in
+        # the run's own receipt and not only in the committed table.
+        if config.maf_filter_exempt_analyses_path is not None:
+            contract["maf_filter_exempt_analyses"] = str(
+                config.maf_filter_exempt_analyses_path
+            )
+            contract["maf_filter_exempt_analyses_reasons"] = dict(
+                config.maf_filter_exempt_analyses
+            )
     return contract
 
 
@@ -1804,6 +1882,26 @@ def _decide(
         error = str(record.get("error") or "resolver returned controlled_failure")
         return make(included=False, reason="resolution_failed", detail=error)
 
+    # A successful record whose own tally is zero contributes nothing: an
+    # Analysis with no row carrying a finite effect and a positive standard
+    # error has no association to build, and its zero build-eligible count is
+    # what the reference-overlap gate reads as an unusable denominator (#176).
+    # Only an explicit integer zero excludes here; an absent, non-integer or
+    # negative count keeps the overlap check's existing behaviour.
+    diagnostics = _record_mapping(record, "diagnostics")
+    build_eligible_rows = diagnostics.get("build_eligible_rows")
+    if type(build_eligible_rows) is int and build_eligible_rows == 0:
+        return make(
+            included=False,
+            reason="no_build_eligible_rows",
+            detail=(
+                "resolver found no row with a finite effect and positive standard "
+                f"error (rows_read={_diagnostic_count(diagnostics.get('rows_read'))}, "
+                "canonical_rows_retained="
+                f"{_diagnostic_count(diagnostics.get('canonical_rows_retained'))})"
+            ),
+        )
+
     # A declared score with no usable evidence is *included*: every row is
     # retained and this Analysis emits literal ``NaN`` INFO cells (#176). The
     # record reports ``info_score_state = "no_usable_scores"``, which
@@ -1924,6 +2022,11 @@ def _decide(
         assigned=assigned,
         method="af_assigned",
     )
+
+
+def _diagnostic_count(value: Any) -> str:
+    """Render a resolver diagnostic count for the exclusion detail, or ``?``."""
+    return str(value) if type(value) is int else "?"
 
 
 def _sd_reason(reason: str) -> str:
@@ -2813,6 +2916,7 @@ __all__ = [
     "ANALYSES_COLUMNS",
     "CANDIDATE_STATUS",
     "INFO_SCORE_COLUMNS",
+    "MAF_FILTER_EXEMPTION_COLUMNS",
     "REFERENCE_OVERLAP_COLUMNS",
     "USABLE_INFO_SCORE_STATES",
     "USABLE_MAF_STATES",
@@ -2850,6 +2954,7 @@ __all__ = [
     "publish_candidate",
     "read_candidate_metadata",
     "read_genotyping_technologies",
+    "read_maf_filter_exempt_analyses",
     "read_resolution_receipt",
     "read_source_label_map",
     "render_build_yaml",

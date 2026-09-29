@@ -149,8 +149,15 @@ threadpoolctl = ">=3.0"
 # ~1% prefix for 880 Analyses), keeps unscored and >1 INFO rows, includes a
 # declared-INFO Analysis with no usable score, and adds the per-Analysis
 # `maf_threshold` with one admission rule shared by the resolver and the Hybrid
-# builder. Candidate generation and the build must run at this same revision.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "b6bddca5ab99e92f43d0f52317873067733b09e4" }
+# builder.
+#
+# Bumped again for #176 (effect/SE recovery): this pins the `dev` merge commit
+# of opengwasdb#236. It recovers a row's effect from `odds_ratio` when `beta` is
+# empty and its SE from a 95% CI or the p-value, reads a source frequency of
+# exactly 0 or 1 as missing, and fingerprints resolver records with the core's
+# own commit rather than this repository's. Candidate generation and the build
+# must run at this same revision.
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "a0656c0d073875c17088972b24cbb9568c0467a2" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"

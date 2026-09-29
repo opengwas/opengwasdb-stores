@@ -76,6 +76,7 @@ from resources.generators.lib.candidate_workflow import (  # noqa: E402
     parse_maf_threshold,
     read_candidate_metadata,
     read_genotyping_technologies,
+    read_maf_filter_exempt_analyses,
     read_resolution_receipt,
     render_validation_yaml,
     render_resolver_manifest,
@@ -742,6 +743,21 @@ class CandidateWorkflowTests(unittest.TestCase):
             document["source"]["maf_filter_exempt_genotyping_technologies"] = technologies
         self.fixture.config_path.write_text(yaml.safe_dump(document))
 
+    def _set_maf_exempt_analyses(self, path: object) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        if path is None:
+            document["source"].pop("maf_filter_exempt_analyses", None)
+        else:
+            document["source"]["maf_filter_exempt_analyses"] = path
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+
+    def _write_exemptions(
+        self, rows: str, header: str = "analysis_id\treason\n"
+    ) -> Path:
+        path = self.fixture.root / "maf-filter-exemptions.tsv"
+        path.write_text(header + rows, encoding="utf-8")
+        return path
+
     def _write_metadata_yaml(self, name: str, technologies: object) -> Path:
         path = self.fixture.root / name
         document: dict[str, object] = {
@@ -972,6 +988,104 @@ class CandidateWorkflowTests(unittest.TestCase):
         self._set_maf_threshold(0.005)
         self._resolved_candidate()
         self._set_maf_threshold(0.01)
+        self._assert_emit_rejects_and_preserves("resolution contract changed")
+
+    def test_maf_filter_exemption_file_parsing(self) -> None:
+        # An absent path is no exemptions, never an error.
+        self.assertEqual(read_maf_filter_exempt_analyses(None), {})
+        good = self._write_exemptions(
+            "GCST90428462\tplaceholder frequency one\n"
+            "GCST90428463\tplaceholder frequency two\n"
+        )
+        self.assertEqual(
+            read_maf_filter_exempt_analyses(good),
+            {
+                "GCST90428462": "placeholder frequency one",
+                "GCST90428463": "placeholder frequency two",
+            },
+        )
+        duplicate = self._write_exemptions("GCST1\tone\nGCST1\ttwo\n")
+        with self.assertRaises(CandidateError) as caught:
+            read_maf_filter_exempt_analyses(duplicate)
+        self.assertIn(f"{duplicate}:3: duplicate analysis_id", str(caught.exception))
+        blank_id = self._write_exemptions("\treason\n")
+        with self.assertRaises(CandidateError) as caught:
+            read_maf_filter_exempt_analyses(blank_id)
+        self.assertIn(f"{blank_id}:2: analysis_id must be non-empty", str(caught.exception))
+        blank_reason = self._write_exemptions("GCST1\t \n")
+        with self.assertRaises(CandidateError) as caught:
+            read_maf_filter_exempt_analyses(blank_reason)
+        self.assertIn(f"{blank_reason}:2: reason must be non-empty", str(caught.exception))
+        bad_header = self._write_exemptions(
+            "GCST1\treason\n", header="analysis_id\trationale\n"
+        )
+        with self.assertRaises(CandidateError) as caught:
+            read_maf_filter_exempt_analyses(bad_header)
+        self.assertIn(f"{bad_header}: expected exact TSV headers", str(caught.exception))
+        missing = self.fixture.root / "absent-exemptions.tsv"
+        with self.assertRaises(CandidateError) as caught:
+            read_maf_filter_exempt_analyses(missing)
+        self.assertIn(f"not found: {missing}", str(caught.exception))
+
+    def test_committed_maf_filter_exemptions_resolve_against_the_repo_root(self) -> None:
+        # `source.maf_filter_exempt_analyses` is a repo-root-relative path and the
+        # committed table records the operator's reason for each exemption.
+        self._set_maf_exempt_analyses(
+            "resources/generators/gwas-catalog-eur-hybrid/maf-filter-exemptions.tsv"
+        )
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertEqual(
+            config.maf_filter_exempt_analyses_path,
+            REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/maf-filter-exemptions.tsv",
+        )
+        self.assertEqual(
+            set(config.maf_filter_exempt_analyses), {"GCST90428462", "GCST90428463"}
+        )
+        for analysis_id in ("GCST90428462", "GCST90428463"):
+            reason = config.maf_filter_exempt_analyses[analysis_id]
+            self.assertIn("effect_allele_frequency is 0.0 on every row", reason)
+            self.assertIn("minor_allele_freq_lower_limit 0.01", reason)
+
+    def test_listed_analysis_emits_nan_maf_threshold_in_manifest_and_receipt(self) -> None:
+        self._set_maf_threshold(0.005)
+        exempt = self._write_exemptions("GCST90000001\tplaceholder frequency (fixture)\n")
+        self._set_maf_exempt_analyses(str(exempt))
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        rows = read_inventory(self.fixture.inventory_path)
+        metadata = read_candidate_metadata(
+            self.fixture.candidates_path, (row.analysis_id for row in rows if row.ready)
+        )
+        manifest = derive_resolver_manifest(rows, config, metadata)
+        by_id = {row.analysis_id: row for row in manifest}
+        # The exempt Analysis carries the NaN the manifest already understands;
+        # every other Analysis keeps the configured floor.
+        self.assertEqual(by_id["GCST90000001"].maf_threshold, "NaN")
+        self.assertEqual(by_id["GCST90000002"].maf_threshold, "0.005")
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        emitted = {
+            row["analysis_id"]: row
+            for row in _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
+        }
+        # No resolver evidence for an exempt Analysis -> literal NaN, as for an
+        # exempt genotyping technology.
+        self.assertEqual(emitted["GCST90000001"]["maf_threshold"], "NaN")
+        self.assertEqual(emitted["GCST90000002"]["maf_threshold"], "0.005")
+        receipt = read_resolution_receipt(
+            self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME
+        )
+        self.assertEqual(receipt["contract"]["maf_filter_exempt_analyses"], str(exempt))
+        self.assertEqual(
+            receipt["contract"]["maf_filter_exempt_analyses_reasons"],
+            {"GCST90000001": "placeholder frequency (fixture)"},
+        )
+
+    def test_changed_maf_exemption_makes_the_receipt_stale(self) -> None:
+        self._set_maf_threshold(0.005)
+        exempt = self._write_exemptions("GCST90000001\tfirst reason\n")
+        self._set_maf_exempt_analyses(str(exempt))
+        self._resolved_candidate()
+        self._write_exemptions("GCST90000001\tsecond reason\n")
         self._assert_emit_rejects_and_preserves("resolution contract changed")
 
     def test_declared_analysis_with_no_usable_scores_is_included_with_nan_info(self) -> None:
@@ -1606,6 +1720,45 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertIn("off-reference share", run.stderr + run.stdout)
         self.assertFalse((self.fixture.registry_root / STORE_ID).exists())
 
+    def test_zero_build_eligible_rows_excludes_and_publication_succeeds(self) -> None:
+        # OGS-00011's blocker: 476 successful records with zero build-eligible
+        # rows refused the candidate through the overlap gate. They now carry
+        # one audited exclusion reason and the overlap gate never sees them.
+        config = yaml.safe_load(self.fixture.config_path.read_text())
+        config["build"]["options"]["variant-reference"] = "/axis.gz"
+        self.fixture.config_path.write_text(yaml.safe_dump(config))
+        self._set_outcome("GCST90000001", build_eligible_rows=0)
+        self._set_outcome("GCST90000001", build_eligible_rows_on_variant_reference=0)
+        self._set_outcome("GCST90000001", build_eligible_rows_off_variant_reference=0)
+        run = _run_cli(self.fixture)
+        self.assertEqual(run.returncode, 0, run.stderr + run.stdout)
+        bundle = self.fixture.registry_root / STORE_ID
+        analyses = {row["analysis_id"]: row for row in _read_tsv(bundle / "analyses.tsv")}
+        self.assertEqual(analyses["GCST90000001"]["exclude_from_build"], "true")
+        self.assertIn(
+            "excluded: no_build_eligible_rows:",
+            analyses["GCST90000001"]["inclusion_reason"],
+        )
+        exclusions = {
+            row["analysis_id"]: row for row in _read_tsv(bundle / "sidecars/exclusions.tsv")
+        }
+        row = exclusions["GCST90000001"]
+        self.assertEqual(row["reason"], "no_build_eligible_rows")
+        self.assertEqual(row["category"], "effect_scale")
+        self.assertEqual(row["resolver_status"], "success")
+        self.assertEqual(row["exclude_from_build"], "true")
+        self.assertIn("finite effect and positive standard error", row["detail"])
+        self.assertIn("canonical_rows_retained=2000", row["detail"])
+        overlap = {
+            row["analysis_id"]: row
+            for row in _read_tsv(bundle / "sidecars/reference_overlap.tsv")
+        }
+        self.assertEqual(overlap["GCST90000001"]["build_eligible_rows"], "0")
+        self.assertEqual(overlap["GCST90000001"]["exclude_from_build"], "true")
+        validation = yaml.safe_load((bundle / "validation.yaml").read_text())
+        self.assertEqual(validation["checks"]["reference_overlap"], "passed")
+        self.assertEqual(validation["errors"], [])
+
     def test_bundle_overlap_sidecar_and_gate_name_worst_contributor(self) -> None:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
         config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
@@ -1712,6 +1865,102 @@ class CandidateWorkflowTests(unittest.TestCase):
         summary = validation["reference_overlap"]
         self.assertEqual(summary["projected_off_reference_basis"], "legacy_rows_read")
         self.assertEqual(summary["projected_off_reference_share"], 0.2)
+
+    def test_zero_build_eligible_rows_is_excluded_and_not_missing(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
+        first = _synthetic_inventory_row()
+        second = replace(first, analysis_id="GCST90000002", data_file="/mirror/second.gz")
+        records = []
+        # A successful record whose own build-eligible tally is an explicit
+        # integer zero contributes no association at all.
+        for row, eligible, on in ((first, 50, 40), (second, 0, 0)):
+            record = _synthetic_resolver_record()
+            record["analysis_id"] = row.analysis_id
+            record["diagnostics"].update(
+                ancestry_rows_read=100, ancestry_reference_rows_matched=90,
+                variant_reference_rows_matched=100,
+                canonical_rows_retained=100,
+                build_eligible_rows=eligible,
+                build_eligible_rows_on_variant_reference=on,
+                build_eligible_rows_off_variant_reference=eligible - on,
+            )
+            records.append(record)
+        outcomes = apply_release_policy(
+            [first, second], config,
+            {row.analysis_id: _synthetic_candidate_metadata() for row in (first, second)},
+            {record["analysis_id"]: record for record in records},
+        )
+        by_id = {outcome.analysis_id: outcome for outcome in outcomes}
+        self.assertTrue(by_id["GCST90000001"].included)
+        self.assertFalse(by_id["GCST90000002"].included)
+        self.assertEqual(
+            by_id["GCST90000002"].exclusion_reason, "no_build_eligible_rows"
+        )
+        self.assertIn(
+            "no row with a finite effect and positive standard error",
+            by_id["GCST90000002"].exclusion_detail,
+        )
+        self.assertIn("rows_read=100", by_id["GCST90000002"].exclusion_detail)
+        self.assertIn(
+            "canonical_rows_retained=100", by_id["GCST90000002"].exclusion_detail
+        )
+        tables = build_candidate_tables(
+            inventory_rows=[first, second], outcomes=outcomes, config=config, index_summary={}
+        )
+        # The excluded Analysis is not an included Analysis with a missing
+        # measurement: the zero-eligible count is reported, never a failure.
+        self.assertEqual(tables.reference_overlap_errors, ())
+        self.assertEqual(dict(tables.exclusion_counts), {"no_build_eligible_rows": 1})
+        overlap = list(csv.DictReader(io.StringIO(tables.reference_overlap_tsv), delimiter="\t"))
+        self.assertEqual([row["build_eligible_rows"] for row in overlap], ["50", "0"])
+        self.assertEqual([row["exclude_from_build"] for row in overlap], ["", "true"])
+        validation = yaml.safe_load(render_validation_yaml(
+            tables=tables, index_summary={}, validated_at="now", validator_name="test"
+        ))
+        self.assertEqual(validation["checks"]["reference_overlap"], "passed")
+        self.assertEqual(validation["errors"], [])
+
+    def test_invalid_build_eligible_counts_still_fail_the_overlap_gate(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
+        row = _synthetic_inventory_row()
+        invalid = {
+            "absent": {},
+            "non-integer": {"build_eligible_rows": "50"},
+            "negative": {"build_eligible_rows": -1},
+            "inconsistent-partition": {
+                "build_eligible_rows": 50,
+                "build_eligible_rows_on_variant_reference": 20,
+                "build_eligible_rows_off_variant_reference": 20,
+            },
+            "out-of-range-partition": {
+                "build_eligible_rows": 50,
+                "build_eligible_rows_on_variant_reference": 60,
+                "build_eligible_rows_off_variant_reference": -10,
+            },
+        }
+        for name, diagnostics in invalid.items():
+            with self.subTest(case=name):
+                record = _synthetic_resolver_record()
+                record["analysis_id"] = row.analysis_id
+                record["diagnostics"].update(
+                    ancestry_rows_read=100, ancestry_reference_rows_matched=100,
+                )
+                record["diagnostics"].update(diagnostics)
+                outcomes = apply_release_policy(
+                    [row], config, {row.analysis_id: _synthetic_candidate_metadata()},
+                    {row.analysis_id: record},
+                )
+                # Only an explicit integer zero is a policy exclusion; every other
+                # unusable count stays an included Analysis whose measurement is
+                # missing, exactly as before #176.
+                self.assertTrue(outcomes[0].included, outcomes[0].exclusion_reason)
+                tables = build_candidate_tables(
+                    inventory_rows=[row], outcomes=outcomes, config=config, index_summary={}
+                )
+                self.assertTrue(tables.reference_overlap_errors, name)
+                self.assertIn(row.analysis_id, " ".join(tables.reference_overlap_errors))
 
     # -- EAF orientation vocabulary (issue #115 / #154) -----------------------
 

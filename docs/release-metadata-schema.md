@@ -616,7 +616,7 @@ reason. The same reason is carried in the excluded `analyses.tsv` row's
 | `source_analysis_id` | No | Upstream analysis identifier. |
 | `study_design` | No | The frozen inventory's `study_design`. |
 | `category` | Yes | `ancestry`, `orientation`, `effect_scale`, `resolution`, or `metadata`. |
-| `reason` | Yes | Controlled vocabulary: `resolution_failed`, `ancestry_unassigned`, `ancestry_not_eur`, `orientation_failure`, `sd_no_reference_resource_for_ancestry`, `sd_no_qualifying_evidence`, `sd_no_usable_sample_size`, `sd_failed`, `missing_sample_size`, or `missing_case_control_counts`. |
+| `reason` | Yes | Controlled vocabulary: `resolution_failed`, `ancestry_unassigned`, `ancestry_not_eur`, `orientation_failure`, `sd_no_reference_resource_for_ancestry`, `sd_no_qualifying_evidence`, `sd_no_usable_sample_size`, `sd_failed`, `missing_sample_size`, `missing_case_control_counts`, or `no_build_eligible_rows`. |
 | `detail` | No | The concrete evidence (assigned ancestry, gate reason, resolver error, missing field). |
 | `resolver_status` | No | The resolver record's status (`success`, `controlled_failure`, or `missing`). |
 | `exclude_from_build` | Yes | Always `true`; the exclusion is enforced at build time per [ADR 0025](adr/0025-registry-filters-excluded-analyses.md). |

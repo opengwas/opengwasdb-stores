@@ -1,0 +1,3 @@
+analysis_id	reason
+GCST90428462	effect_allele_frequency is 0.0 on every row (placeholder); study metadata declares minor_allele_freq_lower_limit 0.01 (opengwasdb-stores#176, 2026-09-29)
+GCST90428463	effect_allele_frequency is 0.0 on every row (placeholder); study metadata declares minor_allele_freq_lower_limit 0.01 (opengwasdb-stores#176, 2026-09-29)
