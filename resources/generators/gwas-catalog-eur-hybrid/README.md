@@ -403,6 +403,37 @@ This release adopts an explicit **Source-AF-Only** policy:
   from the candidate manifest.
 - The absent panel `/data/opengwasdb/reference/ukb-hg38` is never treated as usable evidence.
 
+## Dense per-ancestry acquisition (PMID 39024449)
+
+The same harmonised-file downloader also acquires the four single-publication
+dense stores split out of PMID 39024449 (Verma et al. 2024, VA Million Veteran
+Program), planned as OGS-00012..OGS-00015. The candidate table already
+partitions that publication into per-ancestry `dense__pmid-39024449__*` store
+keys, so acquisition is one pass per key against this same mirror:
+
+```sh
+resources/scripts/download-ebi-gwas-catalog-dense-pmid39024449.sh
+```
+
+The wrapper loops the four keys (`European`, `African`,
+`Hispanic-or-Latin-American`, `East-Asian`), writes
+`dense-pmid39024449-<ancestry>-download-manifest.tsv` beside the eur-hybrid
+manifests, and re-runs each key so a 404 caused by EBI load is re-attempted
+rather than frozen as absent.
+
+**Raw fallback.** Many of this study's accessions are in EBI's
+`harmonised_list.txt` but publish only the raw `<GCST>.tsv.gz` (GRCh38
+GWAS-SSF v1.0, `is_harmonised: false`) -- the harmonised `<GCST>.h.tsv.gz`
+directory genuinely does not exist. For those the harmonised pass records
+`missing_remote_harmonised_yaml`/`data_absent_upstream`, and a second pass
+(`resources/scripts/download-ebi-gwas-catalog-raw.py`) then downloads the raw
+pair into the same mirror layout, writing
+`dense-pmid39024449-<ancestry>-raw-download-manifest.tsv`. It skips every row
+the harmonised pass already obtained, so nothing is fetched twice, and it
+records the raw `genome_assembly`/`file_type`/`is_harmonised` fields so a later
+harmonisation-migration step has the provenance it needs. The raw pass is
+acquisition only: which pass supplies membership is still a Phase B decision.
+
 ## Pieces
 
 - `resources/inventories/` — the frozen snapshot, sample manifest, and what their columns mean;
@@ -413,4 +444,6 @@ This release adopts an explicit **Source-AF-Only** policy:
 - `docs/spec/qc-panel-concordance-preregistration.md` — locked preregistration document;
 - `docs/qc-panel-concordance-report.md` — finalized decision & empirical concordance evidence report;
 - `resources/scripts/download-ebi-gwas-catalog-eur-hybrid.py` — acquisition,
-  which writes the status manifests the freeze merges.
+  which writes the status manifests the freeze merges;
+- `resources/scripts/download-ebi-gwas-catalog-raw.py` — raw-file fallback for
+  accessions EBI did not harmonise, writing a separate status manifest.
