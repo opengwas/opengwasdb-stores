@@ -94,9 +94,14 @@ emit_bundle <- function(cfg, root, config_path) {
     )
   }
   manifest <- fread(manifest_path, sep = "\t", na.strings = "")
-  selected <- select_finngen_r13_pilot(manifest, as.integer(cfg$selection$binary_count %||% 17L))
+  selection_mode <- cfg$selection$mode %||% "pilot"
+  selected <- if (identical(selection_mode, "full")) {
+    select_finngen_r13_full(manifest)
+  } else {
+    select_finngen_r13_pilot(manifest, as.integer(cfg$selection$binary_count %||% 17L))
+  }
   artifact_source_dir <- file.path(cfg$output$artifact_root, cfg$output$artifact_subdir, "source")
-  analyses <- finngen_release_rows(selected, artifact_source_dir, cfg$defaults)
+  analyses <- finngen_release_rows(selected, artifact_source_dir, cfg$defaults, selection_mode)
   release_dir <- path_abs(root, cfg$output$release_dir)
   dir.create(file.path(release_dir, "sidecars"), recursive = TRUE, showWarnings = FALSE)
   fwrite(analyses, file.path(release_dir, "analyses.tsv"), sep = "\t", na = "")
@@ -180,6 +185,122 @@ emit_bundle <- function(cfg, root, config_path) {
   cat(sprintf("Emitted FinnGen R13 pilot with %d Analyses to %s\n", nrow(analyses), release_dir))
 }
 
+# --- Registry Release Bundle emission -------------------------------------
+#
+# The pilot above emits a family-scoped working bundle under `families/`, which
+# `acquire.py` turns into checksummed sources. The registry consumes a bundle in
+# the current contract (`stores/<OGS-id>/`): flat `release.yaml`/`build.yaml`,
+# the acquired `analyses.tsv`, and the checksummed sidecars. `emit-registry`
+# renders that from the acquired working bundle without re-resolving a row, so
+# it can be re-run after any acquisition fix and is a pure projection of the
+# acquisition evidence.
+
+render_registry_build_yaml <- function(cfg) {
+  list(
+    store_id = cfg$output$store_id,
+    layout = cfg$build$layout,
+    completion_state = cfg$build$completion_state,
+    build = list(
+      command = cfg$build$command,
+      options = cfg$build$options
+    ),
+    post = cfg$build$post
+  )
+}
+
+render_registry_release_yaml <- function(cfg, root, commands, created_at) {
+  manifest_path <- path_abs(root, cfg$source$manifest_path)
+  list(
+    store_id = cfg$output$store_id,
+    label = cfg$label %||% cfg$family_release_id,
+    access_posture = cfg$access_posture %||% "public",
+    status = "candidate",
+    derived_from = NULL,
+    created_at = created_at,
+    source_snapshot_id = cfg$source$source_snapshot_id,
+    source_snapshot = list(
+      manifest_url = cfg$source$manifest_url,
+      manifest_sha256 = cfg$source$manifest_sha256,
+      manifest_size_bytes = as.integer(file.size(manifest_path)),
+      manifest_etag = cfg$source$manifest_etag %||% NULL,
+      manifest_last_modified = cfg$source$manifest_last_modified %||% NULL
+    ),
+    generator = list(
+      version = script_version(root),
+      commands = commands
+    ),
+    description = cfg$description,
+    notes = cfg$notes %||% ""
+  )
+}
+
+emit_registry_bundle <- function(cfg, root) {
+  store_id <- cfg$output$store_id
+  if (is.null(store_id) || !nzchar(store_id)) {
+    stop("output.store_id is required for --mode=emit-registry")
+  }
+  if (!grepl("^OGS-[0-9]{5}$", store_id)) {
+    stop("output.store_id must match OGS-\\d{5}: ", store_id)
+  }
+  if (is.null(cfg$build) || is.null(cfg$build$command)) {
+    stop("a build: block (command/layout/completion_state/options/post) is required for --mode=emit-registry")
+  }
+
+  legacy_dir <- path_abs(root, cfg$output$release_dir)
+  analyses_path <- file.path(legacy_dir, "analyses.tsv")
+  if (!file.exists(analyses_path)) {
+    stop("acquired analyses.tsv not found: ", analyses_path,
+         " (run --mode=emit then acquire.py first)")
+  }
+  analyses <- fread(analyses_path, sep = "\t", na.strings = "",
+                    colClasses = list(character = "exclude_from_build"))
+  # A registry bundle is buildable input, so every source must already be
+  # acquired and checksummed. Re-emitting without checksums would freeze blank
+  # provenance into an accepted bundle.
+  missing_checksum <- analyses[is.na(checksum) | checksum == ""]$analysis_id
+  if (length(missing_checksum)) {
+    stop("--mode=emit-registry requires acquired checksums; run acquire.py first. Missing: ",
+         paste(head(missing_checksum, 5), collapse = ", "))
+  }
+
+  registry_root <- path_abs(root, cfg$output$registry_root %||% "stores")
+  bundle_dir <- file.path(registry_root, store_id)
+  sidecar_dir <- file.path(bundle_dir, "sidecars")
+  dir.create(sidecar_dir, recursive = TRUE, showWarnings = FALSE)
+
+  fwrite(analyses, file.path(bundle_dir, "analyses.tsv"), sep = "\t", na = "")
+  for (sidecar in c("selection.tsv", "derivations.tsv", "downloads.tsv")) {
+    source_path <- file.path(legacy_dir, "sidecars", sidecar)
+    if (file.exists(source_path)) {
+      file.copy(source_path, file.path(sidecar_dir, sidecar), overwrite = TRUE)
+    }
+  }
+
+  emit_command <- paste("Rscript resources/generators/lib/source-formats/finngen-r13-dense/generate.R",
+                        paste0("--config=", cfg$.config_path), "--mode=emit")
+  acquire_command <- paste("python resources/generators/lib/source-formats/finngen-r13-dense/acquire.py",
+                           paste0("--release-dir=", cfg$output$release_dir), "--workers=8")
+  registry_command <- paste("Rscript resources/generators/lib/source-formats/finngen-r13-dense/generate.R",
+                            paste0("--config=", cfg$.config_path), "--mode=emit-registry")
+  created_at <- format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+
+  write_yaml_file(
+    render_registry_release_yaml(cfg, root, list(emit_command, acquire_command, registry_command), created_at),
+    file.path(bundle_dir, "release.yaml")
+  )
+  write_yaml_file(render_registry_build_yaml(cfg), file.path(bundle_dir, "build.yaml"))
+
+  legacy_validation_path <- file.path(legacy_dir, "validation.yaml")
+  if (file.exists(legacy_validation_path)) {
+    validation <- read_yaml(legacy_validation_path)
+    validation$validated_at <- created_at
+    write_yaml_file(validation, file.path(bundle_dir, "validation.yaml"))
+  }
+
+  cat(sprintf("Emitted registry Release Bundle %s with %d Analyses to %s\n",
+              store_id, nrow(analyses), bundle_dir))
+}
+
 args <- parse_args(commandArgs(trailingOnly = TRUE))
 root <- repo_root()
 source(path_abs(root, "resources/generators/lib/metadata_resolvers/finngen_manifest.R"))
@@ -187,9 +308,12 @@ source(path_abs(root, "resources/generators/lib/build_environment.R"))
 source(path_abs(root, "resources/generators/lib/schema_validate.R"))
 source(path_abs(root, "resources/generators/lib/finngen_r13_pilot.R"))
 cfg <- read_yaml(path_abs(root, args$config))
+cfg$.config_path <- args$config
 
 if (args$mode == "emit") {
   emit_bundle(cfg, root, args$config)
+} else if (args$mode == "emit-registry") {
+  emit_registry_bundle(cfg, root)
 } else if (args$mode == "validate") {
   update_schema_check(path_abs(root, cfg$output$release_dir), root)
   cat("FinnGen R13 release schema is valid\n")
