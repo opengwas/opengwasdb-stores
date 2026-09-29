@@ -119,9 +119,16 @@ A queue holds every label the round did not auto-accept:
 - an uncertain abstention (`selected_ontology_id` `none_suitable`).
 
 Each row carries the chooser's probabilities and its full candidate shortlist
-(`candidates`, a JSON list with definitions and parent terms). Confident
-abstentions are not queued; they stay in the round directory's
-`no-suitable-term.tsv`.
+(`candidates`, a JSON list with definitions and parent terms).
+
+Confident abstentions are not queued. These are labels where the chooser was
+confident that no shortlisted term denotes the trait. They are committed
+separately as `no-suitable-term-<round_id>.tsv`, with the chooser's
+probabilities and its best real candidate (`runner_up_id`,
+`runner_up_label`). They are unmapped by design and no tool reads them back.
+Some are candidates for new EFO terms, such as individual foods, keratometry
+fields, and hospital administrative fields. To map one anyway, add a
+hand-curated row to `mapping.tsv`.
 
 To review, fill in `review_decision` (`accept`, `amend` or `reject`) and, for
 `amend`, `override_ontology_id` and `override_ontology_label`. Also fill in

@@ -29,7 +29,8 @@ notes: >
   Populated by the curation pipeline (issue #161). Round ukb-b-2026q3
   auto-accepted 409 ukb-b rows. Its review queue (1,056 labels, with each
   label's candidate shortlist) is committed alongside as
-  review-queue-ukb-b-2026q3.tsv; it is curator input, not part of the lookup.
+  review-queue-ukb-b-2026q3.tsv, and its 1,037 confident no-suitable-term
+  labels as no-suitable-term-ukb-b-2026q3.tsv; neither is part of the lookup.
   See README.md, "Review queues", for how decisions are applied. Add a
   hand-curated row only when a real trait needs one; fill in the optional
   provenance columns when a candidate-generation-and-review process produced
