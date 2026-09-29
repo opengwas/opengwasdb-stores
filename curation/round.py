@@ -91,6 +91,7 @@ from curation.embedding import (
 )
 from curation.jev_chooser import DEFAULT_JEV_CONTEXT, DEFAULT_JEV_MODEL
 from curation.ontology import IndexFormatError, OntologyIndex, load_index
+from curation.ukb import ShowcaseResolver
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[1]
 
@@ -285,6 +286,7 @@ class RoundConfig:
     manifests: tuple[Path, ...]
     queue_tsv: Path | None
     resource_dir: Path
+    ukb_showcase_dir: Path | None
 
     @property
     def queue_path(self) -> Path:
@@ -354,6 +356,9 @@ class RoundConfig:
                 "queue_tsv": str(self.queue_tsv) if self.queue_tsv else None,
             },
             "resource_dir": str(self.resource_dir),
+            "ukb_showcase_dir": (
+                str(self.ukb_showcase_dir) if self.ukb_showcase_dir else None
+            ),
         }
 
     def core_signature(self) -> dict[str, object]:
@@ -470,6 +475,9 @@ def read_round_config(round_dir: Path | str) -> RoundConfig:
     if not isinstance(resource_dir, str) or not resource_dir:
         raise RoundConfigError(f"{config_path} has no resource_dir")
 
+    showcase_value = data.get("ukb_showcase_dir")
+    ukb_showcase_dir = _resolve_path(showcase_value) if showcase_value else None
+
     return RoundConfig(
         round_id=str(data.get("round_id") or directory.name),
         created_at=str(data.get("created_at", "")),
@@ -486,6 +494,7 @@ def read_round_config(round_dir: Path | str) -> RoundConfig:
         manifests=manifests,
         queue_tsv=queue_tsv,
         resource_dir=_resolve_path(resource_dir),
+        ukb_showcase_dir=ukb_showcase_dir,
     )
 
 
@@ -516,6 +525,7 @@ def init_round(
     manifests: Sequence[Path | str] = (),
     queue_tsv: Path | str | None = None,
     resource_dir: Path | str = promotion.DEFAULT_RESOURCE_DIR,
+    ukb_showcase_dir: Path | str | None = None,
     shortlist_size: int = candidates_mod.DEFAULT_SHORTLIST_SIZE,
     confidence_threshold: float = promotion.DEFAULT_CONFIDENCE_THRESHOLD,
     margin_threshold: float = promotion.DEFAULT_MARGIN_THRESHOLD,
@@ -529,10 +539,12 @@ def init_round(
     The pins are: the ontology release and index path, the optional
     ontology/trait embedding stores with their model and content-addressed
     build id, the chooser identity and context, the shortlist size, the
-    confidence and margin thresholds with their free-text evidence, and the
-    manifests or explicit queue TSV the round consumes. The current mapping
-    table is snapshotted to ``mapping-before.tsv`` so coverage can compute the
-    rows this round adds.
+    confidence and margin thresholds with their free-text evidence, the
+    manifests or explicit queue TSV the round consumes, and the optional
+    Showcase schema directory (``ukb_showcase_dir``) whose field question
+    notes and value texts feed retrieval and the chooser (issue #185). The
+    current mapping table is snapshotted to ``mapping-before.tsv`` so
+    coverage can compute the rows this round adds.
 
     Re-running with the same pins is a no-op; re-running with different pins
     raises unless ``force`` is set.
@@ -552,6 +564,7 @@ def init_round(
         )
     resolved_manifests = tuple(_resolve_path(path) for path in manifests)
     resolved_queue = _resolve_path(queue_tsv) if queue_tsv else None
+    resolved_showcase = _resolve_path(ukb_showcase_dir) if ukb_showcase_dir else None
     if bool(resolved_manifests) == bool(resolved_queue):
         raise RoundConfigError(
             "supply exactly one of manifests or queue_tsv (a harvested "
@@ -596,6 +609,7 @@ def init_round(
         manifests=resolved_manifests,
         queue_tsv=resolved_queue,
         resource_dir=_resolve_path(resource_dir),
+        ukb_showcase_dir=resolved_showcase,
     )
 
     config_path = directory / ROUND_YAML_FILENAME
@@ -816,6 +830,42 @@ def run_gap_scan(round_dir: Path | str, *, mapping_path: Path | str | None = Non
 
 
 # ---------------------------------------------------------------------------
+# the Showcase resolver (issue #185)
+# ---------------------------------------------------------------------------
+
+
+def _load_showcase_resolver(config: RoundConfig) -> ShowcaseResolver | None:
+    """The pinned Showcase resolver, or ``None`` for a non-UKB round.
+
+    The ``ukb_showcase_dir`` pin points at a directory of Showcase schema TSVs
+    (``schema-1.tsv``/``schema-3.tsv``/``schema-13.tsv``). Reading the schema
+    is the one I/O cost, so each stage builds the resolver once here and then
+    only does in-memory lookups per label; never call :meth:`from_directory`
+    per label.
+    """
+    if config.ukb_showcase_dir is None:
+        return None
+    return ShowcaseResolver.from_directory(config.ukb_showcase_dir)
+
+
+def _showcase_texts_for(
+    resolver: ShowcaseResolver | None, trait_label: str
+) -> tuple[str | None, str]:
+    """The ``(retrieval_text, trait_context)`` for one label via a resolver.
+
+    Without a resolver both are the identity: ``None`` (retrieve on the raw
+    label) and ``""`` (no per-trait context), so a round that did not pin a
+    Showcase directory behaves exactly as it did before issue #185.
+    """
+    if resolver is None:
+        return None, ""
+    field = resolver.resolve(trait_label)
+    if field is None:
+        return None, ""
+    return field.retrieval_text, field.trait_context
+
+
+# ---------------------------------------------------------------------------
 # candidates
 # ---------------------------------------------------------------------------
 
@@ -883,9 +933,22 @@ def run_candidates(
     labels = [row.get("trait_label", "") for row in queue_rows]
 
     channel = embedding if embedding is not None else _resolve_round_embedding(config)
-    rows = candidates_mod.generate_shortlists(
-        labels, index, config.shortlist_size, channel
-    )
+    resolver = _load_showcase_resolver(config)
+    rows: list[candidates_mod.Candidate] = []
+    for label in labels:
+        # A coded ukb-b label is retrieved on its value text (``c20 malignant
+        # neoplasm of rectum`` -> ``malignant neoplasm of rectum``) while the
+        # candidate keeps the raw queue label (issue #185).
+        query_text, _ = _showcase_texts_for(resolver, label)
+        rows.extend(
+            candidates_mod.generate_shortlist(
+                label,
+                index,
+                config.shortlist_size,
+                channel,
+                query_text=query_text,
+            )
+        )
     _atomic_write_text(
         candidates_mod.format_shortlist_tsv(rows), config.shortlists_path
     )
@@ -1044,17 +1107,25 @@ def choice_fingerprint(
     context: str,
     trait_label: str,
     candidates: Sequence[Candidate],
+    *,
+    trait_context: str = "",
 ) -> str:
     """A deterministic digest of everything a chooser request depends on.
 
-    Covers the chooser identity, its model and context, the trait label, and the
+    Covers the chooser identity, its model and context, the trait label, the
+    per-trait context the chooser read (when one was supplied), and the
     ordered shortlist with the candidate evidence a chooser sees. A changed
-    shortlist, model, or context yields a different fingerprint, so a stored
-    result from another request is never mistaken for this one's.
+    shortlist, model, context, or trait context yields a different
+    fingerprint, so a stored result from another request is never mistaken
+    for this one's. An empty ``trait_context`` is not hashed at all, so
+    rounds that predate per-trait context keep their stored fingerprints.
     """
     digest = hashlib.sha256()
     for part in (FINGERPRINT_VERSION, chooser_id, chooser_version, model, context):
         digest.update(part.encode("utf-8"))
+        digest.update(b"\x00")
+    if trait_context:
+        digest.update(trait_context.encode("utf-8"))
         digest.update(b"\x00")
     digest.update(trait_label.encode("utf-8"))
     digest.update(b"\x00")
@@ -1200,12 +1271,20 @@ def _choose_label(
     chooser: Chooser,
     config: RoundConfig,
     extra_api_keys: Sequence[str] = (),
+    resolver: ShowcaseResolver | None = None,
 ) -> ChooseLabelOutcome:
     normalised = gap_scan.normalize_trait_label(trait_label)
     result_path, error_path = choice_file_paths(config.round_dir, normalised)
     chooser_id, chooser_version, model, context = _chooser_identity(chooser, config)
+    _, trait_context = _showcase_texts_for(resolver, trait_label)
     fingerprint = choice_fingerprint(
-        chooser_id, chooser_version, model, context, trait_label, candidates
+        chooser_id,
+        chooser_version,
+        model,
+        context,
+        trait_label,
+        candidates,
+        trait_context=trait_context,
     )
 
     existing = _read_result(result_path)
@@ -1221,7 +1300,9 @@ def _choose_label(
             attempts = 0
 
     try:
-        result = chooser.choose(trait_label, list(candidates))
+        result = chooser.choose(
+            trait_label, list(candidates), trait_context=trait_context
+        )
         if result is None:
             raise RoundStateError(
                 f"chooser returned no result for a non-empty shortlist for "
@@ -1334,11 +1415,19 @@ def _result_is_current(
     trait_label: str,
     candidates: Sequence[Candidate],
     chooser: Chooser,
+    resolver: ShowcaseResolver | None = None,
 ) -> bool:
     """True when a stored result already answers this exact request."""
+    _, trait_context = _showcase_texts_for(resolver, trait_label)
     chooser_id, chooser_version, model, context = _chooser_identity(chooser, config)
     fingerprint = choice_fingerprint(
-        chooser_id, chooser_version, model, context, trait_label, candidates
+        chooser_id,
+        chooser_version,
+        model,
+        context,
+        trait_label,
+        candidates,
+        trait_context=trait_context,
     )
     normalised = gap_scan.normalize_trait_label(trait_label)
     result_path, _ = choice_file_paths(config.round_dir, normalised)
@@ -1378,6 +1467,7 @@ def run_choose(
     _validate_shortlist_release(grouped, config)
     if chooser is None:
         chooser = _build_round_chooser(config)
+    resolver = _load_showcase_resolver(config)
 
     labels = list(grouped.keys())
     # The cap is cumulative for the round: seed it from the result files a
@@ -1403,7 +1493,9 @@ def run_choose(
                 candidates = grouped[trait_label]
                 if not candidates:
                     continue
-                if _result_is_current(config, trait_label, candidates, chooser):
+                if _result_is_current(
+                    config, trait_label, candidates, chooser, resolver
+                ):
                     # A finished label costs nothing and does not consume the
                     # pilot budget; count it as skipped and move on.
                     skipped += 1
@@ -1432,6 +1524,7 @@ def run_choose(
                     chooser,
                     config,
                     tuple(extra_api_keys),
+                    resolver,
                 )
                 futures[future] = trait_label
                 if max_cost_usd is not None:
@@ -1629,6 +1722,7 @@ def _reconcile_round(
     ledger_rows: list[list[str]] = []
     total_tokens = 0
     total_cost = 0.0
+    resolver = _load_showcase_resolver(config)
 
     for label, normalised in queue_entries:
         candidates = shortlists.get(normalised) or []
@@ -1640,8 +1734,15 @@ def _reconcile_round(
         result_path, error_path = choice_file_paths(config.round_dir, normalised)
         data = _read_result(result_path)
         chooser_id, chooser_version, model, context = _chooser_identity(None, config)
+        _, trait_context = _showcase_texts_for(resolver, label)
         fingerprint = choice_fingerprint(
-            chooser_id, chooser_version, model, context, label, candidates
+            chooser_id,
+            chooser_version,
+            model,
+            context,
+            label,
+            candidates,
+            trait_context=trait_context,
         )
         if data is None:
             if error_path.is_file():
@@ -2081,6 +2182,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--resource-dir", default=str(promotion.DEFAULT_RESOURCE_DIR), metavar="DIR"
     )
     init_parser.add_argument(
+        "--ukb-showcase-dir",
+        default=None,
+        metavar="DIR",
+        help=(
+            "directory of Showcase schema TSVs (schema-1/3/13); pins the "
+            "question notes and value texts that feed retrieval and the chooser"
+        ),
+    )
+    init_parser.add_argument(
         "--shortlist-size", type=int, default=candidates_mod.DEFAULT_SHORTLIST_SIZE
     )
     init_parser.add_argument(
@@ -2200,6 +2310,7 @@ def _main_init(args: argparse.Namespace) -> int:
             manifests=args.manifests or (),
             queue_tsv=args.queue_tsv,
             resource_dir=args.resource_dir,
+            ukb_showcase_dir=args.ukb_showcase_dir,
             shortlist_size=args.shortlist_size,
             confidence_threshold=args.confidence_threshold,
             margin_threshold=args.margin_threshold,

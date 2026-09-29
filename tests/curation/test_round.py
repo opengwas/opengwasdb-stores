@@ -27,6 +27,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from curation import choice, coverage, promotion, round as round_mod
+from curation.candidates import CHANNEL_EXACT, CHANNEL_NORMALISED
 from curation.chooser import NONE_SUITABLE, ChoiceResult, Chooser
 from curation.embedding import (
     HASHING_EMBEDDING_MODEL_ID,
@@ -61,6 +62,12 @@ synonym: "height" EXACT []
 id: EFO:0004338
 name: body weights and measures
 def: "Any measurement of body weight." []
+
+[Term]
+id: EFO:0004351
+name: malignant neoplasm of rectum
+def: "A malignant neoplasm of the rectum." []
+xref: ICD10CM:C20
 """
 
 BMI_LABEL = "body mass index"
@@ -132,6 +139,28 @@ def shortlist_row(
     return row
 
 
+def write_showcase_schema(
+    directory: Path | str,
+    *,
+    question_notes: str = "Waist circumference was measured using a Seca 200 device.",
+) -> Path:
+    """A minimal Showcase schema fixture: one coded and one question field."""
+    root = Path(directory)
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "schema-1.tsv").write_text(
+        "field_id\ttitle\tvalue_type\tmain_category\tencoding_id\tunits\tnotes\n"
+        "41202\tDiagnoses - main ICD10\t22\t\t0\t\t"
+        "This field summarises the participant's hospital diagnoses.\n"
+        "48\tWaist circumference\t31\t\t0\tcm\t"
+        + question_notes
+        + "\n",
+        encoding="utf-8",
+    )
+    (root / "schema-3.tsv").write_text("category_id\ttitle\n", encoding="utf-8")
+    (root / "schema-13.tsv").write_text("parent_id\tchild_id\n", encoding="utf-8")
+    return root
+
+
 class RecordingChooser(Chooser):
     """A deterministic in-process chooser with recorded calls and optional cost."""
 
@@ -147,7 +176,13 @@ class RecordingChooser(Chooser):
         self.chooser_id = "test"
         self.chooser_version = "1"
 
-    def select(self, trait_label: str, candidates: list) -> ChoiceResult:
+    def select(
+        self,
+        trait_label: str,
+        candidates: list,
+        *,
+        trait_context: str = "",
+    ) -> ChoiceResult:
         self.calls.append(trait_label)
         selected, probabilities = self.choices[trait_label]
         cost = self.costs.get(trait_label)
@@ -307,6 +342,65 @@ class RoundInitTest(RoundTestCase):
             )
 
 
+class ShowcasePinTest(RoundTestCase):
+    """The Showcase schema directory is a round pin (issue #185)."""
+
+    def test_round_without_a_showcase_dir_keeps_none(self) -> None:
+        self.init_round(queue_tsv=self.queue_tsv([BMI_LABEL]))
+        self.assertIsNone(
+            round_mod.read_round_config(self.round_dir).ukb_showcase_dir
+        )
+
+    def test_round_with_a_showcase_dir_round_trips_the_pin(self) -> None:
+        queue = self.queue_tsv([BMI_LABEL])
+        showcase = write_showcase_schema(self.base / "showcase")
+        config = self.init_round(queue_tsv=queue, ukb_showcase_dir=showcase)
+        self.assertEqual(config.ukb_showcase_dir, showcase.resolve())
+        reloaded = round_mod.read_round_config(self.round_dir)
+        self.assertEqual(reloaded.ukb_showcase_dir, showcase.resolve())
+        self.assertIn(
+            "ukb_showcase_dir",
+            (self.round_dir / "round.yaml").read_text(encoding="utf-8"),
+        )
+        # The directory is part of the pin's equality, so re-initing with a
+        # different directory is refused rather than treated as a no-op.
+        other = write_showcase_schema(self.base / "other-showcase")
+        with self.assertRaises(round_mod.RoundStateError):
+            self.init_round(queue_tsv=queue, ukb_showcase_dir=other)
+
+    def test_fingerprint_covers_trait_context(self) -> None:
+        base = round_mod.choice_fingerprint(
+            "test",
+            "1",
+            "",
+            round_mod.DEFAULT_JEV_CONTEXT,
+            "waist circumference",
+            [],
+        )
+        with_context = round_mod.choice_fingerprint(
+            "test",
+            "1",
+            "",
+            round_mod.DEFAULT_JEV_CONTEXT,
+            "waist circumference",
+            [],
+            trait_context="field 48 'Waist circumference'",
+        )
+        other_context = round_mod.choice_fingerprint(
+            "test",
+            "1",
+            "",
+            round_mod.DEFAULT_JEV_CONTEXT,
+            "waist circumference",
+            [],
+            trait_context=(
+                "field 48 'Waist circumference'. Different question text."
+            ),
+        )
+        self.assertNotEqual(base, with_context)
+        self.assertNotEqual(with_context, other_context)
+
+
 # ---------------------------------------------------------------------------
 # gap-scan
 # ---------------------------------------------------------------------------
@@ -354,6 +448,83 @@ class CandidatesTest(RoundTestCase):
         self.assertEqual(outcome.no_candidate_labels, 1)
         _, rows = parse_tsv(outcome.shortlists_path.read_text(encoding="utf-8"))
         self.assertEqual({row["trait_label"] for row in rows}, {BMI_LABEL})
+
+
+class ShowcaseWiringTest(RoundTestCase):
+    """Pass B wiring: Showcase pins feed retrieval and the chooser."""
+
+    CODED_LABEL = "diagnoses - main icd10: c20 malignant neoplasm of rectum"
+    QUESTION_LABEL = "waist circumference"
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.schema_dir = write_showcase_schema(self.base / "showcase")
+
+    def test_run_candidates_retrieves_on_the_value_text(self) -> None:
+        queue = self.queue_tsv([self.CODED_LABEL])
+        self.init_round(queue_tsv=queue, ukb_showcase_dir=self.schema_dir)
+        round_mod.run_gap_scan(self.round_dir)
+        outcome = round_mod.run_candidates(self.round_dir)
+
+        self.assertEqual(outcome.no_candidate_labels, 0)
+        _, rows = parse_tsv(outcome.shortlists_path.read_text(encoding="utf-8"))
+        # The candidate keeps the raw queue label as its mapping key…
+        self.assertEqual([row["trait_label"] for row in rows], [self.CODED_LABEL])
+        self.assertEqual([row["ontology_id"] for row in rows], ["EFO:0004351"])
+        channels = set(rows[0]["channels"].split(","))
+        # …while the exact/normalised channels matched the value text and the
+        # icd10 channel still fired from the raw label's code.
+        self.assertIn(CHANNEL_EXACT, channels)
+        self.assertIn(CHANNEL_NORMALISED, channels)
+        self.assertIn("icd10", channels)
+
+    def test_run_candidates_without_a_resolver_keeps_the_old_retrieval(self) -> None:
+        queue = self.queue_tsv([self.CODED_LABEL])
+        self.init_round(queue_tsv=queue)
+        round_mod.run_gap_scan(self.round_dir)
+        outcome = round_mod.run_candidates(self.round_dir)
+
+        _, rows = parse_tsv(outcome.shortlists_path.read_text(encoding="utf-8"))
+        self.assertEqual(rows[0]["ontology_id"], "EFO:0004351")
+        channels = set(rows[0]["channels"].split(","))
+        # Without the Showcase pin the label is retrieved on its full text, so
+        # only the icd10 (and token-overlap) channels fire.
+        self.assertNotIn(CHANNEL_EXACT, channels)
+        self.assertNotIn(CHANNEL_NORMALISED, channels)
+        self.assertIn("icd10", channels)
+
+    def test_choose_reruns_when_the_trait_context_changes(self) -> None:
+        queue = self.queue_tsv([self.QUESTION_LABEL])
+        self.init_round(queue_tsv=queue, ukb_showcase_dir=self.schema_dir)
+        round_mod.run_gap_scan(self.round_dir)
+        self.write_shortlists(
+            [shortlist_row(self.QUESTION_LABEL, BMI_ID, "body mass index")]
+        )
+        chooser = RecordingChooser(
+            {self.QUESTION_LABEL: (BMI_ID, {BMI_ID: 1.0})}
+        )
+
+        first = round_mod.run_choose(self.round_dir, chooser=chooser, workers=1)
+        self.assertEqual((first.chosen, first.skipped), (1, 0))
+        self.assertEqual(len(chooser.calls), 1)
+
+        # The same label under a different Showcase question text is a
+        # different request: its trait_context differs, so its fingerprint
+        # differs and the stored result must not be reused.
+        write_showcase_schema(
+            self.schema_dir,
+            question_notes=(
+                "Waist circumference was measured using a Seca 200 device and "
+                "a laser device."
+            ),
+        )
+        second = round_mod.run_choose(self.round_dir, chooser=chooser, workers=1)
+        self.assertEqual((second.chosen, second.skipped), (1, 0))
+
+        # An unchanged trait_context is still skipped on a later run.
+        third = round_mod.run_choose(self.round_dir, chooser=chooser, workers=1)
+        self.assertEqual((third.chosen, third.skipped), (0, 1))
+        self.assertEqual(len(chooser.calls), 2)
 
 
 class EmbeddingPinTest(RoundTestCase):
@@ -614,10 +785,12 @@ class ChooseTest(RoundTestCase):
                 super().__init__(*args, **kwargs)
                 self.fail = fail
 
-            def select(self, trait_label, candidates):
+            def select(self, trait_label, candidates, *, trait_context=""):
                 if self.fail and trait_label == BMI_LABEL:
                     raise ValueError("server said no")
-                return super().select(trait_label, candidates)
+                return super().select(
+                    trait_label, candidates, trait_context=trait_context
+                )
 
         flaky = FlakyChooser(self.chooser.choices, fail=True)
         outcome = round_mod.run_choose(self.round_dir, chooser=flaky, workers=1)
@@ -641,7 +814,7 @@ class ChooseTest(RoundTestCase):
         os.environ["OPENGWASDB_JEV_API_KEY"] = "super-secret-key"
 
         class LeakyChooser(RecordingChooser):
-            def select(self, trait_label, candidates):
+            def select(self, trait_label, candidates, *, trait_context=""):
                 raise ValueError("bad key super-secret-key rejected")
 
         try:
@@ -660,7 +833,7 @@ class ChooseTest(RoundTestCase):
 
     def test_cli_supplied_api_key_never_reaches_the_error_file(self) -> None:
         class LeakyChooser(RecordingChooser):
-            def select(self, trait_label, candidates):
+            def select(self, trait_label, candidates, *, trait_context=""):
                 raise ValueError("bad key cli-secret rejected")
 
         round_mod.run_choose(
@@ -681,7 +854,7 @@ class ChooseTest(RoundTestCase):
             pass
 
         class PaidChooser(RecordingChooser):
-            def select(self, trait_label, candidates):
+            def select(self, trait_label, candidates, *, trait_context=""):
                 exc = PaidFailure("distribution rejected after the call")
                 exc.raw_response = {
                     "answers": {"term": {"choice": "EFO:1", "confidence": 0.5}}
@@ -705,9 +878,11 @@ class ChooseTest(RoundTestCase):
             pass
 
         class PaidChooser(RecordingChooser):
-            def select(self, trait_label, candidates):
+            def select(self, trait_label, candidates, *, trait_context=""):
                 if trait_label != BMI_LABEL:
-                    return super().select(trait_label, candidates)
+                    return super().select(
+                        trait_label, candidates, trait_context=trait_context
+                    )
                 exc = PaidFailure("distribution rejected after the call")
                 exc.raw_response = {"usage": {"input_tokens": 1234}}
                 exc.input_tokens = 1234
@@ -782,7 +957,7 @@ class ChooseTest(RoundTestCase):
 
     def test_interrupt_leaves_only_complete_files(self) -> None:
         class InterruptingChooser(RecordingChooser):
-            def select(self, trait_label, candidates):
+            def select(self, trait_label, candidates, *, trait_context=""):
                 raise KeyboardInterrupt()
 
         with self.assertRaises(KeyboardInterrupt):
@@ -1108,7 +1283,7 @@ class RunnerTest(RoundTestCase):
         self.init_round(queue_tsv=queue)
 
         class FailingChooser(RecordingChooser):
-            def select(self, trait_label, candidates):
+            def select(self, trait_label, candidates, *, trait_context=""):
                 raise ValueError("upstream unavailable")
 
         outcome = round_mod.run_round(
@@ -1253,6 +1428,7 @@ class RoundCliTest(RoundTestCase):
 
     def test_round_init_and_gap_scan_cli(self) -> None:
         queue = self.queue_tsv([BMI_LABEL])
+        showcase = write_showcase_schema(self.base / "showcase")
         code, _, err = self._run(
             [
                 "round-init",
@@ -1261,9 +1437,14 @@ class RoundCliTest(RoundTestCase):
                 "--chooser", "test",
                 "--queue-tsv", str(queue),
                 "--resource-dir", str(self.resource_dir),
+                "--ukb-showcase-dir", str(showcase),
             ]
         )
         self.assertEqual(code, 0, err)
+        self.assertEqual(
+            round_mod.read_round_config(self.round_dir).ukb_showcase_dir,
+            showcase.resolve(),
+        )
         code, _, err = self._run(
             ["gap-scan", "--round-dir", str(self.round_dir)]
         )
