@@ -133,10 +133,14 @@ function na(v) { return (v == "" || v == "NA") ? "#NA" : v }
 # source text: "1" comes out "1.0" and "6e-04" comes out "0.0006".  The
 # shortest decimal that round-trips, then a trailing .0 for an integer-valued
 # float in fixed notation, is exactly what EBI's files contain.
+# awk reads a subnormal ("1e-321"; the deposit has p-values down to ~1e-321)
+# as 0, which would turn a strong association into p = 0: a value that reads
+# as 0 but is not written as zero is copied through verbatim instead.
 function pyfloat(v,   x, p, s) {
     x = v + 0
+    if (x == 0 && v !~ /^[+-]?(0+\.?0*|\.0+)([eE][+-]?[0-9]+)?$/) return v
     for (p = 1; p <= 17; p++) {
-        s = sprintf("%.*g", p, x)
+        s = sprintf("%." p "g", x)
         if ((s + 0) == x) break
     }
     if (index(s, ".") == 0 && index(s, "e") == 0 && index(s, "E") == 0) s = s ".0"
@@ -321,6 +325,8 @@ def parse_tar_listing(path: Path) -> dict[str, tuple[str, int]]:
         member = parts[-1]
         if member.endswith("/"):
             continue
+        if member.startswith("/") or ".." in Path(member).parts:
+            raise AcquisitionError(f"{path.name}: unsafe member path {member!r}")
         members[member] = (tar_name, int(parts[2]))
     return members
 
@@ -457,9 +463,9 @@ def read_candidates(path: Path) -> list[Candidate]:
                     ancestry_fraction=float(row["ancestry_fraction"] or 0),
                     store_key=row["store_key"],
                     study_design=row["study_design"],
-                    n_cases=int(row["n_cases"] or 0),
-                    n_controls=int(row["n_controls"] or 0),
-                    sample_size=int(row["sample_size"] or 0),
+                    n_cases=int(float(row["n_cases"] or 0)),
+                    n_controls=int(float(row["n_controls"] or 0)),
+                    sample_size=int(float(row["sample_size"] or 0)),
                 )
             )
     return candidates

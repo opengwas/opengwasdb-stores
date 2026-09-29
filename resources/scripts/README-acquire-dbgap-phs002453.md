@@ -106,7 +106,9 @@ against the converted dbGaP member (see "Verification"):
 * **p_value goes through a float, as in EBI's files.** EBI's file has `1.0` where
   the deposit has `1`, and `0.0006` where the deposit has `6e-04` — the shortest
   decimal that round-trips, plus `.0` for an integer-valued float (518 + 5 rows
-  per Analysis). This is reproduced. No other column is reformatted: `r2`,
+  per Analysis). This is reproduced, except for p-values below the normal
+  float range (`1e-321`): awk reads those as 0, so they are copied through as
+  written rather than becoming `0.0`. No other column is reformatted: `r2`,
   `odds_ratio`, `ci_upper`/`ci_lower`, `n`, `num_cases`/`num_controls` and
   `chromosome` are copied through unchanged even where they hold integer-like
   values.

@@ -559,5 +559,49 @@ class AcquisitionTest(unittest.TestCase):
             return list(csv.DictReader(handle, delimiter="\t"))
 
 
+
+class ConverterEdgeCaseTests(unittest.TestCase):
+    """The awk program run directly, on rows the fixture tars do not carry."""
+
+    def convert(self, *rows: str) -> subprocess.CompletedProcess[str]:
+        text = "\n".join([QUANT_HEADER, *rows]) + "\n"
+        return subprocess.run(
+            ["awk", "-F", "\t", "-v", "OFS=\t", ACQUIRE.CONVERTER_AWK],
+            input=text, capture_output=True, text=True, check=False,
+        )
+
+    def p_values(self, *values: str) -> list[str]:
+        rows = [
+            f"rs{i}\t1\t{100 + i}\tG\tA\tA\t0.1\t338640\t0.1\t0.2\t{value}\t0.9\tNA\tNA\tNA"
+            for i, value in enumerate(values)
+        ]
+        result = self.convert(*rows)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        lines = result.stdout.splitlines()[1:]
+        return [line.split("\t")[7] for line in lines]
+
+    def test_p_value_renders_like_a_python_float(self) -> None:
+        values = ["1", "0", "0.35", "6e-04", "1e-09", "1e-300", "2.2e-16", "0.123456789012345"]
+        self.assertEqual(self.p_values(*values), [repr(float(value)) for value in values])
+
+    def test_subnormal_p_value_is_not_rounded_to_zero(self) -> None:
+        # awk reads these as 0; the source text is kept rather than writing 0.0
+        self.assertEqual(self.p_values("1e-321", "5e-324", "0e+00"), ["1e-321", "5e-324", "0.0"])
+
+    def test_row_wider_than_the_header_fails(self) -> None:
+        row = "rs1\t1\t100\tG\tA\tA\t0.1\t338640\t0.1\t0.2\t0.5\t0.9\tNA\tNA\tNA\textra"
+        result = self.convert(row)
+        self.assertEqual(result.returncode, 3)
+        self.assertIn("more fields than the header", result.stderr)
+
+    def test_unsafe_member_path_in_a_table_of_contents_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            toc = Path(tmp) / f"{TAR}.table_of_contents.txt"
+            toc.write_text(
+                "-rw-r--r-- user/group 10 2024-01-01 00:00 ../escape.txt.gz\n", encoding="utf-8"
+            )
+            with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "unsafe member path"):
+                ACQUIRE.parse_tar_listing(toc)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
