@@ -175,7 +175,8 @@ stores/OGS-xxxxx/
   orientation failures, unusable source AF, incomplete metadata, ordinary
   resolution failures, and a successful record whose own tally of build-eligible
   rows is zero (`no_build_eligible_rows`: no row has a finite effect and a
-  positive standard error).
+  positive standard error), and Analyses on the reviewed placeholder-effect
+  list (`effect_placeholder_rows`, see below).
 * Duplicate-content accessions (`GCST90565871`/`GCST90565872` and
   `GCST90624704`/`GCST90624705`) are surfaced in `sidecars/source_readiness.tsv`
   and a warning; they are never silently collapsed.
