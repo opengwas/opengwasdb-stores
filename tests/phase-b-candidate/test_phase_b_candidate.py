@@ -76,6 +76,7 @@ from resources.generators.lib.candidate_workflow import (  # noqa: E402
     parse_maf_threshold,
     read_candidate_metadata,
     read_genotyping_technologies,
+    read_effect_placeholder_exclusions,
     read_maf_filter_exempt_analyses,
     read_resolution_receipt,
     render_validation_yaml,
@@ -1865,6 +1866,69 @@ class CandidateWorkflowTests(unittest.TestCase):
         summary = validation["reference_overlap"]
         self.assertEqual(summary["projected_off_reference_basis"], "legacy_rows_read")
         self.assertEqual(summary["projected_off_reference_share"], 0.2)
+
+    def test_listed_effect_placeholder_analysis_is_excluded_with_its_reason(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        config = replace(
+            config,
+            effect_placeholder_exclusions={"GCST90000002": "5 of 100 rows are placeholders"},
+        )
+        first = _synthetic_inventory_row()
+        second = replace(first, analysis_id="GCST90000002", data_file="/mirror/second.gz")
+        records = {}
+        for row in (first, second):
+            record = _synthetic_resolver_record()
+            record["analysis_id"] = row.analysis_id
+            records[row.analysis_id] = record
+        outcomes = apply_release_policy(
+            [first, second], config,
+            {row.analysis_id: _synthetic_candidate_metadata() for row in (first, second)},
+            records,
+        )
+        by_id = {outcome.analysis_id: outcome for outcome in outcomes}
+        self.assertTrue(by_id["GCST90000001"].included)
+        self.assertFalse(by_id["GCST90000002"].included)
+        self.assertEqual(by_id["GCST90000002"].exclusion_reason, "effect_placeholder_rows")
+        self.assertEqual(
+            by_id["GCST90000002"].exclusion_detail, "5 of 100 rows are placeholders"
+        )
+        tables = build_candidate_tables(
+            inventory_rows=[first, second], outcomes=outcomes, config=config, index_summary={}
+        )
+        self.assertEqual(dict(tables.exclusion_counts), {"effect_placeholder_rows": 1})
+        (excluded,) = csv.DictReader(io.StringIO(tables.exclusions_tsv), delimiter="\t")
+        self.assertEqual(excluded["category"], "effect_scale")
+        self.assertEqual(excluded["reason"], "effect_placeholder_rows")
+
+    def test_non_positive_or_non_finite_sd_estimate_is_no_evidence(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        row = _synthetic_inventory_row()
+        for sd in (0.0, -1.0, float("nan"), float("inf")):
+            record = _synthetic_resolver_record()
+            record["phenotype_sd"]["estimate"]["sd"] = sd
+            (outcome,) = apply_release_policy(
+                [row], config, {row.analysis_id: _synthetic_candidate_metadata()},
+                {row.analysis_id: record},
+            )
+            self.assertFalse(outcome.included, sd)
+            self.assertEqual(outcome.exclusion_reason, "sd_no_qualifying_evidence")
+            self.assertIn("not a positive finite number", outcome.exclusion_detail)
+
+    def test_committed_effect_placeholder_exclusions_are_readable(self) -> None:
+        path = REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/effect-placeholder-exclusions.tsv"
+        found = read_effect_placeholder_exclusions(path)
+        self.assertEqual(len(found), 27)
+        for analysis_id in ("GCST90454200", "GCST90454201", "GCST90565871", "GCST90565872"):
+            self.assertIn("standard_error 0", found[analysis_id])
+        self.assertEqual(read_effect_placeholder_exclusions(None), {})
+        duplicate = self.fixture.root / "placeholder-duplicate.tsv"
+        duplicate.write_text("analysis_id\treason\nA\tx\nA\ty\n", encoding="utf-8")
+        with self.assertRaisesRegex(CandidateError, "duplicate analysis_id"):
+            read_effect_placeholder_exclusions(duplicate)
+        config = load_candidate_configuration(
+            REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/config-full.yaml", REPO_ROOT
+        )
+        self.assertEqual(config.effect_placeholder_exclusions, found)
 
     def test_zero_build_eligible_rows_is_excluded_and_not_missing(self) -> None:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)

@@ -494,6 +494,9 @@ GCST90016593	GCST90016593	case-control	ancestry	ancestry_unassigned	gate_reason=
 GCST90016594	GCST90016594	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90017147	GCST90017147	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
 GCST90017148	GCST90017148	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90019012	GCST90019012	quantitative	effect_scale	effect_placeholder_rows	36710 of 16241904 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90019013	GCST90019013	quantitative	effect_scale	effect_placeholder_rows	34848 of 16241904 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90019014	GCST90019014	quantitative	effect_scale	effect_placeholder_rows	34841 of 16241904 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
 GCST90019016	GCST90019016	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90019017	GCST90019017	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90019492	GCST90019492	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -1231,6 +1234,8 @@ GCST90449049	GCST90449049	case-control	ancestry	ancestry_unassigned	gate_reason=
 GCST90449050	GCST90449050	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90449051	GCST90449051	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90449052	GCST90449052	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
+GCST90454200	GCST90454200	quantitative	effect_scale	effect_placeholder_rows	7354068 of 7354068 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90454201	GCST90454201	quantitative	effect_scale	effect_placeholder_rows	7354068 of 7354068 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
 GCST90454344	GCST90454344	case-control	metadata	missing_case_control_counts	n_cases=0 n_controls=91477	success	true
 GCST90454345	GCST90454345	case-control	metadata	missing_case_control_counts	n_cases=0 n_controls=91477	success	true
 GCST90454346	GCST90454346	case-control	metadata	missing_case_control_counts	n_cases=0 n_controls=91477	success	true
@@ -1360,6 +1365,8 @@ GCST90559226	GCST90559226	quantitative	ancestry	ancestry_unassigned	gate_reason=
 GCST90559227	GCST90559227	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90565360	GCST90565360	case-control	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90565869	GCST90565869	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90565871	GCST90565871	case-control	effect_scale	effect_placeholder_rows	7417088 of 7873543 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90565872	GCST90565872	case-control	effect_scale	effect_placeholder_rows	7417088 of 7873543 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
 GCST90566392	GCST90566392	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6865671603282172	success	true
 GCST90566393	GCST90566393	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6860889775226438	success	true
 GCST90566696	GCST90566696	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
@@ -1399,10 +1406,22 @@ GCST90652550	GCST90652550	quantitative	effect_scale	no_build_eligible_rows	resol
 GCST90654630	GCST90654630	case-control	ancestry	ancestry_unassigned	gate_reason=margin	success	true
 GCST90671996	GCST90671996	quantitative	ancestry	ancestry_unassigned	gate_reason=proportion	success	true
 GCST90672045	GCST90672045	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9761138489204356	success	true
+GCST90702485	GCST90702485	case-control	effect_scale	effect_placeholder_rows	3128 of 8330605 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90704616	GCST90704616	quantitative	effect_scale	effect_placeholder_rows	1641 of 8716168 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90704620	GCST90704620	quantitative	effect_scale	effect_placeholder_rows	7208 of 13112301 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90704625	GCST90704625	quantitative	effect_scale	effect_placeholder_rows	17413 of 13210527 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
 GCST90707271	GCST90707271	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7989540559590528	success	true
 GCST90707272	GCST90707272	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7920584341344703	success	true
 GCST90707273	GCST90707273	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7930926356879094	success	true
 GCST90707274	GCST90707274	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7969024437209167	success	true
+GCST90709864	GCST90709864	case-control	effect_scale	effect_placeholder_rows	25883 of 5356048 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90709865	GCST90709865	case-control	effect_scale	effect_placeholder_rows	20674 of 5357796 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90709866	GCST90709866	case-control	effect_scale	effect_placeholder_rows	18936 of 5357089 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90709867	GCST90709867	case-control	effect_scale	effect_placeholder_rows	17099 of 5356026 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90709868	GCST90709868	case-control	effect_scale	effect_placeholder_rows	14114 of 5357077 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90709869	GCST90709869	case-control	effect_scale	effect_placeholder_rows	17765 of 5357014 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90709870	GCST90709870	case-control	effect_scale	effect_placeholder_rows	12904 of 5358216 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90709871	GCST90709871	case-control	effect_scale	effect_placeholder_rows	9541 of 5357731 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
 GCST90726396	GCST90726396	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90726397	GCST90726397	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
 GCST90726398	GCST90726398	quantitative	ancestry	ancestry_unassigned	gate_reason=overlap	success	true
@@ -1434,7 +1453,15 @@ GCST90797612	GCST90797612	quantitative	orientation	orientation_failure	eaf_orien
 GCST90797613	GCST90797613	quantitative	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9768060646408082	success	true
 GCST90809294	GCST90809294	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90809296	GCST90809296	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90809803	GCST90809803	quantitative	effect_scale	effect_placeholder_rows	27034 of 13078128 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90809811	GCST90809811	quantitative	effect_scale	effect_placeholder_rows	1725 of 8679047 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90809816	GCST90809816	quantitative	effect_scale	effect_placeholder_rows	21174 of 13075991 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90809822	GCST90809822	quantitative	effect_scale	effect_placeholder_rows	6657 of 8679565 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90809825	GCST90809825	quantitative	effect_scale	effect_placeholder_rows	3352 of 8679565 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90809828	GCST90809828	quantitative	effect_scale	effect_placeholder_rows	1084 of 8679565 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
 GCST90824163	GCST90824163	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9781431974739067	success	true
 GCST90832109	GCST90832109	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9766232899767854	success	true
 GCST90832110	GCST90832110	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.9642854516395474	success	true
+GCST90838647	GCST90838647	case-control	effect_scale	effect_placeholder_rows	146 of 14049057 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
+GCST90838648	GCST90838648	case-control	effect_scale	effect_placeholder_rows	146 of 13409596 rows have a +-2.2250738585072014e-308 effect with standard_error 0 (full-file scan 2026-09-30)	success	true
 GCST90841074	GCST90841074	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.6668718425845486	success	true

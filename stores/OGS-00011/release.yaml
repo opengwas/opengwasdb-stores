@@ -3,7 +3,7 @@ label: eur-hybrid-full
 access_posture: public
 status: accepted
 derived_from: null
-created_at: '2026-09-29T13:14:20Z'
+created_at: '2026-09-30T00:25:26Z'
 source_snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-22
 source_snapshot:
   inventory_snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-22
@@ -16,7 +16,7 @@ generator:
   version: sha256:f55085abc4002bc6d004a9acd1ee9ee78b22e02ac6d9452793ebd63633f54ff8
   commands:
   - python3 resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py OGS-00011 --config resources/generators/gwas-catalog-eur-hybrid/config-full.yaml
-    --work-root /data/opengwasdb/work/ogs00011-regen-20260929 --cores 64
+    --work-root /data/opengwasdb/work/ogs00011-regen-20260929 --cores 64 --resume --stage emit
   - opengwasdb resolve-analyses /data/opengwasdb/work/ogs00011-regen-20260929/OGS-00011/resolver/analyses.tsv
     /data/opengwasdb/work/ogs00011-regen-20260929/OGS-00011/resolver/records --ancestry-reference /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
     --ancestry-groups /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv --variant-reference
@@ -37,7 +37,7 @@ notes: 'The candidate pool is 6,035 Analyses across 1,007 publications. Only the
   and `duplicates` in the preflight report).
 
 
-  Candidate status: human review required before acceptance (issue #153). 3344 included, 1439 excluded
+  Candidate status: human review required before acceptance (issue #153). 3317 included, 1466 excluded
   of 6035 frozen inventory rows.
 
 
@@ -52,8 +52,8 @@ notes: 'The candidate pool is 6,035 Analyses across 1,007 publications. Only the
   failures, unusable source AF and ordinary resolution failures are controlled exclusions (sidecars/exclusions.tsv).
 
 
-  Exclusions by reason: ancestry_not_eur=3, ancestry_unassigned=997, missing_case_control_counts=20, no_build_eligible_rows=256,
-  orientation_failure=162, resolution_failed=1
+  Exclusions by reason: ancestry_not_eur=3, ancestry_unassigned=997, effect_placeholder_rows=27, missing_case_control_counts=20,
+  no_build_eligible_rows=256, orientation_failure=162, resolution_failed=1
 
 
   Review: 1162 Analysis/Analyses excluded by ancestry policy (unassigned, non-target, or orientation failure);

@@ -41,11 +41,12 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import math
 import os
 import shutil
 import statistics
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
 from pathlib import Path
@@ -260,6 +261,7 @@ EXCLUSION_REASONS: frozenset[str] = frozenset(
         "missing_sample_size",
         "missing_case_control_counts",
         "no_build_eligible_rows",
+        "effect_placeholder_rows",
     }
 )
 
@@ -276,6 +278,7 @@ EXCLUSION_CATEGORIES: Mapping[str, str] = {
     "missing_sample_size": "metadata",
     "missing_case_control_counts": "metadata",
     "no_build_eligible_rows": "effect_scale",
+    "effect_placeholder_rows": "effect_scale",
 }
 
 #: Resolver record statuses that this module treats as a completed resolution.
@@ -371,6 +374,12 @@ class CandidateConfiguration:
     #: Analysis emits literal ``NaN`` exactly as an exempt technology does, and
     #: the reason is carried into the resolution receipt.
     maf_filter_exempt_analyses: Mapping[str, str]
+    #: The reviewed effect-placeholder exclusion file
+    #: (``source.effect_placeholder_exclusions``), or ``None`` when absent.
+    effect_placeholder_exclusions_path: Path | None = None
+    #: ``analysis_id -> recorded reason`` read from that file; each listed
+    #: Analysis is excluded as ``effect_placeholder_rows``.
+    effect_placeholder_exclusions: Mapping[str, str] = field(default_factory=dict)
 
 
 def _require(document: Mapping[str, Any], key: str, where: str) -> Any:
@@ -434,6 +443,17 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
     if exemption_path is not None and not exemption_path.is_absolute():
         exemption_path = repo_root / exemption_path
     maf_filter_exempt_analyses = read_maf_filter_exempt_analyses(exemption_path)
+    placeholder_input = source.get("effect_placeholder_exclusions")
+    if placeholder_input is not None and (
+        not isinstance(placeholder_input, str) or not placeholder_input.strip()
+    ):
+        raise PreflightConfigError(
+            "source.effect_placeholder_exclusions must be a non-empty TSV path"
+        )
+    placeholder_path = Path(placeholder_input) if placeholder_input else None
+    if placeholder_path is not None and not placeholder_path.is_absolute():
+        placeholder_path = repo_root / placeholder_path
+    effect_placeholder_exclusions = read_effect_placeholder_exclusions(placeholder_path)
     declaration_input = source.get("imputation_score_declarations")
     if declaration_input is not None and (
         not isinstance(declaration_input, str) or not declaration_input.strip()
@@ -467,6 +487,8 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         maf_filter_exempt_genotyping_technologies=maf_filter_exempt,
         maf_filter_exempt_analyses_path=exemption_path,
         maf_filter_exempt_analyses=maf_filter_exempt_analyses,
+        effect_placeholder_exclusions_path=placeholder_path,
+        effect_placeholder_exclusions=effect_placeholder_exclusions,
     )
 
 
@@ -544,10 +566,37 @@ def read_maf_filter_exempt_analyses(path: Path | None) -> dict[str, str]:
     ``NaN``. A duplicate or blank ``analysis_id``, a blank ``reason``, a
     different header, or an unreadable file is an error (never a skipped row).
     """
+    return _read_reviewed_analysis_table(path, "MAF filter exemption")
+
+
+#: The exact reviewed effect-placeholder exclusion table header
+#: (``source.effect_placeholder_exclusions``); same shape as the MAF exemptions.
+EFFECT_PLACEHOLDER_EXCLUSION_COLUMNS: tuple[str, ...] = MAF_FILTER_EXEMPTION_COLUMNS
+
+
+def read_effect_placeholder_exclusions(path: Path | None) -> dict[str, str]:
+    """Read the reviewed per-Analysis effect-placeholder exclusions, or ``{}``.
+
+    Some GWAS-SSF sources write an effect they did not estimate as
+    ``±2.2250738585072014e-308`` (the smallest normal double: only the sign
+    survives) with a ``standard_error`` of 0. Core derives a missing standard
+    error from the effect and the p-value (opengwasdb#236) and only refuses an
+    effect of exactly 0, so such a row is stored as an effect of ~0 with a
+    standard error of ~1e-308. Until core refuses the placeholder itself, an
+    Analysis carrying any such row is listed here and excluded as
+    ``effect_placeholder_rows``, with the measured row counts as its reason.
+    Validation is the MAF exemption table's: exact header, no blank or
+    duplicate ``analysis_id``, non-empty ``reason``.
+    """
+    return _read_reviewed_analysis_table(path, "effect placeholder exclusion")
+
+
+def _read_reviewed_analysis_table(path: Path | None, what: str) -> dict[str, str]:
+    """``analysis_id -> reason`` from a reviewed two-column TSV, or ``{}`` when absent."""
     if path is None:
         return {}
     if not path.is_file():
-        raise CandidateError(f"MAF filter exemption table not found: {path}")
+        raise CandidateError(f"{what} table not found: {path}")
     found: dict[str, str] = {}
     with path.open(newline="", encoding="utf-8") as fh:
         reader = csv.DictReader(fh, delimiter="\t")
@@ -557,7 +606,7 @@ def read_maf_filter_exempt_analyses(path: Path | None) -> dict[str, str]:
             )
         for number, row in enumerate(reader, 2):
             if None in row or any(value is None for value in row.values()):
-                raise CandidateError(f"{path}:{number}: malformed exemption row")
+                raise CandidateError(f"{path}:{number}: malformed {what} row")
             analysis_id = row["analysis_id"].strip()
             reason = row["reason"].strip()
             if not analysis_id:
@@ -1902,6 +1951,18 @@ def _decide(
             ),
         )
 
+    # A reviewed listing: the source writes unestimated effects as a
+    # +-2.2e-308 placeholder with standard_error 0, which core would store as a
+    # near-zero effect with a ~1e-308 standard error (see
+    # read_effect_placeholder_exclusions).
+    placeholder_reason = config.effect_placeholder_exclusions.get(row.analysis_id)
+    if placeholder_reason is not None:
+        return make(
+            included=False,
+            reason="effect_placeholder_rows",
+            detail=placeholder_reason,
+        )
+
     # A declared score with no usable evidence is *included*: every row is
     # retained and this Analysis emits literal ``NaN`` INFO cells (#176). The
     # record reports ``info_score_state = "no_usable_scores"``, which
@@ -1984,6 +2045,17 @@ def _decide(
     estimate = pheno.get("estimate")
     if status == "estimated" and isinstance(estimate, Mapping) and estimate.get("sd") is not None:
         sd_value = float(estimate["sd"])
+        # The builder refuses a non-positive original_sd, so an estimate that
+        # is not a positive finite number is no evidence (an all-placeholder
+        # source estimated exactly 0: GCST90454200/1).
+        if not math.isfinite(sd_value) or sd_value <= 0:
+            return make(
+                included=False,
+                reason="sd_no_qualifying_evidence",
+                detail=f"estimated phenotype SD {sd_value!r} is not a positive finite number",
+                assigned=assigned,
+                method="af_assigned",
+            )
         return make(
             included=True,
             assigned=assigned,
@@ -2916,6 +2988,7 @@ __all__ = [
     "ANALYSES_COLUMNS",
     "CANDIDATE_STATUS",
     "INFO_SCORE_COLUMNS",
+    "EFFECT_PLACEHOLDER_EXCLUSION_COLUMNS",
     "MAF_FILTER_EXEMPTION_COLUMNS",
     "REFERENCE_OVERLAP_COLUMNS",
     "USABLE_INFO_SCORE_STATES",
@@ -2954,6 +3027,7 @@ __all__ = [
     "publish_candidate",
     "read_candidate_metadata",
     "read_genotyping_technologies",
+    "read_effect_placeholder_exclusions",
     "read_maf_filter_exempt_analyses",
     "read_resolution_receipt",
     "read_source_label_map",
