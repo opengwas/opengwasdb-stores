@@ -1892,6 +1892,13 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertEqual(
             by_id["GCST90000002"].exclusion_detail, "5 of 100 rows are placeholders"
         )
+        tables = build_candidate_tables(
+            inventory_rows=[first, second], outcomes=outcomes, config=config, index_summary={}
+        )
+        self.assertEqual(dict(tables.exclusion_counts), {"effect_placeholder_rows": 1})
+        (excluded,) = csv.DictReader(io.StringIO(tables.exclusions_tsv), delimiter="\t")
+        self.assertEqual(excluded["category"], "effect_scale")
+        self.assertEqual(excluded["reason"], "effect_placeholder_rows")
 
     def test_non_positive_or_non_finite_sd_estimate_is_no_evidence(self) -> None:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
