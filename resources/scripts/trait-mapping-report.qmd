@@ -313,6 +313,51 @@ the estimated precision at the production thresholds is
 **`r pct(adjusted_precision)`**, compared with `r pct(catalog_precision)`
 agreement with the Catalog's own term.
 
+### Blinded Claude Opus 5.5 chooser pilot
+
+We tested whether a substantially larger general-purpose model could improve
+on Jev when both models received the issue #185 candidate lists. Eight
+OGS-00011 labels were sampled from exact-ID disagreements where the Catalog's
+term was present in the shortlist, so retrieval could not be blamed for a
+miss: three high-confidence Jev picks, three uncertain picks, and two Jev
+abstentions. Claude Opus 5.5 saw only the trait label and each candidate's ID,
+label, parent and definition. It did **not** see the Catalog answer or Jev's
+answer. Seven cases had 100 candidates; one shortlist contained only 47 terms
+after retrieval and filtering.
+
+| Trait label | Catalog term | Jev | Opus 5.5 | Assessment |
+|---|---|---|---|---|
+| ICD-10 B35.6: tinea cruris | dermatophytosis | dermatophytosis of groin and perianal area | same as Jev | Both models chose the more precise disease term. |
+| N-terminal prohormone brain natriuretic peptide levels | natriuretic peptides B proteolytic cleavage product level | NT-proBNP measurement | same as Jev | Both models matched the label more directly. |
+| General factor of brain white matter tract mean diffusivity | white matter integrity | mean diffusivity measurement | same as Jev | Both models chose the named diffusion parameter rather than the broader Catalog term. |
+| Pancreatic cancer | exocrine pancreatic carcinoma | pancreatic ductal adenocarcinoma | malignant pancreatic neoplasm | **Opus improved the choice:** Jev and the Catalog both narrowed the unspecified label. |
+| Apolipoprotein A1 levels | apolipoprotein A1 measurement | level of apolipoprotein A-I in blood serum | apolipoprotein A1 measurement | **Opus improved the choice and matched the Catalog:** Jev added an unstated specimen. |
+| ICD-10 O42: premature rupture of membranes | spontaneous preterm birth | premature rupture of membranes | same as Jev | Both models matched the code and label; the Catalog term is a related outcome. |
+| Human milk oligosaccharide concentration (6'-sialyllactose) | milk amount | `none_suitable` | `none_suitable` | Both models correctly declined a shortlist with no matching analyte term. |
+| Odor identification (cloves) | sensory perception of smell | `none_suitable` | sensory perception of smell | Borderline: Opus matched the Catalog at confidence 0.45, but selected a GO process rather than a measurement. |
+
+Opus agreed with Jev on **5 of 8** cases. Of its three disagreements, two were
+clear improvements and one was debatable. It exactly recovered the Catalog ID
+in 2 of 8 cases, but exact recovery is not the same as semantic correctness:
+one of those two was the borderline GO-process mapping, while several Jev
+"errors" were independently confirmed as more precise than the silver-standard
+Catalog term. In particular, Opus agreed with all three sampled
+high-confidence Jev choices.
+
+This is a deliberately selected error set, not an accuracy estimate: Jev's
+exact score is zero by construction, and eight cases are too few to compare
+models statistically. It does show that raw OGS-00011 disagreement is a poor
+way to identify genuine chooser errors.
+
+The eight Jev calls used 47,439 input tokens and cost **$0.001993**. The Opus
+run's nominal API cost was about **$0.39** at the published token rates, roughly
+200 times as much (the execution bridge itself reported no billed amount).
+The result does not justify replacing Jev. Opus looks more useful as a second
+opinion for low-confidence or low-margin decisions, especially when a proposed
+term introduces an unstated specimen, anatomical site, subtype or population.
+A larger test should include both independently verified Jev errors and hard
+Jev-correct controls, so that rescues and regressions can both be measured.
+
 ## ukb-b round 1 {#ukb-b}
 
 The ukb-b queue has `r comma(nrow(ukb))` distinct labels, covering
