@@ -62,9 +62,15 @@ hand curation. Those rows come from the curation pipeline described in "How
 rows are added".
 
 The first round, `ukb-b-2026q3` (EFO v3.94.0, BioLORD-2023 retrieval, Jev
-`jev-1.13.0`), auto-accepted 409 rows. It queued 1,056 labels for review and
-recorded 1,037 as having no suitable EFO term. The validation and the
-per-label outcomes are in `docs/trait-mapping-report.html`.
+`jev-1.13.0`), auto-accepted 409 rows. Its top-10 pipeline queued 1,056 labels
+for review and recorded 1,037 confident abstentions. Round
+`ukb-b-2026q4` reran the 2,093 remaining labels with UK Biobank Showcase
+context, ICD-10 cross-reference retrieval and 100-candidate shortlists. It
+auto-accepted another 141 rows, wrote a fresh 845-label review queue, recorded
+971 confident abstentions and found no candidate for 136 labels. Use the Q4
+queue for active review; the Q3 artifacts remain as historical evidence. See
+`docs/trait-mapping-report.html` for round 1 and
+`docs/trait-mapping-ukb-b-round2.md` for round 2.
 
 Add a hand-curated row only when a real, currently-unmapped trait needs one.
 Fill in the provenance columns when a candidate-generation-and-review process
@@ -111,9 +117,9 @@ the decided rows -- including `reject` decisions -- in the rewritten queue.
 
 ## Review queues
 
-Each curation round's review queue is committed here as
-`review-queue-<round_id>.tsv`, for example `review-queue-ukb-b-2026q3.tsv`.
-A queue holds every label the round did not auto-accept:
+Each curation round's proposal-backed review queue is committed here as
+`review-queue-<round_id>.tsv`; the active queue is
+`review-queue-ukb-b-2026q4.tsv`. A queue holds proposals that need a curator:
 
 - an uncertain pick (`review_reason` `below_confidence` or `below_margin`);
 - an uncertain abstention (`selected_ontology_id` `none_suitable`).
@@ -123,14 +129,15 @@ Each row carries the chooser's probabilities and its full candidate shortlist
 
 Confident abstentions are not queued. These are labels where the chooser was
 confident that no shortlisted term denotes the trait — but that is not always
-because EFO lacks a term. Some are retrieval misses: a suitable EFO term
-exists but was not shortlisted, and may become mappable once the retrieval
-and chooser-context changes of issue #185 land. They are committed separately
-as `no-suitable-term-<round_id>.tsv`, with the chooser's probabilities and
-its best real candidate (`runner_up_id`, `runner_up_label`). No tool reads
-them back. Some are candidates for new EFO terms, such as individual foods,
-keratometry fields, and hospital administrative fields. To map one anyway,
-add a hand-curated row to `mapping.tsv`.
+because EFO lacks a term. Some are retrieval misses; others are candidates for
+new EFO terms, such as individual foods, keratometry fields, and hospital
+administrative fields. They are committed separately as
+`no-suitable-term-<round_id>.tsv`, with the chooser's probabilities and its
+best real candidate (`runner_up_id`, `runner_up_label`). No tool reads them
+back. Labels for which retrieval found no candidate cannot be represented by
+the proposal-backed review schema; round 2 keeps those 136 labels in
+`docs/data/trait-mapping-ukb-b-round2.tsv`. To map either kind by hand, add a
+curated row to `mapping.tsv`.
 
 To review, fill in `review_decision` (`accept`, `amend` or `reject`) and, for
 `amend`, `override_ontology_id` and `override_ontology_label`. Also fill in
@@ -143,7 +150,7 @@ scratch `--review-queue`:
 pixi run -e curation python -c "from curation.choice import PROPOSAL_COLUMNS; print(*PROPOSAL_COLUMNS, sep='\t')" > /tmp/no-proposals.tsv
 pixi run -e curation python -m curation.promotion \
     --proposals /tmp/no-proposals.tsv \
-    --reviewed-queue resources/reference-resources/canonical-trait-mapping-efo/review-queue-ukb-b-2026q3.tsv \
+    --reviewed-queue resources/reference-resources/canonical-trait-mapping-efo/review-queue-ukb-b-2026q4.tsv \
     --review-queue /tmp/review-queue-scratch.tsv \
     --resource-dir resources/reference-resources/canonical-trait-mapping-efo
 ```

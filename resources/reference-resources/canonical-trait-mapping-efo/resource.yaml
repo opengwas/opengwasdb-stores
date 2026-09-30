@@ -1,7 +1,7 @@
 resource_id: canonical-trait-mapping-efo
 label: Canonical trait label to ontology-term mapping table
 kind: trait_ontology_mapping
-version: 2
+version: 3
 location: resources/reference-resources/canonical-trait-mapping-efo/mapping.tsv
 location_kind: tracked_file
 description: >
@@ -26,12 +26,15 @@ description: >
   bumps this resource's `version`.
 status: available
 notes: >
-  Populated by the curation pipeline (issue #161). Round ukb-b-2026q3
-  auto-accepted 409 ukb-b rows. Its review queue (1,056 labels, with each
-  label's candidate shortlist) is committed alongside as
-  review-queue-ukb-b-2026q3.tsv, and its 1,037 confident no-suitable-term
-  labels as no-suitable-term-ukb-b-2026q3.tsv; neither is part of the lookup.
-  See README.md, "Review queues", for how decisions are applied. Add a
-  hand-curated row only when a real trait needs one; fill in the optional
-  provenance columns when a candidate-generation-and-review process produced
-  the row, and leave them empty for a hand-curated row.
+  Populated by the curation pipeline (issues #161 and #185). Round
+  ukb-b-2026q3 auto-accepted 409 ukb-b rows. Round ukb-b-2026q4 reran the
+  2,093 remaining labels with Showcase context, ICD-10 cross-reference
+  retrieval and top-100 shortlists, auto-accepting another 141. Its active
+  review queue (845 labels, each with its candidate shortlist) is committed as
+  review-queue-ukb-b-2026q4.tsv, and its 971 confident abstentions as
+  no-suitable-term-ukb-b-2026q4.tsv; neither is part of the lookup. The Q3
+  files remain as historical round evidence. See README.md, "Review queues",
+  for how decisions are applied. Add a hand-curated row only when a real trait
+  needs one; fill in the optional provenance columns when a
+  candidate-generation-and-review process produced the row, and leave them
+  empty for a hand-curated row.
