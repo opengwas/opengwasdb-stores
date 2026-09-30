@@ -1,0 +1,26 @@
+seed	trait_label	selected_id	selected_label	confidence	verdict	note
+185	diagnoses - main icd10: k51.9 ulcerative colitis, unspecified	MONDO:0005101	ulcerative colitis	0.990000	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	diagnoses - secondary icd10: c50.9 breast, unspecified	MONDO:0007254	breast cancer	0.890000	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	diagnoses - secondary icd10: c61 malignant neoplasm of prostate	MONDO:0008315	prostate cancer	0.949495	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	mean time to correctly identify matches	EFO:0008393	reaction time measurement	0.980000	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	other drink intake	EFO:0010088	beverage consumption measurement	0.880000	acceptable (broader)	Broad but compatible beverage-consumption term.
+185	number of cigarettes previously smoked daily	EFO:0006525	cigarettes per day measurement	0.980000	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	non-cancer illness code, self-reported: iron deficiency anaemia	HP:0001891	Iron deficiency anemia	0.870000	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	diagnoses - secondary icd10: f10.2 dependence syndrome	MONDO:0007079	alcohol dependence	0.900000	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	oily fish intake	EFO:0010139	fish consumption measurement	0.920000	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	eye problems/disorders: glaucoma	MONDO:0005041	glaucoma	0.930000	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	frequency of friend/family visits	EFO:0009592	social interaction measurement	0.980000	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	non-cancer illness code, self-reported: prolapsed disc/slipped disc	EFO:1001800	Intervertebral Disc Displacement	0.850000	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	age heart attack diagnosed	EFO:0004918	age at diagnosis	0.850000	acceptable (broader)	Broad but compatible age-at-diagnosis term.
+185	diagnoses - secondary icd10: m19.9 arthrosis, unspecified	MONDO:0005178	osteoarthritis	0.910000	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	non-cancer illness code, self-reported: head injury	EFO:0009505	head injury	0.929293	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	non-cancer illness code, self-reported: peritonitis	MONDO:1010128	peritonitis	0.920000	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	diagnoses - secondary icd10: i48 atrial fibrillation and flutter	MONDO:0004981	atrial fibrillation	0.949495	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	diagnoses - main icd10: l98.9 disorder of skin and subcutaneous tissue, unspecified	MONDO:0005093	skin disorder	0.900000	acceptable (broader)	Broad but compatible term for an unspecified skin disorder.
+185	time spent outdoors in winter	EFO:0600081	time spent outdoors measurement	0.920000	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	mineral and other dietary supplements: calcium	EFO:0006521	calcium intake measurement	0.950000	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	operative procedures - secondary opcs: y20.3 biopsy of lesion of organ noc	EFO:0009120	biopsy	0.880000	acceptable (broader)	Broad but compatible biopsy procedure term.
+185	total sugars	EFO:0010158	sugar consumption measurement	0.970000	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	non-cancer illness code, self-reported: chronic fatigue syndrome	MONDO:0005404	myalgic encephalomeyelitis/chronic fatigue syndrome	0.939394	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	diagnoses - main icd10: i63.9 cerebral infarction, unspecified	MONDO:0002679	cerebral infarction	0.910000	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
+185	non-cancer illness code, self-reported: duodenal ulcer	MONDO:0005412	duodenal ulcer	0.860000	acceptable (exact/near-exact)	Label and selected term are exact or near-exact synonyms.
