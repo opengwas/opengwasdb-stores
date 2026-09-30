@@ -1,5 +1,5 @@
 status: passed_with_warnings
-validated_at: '2026-09-29T13:14:20Z'
+validated_at: '2026-09-30T00:25:26Z'
 validator:
   name: resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py
   version: null
@@ -24,7 +24,7 @@ checks:
 reference_overlap:
   low_overlap_threshold: 0.05
   max_off_reference_share: 0.25
-  included_measured: 3344
+  included_measured: 3317
   ancestry_median_rate: 0.5504456605690415
   ancestry_p05_rate: 0.0769270597494194
   ancestry_low_overlap_analyses:
@@ -122,12 +122,12 @@ reference_overlap:
   - GCST90570524
   - GCST90572755
   - GCST90651074
-  median_rate: 0.953072250137853
-  p05_rate: 0.649561103116756
-  p10_rate: 0.8102836164136173
+  median_rate: 0.9519989367432691
+  p05_rate: 0.645129812771982
+  p10_rate: 0.8102470317726271
   low_overlap_count: 0
   low_overlap_analyses: []
-  projected_off_reference_share: 0.1087049192936684
+  projected_off_reference_share: 0.10918451561616194
   projected_off_reference_basis: build_eligible_rows
   worst_contributors:
   - GCST90502911
