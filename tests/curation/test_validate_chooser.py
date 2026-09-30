@@ -196,9 +196,13 @@ class TestConditionalAccuracy(ValidateChooserTestCase):
         calls: list[str] = []
 
         class CountingChooser(StubChooser):
-            def select(self, trait_label, candidates):  # type: ignore[override]
+            def select(  # type: ignore[override]
+                self, trait_label, candidates, *, trait_context=""
+            ):
                 calls.append(trait_label)
-                return super().select(trait_label, candidates)
+                return super().select(
+                    trait_label, candidates, trait_context=trait_context
+                )
 
         chooser = CountingChooser(
             {

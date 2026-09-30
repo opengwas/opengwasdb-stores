@@ -7,7 +7,7 @@ plausible ontology terms. The *choice* stage takes that shortlist and asks a
 :class:`Chooser` which term, if any, should be proposed for the label.
 
 The interface is deliberately narrow. A chooser is a function from
-``(trait_label, candidates)`` to a :class:`ChoiceResult` -- a single selected
+``(trait_label, candidates, trait_context)`` to a :class:`ChoiceResult` -- a single selected
 ontology id plus a probability distribution over the shortlist -- or to the
 explicit no-proposal outcome. It is not allowed to reach outside the shortlist:
 
@@ -348,15 +348,19 @@ class Chooser(ABC):
         self,
         trait_label: str,
         candidates: list[Candidate],
+        *,
+        trait_context: str = "",
     ) -> ChoiceResult | None:
         """Choose one candidate for ``trait_label``, or ``None`` for no proposal.
 
         An empty shortlist has nothing to choose from, so it returns ``None``
-        rather than an arbitrary or invented selection.
+        rather than an arbitrary or invented selection. ``trait_context`` is
+        per-trait prose a chooser may read (a ukb-b field's question text); a
+        chooser that does not use it ignores it.
         """
         if not candidates:
             return None
-        result = self.select(trait_label, candidates)
+        result = self.select(trait_label, candidates, trait_context=trait_context)
         try:
             validate_choice_result(result, candidates)
         except ChoiceError as exc:
@@ -372,11 +376,15 @@ class Chooser(ABC):
         self,
         trait_label: str,
         candidates: list[Candidate],
+        *,
+        trait_context: str = "",
     ) -> ChoiceResult:
         """Return the chooser's result for a non-empty shortlist.
 
         Implementations must not be called directly: :meth:`choose` enforces
         the empty-shortlist and shortlist-membership rules around them.
+        ``trait_context`` is per-trait prose the chooser may read; a chooser
+        that does not use it ignores it.
         """
         raise NotImplementedError
 

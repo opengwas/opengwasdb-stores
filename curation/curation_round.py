@@ -20,7 +20,7 @@ CLI
     python3 -m curation.curation_round \\
         --index <ontology-index.json> --chooser stub --fixture <fixture.json> \\
         [--manifests <analyses.tsv> ...] [--work-dir <dir>] \\
-        [--resource-dir <dir>] [--shortlist-size 10] \\
+        [--resource-dir <dir>] [--shortlist-size 100] \\
         [--confidence-threshold 0.85] [--margin-threshold 0.20] \\
         [--as-of YYYY-MM-DD] [--format text|markdown|tsv] \\
         [--report <path>] [--dry-run]

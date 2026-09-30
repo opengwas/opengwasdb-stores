@@ -1,6 +1,6 @@
 ---
 title: "Canonical trait mapping: pipeline, validation, and the first ukb-b round"
-subtitle: "Mapping free-text GWAS trait labels to EFO terms with BioLORD retrieval and the Jev chooser (issue #161)"
+subtitle: "Mapping free-text GWAS trait labels to EFO terms with BioLORD retrieval and the Jev chooser (issues #161, #185)"
 date: 2026-09-28
 format:
   html:
@@ -57,9 +57,12 @@ The Canonical Trait Mapping Table maps free-text trait labels, such as UK
 Biobank field descriptions, to ontology terms, so Analyses from different
 sources can be joined on a shared trait. This report covers:
 
-- the curation pipeline built for epic #161;
+- the curation pipeline built for epic #161, including the issue #185 changes
+  that use the UK Biobank field structure and Showcase context;
 - its validation against the GWAS Catalog's own EFO curation (Store OGS-00011);
-- the first production round over the ukb-b queue.
+- the first production round over the ukb-b queue (run before the #185 changes,
+  so its numbers reflect the earlier top-10 retrieval without the ICD-10 or
+  field-context channels).
 
 **Headline results**
 
@@ -71,7 +74,7 @@ sources can be joined on a shared trait. This report covers:
 - **Production (ukb-b, `r comma(nrow(ukb))` labels).**
   - `r bn("auto-accepted")` rows were auto-accepted; they resolve `r comma(sum(auto$analyses))` Analyses (PR #180).
   - `r comma(bn("review (uncertain pick)") + bn("review (uncertain abstention)"))` labels go to human review.
-  - `r comma(bn("no suitable term"))` labels are confidently unmappable, because EFO has no term for them (individual foods, keratometry, many questionnaire items).
+  - `r comma(bn("no suitable term"))` labels were confidently abstained: no candidate their shortlist offered denoted the trait. Many of them genuinely have no EFO term (individual foods, keratometry, many questionnaire items), but some are retrieval misses — a valid EFO term exists and was simply not shortlisted (e.g. the ICD-10 labels C61 prostate cancer, K59.0 constipation, and H00.1 chalazion), so they may become mappable once retrieval improves.
   - In a random sample of 60 auto-accepted rows, `r sum(ukb_adj$verdict == "matches the label")` match the label exactly. The other `r sum(ukb_adj$verdict != "matches the label")` use a broader term where EFO has nothing more specific. None is wrong.
 - **Cost.** Both rounds together cost **$`r sprintf("%.2f", summary_json$validation$cost_usd + summary_json$production$cost_usd)`**: `r comma(summary_json$validation$input_tokens + summary_json$production$input_tokens)` input tokens over `r comma(nrow(val) + nrow(ukb))` per-trait requests.
 
@@ -89,13 +92,17 @@ listed in [Issues found by live runs](#issues).
 ```{mermaid}
 flowchart LR
   M[Release Manifests<br/>analyses.tsv] --> G[gap-scan<br/>unmapped labels]
-  O[EFO v3.94.0 OBO] --> I[ontology index<br/>canonical CURIEs]
+  O[EFO v3.94.0 OBO] --> I[ontology index<br/>CURIEs + ICD-10 xrefs]
+  S[UKB Showcase schema] --> U[ukb parse<br/>value text + question context]
   I --> EO[embed-ontology<br/>BioLORD-2023, once]
   G --> ET[embed-traits<br/>per round]
-  I --> C[candidates<br/>lexical + semantic, RRF, top 10]
+  G --> U
+  I --> C[candidates<br/>lexical + icd10 + semantic<br/>phenotype-only, RRF, top 100]
+  U --> C
   EO --> C
   ET --> C
-  C --> CH[choose<br/>one Jev request per trait]
+  C --> CH[choose<br/>one Jev request per trait<br/>+ field question context]
+  U --> CH
   CH --> R[reduce<br/>proposals, ledger, buckets]
   R --> P[promote<br/>thresholds gate]
   P --> T[(mapping.tsv)]
@@ -110,12 +117,12 @@ an artifact contradicts a pin.
 
 | Stage | What it does |
 |---|---|
-| `ontology-index` | Parses the EFO OBO and normalises every id to a canonical CURIE (`efo:EFO_0003939` → `EFO:0003939`, OBO PURLs → `PREFIX:local`). It drops `r comma(summary_json$index$excluded_non_curie)` gene and dbpedia IRIs, leaving `r comma(summary_json$index$terms)` terms. |
+| `ontology-index` | Parses the EFO OBO and normalises every id to a canonical CURIE (`efo:EFO_0003939` → `EFO:0003939`, OBO PURLs → `PREFIX:local`). It drops `r comma(summary_json$index$excluded_non_curie)` gene and dbpedia IRIs, leaving `r comma(summary_json$index$terms)` terms, and keeps each term's ICD-10 cross-references for the `icd10` channel. |
 | `embed-ontology` | Embeds each term's label, synonyms and definition with BioLORD-2023, served by Text Embeddings Inference. The result is a resumable numpy store, content-addressed by `build_id`. |
 | `gap-scan` | Queues every distinct normalised trait label that is not already in the mapping table. |
 | `embed-traits` | Embeds the queued labels with the same model. |
-| `candidates` | Runs four lexical channels (exact, normalised, token overlap, synonym) and cosine nearest neighbours, fuses them by reciprocal rank, and keeps the top 10. An obsolete term is replaced by its `replaced_by` successor, or dropped if it has none. |
-| `choose` | Sends one Jev request per trait, with `none_suitable` always offered. Each result is written atomically to its own YAML file, keyed by a request fingerprint. A rerun skips traits whose fingerprint is unchanged. A cumulative cost cap (`--max-cost-usd`) bounds spend across reruns. |
+| `candidates` | Runs the ICD-10 cross-reference channel plus four lexical channels (exact, normalised, token overlap, synonym) and cosine nearest neighbours; drops non-phenotype terms (cell lines, chemicals, anatomy); fuses by reciprocal rank and keeps the top 100. A coded ukb-b field is retrieved on its value text, not the field+code string. An obsolete term is folded to its `replaced_by` successor, or dropped if it has none. |
+| `choose` | Sends one Jev request per trait, with `none_suitable` always offered. For a ukb-b question field, the field's question text, category path and units are passed as per-trait context alongside the label. Each result is written atomically to its own YAML file, keyed by a request fingerprint. A rerun skips traits whose fingerprint is unchanged. A cumulative cost cap (`--max-cost-usd`) bounds spend across reruns. |
 | `reduce` | Aggregates the per-trait results into proposals, a cost ledger, and a bucket reconciliation. The buckets must sum to the queue. |
 | `promote` | Appends a proposal only if confidence ≥ `r conf_t` and runner-up margin ≥ `r margin_t`. Uncertain picks and uncertain abstentions go to the review queue. Confident abstentions are recorded as unmapped by design. `none_suitable` never reaches the table. |
 
@@ -134,15 +141,46 @@ sending them individually:
 We chose per-trait requests: each answer depends only on its own shortlist,
 can be cached, and can be retried on its own.
 
-**Always offer `none_suitable`.** Most ukb-b labels have no EFO term. Without
-an explicit way to abstain, the chooser has to pick the nearest related term.
-In the validation run, when the Catalog's term was *not* in the shortlist, Jev
-abstained on `r pct(mean(val$abstained[!val$hit]))` of labels rather than
-picking a wrong term.
+**Always offer `none_suitable`.** Many ukb-b labels have no EFO term, and
+others have one that retrieval missed; without an explicit way to abstain the
+chooser has to pick the nearest related term. In the validation run, when the
+Catalog's term was *not* in the shortlist, Jev abstained on
+`r pct(mean(val$abstained[!val$hit]))` of labels rather than picking a wrong
+term.
 
 **Thresholds taken from validation, not guessed.** The defaults (0.85 / 0.20)
 were kept after calibration (below). Above confidence 0.8 the margin
 threshold is redundant: a confident pick has a large margin by construction.
+
+**Retrieve coded fields on their value, not the whole field string.** A coded
+ukb-b label mixes a field title, a code, and a description
+(`diagnoses - main icd10: c20 malignant neoplasm of rectum`). The string-matching
+and embedding channels retrieve on the description alone, while the raw label
+remains the lookup key, so the exact-match contract of `mapping.tsv` is
+unchanged.
+
+**ICD-10 cross-references are a direct channel.** EFO terms carry
+`ICD10`/`ICD10CM`/`ICD10WHO` xrefs. A label that carries an ICD-10 code looks the
+code up directly, falling back to its 3-character chapter, so a diagnosis maps
+to its term even when no string overlaps. Round 1's `c61 malignant neoplasm of
+prostate`, `k59.0 constipation` and `h00.1 chalazion` were abstained because no
+candidate was retrieved; the xref channel shortlists `prostate cancer`,
+`constipation disorder` and `chalazion` directly.
+
+**Only phenotype-bearing terms are offered.** Cell lines, cell types, chemicals,
+taxa, anatomy and proteins (prefixes `BTO/PO/CHEBI/NCBITaxon/UBERON/CL/CLO/PR`,
+plus EFO's own cell-line subtree) are dropped before ranking. Checked against
+OGS-00011 before adoption: **0 of the 934** Catalog truth terms fall in an
+excluded branch, so the restriction cannot drop a Catalog term.
+
+**The chooser reads the field's question.** For non-coded fields the Showcase
+schema supplies the actual question, its category path and units, passed to Jev
+as per-trait context alongside the label. For coded fields the notes are
+boilerplate, so they are deliberately not sent.
+
+**Shortlist size is 100.** A hundred candidates still fit Jev's 60k-token /
+1 MiB input budget, and a wider net raises the chance the correct term is
+offered.
 
 ## Issues found by live runs {#issues}
 
@@ -282,6 +320,11 @@ The ukb-b queue has `r comma(nrow(ukb))` distinct labels, covering
 beforehand. The round cost $`r sprintf("%.4f", summary_json$production$cost_usd)`,
 with no failed requests.
 
+This round used the pre-#185 pipeline (top-10 shortlists, no ICD-10
+cross-reference channel, no field context). The #185 changes described in the
+pipeline section target the retrieval misses and context-blind abstentions this
+round shows.
+
 ```{r ukb-buckets}
 knitr::kable(ukb |> group_by(bucket) |>
                summarise(labels = n(), analyses = sum(analyses), .groups = "drop") |>
@@ -314,7 +357,13 @@ admin <- ukb |> filter(field == "Hospital administrative field")
 Clinical codes map well: ICD-10 diagnoses, self-reported illnesses and
 symptoms, and family history. Diet items ("beef intake", "dried fruit
 intake") and keratometry fields mostly have no EFO term, so abstention is the
-right answer for them. Medications are rarely auto-accepted: EFO has few
+right answer for them. But not every abstention is a missing term: the
+ICD-10-coded labels `diagnoses - main icd10: c61 malignant neoplasm of
+prostate`, `... k59.0 constipation`, and `... h00.1 chalazion` were abstained
+because no candidate was retrieved, even though EFO has terms for prostate
+cancer, constipation, and chalazion — their ICD-10 xrefs exist, but the
+label's full text did not shortlist them at retrieval time, so the chooser
+never saw them. Medications are rarely auto-accepted: EFO has few
 drug-exposure terms, so they go to review.
 
 ::: {.callout-warning}
@@ -357,10 +406,10 @@ datatable(ukb |> select(trait_label, field, analyses, selected_id, selected_labe
 
 - **The review queue is unreviewed.** `r comma(bn("review (uncertain pick)") + bn("review (uncertain abstention)"))` ukb-b labels are waiting for a human curator. The reviewed-queue round trip (accept, amend, reject) is implemented but has not been used on real data yet.
 - **Adjudication was done by AI.** The disagreement and sample verdicts are the assistant's, not a curator's. A human spot check of the auto-accepted rows in PR #180 should come before relying on them widely.
-- **Retrieval is the ceiling.** Recall@10 is `r pct(recall10)`. A larger shortlist would raise it: Jev accepts up to 254 options, and cost grows roughly linearly with shortlist size. Measure this before the next round.
+- **Retrieval is the ceiling.** Round 1's recall@10 was `r pct(recall10)` at a top-10 shortlist. Issue #185 raises the shortlist to 100 and adds the ICD-10 cross-reference channel and the phenotype-only candidate space, which attack exactly this ceiling; the next ukb-b round will measure the gain.
 - **The Catalog is a silver standard.** Exact agreement understates precision. Some Catalog mappings are coarser than the label, and a few are simply wrong.
 - **Lower thresholds may be viable.** Agreement at confidence ≥ 0.7 is `r pct(grid$precision[grid$conf == 0.7])` against the Catalog, before adjudication. Adjudicating that band would show whether the threshold can drop and raise yield.
-- **The `none_suitable` rate is inherent to ukb-b.** Many labels have no EFO counterpart. Mapping them needs new EFO terms (an upstream request) or a non-EFO target, not a better chooser.
+- **The `none_suitable` list is not all missing terms.** It mixes labels EFO genuinely has no term for (individual foods, keratometry fields, hospital administrative fields) with retrieval misses — labels whose term exists in EFO but was not shortlisted, such as the ICD-10 codes C61 (prostate cancer), K59.0 (constipation), and H00.1 (chalazion); see the ukb-b section. Mapping the first group needs new EFO terms (an upstream request) or a non-EFO target; the second group may map once #185 lands, so a better chooser is not ruled out.
 
 ## Reproducing
 
@@ -374,6 +423,7 @@ pixi run -e curation embed-ontology --ontology-index .cache/curation/efo-v3.94.0
 # a round (production: --manifests; validation: --queue-tsv from `harvest`)
 pixi run -e curation round-init --round-dir <dir> --index <index> \
     --ontology-embeddings <store> --chooser jev --manifests <analyses.tsv> \
+    --ukb-showcase-dir .cache/curation/ukb-showcase \
     --threshold-evidence "<calibration>"
 for step in gap-scan embed-traits candidates; do pixi run -e curation round-$step --round-dir <dir>; done
 pixi run -e curation round-choose --round-dir <dir> --workers 8 --max-cost-usd 1
@@ -390,5 +440,6 @@ pixi run --environment docs quarto render resources/scripts/trait-mapping-report
 Pins for both rounds: EFO `r summary_json$production$round$ontology_release`;
 `r summary_json$production$round$embedding_model` (ontology store
 `r summary_json$production$round$embedding_build_id`); Jev
-`r summary_json$production$round$chooser$model`; shortlist size
-`r summary_json$production$round$shortlist_size`.
+`r summary_json$production$round$chooser$model`. Round 1 used shortlist size
+`r summary_json$production$round$shortlist_size`; the default is now 100 and the
+Showcase directory is pinned via `--ukb-showcase-dir` (issue #185).

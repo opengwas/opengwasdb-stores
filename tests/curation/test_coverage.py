@@ -739,7 +739,7 @@ class CurationRoundTest(CurationRoundTestCase):
                 super().__init__(*args, **kwargs)
                 self.cost_records: list[FakeCostRecord] = []
 
-            def select(self, trait_label, candidates):
+            def select(self, trait_label, candidates, *, trait_context=""):
                 self.cost_records.append(FakeCostRecord(trait_label, 0.01))
                 return super().select(trait_label, candidates)
 
