@@ -127,6 +127,15 @@ source:
   # frequency as missing and a MAF floor would compare against a fabricated
   # zero (#176, 2026-09-29). Absent = no Analysis is exempt.
   maf_filter_exempt_analyses: resources/generators/gwas-catalog-eur-hybrid/maf-filter-exemptions.tsv
+  # Reviewed per-Analysis exclusions (analysis_id, reason) for sources that
+  # write an unestimated effect as +-2.2250738585072014e-308 with
+  # standard_error 0. Core derives the missing standard error from that effect
+  # and the p-value (opengwasdb#236), storing an effect of ~0 with a standard
+  # error of ~1e-308, so every Analysis carrying such a row is excluded as
+  # effect_placeholder_rows until core refuses the placeholder itself. The 27
+  # listed are every included Analysis with at least one such row in a
+  # full-file scan (2026-09-30). Absent = nothing is excluded this way.
+  effect_placeholder_exclusions: resources/generators/gwas-catalog-eur-hybrid/effect-placeholder-exclusions.tsv
   inventory:
     snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-22
     path: resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv

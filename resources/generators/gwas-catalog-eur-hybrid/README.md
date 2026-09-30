@@ -318,6 +318,26 @@ resolution receipt contract records the exemption file and its
 `analysis_id -> reason` mapping, so changing either makes the receipt stale and
 requires a re-resolve.
 
+An optional `source.effect_placeholder_exclusions` path points to a reviewed
+TSV of the same shape and validation (`analysis_id`, `reason`). Each listed
+Analysis is excluded at emit as `effect_placeholder_rows` (category
+`effect_scale`), with its `reason` as the exclusion detail. It exists for
+sources that write an effect they did not estimate as
+`±2.2250738585072014e-308` (the smallest normal double, so only the sign
+survives) with `standard_error` 0. Core derives a missing standard error from
+the effect and the p-value (opengwasdb#236) and refuses only an effect of exactly
+0, so such a row would be stored as an effect of ~0 with a standard error of
+~1e-308. `config-full.yaml` lists the 27 included OGS-00011 Analyses that carry
+at least one such row in a full-file scan (2026-09-30). Four are almost entirely
+placeholder (`GCST90454200/1`, whose SD then estimates as exactly 0, and
+`GCST90565871/2`); the other 23 have fewer than 0.5% of rows affected. This is
+an emit-time membership decision; it does not change the resolver manifest or
+receipt. Remove the table once core refuses the placeholder itself.
+
+Independently, a quantitative Analysis whose phenotype-SD estimate is not a
+positive finite number is excluded as `sd_no_qualifying_evidence`: the builder
+refuses a non-positive `original_sd`.
+
 The resolver manifest carries the derived `maf_threshold` per Analysis.
 Candidate `analyses.tsv` emits the numeric value only on resolver evidence: the
 record's `diagnostics.maf_state` is `disabled` or `filtered` **and** the
