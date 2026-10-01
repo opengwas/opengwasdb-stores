@@ -655,8 +655,14 @@ def metadata_members(out: Path) -> list[Path]:
     return sorted(extracted.glob("*/*.dbGaP.metadata.txt"))
 
 
-def load_analysis(path: Path, extracted: Path, toc_entry: tuple[str, int] | None) -> Analysis:
-    """Read one Analysis and attach the data member it describes."""
+def load_analysis(
+    path: Path, extracted: Path, toc_entry: tuple[str, int] | None, data_member: str | None = None
+) -> Analysis:
+    """Read one Analysis and attach the data member it describes.
+
+    ``data_member`` overrides the sibling ``.txt.gz`` for the one deposit
+    Analysis whose data file sits in a different tar from its metadata file.
+    """
     info = parse_metadata(path)
     for field_name in (METADATA_TITLE, METADATA_ANALYZED_VARIABLE, METADATA_SAMPLE_SIZE, METADATA_TRAIT_TYPE):
         if field_name not in info:
@@ -668,7 +674,7 @@ def load_analysis(path: Path, extracted: Path, toc_entry: tuple[str, int] | None
     trait_code, ancestry = parts[2], parts[3]
     if ancestry not in ANCESTRIES:
         raise AcquisitionError(f"{path}: unrecognised ancestry {ancestry!r}")
-    member = str(path.relative_to(extracted)).replace(".metadata.txt", ".txt.gz")
+    member = data_member or str(path.relative_to(extracted)).replace(".metadata.txt", ".txt.gz")
     trait_type = info[METADATA_TRAIT_TYPE].strip().lower()
     if trait_type not in ("binary trait", "quantitative trait"):
         raise AcquisitionError(f"{path}: unrecognised phenotypic trait type {info[METADATA_TRAIT_TYPE]!r}")
@@ -790,10 +796,18 @@ def command_map(args: argparse.Namespace) -> int:
         raise SystemExit("map: no extracted *.dbGaP.metadata.txt found")
 
     tocs = load_toc(out)
+    data_by_name: dict[str, list[str]] = collections.defaultdict(list)
+    for listed in tocs:
+        data_by_name[Path(listed).name].append(listed)
     analyses: list[Analysis] = []
     for member in members:
         data_member = str(member.relative_to(extracted)).replace(".metadata.txt", ".txt.gz")
-        analyses.append(load_analysis(member, extracted, tocs.get(data_member)))
+        if data_member not in tocs:
+            # dbGaP filed a data file in a different tar from its metadata.
+            elsewhere = data_by_name.get(Path(data_member).name, [])
+            if len(elsewhere) == 1:
+                data_member = elsewhere[0]
+        analyses.append(load_analysis(member, extracted, tocs.get(data_member), data_member))
     analysis_needles = selected_values(args.analysis)
     if analysis_needles:
         # Before mapping there is no accession; --analysis selects by the
@@ -913,9 +927,13 @@ def render_metadata_yaml(
 
 
 def metadata_description(out: Path, member: str) -> str:
-    metadata = out / "GIA" / "extracted" / member.replace(".txt.gz", ".metadata.txt")
+    extracted = out / "GIA" / "extracted"
+    metadata = extracted / member.replace(".txt.gz", ".metadata.txt")
     if not metadata.is_file():
-        return ""
+        found = sorted(extracted.glob("*/" + Path(metadata).name))
+        if len(found) != 1:
+            return ""
+        metadata = found[0]
     return parse_metadata(metadata).get(METADATA_DESCRIPTION, "")
 
 

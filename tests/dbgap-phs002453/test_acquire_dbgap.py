@@ -289,7 +289,10 @@ class AcquisitionTest(unittest.TestCase):
         return self.root / "GIA" / "extracted" / INNER / f"MVP_R4.1000G_AGR.{stem}.GIA.dbGaP.{suffix}"
 
     def data(self, accession: str) -> Path:
-        bucket = self.root / "gwas-ssf"
+        return self.data_from(self.root, accession)
+
+    def data_from(self, root: Path, accession: str) -> Path:
+        bucket = root / "gwas-ssf"
         found = list(bucket.glob(f"*/{accession}/{accession}.tsv.gz"))
         self.assertEqual(len(found), 1, f"expected one data file for {accession}, found {found}")
         return found[0]
@@ -349,12 +352,55 @@ class AcquisitionTest(unittest.TestCase):
         self.assertEqual(mapping["GCST90479504"]["member"], f"{INNER}/MVP_R4.1000G_AGR.Albumin_Mean_INT.META.GIA.dbGaP.txt.gz")
         self.assertEqual(self.rows(self.root / "mapping-report.tsv"), [])
 
-    def test_05_map_requires_a_complete_bijection(self) -> None:
+    def test_05_map_uses_a_uniquely_named_data_member_from_another_toc(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="dbgap-cross-tar-") as tmp:
+            root = Path(tmp) / "root"
+            candidates = build_fixture(root)
+            result = run(root, "extract")
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+
+            original = (
+                root / "GIA" / "extracted" / INNER /
+                "MVP_R4.1000G_AGR.A1C_Min_INT.EUR.GIA.dbGaP.txt.gz"
+            )
+            other_inner = "MVP_R4.1000G_AGR.GIA.Other"
+            moved = original.parents[1] / other_inner / original.name
+            moved.parent.mkdir(parents=True)
+            original.replace(moved)
+
+            original_member = f"{INNER}/{original.name}"
+            moved_member = f"{other_inner}/{original.name}"
+            toc = root / "GIA" / "meta" / f"{TAR}.table_of_contents.txt"
+            toc_text = toc.read_text(encoding="utf-8")
+            kept = [line for line in toc_text.splitlines() if original_member not in line]
+            toc.write_text("\n".join(kept) + "\n", encoding="utf-8")
+            other_tar = "phs002453.MVP_R4.1000G_AGR.GIA.Other.analysis-PI.MULTI.tar"
+            (root / "GIA" / "meta" / f"{other_tar}.table_of_contents.txt").write_text(
+                f"-rw-rw-r-- huffmanj/med112 {moved.stat().st_size} 2023-08-22 11:27 {moved_member}\n",
+                encoding="utf-8",
+            )
+
+            result = run(root, "map", "--candidates", str(candidates), "--allow-partial")
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            mapping = {row["analysis_id"]: row for row in self.rows(root / "mapping.tsv")}
+            self.assertEqual(mapping["GCST90475097"]["member"], moved_member)
+            self.assertEqual(mapping["GCST90475097"]["tar"], other_tar)
+
+            result = run(root, "convert", "--candidates", str(candidates), "--analysis", "GCST90475097")
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            import yaml
+
+            metadata_yaml = self.data_from(root, "GCST90475097").with_name("GCST90475097.tsv.gz-meta.yaml")
+            document = yaml.safe_load(metadata_yaml.read_text(encoding="utf-8"))
+            self.assertEqual(document["source"]["member"], moved_member)
+            self.assertIn("GWAS of A1C_Min_INT", document["dbgap_analysis_description"])
+
+    def test_06_map_requires_a_complete_bijection(self) -> None:
         result = run(self.root, "map", "--candidates", str(self.candidates))
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("not a complete bijection", result.stderr)
 
-    def test_06_map_reports_ambiguous_and_unmatched(self) -> None:
+    def test_07_map_reports_ambiguous_and_unmatched(self) -> None:
         # A second candidate row with the same (ancestry, N, cases, controls)
         # and the same trait text cannot be told apart from the first.
         ambiguous = [dict(row) for row in CANDIDATES]
