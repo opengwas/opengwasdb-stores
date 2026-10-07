@@ -354,6 +354,14 @@ ADR 0023).
 
 **Staged release transaction lifecycle.** A release executes entirely against `store.opengwasdb.partial` across all steps: `build` or `complete` creates `store.opengwasdb.partial`, and every mutating post-step (`top-hits`, `rho`, `overview`) as well as `validate` operates directly on that staged `.partial` path. Only upon successful terminal validation/finalization is `store.opengwasdb.partial` published (atomically renamed) to the final `store.opengwasdb` path. If any step fails or is interrupted, `store.opengwasdb.partial` is retained for debugging or resumption, and any pre-existing final Store and `validation.yaml` remain completely untouched without needing whole-Store copying. `force=True` replacement applies only at this terminal publication moment.
 
+**A published release is not rebuilt by accident.** Before its first job starts, the workflow refuses a run that would execute any job for a release whose final `store.opengwasdb` already exists. It names each such release and its Store, and writes nothing (#195). A fresh checkout is enough to cause such a run: every bundle file is then newer than the records beside its published Store, so Snakemake schedules the whole chain again. Without the refusal, that run rebuilt into `.partial`, rewrote the release's `work/` and `records/`, and only then failed at publication. The Store survived, but its step evidence no longer described it.
+
+The check runs in the Snakefile's `onstart` hook, over the jobs Snakemake has decided to run (`run.refuse_rebuilding_published_releases`). It cannot run inside a job, because Snakemake deletes a job's existing outputs before running it: by the time the build job could check, that release's `records/build.json` would already be gone. Two kinds of run are unaffected, because neither schedules a job for the published release: re-running an up-to-date release, and building a new Reference-Completed child of an up-to-date published parent. Hooks don't run under `--dry-run`, so `pixi run release-dry` still lists the jobs that the real run will refuse. `--no-hooks` disables the check.
+
+The workflow has no supported way to replace a published release yet. `register.register_release()` and `run.publish_store()` accept `force=True`, but no workflow configuration reaches it. Two questions are open (#195):
+- where a forced run's step records live until publication, so that a run failing part-way leaves `records/` still describing the existing Store;
+- what happens to the replaced Store, which `force=True` publication currently deletes once the swap succeeds.
+
 **`validation.yaml` is written only by the terminal `register` step.** A failed run leaves the previous one intact.
 
 ## `workflow/Snakefile`

@@ -24,6 +24,9 @@ Staged release transaction lifecycle (ADR 0022, ADR 0023):
   exists). Premature publication or publication on plans lacking 'validate' is rejected.
 * Force timing: Staging in `store.opengwasdb.partial` is permitted beside an existing
   final Store without force; `force=True` is required only at terminal publication.
+  The workflow itself never gets that far for a published release: before its first
+  job starts it refuses a run that would rebuild one
+  (`refuse_rebuilding_published_releases`, #195).
 * Zero contamination: Any failed or interrupted step leaves any pre-existing final
   Store and `validation.yaml` completely untouched without needing whole-Store copying.
   A failed new release leaves no final Store.
@@ -65,7 +68,7 @@ import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 from ogstores import paths
 from ogstores.bundle import Bundle
@@ -640,6 +643,38 @@ def publish_store(
     _recover_pending_backup(store_id, resolved_root)
     _safe_publish_partial_store(partial_p, target_p, backup_p, force=force)
     return target_p
+
+
+def refuse_rebuilding_published_releases(
+    scheduled: Iterable[tuple[Path | str, str]],
+) -> None:
+    """Refuse a workflow run that would execute a job for a published release (#195).
+
+    `scheduled` is the (artifact root, store_id) of every job the run is about
+    to execute. The workflow calls this before its first job starts, because
+    Snakemake deletes a job's existing outputs before running it: a check made
+    inside the job would already have cost the release its records. An
+    up-to-date release schedules no job, so it never reaches this check.
+
+    The workflow has no supported way to replace a published release yet, so
+    a release whose final Store exists is refused rather than rebuilt beside
+    it and then rejected at publication.
+    """
+    published = sorted({
+        (store_id, str(paths.store_path(store_id, root=root)))
+        for root, store_id in scheduled
+        if paths.is_valid_store_id(store_id)
+        and _lstat_exists(paths.store_path(store_id, root=root))
+    })
+    if published:
+        listed = "\n".join(f"  {store_id}: {store_p}" for store_id, store_p in published)
+        raise StoreExistsError(
+            "Refusing to run: these releases are already published, and this run would "
+            "rebuild them, rewriting their work/ and records/ before publication refused "
+            f"to replace the Store:\n{listed}\n"
+            "Nothing was written. The workflow cannot replace a published release yet "
+            "(opengwas/opengwasdb-stores#195)."
+        )
 
 
 def _read_exec_status(fd: int) -> str:
@@ -1225,6 +1260,7 @@ __all__ = [
     "is_store_producing_step",
     "load_record",
     "publish_store",
+    "refuse_rebuilding_published_releases",
     "rewrite_argv_for_staging",
     "rewrite_argv_for_variant_reference",
     "run_plan",

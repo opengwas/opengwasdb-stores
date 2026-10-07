@@ -29,6 +29,13 @@ placeholders. Post-steps follow the selected command's Store-format support:
 `rho` is Dense-only, and `overview` is Dense/Hybrid-only because Ragged's
 closed Store envelope excludes `overview.html`.
 
+A release that is already published is refused rather than rebuilt (#195). If
+a run would execute any job for a release whose `store.opengwasdb` exists (a
+fresh checkout is enough, because its bundle files are newer than the records),
+the run stops before its first job. It names the release and writes nothing.
+An up-to-date release is still a no-op. The workflow cannot replace a published
+release yet.
+
 ### Production Execution vs. Fixture-Scale Tests
 
 - **Workflow tests (`tests/workflow/`) are fixture-scale**: they exercise DAG wiring, command line composition, transaction staging (`.partial`), publication gating, and step resumption using temporary mock bundles and mock executables without requiring multi-gigabyte production data or reference panels.

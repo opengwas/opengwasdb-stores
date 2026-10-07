@@ -114,6 +114,17 @@ wildcard_constraints:
     step="|".join(EXECUTION_STEPS)
 
 
+onstart:
+    # Before the first job starts, refuse a run that would rebuild a published
+    # release. Snakemake deletes a job's outputs before running it, so a check
+    # inside the job would already have cost that release its records (#195).
+    run.refuse_rebuilding_published_releases(
+        (job.wildcards_dict["root"], job.wildcards_dict["store_id"])
+        for job in workflow.dag.needrun_jobs()
+        if {"root", "store_id"} <= job.wildcards_dict.keys()
+    )
+
+
 rule all:
     input:
         [record(sid, "register") for sid in ALL_STORE_IDS]

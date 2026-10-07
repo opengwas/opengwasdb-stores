@@ -18,6 +18,7 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
    - Requesting only a Reference-Completed child also builds its parent first via lineage input edge.
    - The index target proposes 0 build jobs (depends only on bundle files).
 7. End-to-end fixture build, idempotency, interruption resumption, and record deletion.
+8. A run that would rebuild a published release is refused before any job writes (#195).
 """
 
 from __future__ import annotations
@@ -551,6 +552,51 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         self.assertTrue((rec_dir / "validate.json").is_file())
         self.assertTrue((rec_dir / "register.json").is_file())
         self.assertTrue(paths.store_path(store_id, root=self.artifact_root).is_dir())
+
+    def test_rebuilding_a_published_release_is_refused_before_any_job_writes(self) -> None:
+        """A run that would rebuild a published release refuses before any job runs (#195).
+
+        A fresh checkout gives every bundle file a newer mtime than the records
+        beside its published Store, so Snakemake schedules the whole chain
+        again. Before #195 that run rebuilt into `.partial`, rewrote the
+        release's `work/` and `records/`, and only then failed at publication
+        with `StoreExistsError`: the Store survived, its evidence did not.
+        """
+        store_id = self.STORE_ID
+        self.use_completed_build()
+        store_dir = paths.store_dir(store_id, root=self.artifact_root)
+        validation_p = self.stores_dir / store_id / "validation.yaml"
+
+        def snapshot() -> dict[str, tuple[int, bytes]]:
+            files = [p for p in store_dir.rglob("*") if p.is_file()] + [validation_p]
+            return {str(p): (p.stat().st_mtime_ns, p.read_bytes()) for p in files}
+
+        # Age the published release by a day, keeping its files' relative
+        # order, so the bundle is newer than its records as after a checkout.
+        day_ns = 86_400 * 10**9
+        for p in store_dir.rglob("*"):
+            if p.is_file():
+                st = p.stat()
+                os.utime(p, ns=(st.st_atime_ns - day_ns, st.st_mtime_ns - day_ns))
+
+        res_dry = run_snakemake(
+            [store_id],
+            registry_root=self.stores_dir,
+            artifact_root=self.artifact_root,
+            dry_run=True,
+        )
+        self.assertEqual(res_dry.returncode, 0, res_dry.stderr)
+        self.assertIn("build", scheduled_targets(res_dry.stdout), "the fixture must schedule a rebuild")
+
+        before = snapshot()
+        res = run_snakemake([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+
+        self.assertNotEqual(res.returncode, 0, f"a rebuild of a published release must be refused:\n{res.stdout}")
+        output = res.stdout + res.stderr
+        self.assertIn(f"{store_id}: {paths.store_path(store_id, root=self.artifact_root)}", output)
+        self.assertIn("Nothing was written", output)
+        self.assertEqual(snapshot(), before, "the refused run changed the published release's files")
+        self.assertFalse(paths.partial_store_path(store_id, root=self.artifact_root).exists())
 
     def test_deleting_single_record_file_reruns_exact_step_and_downstream(self) -> None:
         """Deleting records/validate.json triggers only validate, register, and store target in dry-run."""

@@ -33,6 +33,9 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
    - Re-running after an interrupted step resumes from the missing step rather than starting from scratch.
    - Deleting a single record file re-runs exactly that step and its downstream dependents.
 
+7. **A published release is not rebuilt by accident (#195)**:
+   - A run that would rebuild a release whose final Store exists fails before any job starts. It names the release and its Store, and leaves every file of that release, and its `validation.yaml`, byte-for-byte and mtime-for-mtime unchanged, with no `.partial` staged.
+
 ## Running the suite
 
 ```sh
