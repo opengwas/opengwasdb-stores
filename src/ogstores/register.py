@@ -203,37 +203,65 @@ def _extract_json_from_text(text: str) -> dict[str, Any] | None:
     return None
 
 
+# The object `opengwasdb validate --format json` prints at the pinned revision:
+# {"ok": bool, "errors": [str], "warnings": [str]}, with ok == (not errors), and
+# exit 1 exactly when not ok (opengwasdb#175; cli/main.py validate_command).
+VALIDATE_JSON_KEYS: frozenset[str] = frozenset({"ok", "errors", "warnings"})
+
+
 def validate_verdict(validate_record: dict[str, Any] | None) -> tuple[str, list[str], list[str]]:
     """This run's validate verdict, warnings and errors, read from `--format json`.
 
-    `opengwasdb validate --format json` prints one object, `{"ok", "errors",
-    "warnings"}` (opengwasdb#175). The verdict follows from it exactly: `failed`
-    when not ok, `passed_with_warnings` when it reported a warning, `passed`
-    otherwise. A plan without a validate step has no verdict, so it is
-    `not_run` rather than an assumed pass.
+    The record's stdout must be exactly the one JSON object the pinned CLI
+    prints, `{"ok", "errors", "warnings"}`, with nothing before or after it, no
+    other key, a boolean `ok`, and lists of strings. It must also agree with
+    itself and with the step: `ok` is true exactly when `errors` is empty, and
+    the step exited 0 and succeeded exactly when `ok` (#195). Then the verdict
+    is `failed` when not ok, `passed_with_warnings` when it reported a warning,
+    and `passed` otherwise. A plan without a validate step has no verdict, so it
+    is `not_run` rather than an assumed pass.
 
-    Text output is refused rather than searched for the word "warning" (#195):
-    a record that does not carry the JSON verdict was not produced by the
-    planned argv, and guessing its verdict would be a wrong answer that looks
-    like a right one.
+    Anything else is refused with `ValidateVerdictError`, never coerced or
+    searched for the word "warning": a record the pinned CLI could not have
+    written would otherwise become a wrong answer that looks like a right one.
     """
     if validate_record is None:
         return "not_run", [], []
-    payload = _extract_json_from_text(validate_record.get("stdout", ""))
-    if (
-        payload is None
-        or not isinstance(payload.get("ok"), bool)
-        or not isinstance(payload.get("errors"), list)
-        or not isinstance(payload.get("warnings"), list)
-    ):
-        raise ValidateVerdictError(
-            "The validate record carries no `opengwasdb validate --format json` verdict "
-            "(an object with boolean `ok` and list `errors` and `warnings`) on stdout: "
-            f"{validate_record.get('record_path') or 'records/validate.json'}"
+    where = validate_record.get("record_path") or "records/validate.json"
+
+    def refuse(reason: str) -> ValidateVerdictError:
+        return ValidateVerdictError(
+            f"The validate record {where} does not carry the verdict `opengwasdb validate "
+            f"--format json` prints: {reason}"
         )
-    errors = [str(e) for e in payload["errors"]]
-    warnings = [str(w) for w in payload["warnings"]]
-    if not payload["ok"]:
+
+    stdout = validate_record.get("stdout")
+    if not isinstance(stdout, str):
+        raise refuse("its stdout is not text")
+    try:
+        payload = json.loads(stdout)
+    except json.JSONDecodeError as exc:
+        raise refuse(f"its stdout is not exactly one JSON object ({exc.msg})") from exc
+    if not isinstance(payload, dict):
+        raise refuse(f"its stdout is a JSON {type(payload).__name__}, not an object")
+    if set(payload) != VALIDATE_JSON_KEYS:
+        raise refuse(f"expected exactly the keys {sorted(VALIDATE_JSON_KEYS)}, got {sorted(payload)}")
+    ok, errors, warnings = payload["ok"], payload["errors"], payload["warnings"]
+    if not isinstance(ok, bool):
+        raise refuse(f"`ok` is {ok!r}, not a boolean")
+    for name, items in (("errors", errors), ("warnings", warnings)):
+        if not isinstance(items, list) or not all(isinstance(item, str) for item in items):
+            raise refuse(f"`{name}` is {items!r}, not a list of strings")
+    if ok != (not errors):
+        raise refuse(f"`ok` is {ok} with {len(errors)} error(s); the CLI sets ok exactly when there are none")
+    expected_exit = 0 if ok else 1
+    exit_code, success = validate_record.get("exit_code"), validate_record.get("success")
+    if exit_code != expected_exit or success is not ok:
+        raise refuse(
+            f"`ok: {str(ok).lower()}` means exit code {expected_exit} and success {ok}, "
+            f"but the record has exit code {exit_code!r} and success {success!r}"
+        )
+    if not ok:
         return "failed", warnings, errors
     if warnings:
         return "passed_with_warnings", warnings, errors
@@ -354,20 +382,8 @@ def harvest_observed_measurements(
             if m_ana:
                 n_analyses = int(m_ana.group(1))
 
-    # 2. Harvest measurements from the validate record; its verdict is above
-    if "validate" in step_records:
-        val_json = _extract_json_from_text(step_records["validate"].get("stdout", ""))
-        if val_json:
-            if "format_version" in val_json:
-                format_version = str(val_json["format_version"])
-            if "n_variants" in val_json and isinstance(val_json["n_variants"], int):
-                n_variants = val_json["n_variants"]
-            if "n_analyses" in val_json and isinstance(val_json["n_analyses"], int):
-                n_analyses = val_json["n_analyses"]
-            if "n_associations" in val_json and isinstance(val_json["n_associations"], int):
-                n_associations = val_json["n_associations"]
-            if "store_bytes" in val_json and isinstance(val_json["store_bytes"], int):
-                store_bytes = val_json["store_bytes"]
+    # 2. The validate record carries only its verdict: its JSON has exactly the
+    # keys `validate_verdict` accepts, so it reports no measurement (#195).
 
     # Fallback for n_analyses from the derived build manifest, if the builder did
     # not print it. Count the built manifest, never the bundle's audit table:

@@ -27,7 +27,7 @@ Test suite for `ogstores.register` (Issue #117), governed by [ADR 0022](../../do
 
 7. **Only this run's findings (#195)**:
    - The verdict, `checks` (`{store: <verdict>}`), `warnings` and `errors` come from this run's `opengwasdb validate --format json` record, exactly. A bundle whose previous `validation.yaml` carries stale checks, a reports pointer and 30 warnings registers with none of them.
-   - A validate record without that JSON verdict is refused (`ValidateVerdictError`), leaving `validation.yaml` untouched; text output is never searched for the word "warning".
+   - `validate_verdict` accepts exactly the pinned CLI's object: no other output or keys, a boolean `ok`, string lists, `ok == (not errors)`, and an exit code and success that agree with `ok`. The full matrix is covered: passing, warning, failing, 14 malformed outputs and 6 contradictions. Any other record raises `ValidateVerdictError`, leaving `validation.yaml` untouched; text output is never searched for the word "warning".
 
 8. **Phase B acceptance evidence is kept apart (#195)**:
    - A candidate record's `checks`, `warnings`, `reports` and `reference_overlap` appear verbatim under a dated `acceptance` block with the candidate's commit, and never in the run's `status`, `checks`, `warnings` or `errors`.

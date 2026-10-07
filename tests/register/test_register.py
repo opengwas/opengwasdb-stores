@@ -260,24 +260,19 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
         self.assertEqual(val_data["observed"]["n_analyses"], 2)
 
     def test_observed_measurements_harvested_from_records(self) -> None:
-        """Observed measurements are accurately harvested from stdout payloads across all steps."""
+        """Measurements come from the build record; validate's JSON carries only its verdict (#195)."""
         b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00043")
 
-        # Customize validate stdout to carry rich measurements
-        val_rec_p = paths.record_path("OGS-00043", "validate", root=artifact_root)
-        val_rec = json.loads(val_rec_p.read_text(encoding="utf-8"))
-        val_rec["stdout"] = json.dumps({
-            "errors": [],
-            "ok": True,
-            "warnings": [],
+        build_rec_p = paths.record_path("OGS-00043", "build", root=artifact_root)
+        build_rec = json.loads(build_rec_p.read_text(encoding="utf-8"))
+        build_rec["stdout"] = json.dumps({
             "format_version": "1.0",
             "n_variants": 12500,
             "n_analyses": 50,
             "n_associations": 625000,
-            "store_bytes": 10485760,
         }) + "\n"
-        val_rec["elapsed_seconds"] = 10.5
-        run._write_record_atomically(val_rec, val_rec_p)
+        build_rec["elapsed_seconds"] = 10.5
+        run._write_record_atomically(build_rec, build_rec_p)
 
         val_data = register_release(b, registry_root=stores_root, artifact_root=artifact_root)
         obs = val_data["observed"]
@@ -286,7 +281,7 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
         self.assertEqual(obs["n_variants"], 12500)
         self.assertEqual(obs["n_analyses"], 50)
         self.assertEqual(obs["n_associations"], 625000)
-        self.assertEqual(obs["store_bytes"], 10485760)
+        self.assertIsNone(obs["store_bytes"], "no step reports a Store size")
         self.assertEqual(obs["validate_status"], "passed")
         self.assertGreater(obs["build_elapsed_s"], 10.0)
 
@@ -441,6 +436,106 @@ CANDIDATE_RECORD: dict[str, Any] = {
     ],
     "errors": [],
 }
+
+
+def validate_record(stdout: str, exit_code: int = 0, success: bool | None = None) -> dict[str, Any]:
+    """A validate step record as run.py writes it, with what the CLI printed."""
+    return {
+        "step": "validate",
+        "exit_code": exit_code,
+        "success": (exit_code == 0) if success is None else success,
+        "stdout": stdout,
+        "stderr": "",
+        "record_path": "/artifacts/OGS-00063/records/validate.json",
+    }
+
+
+def verdict_json(ok: Any, errors: Any, warnings: Any, **extra: Any) -> str:
+    """What `opengwasdb validate --format json` prints: one sorted object and a newline."""
+    return json.dumps({"ok": ok, "errors": errors, "warnings": warnings, **extra}, sort_keys=True) + "\n"
+
+
+class TestValidateVerdictContract(unittest.TestCase):
+    """`validate_verdict` accepts exactly the pinned CLI's JSON contract and nothing else (#195)."""
+
+    def test_passing_warning_and_failing_verdicts(self) -> None:
+        cases = {
+            "passing": (validate_record(verdict_json(True, [], [])), ("passed", [], [])),
+            "warning": (
+                validate_record(verdict_json(True, [], ["EAF orientation unverified"])),
+                ("passed_with_warnings", ["EAF orientation unverified"], []),
+            ),
+            "failing": (
+                validate_record(verdict_json(False, ["tabix cannot fetch 23:1:A:G"], ["w"]), exit_code=1),
+                ("failed", ["w"], ["tabix cannot fetch 23:1:A:G"]),
+            ),
+        }
+        for name, (record, expected) in cases.items():
+            with self.subTest(name):
+                self.assertEqual(register.validate_verdict(record), expected)
+
+    def test_no_validate_step_is_not_run(self) -> None:
+        self.assertEqual(register.validate_verdict(None), ("not_run", [], []))
+
+    def test_malformed_output_is_refused(self) -> None:
+        one = verdict_json(True, [], []).strip()
+        cases = {
+            "text output": "valid\n",
+            "empty output": "",
+            "two objects": one + "\n" + one + "\n",
+            "object then text": one + "\nvalid\n",
+            "text then object": "valid\n" + one + "\n",
+            "a JSON array": "[]\n",
+            "missing warnings": json.dumps({"ok": True, "errors": []}) + "\n",
+            "an extra key": verdict_json(True, [], [], format_version="0.1.0"),
+            "ok as a string": verdict_json("true", [], []),
+            "ok as a number": verdict_json(1, [], []),
+            "errors as a string": verdict_json(True, "", []),
+            "warnings as a dict": verdict_json(True, [], {}),
+            "a non-string warning": verdict_json(True, [], [1]),
+            "a null error": verdict_json(False, [None], [], ),
+        }
+        for name, stdout in cases.items():
+            with self.subTest(name):
+                exit_code = 1 if name == "a null error" else 0
+                with self.assertRaises(register.ValidateVerdictError):
+                    register.validate_verdict(validate_record(stdout, exit_code=exit_code))
+
+    def test_contradictory_records_are_refused(self) -> None:
+        cases = {
+            "ok with an error": validate_record(verdict_json(True, ["fatal"], [])),
+            "not ok without an error": validate_record(verdict_json(False, [], []), exit_code=1),
+            "ok but exit 1": validate_record(verdict_json(True, [], []), exit_code=1, success=False),
+            "not ok but exit 0": validate_record(verdict_json(False, ["fatal"], []), exit_code=0, success=False),
+            "ok but not a success": validate_record(verdict_json(True, [], []), exit_code=0, success=False),
+            "not ok but a success": validate_record(verdict_json(False, ["fatal"], []), exit_code=1, success=True),
+        }
+        for name, record in cases.items():
+            with self.subTest(name):
+                with self.assertRaises(register.ValidateVerdictError):
+                    register.validate_verdict(record)
+
+
+class TestRegisterRefusesAContradictoryVerdict(unittest.TestCase):
+    """A contradictory validate record stops registration before anything is written (#195)."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.td = Path(self.temp_dir.name)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def test_ok_with_errors_is_not_registered_as_passed(self) -> None:
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00063")
+        set_validate_output(b.store_id, artifact_root, verdict_json(True, ["fatal"], []))
+
+        with self.assertRaises(register.ValidateVerdictError):
+            register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+
+        self.assertFalse((b.root / "validation.yaml").exists())
+        self.assertFalse(paths.store_path(b.store_id, root=artifact_root).exists())
+        self.assertFalse(paths.record_path(b.store_id, "register", root=artifact_root).exists())
 
 
 class TestRegisterKeepsPhaseBAcceptanceApart(unittest.TestCase):

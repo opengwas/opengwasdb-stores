@@ -523,7 +523,7 @@ The verdict is read from `opengwasdb validate --format json`, which the planned 
 - `warnings` and `errors` are those two lists, as printed;
 - a plan with no validate step records `not_run`.
 
-A validate record without that JSON is refused with `ValidateVerdictError` and nothing is written. Its text output is never searched for the word "warning" (#195).
+`register` accepts only what the pinned CLI can print. stdout must be exactly that one object, with no other output and no other key, a boolean `ok`, and lists of strings. `ok` must be true exactly when `errors` is empty, and the step must have exited 0 and succeeded exactly when `ok` is true. Any other record is refused with `ValidateVerdictError` and nothing is written: malformed, extra, coerced or self-contradictory output, such as `ok: true` with an error. Text output is never searched for the word "warning" (#195).
 
 The record describes this run and no other. `register` replaces the bundle's previous `validation.yaml`; it never merges with it. The old record's `checks`, `warnings`, `errors` and `reports` describe another run, and republishing them under a new `validated_at` would present them as current (#195).
 
