@@ -485,7 +485,8 @@ The candidate's Phase B acceptance evidence is kept in its own labelled
 `acceptance` block, apart from those findings, and nothing in it feeds them
 (#195). `register` fills the block in one of three ways:
 - **From a candidate record** (one whose `validator.name` is not
-  `opengwasdb validate`): its `checks`, `warnings` and `reports`, verbatim. The
+  `opengwasdb validate`): its `checks`, `warnings`, `reports` and
+  `reference_overlap`, verbatim. The
   block is dated by the candidate's own `validated_at` and tied to the commit
   that record came from.
 - **From a `register`-written record:** its `acceptance` block is passed on
@@ -494,9 +495,9 @@ The candidate's Phase B acceptance evidence is kept in its own labelled
   mix Phase B evidence with an earlier build's findings, so nothing is
   extracted from them; git keeps them.
 
-Only those three fields are carried. Any other top-level key a generator
-writes, such as OGS-00011's `reference_overlap`, is not; its sidecar stays in
-the bundle.
+Only those four named fields are carried; a new kind of Phase B evidence is
+added here by name, never swept up as "everything else". `reference_overlap` is
+the top-level block OGS-00011's generator writes.
 
 A `built` or `validated` release must carry a `validation.yaml` whose `status`
 is one of `not_run`, `passed`, `passed_with_warnings`, or `failed`;
@@ -540,7 +541,7 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `acceptance` | No | The accepted bundle's Phase B acceptance evidence, kept apart from this run's findings (#195). See above for when `register` writes it. Absent when there is none to keep. |
 | `acceptance.recorded_at` | Yes, in the block | The candidate record's own `validated_at`. |
 | `acceptance.commit` | Yes, in the block | The commit the candidate record came from, or `null` when the file was untracked or modified since its last commit, so no commit describes it. |
-| `acceptance.checks`, `acceptance.warnings`, `acceptance.reports` | Yes, in the block | The candidate record's `checks`, `warnings` and `reports`, verbatim (`null` where it had none). |
+| `acceptance.checks`, `acceptance.warnings`, `acceptance.reports`, `acceptance.reference_overlap` | Yes, in the block | The candidate record's `checks`, `warnings`, `reports` and `reference_overlap`, verbatim (`null` where it had none). |
 
 The record's top-level `status` is the release-level verdict, and the generated
 master list publishes that value and no other. A per-check entry in `checks`

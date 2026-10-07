@@ -30,7 +30,7 @@ Test suite for `ogstores.register` (Issue #117), governed by [ADR 0022](../../do
    - A validate record without that JSON verdict is refused (`ValidateVerdictError`), leaving `validation.yaml` untouched; text output is never searched for the word "warning".
 
 8. **Phase B acceptance evidence is kept apart (#195)**:
-   - A candidate record's `checks`, `warnings` and `reports` appear verbatim under a dated `acceptance` block with the candidate's commit, and never in the run's `status`, `checks`, `warnings` or `errors`.
+   - A candidate record's `checks`, `warnings`, `reports` and `reference_overlap` appear verbatim under a dated `acceptance` block with the candidate's commit, and never in the run's `status`, `checks`, `warnings` or `errors`.
    - A re-registration passes the block on verbatim; a migrated register-shape record without one gives none.
    - `committed_revision` returns a file's commit only when the file on disk is that commit's.
 

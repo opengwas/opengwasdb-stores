@@ -429,6 +429,12 @@ CANDIDATE_RECORD: dict[str, Any] = {
     "observed": {"format_version": None, "validate_status": None},
     "checks": {"schema": "passed", "files": "passed", "ancestry": "passed_with_warnings", "sd_estimation": "passed_with_warnings"},
     "reports": {"ancestry": "sidecars/ancestry.tsv", "sd_estimation": "sidecars/sd_estimation.tsv"},
+    # OGS-00011's generator also writes this top-level block of Phase B evidence.
+    "reference_overlap": {
+        "low_overlap_threshold": 0.05,
+        "included_measured": 3317,
+        "ancestry_low_overlap_analyses": ["GCST003898", "GCST005898"],
+    },
     "warnings": [
         "1162 Analysis/Analyses excluded by ancestry policy (unassigned, non-target, or orientation failure); see sidecars/exclusions.tsv",
         "173 included Analysis/Analyses have a high-dispersion SD estimate; see sidecars/sd_estimation.tsv",
@@ -479,8 +485,10 @@ class TestRegisterKeepsPhaseBAcceptanceApart(unittest.TestCase):
                 "checks": CANDIDATE_RECORD["checks"],
                 "warnings": CANDIDATE_RECORD["warnings"],
                 "reports": CANDIDATE_RECORD["reports"],
+                "reference_overlap": CANDIDATE_RECORD["reference_overlap"],
             },
         )
+        self.assertNotIn("reference_overlap", written, "Phase B evidence stays inside the block")
         for warning in CANDIDATE_RECORD["warnings"]:
             self.assertNotIn(warning, written["warnings"])
         self.assertEqual(written["warnings"], [])
