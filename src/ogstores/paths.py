@@ -179,6 +179,23 @@ FORCE_SNAPSHOT_PREFIX: str = "records.before-force-"
 REPLACED_DIRNAME: str = "replaced"
 
 
+PUBLICATION_MARKER: str = "publication.json"
+
+
+def publication_marker(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
+    """A pending publication's durable marker: `<root>/<store_id>/publication.json` (#195).
+
+    It exists from the moment `register` commits to publishing until the Store,
+    the archive, the Validation Record and `records/register.json` all agree.
+    """
+    return store_dir(store_id, root=root) / PUBLICATION_MARKER
+
+
+def backup_store_path(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
+    """Where a replaced Store waits between swap and archive: `<root>/<store_id>/store.opengwasdb.backup`."""
+    return store_dir(store_id, root=root) / "store.opengwasdb.backup"
+
+
 def force_snapshot_path(
     store_id: str, stamp: str, root: Path | str = DEFAULT_ARTIFACT_ROOT
 ) -> Path:
@@ -212,11 +229,13 @@ __all__ = [
     "ARTIFACT_ROOT_ENV_VAR",
     "DEFAULT_ARTIFACT_ROOT",
     "FORCE_SNAPSHOT_PREFIX",
+    "PUBLICATION_MARKER",
     "REPLACED_DIRNAME",
     "REPO_CONFIG_FILENAME",
     "REPO_ROOT",
     "STORE_ID_PATTERN",
     "artifact_root",
+    "backup_store_path",
     "build_manifest_path",
     "build_manifest_sidecar_path",
     "by_label_dir",
@@ -225,6 +244,7 @@ __all__ = [
     "is_valid_store_id",
     "parent_store_path",
     "partial_store_path",
+    "publication_marker",
     "record_path",
     "records_dir",
     "release_root",

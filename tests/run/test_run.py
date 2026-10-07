@@ -1182,8 +1182,8 @@ class TestPublicationRollbackAndCrashRecovery(unittest.TestCase):
         self.assertEqual(len(archived), 1, archived)
         self.assertEqual((archived[0] / "version.txt").read_text(), "v1")
 
-    def test_archive_rename_failure_retains_the_backup_and_recovery_archives_it(self) -> None:
-        """If the old Store cannot be archived after the swap, it stays as .backup; recovery archives it."""
+    def test_archive_rename_failure_is_raised_and_recovery_archives_the_backup(self) -> None:
+        """An archive failure after the swap is raised, not swallowed; recovery archives the backup (#195)."""
         target_store = paths.store_path(self.store_id, root=self.root)
         target_store.mkdir(parents=True, exist_ok=True)
         (target_store / "version.txt").write_text("v1")
@@ -1200,9 +1200,11 @@ class TestPublicationRollbackAndCrashRecovery(unittest.TestCase):
             return original_rename(self_path, target_dest)
 
         with patch.object(Path, "rename", side_effect=failing_rename, autospec=True):
-            run._safe_publish_partial_store(partial_store, target_store, backup_store, force=True)
+            with self.assertRaises(RuntimeError) as ctx:
+                run._safe_publish_partial_store(partial_store, target_store, backup_store, force=True)
         record_check()
 
+        self.assertIn(str(backup_store), str(ctx.exception))
         self.assertEqual((target_store / "version.txt").read_text(), "v2")
         self.assertEqual((backup_store / "version.txt").read_text(), "v1", "the old Store is retained")
 
@@ -1212,6 +1214,22 @@ class TestPublicationRollbackAndCrashRecovery(unittest.TestCase):
         archived = list((paths.store_dir(self.store_id, root=self.root) / "replaced").glob("*/store.opengwasdb"))
         self.assertEqual(len(archived), 1, "recovery archives the retained Store rather than deleting it")
         self.assertEqual((archived[0] / "version.txt").read_text(), "v1")
+
+
+    def test_backup_recovery_defers_to_a_pending_publication(self) -> None:
+        """A .backup that belongs to publication.json is left for complete_publication (#195)."""
+        target_store = paths.store_path(self.store_id, root=self.root)
+        backup_store = paths.backup_store_path(self.store_id, root=self.root)
+        backup_store.mkdir(parents=True)
+        (backup_store / "version.txt").write_text("v1")
+        paths.partial_store_path(self.store_id, root=self.root).mkdir()
+        paths.publication_marker(self.store_id, root=self.root).write_text("{}")
+
+        with self.assertRaises(run.PublicationPendingError):
+            run._recover_pending_backup(self.store_id, self.root)
+        record_check()
+        self.assertEqual((backup_store / "version.txt").read_text(), "v1")
+        self.assertFalse(target_store.exists(), "recovery must not guess which way the publication goes")
 
 
 class TestForcedRunGuard(unittest.TestCase):
@@ -1315,22 +1333,55 @@ class TestForcedRunGuard(unittest.TestCase):
         self.assertFalse(paths.replaced_dir("OGS-00005", self.STAMP, root=self.root).exists())
         record_check()
 
-    def test_a_failure_after_publication_archives_the_snapshot_instead(self) -> None:
-        """Once the old Store is archived, the old records belong with it, not beside the new Store."""
+    def test_settlement_refuses_a_snapshot_of_a_pending_publication(self) -> None:
+        """Only complete_publication may move a snapshot that a pending publication names."""
         records = self.publish("OGS-00005")
         before = self.contents(records)
         snapshots = run.prepare_release_run(
             [(self.root, "OGS-00005")], forced=frozenset({"OGS-00005"}), stamp=self.STAMP
         )
-        archive = paths.replaced_dir("OGS-00005", self.STAMP, root=self.root)
-        (archive / "store.opengwasdb").mkdir(parents=True)
-        (records / "build.json").write_text('{"step": "build", "new": true}\n')
+        paths.publication_marker("OGS-00005", root=self.root).write_text("{}")
 
-        run.settle_force_snapshots(snapshots, succeeded=False)
+        for succeeded in (True, False):
+            with self.assertRaises(run.PublicationPendingError):
+                run.settle_force_snapshots(snapshots, succeeded=succeeded)
+        self.assertEqual(self.contents(snapshots[0]), before)
+        record_check()
 
-        self.assertEqual(self.contents(archive / "records"), before)
-        self.assertEqual((records / "build.json").read_text(), '{"step": "build", "new": true}\n')
-        self.assertFalse(snapshots[0].exists())
+    def test_preflight_refuses_a_pending_publication(self) -> None:
+        self.publish("OGS-00005")
+        paths.publication_marker("OGS-00005", root=self.root).write_text("{}")
+        with self.assertRaises(run.PublicationPendingError):
+            run.prepare_release_run([(self.root, "OGS-00005")], forced=frozenset({"OGS-00005"}), stamp=self.STAMP)
+        self.assertEqual(run.pending_force_snapshots("OGS-00005", self.root), [])
+        record_check()
+
+    def test_preflight_removes_an_interrupted_partial_copy(self) -> None:
+        """A snapshot copy killed half way never became a snapshot; preflight removes it."""
+        self.publish("OGS-00005")
+        stale = paths.store_dir("OGS-00005", root=self.root) / ".records.before-force-20261006T000000Z.copying"
+        stale.mkdir()
+        (stale / "build.json").write_text("half")
+
+        run.prepare_release_run([(self.root, "OGS-00005")], forced=frozenset({"OGS-00005"}), stamp=self.STAMP)
+
+        self.assertFalse(stale.exists())
+        record_check()
+
+    def test_force_reaches_only_the_transactions_own_snapshot(self) -> None:
+        """`force_transaction` forces a release only if it holds that run's snapshot."""
+        self.publish("OGS-00005")
+        self.publish("OGS-00004")
+        scheduled = [(self.root, "OGS-00005"), (self.root, "OGS-00004")]
+        run.prepare_release_run(scheduled, forced=frozenset({"OGS-00005", "OGS-00004"}), stamp=self.STAMP)
+        paths.force_snapshot_path("OGS-00004", self.STAMP, root=self.root).rename(
+            paths.force_snapshot_path("OGS-00004", "20261001T000000Z", root=self.root)
+        )
+
+        self.assertEqual(run.forced_by_transaction(self.STAMP, scheduled), frozenset({"OGS-00005"}))
+        self.assertEqual(run.forced_by_transaction(None, scheduled), frozenset())
+        with self.assertRaises(ValueError):
+            run.forced_by_transaction("../../etc", scheduled)
         record_check()
 
     def test_a_successful_run_archives_a_remaining_snapshot(self) -> None:

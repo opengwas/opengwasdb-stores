@@ -37,7 +37,11 @@ Test suite for `ogstores.register` (Issue #117), governed by [ADR 0022](../../do
 9. **Forced replacement (#195)**:
    - `register_release(force=True)` over a published Store archives the old Store, the run's records snapshot (as `records/`) and a copy of the old `validation.yaml` into `replaced/<stamp>/`, and records the archive in `validation.yaml` (`replaced.archive`) and `register.json` (`replaced_archive`). Without `force` it raises `StoreExistsError` and changes nothing.
 
-10. **Documented record shape**:
+10. **Publication is a recoverable transaction (#195)**:
+    - The run is killed (a subprocess exiting as SIGKILL would) at every boundary after `publication.json` is written. `complete_publication` then finishes it: the new Store is published, the old Store, records and Validation Record are archived, `validation.yaml` and `register.json` are written, and nothing is left pending. An exception at each boundary is finished the same way.
+    - A kill before the marker leaves the old Store and record in place, and its snapshot refuses the next run. A killed first publication is completed too. An impossible state raises `PublicationError` and keeps the marker, and `register` refuses while a publication is pending.
+
+11. **Documented record shape**:
    - The written `validation.yaml` carries exactly the canonical `validator`, `build_environment` and `observed` keys that `tests/validation-record/` asserts against the committed records (issue #135).
 
 ## Running the suite

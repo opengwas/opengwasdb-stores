@@ -22,10 +22,12 @@ import builtins
 import copy
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from typing import Any
 
@@ -671,6 +673,152 @@ class TestForcedRegistration(unittest.TestCase):
         self.assertEqual((b.root / "validation.yaml").read_bytes(), old_record)
         self.assertEqual((paths.store_path(b.store_id, root=artifact_root) / "version.txt").read_text(), "old")
         self.assertFalse((paths.store_dir(b.store_id, root=artifact_root) / "replaced").exists())
+
+
+KILL_REGISTER_SCRIPT = """
+import sys
+sys.path.insert(0, sys.argv[1])
+from ogstores import bundle, register
+stores_root, artifact_root, store_id, force = sys.argv[2:6]
+b = bundle.load(store_id, registry_root=stores_root)
+register.register_release(b, registry_root=stores_root, artifact_root=artifact_root, force=force == "1")
+"""
+
+
+class TestPublicationTransaction(unittest.TestCase):
+    """A publication killed or failing at any boundary is finished by the next run (#195)."""
+
+    STAMP = "20261007T090000Z"
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.td = Path(self.temp_dir.name)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def staged_replacement(self, store_id: str) -> tuple[Bundle, Path, Path, bytes]:
+        """A published release, a validated replacement staged beside it, and the forced run's snapshot."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td / store_id, store_id)
+        store_p = paths.store_path(store_id, root=artifact_root)
+        store_p.mkdir()
+        (store_p / "version.txt").write_text("old", encoding="utf-8")
+        (paths.partial_store_path(store_id, root=artifact_root) / "version.txt").write_text("new", encoding="utf-8")
+        old_record = yaml.safe_dump({"status": "passed", "validator": {"name": register.VALIDATOR_NAME}})
+        (b.root / "validation.yaml").write_text(old_record, encoding="utf-8")
+        snapshot = paths.force_snapshot_path(store_id, self.STAMP, root=artifact_root)
+        snapshot.mkdir()
+        (snapshot / "build.json").write_text("old build record", encoding="utf-8")
+        return bundle.load(store_id, registry_root=stores_root), stores_root, artifact_root, old_record.encode()
+
+    def assert_replaced(self, b: Bundle, artifact_root: Path, old_record: bytes) -> None:
+        """The new release is published, the old one archived whole, and nothing is left pending."""
+        sid = b.store_id
+        archive = paths.replaced_dir(sid, self.STAMP, root=artifact_root)
+        self.assertEqual((paths.store_path(sid, root=artifact_root) / "version.txt").read_text(), "new")
+        self.assertEqual((archive / "store.opengwasdb" / "version.txt").read_text(), "old")
+        self.assertEqual((archive / "records" / "build.json").read_text(), "old build record")
+        self.assertEqual((archive / "validation.yaml").read_bytes(), old_record)
+        written = yaml.safe_load((b.root / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(written["replaced"]["archive"], str(archive))
+        self.assertEqual(written["status"], "passed")
+        register_rec = json.loads(paths.record_path(sid, "register", root=artifact_root).read_text())
+        self.assertEqual(register_rec["replaced_archive"], str(archive))
+        for leftover in (
+            paths.publication_marker(sid, root=artifact_root),
+            paths.force_snapshot_path(sid, self.STAMP, root=artifact_root),
+            paths.backup_store_path(sid, root=artifact_root),
+            paths.partial_store_path(sid, root=artifact_root),
+        ):
+            self.assertFalse(leftover.exists(), leftover)
+
+    def kill_register_at(self, boundary: str, b: Bundle, stores_root: Path, artifact_root: Path, force: bool = True) -> int:
+        env = dict(os.environ)
+        env[run.KILL_AT_ENV] = boundary
+        return subprocess.run(
+            [sys.executable, "-c", KILL_REGISTER_SCRIPT, str(SRC_DIR), str(stores_root), str(artifact_root), b.store_id, "1" if force else "0"],
+            env=env,
+            capture_output=True,
+            text=True,
+        ).returncode
+
+    def test_a_kill_after_the_marker_is_completed_by_the_next_run(self) -> None:
+        """At every boundary from the marker on, a SIGKILL-like exit is finished by complete_publication."""
+        for boundary in register.PUBLICATION_BOUNDARIES[1:]:
+            with self.subTest(boundary=boundary):
+                b, stores_root, artifact_root, old_record = self.staged_replacement(f"OGS-{100 + register.PUBLICATION_BOUNDARIES.index(boundary):05d}")
+                self.assertEqual(self.kill_register_at(boundary, b, stores_root, artifact_root), 137)
+                if boundary != "marker-removed":
+                    self.assertTrue(paths.publication_marker(b.store_id, root=artifact_root).exists())
+
+                register.complete_publication(b.store_id, artifact_root)
+
+                self.assert_replaced(b, artifact_root, old_record)
+
+    def test_a_raise_at_any_boundary_is_completed(self) -> None:
+        """An exception at every boundary from the marker on leaves a state complete_publication finishes."""
+        for boundary in register.PUBLICATION_BOUNDARIES[1:-1]:
+            with self.subTest(boundary=boundary):
+                b, stores_root, artifact_root, old_record = self.staged_replacement(f"OGS-{200 + register.PUBLICATION_BOUNDARIES.index(boundary):05d}")
+
+                def fail_at(name: str, _boundary: str = boundary) -> None:
+                    if name == _boundary:
+                        raise OSError(f"injected failure at {name}")
+
+                with patch.object(run, "fault_boundary", side_effect=fail_at):
+                    with self.assertRaises(OSError):
+                        register_release(b, registry_root=stores_root, artifact_root=artifact_root, force=True)
+                self.assertTrue(paths.publication_marker(b.store_id, root=artifact_root).exists())
+
+                register.complete_publication(b.store_id, artifact_root)
+
+                self.assert_replaced(b, artifact_root, old_record)
+
+    def test_a_kill_before_the_marker_leaves_the_old_release_and_its_snapshot(self) -> None:
+        """Before the marker nothing is published: the old Store and record stand, and the snapshot blocks."""
+        b, stores_root, artifact_root, old_record = self.staged_replacement("OGS-00300")
+        self.assertEqual(self.kill_register_at("publication-started", b, stores_root, artifact_root), 137)
+
+        self.assertIsNone(register.complete_publication(b.store_id, artifact_root))
+        self.assertEqual((paths.store_path(b.store_id, root=artifact_root) / "version.txt").read_text(), "old")
+        self.assertEqual((b.root / "validation.yaml").read_bytes(), old_record)
+        self.assertFalse(paths.replaced_dir(b.store_id, self.STAMP, root=artifact_root).exists())
+        with self.assertRaises(run.ForceSnapshotPendingError):
+            run.refuse_pending_force_snapshots([(artifact_root, b.store_id)])
+
+    def test_a_first_publication_killed_mid_way_is_completed(self) -> None:
+        """A new release killed between its marker and its record is published by the next run."""
+        for boundary in ("marker-written", "store-published", "record-written"):
+            with self.subTest(boundary=boundary):
+                store_id = f"OGS-{400 + ('marker-written', 'store-published', 'record-written').index(boundary):05d}"
+                b, stores_root, artifact_root = create_test_bundle_and_records(self.td / store_id, store_id)
+                (paths.partial_store_path(store_id, root=artifact_root) / "version.txt").write_text("new")
+                self.assertEqual(self.kill_register_at(boundary, b, stores_root, artifact_root, force=False), 137)
+
+                register.complete_publication(store_id, artifact_root)
+
+                self.assertEqual((paths.store_path(store_id, root=artifact_root) / "version.txt").read_text(), "new")
+                self.assertNotIn("replaced", yaml.safe_load((b.root / "validation.yaml").read_text()))
+                self.assertTrue(paths.record_path(store_id, "register", root=artifact_root).is_file())
+                self.assertFalse(paths.publication_marker(store_id, root=artifact_root).exists())
+                self.assertFalse(paths.partial_store_path(store_id, root=artifact_root).exists())
+
+    def test_an_impossible_state_is_raised_and_the_marker_kept(self) -> None:
+        b, stores_root, artifact_root, _ = self.staged_replacement("OGS-00500")
+        self.assertEqual(self.kill_register_at("store-set-aside", b, stores_root, artifact_root), 137)
+        shutil.rmtree(paths.partial_store_path(b.store_id, root=artifact_root))
+
+        with self.assertRaises(register.PublicationError):
+            register.complete_publication(b.store_id, artifact_root)
+        self.assertTrue(paths.publication_marker(b.store_id, root=artifact_root).exists())
+        self.assertTrue(paths.backup_store_path(b.store_id, root=artifact_root).exists())
+
+    def test_register_refuses_while_a_publication_is_pending(self) -> None:
+        b, stores_root, artifact_root, _ = self.staged_replacement("OGS-00501")
+        self.assertEqual(self.kill_register_at("store-published", b, stores_root, artifact_root), 137)
+
+        with self.assertRaises(run.PublicationPendingError):
+            register_release(b, registry_root=stores_root, artifact_root=artifact_root, force=True)
 
 
 class TestCommittedRevision(unittest.TestCase):

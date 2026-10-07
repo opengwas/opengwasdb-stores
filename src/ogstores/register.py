@@ -101,6 +101,12 @@ class ValidateVerdictError(RegisterError, ValueError):
     pass
 
 
+class PublicationError(RegisterError):
+    """Raised when a pending publication's state matches no step of its transaction."""
+
+    pass
+
+
 def normalize_executed_argv_for_staging(
     argv: list[str],
     store_id: str,
@@ -438,7 +444,7 @@ def _write_yaml_atomically(data: dict[str, Any], dest_path: Path) -> None:
     """Atomically write data to dest_path using a temporary file and os.replace."""
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = dest_path.with_name(f".{dest_path.name}.tmp.{os.getpid()}.{time.time_ns()}")
-    payload = yaml.safe_dump(data, sort_keys=False, default_flow_style=False)
+    payload = _dump_yaml(data)
     with open(temp_path, "w", encoding="utf-8") as f:
         f.write(payload)
         f.flush()
@@ -447,35 +453,167 @@ def _write_yaml_atomically(data: dict[str, Any], dest_path: Path) -> None:
     run._fsync_dir(dest_path.parent)
 
 
-def _replace_published_release(b: Bundle, root: Path, *, replaced_at: str) -> dict[str, Any]:
-    """Publish the staged Store over the published one, archiving the replaced release (#195).
+# The durable steps of a publication, in order: a crash between any two leaves
+# a state `complete_publication` recognises and finishes (#195). Tests inject a
+# crash at each through `run.fault_boundary`.
+PUBLICATION_BOUNDARIES: tuple[str, ...] = (
+    "publication-started",
+    "marker-written",
+    "store-set-aside",
+    "store-published",
+    "old-store-archived",
+    "old-records-archived",
+    "old-record-archived",
+    "record-written",
+    "register-record-written",
+    "marker-removed",
+)
+_MARKER_KEYS: frozenset[str] = frozenset({
+    "store_id",
+    "archive",
+    "snapshot",
+    "bundle_validation",
+    "previous_validation",
+    "validation_yaml",
+    "register_record",
+    "written_at",
+})
 
-    The archive is `replaced/<stamp>/`, where `<stamp>` is that of the forced
-    run's records snapshot, so the two name each other; without a snapshot
-    (`register_release(force=True)` called directly) it is the current time.
-    It receives:
-    - the replaced Store, by rename at publication;
-    - the snapshot, as `records/`;
-    - a copy of the bundle's validation.yaml. It is a copy because the bundle's
-      file is rewritten in place, and git keeps it.
-    Nothing deletes the archive, which holds a full Store.
+
+def _dump_yaml(data: dict[str, Any]) -> str:
+    return yaml.safe_dump(data, sort_keys=False, default_flow_style=False)
+
+
+def _write_text_atomically(text: str, dest_path: Path) -> None:
+    """Atomically write text to dest_path using a temporary file and os.replace."""
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = dest_path.with_name(f".{dest_path.name}.tmp.{os.getpid()}.{time.time_ns()}")
+    with open(temp_path, "w", encoding="utf-8") as f:
+        f.write(text)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(temp_path, dest_path)
+    run._fsync_dir(dest_path.parent)
+
+
+def _exists(path: Path) -> bool:
+    return os.path.lexists(path)
+
+
+def _load_marker(store_id: str, root: Path) -> dict[str, Any] | None:
+    marker_p = paths.publication_marker(store_id, root=root)
+    if not _exists(marker_p):
+        return None
+    try:
+        marker = json.loads(marker_p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise PublicationError(f"Cannot read the pending publication {marker_p}: {exc}") from exc
+    if not isinstance(marker, dict) or set(marker) != _MARKER_KEYS or marker.get("store_id") != store_id:
+        raise PublicationError(f"{marker_p} is not a publication marker for {store_id}")
+    store_dir_p = paths.store_dir(store_id, root=root)
+    archive, snapshot = marker["archive"], marker["snapshot"]
+    if archive is not None and Path(archive).parent != store_dir_p / paths.REPLACED_DIRNAME:
+        raise PublicationError(f"{marker_p} names an archive outside {store_dir_p}: {archive}")
+    if snapshot is not None and (
+        Path(snapshot).parent != store_dir_p
+        or not Path(snapshot).name.startswith(paths.FORCE_SNAPSHOT_PREFIX)
+    ):
+        raise PublicationError(f"{marker_p} names a snapshot outside {store_dir_p}: {snapshot}")
+    return marker
+
+
+def complete_publication(store_id: str, root: Path | str) -> dict[str, Any] | None:
+    """Finish a pending publication from wherever it stopped (#195).
+
+    `register_release` writes `publication.json` once it has verified every
+    record and assembled the Validation Record, and then calls this function.
+    The entry point calls it again for any marker a crash left behind. Each
+    step checks what is already done, so the function is idempotent, and the
+    marker is removed last, only when everything below agrees:
+
+    1. The staged Store is published. For a replacement, the old Store is first
+       set aside as `.backup`, and after the swap it is renamed into the
+       archive, never deleted.
+    2. For a replacement, the run's records snapshot moves into the archive as
+       `records/`, and the replaced Validation Record is written there.
+    3. The new `validation.yaml` and `records/register.json` are written from
+       the marker.
+
+    A state that fits no step, such as neither a Store nor a staged Store, is
+    raised as `PublicationError` and the marker is kept. Returns the marker, or
+    None when nothing was pending.
     """
-    snapshots = run.pending_force_snapshots(b.store_id, root)
-    if len(snapshots) > 1:
-        raise RegisterError(
-            f"Cannot replace {b.store_id}: more than one forced-run records snapshot: "
-            + ", ".join(str(s) for s in snapshots)
-        )
-    stamp = snapshots[0].name[len(paths.FORCE_SNAPSHOT_PREFIX):] if snapshots else run.utc_stamp()
-    archive = paths.replaced_dir(b.store_id, stamp, root=root)
-    old_record = b.root / "validation.yaml"
+    resolved_root = Path(root)
+    marker = _load_marker(store_id, resolved_root)
+    if marker is None:
+        return None
+    marker_p = paths.publication_marker(store_id, root=resolved_root)
+    store_p = paths.store_path(store_id, root=resolved_root)
+    partial_p = paths.partial_store_path(store_id, root=resolved_root)
+    backup_p = paths.backup_store_path(store_id, root=resolved_root)
+    store_dir_p = store_p.parent
 
-    run.publish_store(b.store_id, artifact_root=root, force=True, archive_dir=archive)
-    if snapshots:
-        run.archive_force_snapshot(snapshots[0], archive)
-    if old_record.is_file():
-        shutil.copy2(old_record, archive / "validation.yaml")
-    return {"archive": str(archive), "replaced_at": replaced_at}
+    def stuck(state: str) -> PublicationError:
+        return PublicationError(
+            f"Cannot complete the publication of {store_id} ({marker_p}): {state}. "
+            "Nothing was changed; the marker is kept for an operator."
+        )
+
+    if marker["archive"] is None:
+        # A first publication: no Store is replaced.
+        if not _exists(store_p):
+            if not _exists(partial_p):
+                raise stuck("neither the Store nor the staged Store exists")
+            partial_p.rename(store_p)
+            run._fsync_dir(store_dir_p)
+            run.fault_boundary("store-published")
+        elif _exists(partial_p):
+            raise stuck("a Store and a staged Store both exist, but nothing is being replaced")
+    else:
+        archive = Path(marker["archive"])
+        archived_store = archive / store_p.name
+        if _exists(archived_store):
+            if _exists(backup_p):
+                raise stuck(f"both {archived_store} and {backup_p} exist")
+            if not _exists(store_p):
+                raise stuck(f"the old Store is archived but no Store is published at {store_p}")
+        else:
+            if not _exists(backup_p):
+                if not (_exists(store_p) and _exists(partial_p)):
+                    raise stuck("the Store to replace or its replacement is missing")
+                store_p.rename(backup_p)
+                run._fsync_dir(store_dir_p)
+                run.fault_boundary("store-set-aside")
+            if not _exists(store_p):
+                if not _exists(partial_p):
+                    raise stuck(f"the old Store is at {backup_p} but the staged Store is missing")
+                partial_p.rename(store_p)
+                run._fsync_dir(store_dir_p)
+                run.fault_boundary("store-published")
+            archive.mkdir(parents=True, exist_ok=True)
+            backup_p.rename(archived_store)
+            run._fsync_dir(archive)
+            run._fsync_dir(store_dir_p)
+            run.fault_boundary("old-store-archived")
+
+        snapshot = Path(marker["snapshot"]) if marker["snapshot"] else None
+        if snapshot is not None and _exists(snapshot):
+            run.archive_force_snapshot(snapshot, archive)
+            run.fault_boundary("old-records-archived")
+        if marker["previous_validation"] is not None and not _exists(archive / "validation.yaml"):
+            _write_text_atomically(marker["previous_validation"], archive / "validation.yaml")
+            run.fault_boundary("old-record-archived")
+
+    _write_text_atomically(marker["validation_yaml"], Path(marker["bundle_validation"]))
+    run.fault_boundary("record-written")
+    run._write_record_atomically(
+        marker["register_record"], paths.record_path(store_id, "register", root=resolved_root)
+    )
+    run.fault_boundary("register-record-written")
+    marker_p.unlink()
+    run._fsync_dir(store_dir_p)
+    run.fault_boundary("marker-removed")
+    return marker
 
 
 def register_release(
@@ -518,6 +656,13 @@ def register_release(
     resolved_root = (
         Path(artifact_root) if artifact_root is not None else paths.artifact_root()
     )
+
+    marker_p = paths.publication_marker(store_id, root=resolved_root)
+    if _exists(marker_p):
+        raise run.PublicationPendingError(
+            f"Cannot register {store_id}: the publication {marker_p} has not finished; "
+            "`pixi run release` completes it first"
+        )
 
     planned_steps = plan(b, artifact_root=resolved_root)
     step_records: dict[str, dict[str, Any]] = {}
@@ -587,31 +732,44 @@ def register_release(
     if acceptance is not None:
         validation_data["acceptance"] = acceptance
 
-    # 4. Atomically publish store if publish=True. A forced replacement archives
-    # the replaced release (#195): its Store, its records snapshot and a copy of
-    # its validation.yaml go to replaced/<stamp>/, where nothing deletes them.
-    published_p_str: str | None = None
-    replaced: dict[str, Any] | None = None
-    if publish:
-        partial_p = paths.partial_store_path(store_id, root=resolved_root)
-        target_p = paths.store_path(store_id, root=resolved_root)
-        if partial_p.is_dir() and force and target_p.is_dir():
-            replaced = _replace_published_release(b, resolved_root, replaced_at=now_iso)
-            published_p_str = str(target_p)
-        elif partial_p.is_dir():
-            published_target = run.publish_store(store_id, artifact_root=resolved_root, force=force)
-            published_p_str = str(published_target)
-        elif target_p.is_dir():
-            published_p_str = str(target_p)
-    if replaced is not None:
-        validation_data["replaced"] = replaced
-
-    # 5. Atomically write validation.yaml into stores/<store_id>/validation.yaml
+    # 4. Publication. Staging a Store is one transaction (#195): once everything
+    # is verified, publication.json records the whole outcome, the new and old
+    # Validation Records and register.json included, and complete_publication
+    # carries it out. A crash at any point leaves the marker, so the next run
+    # finishes the job; nothing below raises before the marker without leaving
+    # the published release as it was.
     val_yaml_path = b.root / "validation.yaml"
-    _write_yaml_atomically(validation_data, val_yaml_path)
-
-    # 6. Atomically write records/register.json
     reg_rec_p = paths.record_path(store_id, "register", root=resolved_root)
+    partial_p = paths.partial_store_path(store_id, root=resolved_root)
+    target_p = paths.store_path(store_id, root=resolved_root)
+    staged = publish and partial_p.is_dir()
+    replacing = staged and _exists(target_p)
+    if replacing and not force:
+        raise run.StoreExistsError(f"Target store already exists at {target_p}. Set force=True to replace.")
+
+    archive: Path | None = None
+    snapshot: Path | None = None
+    if replacing:
+        # Replacing archives the old release under replaced/<stamp>/, with the
+        # stamp of the forced run's records snapshot, so the two name each other.
+        snapshots = run.pending_force_snapshots(store_id, resolved_root)
+        if len(snapshots) > 1:
+            raise RegisterError(
+                f"Cannot replace {store_id}: more than one forced-run records snapshot: "
+                + ", ".join(str(p) for p in snapshots)
+            )
+        snapshot = snapshots[0] if snapshots else None
+        stamp = snapshot.name[len(paths.FORCE_SNAPSHOT_PREFIX):] if snapshot else run.utc_stamp()
+        archive = paths.replaced_dir(store_id, stamp, root=resolved_root)
+        if _exists(archive / target_p.name):
+            raise FileExistsError(f"Cannot replace {store_id}: {archive / target_p.name} already exists")
+        validation_data["replaced"] = {"archive": str(archive), "replaced_at": now_iso}
+
+    if staged or (publish and target_p.is_dir()):
+        published_p_str: str | None = str(target_p)
+    else:
+        published_p_str = None
+
     input_record_paths = [str(paths.record_path(store_id, s.name, root=resolved_root)) for s in planned_steps]
     register_result = {
         "step": "register",
@@ -632,8 +790,36 @@ def register_release(
         "stderr": "",
         "record_path": str(reg_rec_p),
         "published_store": published_p_str,
-        "replaced_archive": replaced["archive"] if replaced else None,
+        "replaced_archive": str(archive) if archive else None,
     }
+
+    if staged:
+        run._preflight_paths(store_id, resolved_root)
+        val_rec = step_records.get("validate")
+        if not val_rec or not val_rec.get("success") or val_rec.get("exit_code") != 0:
+            raise RegisterError(
+                f"Cannot publish {store_id}: missing successful 'validate' record in records/."
+            )
+        run.fault_boundary("publication-started")
+        marker = {
+            "store_id": store_id,
+            "archive": str(archive) if archive else None,
+            "snapshot": str(snapshot) if snapshot else None,
+            "bundle_validation": str(val_yaml_path.resolve()),
+            "previous_validation": (
+                val_yaml_path.read_text(encoding="utf-8") if replacing and val_yaml_path.is_file() else None
+            ),
+            "validation_yaml": _dump_yaml(validation_data),
+            "register_record": register_result,
+            "written_at": now_iso,
+        }
+        run._write_record_atomically(marker, marker_p)
+        run.fault_boundary("marker-written")
+        complete_publication(store_id, resolved_root)
+        return validation_data
+
+    # Nothing staged: write the record beside whatever is (or is not) published.
+    _write_yaml_atomically(validation_data, val_yaml_path)
     run._write_record_atomically(register_result, reg_rec_p)
 
     return validation_data
@@ -645,12 +831,15 @@ __all__ = [
     "VALIDATOR_NAME",
     "ArgvDriftError",
     "MissingRecordError",
+    "PUBLICATION_BOUNDARIES",
+    "PublicationError",
     "RegisterError",
     "StepFailedError",
     "ValidateVerdictError",
     "acceptance_evidence",
     "check_argv_drift",
     "committed_revision",
+    "complete_publication",
     "harvest_observed_measurements",
     "normalize_executed_argv_for_staging",
     "normalize_executed_argv_for_variant_reference",

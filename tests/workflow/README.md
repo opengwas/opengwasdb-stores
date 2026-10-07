@@ -38,6 +38,8 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
    - `--config force=1` replaces a named published release. The old Store, its records and its `validation.yaml` land unchanged in `replaced/<UTC>/`, the new Store is published, and the new record names the archive.
    - A forced run whose build fails restores `records/` exactly, leaving the Store and `validation.yaml` untouched and no snapshot or archive behind.
    - A leftover `records.before-force-<UTC>/` makes both an unforced and a forced run refuse. The error names the snapshot and how to restore or delete it.
+   - Through the entry point (`workflow/release.py`): an unforced rebuild of a published release is refused in preflight, and `--no-hooks`, `--touch`, `--forceall`, `--nolock`, `--ignore-incomplete` and `--snakefile` are refused before any write, forced or not. An operator cannot set `force_transaction`.
+   - Whole-stack SIGKILL (entry point, Snakemake and register job together) after `store.opengwasdb -> .backup`, and after `validation.yaml` is written: the next run completes the publication, clears Snakemake's incomplete mark, and finds nothing to do. Only the register job killed: the same run completes it. Killed after the snapshot and before Snakemake: the release is intact and the next run refuses, naming the snapshot.
 
 8. **Operator config reaches Snakemake (#195)**:
    - `pixi run release <ID> --config key=value` and `release-dry` pass the override to Snakemake's config rather than as a target. Each task's `pixi.toml` cmd is run with the operator's words appended, as Pixi does, and the dry run must plan under the configured artifact root.

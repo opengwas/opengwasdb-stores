@@ -31,19 +31,30 @@ placeholders. Post-steps follow the selected command's Store-format support:
 `rho` is Dense-only, and `overview` is Dense/Hybrid-only because Ragged's
 closed Store envelope excludes `overview.html`.
 
-A release that is already published is refused rather than rebuilt (#195). If
-a run would execute any job for a release whose `store.opengwasdb` exists (a
-fresh checkout is enough, because its bundle files are newer than the records),
-the run stops before its first job. It names the release and writes nothing.
-An up-to-date release is still a no-op.
+`pixi run release` and `pixi run release-dry` run `workflow/release.py`, the
+supported entry point (#195). Around one Snakemake run it:
+- completes any publication a crash interrupted;
+- refuses a published release unless it is named with `--config force=1`, and
+  refuses a release holding a leftover records snapshot;
+- snapshots what a forced run may replace;
+- settles the run afterwards.
 
-To replace a published release, name it and add `--config force=1`. Only the
-named ids are forced. The run first copies the release's `records/` to
-`records.before-force-<UTC>/`, and puts it back if the run fails. At
-publication, the old Store, those records and a copy of its `validation.yaml`
-move to `replaced/<UTC>/`, and nothing deletes them; each archive holds a full
-Store. A snapshot left by a killed run blocks that release until someone
-restores or deletes it. See the specification's Safety section.
+It accepts only release ids, `--config`, `--cores`, `--dry-run`, `--keep-going`
+and `--rerun-incomplete`. `--no-hooks`, `--touch` and other unsafe options are
+refused before anything is written, and `--dry-run` writes nothing. An
+up-to-date release is a no-op.
+
+A forced run copies the release's `records/` to `records.before-force-<UTC>/`.
+Publication is one transaction, recorded in `publication.json` until it is
+complete. The old Store, those records and a copy of its `validation.yaml` move
+to `replaced/<UTC>/`, and nothing deletes them; each archive holds a full Store.
+A crash after publication starts is finished by the next run. A crash before
+it leaves the old release in place, with a snapshot that blocks that release
+until someone restores or deletes it.
+
+Running `snakemake --snakefile workflow/Snakefile` directly bypasses all of
+this except the Snakefile's own `onstart` refusal, which `--no-hooks` disables.
+See the specification's Safety section.
 
 ### Production Execution vs. Fixture-Scale Tests
 
