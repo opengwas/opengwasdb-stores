@@ -43,6 +43,9 @@ Artifacts live outside git, at a path that is a pure function of the store ID:
   records/<step>.json        one per executed step
   store.opengwasdb           the Store Release
   store.opengwasdb.partial   transient staged destination
+  records.before-force-<UTC>/   transient: a forced run's copy of records/
+  replaced/<UTC>/            archive of a release a forced run replaced:
+                             store.opengwasdb, records/, validation.yaml
 <artifact-root>/by-label/   generated symlinks
 ```
 
@@ -370,11 +373,24 @@ ADR 0023).
 
 **A published release is not rebuilt by accident.** Before its first job starts, the workflow refuses a run that would execute any job for a release whose final `store.opengwasdb` already exists. It names each such release and its Store, and writes nothing (#195). A fresh checkout is enough to cause such a run: every bundle file is then newer than the records beside its published Store, so Snakemake schedules the whole chain again. Without the refusal, that run rebuilt into `.partial`, rewrote the release's `work/` and `records/`, and only then failed at publication. The Store survived, but its step evidence no longer described it.
 
-The check runs in the Snakefile's `onstart` hook, over the jobs Snakemake has decided to run (`run.refuse_rebuilding_published_releases`). It cannot run inside a job, because Snakemake deletes a job's existing outputs before running it: by the time the build job could check, that release's `records/build.json` would already be gone. Two kinds of run are unaffected, because neither schedules a job for the published release: re-running an up-to-date release, and building a new Reference-Completed child of an up-to-date published parent. Hooks don't run under `--dry-run`, so `pixi run release-dry` still lists the jobs that the real run will refuse. `--no-hooks` disables the check.
+The check runs in the Snakefile's `onstart` hook, over the jobs Snakemake has decided to run (`run.prepare_release_run`, which calls `run.refuse_rebuilding_published_releases`). It cannot run inside a job, because Snakemake deletes a job's existing outputs before running it: by the time the build job could check, that release's `records/build.json` would already be gone. Two kinds of run are unaffected, because neither schedules a job for the published release: re-running an up-to-date release, and building a new Reference-Completed child of an up-to-date published parent. Hooks don't run under `--dry-run`, so `pixi run release-dry` still lists the jobs that the real run will refuse. `--no-hooks` disables the check, and with it any forced replacement: without the hook no snapshot is taken, and `register` replaces nothing without one.
 
-The workflow has no supported way to replace a published release yet. `register.register_release()` and `run.publish_store()` accept `force=True`, but no workflow configuration reaches it. Two questions are open (#195):
-- where a forced run's step records live until publication, so that a run failing part-way leaves `records/` still describing the existing Store;
-- what happens to the replaced Store, which `force=True` publication currently deletes once the swap succeeds.
+**Replacing a published release** (decided in review on 7 Oct 2026, #195). Name the release and add the force key:
+
+```sh
+pixi run release OGS-00005 --config force=1
+```
+
+Force reaches only the release ids named as targets. A published release scheduled only as a dependency, or through `all`, is still refused. A forced run protects the release it may replace in four ways:
+
+1. **Snapshot.** Before the first job, `onstart` copies the release's `records/` to `records.before-force-<UTC>/`, keeping mtimes.
+2. **Restore on failure.** If the run fails, `onerror` puts the snapshot back as `records/`. The Store and `validation.yaml` were never touched, so the release is exactly as it was. If the failure came after the new Store was published, the snapshot joins the archive below instead.
+3. **A leftover snapshot blocks the release.** A snapshot outlives its run only when the hooks never ran, for example after SIGKILL. The next run of that release, forced or not, refuses to start. The refusal names the snapshot and the two resolutions: restore it (replace `records/` with it), or delete it once `records/` is known to describe the Store beside it.
+4. **The replaced release is archived, not deleted.** At the forced publication, `register` renames the old `store.opengwasdb` into `replaced/<UTC>/`. That is the same `<UTC>` as the snapshot, which moves there as `records/`. A copy of the bundle's `validation.yaml` goes there too; it is copied because `register` rewrites the bundle's file in place, and git keeps it. The new Validation Record's `replaced.archive`, and `records/register.json`'s `replaced_archive`, say where the archive is.
+
+**Nothing deletes an archive.** `publish_store(force=True)` renames the old Store into it rather than removing it, and so does crash recovery of a `store.opengwasdb.backup`. **Each archive holds a full Store**, so replacing a release costs its size again in disk until a person deletes the archive: 2.7 GB for OGS-00005, about 35 GB for OGS-00009 and 50 GB for OGS-00010.
+
+A register job runs in a subprocess that re-parses the Snakefile, so it cannot see the run's targets. It forces publication only when `force` is set and the release holds a forced-run snapshot. Only `onstart` creates one, and only for a published release named with `force=1`.
 
 **`validation.yaml` is written only by the terminal `register` step.** A failed run leaves the previous one intact.
 

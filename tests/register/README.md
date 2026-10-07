@@ -34,7 +34,10 @@ Test suite for `ogstores.register` (Issue #117), governed by [ADR 0022](../../do
    - A re-registration passes the block on verbatim; a migrated register-shape record without one gives none.
    - `committed_revision` returns a file's commit only when the file on disk is that commit's.
 
-9. **Documented record shape**:
+9. **Forced replacement (#195)**:
+   - `register_release(force=True)` over a published Store archives the old Store, the run's records snapshot (as `records/`) and a copy of the old `validation.yaml` into `replaced/<stamp>/`, and records the archive in `validation.yaml` (`replaced.archive`) and `register.json` (`replaced_archive`). Without `force` it raises `StoreExistsError` and changes nothing.
+
+10. **Documented record shape**:
    - The written `validation.yaml` carries exactly the canonical `validator`, `build_environment` and `observed` keys that `tests/validation-record/` asserts against the committed records (issue #135).
 
 ## Running the suite

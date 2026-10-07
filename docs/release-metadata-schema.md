@@ -535,6 +535,8 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `reports` | No | URIs or paths to detailed reports. A Phase B record points at its sidecars; `register` writes no top-level `reports` (#195). |
 | `warnings` | No | List of non-blocking warnings. In a `register`-written record, exactly the `warnings` list `opengwasdb validate --format json` printed for this run. Reference-AF effect-scale warnings should name the Analysis and reason, for example low reference-AF overlap, an allele mismatch, unstable implied SD, a missing reference resource for the assigned ancestry, or scale inconsistency versus the declared effect scale. |
 | `errors` | No | List of blocking errors. In a `register`-written record, exactly the `errors` list `opengwasdb validate --format json` printed for this run. |
+| `replaced.archive` | No | Written when this run replaced a published release (`--config force=1`, #195): the `replaced/<UTC>/` directory beside the Store. It holds the replaced `store.opengwasdb`, its `records/` and a copy of its `validation.yaml`, and nothing deletes it. |
+| `replaced.replaced_at` | No | When this run replaced it. |
 | `acceptance` | No | The accepted bundle's Phase B acceptance evidence, kept apart from this run's findings (#195). See above for when `register` writes it. Absent when there is none to keep. |
 | `acceptance.recorded_at` | Yes, in the block | The candidate record's own `validated_at`. |
 | `acceptance.commit` | Yes, in the block | The commit the candidate record came from, or `null` when the file was untracked or modified since its last commit, so no commit describes it. |

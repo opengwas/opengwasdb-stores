@@ -114,15 +114,41 @@ wildcard_constraints:
     step="|".join(EXECUTION_STEPS)
 
 
+# Records snapshots this run took for the releases it may replace (#195).
+FORCE_SNAPSHOTS: list[Path] = []
+
+
+def forced_store_ids() -> frozenset[str]:
+    """Release ids named as targets of a `--config force=1` run: the only ones it may replace."""
+    return run.forced_releases(config.get("force"), workflow.dag_settings.targets)
+
+
 onstart:
-    # Before the first job starts, refuse a run that would rebuild a published
-    # release. Snakemake deletes a job's outputs before running it, so a check
-    # inside the job would already have cost that release its records (#195).
-    run.refuse_rebuilding_published_releases(
-        (job.wildcards_dict["root"], job.wildcards_dict["store_id"])
-        for job in workflow.dag.needrun_jobs()
-        if {"root", "store_id"} <= job.wildcards_dict.keys()
+    # Before the first job starts: refuse a run that would rebuild a published
+    # release unless it was named with `--config force=1`, refuse any release
+    # holding an unfinished forced run's snapshot, and snapshot the records of
+    # each release this run may replace. Snakemake deletes a job's outputs
+    # before running it, so none of this can wait for a job (#195).
+    FORCE_SNAPSHOTS.extend(
+        run.prepare_release_run(
+            [
+                (job.wildcards_dict["root"], job.wildcards_dict["store_id"])
+                for job in workflow.dag.needrun_jobs()
+                if {"root", "store_id"} <= job.wildcards_dict.keys()
+            ],
+            forced=forced_store_ids(),
+        )
     )
+
+
+onsuccess:
+    run.settle_force_snapshots(FORCE_SNAPSHOTS, succeeded=True)
+
+
+onerror:
+    # A failed forced run restores the records it snapshotted, unless it had
+    # already published, in which case they join the replaced release's archive.
+    run.settle_force_snapshots(FORCE_SNAPSHOTS, succeeded=False)
 
 
 rule all:
@@ -173,11 +199,18 @@ rule register:
         "{root}/{store_id}/records/register.json"
     run:
         b = get_bundle(wildcards.store_id)
+        # This job runs in a subprocess that re-parses this file, so the run's
+        # targets and FORCE_SNAPSHOTS are not visible here. Its forced-run
+        # snapshot is: onstart takes one only for a published release named with
+        # `--config force=1`, and a leftover one refuses the run (#195).
+        forced = run.force_requested(config.get("force")) and bool(
+            run.pending_force_snapshots(wildcards.store_id, wildcards.root)
+        )
         register.register_release(
             b,
             registry_root=REGISTRY_ROOT,
             artifact_root=wildcards.root,
-            force=False,
+            force=forced,
             publish=True,
             acceptance_commit=register.committed_revision(b.root / "validation.yaml"),
         )

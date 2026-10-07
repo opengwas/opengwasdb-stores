@@ -21,6 +21,7 @@ Phase A is driven by `workflow/Snakefile`:
 pixi run release OGS-00003                                 # one registered release, plus any parent it needs
 pixi run release OGS-00003 OGS-00004                       # several registered releases; lineage order is resolved
 pixi run release OGS-00003 --config artifact_root=/path    # ids first, then config overrides
+pixi run release OGS-00005 --config force=1                # replace a published release, archiving the old one
 pixi run index                                             # regenerate master list, summaries, by-label/
 ```
 
@@ -34,8 +35,15 @@ A release that is already published is refused rather than rebuilt (#195). If
 a run would execute any job for a release whose `store.opengwasdb` exists (a
 fresh checkout is enough, because its bundle files are newer than the records),
 the run stops before its first job. It names the release and writes nothing.
-An up-to-date release is still a no-op. The workflow cannot replace a published
-release yet.
+An up-to-date release is still a no-op.
+
+To replace a published release, name it and add `--config force=1`. Only the
+named ids are forced. The run first copies the release's `records/` to
+`records.before-force-<UTC>/`, and puts it back if the run fails. At
+publication, the old Store, those records and a copy of its `validation.yaml`
+move to `replaced/<UTC>/`, and nothing deletes them; each archive holds a full
+Store. A snapshot left by a killed run blocks that release until someone
+restores or deletes it. See the specification's Safety section.
 
 ### Production Execution vs. Fixture-Scale Tests
 

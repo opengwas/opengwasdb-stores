@@ -517,6 +517,59 @@ class TestRegisterKeepsPhaseBAcceptanceApart(unittest.TestCase):
         self.assertNotIn("acceptance", written)
 
 
+class TestForcedRegistration(unittest.TestCase):
+    """A forced registration archives the replaced release and says where (#195)."""
+
+    STAMP = "20261007T090000Z"
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.td = Path(self.temp_dir.name)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def published(self, store_id: str) -> tuple[Bundle, Path, Path, bytes]:
+        """A bundle whose release is published, with a new build staged beside it."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, store_id)
+        store_p = paths.store_path(store_id, root=artifact_root)
+        store_p.mkdir()
+        (store_p / "version.txt").write_text("old", encoding="utf-8")
+        (paths.partial_store_path(store_id, root=artifact_root) / "version.txt").write_text("new", encoding="utf-8")
+        old_record = yaml.safe_dump({"status": "passed", "validator": {"name": register.VALIDATOR_NAME}})
+        (b.root / "validation.yaml").write_text(old_record, encoding="utf-8")
+        return bundle.load(store_id, registry_root=stores_root), stores_root, artifact_root, old_record.encode()
+
+    def test_forced_registration_archives_the_replaced_release(self) -> None:
+        b, stores_root, artifact_root, old_record = self.published("OGS-00061")
+        snapshot = paths.force_snapshot_path(b.store_id, self.STAMP, root=artifact_root)
+        snapshot.mkdir()
+        (snapshot / "build.json").write_text("old build record", encoding="utf-8")
+
+        written = register_release(b, registry_root=stores_root, artifact_root=artifact_root, force=True)
+
+        archive = paths.replaced_dir(b.store_id, self.STAMP, root=artifact_root)
+        store_p = paths.store_path(b.store_id, root=artifact_root)
+        self.assertEqual((store_p / "version.txt").read_text(), "new")
+        self.assertEqual((archive / "store.opengwasdb" / "version.txt").read_text(), "old")
+        self.assertEqual((archive / "records" / "build.json").read_text(), "old build record")
+        self.assertEqual((archive / "validation.yaml").read_bytes(), old_record)
+        self.assertFalse(snapshot.exists())
+        self.assertEqual(written["replaced"]["archive"], str(archive))
+        register_rec = json.loads(paths.record_path(b.store_id, "register", root=artifact_root).read_text())
+        self.assertEqual(register_rec["replaced_archive"], str(archive))
+
+    def test_unforced_registration_over_a_published_store_is_refused(self) -> None:
+        b, stores_root, artifact_root, old_record = self.published("OGS-00062")
+
+        with self.assertRaises(run.StoreExistsError):
+            register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+
+        self.assertEqual((b.root / "validation.yaml").read_bytes(), old_record)
+        self.assertEqual((paths.store_path(b.store_id, root=artifact_root) / "version.txt").read_text(), "old")
+        self.assertFalse((paths.store_dir(b.store_id, root=artifact_root) / "replaced").exists())
+
+
 class TestCommittedRevision(unittest.TestCase):
     """`committed_revision` names the commit a file came from, or None when it is not that commit."""
 

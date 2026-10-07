@@ -33,6 +33,7 @@ import json
 import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -426,6 +427,37 @@ def _write_yaml_atomically(data: dict[str, Any], dest_path: Path) -> None:
     run._fsync_dir(dest_path.parent)
 
 
+def _replace_published_release(b: Bundle, root: Path, *, replaced_at: str) -> dict[str, Any]:
+    """Publish the staged Store over the published one, archiving the replaced release (#195).
+
+    The archive is `replaced/<stamp>/`, where `<stamp>` is that of the forced
+    run's records snapshot, so the two name each other; without a snapshot
+    (`register_release(force=True)` called directly) it is the current time.
+    It receives:
+    - the replaced Store, by rename at publication;
+    - the snapshot, as `records/`;
+    - a copy of the bundle's validation.yaml. It is a copy because the bundle's
+      file is rewritten in place, and git keeps it.
+    Nothing deletes the archive, which holds a full Store.
+    """
+    snapshots = run.pending_force_snapshots(b.store_id, root)
+    if len(snapshots) > 1:
+        raise RegisterError(
+            f"Cannot replace {b.store_id}: more than one forced-run records snapshot: "
+            + ", ".join(str(s) for s in snapshots)
+        )
+    stamp = snapshots[0].name[len(paths.FORCE_SNAPSHOT_PREFIX):] if snapshots else run.utc_stamp()
+    archive = paths.replaced_dir(b.store_id, stamp, root=root)
+    old_record = b.root / "validation.yaml"
+
+    run.publish_store(b.store_id, artifact_root=root, force=True, archive_dir=archive)
+    if snapshots:
+        run.archive_force_snapshot(snapshots[0], archive)
+    if old_record.is_file():
+        shutil.copy2(old_record, archive / "validation.yaml")
+    return {"archive": str(archive), "replaced_at": replaced_at}
+
+
 def register_release(
     bundle_input: Bundle | str,
     *,
@@ -535,16 +567,24 @@ def register_release(
     if acceptance is not None:
         validation_data["acceptance"] = acceptance
 
-    # 4. Atomically publish store if publish=True
+    # 4. Atomically publish store if publish=True. A forced replacement archives
+    # the replaced release (#195): its Store, its records snapshot and a copy of
+    # its validation.yaml go to replaced/<stamp>/, where nothing deletes them.
     published_p_str: str | None = None
+    replaced: dict[str, Any] | None = None
     if publish:
         partial_p = paths.partial_store_path(store_id, root=resolved_root)
         target_p = paths.store_path(store_id, root=resolved_root)
-        if partial_p.is_dir():
+        if partial_p.is_dir() and force and target_p.is_dir():
+            replaced = _replace_published_release(b, resolved_root, replaced_at=now_iso)
+            published_p_str = str(target_p)
+        elif partial_p.is_dir():
             published_target = run.publish_store(store_id, artifact_root=resolved_root, force=force)
             published_p_str = str(published_target)
         elif target_p.is_dir():
             published_p_str = str(target_p)
+    if replaced is not None:
+        validation_data["replaced"] = replaced
 
     # 5. Atomically write validation.yaml into stores/<store_id>/validation.yaml
     val_yaml_path = b.root / "validation.yaml"
@@ -572,6 +612,7 @@ def register_release(
         "stderr": "",
         "record_path": str(reg_rec_p),
         "published_store": published_p_str,
+        "replaced_archive": replaced["archive"] if replaced else None,
     }
     run._write_record_atomically(register_result, reg_rec_p)
 

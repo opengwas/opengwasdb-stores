@@ -287,6 +287,7 @@ materialise-gwas-ssf-ragged = { cmd = "Rscript resources/scripts/materialise-gwa
 # every word after it:
 #
 #   pixi run release OGS-00003 --config artifact_root=/path
+#   pixi run release OGS-00005 --config force=1   # replace it; the old one is archived
 #
 release = { cmd = "snakemake --snakefile workflow/Snakefile --cores all" }
 release-dry = { cmd = "snakemake --snakefile workflow/Snakefile --dry-run" }
