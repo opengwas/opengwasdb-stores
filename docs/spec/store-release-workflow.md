@@ -297,7 +297,8 @@ Given the `build.yaml` above it returns four `Step`s, each holding an argv plus 
                              "--n-workers", "8", "--chunk-variants", "1000"], ...),
  Step(name="top-hits", argv=["opengwasdb", "build-dense-top-hits", "<store>"], ...),
  Step(name="overview", argv=["opengwasdb", "regenerate-overview",  "<store>"], ...),
- Step(name="validate", argv=["opengwasdb", "validate",             "<store>"], ...)]
+ Step(name="validate", argv=["opengwasdb", "validate",             "<store>",
+                             "--format", "json"], ...)]
 ```
 
 Internally it is a lookup table -- `("dense", "observed_only")` to `build-dense-vcf`, `("ragged", "reference_completed")` to `complete-ragged` -- plus about fifteen lines per entry assembling positional arguments, plus a renderer turning `options` into flags without reading them.
@@ -486,7 +487,18 @@ The field-by-field format is defined once in
 [`docs/release-metadata-schema.md`](../release-metadata-schema.md#validationyaml);
 this section records only how the workflow produces it.
 
-Assembled by `register` from the step records: the JSON each build command already prints, plus `opengwasdb validate`'s verdict. `register` also compares each record's executed argv against `plan()`'s planned argv and fails on drift, per "Planned and executed argv are different facts" above. It records; it does not judge. This repository does not decide whether a store is scientifically sound — it captures what `opengwasdb` reported and who accepted it.
+Assembled by `register` from the step records: the JSON each build command already prints, plus `opengwasdb validate`'s verdict.
+
+The verdict is read from `opengwasdb validate --format json`, which the planned validate step requests (opengwasdb#175). It prints one object, `{"ok", "errors", "warnings"}`, and the record follows from it exactly:
+- `status` and `checks.store` are `failed` when `ok` is false, `passed_with_warnings` when `warnings` is non-empty, and `passed` otherwise;
+- `warnings` and `errors` are those two lists, as printed;
+- a plan with no validate step records `not_run`.
+
+A validate record without that JSON is refused with `ValidateVerdictError` and nothing is written. Its text output is never searched for the word "warning" (#195).
+
+The record describes this run and no other. `register` replaces the bundle's previous `validation.yaml`; it never merges with it. The old record's `checks`, `warnings`, `errors` and `reports` describe another run, and republishing them under a new `validated_at` would present them as current (#195).
+
+`register` also compares each record's executed argv against `plan()`'s planned argv and fails on drift, per "Planned and executed argv are different facts" above. It records; it does not judge. This repository does not decide whether a store is scientifically sound — it captures what `opengwasdb` reported and who accepted it.
 
 The record's top-level `status` is the release-level verdict, and the generated master list publishes that value and no other. A per-check entry in `checks` describes one check and cannot override the record: a record reads `status: failed` precisely when a check failed, and publishing the passing check in its place is the "wrong answer that looks like a right answer" CONTRIBUTING names as the worst outcome. A release with no Validation Record publishes an empty verdict.
 
@@ -516,7 +528,7 @@ The upstream prerequisites on `opengwasdb` `dev` (merged in PR #178 / epic openg
 | [opengwasdb#172](https://github.com/opengwas/opengwasdb/issues/172) | Closed on `dev` | Ragged SSF releases — canonical `analyses.tsv` names (`sample_size`, `source_file`) |
 | [opengwasdb#173](https://github.com/opengwas/opengwasdb/issues/173) | Closed on `dev` | BESD releases — `--analyses` Analytical/Attribution Metadata overlay |
 | [opengwasdb#174](https://github.com/opengwas/opengwasdb/issues/174) | Closed on `dev` | Dense/Hybrid `--source-reader-capability` and `--source-assembly` CLI defaults |
-| [opengwasdb#175](https://github.com/opengwas/opengwasdb/issues/175) | Closed on `dev` | Machine-readable `--format json` in `validate` and `info` for `validation.yaml` |
+| [opengwasdb#175](https://github.com/opengwas/opengwasdb/issues/175) | Closed on `dev` | Machine-readable `--format json` in `validate` and `info` for `validation.yaml`; the planned validate step passes it, and `register` reads its verdict (#195) |
 | [opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176) | Closed on `dev` | Phase B — `estimate-phenotype-sd` CLI over canonical manifests |
 
 All layouts (Dense, Hybrid, Ragged SSF, and BESD) are unblocked on `opengwasdb@dev`. The active pin in `pixi.toml` ([opengwasdb-stores#106](https://github.com/opengwas/opengwasdb-stores/issues/106)) brings these capabilities into the workspace environment.

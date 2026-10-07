@@ -13,6 +13,9 @@ Responsibilities:
 3. Harvests observed measurements from step records:
    `format_version`, `n_variants`, `n_analyses`, `n_associations`, `store_bytes`,
    `build_elapsed_s`, and `validate_status`.
+   The verdict, `checks`, `warnings` and `errors` are this run's alone: they come
+   from `opengwasdb validate --format json`, and nothing is carried from the
+   Validation Record being replaced (#195).
 4. Atomic write: `validation.yaml` is written atomically only by `register`, so failed
    runs leave any previous `validation.yaml` intact.
 5. Strict seam compliance: `register` opens NO Store and re-runs NO validation (ADR 0023).
@@ -84,6 +87,12 @@ class StepFailedError(RegisterError):
 
 class ArgvDriftError(RegisterError, ValueError):
     """Raised when an executed argv drifted from the planned argv."""
+
+    pass
+
+
+class ValidateVerdictError(RegisterError, ValueError):
+    """Raised when the validate step's record carries no `--format json` verdict."""
 
     pass
 
@@ -190,6 +199,43 @@ def _extract_json_from_text(text: str) -> dict[str, Any] | None:
     return None
 
 
+def validate_verdict(validate_record: dict[str, Any] | None) -> tuple[str, list[str], list[str]]:
+    """This run's validate verdict, warnings and errors, read from `--format json`.
+
+    `opengwasdb validate --format json` prints one object, `{"ok", "errors",
+    "warnings"}` (opengwasdb#175). The verdict follows from it exactly: `failed`
+    when not ok, `passed_with_warnings` when it reported a warning, `passed`
+    otherwise. A plan without a validate step has no verdict, so it is
+    `not_run` rather than an assumed pass.
+
+    Text output is refused rather than searched for the word "warning" (#195):
+    a record that does not carry the JSON verdict was not produced by the
+    planned argv, and guessing its verdict would be a wrong answer that looks
+    like a right one.
+    """
+    if validate_record is None:
+        return "not_run", [], []
+    payload = _extract_json_from_text(validate_record.get("stdout", ""))
+    if (
+        payload is None
+        or not isinstance(payload.get("ok"), bool)
+        or not isinstance(payload.get("errors"), list)
+        or not isinstance(payload.get("warnings"), list)
+    ):
+        raise ValidateVerdictError(
+            "The validate record carries no `opengwasdb validate --format json` verdict "
+            "(an object with boolean `ok` and list `errors` and `warnings`) on stdout: "
+            f"{validate_record.get('record_path') or 'records/validate.json'}"
+        )
+    errors = [str(e) for e in payload["errors"]]
+    warnings = [str(w) for w in payload["warnings"]]
+    if not payload["ok"]:
+        return "failed", warnings, errors
+    if warnings:
+        return "passed_with_warnings", warnings, errors
+    return "passed", warnings, errors
+
+
 def harvest_observed_measurements(
     planned_steps: list[Step],
     step_records: dict[str, dict[str, Any]],
@@ -209,7 +255,7 @@ def harvest_observed_measurements(
     n_analyses: int | None = None
     n_associations: int | None = None
     store_bytes: int | None = None
-    validate_status = "passed"
+    validate_status, _, _ = validate_verdict(step_records.get("validate"))
 
     # 1. Harvest from build or complete record
     producing_step = next((s.name for s in planned_steps if s.name in ("build", "complete")), None)
@@ -234,19 +280,10 @@ def harvest_observed_measurements(
             if m_ana:
                 n_analyses = int(m_ana.group(1))
 
-    # 2. Harvest from validate record
+    # 2. Harvest measurements from the validate record; its verdict is above
     if "validate" in step_records:
-        val_rec = step_records["validate"]
-        val_exit = val_rec.get("exit_code", 0)
-        val_stdout = val_rec.get("stdout", "")
-        val_stderr = val_rec.get("stderr", "")
-
-        val_json = _extract_json_from_text(val_stdout)
+        val_json = _extract_json_from_text(step_records["validate"].get("stdout", ""))
         if val_json:
-            if "status" in val_json:
-                validate_status = str(val_json["status"])
-            elif "valid" in val_json:
-                validate_status = "passed" if val_json["valid"] else "failed"
             if "format_version" in val_json:
                 format_version = str(val_json["format_version"])
             if "n_variants" in val_json and isinstance(val_json["n_variants"], int):
@@ -257,13 +294,6 @@ def harvest_observed_measurements(
                 n_associations = val_json["n_associations"]
             if "store_bytes" in val_json and isinstance(val_json["store_bytes"], int):
                 store_bytes = val_json["store_bytes"]
-        else:
-            if val_exit != 0:
-                validate_status = "failed"
-            elif "warning" in val_stdout.lower() or "warning" in val_stderr.lower():
-                validate_status = "passed_with_warnings"
-            else:
-                validate_status = "passed"
 
     # Fallback for n_analyses from the derived build manifest, if the builder did
     # not print it. Count the built manifest, never the bundle's audit table:
@@ -350,6 +380,7 @@ def register_release(
         MissingRecordError: If an expected step record is missing.
         StepFailedError: If a step record indicates a failed step.
         ArgvDriftError: If executed argv differs from planned argv.
+        ValidateVerdictError: If the validate record carries no `--format json` verdict.
     """
     if isinstance(bundle_input, str):
         b = bundle.load(bundle_input, registry_root=registry_root)
@@ -388,7 +419,8 @@ def register_release(
             any_resumed = True
         step_records[step.name] = rec
 
-    # 2. Harvest observed measurements across all step records
+    # 2. This run's verdict and findings, then its observed measurements
+    val_status, val_warnings, val_errors = validate_verdict(step_records.get("validate"))
     observed = harvest_observed_measurements(
         planned_steps,
         step_records,
@@ -399,24 +431,17 @@ def register_release(
 
     # 3. Assemble validation.yaml dictionary
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
-    val_status = observed.get("validate_status", "passed")
-
-    # Determine overall status
-    overall_status = "passed"
-    if val_status == "failed":
-        overall_status = "failed"
-    elif val_status == "passed_with_warnings":
-        overall_status = "passed_with_warnings"
 
     ogdb_exe = run.get_opengwasdb_executable()
     ogdb_rev = run.get_opengwasdb_revision(executable=ogdb_exe)
     ogdb_ver = run.get_opengwasdb_version()
 
-    # Base dictionary merges existing Phase B checks/reports if present
-    existing_val = b.validation or {}
-
+    # Only this run's findings. The bundle's previous validation.yaml is
+    # replaced, never merged: its checks, warnings, errors and reports describe
+    # another run, and republishing them under this run's validated_at is the
+    # wrong answer that looks right (#195).
     validation_data: dict[str, Any] = {
-        "status": overall_status,
+        "status": val_status,
         "validated_at": now_iso,
         "validator": {
             "name": VALIDATOR_NAME,
@@ -429,19 +454,10 @@ def register_release(
             "platform": platform.platform(),
         },
         "observed": observed,
-        "checks": existing_val.get("checks", {
-            "schema": "passed",
-            "files": "passed",
-            "store": val_status,
-        }),
+        "checks": {"store": val_status},
+        "warnings": val_warnings,
+        "errors": val_errors,
     }
-
-    if "reports" in existing_val:
-        validation_data["reports"] = existing_val["reports"]
-    if "warnings" in existing_val:
-        validation_data["warnings"] = existing_val["warnings"]
-    if "errors" in existing_val:
-        validation_data["errors"] = existing_val["errors"]
 
     # 4. Atomically publish store if publish=True
     published_p_str: str | None = None
@@ -494,9 +510,11 @@ __all__ = [
     "MissingRecordError",
     "RegisterError",
     "StepFailedError",
+    "ValidateVerdictError",
     "check_argv_drift",
     "harvest_observed_measurements",
     "normalize_executed_argv_for_staging",
     "normalize_executed_argv_for_variant_reference",
     "register_release",
+    "validate_verdict",
 ]

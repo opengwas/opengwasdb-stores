@@ -25,7 +25,11 @@ Test suite for `ogstores.register` (Issue #117), governed by [ADR 0022](../../do
 6. **Atomic publication**:
    - Invokes `ogstores.run.publish_store()` upon successful registration to atomically rename `.partial` to the final Store artifact.
 
-7. **Documented record shape**:
+7. **Only this run's findings (#195)**:
+   - The verdict, `checks` (`{store: <verdict>}`), `warnings` and `errors` come from this run's `opengwasdb validate --format json` record, exactly. A bundle whose previous `validation.yaml` carries stale checks, a reports pointer and 30 warnings registers with none of them.
+   - A validate record without that JSON verdict is refused (`ValidateVerdictError`), leaving `validation.yaml` untouched; text output is never searched for the word "warning".
+
+8. **Documented record shape**:
    - The written `validation.yaml` carries exactly the canonical `validator`, `build_environment` and `observed` keys that `tests/validation-record/` asserts against the committed records (issue #135).
 
 ## Running the suite

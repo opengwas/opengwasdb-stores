@@ -338,6 +338,21 @@ class TestPlanDense(unittest.TestCase):
         record_check()
         self.assertEqual([s.name for s in steps], ["build", "validate"])
 
+    def test_validate_step_asks_for_the_machine_readable_verdict(self) -> None:
+        """The validate step requests `--format json`, the verdict `register` reads (#195, opengwasdb#175)."""
+        steps = plan(self.bundle_00003)
+        store_p = Path("/data/opengwasdb/stores/OGS-00003/store.opengwasdb")
+        record_check()
+        self.assertEqual(
+            steps[-1],
+            Step(
+                name="validate",
+                argv=["opengwasdb", "validate", str(store_p), "--format", "json"],
+                inputs=[store_p],
+                outputs=[],
+            ),
+        )
+
     def test_dispatch_table_keying(self) -> None:
         """All 6 (layout, completion_state) pairs are supported and plan successfully."""
         # Every valid combination resolves to a configured default subcommand

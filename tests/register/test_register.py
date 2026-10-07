@@ -12,6 +12,8 @@ Verifies the central contracts of ADR 0022 and ADR 0023:
    and recorded as `resumed: true` in validation.yaml.
 5. Strict seam compliance: `register` opens NO Store and re-runs NO validation (proven via tripwires).
 6. Atomic publication: invokes `run.publish_store()` upon successful registration.
+7. Only this run's findings (#195): the verdict, checks, warnings and errors come from
+   `opengwasdb validate --format json`; nothing is carried from the previous record.
 """
 
 from __future__ import annotations
@@ -138,7 +140,8 @@ def create_test_bundle_and_records(
             if step.name in ("build", "complete"):
                 stdout_payload = json.dumps({"n_variants": 1000, "n_analyses": 2, "format_version": "1.0"}) + "\n"
             elif step.name == "validate":
-                stdout_payload = json.dumps({"status": "passed", "valid": True, "format_version": "1.0", "n_associations": 2000, "store_bytes": 65536}) + "\n"
+                # The shape `opengwasdb validate --format json` prints (#195).
+                stdout_payload = json.dumps({"errors": [], "ok": True, "warnings": []}) + "\n"
 
             rec_data = {
                 "step": step.name,
@@ -264,7 +267,9 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
         val_rec_p = paths.record_path("OGS-00043", "validate", root=artifact_root)
         val_rec = json.loads(val_rec_p.read_text(encoding="utf-8"))
         val_rec["stdout"] = json.dumps({
-            "status": "passed",
+            "errors": [],
+            "ok": True,
+            "warnings": [],
             "format_version": "1.0",
             "n_variants": 12500,
             "n_analyses": 50,
@@ -299,6 +304,107 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
         self.assertEqual(set(written["observed"]), set(register.OBSERVED_FIELDS))
         self.assertEqual(set(written["build_environment"]), set(register.BUILD_ENVIRONMENT_FIELDS))
         self.assertEqual(written["validator"]["name"], register.VALIDATOR_NAME)
+
+
+def set_validate_output(store_id: str, artifact_root: Path, stdout: str, stderr: str = "") -> None:
+    """Replace what the validate step's record says `opengwasdb validate` printed."""
+    rec_p = paths.record_path(store_id, "validate", root=artifact_root)
+    rec = json.loads(rec_p.read_text(encoding="utf-8"))
+    rec["stdout"] = stdout
+    rec["stderr"] = stderr
+    run._write_record_atomically(rec, rec_p)
+
+
+class TestRegisterRecordsOnlyThisRun(unittest.TestCase):
+    """A Validation Record holds this run's findings and nothing from the one it replaces (#195)."""
+
+    WARNING = (
+        "analysis 'GCST003898' stores EAF whose orientation is unverified: "
+        "only 120 variants overlap the reference, fewer than 500"
+    )
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.td = Path(self.temp_dir.name)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def write_stale_record(self, b: Bundle) -> tuple[Bundle, dict[str, Any]]:
+        """OGS-00005's committed shape: a previous build's checks, reports and 30 warnings.
+
+        Returns the bundle reloaded, as the workflow loads it, so `register`
+        sees the record it is replacing.
+        """
+        stale = {
+            "status": "passed_with_warnings",
+            "validated_at": "2026-08-31T20:01:07Z",
+            "checks": {
+                "schema": "passed",
+                "files": "passed_with_warnings",
+                "reader_smoke_test": "passed_with_warnings",
+                "effect_scale": "passed",
+                "sd_estimation": "passed",
+            },
+            "reports": {"build_report": "sidecars/build_report.tsv"},
+            "warnings": [
+                f"GCST{n:06d}: sample_size_kind present in the manifest but missing from "
+                "the built store's analyses.tsv"
+                for n in range(30)
+            ],
+            "errors": [],
+        }
+        (b.root / "validation.yaml").write_text(yaml.safe_dump(stale), encoding="utf-8")
+        return bundle.load(b.store_id, registry_root=b.root.parent), stale
+
+    def test_stale_findings_are_not_carried_into_the_new_record(self) -> None:
+        """Only the new run's verdict, warning and errors appear; the previous record's are gone."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00052")
+        b, _stale = self.write_stale_record(b)
+        set_validate_output(
+            b.store_id,
+            artifact_root,
+            json.dumps({"errors": [], "ok": True, "warnings": [self.WARNING]}) + "\n",
+        )
+
+        register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+
+        written = yaml.safe_load((b.root / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(written["warnings"], [self.WARNING])
+        self.assertEqual(written["checks"], {"store": "passed_with_warnings"})
+        self.assertNotIn("reports", written)
+        self.assertEqual(written["errors"], [])
+        self.assertEqual(written["status"], "passed_with_warnings")
+        self.assertEqual(written["observed"]["validate_status"], "passed_with_warnings")
+
+    def test_a_clean_validate_records_no_findings(self) -> None:
+        """No warning from validate means `passed` with empty findings, not fabricated checks."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00053")
+        b, _stale = self.write_stale_record(b)
+
+        written = register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+
+        self.assertEqual(written["checks"], {"store": "passed"})
+        self.assertEqual(written["warnings"], [])
+        self.assertEqual(written["errors"], [])
+        self.assertNotIn("reports", written)
+        self.assertEqual(written["status"], "passed")
+
+    def test_a_validate_record_without_a_json_verdict_is_refused(self) -> None:
+        """Text output is not searched for the word `warning`; register fails and writes nothing."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00054")
+        b, stale = self.write_stale_record(b)
+        set_validate_output(b.store_id, artifact_root, "valid\n", f"warning: {self.WARNING}\n")
+
+        with self.assertRaises(register.ValidateVerdictError) as ctx:
+            register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+
+        self.assertIn("--format json", str(ctx.exception))
+        self.assertEqual(
+            yaml.safe_load((b.root / "validation.yaml").read_text(encoding="utf-8")),
+            stale,
+        )
+        self.assertFalse(paths.record_path(b.store_id, "register", root=artifact_root).exists())
 
 
 class TestArgvDriftAndResumptionDivergence(unittest.TestCase):
