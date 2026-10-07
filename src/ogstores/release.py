@@ -16,9 +16,17 @@ Snakemake option can switch off:
    resolves it. Nothing has been written when either refusal happens.
 3. Snapshot. Each forced published release's `records/` is copied to
    `records.before-force-<UTC>/`.
-4. The run, with `--config force_transaction=<UTC>` naming that snapshot.
-5. Settlement. A publication the run left pending is completed; then a
+4. The run, with `--config release_run=<UTC>` naming this run, and so any
+   snapshot it took. Under that token a register job publishes but leaves
+   `publication.json` in place.
+5. Settlement. Each publication the run left is completed if it needs to be,
+   Snakemake's mark that a killed register job's output is incomplete is
+   cleared, and only then is the marker removed. A crash at any point before
+   that leaves the marker, so the next run's recovery repeats the step. Then a
    failed run's snapshots are restored and a successful run's are archived.
+
+`--resolve-snapshot restore|delete` carries out an operator's resolution of
+a leftover snapshot, and clears Snakemake's incomplete marks for that release.
 
 The options are an allowlist. Anything else, including `--no-hooks` and
 `--touch`, is refused before anything is written. Running `snakemake`
@@ -29,6 +37,7 @@ Snakefile's own `onstart` refusal.
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -40,7 +49,17 @@ from ogstores import paths, register, run
 SNAKEFILE: Path = paths.REPO_ROOT / "workflow" / "Snakefile"
 
 # Configuration only the entry point may set.
-RESERVED_CONFIG_KEYS: frozenset[str] = frozenset({"force_transaction"})
+RESERVED_CONFIG_KEYS: frozenset[str] = frozenset({"release_run"})
+
+# The entry point's own crash boundaries, in run order (#195). The register
+# job's are register.PUBLICATION_BOUNDARIES; "marker-removed" is in both,
+# because a direct register_release() removes its own marker.
+ENTRY_POINT_BOUNDARIES: tuple[str, ...] = (
+    "snapshots-taken",
+    "before-settle",
+    "metadata-cleaned",
+    "marker-removed",
+)
 
 # Options that would bypass or weaken the guard. They are named in the refusal;
 # every other option outside the allowlist is refused too.
@@ -63,8 +82,9 @@ UNSAFE_OPTIONS: frozenset[str] = frozenset({
 })
 ALLOWED_OPTIONS: str = (
     "release ids or `all`, --config key=value ..., --cores N, --dry-run, "
-    "--keep-going, --rerun-incomplete"
+    "--keep-going, --rerun-incomplete, --resolve-snapshot restore|delete"
 )
+SNAPSHOT_RESOLUTIONS: frozenset[str] = frozenset({"restore", "delete"})
 
 _TARGET = re.compile(r"\AOGS-\d{5}\Z|\Aall\Z")
 _WILDCARDS = re.compile(r"^\s*wildcards:\s*(?P<body>.*)$")
@@ -83,6 +103,7 @@ class Invocation:
     dry_run: bool = False
     keep_going: bool = False
     rerun_incomplete: bool = False
+    resolve_snapshot: str | None = None
 
 
 def parse_invocation(argv: Iterable[str]) -> Invocation:
@@ -105,6 +126,17 @@ def parse_invocation(argv: Iterable[str]) -> Invocation:
             inv.cores = _cores(words[i])
         elif word.startswith("--cores="):
             inv.cores = _cores(word.split("=", 1)[1])
+        elif word == "--resolve-snapshot" or word.startswith("--resolve-snapshot="):
+            if "=" in word:
+                action = word.split("=", 1)[1]
+            elif i + 1 < len(words):
+                i += 1
+                action = words[i]
+            else:
+                raise UsageError("--resolve-snapshot needs `restore` or `delete`")
+            if action not in SNAPSHOT_RESOLUTIONS:
+                raise UsageError(f"--resolve-snapshot takes `restore` or `delete`, not {action!r}")
+            inv.resolve_snapshot = action
         elif word == "--config" or word.startswith("--config="):
             items = [word.split("=", 1)[1]] if word.startswith("--config=") else []
             while i + 1 < len(words) and "=" in words[i + 1] and not words[i + 1].startswith("-"):
@@ -133,6 +165,8 @@ def parse_invocation(argv: Iterable[str]) -> Invocation:
         else:
             raise UsageError(f"{word!r} is not a release id (OGS-NNNNN) or `all`")
         i += 1
+    if inv.resolve_snapshot is not None and (len(inv.targets) != 1 or inv.targets[0] == "all" or inv.dry_run):
+        raise UsageError("--resolve-snapshot needs exactly one release id, and no --dry-run")
     return inv
 
 
@@ -196,37 +230,95 @@ def registered_ids(registry_root: Path) -> list[str]:
     )
 
 
-def _cleanup_register_metadata(inv: Invocation, store_id: str, root: Path) -> None:
-    """Clear Snakemake's mark that a killed register job's output is incomplete.
+def _cleanup_metadata(inv: Invocation, files: Iterable[Path]) -> None:
+    """Clear Snakemake's marks that a killed job left these outputs incomplete.
 
-    `complete_publication` has just written that output, `records/register.json`,
-    so it is complete. Snakemake's own `--cleanup-metadata` is the supported way
-    to say so. When the killed job never wrote metadata, Snakemake removes the
-    incomplete mark and still exits 1 saying the metadata "was not present".
-    That one outcome is expected; any other failure is raised.
+    Snakemake's own `--cleanup-metadata` is the supported way to do it. When
+    the killed job never wrote metadata, Snakemake removes the incomplete mark
+    and still exits 1 saying the metadata "was not present". That one outcome
+    is expected; any other failure is raised.
     """
-    record = paths.record_path(store_id, "register", root=root)
-    argv = [
-        sys.executable, "-m", "snakemake", "--snakefile", str(SNAKEFILE),
-        "--cleanup-metadata", str(record),
-    ]
-    if inv.config:
-        argv += ["--config", *(f"{key}={value}" for key, value in inv.config.items())]
-    result = subprocess.run(argv, cwd=paths.REPO_ROOT, capture_output=True, text=True)
-    output = result.stdout + result.stderr
-    if result.returncode != 0 and "because the metadata was not present" not in output:
-        raise RuntimeError(
-            f"Completed the publication of {store_id}, but could not clear Snakemake's "
-            f"incomplete mark on {record}:\n{output}"
+    for path in files:
+        argv = [
+            sys.executable, "-m", "snakemake", "--snakefile", str(SNAKEFILE),
+            "--cleanup-metadata", str(path),
+        ]
+        if inv.config:
+            argv += ["--config", *(f"{key}={value}" for key, value in inv.config.items())]
+        result = subprocess.run(argv, cwd=paths.REPO_ROOT, capture_output=True, text=True)
+        output = result.stdout + result.stderr
+        if result.returncode != 0 and "because the metadata was not present" not in output:
+            raise RuntimeError(f"Could not clear Snakemake's metadata for {path}:\n{output}")
+
+
+def _cleanup_register_metadata(inv: Invocation, store_id: str, root: Path) -> None:
+    """`complete_publication` has just written `records/register.json`, so it is complete."""
+    _cleanup_metadata(inv, [paths.record_path(store_id, "register", root=root)])
+
+
+def resolve_snapshot(inv: Invocation, store_id: str, root: Path, action: str) -> str:
+    """Carry out an operator's resolution of a leftover records snapshot (#195).
+
+    A forced run killed before it began to publish leaves the release's Store
+    and Validation Record untouched, its records snapshot, and possibly records
+    the run rewrote. Which records describe the Store is the operator's call
+    (decided 7 Oct 2026). `restore` puts the snapshot back as `records/`;
+    `delete` keeps `records/` as it is. Either way Snakemake's marks that the
+    killed run's outputs are incomplete are then cleared, so the next run is
+    not stopped by `IncompleteFilesException`.
+    """
+    if paths.publication_marker(store_id, root=root).exists():
+        raise run.PublicationPendingError(
+            f"{store_id} has a pending publication, not a leftover snapshot; "
+            f"`pixi run release {store_id}` completes it"
         )
+    snapshots = run.pending_force_snapshots(store_id, root)
+    if len(snapshots) != 1:
+        raise UsageError(f"{store_id} has {len(snapshots)} records snapshot(s), not one: {snapshots}")
+    snapshot = snapshots[0]
+    if action == "restore":
+        run.restore_force_snapshot(snapshot)
+    else:
+        shutil.rmtree(snapshot)
+    records = paths.records_dir(store_id, root=root)
+    outputs = sorted(records.glob("*.json")) if records.is_dir() else []
+    outputs += [
+        paths.build_manifest_path(store_id, root=root),
+        paths.build_manifest_sidecar_path(store_id, root=root),
+    ]
+    _cleanup_metadata(inv, outputs)
+    return (
+        f"release: {'restored' if action == 'restore' else 'deleted'} {snapshot} and cleared "
+        f"Snakemake's incomplete marks for {store_id}. If Snakemake now reports the working "
+        "directory locked, check that no other run is active, then run "
+        "`snakemake --snakefile workflow/Snakefile --unlock`."
+    )
+
+
+def finish_publication(inv: Invocation, store_id: str, root: Path | str) -> bool:
+    """Finish a release's pending publication, removing its marker last (#195).
+
+    `complete_publication` brings the Store and archive into line and rewrites
+    the two records the marker holds (identical, after a register job that ran
+    to the end). Then Snakemake's
+    incomplete mark on `records/register.json`, which a killed job leaves, is
+    cleared, and only then is `publication.json` removed. A crash anywhere in
+    here leaves the marker, so the next run repeats this function. Returns
+    whether a publication was pending.
+    """
+    if register.complete_publication(store_id, root, finalize=False) is None:
+        return False
+    _cleanup_register_metadata(inv, store_id, Path(root))
+    run.fault_boundary("metadata-cleaned")
+    register.remove_publication_marker(store_id, root)
+    return True
 
 
 def recover_releases(inv: Invocation, registry_root: Path, root: Path) -> list[str]:
     """Finish what a crash interrupted, before any refusal runs (#195)."""
     messages: list[str] = []
     for store_id in registered_ids(registry_root):
-        if register.complete_publication(store_id, root) is not None:
-            _cleanup_register_metadata(inv, store_id, root)
+        if finish_publication(inv, store_id, root):
             messages.append(f"release: completed the interrupted publication of {store_id}")
         elif paths.backup_store_path(store_id, root=root).is_dir():
             run._recover_pending_backup(store_id, root)
@@ -235,11 +327,10 @@ def recover_releases(inv: Invocation, registry_root: Path, root: Path) -> list[s
 
 
 def settle(inv: Invocation, scheduled: list[tuple[str, str]], snapshots: list[Path], succeeded: bool) -> None:
-    """Complete any publication the run left pending, then resolve its snapshots."""
+    """Finish every publication the run left, then resolve its snapshots."""
     for root, store_id in scheduled:
-        if register.complete_publication(store_id, root) is not None:
-            _cleanup_register_metadata(inv, store_id, Path(root))
-            print(f"release: completed the publication of {store_id} that this run left pending")
+        if finish_publication(inv, store_id, root):
+            print(f"release: finished the publication of {store_id}")
     run.settle_force_snapshots(snapshots, succeeded=succeeded)
 
 
@@ -286,6 +377,16 @@ def main(argv: Iterable[str]) -> int:
     if ", " in str(root):
         print(f"release: the artifact root {root} contains ', ', which the preflight cannot parse", file=sys.stderr)
         return 2
+    if inv.resolve_snapshot is not None:
+        if force:
+            print("release: --resolve-snapshot takes no --config force", file=sys.stderr)
+            return 2
+        try:
+            print(resolve_snapshot(inv, inv.targets[0], root, inv.resolve_snapshot))
+        except (UsageError, run.PublicationPendingError) as exc:
+            print(f"release: {exc}", file=sys.stderr)
+            return 1
+        return 0
     if inv.dry_run:
         return _dry_run(inv, registry_root, root, force)
 
@@ -317,7 +418,7 @@ def main(argv: Iterable[str]) -> int:
         print(f"release: {exc}", file=sys.stderr)
         return 1
 
-    extra = {"force_transaction": stamp} if snapshots else None
+    extra = {"release_run": stamp}
     returncode = subprocess.run(
         snakemake_argv(inv, dry_run=False, extra_config=extra), cwd=paths.REPO_ROOT
     ).returncode
@@ -332,15 +433,19 @@ def main(argv: Iterable[str]) -> int:
 
 __all__ = [
     "ALLOWED_OPTIONS",
+    "ENTRY_POINT_BOUNDARIES",
     "Invocation",
     "RESERVED_CONFIG_KEYS",
     "SNAKEFILE",
     "UNSAFE_OPTIONS",
+    "SNAPSHOT_RESOLUTIONS",
     "UsageError",
+    "finish_publication",
     "main",
     "parse_invocation",
     "recover_releases",
     "registered_ids",
+    "resolve_snapshot",
     "scheduled_releases",
     "settle",
     "snakemake_argv",

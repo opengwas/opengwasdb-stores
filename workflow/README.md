@@ -39,8 +39,8 @@ supported entry point (#195). Around one Snakemake run it:
 - snapshots what a forced run may replace;
 - settles the run afterwards.
 
-It accepts only release ids, `--config`, `--cores`, `--dry-run`, `--keep-going`
-and `--rerun-incomplete`. `--no-hooks`, `--touch` and other unsafe options are
+It accepts only release ids, `--config`, `--cores`, `--dry-run`, `--keep-going`,
+`--rerun-incomplete` and `--resolve-snapshot restore|delete`. `--no-hooks`, `--touch` and other unsafe options are
 refused before anything is written, and `--dry-run` writes nothing. An
 up-to-date release is a no-op.
 
@@ -48,9 +48,11 @@ A forced run copies the release's `records/` to `records.before-force-<UTC>/`.
 Publication is one transaction, recorded in `publication.json` until it is
 complete. The old Store, those records and a copy of its `validation.yaml` move
 to `replaced/<UTC>/`, and nothing deletes them; each archive holds a full Store.
-A crash after publication starts is finished by the next run. A crash before
-it leaves the old release in place, with a snapshot that blocks that release
-until someone restores or deletes it.
+The entry point removes that marker only once Snakemake has finished the
+register job, so a crash after publication starts is always finished by the
+next run. A crash before it leaves the old release in place, with a snapshot
+that blocks the release until an operator runs `pixi run release <ID>
+--resolve-snapshot restore` (or `delete`).
 
 Running `snakemake --snakefile workflow/Snakefile` directly bypasses all of
 this except the Snakefile's own `onstart` refusal, which `--no-hooks` disables.

@@ -825,6 +825,19 @@ class TestPublicationTransaction(unittest.TestCase):
                 self.assertFalse(paths.publication_marker(store_id, root=artifact_root).exists())
                 self.assertFalse(paths.partial_store_path(store_id, root=artifact_root).exists())
 
+    def test_under_the_entry_point_the_marker_outlives_the_register_job(self) -> None:
+        """finalize=False: everything is published and written, and the marker is left for the entry point."""
+        b, stores_root, artifact_root, old_record = self.staged_replacement("OGS-00502")
+
+        register_release(b, registry_root=stores_root, artifact_root=artifact_root, force=True, finalize=False)
+
+        marker = paths.publication_marker(b.store_id, root=artifact_root)
+        self.assertTrue(marker.exists())
+        register.complete_publication(b.store_id, artifact_root, finalize=False)
+        self.assertTrue(marker.exists(), "completing again without finalize keeps the marker")
+        register.remove_publication_marker(b.store_id, artifact_root)
+        self.assert_replaced(b, artifact_root, old_record)
+
     def test_an_impossible_state_is_raised_and_the_marker_kept(self) -> None:
         b, stores_root, artifact_root, _ = self.staged_replacement("OGS-00500")
         self.assertEqual(self.kill_register_at("store-set-aside", b, stores_root, artifact_root), 137)

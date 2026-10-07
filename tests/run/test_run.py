@@ -1369,7 +1369,7 @@ class TestForcedRunGuard(unittest.TestCase):
         record_check()
 
     def test_force_reaches_only_the_transactions_own_snapshot(self) -> None:
-        """`force_transaction` forces a release only if it holds that run's snapshot."""
+        """`release_run` forces a release only if it holds that run's snapshot."""
         self.publish("OGS-00005")
         self.publish("OGS-00004")
         scheduled = [(self.root, "OGS-00005"), (self.root, "OGS-00004")]

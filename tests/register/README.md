@@ -39,6 +39,7 @@ Test suite for `ogstores.register` (Issue #117), governed by [ADR 0022](../../do
 
 10. **Publication is a recoverable transaction (#195)**:
     - The run is killed (a subprocess exiting as SIGKILL would) at every boundary after `publication.json` is written. `complete_publication` then finishes it: the new Store is published, the old Store, records and Validation Record are archived, `validation.yaml` and `register.json` are written, and nothing is left pending. An exception at each boundary is finished the same way.
+    - With `finalize=False` (the entry point's register job), the marker is kept after the last step, for the entry point to remove.
     - A kill before the marker leaves the old Store and record in place, and its snapshot refuses the next run. A killed first publication is completed too. An impossible state raises `PublicationError` and keeps the marker, and `register` refuses while a publication is pending.
 
 11. **Documented record shape**:

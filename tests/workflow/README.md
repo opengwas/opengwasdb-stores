@@ -38,8 +38,14 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
    - `--config force=1` replaces a named published release. The old Store, its records and its `validation.yaml` land unchanged in `replaced/<UTC>/`, the new Store is published, and the new record names the archive.
    - A forced run whose build fails restores `records/` exactly, leaving the Store and `validation.yaml` untouched and no snapshot or archive behind.
    - A leftover `records.before-force-<UTC>/` makes both an unforced and a forced run refuse. The error names the snapshot and how to restore or delete it.
-   - Through the entry point (`workflow/release.py`): an unforced rebuild of a published release is refused in preflight, and `--no-hooks`, `--touch`, `--forceall`, `--nolock`, `--ignore-incomplete` and `--snakefile` are refused before any write, forced or not. An operator cannot set `force_transaction`.
-   - Whole-stack SIGKILL (entry point, Snakemake and register job together) after `store.opengwasdb -> .backup`, and after `validation.yaml` is written: the next run completes the publication, clears Snakemake's incomplete mark, and finds nothing to do. Only the register job killed: the same run completes it. Killed after the snapshot and before Snakemake: the release is intact and the next run refuses, naming the snapshot.
+   - Through the entry point (`workflow/release.py`): an unforced rebuild of a published release is refused in preflight, and `--no-hooks`, `--touch`, `--forceall`, `--nolock`, `--ignore-incomplete` and `--snakefile` are refused before any write, forced or not. An operator cannot set `release_run`.
+   - `--resolve-snapshot` misuse (no snapshot, a bad action, `all`, `--dry-run`) is refused without writing.
+   - Only the register job killed mid-publication: the same run finishes it.
+
+8. **A whole-stack crash at every boundary (#195; `test_release_faults.py`, its own suite `release-faults`)**:
+   - For each of the 13 boundaries (`release.ENTRY_POINT_BOUNDARIES` plus `register.PUBLICATION_BOUNDARIES`, `marker-removed` included), a forced entry-point run is SIGKILLed with its whole process group.
+   - From the marker on, the next run completes the publication, clears Snakemake's incomplete mark and finds nothing to do. Before it, the next run refuses. `--resolve-snapshot delete` (before any job) or `restore` (after), plus Snakemake's `--unlock`, then let a forced run replace the release.
+   - Every case ends with the old Store, records and record archived byte-for-byte, nothing pending, and a further run with nothing to do. A boundary added to the code without a case here fails the suite.
 
 8. **Operator config reaches Snakemake (#195)**:
    - `pixi run release <ID> --config key=value` and `release-dry` pass the override to Snakemake's config rather than as a target. Each task's `pixi.toml` cmd is run with the operator's words appended, as Pixi does, and the dry run must plan under the configured artifact root.

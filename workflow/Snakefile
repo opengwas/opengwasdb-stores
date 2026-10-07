@@ -118,8 +118,8 @@ onstart:
     # Defence in depth for a direct `snakemake` run. The supported entry point,
     # `pixi run release` (workflow/release.py), refuses, snapshots and settles
     # around Snakemake and cannot be switched off. Here, before the first job,
-    # a run that would rebuild a published release is refused unless the entry
-    # point's force transaction holds that release's snapshot (#195).
+    # a run that would rebuild a published release is refused unless it holds
+    # the records snapshot of the entry point's run, `release_run` (#195).
     scheduled = [
         (job.wildcards_dict["root"], job.wildcards_dict["store_id"])
         for job in workflow.dag.needrun_jobs()
@@ -127,7 +127,7 @@ onstart:
     ]
     run.refuse_rebuilding_published_releases(
         scheduled,
-        forced=run.forced_by_transaction(config.get("force_transaction"), scheduled),
+        forced=run.forced_by_transaction(config.get("release_run"), scheduled),
     )
 
 
@@ -179,13 +179,14 @@ rule register:
         "{root}/{store_id}/records/register.json"
     run:
         b = get_bundle(wildcards.store_id)
-        # Replace a published Store only inside the entry point's force
-        # transaction: its stamp arrives as `force_transaction`, and only the
-        # entry point creates the matching records snapshot (#195).
+        # Inside the entry point's run, `release_run` names it. A published Store
+        # is replaced only if it holds that run's records snapshot, which only
+        # the entry point creates. The entry point also finishes the publication
+        # (finalize=False): it removes publication.json once Snakemake has
+        # recorded this job, so a crash before then is always recoverable (#195).
+        release_run = config.get("release_run")
         forced = bool(
-            run.forced_by_transaction(
-                config.get("force_transaction"), [(wildcards.root, wildcards.store_id)]
-            )
+            run.forced_by_transaction(release_run, [(wildcards.root, wildcards.store_id)])
         )
         register.register_release(
             b,
@@ -194,6 +195,7 @@ rule register:
             force=forced,
             publish=True,
             acceptance_commit=register.committed_revision(b.root / "validation.yaml"),
+            finalize=not release_run,
         )
 
 

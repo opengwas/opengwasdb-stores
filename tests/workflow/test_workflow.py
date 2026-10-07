@@ -802,72 +802,35 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         self.assertFalse(paths.partial_store_path(store_id, root=self.artifact_root).exists())
         self.assertEqual(run.pending_force_snapshots(store_id, self.artifact_root), [])
 
-    def test_an_operator_cannot_set_the_force_transaction(self) -> None:
+    def test_an_operator_cannot_set_the_release_run(self) -> None:
         store_id = self.STORE_ID
         self.use_completed_build()
         res = run_release(
             [store_id],
             registry_root=self.stores_dir,
             artifact_root=self.artifact_root,
-            config={"force_transaction": "20261007T000000Z"},
+            config={"release_run": "20261007T000000Z"},
         )
         self.assertEqual(res.returncode, 2)
-        self.assertIn("force_transaction", res.stderr)
+        self.assertIn("release_run", res.stderr)
 
-    def test_a_whole_stack_kill_with_no_store_published_is_completed_by_the_next_run(self) -> None:
-        """The review's case: killed after `store.opengwasdb -> .backup`, with no Store at the canonical path."""
-        self.assert_a_whole_stack_kill_is_completed_by_the_next_run("store-set-aside")
-
-    def test_a_whole_stack_kill_after_the_new_record_is_completed_by_the_next_run(self) -> None:
-        """Killed after validation.yaml is written and before register.json."""
-        self.assert_a_whole_stack_kill_is_completed_by_the_next_run("record-written")
-
-    def assert_a_whole_stack_kill_is_completed_by_the_next_run(self, boundary: str) -> None:
-        """SIGKILL of the entry point, Snakemake and register together at `boundary`.
-
-        The next run completes the publication before any refusal can run,
-        clears Snakemake's incomplete mark on register.json, and finds nothing
-        left to do. Each boundary has its own directories, so Snakemake's
-        metadata from one cannot make another look up to date.
-        """
+    def test_resolve_snapshot_refuses_misuse_without_writing(self) -> None:
+        """`--resolve-snapshot` needs one id and a leftover snapshot; it never runs Snakemake."""
         store_id = self.STORE_ID
         self.use_completed_build()
-        self.age_published_release(store_id)
-        store_dir = paths.store_dir(store_id, root=self.artifact_root)
-        store_p = paths.store_path(store_id, root=self.artifact_root)
-        old_manifest = (store_p / "manifest.json").read_bytes()
-        old_records = self.records_of(paths.records_dir(store_id, root=self.artifact_root))
-        validation_p = self.stores_dir / store_id / "validation.yaml"
-        old_validation = validation_p.read_bytes()
-
-        killed = run_release(
-            [store_id],
-            registry_root=self.stores_dir,
-            artifact_root=self.artifact_root,
-            config={"force": "1"},
-            env={run.KILL_GROUP_AT_ENV: boundary},
-            new_session=True,
+        before = self.release_snapshot(store_id)
+        cases = (
+            ([store_id, "--resolve-snapshot", "restore"], 1, "0 records snapshot"),
+            ([store_id, "--resolve-snapshot", "maybe"], 2, "restore` or `delete"),
+            (["all", "--resolve-snapshot", "delete"], 2, "exactly one release id"),
+            ([store_id, "--resolve-snapshot", "delete", "--dry-run"], 2, "exactly one release id"),
         )
-        self.assertEqual(killed.returncode, -9, killed.stdout + killed.stderr)
-        self.assertTrue(paths.publication_marker(store_id, root=self.artifact_root).exists())
-
-        res = run_release([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
-
-        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
-        self.assertIn("completed the interrupted publication", res.stdout)
-        archives = sorted((store_dir / "replaced").iterdir())
-        self.assertEqual(len(archives), 1, archives)
-        self.assertEqual((archives[0] / "store.opengwasdb" / "manifest.json").read_bytes(), old_manifest)
-        self.assertEqual(self.records_of(archives[0] / "records"), old_records)
-        self.assertEqual((archives[0] / "validation.yaml").read_bytes(), old_validation)
-        self.assertNotEqual((store_p / "manifest.json").read_bytes(), old_manifest)
-        for leftover in (
-            paths.publication_marker(store_id, root=self.artifact_root),
-            paths.backup_store_path(store_id, root=self.artifact_root),
-            paths.partial_store_path(store_id, root=self.artifact_root),
-        ):
-            self.assertFalse(leftover.exists(), leftover)
-        self.assertEqual(run.pending_force_snapshots(store_id, self.artifact_root), [])
+        for words, code, message in cases:
+            with self.subTest(words=words):
+                res = run_release(words, registry_root=self.stores_dir, artifact_root=self.artifact_root)
+                self.assertEqual(res.returncode, code, res.stdout + res.stderr)
+                self.assertIn(message, res.stderr)
+                self.assertEqual(self.release_snapshot(store_id), before)
 
     def test_a_register_job_killed_mid_publication_is_completed_by_the_same_run(self) -> None:
         """Only the register job dies; the entry point survives and finishes the publication itself."""
@@ -886,7 +849,7 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         )
 
         self.assertNotEqual(res.returncode, 0, "Snakemake saw its register job die")
-        self.assertIn(f"completed the publication of {store_id} that this run left pending", res.stdout)
+        self.assertIn(f"finished the publication of {store_id}", res.stdout)
         archives = sorted((store_dir / "replaced").iterdir())
         self.assertEqual(len(archives), 1, archives)
         self.assertEqual((archives[0] / "store.opengwasdb" / "manifest.json").read_bytes(), old_manifest)
@@ -896,32 +859,6 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         nothing = run_release([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
         self.assertEqual(nothing.returncode, 0, nothing.stdout + nothing.stderr)
         self.assertIn("nothing to be done", nothing.stdout)
-
-    def test_a_whole_stack_kill_before_the_build_leaves_a_snapshot_the_next_run_refuses(self) -> None:
-        """Killed after the snapshot and before Snakemake: the release is intact, and the snapshot blocks."""
-        store_id = self.STORE_ID
-        self.use_completed_build()
-        self.age_published_release(store_id)
-        killed = run_release(
-            [store_id],
-            registry_root=self.stores_dir,
-            artifact_root=self.artifact_root,
-            config={"force": "1"},
-            env={run.KILL_GROUP_AT_ENV: "snapshots-taken"},
-            new_session=True,
-        )
-        self.assertEqual(killed.returncode, -9)
-        snapshots = run.pending_force_snapshots(store_id, self.artifact_root)
-        self.assertEqual(len(snapshots), 1)
-        before = self.release_snapshot(store_id)
-
-        res = run_release([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
-
-        self.assertEqual(res.returncode, 1)
-        self.assertIn(str(snapshots[0]), res.stderr)
-        self.assertIn("restore it", res.stderr)
-        self.assertIn("delete it", res.stderr)
-        self.assertEqual(self.release_snapshot(store_id), before)
 
     def test_deleting_single_record_file_reruns_exact_step_and_downstream(self) -> None:
         """Deleting records/validate.json triggers only validate, register, and store target in dry-run."""

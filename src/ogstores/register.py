@@ -530,7 +530,17 @@ def _load_marker(store_id: str, root: Path) -> dict[str, Any] | None:
     return marker
 
 
-def complete_publication(store_id: str, root: Path | str) -> dict[str, Any] | None:
+def remove_publication_marker(store_id: str, root: Path | str) -> None:
+    """Remove a finished publication's marker: always the transaction's last step (#195)."""
+    marker_p = paths.publication_marker(store_id, root=root)
+    marker_p.unlink()
+    run._fsync_dir(marker_p.parent)
+    run.fault_boundary("marker-removed")
+
+
+def complete_publication(
+    store_id: str, root: Path | str, *, finalize: bool = True
+) -> dict[str, Any] | None:
     """Finish a pending publication from wherever it stopped (#195).
 
     `register_release` writes `publication.json` once it has verified every
@@ -546,6 +556,10 @@ def complete_publication(store_id: str, root: Path | str) -> dict[str, Any] | No
        `records/`, and the replaced Validation Record is written there.
     3. The new `validation.yaml` and `records/register.json` are written from
        the marker.
+    4. With `finalize`, the marker is removed. The entry point passes False and
+       removes it itself, after Snakemake has finished the register job and
+       any mark that a killed job left `register.json` incomplete is cleared.
+       So a crash before then always leaves a marker for the next run.
 
     A state that fits no step, such as neither a Store nor a staged Store, is
     raised as `PublicationError` and the marker is kept. Returns the marker, or
@@ -618,9 +632,8 @@ def complete_publication(store_id: str, root: Path | str) -> dict[str, Any] | No
         marker["register_record"], paths.record_path(store_id, "register", root=resolved_root)
     )
     run.fault_boundary("register-record-written")
-    marker_p.unlink()
-    run._fsync_dir(store_dir_p)
-    run.fault_boundary("marker-removed")
+    if finalize:
+        remove_publication_marker(store_id, resolved_root)
     return marker
 
 
@@ -632,6 +645,7 @@ def register_release(
     force: bool = False,
     publish: bool = True,
     acceptance_commit: str | None = None,
+    finalize: bool = True,
 ) -> dict[str, Any]:
     """Assemble validation.yaml, verify executed vs planned argv, publish store, and record register.json.
 
@@ -643,6 +657,8 @@ def register_release(
         publish: If True, atomically publish staging store (.partial -> final store).
         acceptance_commit: The commit of the bundle's current validation.yaml
             (`committed_revision`), recorded when that is a candidate record.
+        finalize: If False, leave `publication.json` for the caller to remove.
+            The entry point does so once Snakemake has finished this job (#195).
 
     Returns:
         dict containing the assembled validation.yaml data.
@@ -823,7 +839,7 @@ def register_release(
         }
         run._write_record_atomically(marker, marker_p)
         run.fault_boundary("marker-written")
-        complete_publication(store_id, resolved_root)
+        complete_publication(store_id, resolved_root, finalize=finalize)
         return validation_data
 
     # Nothing staged: write the record beside whatever is (or is not) published.
@@ -852,5 +868,6 @@ __all__ = [
     "normalize_executed_argv_for_staging",
     "normalize_executed_argv_for_variant_reference",
     "register_release",
+    "remove_publication_marker",
     "validate_verdict",
 ]

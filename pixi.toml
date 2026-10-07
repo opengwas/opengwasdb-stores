@@ -286,8 +286,9 @@ materialise-gwas-ssf-ragged = { cmd = "Rscript resources/scripts/materialise-gwa
 # any interrupted publication, refuses a published release unless it is named
 # with `--config force=1`, snapshots what a forced run may replace, runs
 # Snakemake once, and settles the run. It accepts only release ids, `--config`,
-# `--cores`, `--dry-run`, `--keep-going` and `--rerun-incomplete`; `--no-hooks`
-# and other unsafe options are refused. Name the ids first, then the overrides:
+# `--cores`, `--dry-run`, `--keep-going`, `--rerun-incomplete` and
+# `--resolve-snapshot restore|delete`; `--no-hooks` and other unsafe options are
+# refused. Name the ids first, then the overrides:
 #
 #   pixi run release OGS-00003 --config artifact_root=/path
 #   pixi run release OGS-00005 --config force=1   # replace it; the old one is archived

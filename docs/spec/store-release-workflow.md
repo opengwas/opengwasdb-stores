@@ -388,10 +388,10 @@ replace, and settles the run. See Safety.
 1. **Recovery.** It completes any publication a crash left half done (`publication.json`, below). It also puts back or archives any `store.opengwasdb.backup` left by `run.publish_store(force=True)`. This happens before any refusal, so a refusal never blocks recovery.
 2. **Preflight.** A Snakemake dry run lists the jobs. The guard refuses a published release that would be rebuilt, unless it was named with `--config force=1`. It also refuses a release holding a leftover records snapshot, until an operator resolves it. Nothing has been written when either refusal happens. If no job is scheduled, it stops there without starting Snakemake.
 3. **Snapshot.** For each forced, published release, `records/` is copied to `records.before-force-<UTC>/`, keeping mtimes.
-4. **The run.** One Snakemake run, with `--config force_transaction=<UTC>` naming that snapshot.
-5. **Settlement.** A publication the run left pending is completed. Then a failed run's snapshots are put back as `records/`, and a successful run's are archived.
+4. **The run.** One Snakemake run, with `--config release_run=<UTC>` naming this run, and so any snapshot it took. Under that token a register job publishes but leaves `publication.json` in place.
+5. **Settlement.** Each publication the run left is finished (`release.finish_publication`). Steps a killed job did not reach are completed. Snakemake's mark that a killed register job's output is incomplete is cleared. Only then is the marker removed. Then a failed run's snapshots are put back as `records/`, and a successful run's are archived.
 
-The entry point accepts only release ids or `all`, `--config key=value`, `--cores`, `--dry-run`, `--keep-going` and `--rerun-incomplete`. Anything else is refused before anything is written, including `--no-hooks`, `--touch`, `--forceall`, `--nolock`, `--ignore-incomplete` and `--snakefile`. `force_transaction` is reserved for the entry point. `--dry-run` writes nothing: it prints Snakemake's plan and what the guard would do.
+The entry point accepts only release ids or `all`, `--config key=value`, `--cores`, `--dry-run`, `--keep-going`, `--rerun-incomplete`, and `--resolve-snapshot restore|delete` (below). Anything else is refused before anything is written, including `--no-hooks`, `--touch`, `--forceall`, `--nolock`, `--ignore-incomplete` and `--snakefile`. `release_run` is reserved for the entry point. `--dry-run` writes nothing: it prints Snakemake's plan and what the guard would do.
 
 **Running `snakemake` directly bypasses the entry point.** The Snakefile keeps one check as defence in depth, in its `onstart` hook. It refuses a run that would rebuild a published release, unless the release holds the entry point's force-transaction snapshot. `--no-hooks` disables that check, and a direct run gets no recovery, snapshot, restore or settlement.
 
@@ -403,7 +403,7 @@ The entry point accepts only release ids or `all`, `--config key=value`, `--core
 pixi run release OGS-00005 --config force=1
 ```
 
-Force reaches only the release ids named as targets. A published release scheduled only as a dependency, or through `all`, is still refused. The register job runs in a subprocess that re-parses the Snakefile, so it cannot see the targets. It replaces a published Store only when `force_transaction` names a snapshot that release holds, and only the entry point creates one.
+Force reaches only the release ids named as targets. A published release scheduled only as a dependency, or through `all`, is still refused. The register job runs in a subprocess that re-parses the Snakefile, so it cannot see the targets. It replaces a published Store only when `release_run` names a snapshot that release holds, and only the entry point creates one.
 
 **Publication is one recoverable transaction.** Once `register` has verified every record and assembled the new Validation Record, it writes `publication.json` beside the Store. The marker records the whole outcome: the archive, the snapshot, the new `validation.yaml` text, `register.json`, and for a replacement the replaced Validation Record. `complete_publication` then carries out the steps below. Each step checks what is already done, so a later run can repeat it safely:
 
@@ -413,15 +413,19 @@ Force reaches only the release ids named as targets. A published release schedul
 4. The snapshot moves into the archive as `records/`.
 5. The replaced Validation Record is written into the archive. It is a copy, because the bundle's file is rewritten in place, and git keeps it.
 6. The new `validation.yaml` and `records/register.json` are written.
-7. The marker is removed, last.
+7. The marker is removed, last. Under the entry point the register job does not remove it (`finalize=False`). The entry point does, in `finish_publication`, once Snakemake has finished the job and any mark that a killed job left `register.json` incomplete is cleared with `snakemake --cleanup-metadata`. A direct `register_release()` removes its own marker.
 
-A crash between any two steps leaves the marker, and the next entry-point run finishes the job before anything else. If only the register job dies, the same run's settlement finishes it. Recovery also clears Snakemake's mark that the killed job's `register.json` is incomplete, using `snakemake --cleanup-metadata`. A state that fits no step, such as neither a Store nor a staged Store, raises `PublicationError` and keeps the marker for an operator. The new record's `replaced.archive`, and `register.json`'s `replaced_archive`, say where the archive is. A first publication uses the same marker, without the archive steps.
+A crash between any two steps, up to and including the marker's removal, therefore leaves either the marker or a release that is already consistent with no Snakemake mark outstanding. The next entry-point run finishes a pending marker before anything else. If only the register job dies, the same run's settlement finishes it. A state that fits no step, such as neither a Store nor a staged Store, raises `PublicationError` and keeps the marker for an operator. The new record's `replaced.archive`, and `register.json`'s `replaced_archive`, say where the archive is. A first publication uses the same marker, without the archive steps.
 
-**Before the marker, a crash leaves the old release in place.** The Store and `validation.yaml` are untouched, and the leftover snapshot makes the next run of that release refuse to start, forced or not (decided in review on 7 Oct 2026). The refusal names the snapshot and the two resolutions: restore it (replace `records/` with it), or delete it once `records/` is known to describe the Store beside it. A whole-host crash also leaves Snakemake's lock on the working directory. If a later run reports it, check that no other run is active, then run `snakemake --snakefile workflow/Snakefile --unlock`. That writes nothing under a release.
+**Before the marker, a crash leaves the old release in place.** The Store and `validation.yaml` are untouched, and the leftover snapshot makes the next run of that release refuse to start, forced or not (decided in review on 7 Oct 2026). The refusal names the snapshot and the two resolutions, which an operator chooses and the entry point carries out:
+- `pixi run release <ID> --resolve-snapshot restore` replaces `records/` with the snapshot, when the killed run had already rewritten records;
+- `pixi run release <ID> --resolve-snapshot delete` deletes it, when `records/` is known to describe the Store beside it.
+
+Either resolution also clears Snakemake's marks that the killed run's outputs (the release's records and derived manifest) are incomplete. Otherwise a restored record would stop every later run with `IncompleteFilesException`. A whole-host crash also leaves Snakemake's lock on the working directory. If a later run reports it, check that no other run is active, then run `snakemake --snakefile workflow/Snakefile --unlock`. That writes nothing under a release.
 
 **Nothing deletes an archive.** `publish_store(force=True)` renames the old Store into it rather than removing it, and so does crash recovery of a `store.opengwasdb.backup`. An archive failure is raised, never swallowed. **Each archive holds a full Store**, so replacing a release costs its size again in disk until a person deletes the archive: 2.7 GB for OGS-00005, about 35 GB for OGS-00009 and 50 GB for OGS-00010.
 
-Tests inject crashes at each named boundary of the transaction, through `run.fault_boundary` and the test-only `OGSTORES_TEST_KILL_AT` and `OGSTORES_TEST_KILL_GROUP_AT` variables.
+Tests inject crashes at each named boundary through `run.fault_boundary` and the test-only `OGSTORES_TEST_KILL_AT` and `OGSTORES_TEST_KILL_GROUP_AT` variables. The boundaries are the register job's (`register.PUBLICATION_BOUNDARIES`) and the entry point's (`release.ENTRY_POINT_BOUNDARIES`). `tests/workflow/test_release_faults.py` kills the whole stack (entry point, Snakemake and register job) at every one of the 13, `marker-removed` included, through the supported entry point. It then asserts that the next run recovers, and fails if the code gains a boundary the suite does not crash.
 
 **`validation.yaml` is written only by the terminal `register` step.** A failed run leaves the previous one intact.
 

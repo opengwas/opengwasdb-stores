@@ -783,19 +783,21 @@ def refuse_pending_force_snapshots(scheduled: Iterable[tuple[Path | str, str]]) 
         return
     lines = []
     for store_id, root, snapshot in leftovers:
-        records = paths.records_dir(store_id, root=root)
         lines.append(
             f"  {store_id}: {snapshot}\n"
             f"    restore it, if records/ no longer describes {paths.store_path(store_id, root=root)}:\n"
-            f"      rm -r {records} && mv {snapshot} {records}\n"
+            f"      pixi run release {store_id} --resolve-snapshot restore\n"
             f"    or delete it, if records/ still describes that Store:\n"
-            f"      rm -r {snapshot}"
+            f"      pixi run release {store_id} --resolve-snapshot delete"
         )
     raise ForceSnapshotPendingError(
         "Refusing to run: a forced run of these releases stopped before it began to "
         "publish, and left the snapshot of the records it was replacing (#195):\n"
         + "\n".join(lines)
-        + "\nNothing was written. Resolve each snapshot, then run again."
+        + "\nNothing was written. Either resolution also clears Snakemake's marks that the "
+        "killed run's outputs are incomplete. If Snakemake then reports the working directory "
+        "locked, check that no other run is active and run "
+        "`snakemake --snakefile workflow/Snakefile --unlock`."
     )
 
 
@@ -947,7 +949,7 @@ def forced_by_transaction(
 ) -> frozenset[str]:
     """The releases this entry-point run may replace: those holding its snapshot (#195).
 
-    The entry point passes its run's stamp to Snakemake as `force_transaction`.
+    The entry point passes its run's stamp to Snakemake as `release_run`.
     A release is forced only when it holds `records.before-force-<that stamp>/`,
     which only the entry point creates, so a hand-written `--config` reaches
     nothing by accident.
@@ -955,7 +957,7 @@ def forced_by_transaction(
     if not token:
         return frozenset()
     if not _STAMP_PATTERN.match(str(token)):
-        raise ValueError(f"force_transaction={token!r} is not a run stamp (YYYYMMDDTHHMMSSZ)")
+        raise ValueError(f"release_run={token!r} is not a run stamp (YYYYMMDDTHHMMSSZ)")
     return frozenset(
         store_id
         for root, store_id in _scheduled_releases(scheduled)
