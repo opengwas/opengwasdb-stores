@@ -339,6 +339,8 @@ class TestRegisterRecordsOnlyThisRun(unittest.TestCase):
         stale = {
             "status": "passed_with_warnings",
             "validated_at": "2026-08-31T20:01:07Z",
+            # Migrated to the register shape by #135, so it names the register's validator.
+            "validator": {"name": register.VALIDATOR_NAME, "version": "opengwasdb@6ef919e"},
             "checks": {
                 "schema": "passed",
                 "files": "passed_with_warnings",
@@ -373,6 +375,7 @@ class TestRegisterRecordsOnlyThisRun(unittest.TestCase):
         self.assertEqual(written["warnings"], [self.WARNING])
         self.assertEqual(written["checks"], {"store": "passed_with_warnings"})
         self.assertNotIn("reports", written)
+        self.assertNotIn("acceptance", written, "a previous build's findings are not acceptance evidence")
         self.assertEqual(written["errors"], [])
         self.assertEqual(written["status"], "passed_with_warnings")
         self.assertEqual(written["observed"]["validate_status"], "passed_with_warnings")
@@ -417,6 +420,134 @@ class TestRegisterRecordsOnlyThisRun(unittest.TestCase):
             stale,
         )
         self.assertFalse(paths.record_path(b.store_id, "register", root=artifact_root).exists())
+
+
+CANDIDATE_RECORD: dict[str, Any] = {
+    "status": "passed_with_warnings",
+    "validated_at": "2026-09-30T00:25:26Z",
+    "validator": {"name": "resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py", "version": None},
+    "observed": {"format_version": None, "validate_status": None},
+    "checks": {"schema": "passed", "files": "passed", "ancestry": "passed_with_warnings", "sd_estimation": "passed_with_warnings"},
+    "reports": {"ancestry": "sidecars/ancestry.tsv", "sd_estimation": "sidecars/sd_estimation.tsv"},
+    "warnings": [
+        "1162 Analysis/Analyses excluded by ancestry policy (unassigned, non-target, or orientation failure); see sidecars/exclusions.tsv",
+        "173 included Analysis/Analyses have a high-dispersion SD estimate; see sidecars/sd_estimation.tsv",
+    ],
+    "errors": [],
+}
+
+
+class TestRegisterKeepsPhaseBAcceptanceApart(unittest.TestCase):
+    """Phase B acceptance evidence is kept in its own dated block, never in the run's findings (#195)."""
+
+    COMMIT = "1" * 40
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.td = Path(self.temp_dir.name)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def register_over(self, store_id: str, previous: dict[str, Any], validate_warnings: list[str]) -> dict[str, Any]:
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, store_id)
+        (b.root / "validation.yaml").write_text(yaml.safe_dump(previous), encoding="utf-8")
+        b = bundle.load(store_id, registry_root=stores_root)
+        set_validate_output(
+            store_id,
+            artifact_root,
+            json.dumps({"errors": [], "ok": True, "warnings": validate_warnings}) + "\n",
+        )
+        register_release(
+            b,
+            registry_root=stores_root,
+            artifact_root=artifact_root,
+            publish=False,
+            acceptance_commit=self.COMMIT,
+        )
+        return yaml.safe_load((b.root / "validation.yaml").read_text(encoding="utf-8"))
+
+    def test_candidate_evidence_appears_only_under_acceptance(self) -> None:
+        """A candidate's checks, warnings and reports move verbatim into `acceptance`, dated."""
+        written = self.register_over("OGS-00057", CANDIDATE_RECORD, [])
+
+        self.assertEqual(
+            written["acceptance"],
+            {
+                "recorded_at": CANDIDATE_RECORD["validated_at"],
+                "commit": self.COMMIT,
+                "checks": CANDIDATE_RECORD["checks"],
+                "warnings": CANDIDATE_RECORD["warnings"],
+                "reports": CANDIDATE_RECORD["reports"],
+            },
+        )
+        for warning in CANDIDATE_RECORD["warnings"]:
+            self.assertNotIn(warning, written["warnings"])
+        self.assertEqual(written["warnings"], [])
+        self.assertEqual(written["checks"], {"store": "passed"})
+        self.assertEqual(written["status"], "passed", "Phase B's passed_with_warnings must not feed the verdict")
+        self.assertNotIn("reports", written)
+
+    def test_acceptance_never_mixes_with_this_runs_warnings(self) -> None:
+        """With validate warnings too, each list holds only its own source's warnings."""
+        run_warning = "analysis 'GCST003898' stores EAF whose orientation is unverified"
+        written = self.register_over("OGS-00058", CANDIDATE_RECORD, [run_warning])
+
+        self.assertEqual(written["warnings"], [run_warning])
+        self.assertEqual(written["acceptance"]["warnings"], CANDIDATE_RECORD["warnings"])
+        self.assertEqual(written["status"], "passed_with_warnings")
+
+    def test_reregistration_carries_the_acceptance_block_verbatim(self) -> None:
+        """A register-written record's `acceptance` describes the same accepted bundle, so it is kept."""
+        first = self.register_over("OGS-00059", CANDIDATE_RECORD, ["first run's warning"])
+        second = self.register_over("OGS-00059", first, [])
+
+        self.assertEqual(second["acceptance"], first["acceptance"])
+        self.assertEqual(second["warnings"], [])
+
+    def test_a_register_record_without_acceptance_gives_none(self) -> None:
+        """A migrated record mixes Phase B and old build findings; nothing is extracted from it."""
+        legacy = {
+            "status": "passed_with_warnings",
+            "validator": {"name": register.VALIDATOR_NAME, "version": "opengwasdb@6ef919e"},
+            "checks": {"schema": "passed", "files": "passed_with_warnings", "sd_estimation": "passed"},
+            "warnings": ["GCST002047: sample_size_kind present in the manifest but missing from the built store's analyses.tsv"],
+        }
+        written = self.register_over("OGS-00060", legacy, [])
+        self.assertNotIn("acceptance", written)
+
+
+class TestCommittedRevision(unittest.TestCase):
+    """`committed_revision` names the commit a file came from, or None when it is not that commit."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.repo = Path(self.temp_dir.name)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def git(self, *args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(self.repo), *args], check=True, capture_output=True, text=True
+        ).stdout.strip()
+
+    def test_revision_of_committed_modified_and_untracked_files(self) -> None:
+        record = self.repo / "validation.yaml"
+        self.assertIsNone(register.committed_revision(record), "not a git repository")
+
+        self.git("init", "-q")
+        self.git("config", "user.email", "test@example.invalid")
+        self.git("config", "user.name", "test")
+        record.write_text("status: passed\n", encoding="utf-8")
+        self.assertIsNone(register.committed_revision(record), "untracked")
+
+        self.git("add", "validation.yaml")
+        self.git("commit", "-q", "-m", "candidate")
+        self.assertEqual(register.committed_revision(record), self.git("rev-parse", "HEAD"))
+
+        record.write_text("status: failed\n", encoding="utf-8")
+        self.assertIsNone(register.committed_revision(record), "modified since its commit")
 
 
 class TestArgvDriftAndResumptionDivergence(unittest.TestCase):

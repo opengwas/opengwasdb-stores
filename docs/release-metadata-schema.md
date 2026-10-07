@@ -476,13 +476,27 @@ Two writers produce this file at different times:
 - `register` writes the record of a built release (issue #119).
 
 `register` replaces the candidate's record; it does not merge with it. Its
-record holds only that run's findings: the `opengwasdb validate --format json`
-verdict as `checks.store`, with that run's `warnings` and `errors` exactly as
-validate printed them. Nothing is carried from the record it replaces (#195).
-The Phase B acceptance evidence therefore does not appear in a registered
-record. The sidecars it pointed to stay in the bundle, and git keeps the
-candidate's record. Whether that evidence should have a home of its own in a
-registered record is an open question on #195.
+`status`, `checks`, `warnings` and `errors` hold only that run's findings: the
+`opengwasdb validate --format json` verdict as `checks.store`, with that run's
+`warnings` and `errors` exactly as validate printed them. None of them carries
+anything from the record being replaced (#195).
+
+The candidate's Phase B acceptance evidence is kept in its own labelled
+`acceptance` block, apart from those findings, and nothing in it feeds them
+(#195). `register` fills the block in one of three ways:
+- **From a candidate record** (one whose `validator.name` is not
+  `opengwasdb validate`): its `checks`, `warnings` and `reports`, verbatim. The
+  block is dated by the candidate's own `validated_at` and tied to the commit
+  that record came from.
+- **From a `register`-written record:** its `acceptance` block is passed on
+  verbatim, because the accepted bundle it describes is immutable.
+- **Not at all, from a record #135 migrated** (OGS-00001..7). Those records
+  mix Phase B evidence with an earlier build's findings, so nothing is
+  extracted from them; git keeps them.
+
+Only those three fields are carried. Any other top-level key a generator
+writes, such as OGS-00011's `reference_overlap`, is not; its sidecar stays in
+the bundle.
 
 A `built` or `validated` release must carry a `validation.yaml` whose `status`
 is one of `not_run`, `passed`, `passed_with_warnings`, or `failed`;
@@ -518,9 +532,13 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `checks.effect_scale` | No | `not_run` when the release has not opted into `effect_scale_validation`, or when it has opted in but reflects only controlled-vocabulary validity. Once a release opts in, this must reflect the empirical reference-AF/source-AF SD-estimation sidecar outcome across attempted Analyses (`passed`, `passed_with_warnings`, or `failed`), not merely that declared vocabulary values are valid. |
 | `checks.sd_estimation` | No | `not_run` when SD-estimation was not attempted. Otherwise `passed` only when the sidecar is internally consistent (every attempted, warned, or failed Analysis has a matching sidecar row with required fields populated) and no attempted Analysis has status `failed`; `passed_with_warnings` when at least one Analysis has status `warning`, or `skipped` for a reason that should be reviewed (for example `no_reference_resource_for_ancestry`); `failed` otherwise. |
 | `checks.sparse_regions` | No | Whether ragged region sidecars match filtered files. |
-| `reports` | No | URIs or paths to detailed reports. A Phase B record points at its sidecars; `register` writes no `reports` (#195). |
+| `reports` | No | URIs or paths to detailed reports. A Phase B record points at its sidecars; `register` writes no top-level `reports` (#195). |
 | `warnings` | No | List of non-blocking warnings. In a `register`-written record, exactly the `warnings` list `opengwasdb validate --format json` printed for this run. Reference-AF effect-scale warnings should name the Analysis and reason, for example low reference-AF overlap, an allele mismatch, unstable implied SD, a missing reference resource for the assigned ancestry, or scale inconsistency versus the declared effect scale. |
 | `errors` | No | List of blocking errors. In a `register`-written record, exactly the `errors` list `opengwasdb validate --format json` printed for this run. |
+| `acceptance` | No | The accepted bundle's Phase B acceptance evidence, kept apart from this run's findings (#195). See above for when `register` writes it. Absent when there is none to keep. |
+| `acceptance.recorded_at` | Yes, in the block | The candidate record's own `validated_at`. |
+| `acceptance.commit` | Yes, in the block | The commit the candidate record came from, or `null` when the file was untracked or modified since its last commit, so no commit describes it. |
+| `acceptance.checks`, `acceptance.warnings`, `acceptance.reports` | Yes, in the block | The candidate record's `checks`, `warnings` and `reports`, verbatim (`null` where it had none). |
 
 The record's top-level `status` is the release-level verdict, and the generated
 master list publishes that value and no other. A per-check entry in `checks`

@@ -511,6 +511,12 @@ A validate record without that JSON is refused with `ValidateVerdictError` and n
 
 The record describes this run and no other. `register` replaces the bundle's previous `validation.yaml`; it never merges with it. The old record's `checks`, `warnings`, `errors` and `reports` describe another run, and republishing them under a new `validated_at` would present them as current (#195).
 
+The one thing kept is the accepted bundle's Phase B acceptance evidence, in a separate `acceptance` block:
+- from a candidate record, its `checks`, `warnings` and `reports` verbatim, dated, with the commit it came from;
+- from a previous `register`-written record, its `acceptance` block as it stands.
+
+Nothing in the block feeds `status`, `checks.store`, `warnings` or `errors`. The candidate record's commit comes from `register.committed_revision()`, which the Snakefile calls before `register_release`; `register_release` itself spawns no subprocess.
+
 `register` also compares each record's executed argv against `plan()`'s planned argv and fails on drift, per "Planned and executed argv are different facts" above. It records; it does not judge. This repository does not decide whether a store is scientifically sound — it captures what `opengwasdb` reported and who accepted it.
 
 The record's top-level `status` is the release-level verdict, and the generated master list publishes that value and no other. A per-check entry in `checks` describes one check and cannot override the record: a record reads `status: failed` precisely when a check failed, and publishing the passing check in its place is the "wrong answer that looks like a right answer" CONTRIBUTING names as the worst outcome. A release with no Validation Record publishes an empty verdict.

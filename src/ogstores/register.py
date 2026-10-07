@@ -15,7 +15,8 @@ Responsibilities:
    `build_elapsed_s`, and `validate_status`.
    The verdict, `checks`, `warnings` and `errors` are this run's alone: they come
    from `opengwasdb validate --format json`, and nothing is carried from the
-   Validation Record being replaced (#195).
+   Validation Record being replaced (#195). A candidate's Phase B evidence is
+   kept apart, in a dated `acceptance` block that feeds none of them.
 4. Atomic write: `validation.yaml` is written atomically only by `register`, so failed
    runs leave any previous `validation.yaml` intact.
 5. Strict seam compliance: `register` opens NO Store and re-runs NO validation (ADR 0023).
@@ -26,11 +27,13 @@ See docs/spec/store-release-workflow.md and ADRs 0022, 0023.
 
 from __future__ import annotations
 
+import copy
 import datetime
 import json
 import os
 import platform
 import re
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -236,6 +239,70 @@ def validate_verdict(validate_record: dict[str, Any] | None) -> tuple[str, list[
     return "passed", warnings, errors
 
 
+def committed_revision(path: Path | str) -> str | None:
+    """The commit `path` was last changed in, or None when the file is not that commit's.
+
+    None covers a path outside a git repository, an untracked file, and a file
+    modified (staged or not) since its last commit: in each case no commit
+    describes what is on disk. The workflow calls this before `register_release`,
+    which itself spawns no subprocess (ADR 0023).
+    """
+    record_p = Path(path)
+    if not record_p.is_file():
+        return None
+
+    def git(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", "-C", str(record_p.parent), *args, "--", record_p.name],
+            capture_output=True,
+            text=True,
+        )
+
+    try:
+        if git("ls-files", "--error-unmatch").returncode != 0:
+            return None
+        if git("diff", "--quiet", "HEAD").returncode != 0:
+            return None
+        log = git("log", "-1", "--format=%H")
+    except OSError:
+        return None
+    revision = log.stdout.strip()
+    return revision if log.returncode == 0 and run.is_exact_commit_hash(revision) else None
+
+
+def acceptance_evidence(
+    previous: Mapping[str, Any] | None, *, commit: str | None = None
+) -> dict[str, Any] | None:
+    """The Phase B acceptance evidence a new Validation Record keeps, apart from its findings.
+
+    A candidate record, one a Manifest Generator wrote rather than `register`,
+    gives its `checks`, `warnings` and `reports` verbatim, dated by its own
+    `validated_at` and tied to `commit`, the commit it came from (#195). A
+    `register`-written record passes on the `acceptance` block it already
+    carries, because the accepted bundle it describes has not changed. A
+    `register`-shape record without one (the records #135 migrated) mixes
+    Phase B evidence with an earlier build's findings, so nothing is extracted
+    from it.
+
+    The block never feeds the record's `status`, `checks.store`, `warnings`
+    or `errors`.
+    """
+    if not isinstance(previous, Mapping):
+        return None
+    validator = previous.get("validator")
+    written_by = validator.get("name") if isinstance(validator, Mapping) else None
+    if written_by != VALIDATOR_NAME:
+        return {
+            "recorded_at": previous.get("validated_at"),
+            "commit": commit,
+            "checks": copy.deepcopy(previous.get("checks")),
+            "warnings": copy.deepcopy(previous.get("warnings")),
+            "reports": copy.deepcopy(previous.get("reports")),
+        }
+    carried = previous.get("acceptance")
+    return copy.deepcopy(dict(carried)) if isinstance(carried, Mapping) else None
+
+
 def harvest_observed_measurements(
     planned_steps: list[Step],
     step_records: dict[str, dict[str, Any]],
@@ -366,6 +433,7 @@ def register_release(
     artifact_root: Path | str | None = None,
     force: bool = False,
     publish: bool = True,
+    acceptance_commit: str | None = None,
 ) -> dict[str, Any]:
     """Assemble validation.yaml, verify executed vs planned argv, publish store, and record register.json.
 
@@ -375,6 +443,8 @@ def register_release(
         artifact_root: Optional artifact root path override.
         force: If True, permit replacing an existing final Store during terminal publication.
         publish: If True, atomically publish staging store (.partial -> final store).
+        acceptance_commit: The commit of the bundle's current validation.yaml
+            (`committed_revision`), recorded when that is a candidate record.
 
     Returns:
         dict containing the assembled validation.yaml data.
@@ -423,6 +493,7 @@ def register_release(
 
     # 2. This run's verdict and findings, then its observed measurements
     val_status, val_warnings, val_errors = validate_verdict(step_records.get("validate"))
+    acceptance = acceptance_evidence(b.validation, commit=acceptance_commit)
     observed = harvest_observed_measurements(
         planned_steps,
         step_records,
@@ -441,7 +512,8 @@ def register_release(
     # Only this run's findings. The bundle's previous validation.yaml is
     # replaced, never merged: its checks, warnings, errors and reports describe
     # another run, and republishing them under this run's validated_at is the
-    # wrong answer that looks right (#195).
+    # wrong answer that looks right (#195). Phase B acceptance evidence survives
+    # only in its own labelled `acceptance` block, added below.
     validation_data: dict[str, Any] = {
         "status": val_status,
         "validated_at": now_iso,
@@ -460,6 +532,8 @@ def register_release(
         "warnings": val_warnings,
         "errors": val_errors,
     }
+    if acceptance is not None:
+        validation_data["acceptance"] = acceptance
 
     # 4. Atomically publish store if publish=True
     published_p_str: str | None = None
@@ -513,7 +587,9 @@ __all__ = [
     "RegisterError",
     "StepFailedError",
     "ValidateVerdictError",
+    "acceptance_evidence",
     "check_argv_drift",
+    "committed_revision",
     "harvest_observed_measurements",
     "normalize_executed_argv_for_staging",
     "normalize_executed_argv_for_variant_reference",

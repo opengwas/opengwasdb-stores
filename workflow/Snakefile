@@ -172,12 +172,14 @@ rule register:
     output:
         "{root}/{store_id}/records/register.json"
     run:
+        b = get_bundle(wildcards.store_id)
         register.register_release(
-            get_bundle(wildcards.store_id),
+            b,
             registry_root=REGISTRY_ROOT,
             artifact_root=wildcards.root,
             force=False,
             publish=True,
+            acceptance_commit=register.committed_revision(b.root / "validation.yaml"),
         )
 
 

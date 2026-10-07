@@ -29,7 +29,12 @@ Test suite for `ogstores.register` (Issue #117), governed by [ADR 0022](../../do
    - The verdict, `checks` (`{store: <verdict>}`), `warnings` and `errors` come from this run's `opengwasdb validate --format json` record, exactly. A bundle whose previous `validation.yaml` carries stale checks, a reports pointer and 30 warnings registers with none of them.
    - A validate record without that JSON verdict is refused (`ValidateVerdictError`), leaving `validation.yaml` untouched; text output is never searched for the word "warning".
 
-8. **Documented record shape**:
+8. **Phase B acceptance evidence is kept apart (#195)**:
+   - A candidate record's `checks`, `warnings` and `reports` appear verbatim under a dated `acceptance` block with the candidate's commit, and never in the run's `status`, `checks`, `warnings` or `errors`.
+   - A re-registration passes the block on verbatim; a migrated register-shape record without one gives none.
+   - `committed_revision` returns a file's commit only when the file on disk is that commit's.
+
+9. **Documented record shape**:
    - The written `validation.yaml` carries exactly the canonical `validator`, `build_environment` and `observed` keys that `tests/validation-record/` asserts against the committed records (issue #135).
 
 ## Running the suite
