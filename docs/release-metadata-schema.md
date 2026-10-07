@@ -499,7 +499,7 @@ is one of `not_run`, `passed`, `passed_with_warnings`, or `failed`;
 | `build_environment.opengwasdb_commit` | No | `opengwasdb` revision the record was produced against. |
 | `build_environment.python_version` | No | Python version of the registering environment. |
 | `build_environment.platform` | No | Platform string of the registering environment. |
-| `observed.format_version` | Yes | OpenGWASDB store format version the build reported, or `null` when it was not recorded. |
+| `observed.format_version` | Yes | OpenGWASDB store format version the build reported, or `null` when it was not recorded. `register` never assumes one. Until #195 it defaulted to `"1.0"`, which is why OGS-00001..3 record `"1.0"` for Stores whose manifests say `0.1.0`. |
 | `observed.n_analyses` | Yes | Analysis count the build reported, or `null` when it was not recorded. |
 | `observed.n_variants` | Yes | Variant count the build reported, or `null` when it was not recorded. |
 | `observed.n_associations` | Yes | Association count the build reported, or `null` when it was not recorded. |

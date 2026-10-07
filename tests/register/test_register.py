@@ -390,6 +390,18 @@ class TestRegisterRecordsOnlyThisRun(unittest.TestCase):
         self.assertNotIn("reports", written)
         self.assertEqual(written["status"], "passed")
 
+    def test_an_unreported_format_version_is_recorded_as_null(self) -> None:
+        """No step printed a format version, so the record says null rather than "1.0" (#195)."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00056")
+        rec_p = paths.record_path(b.store_id, "build", root=artifact_root)
+        rec = json.loads(rec_p.read_text(encoding="utf-8"))
+        rec["stdout"] = json.dumps({"n_variants": 1000, "n_analyses": 2}) + "\n"
+        run._write_record_atomically(rec, rec_p)
+
+        written = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+
+        self.assertIsNone(written["observed"]["format_version"])
+
     def test_a_validate_record_without_a_json_verdict_is_refused(self) -> None:
         """Text output is not searched for the word `warning`; register fails and writes nothing."""
         b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00054")

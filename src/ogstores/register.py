@@ -250,7 +250,9 @@ def harvest_observed_measurements(
         for rec in step_records.values()
     )
 
-    format_version = "1.0"
+    # Only a step that printed it can report the format version; none is
+    # assumed, because 0.1.0 Stores were registered as "1.0" (#135, #195).
+    format_version: str | None = None
     n_variants: int | None = None
     n_analyses: int | None = None
     n_associations: int | None = None
