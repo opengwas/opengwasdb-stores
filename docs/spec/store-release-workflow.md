@@ -153,13 +153,13 @@ The Build Recipe says *what* to build; configuration says *where* it lands. An a
 `paths.artifact_root()` therefore resolves the root in precedence order:
 
 ```text
-1. workflow config override   pixi run release --config artifact_root=/path
+1. workflow config override   pixi run release OGS-00042 --config artifact_root=/path
 2. environment variable       OPENGWASDB_ARTIFACT_ROOT=/path
 3. repository config file     ogstores.yaml: artifact_root
 4. built-in default           paths.DEFAULT_ARTIFACT_ROOT
 ```
 
-A workflow config override and the environment variable are per-invocation overrides for CI, a developer laptop, or a one-off run. The tracked `ogstores.yaml` names this deployment's default root and is the reviewed place to change it. `plan()` never reads the root from `build.yaml`: the workflow resolves it once and passes it in, and the build command published in the master list is rendered under the same resolved root.
+A workflow config override and the environment variable are per-invocation overrides for CI, a developer laptop, or a one-off run. Name the Store Release ids before `--config`, because it takes every word after it as a `key=value`. The `release` and `release-dry` tasks pass those words to Snakemake as given; they once ended in a bare `--`, which made Snakemake read the override as a target (#195). The tracked `ogstores.yaml` names this deployment's default root and is the reviewed place to change it. `plan()` never reads the root from `build.yaml`: the workflow resolves it once and passes it in, and the build command published in the master list is rendered under the same resolved root.
 
 ### The passthrough rule
 

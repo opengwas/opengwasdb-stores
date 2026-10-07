@@ -26,10 +26,12 @@ from __future__ import annotations
 import gzip
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 from typing import Any
@@ -857,6 +859,55 @@ class TestWorkflowVariantReferenceDAG(unittest.TestCase):
         )
         self.assertEqual(res.returncode, 0, f"Dry run failed:\n{res.stderr}")
         self.assertNotIn("variant-reference", scheduled_targets(res.stdout))
+
+
+class TestPixiReleaseTaskPassthrough(unittest.TestCase):
+    """`pixi run release <ID> --config key=value` reaches Snakemake's config (#195).
+
+    Pixi appends a task's extra arguments to its `cmd`, so each task is run
+    here as its `pixi.toml` cmd plus the operator's words, in the current
+    environment. A bare trailing `--` in the cmd made Snakemake read
+    `--config` and every `key=value` as targets.
+    """
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.td = Path(self.temp_dir.name)
+        self.stores_dir = self.td / "stores"
+        self.stores_dir.mkdir()
+        self.artifact_root = self.td / "artifacts"
+        self.artifact_root.mkdir()
+        with open(REPO_ROOT / "pixi.toml", "rb") as f:
+            self.tasks = tomllib.load(f)["feature"]["workflow"]["tasks"]
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def run_task(self, task: str, *operator_args: str) -> subprocess.CompletedProcess[str]:
+        argv = shlex.split(self.tasks[task]["cmd"]) + list(operator_args)
+        env = dict(os.environ)
+        env["PYTHONPATH"] = f"{SRC_DIR}:{env.get('PYTHONPATH', '')}"
+        return subprocess.run(argv, cwd=REPO_ROOT, capture_output=True, text=True, env=env)
+
+    def test_release_tasks_pass_config_after_the_target(self) -> None:
+        """Both tasks accept `<ID> --config ...`; the dry run plans under the configured root."""
+        store_id = "OGS-00099"
+        create_dense_fixture_store(self.stores_dir, store_id=store_id, artifact_root=self.artifact_root)
+        config = ["--config", f"registry_root={self.stores_dir}", f"artifact_root={self.artifact_root}"]
+
+        for task, extra in (("release-dry", []), ("release", ["--dry-run"])):
+            with self.subTest(task=task):
+                res = self.run_task(task, store_id, *extra, *config)
+                self.assertEqual(res.returncode, 0, f"{task} rejected its config:\n{res.stdout}\n{res.stderr}")
+                self.assertIn(
+                    str(paths.record_path(store_id, "register", root=self.artifact_root)),
+                    res.stdout,
+                    f"{task} did not plan under the configured artifact root",
+                )
+                self.assertFalse(
+                    paths.records_dir(store_id, root=self.artifact_root).exists(),
+                    f"{task} wrote records during a dry run",
+                )
 
 
 class TestWorkflowOperatorInterface(unittest.TestCase):

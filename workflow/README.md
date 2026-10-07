@@ -20,6 +20,7 @@ Phase A is driven by `workflow/Snakefile`:
 ```sh
 pixi run release OGS-00003                                 # one registered release, plus any parent it needs
 pixi run release OGS-00003 OGS-00004                       # several registered releases; lineage order is resolved
+pixi run release OGS-00003 --config artifact_root=/path    # ids first, then config overrides
 pixi run index                                             # regenerate master list, summaries, by-label/
 ```
 

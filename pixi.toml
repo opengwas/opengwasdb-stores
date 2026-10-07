@@ -280,8 +280,16 @@ materialise-gwas-ssf-ragged = { cmd = "Rscript resources/scripts/materialise-gwa
 # Phase A. `release` takes one or more Store Release ids; lineage order is
 # resolved by the DAG, so a Reference-Completed child never needs sequencing
 # by hand. `index` regenerates the master list from the bundles alone.
-release = { cmd = "snakemake --snakefile workflow/Snakefile --cores all --" }
-release-dry = { cmd = "snakemake --snakefile workflow/Snakefile --dry-run --" }
+#
+# Pixi appends the operator's words to `cmd`, so the cmd must not end in a bare
+# `--`: after it, Snakemake read `--config` and every `key=value` as targets
+# (#195). Name the ids first, then the overrides, because `--config` takes
+# every word after it:
+#
+#   pixi run release OGS-00003 --config artifact_root=/path
+#
+release = { cmd = "snakemake --snakefile workflow/Snakefile --cores all" }
+release-dry = { cmd = "snakemake --snakefile workflow/Snakefile --dry-run" }
 index = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
 [feature.reporting.tasks]

@@ -36,6 +36,9 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
 7. **A published release is not rebuilt by accident (#195)**:
    - A run that would rebuild a release whose final Store exists fails before any job starts. It names the release and its Store, and leaves every file of that release, and its `validation.yaml`, byte-for-byte and mtime-for-mtime unchanged, with no `.partial` staged.
 
+8. **Operator config reaches Snakemake (#195)**:
+   - `pixi run release <ID> --config key=value` and `release-dry` pass the override to Snakemake's config rather than as a target. Each task's `pixi.toml` cmd is run with the operator's words appended, as Pixi does, and the dry run must plan under the configured artifact root.
+
 ## Running the suite
 
 ```sh
