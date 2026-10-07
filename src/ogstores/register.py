@@ -222,7 +222,8 @@ def validate_verdict(validate_record: dict[str, Any] | None) -> tuple[str, list[
     prints, `{"ok", "errors", "warnings"}`, with nothing before or after it, no
     other key, a boolean `ok`, and lists of strings. It must also agree with
     itself and with the step: `ok` is true exactly when `errors` is empty, and
-    the step exited 0 and succeeded exactly when `ok` (#195). Then the verdict
+    the step, whose `exit_code` must be an int and `success` a bool, exited 0
+    and succeeded exactly when `ok` (#195). Then the verdict
     is `failed` when not ok, `passed_with_warnings` when it reported a warning,
     and `passed` otherwise. A plan without a validate step has no verdict, so it
     is `not_run` rather than an assumed pass.
@@ -260,8 +261,15 @@ def validate_verdict(validate_record: dict[str, Any] | None) -> tuple[str, list[
             raise refuse(f"`{name}` is {items!r}, not a list of strings")
     if ok != (not errors):
         raise refuse(f"`ok` is {ok} with {len(errors)} error(s); the CLI sets ok exactly when there are none")
-    expected_exit = 0 if ok else 1
+    # The record's own fields must have the exact types run.py writes: an int
+    # exit code (bool and float compare equal to 0 and 1, so they are refused by
+    # type, not value) and a bool success.
     exit_code, success = validate_record.get("exit_code"), validate_record.get("success")
+    if type(exit_code) is not int:
+        raise refuse(f"its exit_code is {exit_code!r}, not an int")
+    if type(success) is not bool:
+        raise refuse(f"its success is {success!r}, not a bool")
+    expected_exit = 0 if ok else 1
     if exit_code != expected_exit or success is not ok:
         raise refuse(
             f"`ok: {str(ok).lower()}` means exit code {expected_exit} and success {ok}, "

@@ -518,6 +518,28 @@ class TestValidateVerdictContract(unittest.TestCase):
                     register.validate_verdict(record)
 
 
+    def test_record_fields_of_the_wrong_type_are_refused(self) -> None:
+        """exit_code must be an int (not a bool or float) and success a bool, as run.py writes them."""
+        ok = verdict_json(True, [], [])
+        failed = verdict_json(False, ["fatal"], [])
+        cases = {
+            "exit_code false": dict(validate_record(ok), exit_code=False),
+            "exit_code true": dict(validate_record(failed, exit_code=1), exit_code=True),
+            "exit_code 0.0": dict(validate_record(ok), exit_code=0.0),
+            "exit_code 1.0": dict(validate_record(failed, exit_code=1), exit_code=1.0),
+            "exit_code '0'": dict(validate_record(ok), exit_code="0"),
+            "exit_code missing": {k: v for k, v in validate_record(ok).items() if k != "exit_code"},
+            "success 1": dict(validate_record(ok), success=1),
+            "success 0": dict(validate_record(failed, exit_code=1), success=0),
+            "success missing": {k: v for k, v in validate_record(ok).items() if k != "success"},
+            "stdout bytes": dict(validate_record(ok), stdout=ok.encode()),
+        }
+        for name, record in cases.items():
+            with self.subTest(name):
+                with self.assertRaises(register.ValidateVerdictError):
+                    register.validate_verdict(record)
+
+
 class TestRegisterRefusesAContradictoryVerdict(unittest.TestCase):
     """A contradictory validate record stops registration before anything is written (#195)."""
 
