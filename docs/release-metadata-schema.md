@@ -486,7 +486,10 @@ registered record is an open question on #195.
 
 A `built` or `validated` release must carry a `validation.yaml` whose `status`
 is one of `not_run`, `passed`, `passed_with_warnings`, or `failed`;
-`bundle.check()` rejects any other value. A `candidate`, `accepted`,
+`bundle.check()` rejects any other value. A `validated` release needs `passed`
+or `passed_with_warnings`: a passing `opengwasdb validate` is what makes a
+release validated, and its warnings are kept in the record (#195; see the
+workflow specification's "The Release Status a Validation Record gives"). A `candidate`, `accepted`,
 `superseded`, or `withdrawn` release needs none.
 
 | Field | Required | Description |

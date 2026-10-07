@@ -88,18 +88,18 @@ candidate ──> accepted ──> built ──> validated ──> superseded
 - `superseded` — Replaced by a newer Store Release. Transitions to: `withdrawn`.
 - `withdrawn` — Retracted/withdrawn release (terminal).
 
-#### Proposed, pending review (#195): the Release Status a Validation Record gives
+#### The Release Status a Validation Record gives
 
-`register` writes one of four verdicts, but `validated` above says only "Passed `opengwasdb validate`". This mapping is a proposal for the human reviewer of #195, not a settled rule, and `bundle.check()` does not enforce it.
+`register` writes one of four verdicts. Which of them gives `validated` was decided in review on 7 Oct 2026 (#195), and `bundle.check()` enforces it: a `validated` release whose `validation.yaml` status is anything else fails `bundle-check`.
 
 | Validation Record `status` | Release Status | Reason |
 |---|---|---|
 | `passed` | `validated` | `opengwasdb validate` passed with nothing to report. |
-| `passed_with_warnings` | `validated`; the warnings stay in the record | `validate` exits 0 with `ok: true`. Its warnings are non-blocking by definition, because `errors` is the blocking list. ADR 0023 has this repository record `opengwasdb`'s verdict rather than re-judge it, and holding the release at `built` over a warning would be a registry-side judgement. The warnings stay visible: the record lists them, and the master list publishes `validate_status: passed_with_warnings`. A warning that should block belongs in `opengwasdb` as an error. |
+| `passed_with_warnings` | `validated`; the warnings stay in the record | `validate` exits 0 with `ok: true`. Its warnings are non-blocking by definition, because `errors` is the blocking list. ADR 0023 has this repository record `opengwasdb`'s verdict rather than re-judge it. The warnings stay visible: the record lists them, and the master list publishes `validate_status: passed_with_warnings`. A warning that should block belongs in `opengwasdb` as an error. |
 | `failed` | never `validated` | A failed validate step publishes nothing, so `register` writes no record for it. |
 | `not_run` | never `validated` | There is no verdict. |
 
-The alternative is to hold a `passed_with_warnings` release at `built` until a named reviewer accepts its warnings. That would keep the precedent of OGS-00004/00005/00006, whose notes kept them at `built` deliberately. But those records' warnings came from the deleted generator adapter's own checks (dropped Analytical Metadata, opengwasdb#86). Since #195, `register` records only `opengwasdb validate`'s own warnings.
+A `built` release may carry any of the four. Moving it to `validated` remains a reviewed edit to `release.yaml`.
 
 ## `build.yaml`
 
