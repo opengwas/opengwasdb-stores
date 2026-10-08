@@ -110,21 +110,42 @@ _SUPERVISOR_BOOTSTRAP: str = (
 # Each holds a comma-separated list of boundary names.
 KILL_AT_ENV: str = "OGSTORES_TEST_KILL_AT"
 KILL_GROUP_AT_ENV: str = "OGSTORES_TEST_KILL_GROUP_AT"
+PAUSE_AT_ENV: str = "OGSTORES_TEST_PAUSE_AT"
+PAUSE_FILE_ENV: str = "OGSTORES_TEST_PAUSE_FILE"
+# Set by the entry point for the Snakemake run it starts, so a job knows whose
+# run it belongs to (and a whole-stack test kill can reach the entry point).
+ENTRY_POINT_PID_ENV: str = "OGSTORES_ENTRY_POINT_PID"
 
 
 def fault_boundary(name: str) -> None:
-    """A named point between two durable steps, where tests inject a crash (#195).
+    """A named point between two durable steps, where tests inject faults (#195).
 
-    With `OGSTORES_TEST_KILL_AT` naming it, this process exits there with
-    status 137, as SIGKILL would leave it: no `finally`, hook or cleanup runs.
-    With `OGSTORES_TEST_KILL_GROUP_AT`, the whole process group is killed, as a
-    crash of the host or terminal would kill the entry point, Snakemake and
-    the job together. Neither variable is set outside the test suites.
+    Test-only, through environment variables that hold comma-separated names:
+    - `OGSTORES_TEST_KILL_AT`: this process exits there with status 137, as
+      SIGKILL would leave it, with no `finally`, hook or cleanup;
+    - `OGSTORES_TEST_KILL_GROUP_AT`: the whole stack is SIGKILLed, as a host
+      or terminal crash would kill it: the entry point (named by
+      `OGSTORES_ENTRY_POINT_PID`) first, then this process's group;
+    - `OGSTORES_TEST_PAUSE_AT`: this process writes its pid to the file named
+      by `OGSTORES_TEST_PAUSE_FILE`, and waits there until that file is
+      removed, so a test can act while a run is live.
+    None of them is set outside the test suites.
     """
     if name in os.environ.get(KILL_AT_ENV, "").split(","):
         os._exit(137)
     if name in os.environ.get(KILL_GROUP_AT_ENV, "").split(","):
+        entry_point = os.environ.get(ENTRY_POINT_PID_ENV)
+        if entry_point and int(entry_point) != os.getpid():
+            try:
+                os.kill(int(entry_point), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
         os.killpg(os.getpgrp(), signal.SIGKILL)
+    if name in os.environ.get(PAUSE_AT_ENV, "").split(","):
+        pause_file = Path(os.environ[PAUSE_FILE_ENV])
+        pause_file.write_text(f"{os.getpid()}\n", encoding="utf-8")
+        while pause_file.exists():
+            time.sleep(0.1)
 
 
 class PublicationPendingError(RuntimeError):
@@ -1210,6 +1231,10 @@ def execute_step(
         _write_record_atomically(skip_result.to_dict(), record_p)
         return skip_result
 
+    # A test-only pause or crash point: the step's record is gone and its
+    # command has not started, so a run stopped here is mid-step (#195).
+    fault_boundary(f"{step.name}-started")
+
     # 6. Execute subprocess in its own process group and capture timing/outputs
     start_dt = datetime.datetime.now(datetime.timezone.utc)
     start_time_iso = start_dt.isoformat().replace("+00:00", "Z")
@@ -1534,7 +1559,10 @@ def run_plan(
 __all__ = [
     "ForceSnapshotPendingError",
     "KILL_AT_ENV",
+    "ENTRY_POINT_PID_ENV",
     "KILL_GROUP_AT_ENV",
+    "PAUSE_AT_ENV",
+    "PAUSE_FILE_ENV",
     "MissingCommandError",
     "PublicationPendingError",
     "STORE_PRODUCING_STEPS",

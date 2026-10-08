@@ -28,6 +28,14 @@ Snakemake option can switch off:
 `--resolve-snapshot restore|delete` carries out an operator's resolution of
 a leftover snapshot, and clears Snakemake's incomplete marks for that release.
 
+Two runs never touch one release at once. Each run holds an exclusive
+`fcntl.flock` on `<artifact-root>/.release-locks/<ID>.lock` for every release
+it touches, from recovery through settlement, and passes it to Snakemake's
+supervisor. A second run of a locked release is refused as "in progress"; the
+kernel drops the lock when the holders die, which is what tells a live run
+from a dead one's leftovers. Ctrl-C or SIGTERM stops Snakemake (one SIGINT to
+its process group), waits for it, and settles the run as failed.
+
 The options are an allowlist. Anything else, including `--no-hooks` and
 `--touch`, is refused before anything is written. Running `snakemake`
 directly bypasses this entry point, and with it everything above except the
@@ -36,10 +44,14 @@ Snakefile's own `onstart` refusal.
 
 from __future__ import annotations
 
+import fcntl
+import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
@@ -280,13 +292,7 @@ def resolve_snapshot(inv: Invocation, store_id: str, root: Path, action: str) ->
         run.restore_force_snapshot(snapshot)
     else:
         shutil.rmtree(snapshot)
-    records = paths.records_dir(store_id, root=root)
-    outputs = sorted(records.glob("*.json")) if records.is_dir() else []
-    outputs += [
-        paths.build_manifest_path(store_id, root=root),
-        paths.build_manifest_sidecar_path(store_id, root=root),
-    ]
-    _cleanup_metadata(inv, outputs)
+    _cleanup_metadata(inv, release_outputs(store_id, root))
     return (
         f"release: {'restored' if action == 'restore' else 'deleted'} {snapshot} and cleared "
         f"Snakemake's incomplete marks for {store_id}. If Snakemake now reports the working "
@@ -314,24 +320,256 @@ def finish_publication(inv: Invocation, store_id: str, root: Path | str) -> bool
     return True
 
 
-def recover_releases(inv: Invocation, registry_root: Path, root: Path) -> list[str]:
-    """Finish what a crash interrupted, before any refusal runs (#195)."""
+class ReleaseInProgressError(RuntimeError):
+    """Another live run holds the release's lock."""
+
+
+def _holder(fd: int) -> str:
+    try:
+        text = os.pread(fd, 4096, 0).decode("utf-8", errors="replace").strip()
+    except OSError:
+        text = ""
+    return text or "pid unknown"
+
+
+class ReleaseLocks:
+    """The exclusive per-release locks one entry-point run holds (#195).
+
+    Per release, not per artifact root: a release build can run for hours, and
+    one lock per root would stop every other release meanwhile. Locks are only
+    ever tried, never waited for, so two runs cannot deadlock. Each lock file
+    holds its holder's pid for the refusal message.
+    """
+
+    def __init__(self, root: Path | str) -> None:
+        self.root = Path(root)
+        self._fds: dict[str, int] = {}
+
+    def holds(self, store_id: str) -> bool:
+        return store_id in self._fds
+
+    def acquire(self, store_id: str) -> None:
+        if store_id in self._fds:
+            return
+        lock_p = paths.release_lock_path(store_id, root=self.root)
+        lock_p.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(lock_p, os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            holder = _holder(fd)
+            os.close(fd)
+            raise ReleaseInProgressError(
+                f"a run of {store_id} is in progress ({holder}). Nothing was written; "
+                "wait for it to finish."
+            ) from None
+        os.ftruncate(fd, 0)
+        os.pwrite(fd, f"pid {os.getpid()}, started {run.utc_stamp()}\n".encode(), 0)
+        self._fds[store_id] = fd
+
+    def try_acquire(self, store_id: str) -> bool:
+        try:
+            self.acquire(store_id)
+        except ReleaseInProgressError:
+            return False
+        return True
+
+    def release(self, store_id: str) -> None:
+        fd = self._fds.pop(store_id, None)
+        if fd is not None:
+            os.close(fd)
+
+    def release_all(self) -> None:
+        for store_id in list(self._fds):
+            self.release(store_id)
+
+    def fds(self) -> tuple[int, ...]:
+        return tuple(self._fds.values())
+
+
+def lock_holder(store_id: str, root: Path | str) -> str | None:
+    """Who holds a release's lock, or None; it reads, never creates or writes."""
+    lock_p = paths.release_lock_path(store_id, root=root)
+    if not lock_p.is_file():
+        return None
+    fd = os.open(lock_p, os.O_RDONLY)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return _holder(fd)
+    else:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        return None
+    finally:
+        os.close(fd)
+
+
+def release_outputs(store_id: str, root: Path | str) -> list[Path]:
+    """The outputs Snakemake may mark incomplete for a release: its records and derived manifest."""
+    records = paths.records_dir(store_id, root=root)
+    outputs = sorted(records.glob("*.json")) if records.is_dir() else []
+    return outputs + [
+        paths.build_manifest_path(store_id, root=root),
+        paths.build_manifest_sidecar_path(store_id, root=root),
+    ]
+
+
+def recover_releases(inv: Invocation, registry_root: Path, root: Path, locks: ReleaseLocks) -> list[str]:
+    """Finish what a crash interrupted, before any refusal runs (#195).
+
+    Only a release whose lock this run holds, or can take, is recovered: a
+    locked one belongs to a live run, whose marker or backup is its own
+    business. A lock taken only for recovery is released at once.
+    """
     messages: list[str] = []
     for store_id in registered_ids(registry_root):
-        if finish_publication(inv, store_id, root):
-            messages.append(f"release: completed the interrupted publication of {store_id}")
-        elif paths.backup_store_path(store_id, root=root).is_dir():
-            run._recover_pending_backup(store_id, root)
-            messages.append(f"release: recovered {paths.backup_store_path(store_id, root=root)}")
+        held_before = locks.holds(store_id)
+        if not held_before and not locks.try_acquire(store_id):
+            continue
+        try:
+            if finish_publication(inv, store_id, root):
+                messages.append(f"release: completed the interrupted publication of {store_id}")
+            elif paths.backup_store_path(store_id, root=root).is_dir():
+                run._recover_pending_backup(store_id, root)
+                messages.append(f"release: recovered {paths.backup_store_path(store_id, root=root)}")
+        finally:
+            if not held_before:
+                locks.release(store_id)
     return messages
 
 
 def settle(inv: Invocation, scheduled: list[tuple[str, str]], snapshots: list[Path], succeeded: bool) -> None:
-    """Finish every publication the run left, then resolve its snapshots."""
+    """Finish every publication the run left, then resolve its snapshots.
+
+    A failed run's restored records get Snakemake's incomplete marks cleared,
+    as `--resolve-snapshot` does, so the next run is not stopped by them.
+    """
     for root, store_id in scheduled:
         if finish_publication(inv, store_id, root):
             print(f"release: finished the publication of {store_id}")
+    restored = [s for s in snapshots if s.exists()] if not succeeded else []
     run.settle_force_snapshots(snapshots, succeeded=succeeded)
+    for snapshot in restored:
+        store_id, root = snapshot.parent.name, snapshot.parent.parent
+        _cleanup_metadata(inv, release_outputs(store_id, root))
+        print(f"release: restored the records of {store_id} from {snapshot.name}")
+
+
+class _Interrupted(Exception):
+    """SIGTERM, raised in the entry point so it can stop Snakemake and settle."""
+
+    def __init__(self, signum: int) -> None:
+        super().__init__(signum)
+        self.signum = signum
+
+
+def _raise_interrupted(signum: int, _frame: object) -> None:
+    raise _Interrupted(signum)
+
+
+def _session_members(sid: int) -> list[int]:
+    """The live processes of session `sid` (Linux /proc; empty where it is absent)."""
+    members: list[int] = []
+    try:
+        entries = os.listdir("/proc")
+    except OSError:
+        return members
+    for entry in entries:
+        if entry.isdigit():
+            try:
+                if os.getsid(int(entry)) == sid:
+                    members.append(int(entry))
+            except (ProcessLookupError, PermissionError):
+                pass
+    return members
+
+
+def _parent_pid(pid: int) -> int | None:
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text()
+    except OSError:
+        return None
+    return int(stat[stat.rindex(")") + 2:].split()[1])
+
+
+def _stop_snakemake(proc: subprocess.Popen, grace: float = 2.0) -> None:
+    """Stop an interrupted Snakemake run so it exits on its own and releases its lock.
+
+    One SIGINT to its session, as a terminal's Ctrl-C would send, puts
+    Snakemake in cancel mode: it schedules nothing more. That does not stop a
+    running job: a job process runs its `run:` block in a worker thread and
+    waits for it, and `run.py` runs the step's command in its own supervised
+    session. So after `grace` seconds the job processes, the session's members
+    other than the supervisor and Snakemake itself, are SIGKILLed. Their step
+    supervisors then kill the commands (ADR 0026), and Snakemake, its jobs
+    failed, exits on its own. A job killed mid-publication leaves its marker,
+    which settlement completes.
+    """
+    sid = proc.pid
+    try:
+        os.killpg(sid, signal.SIGINT)
+    except ProcessLookupError:
+        return
+    deadline = time.monotonic() + grace
+    while proc.poll() is None and time.monotonic() < deadline:
+        time.sleep(0.1)
+    if proc.poll() is not None:
+        return
+    keep = {sid} | {pid for pid in _session_members(sid) if _parent_pid(pid) == sid}
+    for pid in _session_members(sid):
+        if pid not in keep:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+
+def _run_snakemake(argv: list[str], lock_fds: tuple[int, ...]) -> tuple[int, int | None]:
+    """Run Snakemake under the parent-death supervisor; return its exit code and any interrupt.
+
+    Snakemake and its jobs get their own session, led by `run.py`'s
+    supervisor (ADR 0026): if this process dies, SIGKILL included, the
+    supervisor kills the session, so nothing outlives the entry point. The
+    supervisor inherits the release locks, so they stay held while Snakemake
+    lives. On Ctrl-C or SIGTERM this process ignores further interrupts, stops
+    Snakemake (`_stop_snakemake`) and waits for it to exit; settlement then
+    restores the records. Snakemake's own SIGTERM handling would wait for
+    running jobs to finish, which can take hours.
+    """
+    liveness_read, liveness_write = os.pipe()
+    status_read, status_write = os.pipe()
+    env = {**os.environ, run.ENTRY_POINT_PID_ENV: str(os.getpid())}
+    proc = subprocess.Popen(
+        run._supervised_command(argv, liveness_read, status_write),
+        cwd=paths.REPO_ROOT,
+        env=env,
+        start_new_session=True,
+        pass_fds=(liveness_read, status_write, *lock_fds),
+    )
+    os.close(liveness_read)
+    os.close(status_write)
+    interrupted: int | None = None
+    try:
+        try:
+            returncode = proc.wait()
+        except (KeyboardInterrupt, _Interrupted) as exc:
+            interrupted = exc.signum if isinstance(exc, _Interrupted) else signal.SIGINT
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
+            print(
+                f"release: {signal.Signals(interrupted).name} received; stopping Snakemake, "
+                "then settling the run",
+                file=sys.stderr,
+            )
+            _stop_snakemake(proc)
+            returncode = proc.wait()
+    finally:
+        os.close(liveness_write)
+        status = run._read_exec_status(status_read)
+        os.close(status_read)
+    if status:
+        raise RuntimeError(f"Snakemake could not be started: {status}")
+    return returncode, interrupted
 
 
 def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> int:
@@ -343,24 +581,111 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
     sys.stderr.write(result.stderr)
     if result.returncode != 0:
         return result.returncode
+    scheduled = scheduled_releases(result.stdout + result.stderr)
+    busy = {}
+    for _, store_id in scheduled:
+        holder = lock_holder(store_id, root)
+        if holder is not None:
+            busy[store_id] = holder
+    for store_id, holder in sorted(busy.items()):
+        print(f"release-dry: a run of {store_id} is in progress ({holder}); the real run would refuse")
     pending = [
         store_id for store_id in registered_ids(registry_root)
-        if paths.publication_marker(store_id, root=root).exists()
+        if store_id not in busy and paths.publication_marker(store_id, root=root).exists()
     ]
     for store_id in pending:
         print(f"release-dry: the real run first completes the interrupted publication of {store_id}")
-    scheduled = scheduled_releases(result.stdout + result.stderr)
+    idle = [(r, store_id) for r, store_id in scheduled if store_id not in busy]
     forced = run.forced_releases(force, inv.targets)
     try:
-        run.refuse_pending_force_snapshots(scheduled)
-        run.refuse_rebuilding_published_releases(scheduled, forced=forced)
+        run.refuse_pending_force_snapshots(idle)
+        run.refuse_rebuilding_published_releases(idle, forced=forced)
     except (run.ForceSnapshotPendingError, run.StoreExistsError) as exc:
         print(f"release-dry: the real run would refuse:\n{exc}")
         return result.returncode
-    for scheduled_root, store_id in scheduled:
+    for scheduled_root, store_id in idle:
         if store_id in forced and paths.store_path(store_id, root=scheduled_root).exists():
             print(f"release-dry: the real run would snapshot the records of {store_id} and replace it")
     return result.returncode
+
+
+GUARD_ERRORS: tuple[type[BaseException], ...] = (
+    ReleaseInProgressError,
+    run.StoreExistsError,
+    run.ForceSnapshotPendingError,
+    run.PublicationPendingError,
+    register.PublicationError,
+    UsageError,
+)
+
+
+def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: ReleaseLocks) -> int:
+    """Recovery, preflight, snapshot, the run and settlement, with `locks` taken as needed."""
+    targets = [t for t in inv.targets if t != "all"]
+    requested = targets if targets and "all" not in inv.targets else registered_ids(registry_root)
+    for store_id in sorted(requested):
+        locks.acquire(store_id)
+    for message in recover_releases(inv, registry_root, root, locks):
+        print(message)
+    # A leftover snapshot is refused before the dry run, so an operator sees the
+    # refusal and its resolutions, not the IncompleteFilesException it causes.
+    run.refuse_pending_force_snapshots([(root, store_id) for store_id in requested])
+
+    plan = subprocess.run(
+        snakemake_argv(inv, dry_run=True), cwd=paths.REPO_ROOT, capture_output=True, text=True
+    )
+    if plan.returncode != 0:
+        sys.stdout.write(plan.stdout)
+        sys.stderr.write(plan.stderr)
+        return plan.returncode
+    scheduled = scheduled_releases(plan.stdout + plan.stderr)
+    if not scheduled:
+        print("release: nothing to be done; every requested release is up to date")
+        return 0
+    for _, store_id in scheduled:
+        locks.acquire(store_id)
+
+    stamp = run.utc_stamp()
+    snapshots: list[Path] = []
+    returncode, interrupted = 1, None
+    previous_int = signal.getsignal(signal.SIGINT)
+    previous_term = signal.signal(signal.SIGTERM, _raise_interrupted)
+    try:
+        try:
+            snapshots = run.prepare_release_run(
+                scheduled, forced=run.forced_releases(force, inv.targets), stamp=stamp
+            )
+            run.fault_boundary("snapshots-taken")
+            returncode, interrupted = _run_snakemake(
+                snakemake_argv(inv, dry_run=False, extra_config={"release_run": stamp}), locks.fds()
+            )
+        except (KeyboardInterrupt, _Interrupted) as exc:
+            # Interrupted before Snakemake started: any snapshot this run took is
+            # its own (the locks are held), and records are untouched.
+            interrupted = exc.signum if isinstance(exc, _Interrupted) else signal.SIGINT
+            snapshots = [
+                p for _, store_id in scheduled
+                for p in run.pending_force_snapshots(store_id, root)
+                if p.name.endswith(stamp)
+            ]
+        run.fault_boundary("before-settle")
+        # Settlement runs to the end: a second Ctrl-C or SIGTERM must not leave it half done.
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        try:
+            settle(inv, scheduled, snapshots, succeeded=returncode == 0 and interrupted is None)
+        except Exception as exc:
+            print(
+                f"release: the run finished with exit code {returncode}, but settling it failed: {exc}",
+                file=sys.stderr,
+            )
+            return returncode or 1
+    finally:
+        signal.signal(signal.SIGINT, previous_int)
+        signal.signal(signal.SIGTERM, previous_term)
+    if interrupted is not None and returncode != 0:
+        return 128 + interrupted
+    return returncode
 
 
 def main(argv: Iterable[str]) -> int:
@@ -377,74 +702,45 @@ def main(argv: Iterable[str]) -> int:
     if ", " in str(root):
         print(f"release: the artifact root {root} contains ', ', which the preflight cannot parse", file=sys.stderr)
         return 2
-    if inv.resolve_snapshot is not None:
-        if force:
-            print("release: --resolve-snapshot takes no --config force", file=sys.stderr)
-            return 2
-        try:
-            print(resolve_snapshot(inv, inv.targets[0], root, inv.resolve_snapshot))
-        except (UsageError, run.PublicationPendingError) as exc:
-            print(f"release: {exc}", file=sys.stderr)
-            return 1
-        return 0
     if inv.dry_run:
         return _dry_run(inv, registry_root, root, force)
+    if inv.resolve_snapshot is not None and force:
+        print("release: --resolve-snapshot takes no --config force", file=sys.stderr)
+        return 2
 
+    locks = ReleaseLocks(root)
     try:
-        for message in recover_releases(inv, registry_root, root):
-            print(message)
-        plan = subprocess.run(
-            snakemake_argv(inv, dry_run=True), cwd=paths.REPO_ROOT, capture_output=True, text=True
-        )
-        if plan.returncode != 0:
-            sys.stdout.write(plan.stdout)
-            sys.stderr.write(plan.stderr)
-            return plan.returncode
-        scheduled = scheduled_releases(plan.stdout + plan.stderr)
-        if not scheduled:
-            print("release: nothing to be done; every requested release is up to date")
+        if inv.resolve_snapshot is not None:
+            locks.acquire(inv.targets[0])
+            print(resolve_snapshot(inv, inv.targets[0], root, inv.resolve_snapshot))
             return 0
-        stamp = run.utc_stamp()
-        snapshots = run.prepare_release_run(
-            scheduled, forced=run.forced_releases(force, inv.targets), stamp=stamp
-        )
-        run.fault_boundary("snapshots-taken")
-    except (
-        run.StoreExistsError,
-        run.ForceSnapshotPendingError,
-        run.PublicationPendingError,
-        register.PublicationError,
-    ) as exc:
+        return _run(inv, registry_root, root, force, locks)
+    except GUARD_ERRORS as exc:
         print(f"release: {exc}", file=sys.stderr)
         return 1
-
-    extra = {"release_run": stamp}
-    returncode = subprocess.run(
-        snakemake_argv(inv, dry_run=False, extra_config=extra), cwd=paths.REPO_ROOT
-    ).returncode
-    run.fault_boundary("before-settle")
-    try:
-        settle(inv, scheduled, snapshots, succeeded=returncode == 0)
-    except Exception as exc:
-        print(f"release: the run finished with exit code {returncode}, but settling it failed: {exc}", file=sys.stderr)
-        return returncode or 1
-    return returncode
+    finally:
+        locks.release_all()
 
 
 __all__ = [
     "ALLOWED_OPTIONS",
     "ENTRY_POINT_BOUNDARIES",
+    "GUARD_ERRORS",
     "Invocation",
+    "ReleaseInProgressError",
+    "ReleaseLocks",
     "RESERVED_CONFIG_KEYS",
     "SNAKEFILE",
     "UNSAFE_OPTIONS",
     "SNAPSHOT_RESOLUTIONS",
     "UsageError",
     "finish_publication",
+    "lock_holder",
     "main",
     "parse_invocation",
     "recover_releases",
     "registered_ids",
+    "release_outputs",
     "resolve_snapshot",
     "scheduled_releases",
     "settle",

@@ -191,6 +191,18 @@ def publication_marker(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) 
     return store_dir(store_id, root=root) / PUBLICATION_MARKER
 
 
+RELEASE_LOCKS_DIRNAME: str = ".release-locks"
+
+
+def release_lock_path(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
+    """A release's run lock: `<root>/.release-locks/<store_id>.lock` (#195).
+
+    It lives outside the release's own directory, so taking it never changes a
+    file of the release a refused run promises it did not touch.
+    """
+    return Path(root) / RELEASE_LOCKS_DIRNAME / f"{store_id}.lock"
+
+
 def backup_store_path(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
     """Where a replaced Store waits between swap and archive: `<root>/<store_id>/store.opengwasdb.backup`."""
     return store_dir(store_id, root=root) / "store.opengwasdb.backup"
@@ -230,6 +242,7 @@ __all__ = [
     "DEFAULT_ARTIFACT_ROOT",
     "FORCE_SNAPSHOT_PREFIX",
     "PUBLICATION_MARKER",
+    "RELEASE_LOCKS_DIRNAME",
     "REPLACED_DIRNAME",
     "REPO_CONFIG_FILENAME",
     "REPO_ROOT",
@@ -247,6 +260,7 @@ __all__ = [
     "publication_marker",
     "record_path",
     "records_dir",
+    "release_lock_path",
     "release_root",
     "replaced_dir",
     "repo_config_path",

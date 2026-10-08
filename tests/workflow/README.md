@@ -47,6 +47,11 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
    - From the marker on, the next run completes the publication, clears Snakemake's incomplete mark and finds nothing to do. Before it, the next run refuses. `--resolve-snapshot delete` (before any job) or `restore` (after), plus Snakemake's `--unlock`, then let a forced run replace the release.
    - Every case ends with the old Store, records and record archived byte-for-byte, nothing pending, and a further run with nothing to do. A boundary added to the code without a case here fails the suite.
 
+9. **Live and interrupted runs (#195, review round 3; also in `release-faults`)**:
+   - A forced run is paused once its build starts. A second run, a forced one, `--resolve-snapshot restore` and `delete` are each refused with "a run of OGS-00099 is in progress (pid <the paused run>)", never the leftover-snapshot message. A dry run reports the holder, the live snapshot is untouched, and the paused run then completes and archives the old release correctly.
+   - Recovery from another run never reads or completes a marker under a live run's lock.
+   - Ctrl-C to the foreground group, SIGTERM to the entry point, and SIGTERM to every process of the run, each mid-build, exit 130 or 143. The records are restored byte for byte (bytes and mtimes), with no snapshot, marker or archive left. The next unforced run meets only the ordinary "already published" refusal, with no `IncompleteFilesException` and no leftover message, and a forced run then replaces the release cleanly.
+
 8. **Operator config reaches Snakemake (#195)**:
    - `pixi run release <ID> --config key=value` and `release-dry` pass the override to Snakemake's config rather than as a target. Each task's `pixi.toml` cmd is run with the operator's words appended, as Pixi does, and the dry run must plan under the configured artifact root.
 

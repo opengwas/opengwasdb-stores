@@ -54,6 +54,12 @@ next run. A crash before it leaves the old release in place, with a snapshot
 that blocks the release until an operator runs `pixi run release <ID>
 --resolve-snapshot restore` (or `delete`).
 
+Two runs never touch one release at once. Each run holds an exclusive lock
+per release (`<artifact-root>/.release-locks/<ID>.lock`) from recovery to
+settlement, so a run of a release that is already running is refused with "a
+run of `<ID>` is in progress (pid …)". Ctrl-C or SIGTERM stops Snakemake,
+restores the records a forced run had begun to replace, and exits 130 or 143.
+
 Running `snakemake --snakefile workflow/Snakefile` directly bypasses all of
 this except the Snakefile's own `onstart` refusal, which `--no-hooks` disables.
 See the specification's Safety section.

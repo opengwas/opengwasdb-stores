@@ -233,17 +233,15 @@ def run_snakemake(
 RELEASE_ENTRY_POINT: Path = REPO_ROOT / "workflow" / "release.py"
 
 
-def run_release(
+def release_argv(
     words: list[str],
     *,
     registry_root: Path,
     artifact_root: Path,
     config: dict[str, str] | None = None,
-    env: dict[str, str] | None = None,
-    new_session: bool = False,
-) -> subprocess.CompletedProcess[str]:
-    """Run the supported entry point, `pixi run release`'s workflow/release.py (#195)."""
-    argv = [
+) -> list[str]:
+    """The supported entry point's command line, as `pixi run release` runs it (#195)."""
+    return [
         sys.executable,
         str(RELEASE_ENTRY_POINT),
         *words,
@@ -254,6 +252,19 @@ def run_release(
         f"artifact_root={artifact_root}",
         *(f"{key}={value}" for key, value in (config or {}).items()),
     ]
+
+
+def run_release(
+    words: list[str],
+    *,
+    registry_root: Path,
+    artifact_root: Path,
+    config: dict[str, str] | None = None,
+    env: dict[str, str] | None = None,
+    new_session: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    """Run the supported entry point, `pixi run release`'s workflow/release.py (#195)."""
+    argv = release_argv(words, registry_root=registry_root, artifact_root=artifact_root, config=config)
     run_env = dict(os.environ)
     run_env.update(env or {})
     return subprocess.run(

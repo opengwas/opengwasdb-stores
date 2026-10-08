@@ -30,9 +30,11 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -47,6 +49,7 @@ from test_workflow import (  # noqa: E402
     SNAKEFILE_PATH,
     create_dense_fixture_store,
     find_snakemake_cmd,
+    release_argv,
     run_release,
 )
 
@@ -75,8 +78,8 @@ def records_of(records_dir: Path) -> dict[str, tuple[int, bytes]]:
     return {p.name: (p.stat().st_mtime_ns, p.read_bytes()) for p in sorted(records_dir.iterdir())}
 
 
-class TestEveryBoundaryThroughTheEntryPoint(unittest.TestCase):
-    """SIGKILL the whole stack at each boundary; the next entry-point run recovers."""
+class PublishedReleaseFixture(unittest.TestCase):
+    """One release published through the entry point, copied fresh for each case."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -102,17 +105,10 @@ class TestEveryBoundaryThroughTheEntryPoint(unittest.TestCase):
     def tearDownClass(cls) -> None:
         cls._tmp.cleanup()
 
-    def test_the_first_publication_went_through_the_entry_point(self) -> None:
+    def assert_first_publication(self) -> None:
         self.assertEqual(self.first.returncode, 0, self.first.stdout + self.first.stderr)
         self.assertIn(f"finished the publication of {STORE_ID}", self.first.stdout)
         self.assertFalse(paths.publication_marker(STORE_ID, root=self.template_artifacts).exists())
-
-    def test_every_boundary_in_the_code_is_crashed_here(self) -> None:
-        """A boundary added to the code without a case here fails this test."""
-        self.assertEqual(
-            set(BOUNDARIES),
-            set(release.ENTRY_POINT_BOUNDARIES) | set(register.PUBLICATION_BOUNDARIES),
-        )
 
     def published_copy(self) -> tuple[Path, Path]:
         """A fresh copy of the published release, aged so the bundle is newer than its records."""
@@ -159,6 +155,20 @@ class TestEveryBoundaryThroughTheEntryPoint(unittest.TestCase):
             self.assertFalse(leftover.exists(), leftover)
         self.assertEqual(run.pending_force_snapshots(STORE_ID, artifacts), [])
         self.assertEqual(sorted(store_dir.glob(".records.before-force-*")), [])
+
+
+class TestEveryBoundaryThroughTheEntryPoint(PublishedReleaseFixture):
+    """SIGKILL the whole stack at each boundary; the next entry-point run recovers."""
+
+    def test_the_first_publication_went_through_the_entry_point(self) -> None:
+        self.assert_first_publication()
+
+    def test_every_boundary_in_the_code_is_crashed_here(self) -> None:
+        """A boundary added to the code without a case here fails this test."""
+        self.assertEqual(
+            set(BOUNDARIES),
+            set(release.ENTRY_POINT_BOUNDARIES) | set(register.PUBLICATION_BOUNDARIES),
+        )
 
     def check_boundary(self, boundary: str) -> None:
         stores, artifacts = self.published_copy()
@@ -227,6 +237,136 @@ class TestEveryBoundaryThroughTheEntryPoint(unittest.TestCase):
         again = release_run()
         self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
         self.assertIn("nothing to be done", again.stdout)
+
+
+class TestLiveAndInterruptedRuns(PublishedReleaseFixture):
+    """A live run is never taken for a dead one, and an interrupted run settles (#195, review round 3)."""
+
+    def start_paused_forced_run(self, stores: Path, artifacts: Path) -> tuple[subprocess.Popen, Path, Path]:
+        """Start a forced run in its own session, paused once its build job has started."""
+        pause = stores.parent / "paused"
+        log = stores.parent / "forced.log"
+        handle = log.open("w")
+        self.addCleanup(handle.close)
+        env = {**os.environ, run.PAUSE_AT_ENV: "build-started", run.PAUSE_FILE_ENV: str(pause)}
+        proc = subprocess.Popen(
+            release_argv([STORE_ID], registry_root=stores, artifact_root=artifacts, config={"force": "1"}),
+            cwd=REPO_ROOT, stdout=handle, stderr=subprocess.STDOUT, env=env, start_new_session=True,
+        )
+        self.addCleanup(lambda: proc.poll() is None and os.killpg(proc.pid, signal.SIGKILL))
+        deadline = time.monotonic() + 300
+        while not pause.exists():
+            if proc.poll() is not None:
+                self.fail(f"the forced run ended before its build started:\n{log.read_text()}")
+            if time.monotonic() > deadline:
+                self.fail(f"the forced run never reached its build:\n{log.read_text()}")
+            time.sleep(0.2)
+        return proc, pause, log
+
+    def test_a_live_run_is_refused_not_mistaken_for_a_leftover(self) -> None:
+        """While a forced run builds, a second run, a forced one and --resolve-snapshot all refuse; it then completes."""
+        stores, artifacts = self.published_copy()
+        store_p = paths.store_path(STORE_ID, root=artifacts)
+        old_manifest = (store_p / "manifest.json").read_bytes()
+        old_records = records_of(paths.records_dir(STORE_ID, root=artifacts))
+        old_validation = (stores / STORE_ID / "validation.yaml").read_bytes()
+        proc, pause, log = self.start_paused_forced_run(stores, artifacts)
+        snapshots = run.pending_force_snapshots(STORE_ID, artifacts)
+        self.assertEqual(len(snapshots), 1)
+
+        for words, config in (([STORE_ID], None), ([STORE_ID], {"force": "1"}),
+                              ([STORE_ID, "--resolve-snapshot", "restore"], None),
+                              ([STORE_ID, "--resolve-snapshot", "delete"], None)):
+            with self.subTest(words=words, config=config):
+                res = run_release(words, registry_root=stores, artifact_root=artifacts, config=config)
+                self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+                self.assertIn(f"a run of {STORE_ID} is in progress (pid {proc.pid},", res.stderr)
+                self.assertNotIn("stopped before it began to publish", res.stderr)
+        self.assertEqual(records_of(snapshots[0]), old_records, "the live run's snapshot is untouched")
+
+        dry = run_release([STORE_ID, "--dry-run"], registry_root=stores, artifact_root=artifacts)
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        self.assertIn(f"a run of {STORE_ID} is in progress (pid {proc.pid},", dry.stdout)
+
+        pause.unlink()
+        self.assertEqual(proc.wait(timeout=600), 0, log.read_text())
+        self.assert_replaced(stores, artifacts, old_manifest, old_records, old_validation)
+
+    def test_recovery_never_completes_a_live_runs_publication(self) -> None:
+        """A marker under another run's lock is that run's; recovery from any other run leaves it alone."""
+        stores, artifacts = self.published_copy()
+        marker = paths.publication_marker(STORE_ID, root=artifacts)
+        marker.write_text('{"not": "for recovery to read"}', encoding="utf-8")
+        live = release.ReleaseLocks(artifacts)
+        live.acquire(STORE_ID)
+        self.addCleanup(live.release_all)
+
+        mine = release.ReleaseLocks(artifacts)
+        self.addCleanup(mine.release_all)
+        messages = release.recover_releases(
+            release.parse_invocation(["--config", f"registry_root={stores}", f"artifact_root={artifacts}"]),
+            stores, artifacts, mine,
+        )
+
+        self.assertEqual(messages, [])
+        self.assertEqual(marker.read_text(encoding="utf-8"), '{"not": "for recovery to read"}')
+        self.assertFalse(mine.holds(STORE_ID))
+
+    def check_interrupt(self, deliver: str, signum: int) -> None:
+        stores, artifacts = self.published_copy()
+        store_p = paths.store_path(STORE_ID, root=artifacts)
+        records = paths.records_dir(STORE_ID, root=artifacts)
+        old_manifest = (store_p / "manifest.json").read_bytes()
+        old_records = records_of(records)
+        validation_p = stores / STORE_ID / "validation.yaml"
+        old_validation = validation_p.read_bytes()
+        proc, pause, log = self.start_paused_forced_run(stores, artifacts)
+        self.assertFalse(paths.record_path(STORE_ID, "build", root=artifacts).exists(), "mid-build")
+
+        if deliver == "group":
+            os.killpg(proc.pid, signum)  # a terminal's Ctrl-C reaches the foreground group
+        elif deliver == "pid":
+            os.kill(proc.pid, signum)  # `kill <pid>` reaches the entry point alone
+        else:
+            # A scheduler's limit reaches every process of the job: the entry point's
+            # group and Snakemake's own session, found through the paused build job.
+            job_pid = int(pause.read_text(encoding="utf-8").strip())
+            os.killpg(os.getpgid(job_pid), signum)
+            os.killpg(proc.pid, signum)
+        returncode = proc.wait(timeout=600)
+
+        self.assertEqual(returncode, 128 + signum, log.read_text())
+        self.assertIn(f"restored the records of {STORE_ID}", log.read_text())
+        self.assertEqual(records_of(records), old_records, "records restored byte-for-byte")
+        self.assertEqual((store_p / "manifest.json").read_bytes(), old_manifest)
+        self.assertEqual(validation_p.read_bytes(), old_validation)
+        self.assertEqual(run.pending_force_snapshots(STORE_ID, artifacts), [])
+        self.assertFalse(paths.publication_marker(STORE_ID, root=artifacts).exists())
+        self.assertFalse((paths.store_dir(STORE_ID, root=artifacts) / "replaced").exists())
+
+        # Nothing is left to recover or resolve: the release is exactly as it was
+        # before the forced run, so an unforced run meets the ordinary refusal, with
+        # no IncompleteFilesException and no leftover snapshot.
+        res = run_release([STORE_ID], registry_root=stores, artifact_root=artifacts)
+        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        self.assertIn("already published", res.stderr)
+        self.assertNotIn("IncompleteFilesException", res.stdout + res.stderr)
+        self.assertNotIn("stopped before it began to publish", res.stderr)
+        forced = run_release([STORE_ID], registry_root=stores, artifact_root=artifacts, config={"force": "1"})
+        self.assertEqual(forced.returncode, 0, forced.stdout + forced.stderr)
+        self.assert_replaced(stores, artifacts, old_manifest, old_records, old_validation)
+
+    def test_ctrl_c_mid_build_restores_the_records(self) -> None:
+        """SIGINT to the foreground group (Ctrl-C) mid-build: exit 130, records restored."""
+        self.check_interrupt("group", signal.SIGINT)
+
+    def test_sigterm_to_the_entry_point_mid_build_restores_the_records(self) -> None:
+        """SIGTERM to the entry point alone (`kill`) mid-build: exit 143, records restored."""
+        self.check_interrupt("pid", signal.SIGTERM)
+
+    def test_sigterm_to_every_process_mid_build_restores_the_records(self) -> None:
+        """SIGTERM to the entry point and Snakemake's session (a scheduler limit) mid-build: exit 143."""
+        self.check_interrupt("all", signal.SIGTERM)
 
 
 def _case(boundary: str):
