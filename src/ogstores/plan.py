@@ -314,10 +314,12 @@ def _post_steps(store_p: Path, post: dict[str, Any], spec: CommandSpec) -> list[
         )
 
     if post.get("validate"):
+        # `--format json` is the machine-readable verdict `register` records
+        # (opengwasdb#175); the text form would leave it searching prose (#195).
         steps.append(
             Step(
                 name="validate",
-                argv=["opengwasdb", "validate", str(store_p)],
+                argv=["opengwasdb", "validate", str(store_p), "--format", "json"],
                 inputs=[store_p],
                 outputs=[],
             )

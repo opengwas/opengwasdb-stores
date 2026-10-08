@@ -18,6 +18,7 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
    - Requesting only a Reference-Completed child also builds its parent first via lineage input edge.
    - The index target proposes 0 build jobs (depends only on bundle files).
 7. End-to-end fixture build, idempotency, interruption resumption, and record deletion.
+8. A run that would rebuild a published release is refused before any job writes (#195).
 """
 
 from __future__ import annotations
@@ -25,10 +26,12 @@ from __future__ import annotations
 import gzip
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 from typing import Any
@@ -197,14 +200,20 @@ def run_snakemake(
     snakefile: Path = SNAKEFILE_PATH,
     dry_run: bool = False,
     extra_args: list[str] | None = None,
+    config: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Invoke snakemake CLI on Snakefile with explicit registry_root and artifact_root."""
+    """Invoke snakemake CLI on Snakefile with explicit registry_root and artifact_root.
+
+    `config` adds keys to the same `--config`: a second `--config` would
+    replace the first.
+    """
     cmd = find_snakemake_cmd() + [
         "--snakefile",
         str(snakefile),
         "--config",
         f"registry_root={registry_root}",
         f"artifact_root={artifact_root}",
+        *(f"{key}={value}" for key, value in (config or {}).items()),
     ]
     if dry_run:
         cmd.append("--dry-run")
@@ -219,6 +228,48 @@ def run_snakemake(
         env["PYTHONPATH"] = f"{SRC_DIR}:{env.get('PYTHONPATH', '')}"
 
     return subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True, env=env)
+
+
+RELEASE_ENTRY_POINT: Path = REPO_ROOT / "workflow" / "release.py"
+
+
+def release_argv(
+    words: list[str],
+    *,
+    registry_root: Path,
+    artifact_root: Path,
+    config: dict[str, str] | None = None,
+) -> list[str]:
+    """The supported entry point's command line, as `pixi run release` runs it (#195)."""
+    return [
+        sys.executable,
+        str(RELEASE_ENTRY_POINT),
+        *words,
+        "--cores",
+        "1",
+        "--config",
+        f"registry_root={registry_root}",
+        f"artifact_root={artifact_root}",
+        *(f"{key}={value}" for key, value in (config or {}).items()),
+    ]
+
+
+def run_release(
+    words: list[str],
+    *,
+    registry_root: Path,
+    artifact_root: Path,
+    config: dict[str, str] | None = None,
+    env: dict[str, str] | None = None,
+    new_session: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    """Run the supported entry point, `pixi run release`'s workflow/release.py (#195)."""
+    argv = release_argv(words, registry_root=registry_root, artifact_root=artifact_root, config=config)
+    run_env = dict(os.environ)
+    run_env.update(env or {})
+    return subprocess.run(
+        argv, cwd=REPO_ROOT, capture_output=True, text=True, env=run_env, start_new_session=new_session
+    )
 
 
 class TestWorkflowSnakefileStaticProperties(unittest.TestCase):
@@ -552,6 +603,274 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         self.assertTrue((rec_dir / "register.json").is_file())
         self.assertTrue(paths.store_path(store_id, root=self.artifact_root).is_dir())
 
+    def test_rebuilding_a_published_release_is_refused_before_any_job_writes(self) -> None:
+        """A run that would rebuild a published release refuses before any job runs (#195).
+
+        A fresh checkout gives every bundle file a newer mtime than the records
+        beside its published Store, so Snakemake schedules the whole chain
+        again. Before #195 that run rebuilt into `.partial`, rewrote the
+        release's `work/` and `records/`, and only then failed at publication
+        with `StoreExistsError`: the Store survived, its evidence did not.
+        """
+        store_id = self.STORE_ID
+        self.use_completed_build()
+        store_dir = paths.store_dir(store_id, root=self.artifact_root)
+        validation_p = self.stores_dir / store_id / "validation.yaml"
+
+        def snapshot() -> dict[str, tuple[int, bytes]]:
+            files = [p for p in store_dir.rglob("*") if p.is_file()] + [validation_p]
+            return {str(p): (p.stat().st_mtime_ns, p.read_bytes()) for p in files}
+
+        # Age the published release by a day, keeping its files' relative
+        # order, so the bundle is newer than its records as after a checkout.
+        day_ns = 86_400 * 10**9
+        for p in store_dir.rglob("*"):
+            if p.is_file():
+                st = p.stat()
+                os.utime(p, ns=(st.st_atime_ns - day_ns, st.st_mtime_ns - day_ns))
+
+        res_dry = run_snakemake(
+            [store_id],
+            registry_root=self.stores_dir,
+            artifact_root=self.artifact_root,
+            dry_run=True,
+        )
+        self.assertEqual(res_dry.returncode, 0, res_dry.stderr)
+        self.assertIn("build", scheduled_targets(res_dry.stdout), "the fixture must schedule a rebuild")
+
+        before = snapshot()
+        res = run_snakemake([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+
+        self.assertNotEqual(res.returncode, 0, f"a rebuild of a published release must be refused:\n{res.stdout}")
+        output = res.stdout + res.stderr
+        self.assertIn(f"{store_id}: {paths.store_path(store_id, root=self.artifact_root)}", output)
+        self.assertIn("Nothing was written", output)
+        self.assertEqual(snapshot(), before, "the refused run changed the published release's files")
+        self.assertFalse(paths.partial_store_path(store_id, root=self.artifact_root).exists())
+
+    def age_published_release(self, store_id: str) -> None:
+        """Make the bundle newer than the published release's files, as a fresh checkout does."""
+        day_ns = 86_400 * 10**9
+        for p in paths.store_dir(store_id, root=self.artifact_root).rglob("*"):
+            if p.is_file():
+                st = p.stat()
+                os.utime(p, ns=(st.st_atime_ns - day_ns, st.st_mtime_ns - day_ns))
+
+    def release_snapshot(self, store_id: str) -> dict[str, tuple[int, bytes]]:
+        """Every file of the release beside its bundle's validation.yaml, by bytes and mtime."""
+        store_dir = paths.store_dir(store_id, root=self.artifact_root)
+        files = [p for p in store_dir.rglob("*") if p.is_file()]
+        files.append(self.stores_dir / store_id / "validation.yaml")
+        return {str(p): (p.stat().st_mtime_ns, p.read_bytes()) for p in files}
+
+    def records_of(self, records_dir: Path) -> dict[str, tuple[int, bytes]]:
+        return {p.name: (p.stat().st_mtime_ns, p.read_bytes()) for p in sorted(records_dir.iterdir())}
+
+    def test_forced_rebuild_archives_the_old_release_and_publishes_the_new(self) -> None:
+        """`--config force=1` replaces a named release; the old Store, records and record are archived (#195)."""
+        store_id = self.STORE_ID
+        self.use_completed_build()
+        self.age_published_release(store_id)
+        store_dir = paths.store_dir(store_id, root=self.artifact_root)
+        store_p = paths.store_path(store_id, root=self.artifact_root)
+        validation_p = self.stores_dir / store_id / "validation.yaml"
+        old_manifest = (store_p / "manifest.json").read_bytes()
+        old_records = self.records_of(paths.records_dir(store_id, root=self.artifact_root))
+        old_validation = validation_p.read_bytes()
+
+        res = run_release(
+            [store_id],
+            registry_root=self.stores_dir,
+            artifact_root=self.artifact_root,
+            config={"force": "1"},
+        )
+
+        self.assertEqual(res.returncode, 0, f"forced run failed:\n{res.stdout}\n{res.stderr}")
+        archives = sorted((store_dir / "replaced").iterdir())
+        self.assertEqual(len(archives), 1, archives)
+        archive = archives[0]
+        self.assertEqual((archive / "store.opengwasdb" / "manifest.json").read_bytes(), old_manifest)
+        self.assertEqual(self.records_of(archive / "records"), old_records)
+        self.assertEqual((archive / "validation.yaml").read_bytes(), old_validation)
+        self.assertNotEqual((store_p / "manifest.json").read_bytes(), old_manifest, "a new Store is published")
+        self.assertEqual(sorted(p.name for p in store_dir.glob("records.before-force-*")), [])
+        self.assertFalse(paths.partial_store_path(store_id, root=self.artifact_root).exists())
+        self.assertFalse((store_dir / "store.opengwasdb.backup").exists())
+
+        import yaml
+        written = yaml.safe_load(validation_p.read_text(encoding="utf-8"))
+        self.assertEqual(written["replaced"]["archive"], str(archive))
+        register_rec = json.loads(paths.record_path(store_id, "register", root=self.artifact_root).read_text())
+        self.assertEqual(register_rec["replaced_archive"], str(archive))
+
+    def test_a_forced_run_failing_midway_restores_the_records(self) -> None:
+        """A forced run whose build fails leaves the Store, validation.yaml and records/ as they were."""
+        store_id = self.STORE_ID
+        self.use_completed_build()
+        self.age_published_release(store_id)
+        # Point this test's copy of the bundle at a broken source; the template's
+        # VCF, which the copied manifest names, is shared with other tests.
+        broken = self.td / "broken.vcf.gz"
+        broken.write_bytes(b"not a gzip file\n")
+        analyses_p = self.stores_dir / store_id / "analyses.tsv"
+        template_vcf = str(self.template_stores / store_id / "test.vcf.gz")
+        self.assertIn(template_vcf, analyses_p.read_text(encoding="utf-8"))
+        analyses_p.write_text(
+            analyses_p.read_text(encoding="utf-8").replace(template_vcf, str(broken)), encoding="utf-8"
+        )
+        store_dir = paths.store_dir(store_id, root=self.artifact_root)
+        records = paths.records_dir(store_id, root=self.artifact_root)
+        before_records = self.records_of(records)
+        before_store = {
+            str(p): p.read_bytes()
+            for p in paths.store_path(store_id, root=self.artifact_root).rglob("*") if p.is_file()
+        }
+        validation_p = self.stores_dir / store_id / "validation.yaml"
+        before_validation = validation_p.read_bytes()
+
+        res = run_release(
+            [store_id],
+            registry_root=self.stores_dir,
+            artifact_root=self.artifact_root,
+            config={"force": "1"},
+        )
+
+        self.assertNotEqual(res.returncode, 0, "the broken source must fail the build")
+        output = res.stdout + res.stderr
+        self.assertNotIn("Refusing to run", output, "the forced run must get as far as the build")
+        self.assertIn("Error in rule step", output)
+        self.assertIn("step=build", output)
+        self.assertEqual(self.records_of(records), before_records)
+        self.assertEqual(
+            {
+                str(p): p.read_bytes()
+                for p in paths.store_path(store_id, root=self.artifact_root).rglob("*") if p.is_file()
+            },
+            before_store,
+        )
+        self.assertEqual(validation_p.read_bytes(), before_validation)
+        self.assertEqual(sorted(p.name for p in store_dir.glob("records.before-force-*")), [])
+        self.assertFalse((store_dir / "replaced").exists())
+
+    def test_a_leftover_snapshot_blocks_the_next_run(self) -> None:
+        """After a killed forced run, every run of that release refuses until an operator resolves it."""
+        store_id = self.STORE_ID
+        self.use_completed_build()
+        self.age_published_release(store_id)
+        leftover = paths.force_snapshot_path(store_id, "20261006T235959Z", root=self.artifact_root)
+        shutil.copytree(paths.records_dir(store_id, root=self.artifact_root), leftover)
+        before = self.release_snapshot(store_id)
+
+        for config in ({}, {"force": "1"}):
+            with self.subTest(config=config):
+                res = run_release(
+                    [store_id],
+                    registry_root=self.stores_dir,
+                    artifact_root=self.artifact_root,
+                    config=config,
+                )
+                self.assertNotEqual(res.returncode, 0)
+                output = res.stdout + res.stderr
+                self.assertIn(str(leftover), output)
+                self.assertIn("restore it", output)
+                self.assertIn("delete it", output)
+                self.assertEqual(self.release_snapshot(store_id), before)
+
+    def test_the_entry_point_refuses_an_unforced_rebuild_before_any_write(self) -> None:
+        """`pixi run release <published id>` refuses in its preflight, before Snakemake runs a job."""
+        store_id = self.STORE_ID
+        self.use_completed_build()
+        self.age_published_release(store_id)
+        before = self.release_snapshot(store_id)
+
+        res = run_release([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+
+        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        self.assertIn(f"{store_id}: {paths.store_path(store_id, root=self.artifact_root)}", res.stderr)
+        self.assertIn("--config force=1", res.stderr)
+        self.assertEqual(self.release_snapshot(store_id), before)
+        self.assertFalse(paths.partial_store_path(store_id, root=self.artifact_root).exists())
+
+    def test_no_hooks_and_other_unsafe_options_are_refused_before_any_write(self) -> None:
+        """Options that would bypass or weaken the guard never reach Snakemake (#195 review)."""
+        store_id = self.STORE_ID
+        self.use_completed_build()
+        self.age_published_release(store_id)
+        before = self.release_snapshot(store_id)
+
+        for option in ("--no-hooks", "--touch", "--forceall", "--nolock", "--ignore-incomplete", "--snakefile=other"):
+            for config in ({}, {"force": "1"}):
+                with self.subTest(option=option, config=config):
+                    res = run_release(
+                        [store_id, option],
+                        registry_root=self.stores_dir,
+                        artifact_root=self.artifact_root,
+                        config=config,
+                    )
+                    self.assertEqual(res.returncode, 2, res.stdout + res.stderr)
+                    self.assertIn("refused", res.stderr)
+                    self.assertEqual(self.release_snapshot(store_id), before)
+        self.assertFalse(paths.partial_store_path(store_id, root=self.artifact_root).exists())
+        self.assertEqual(run.pending_force_snapshots(store_id, self.artifact_root), [])
+
+    def test_an_operator_cannot_set_the_release_run(self) -> None:
+        store_id = self.STORE_ID
+        self.use_completed_build()
+        res = run_release(
+            [store_id],
+            registry_root=self.stores_dir,
+            artifact_root=self.artifact_root,
+            config={"release_run": "20261007T000000Z"},
+        )
+        self.assertEqual(res.returncode, 2)
+        self.assertIn("release_run", res.stderr)
+
+    def test_resolve_snapshot_refuses_misuse_without_writing(self) -> None:
+        """`--resolve-snapshot` needs one id and a leftover snapshot; it never runs Snakemake."""
+        store_id = self.STORE_ID
+        self.use_completed_build()
+        before = self.release_snapshot(store_id)
+        cases = (
+            ([store_id, "--resolve-snapshot", "restore"], 1, "0 records snapshot"),
+            ([store_id, "--resolve-snapshot", "maybe"], 2, "restore` or `delete"),
+            (["all", "--resolve-snapshot", "delete"], 2, "exactly one release id"),
+            ([store_id, "--resolve-snapshot", "delete", "--dry-run"], 2, "exactly one release id"),
+        )
+        for words, code, message in cases:
+            with self.subTest(words=words):
+                res = run_release(words, registry_root=self.stores_dir, artifact_root=self.artifact_root)
+                self.assertEqual(res.returncode, code, res.stdout + res.stderr)
+                self.assertIn(message, res.stderr)
+                self.assertEqual(self.release_snapshot(store_id), before)
+
+    def test_a_register_job_killed_mid_publication_is_completed_by_the_same_run(self) -> None:
+        """Only the register job dies; the entry point survives and finishes the publication itself."""
+        store_id = self.STORE_ID
+        self.use_completed_build()
+        self.age_published_release(store_id)
+        store_dir = paths.store_dir(store_id, root=self.artifact_root)
+        old_manifest = (paths.store_path(store_id, root=self.artifact_root) / "manifest.json").read_bytes()
+
+        res = run_release(
+            [store_id],
+            registry_root=self.stores_dir,
+            artifact_root=self.artifact_root,
+            config={"force": "1"},
+            env={run.KILL_AT_ENV: "store-published"},
+        )
+
+        self.assertNotEqual(res.returncode, 0, "Snakemake saw its register job die")
+        self.assertIn(f"finished the publication of {store_id}", res.stdout)
+        archives = sorted((store_dir / "replaced").iterdir())
+        self.assertEqual(len(archives), 1, archives)
+        self.assertEqual((archives[0] / "store.opengwasdb" / "manifest.json").read_bytes(), old_manifest)
+        self.assertTrue((archives[0] / "records").is_dir())
+        self.assertFalse(paths.publication_marker(store_id, root=self.artifact_root).exists())
+        self.assertTrue(paths.record_path(store_id, "register", root=self.artifact_root).is_file())
+        nothing = run_release([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+        self.assertEqual(nothing.returncode, 0, nothing.stdout + nothing.stderr)
+        self.assertIn("nothing to be done", nothing.stdout)
+
     def test_deleting_single_record_file_reruns_exact_step_and_downstream(self) -> None:
         """Deleting records/validate.json triggers only validate, register, and store target in dry-run."""
         store_id = self.STORE_ID
@@ -811,6 +1130,55 @@ class TestWorkflowVariantReferenceDAG(unittest.TestCase):
         )
         self.assertEqual(res.returncode, 0, f"Dry run failed:\n{res.stderr}")
         self.assertNotIn("variant-reference", scheduled_targets(res.stdout))
+
+
+class TestPixiReleaseTaskPassthrough(unittest.TestCase):
+    """`pixi run release <ID> --config key=value` reaches Snakemake's config (#195).
+
+    Pixi appends a task's extra arguments to its `cmd`, so each task is run
+    here as its `pixi.toml` cmd plus the operator's words, in the current
+    environment. A bare trailing `--` in the cmd made Snakemake read
+    `--config` and every `key=value` as targets.
+    """
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.td = Path(self.temp_dir.name)
+        self.stores_dir = self.td / "stores"
+        self.stores_dir.mkdir()
+        self.artifact_root = self.td / "artifacts"
+        self.artifact_root.mkdir()
+        with open(REPO_ROOT / "pixi.toml", "rb") as f:
+            self.tasks = tomllib.load(f)["feature"]["workflow"]["tasks"]
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def run_task(self, task: str, *operator_args: str) -> subprocess.CompletedProcess[str]:
+        argv = shlex.split(self.tasks[task]["cmd"]) + list(operator_args)
+        env = dict(os.environ)
+        env["PYTHONPATH"] = f"{SRC_DIR}:{env.get('PYTHONPATH', '')}"
+        return subprocess.run(argv, cwd=REPO_ROOT, capture_output=True, text=True, env=env)
+
+    def test_release_tasks_pass_config_after_the_target(self) -> None:
+        """Both tasks accept `<ID> --config ...`; the dry run plans under the configured root."""
+        store_id = "OGS-00099"
+        create_dense_fixture_store(self.stores_dir, store_id=store_id, artifact_root=self.artifact_root)
+        config = ["--config", f"registry_root={self.stores_dir}", f"artifact_root={self.artifact_root}"]
+
+        for task, extra in (("release-dry", []), ("release", ["--dry-run"])):
+            with self.subTest(task=task):
+                res = self.run_task(task, store_id, *extra, *config)
+                self.assertEqual(res.returncode, 0, f"{task} rejected its config:\n{res.stdout}\n{res.stderr}")
+                self.assertIn(
+                    str(paths.record_path(store_id, "register", root=self.artifact_root)),
+                    res.stdout,
+                    f"{task} did not plan under the configured artifact root",
+                )
+                self.assertFalse(
+                    paths.records_dir(store_id, root=self.artifact_root).exists(),
+                    f"{task} wrote records during a dry run",
+                )
 
 
 class TestWorkflowOperatorInterface(unittest.TestCase):

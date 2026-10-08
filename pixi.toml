@@ -280,8 +280,22 @@ materialise-gwas-ssf-ragged = { cmd = "Rscript resources/scripts/materialise-gwa
 # Phase A. `release` takes one or more Store Release ids; lineage order is
 # resolved by the DAG, so a Reference-Completed child never needs sequencing
 # by hand. `index` regenerates the master list from the bundles alone.
-release = { cmd = "snakemake --snakefile workflow/Snakefile --cores all --" }
-release-dry = { cmd = "snakemake --snakefile workflow/Snakefile --dry-run --" }
+#
+#
+# `release` is the supported entry point (#195): workflow/release.py completes
+# any interrupted publication, refuses a published release unless it is named
+# with `--config force=1`, snapshots what a forced run may replace, runs
+# Snakemake once, and settles the run. It accepts only release ids, `--config`,
+# `--cores`, `--dry-run`, `--keep-going`, `--rerun-incomplete` and
+# `--resolve-snapshot restore|delete`; `--no-hooks` and other unsafe options are
+# refused. Name the ids first, then the overrides:
+#
+#   pixi run release OGS-00003 --config artifact_root=/path
+#   pixi run release OGS-00005 --config force=1   # replace it; the old one is archived
+#
+# Running snakemake directly bypasses that guard.
+release = { cmd = "python3 workflow/release.py" }
+release-dry = { cmd = "python3 workflow/release.py --dry-run" }
 index = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
 [feature.reporting.tasks]

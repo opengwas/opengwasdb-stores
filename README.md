@@ -126,6 +126,8 @@ resolving a parent Store from `derived_from` needs no registry lookup:
   records/<step>.json       one per executed step
   store.opengwasdb          the Store Release
   store.opengwasdb.partial  transient staged destination
+  publication.json          transient: a publication in progress
+  replaced/<UTC>/           a release a forced run replaced, kept until a person deletes it
 <artifact-root>/by-label/   generated symlinks
 ```
 

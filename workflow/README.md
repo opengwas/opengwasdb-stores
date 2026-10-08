@@ -20,6 +20,8 @@ Phase A is driven by `workflow/Snakefile`:
 ```sh
 pixi run release OGS-00003                                 # one registered release, plus any parent it needs
 pixi run release OGS-00003 OGS-00004                       # several registered releases; lineage order is resolved
+pixi run release OGS-00003 --config artifact_root=/path    # ids first, then config overrides
+pixi run release OGS-00005 --config force=1                # replace a published release, archiving the old one
 pixi run index                                             # regenerate master list, summaries, by-label/
 ```
 
@@ -28,6 +30,39 @@ A release target must be an ID currently registered under `stores/`; use
 placeholders. Post-steps follow the selected command's Store-format support:
 `rho` is Dense-only, and `overview` is Dense/Hybrid-only because Ragged's
 closed Store envelope excludes `overview.html`.
+
+`pixi run release` and `pixi run release-dry` run `workflow/release.py`, the
+supported entry point (#195). Around one Snakemake run it:
+- completes any publication a crash interrupted;
+- refuses a published release unless it is named with `--config force=1`, and
+  refuses a release holding a leftover records snapshot;
+- snapshots what a forced run may replace;
+- settles the run afterwards.
+
+It accepts only release ids, `--config`, `--cores`, `--dry-run`, `--keep-going`,
+`--rerun-incomplete` and `--resolve-snapshot restore|delete`. `--no-hooks`, `--touch` and other unsafe options are
+refused before anything is written, and `--dry-run` writes nothing. An
+up-to-date release is a no-op.
+
+A forced run copies the release's `records/` to `records.before-force-<UTC>/`.
+Publication is one transaction, recorded in `publication.json` until it is
+complete. The old Store, those records and a copy of its `validation.yaml` move
+to `replaced/<UTC>/`, and nothing deletes them; each archive holds a full Store.
+The entry point removes that marker only once Snakemake has finished the
+register job, so a crash after publication starts is always finished by the
+next run. A crash before it leaves the old release in place, with a snapshot
+that blocks the release until an operator runs `pixi run release <ID>
+--resolve-snapshot restore` (or `delete`).
+
+Two runs never touch one release at once. Each run holds an exclusive lock
+per release (`<artifact-root>/.release-locks/<ID>.lock`) from recovery to
+settlement, so a run of a release that is already running is refused with "a
+run of `<ID>` is in progress (pid …)". Ctrl-C or SIGTERM stops Snakemake,
+restores the records a forced run had begun to replace, and exits 130 or 143.
+
+Running `snakemake --snakefile workflow/Snakefile` directly bypasses all of
+this except the Snakefile's own `onstart` refusal, which `--no-hooks` disables.
+See the specification's Safety section.
 
 ### Production Execution vs. Fixture-Scale Tests
 

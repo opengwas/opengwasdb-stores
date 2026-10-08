@@ -24,6 +24,14 @@ Staged release transaction lifecycle (ADR 0022, ADR 0023):
   exists). Premature publication or publication on plans lacking 'validate' is rejected.
 * Force timing: Staging in `store.opengwasdb.partial` is permitted beside an existing
   final Store without force; `force=True` is required only at terminal publication.
+  The entry point (`ogstores.release`) refuses, before Snakemake starts, a run
+  that would rebuild a published release unless it was named with
+  `--config force=1` (`prepare_release_run`, #195).
+* Forced replacement (#195): the entry point snapshots the release's records first,
+  and restores them if the run fails before publishing (`settle_force_snapshots`).
+  Publication itself is `register.complete_publication`'s transaction. A replaced
+  Store is renamed into `replaced/<UTC>/`, never deleted, and so is a `.backup`
+  that crash recovery finds; an archive failure is raised, never swallowed.
 * Zero contamination: Any failed or interrupted step leaves any pre-existing final
   Store and `validation.yaml` completely untouched without needing whole-Store copying.
   A failed new release leaves no final Store.
@@ -65,7 +73,7 @@ import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 from ogstores import paths
 from ogstores.bundle import Bundle
@@ -96,6 +104,54 @@ _SUPERVISOR_BOOTSTRAP: str = (
     "from ogstores._pdeath_supervisor import main; "
     "raise SystemExit(main(cmd, int(liveness_fd), int(exec_status_fd)))"
 )
+
+
+# Test-only fault injection at the named boundaries of a publication (#195).
+# Each holds a comma-separated list of boundary names.
+KILL_AT_ENV: str = "OGSTORES_TEST_KILL_AT"
+KILL_GROUP_AT_ENV: str = "OGSTORES_TEST_KILL_GROUP_AT"
+PAUSE_AT_ENV: str = "OGSTORES_TEST_PAUSE_AT"
+PAUSE_FILE_ENV: str = "OGSTORES_TEST_PAUSE_FILE"
+# Set by the entry point for the Snakemake run it starts, so a job knows whose
+# run it belongs to (and a whole-stack test kill can reach the entry point).
+ENTRY_POINT_PID_ENV: str = "OGSTORES_ENTRY_POINT_PID"
+
+
+def fault_boundary(name: str) -> None:
+    """A named point between two durable steps, where tests inject faults (#195).
+
+    Test-only, through environment variables that hold comma-separated names:
+    - `OGSTORES_TEST_KILL_AT`: this process exits there with status 137, as
+      SIGKILL would leave it, with no `finally`, hook or cleanup;
+    - `OGSTORES_TEST_KILL_GROUP_AT`: the whole stack is SIGKILLed, as a host
+      or terminal crash would kill it: the entry point (named by
+      `OGSTORES_ENTRY_POINT_PID`) first, then this process's group;
+    - `OGSTORES_TEST_PAUSE_AT`: this process writes its pid to the file named
+      by `OGSTORES_TEST_PAUSE_FILE`, and waits there until that file is
+      removed, so a test can act while a run is live.
+    None of them is set outside the test suites.
+    """
+    if name in os.environ.get(KILL_AT_ENV, "").split(","):
+        os._exit(137)
+    if name in os.environ.get(KILL_GROUP_AT_ENV, "").split(","):
+        entry_point = os.environ.get(ENTRY_POINT_PID_ENV)
+        if entry_point and int(entry_point) != os.getpid():
+            try:
+                os.kill(int(entry_point), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        os.killpg(os.getpgrp(), signal.SIGKILL)
+    if name in os.environ.get(PAUSE_AT_ENV, "").split(","):
+        pause_file = Path(os.environ[PAUSE_FILE_ENV])
+        pause_file.write_text(f"{os.getpid()}\n", encoding="utf-8")
+        while pause_file.exists():
+            time.sleep(0.1)
+
+
+class PublicationPendingError(RuntimeError):
+    """Raised when a release has a publication that has not finished (`publication.json`)."""
+
+    pass
 
 
 class StoreExistsError(FileExistsError):
@@ -460,30 +516,42 @@ def _write_record_atomically(record_data: dict[str, Any], record_p: Path) -> Non
 
 
 def _recover_pending_backup(store_id: str, root: Path) -> None:
-    """Recover or clean up any stale backup directory left by an interrupted previous run."""
+    """Recover a `store.opengwasdb.backup` left by an interrupted `publish_store(force=True)`.
+
+    A backup that belongs to a pending `register` publication (its
+    `publication.json` exists) is not touched here: only `complete_publication`
+    knows which way that one goes, and the entry point runs it first (#195).
+    Otherwise a backup with no Store is put back, and a backup beside a
+    published Store is archived under `replaced/<UTC>/`, never deleted. A
+    failure is raised, not swallowed.
+    """
     target_p = paths.store_path(store_id, root=root)
-    backup_p = paths.store_dir(store_id, root=root) / "store.opengwasdb.backup"
+    backup_p = paths.backup_store_path(store_id, root=root)
 
     _assert_real_directory(backup_p, "backup store")
     _assert_real_directory(target_p, "target store")
     if not _lstat_exists(backup_p):
         return
+    marker = paths.publication_marker(store_id, root=root)
+    if _lstat_exists(marker):
+        raise PublicationPendingError(
+            f"{backup_p} belongs to the pending publication {marker}; "
+            "`pixi run release` completes it before anything else runs"
+        )
 
     if not _lstat_exists(target_p):
-        # Previous run crashed after moving target -> backup but before publishing partial.
-        # Recover original target store.
+        # Interrupted after moving target -> backup but before publishing partial.
         backup_p.rename(target_p)
         _fsync_dir(target_p.parent)
     else:
-        # Previous run finished publishing partial -> target, but crashed before removing backup.
-        try:
-            if backup_p.is_dir():
-                shutil.rmtree(backup_p)
-            elif _lstat_exists(backup_p):
-                backup_p.unlink()
-            _fsync_dir(target_p.parent)
-        except Exception:
-            pass
+        # The new Store was published but the old one never archived.
+        archived = target_p.parent / paths.REPLACED_DIRNAME / utc_stamp() / target_p.name
+        if _lstat_exists(archived):
+            raise FileExistsError(f"Cannot archive {backup_p}: {archived} already exists")
+        archived.parent.mkdir(parents=True, exist_ok=True)
+        backup_p.rename(archived)
+        _fsync_dir(archived.parent)
+        _fsync_dir(target_p.parent)
 
 
 def _safe_publish_partial_store(
@@ -491,8 +559,14 @@ def _safe_publish_partial_store(
     target_p: Path,
     backup_p: Path,
     force: bool = False,
+    archive_dir: Path | str | None = None,
 ) -> None:
-    """Safely publish partial_p to target_p with rollback protection, backup, and fsync."""
+    """Safely publish partial_p to target_p with rollback protection, backup, and fsync.
+
+    A forced replacement keeps the old Store: once the new one is in place, the
+    old one is renamed into `archive_dir` (default `replaced/<UTC>/` beside the
+    target), and nothing deletes it (#195).
+    """
     _assert_real_directory(partial_p, "partial store")
     _assert_real_directory(target_p, "target store")
     _assert_real_directory(backup_p, "backup store")
@@ -507,6 +581,16 @@ def _safe_publish_partial_store(
         if not force:
             raise StoreExistsError(
                 f"Target store already exists at {target_p}. Set force=True to replace."
+            )
+        archive = (
+            Path(archive_dir)
+            if archive_dir is not None
+            else target_p.parent / paths.REPLACED_DIRNAME / utc_stamp()
+        )
+        archived_store = archive / target_p.name
+        if _lstat_exists(archived_store):
+            raise FileExistsError(
+                f"Refusing to replace {target_p}: its archive {archived_store} already exists"
             )
         try:
             target_p.rename(backup_p)
@@ -525,16 +609,19 @@ def _safe_publish_partial_store(
                 f"Failed to replace existing store at {target_p}: {exc}"
             ) from exc
 
-        # Backup cleanup: if rmtree fails here, target_p is already valid and published.
-        # Treat as recoverable success; retained backup will be cleaned up on next start.
+        # Archive the old Store. target_p is already published, so a failure here
+        # is raised, not swallowed: the old Store stays at backup_p, nothing claims
+        # an archive it is not in, and _recover_pending_backup archives it later (#195).
         try:
-            if backup_p.is_dir():
-                shutil.rmtree(backup_p)
-            elif _lstat_exists(backup_p):
-                backup_p.unlink()
+            archive.mkdir(parents=True, exist_ok=True)
+            backup_p.rename(archived_store)
+            _fsync_dir(archive)
             _fsync_dir(target_p.parent)
-        except Exception:
-            pass
+        except Exception as exc:
+            raise RuntimeError(
+                f"Published {target_p}, but could not archive the Store it replaced: it "
+                f"remains at {backup_p} and is archived when the next step starts ({exc})"
+            ) from exc
     else:
         partial_p.rename(target_p)
         _fsync_dir(target_p.parent)
@@ -617,10 +704,13 @@ def publish_store(
     store_id: str,
     artifact_root: Path | str = paths.DEFAULT_ARTIFACT_ROOT,
     force: bool = False,
+    archive_dir: Path | str | None = None,
 ) -> Path:
     """Atomically publish a validated staging store (store.opengwasdb.partial) to final store.opengwasdb.
 
     Requires that a successful 'validate' execution record exists for this release.
+    With `force=True` an existing final Store is replaced and archived under
+    `archive_dir` (default `replaced/<UTC>/`), never deleted (#195).
     """
     paths.require_valid_store_id(store_id)
     resolved_root = Path(artifact_root)
@@ -638,8 +728,262 @@ def publish_store(
 
     _preflight_paths(store_id, resolved_root)
     _recover_pending_backup(store_id, resolved_root)
-    _safe_publish_partial_store(partial_p, target_p, backup_p, force=force)
+    _safe_publish_partial_store(partial_p, target_p, backup_p, force=force, archive_dir=archive_dir)
     return target_p
+
+
+class ForceSnapshotPendingError(RuntimeError):
+    """Raised when a release still holds the records snapshot of an unfinished forced run."""
+
+    pass
+
+
+_FORCE_ON: frozenset[str] = frozenset({"1", "true", "yes", "on"})
+_FORCE_OFF: frozenset[str] = frozenset({"", "0", "false", "no", "off", "none"})
+
+
+def utc_stamp(when: datetime.datetime | None = None) -> str:
+    """A forced run's UTC stamp, `YYYYMMDDTHHMMSSZ`: sortable and safe in a path (#195)."""
+    moment = when or datetime.datetime.now(datetime.timezone.utc)
+    return moment.astimezone(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def force_requested(value: Any) -> bool:
+    """Read the workflow's `force` config value, refusing anything that is not a clear yes or no."""
+    if value is None or isinstance(value, bool):
+        return bool(value)
+    if isinstance(value, int) and value in (0, 1):
+        return bool(value)
+    text = str(value).strip().lower()
+    if text in _FORCE_ON:
+        return True
+    if text in _FORCE_OFF:
+        return False
+    raise ValueError(f"--config force={value!r} is not a yes or no; use force=1 to replace a release")
+
+
+def forced_releases(value: Any, targets: Iterable[str]) -> frozenset[str]:
+    """The releases a `--config force=1` run may replace: the ids named as its targets (#195).
+
+    Force reaches only what the operator named. A release scheduled only as a
+    dependency, or through `all`, is still refused if it is published.
+    """
+    if not force_requested(value):
+        return frozenset()
+    return frozenset(str(t) for t in targets if paths.is_valid_store_id(str(t)))
+
+
+def _scheduled_releases(scheduled: Iterable[tuple[Path | str, str]]) -> list[tuple[Path, str]]:
+    return sorted({
+        (Path(root), store_id) for root, store_id in scheduled if paths.is_valid_store_id(store_id)
+    }, key=lambda pair: (pair[1], str(pair[0])))
+
+
+def pending_force_snapshots(store_id: str, root: Path | str) -> list[Path]:
+    """Records snapshots a forced run of this release left behind (#195)."""
+    store_dir_p = paths.store_dir(store_id, root=root)
+    if not store_dir_p.is_dir():
+        return []
+    return sorted(store_dir_p.glob(f"{paths.FORCE_SNAPSHOT_PREFIX}*"))
+
+
+def refuse_pending_force_snapshots(scheduled: Iterable[tuple[Path | str, str]]) -> None:
+    """Refuse any run of a release that still holds an unfinished forced run's snapshot (#195).
+
+    A snapshot outlives its run only when the run never finished its hooks, for
+    example after SIGKILL. Whether `records/` then describes the Store beside it
+    is a question for an operator, so nothing runs for that release until one
+    resolves the snapshot.
+    """
+    leftovers = [
+        (store_id, root, snapshot)
+        for root, store_id in _scheduled_releases(scheduled)
+        for snapshot in pending_force_snapshots(store_id, root)
+    ]
+    if not leftovers:
+        return
+    lines = []
+    for store_id, root, snapshot in leftovers:
+        lines.append(
+            f"  {store_id}: {snapshot}\n"
+            f"    restore it, if records/ no longer describes {paths.store_path(store_id, root=root)}:\n"
+            f"      pixi run release {store_id} --resolve-snapshot restore\n"
+            f"    or delete it, if records/ still describes that Store:\n"
+            f"      pixi run release {store_id} --resolve-snapshot delete"
+        )
+    raise ForceSnapshotPendingError(
+        "Refusing to run: a forced run of these releases stopped before it began to "
+        "publish, and left the snapshot of the records it was replacing (#195):\n"
+        + "\n".join(lines)
+        + "\nNothing was written. Either resolution also clears Snakemake's marks that the "
+        "killed run's outputs are incomplete. If Snakemake then reports the working directory "
+        "locked, check that no other run is active and run "
+        "`snakemake --snakefile workflow/Snakefile --unlock`."
+    )
+
+
+def refuse_rebuilding_published_releases(
+    scheduled: Iterable[tuple[Path | str, str]],
+    forced: Iterable[str] = frozenset(),
+) -> None:
+    """Refuse a workflow run that would execute a job for a published release (#195).
+
+    `scheduled` is the (artifact root, store_id) of every job the run is about
+    to execute. The workflow calls this before its first job starts, because
+    Snakemake deletes a job's existing outputs before running it: a check made
+    inside the job would already have cost the release its records. An
+    up-to-date release schedules no job, so it never reaches this check.
+
+    A release in `forced` (`forced_releases`) is let through to be replaced;
+    every other published release is refused.
+    """
+    forced_ids = frozenset(forced)
+    published = [
+        (store_id, str(paths.store_path(store_id, root=root)))
+        for root, store_id in _scheduled_releases(scheduled)
+        if store_id not in forced_ids and _lstat_exists(paths.store_path(store_id, root=root))
+    ]
+    if published:
+        listed = "\n".join(f"  {store_id}: {store_p}" for store_id, store_p in published)
+        raise StoreExistsError(
+            "Refusing to run: these releases are already published, and this run would "
+            f"rebuild them, rewriting their work/ and records/:\n{listed}\n"
+            "Nothing was written. To replace one, name its id as a target and add "
+            "`--config force=1`; the replaced Store, its records and its validation.yaml "
+            "are archived under replaced/<UTC>/ beside it (#195)."
+        )
+
+
+def prepare_release_run(
+    scheduled: Iterable[tuple[Path | str, str]],
+    *,
+    forced: Iterable[str] = frozenset(),
+    stamp: str | None = None,
+) -> list[Path]:
+    """The entry point's preflight: refuse, then snapshot what a forced run may replace (#195).
+
+    The entry point (`ogstores.release`) calls this after it has completed any
+    pending publication and before Snakemake starts. It refuses a scheduled
+    release that still has a pending publication or a leftover snapshot, and
+    an unforced published release, so a refused run takes no snapshot. It also
+    removes the hidden partial copy an interrupted snapshot can leave. Then, for
+    each forced release whose Store is published, it copies `records/` to
+    `records.before-force-<stamp>/`, keeping mtimes so a restored record is the
+    one Snakemake saw. It returns the snapshots for the entry point to settle
+    when the run ends.
+    """
+    releases = _scheduled_releases(scheduled)
+    forced_ids = frozenset(forced)
+    pending = [
+        str(paths.publication_marker(store_id, root=root))
+        for root, store_id in releases
+        if _lstat_exists(paths.publication_marker(store_id, root=root))
+    ]
+    if pending:
+        raise PublicationPendingError(
+            "Refusing to run: these publications have not finished: " + ", ".join(pending)
+        )
+    refuse_pending_force_snapshots(releases)
+    refuse_rebuilding_published_releases(releases, forced=forced_ids)
+    for root, store_id in releases:
+        store_dir_p = paths.store_dir(store_id, root=root)
+        if store_dir_p.is_dir():
+            for stale in store_dir_p.glob(f".{paths.FORCE_SNAPSHOT_PREFIX}*.copying"):
+                shutil.rmtree(stale)
+
+    run_stamp = stamp or utc_stamp()
+    snapshots: list[Path] = []
+    for root, store_id in releases:
+        if store_id not in forced_ids or not _lstat_exists(paths.store_path(store_id, root=root)):
+            continue
+        snapshot = paths.force_snapshot_path(store_id, run_stamp, root=root)
+        # Copied under a hidden name, then renamed, so a half-copied snapshot is
+        # never mistaken for a complete one.
+        staging = snapshot.with_name(f".{snapshot.name}.copying")
+        records = paths.records_dir(store_id, root=root)
+        if records.is_dir():
+            shutil.copytree(records, staging, symlinks=True)
+        else:
+            staging.mkdir(parents=True)
+        staging.rename(snapshot)
+        _fsync_dir(snapshot.parent)
+        snapshots.append(snapshot)
+    return snapshots
+
+
+def archive_force_snapshot(snapshot: Path, archive_dir: Path | None = None) -> Path:
+    """Move a forced run's records snapshot into its release's archive, as `records/` (#195)."""
+    stamp = snapshot.name[len(paths.FORCE_SNAPSHOT_PREFIX):]
+    archive = archive_dir or snapshot.parent / paths.REPLACED_DIRNAME / stamp
+    destination = archive / "records"
+    if _lstat_exists(destination):
+        raise FileExistsError(f"Cannot archive {snapshot}: {destination} already exists")
+    archive.mkdir(parents=True, exist_ok=True)
+    snapshot.rename(destination)
+    _fsync_dir(archive)
+    _fsync_dir(snapshot.parent)
+    return destination
+
+
+def restore_force_snapshot(snapshot: Path) -> Path:
+    """Put a forced run's snapshot back as `records/`, discarding the failed run's records (#195)."""
+    records = snapshot.parent / "records"
+    stamp = snapshot.name[len(paths.FORCE_SNAPSHOT_PREFIX):]
+    aside = snapshot.parent / f".records.failed-force-{stamp}"
+    if _lstat_exists(records):
+        records.rename(aside)
+    snapshot.rename(records)
+    _fsync_dir(snapshot.parent)
+    if _lstat_exists(aside):
+        shutil.rmtree(aside)
+    return records
+
+
+def settle_force_snapshots(snapshots: Iterable[Path], *, succeeded: bool) -> None:
+    """Resolve a finished run's records snapshots (#195).
+
+    A snapshot a completed publication already archived is gone and skipped.
+    A release whose publication is still pending is refused here: only
+    `register.complete_publication` may finish it, and the entry point calls it
+    first. Otherwise, after success the snapshot joins `replaced/<stamp>/`; after
+    a failure it is restored, so `records/` again describes the Store beside it.
+    """
+    for snapshot in snapshots:
+        if not _lstat_exists(snapshot):
+            continue
+        marker = snapshot.parent / paths.PUBLICATION_MARKER
+        if _lstat_exists(marker):
+            raise PublicationPendingError(
+                f"{snapshot} belongs to the pending publication {marker}; complete it first"
+            )
+        if succeeded:
+            archive_force_snapshot(snapshot)
+        else:
+            restore_force_snapshot(snapshot)
+
+
+_STAMP_PATTERN: re.Pattern[str] = re.compile(r"\A\d{8}T\d{6}Z\Z")
+
+
+def forced_by_transaction(
+    token: str | None, scheduled: Iterable[tuple[Path | str, str]]
+) -> frozenset[str]:
+    """The releases this entry-point run may replace: those holding its snapshot (#195).
+
+    The entry point passes its run's stamp to Snakemake as `release_run`.
+    A release is forced only when it holds `records.before-force-<that stamp>/`,
+    which only the entry point creates, so a hand-written `--config` reaches
+    nothing by accident.
+    """
+    if not token:
+        return frozenset()
+    if not _STAMP_PATTERN.match(str(token)):
+        raise ValueError(f"release_run={token!r} is not a run stamp (YYYYMMDDTHHMMSSZ)")
+    return frozenset(
+        store_id
+        for root, store_id in _scheduled_releases(scheduled)
+        if paths.force_snapshot_path(store_id, str(token), root=root).is_dir()
+    )
 
 
 def _read_exec_status(fd: int) -> str:
@@ -886,6 +1230,10 @@ def execute_step(
         )
         _write_record_atomically(skip_result.to_dict(), record_p)
         return skip_result
+
+    # A test-only pause or crash point: the step's record is gone and its
+    # command has not started, so a run stopped here is mid-step (#195).
+    fault_boundary(f"{step.name}-started")
 
     # 6. Execute subprocess in its own process group and capture timing/outputs
     start_dt = datetime.datetime.now(datetime.timezone.utc)
@@ -1209,7 +1557,14 @@ def run_plan(
 
 
 __all__ = [
+    "ForceSnapshotPendingError",
+    "KILL_AT_ENV",
+    "ENTRY_POINT_PID_ENV",
+    "KILL_GROUP_AT_ENV",
+    "PAUSE_AT_ENV",
+    "PAUSE_FILE_ENV",
     "MissingCommandError",
+    "PublicationPendingError",
     "STORE_PRODUCING_STEPS",
     "StepExecutionError",
     "StepResult",
@@ -1217,18 +1572,30 @@ __all__ = [
     "UNAVAILABLE",
     "VALID_STEP_NAMES",
     "VARIANT_REFERENCE_STEP",
+    "archive_force_snapshot",
     "execute_step",
+    "fault_boundary",
+    "force_requested",
+    "forced_by_transaction",
+    "forced_releases",
     "get_opengwasdb_executable",
     "get_opengwasdb_revision",
     "get_opengwasdb_version",
     "is_exact_commit_hash",
     "is_store_producing_step",
     "load_record",
+    "pending_force_snapshots",
+    "prepare_release_run",
     "publish_store",
+    "refuse_pending_force_snapshots",
+    "refuse_rebuilding_published_releases",
+    "restore_force_snapshot",
     "rewrite_argv_for_staging",
     "rewrite_argv_for_variant_reference",
     "run_plan",
     "run_step",
+    "settle_force_snapshots",
+    "utc_stamp",
     "validate_step_name",
     "variant_reference_partial_path",
 ]

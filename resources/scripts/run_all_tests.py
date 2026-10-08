@@ -70,6 +70,7 @@ SUITES: list[tuple[str, str, list[str]]] = [
     ("source-inventory", "python", ["tests/source-inventory/test_source_inventory.py"]),
     ("validation-record", "python", ["tests/validation-record/test_validation_record.py"]),
     ("workflow", "python", ["tests/workflow/test_workflow.py"]),
+    ("release-faults", "python", ["tests/workflow/test_release_faults.py"]),
 ]
 
 
@@ -82,7 +83,11 @@ SUITES: list[tuple[str, str, list[str]]] = [
 # importing the libraries. Pinning `workflow`, which builds fixture-scale Stores
 # through opengwasdb for real, took it from 43s to 122s. Measure before adding
 # to this set: for every other suite here, pinning is free.
-THREADED_SUITES: frozenset[str] = frozenset({"workflow"})
+#
+# `release-faults` (#195) runs alone too, and after `workflow`, never beside it:
+# it SIGKILLs whole Snakemake runs and then runs `snakemake --unlock`, which
+# clears every lock in the shared `.snakemake/` directory.
+THREADED_SUITES: frozenset[str] = frozenset({"workflow", "release-faults"})
 
 # Rough per-suite cost in seconds, used only to schedule the long suites first
 # so they overlap with the short ones instead of starting last and running alone.

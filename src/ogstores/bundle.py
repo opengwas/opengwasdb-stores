@@ -691,6 +691,11 @@ def _check_previous_status(
     return validate_status_transition(before, after)
 
 
+# The Validation Record verdicts that give Release Status `validated` (#195,
+# decided 7 Oct 2026): warnings are non-blocking, so they stay in the record.
+VALIDATED_RECORD_STATUSES: frozenset[str] = frozenset({"passed", "passed_with_warnings"})
+
+
 def _check_validation(bundle: Bundle) -> list[str]:
     release = bundle.release if isinstance(bundle.release, Mapping) else {}
     status = release.get("status")
@@ -705,6 +710,13 @@ def _check_validation(bundle: Bundle) -> list[str]:
         errors.append(
             f"validation.yaml has invalid status {validation_status!r}; "
             f"expected one of {sorted(allowed)}"
+        )
+    elif status == "validated" and validation_status not in VALIDATED_RECORD_STATUSES:
+        # opengwasdb validate passing, with or without warnings, is what makes
+        # a release validated; a failed or never-run validate never does (#195).
+        errors.append(
+            f"release status 'validated' needs a validation.yaml status of "
+            f"{' or '.join(sorted(VALIDATED_RECORD_STATUSES))}; got {validation_status!r}"
         )
     return errors
 
@@ -996,6 +1008,7 @@ __all__ = [
     "RELEASE_REQUIRED_KEYS",
     "SUPERPOPULATIONS",
     "ToleratedGap",
+    "VALIDATED_RECORD_STATUSES",
     "VALID_STATUSES",
     "check",
     "is_legal_status_transition",

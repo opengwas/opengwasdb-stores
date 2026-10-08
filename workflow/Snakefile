@@ -114,6 +114,23 @@ wildcard_constraints:
     step="|".join(EXECUTION_STEPS)
 
 
+onstart:
+    # Defence in depth for a direct `snakemake` run. The supported entry point,
+    # `pixi run release` (workflow/release.py), refuses, snapshots and settles
+    # around Snakemake and cannot be switched off. Here, before the first job,
+    # a run that would rebuild a published release is refused unless it holds
+    # the records snapshot of the entry point's run, `release_run` (#195).
+    scheduled = [
+        (job.wildcards_dict["root"], job.wildcards_dict["store_id"])
+        for job in workflow.dag.needrun_jobs()
+        if {"root", "store_id"} <= job.wildcards_dict.keys()
+    ]
+    run.refuse_rebuilding_published_releases(
+        scheduled,
+        forced=run.forced_by_transaction(config.get("release_run"), scheduled),
+    )
+
+
 rule all:
     input:
         [record(sid, "register") for sid in ALL_STORE_IDS]
@@ -161,12 +178,24 @@ rule register:
     output:
         "{root}/{store_id}/records/register.json"
     run:
+        b = get_bundle(wildcards.store_id)
+        # Inside the entry point's run, `release_run` names it. A published Store
+        # is replaced only if it holds that run's records snapshot, which only
+        # the entry point creates. The entry point also finishes the publication
+        # (finalize=False): it removes publication.json once Snakemake has
+        # recorded this job, so a crash before then is always recoverable (#195).
+        release_run = config.get("release_run")
+        forced = bool(
+            run.forced_by_transaction(release_run, [(wildcards.root, wildcards.store_id)])
+        )
         register.register_release(
-            get_bundle(wildcards.store_id),
+            b,
             registry_root=REGISTRY_ROOT,
             artifact_root=wildcards.root,
-            force=False,
+            force=forced,
             publish=True,
+            acceptance_commit=register.committed_revision(b.root / "validation.yaml"),
+            finalize=not release_run,
         )
 
 

@@ -464,16 +464,47 @@ support:
 
 ## `validation.yaml`
 
-Release-level acceptance and build validation summary. `register` is the only
-writer (issue #119); it assembles the record from the step records and the
-`opengwasdb validate` verdict. This table is the one definition of the format;
-the workflow specification explains how `register` produces it rather than
-restating the fields. A measurement the build did not report is written as
-`null` — absence is recorded, never guessed or defaulted (issue #135).
+Release-level acceptance and build validation summary. This table is the one
+definition of the format; the workflow specification explains how `register`
+produces it rather than restating the fields. A measurement the build did not
+report is written as `null` — absence is recorded, never guessed or defaulted
+(issue #135).
+
+Two writers produce this file at different times:
+- A Manifest Generator writes a candidate bundle's record (Phase B): its
+  acceptance checks, sidecar `reports` and `warnings`.
+- `register` writes the record of a built release (issue #119).
+
+`register` replaces the candidate's record; it does not merge with it. Its
+`status`, `checks`, `warnings` and `errors` hold only that run's findings: the
+`opengwasdb validate --format json` verdict as `checks.store`, with that run's
+`warnings` and `errors` exactly as validate printed them. None of them carries
+anything from the record being replaced (#195).
+
+The candidate's Phase B acceptance evidence is kept in its own labelled
+`acceptance` block, apart from those findings, and nothing in it feeds them
+(#195). `register` fills the block in one of three ways:
+- **From a candidate record** (one whose `validator.name` is not
+  `opengwasdb validate`): its `checks`, `warnings`, `reports` and
+  `reference_overlap`, verbatim. The
+  block is dated by the candidate's own `validated_at` and tied to the commit
+  that record came from.
+- **From a `register`-written record:** its `acceptance` block is passed on
+  verbatim, because the accepted bundle it describes is immutable.
+- **Not at all, from a record #135 migrated** (OGS-00001..7). Those records
+  mix Phase B evidence with an earlier build's findings, so nothing is
+  extracted from them; git keeps them.
+
+Only those four named fields are carried; a new kind of Phase B evidence is
+added here by name, never swept up as "everything else". `reference_overlap` is
+the top-level block OGS-00011's generator writes.
 
 A `built` or `validated` release must carry a `validation.yaml` whose `status`
 is one of `not_run`, `passed`, `passed_with_warnings`, or `failed`;
-`bundle.check()` rejects any other value. A `candidate`, `accepted`,
+`bundle.check()` rejects any other value. A `validated` release needs `passed`
+or `passed_with_warnings`: a passing `opengwasdb validate` is what makes a
+release validated, and its warnings are kept in the record (#195; see the
+workflow specification's "The Release Status a Validation Record gives"). A `candidate`, `accepted`,
 `superseded`, or `withdrawn` release needs none.
 
 | Field | Required | Description |
@@ -486,7 +517,7 @@ is one of `not_run`, `passed`, `passed_with_warnings`, or `failed`;
 | `build_environment.opengwasdb_commit` | No | `opengwasdb` revision the record was produced against. |
 | `build_environment.python_version` | No | Python version of the registering environment. |
 | `build_environment.platform` | No | Platform string of the registering environment. |
-| `observed.format_version` | Yes | OpenGWASDB store format version the build reported, or `null` when it was not recorded. |
+| `observed.format_version` | Yes | OpenGWASDB store format version the build reported, or `null` when it was not recorded. `register` never assumes one. Until #195 it defaulted to `"1.0"`, which is why OGS-00001..3 record `"1.0"` for Stores whose manifests say `0.1.0`. |
 | `observed.n_analyses` | Yes | Analysis count the build reported, or `null` when it was not recorded. |
 | `observed.n_variants` | Yes | Variant count the build reported, or `null` when it was not recorded. |
 | `observed.n_associations` | Yes | Association count the build reported, or `null` when it was not recorded. |
@@ -494,16 +525,23 @@ is one of `not_run`, `passed`, `passed_with_warnings`, or `failed`;
 | `observed.build_elapsed_s` | Yes | Summed step elapsed seconds, or `null` when it was not recorded. |
 | `observed.validate_status` | Yes | The validate verdict the release-level `status` is derived from. |
 | `observed.variant_reference` | No | Variant-reference provenance (issue #148): `provided` when the artifact already existed (a skipped `variant-reference` pre-stage, or a build option naming an existing panel with no declared pre-stage, as OGS-00004/OGS-00005 do), `extracted` when the workflow ran `extract-variant-reference`, and absent when the release uses no variant reference. |
-| `checks.schema` | Yes | Whether required files and fields conform to OpenGWASDB's shared core schema and this registry's release-bundle requirements. |
-| `checks.files` | Yes | Whether referenced source or filtered files exist and match checksums. |
+| `checks.store` | Yes, `register` record | This run's `opengwasdb validate --format json` verdict: `failed` when `ok` is false, `passed_with_warnings` when it reported a warning, `passed` otherwise, and `not_run` when the plan has no validate step. The only check a `register`-written record carries (#195). |
+| `checks.schema` | Yes, Phase B record | Whether required files and fields conform to OpenGWASDB's shared core schema and this registry's release-bundle requirements. Written by a Manifest Generator; not carried into a registered record. |
+| `checks.files` | Yes, Phase B record | Whether referenced source or filtered files exist and match checksums. Written by a Manifest Generator; not carried into a registered record. |
 | `checks.reader_smoke_test` | No | Whether OpenGWASDB can read a small sample from each source file or bundle. |
 | `checks.ancestry` | No | `not_run` when the release has not opted into `ancestry_assignment` (or opted in but every Analysis was skipped for lacking usable source AF). Otherwise reflects the AF-based ancestry sidecar evidence: `passed` when every attempted Analysis cleared its gates with no source/assigned mismatch, `passed_with_warnings` when at least one attempted Analysis failed a gate or disagreed with its source-declared ancestry, and never a bare `passed` implying validation ran when it did not. |
 | `checks.effect_scale` | No | `not_run` when the release has not opted into `effect_scale_validation`, or when it has opted in but reflects only controlled-vocabulary validity. Once a release opts in, this must reflect the empirical reference-AF/source-AF SD-estimation sidecar outcome across attempted Analyses (`passed`, `passed_with_warnings`, or `failed`), not merely that declared vocabulary values are valid. |
 | `checks.sd_estimation` | No | `not_run` when SD-estimation was not attempted. Otherwise `passed` only when the sidecar is internally consistent (every attempted, warned, or failed Analysis has a matching sidecar row with required fields populated) and no attempted Analysis has status `failed`; `passed_with_warnings` when at least one Analysis has status `warning`, or `skipped` for a reason that should be reviewed (for example `no_reference_resource_for_ancestry`); `failed` otherwise. |
 | `checks.sparse_regions` | No | Whether ragged region sidecars match filtered files. |
-| `reports` | No | URIs or paths to detailed reports. |
-| `warnings` | No | List of non-blocking warnings. Reference-AF effect-scale warnings should name the Analysis and reason, for example low reference-AF overlap, an allele mismatch, unstable implied SD, a missing reference resource for the assigned ancestry, or scale inconsistency versus the declared effect scale. |
-| `errors` | No | List of blocking errors. |
+| `reports` | No | URIs or paths to detailed reports. A Phase B record points at its sidecars; `register` writes no top-level `reports` (#195). |
+| `warnings` | No | List of non-blocking warnings. In a `register`-written record, exactly the `warnings` list `opengwasdb validate --format json` printed for this run. Reference-AF effect-scale warnings should name the Analysis and reason, for example low reference-AF overlap, an allele mismatch, unstable implied SD, a missing reference resource for the assigned ancestry, or scale inconsistency versus the declared effect scale. |
+| `errors` | No | List of blocking errors. In a `register`-written record, exactly the `errors` list `opengwasdb validate --format json` printed for this run. |
+| `replaced.archive` | No | Written when this run replaced a published release (`--config force=1`, #195): the `replaced/<UTC>/` directory beside the Store. It holds the replaced `store.opengwasdb`, its `records/` and a copy of its `validation.yaml`, and nothing deletes it. |
+| `replaced.replaced_at` | No | When this run replaced it. |
+| `acceptance` | No | The accepted bundle's Phase B acceptance evidence, kept apart from this run's findings (#195). See above for when `register` writes it. Absent when there is none to keep. |
+| `acceptance.recorded_at` | Yes, in the block | The candidate record's own `validated_at`. |
+| `acceptance.commit` | Yes, in the block | The commit the candidate record came from, or `null` when the file was untracked or modified since its last commit, so no commit describes it. |
+| `acceptance.checks`, `acceptance.warnings`, `acceptance.reports`, `acceptance.reference_overlap` | Yes, in the block | The candidate record's `checks`, `warnings`, `reports` and `reference_overlap`, verbatim (`null` where it had none). |
 
 The record's top-level `status` is the release-level verdict, and the generated
 master list publishes that value and no other. A per-check entry in `checks`

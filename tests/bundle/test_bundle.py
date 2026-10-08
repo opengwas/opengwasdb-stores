@@ -746,6 +746,42 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertTrue(any("illegal status transition" in error for error in errors))
 
+    def test_validated_release_needs_a_passing_validation_record(self) -> None:
+        """`validated` comes only from a passed or passed_with_warnings record (#195)."""
+        for record_status, gives_validated in (
+            ("passed", True),
+            ("passed_with_warnings", True),
+            ("failed", False),
+            ("not_run", False),
+        ):
+            with self.subTest(record_status=record_status):
+                made = self.make_bundle(store_id="OGS-00103", status="validated")
+                (made.root / "validation.yaml").write_text(
+                    yaml.safe_dump({"status": record_status}), encoding="utf-8"
+                )
+                checked = bundle.load(made.store_id, registry_root=self.tmp_dir)
+                errors = bundle.check(checked, registry_root=self.tmp_dir)
+                record_check()
+                if gives_validated:
+                    self.assertEqual(errors, [])
+                else:
+                    self.assertTrue(
+                        any("validated" in e and record_status in e for e in errors),
+                        f"a {record_status} record must not give validated: {errors}",
+                    )
+
+    def test_built_release_may_carry_any_documented_verdict(self) -> None:
+        """A failed or not_run record leaves a release at `built`; that stays valid."""
+        for record_status in ("passed", "passed_with_warnings", "failed", "not_run"):
+            with self.subTest(record_status=record_status):
+                made = self.make_bundle(store_id="OGS-00104", status="built")
+                (made.root / "validation.yaml").write_text(
+                    yaml.safe_dump({"status": record_status}), encoding="utf-8"
+                )
+                checked = bundle.load(made.store_id, registry_root=self.tmp_dir)
+                record_check()
+                self.assertEqual(bundle.check(checked, registry_root=self.tmp_dir), [])
+
     def test_candidate_allows_unresolved_rows_without_validation_record(self) -> None:
         unresolved = (
             "analysis_id\tstored_effect_scale\tsample_size_kind\t"

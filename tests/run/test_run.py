@@ -1144,36 +1144,258 @@ class TestPublicationRollbackAndCrashRecovery(unittest.TestCase):
         self.assertFalse(backup_store.exists())
         record_check()
 
-    def test_backup_cleanup_failure_treated_as_recoverable_success(self) -> None:
-        """If backup rmtree fails after successful swap, publication succeeds and retains backup."""
+    def test_force_publication_archives_the_old_store_instead_of_deleting(self) -> None:
+        """A forced publication renames the old Store into the archive; nothing deletes it (#195)."""
         target_store = paths.store_path(self.store_id, root=self.root)
         target_store.mkdir(parents=True, exist_ok=True)
         (target_store / "version.txt").write_text("v1")
-
         partial_store = paths.partial_store_path(self.store_id, root=self.root)
         partial_store.mkdir(parents=True, exist_ok=True)
         (partial_store / "version.txt").write_text("v2")
+        backup_store = paths.store_dir(self.store_id, root=self.root) / "store.opengwasdb.backup"
+        archive = paths.replaced_dir(self.store_id, "20261007T090000Z", root=self.root)
 
+        run._safe_publish_partial_store(
+            partial_store, target_store, backup_store, force=True, archive_dir=archive
+        )
+        record_check()
+
+        self.assertEqual((target_store / "version.txt").read_text(), "v2")
+        self.assertEqual((archive / "store.opengwasdb" / "version.txt").read_text(), "v1")
+        self.assertFalse(backup_store.exists())
+        self.assertFalse(partial_store.exists())
+
+    def test_force_publication_without_an_archive_dir_archives_under_replaced(self) -> None:
+        """Without a named archive the old Store still goes under replaced/<UTC>/."""
+        target_store = paths.store_path(self.store_id, root=self.root)
+        target_store.mkdir(parents=True, exist_ok=True)
+        (target_store / "version.txt").write_text("v1")
+        partial_store = paths.partial_store_path(self.store_id, root=self.root)
+        partial_store.mkdir(parents=True, exist_ok=True)
+        (partial_store / "version.txt").write_text("v2")
         backup_store = paths.store_dir(self.store_id, root=self.root) / "store.opengwasdb.backup"
 
-        original_rmtree = shutil.rmtree
-
-        def failing_rmtree(path: Any, *args: Any, **kwargs: Any) -> Any:
-            if Path(path) == backup_store:
-                raise OSError("Simulated permission error on backup cleanup")
-            return original_rmtree(path, *args, **kwargs)
-
-        with patch("shutil.rmtree", side_effect=failing_rmtree):
-            run._safe_publish_partial_store(partial_store, target_store, backup_store, force=True)
-            record_check()
-
-        # Target store is successfully updated to v2!
-        self.assertEqual((target_store / "version.txt").read_text(), "v2")
+        run._safe_publish_partial_store(partial_store, target_store, backup_store, force=True)
         record_check()
-        # Retained backup is cleaned up on next start
+
+        archived = list((paths.store_dir(self.store_id, root=self.root) / "replaced").glob("*/store.opengwasdb"))
+        self.assertEqual(len(archived), 1, archived)
+        self.assertEqual((archived[0] / "version.txt").read_text(), "v1")
+
+    def test_archive_rename_failure_is_raised_and_recovery_archives_the_backup(self) -> None:
+        """An archive failure after the swap is raised, not swallowed; recovery archives the backup (#195)."""
+        target_store = paths.store_path(self.store_id, root=self.root)
+        target_store.mkdir(parents=True, exist_ok=True)
+        (target_store / "version.txt").write_text("v1")
+        partial_store = paths.partial_store_path(self.store_id, root=self.root)
+        partial_store.mkdir(parents=True, exist_ok=True)
+        (partial_store / "version.txt").write_text("v2")
+        backup_store = paths.store_dir(self.store_id, root=self.root) / "store.opengwasdb.backup"
+
+        original_rename = Path.rename
+
+        def failing_rename(self_path: Path, target_dest: Path) -> Path:
+            if self_path == backup_store:
+                raise OSError("Simulated failure archiving the old Store")
+            return original_rename(self_path, target_dest)
+
+        with patch.object(Path, "rename", side_effect=failing_rename, autospec=True):
+            with self.assertRaises(RuntimeError) as ctx:
+                run._safe_publish_partial_store(partial_store, target_store, backup_store, force=True)
+        record_check()
+
+        self.assertIn(str(backup_store), str(ctx.exception))
+        self.assertEqual((target_store / "version.txt").read_text(), "v2")
+        self.assertEqual((backup_store / "version.txt").read_text(), "v1", "the old Store is retained")
+
         run._recover_pending_backup(self.store_id, self.root)
         record_check()
         self.assertFalse(backup_store.exists())
+        archived = list((paths.store_dir(self.store_id, root=self.root) / "replaced").glob("*/store.opengwasdb"))
+        self.assertEqual(len(archived), 1, "recovery archives the retained Store rather than deleting it")
+        self.assertEqual((archived[0] / "version.txt").read_text(), "v1")
+
+
+    def test_backup_recovery_defers_to_a_pending_publication(self) -> None:
+        """A .backup that belongs to publication.json is left for complete_publication (#195)."""
+        target_store = paths.store_path(self.store_id, root=self.root)
+        backup_store = paths.backup_store_path(self.store_id, root=self.root)
+        backup_store.mkdir(parents=True)
+        (backup_store / "version.txt").write_text("v1")
+        paths.partial_store_path(self.store_id, root=self.root).mkdir()
+        paths.publication_marker(self.store_id, root=self.root).write_text("{}")
+
+        with self.assertRaises(run.PublicationPendingError):
+            run._recover_pending_backup(self.store_id, self.root)
+        record_check()
+        self.assertEqual((backup_store / "version.txt").read_text(), "v1")
+        self.assertFalse(target_store.exists(), "recovery must not guess which way the publication goes")
+
+
+class TestForcedRunGuard(unittest.TestCase):
+    """The workflow's forced-run guard: scoping, snapshot, restore, archive and leftovers (#195)."""
+
+    STAMP = "20261007T090000Z"
+
+    def setUp(self) -> None:
+        self.test_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.test_dir.name)
+
+    def tearDown(self) -> None:
+        self.test_dir.cleanup()
+
+    def publish(self, store_id: str) -> Path:
+        """A published release: a final Store and two step records."""
+        paths.store_path(store_id, root=self.root).mkdir(parents=True)
+        records = paths.records_dir(store_id, root=self.root)
+        records.mkdir(parents=True)
+        (records / "build.json").write_text('{"step": "build"}\n')
+        (records / "register.json").write_text('{"step": "register"}\n')
+        return records
+
+    def contents(self, directory: Path) -> dict[str, tuple[bytes, int]]:
+        return {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in sorted(directory.iterdir())}
+
+    def test_forced_releases_are_the_named_targets(self) -> None:
+        targets = {"OGS-00005", "all", "/some/records/register.json"}
+        self.assertEqual(run.forced_releases(1, targets), frozenset({"OGS-00005"}))
+        self.assertEqual(run.forced_releases("true", targets), frozenset({"OGS-00005"}))
+        for off in (None, 0, False, "0", "false", "no"):
+            self.assertEqual(run.forced_releases(off, targets), frozenset(), off)
+        with self.assertRaises(ValueError):
+            run.forced_releases("maybe", targets)
+        record_check()
+
+    def test_refusal_lets_only_forced_releases_through(self) -> None:
+        self.publish("OGS-00005")
+        self.publish("OGS-00004")
+        scheduled = [(self.root, "OGS-00005"), (self.root, "OGS-00004")]
+
+        with self.assertRaises(StoreExistsError) as ctx:
+            run.refuse_rebuilding_published_releases(scheduled, forced=frozenset({"OGS-00005"}))
+        self.assertIn("OGS-00004:", str(ctx.exception))
+        self.assertNotIn("OGS-00005:", str(ctx.exception))
+        self.assertIn("--config force=1", str(ctx.exception))
+
+        run.refuse_rebuilding_published_releases(scheduled, forced=frozenset({"OGS-00005", "OGS-00004"}))
+        record_check()
+
+    def test_a_forced_run_snapshots_only_published_forced_releases(self) -> None:
+        records = self.publish("OGS-00005")
+        before = self.contents(records)
+        scheduled = [(self.root, "OGS-00005"), (self.root, "OGS-00006")]
+
+        snapshots = run.prepare_release_run(
+            scheduled, forced=frozenset({"OGS-00005", "OGS-00006"}), stamp=self.STAMP
+        )
+
+        snapshot = paths.force_snapshot_path("OGS-00005", self.STAMP, root=self.root)
+        self.assertEqual(snapshots, [snapshot])
+        self.assertEqual(self.contents(snapshot), before)
+        self.assertEqual(self.contents(records), before, "the live records stay in place")
+        self.assertFalse(paths.store_dir("OGS-00006", root=self.root).exists())
+        record_check()
+
+    def test_an_unforced_run_takes_no_snapshot(self) -> None:
+        self.assertEqual(run.prepare_release_run([(self.root, "OGS-00006")], stamp=self.STAMP), [])
+        record_check()
+
+    def test_a_leftover_snapshot_refuses_every_run_of_that_release(self) -> None:
+        self.publish("OGS-00005")
+        leftover = paths.force_snapshot_path("OGS-00005", "20261006T235959Z", root=self.root)
+        leftover.mkdir()
+        scheduled = [(self.root, "OGS-00005")]
+
+        for forced in (frozenset(), frozenset({"OGS-00005"})):
+            with self.subTest(forced=sorted(forced)):
+                with self.assertRaises(run.ForceSnapshotPendingError) as ctx:
+                    run.prepare_release_run(scheduled, forced=forced, stamp=self.STAMP)
+                message = str(ctx.exception)
+                self.assertIn(str(leftover), message)
+                self.assertIn("restore it", message)
+                self.assertIn("delete it", message)
+        self.assertFalse(paths.force_snapshot_path("OGS-00005", self.STAMP, root=self.root).exists())
+        record_check()
+
+    def test_a_failed_run_restores_the_snapshot(self) -> None:
+        records = self.publish("OGS-00005")
+        before = self.contents(records)
+        snapshots = run.prepare_release_run(
+            [(self.root, "OGS-00005")], forced=frozenset({"OGS-00005"}), stamp=self.STAMP
+        )
+        (records / "build.json").unlink()
+        (records / "validate.json").write_text('{"step": "validate", "success": false}\n')
+
+        run.settle_force_snapshots(snapshots, succeeded=False)
+
+        self.assertEqual(self.contents(records), before)
+        self.assertFalse(snapshots[0].exists())
+        self.assertFalse(paths.replaced_dir("OGS-00005", self.STAMP, root=self.root).exists())
+        record_check()
+
+    def test_settlement_refuses_a_snapshot_of_a_pending_publication(self) -> None:
+        """Only complete_publication may move a snapshot that a pending publication names."""
+        records = self.publish("OGS-00005")
+        before = self.contents(records)
+        snapshots = run.prepare_release_run(
+            [(self.root, "OGS-00005")], forced=frozenset({"OGS-00005"}), stamp=self.STAMP
+        )
+        paths.publication_marker("OGS-00005", root=self.root).write_text("{}")
+
+        for succeeded in (True, False):
+            with self.assertRaises(run.PublicationPendingError):
+                run.settle_force_snapshots(snapshots, succeeded=succeeded)
+        self.assertEqual(self.contents(snapshots[0]), before)
+        record_check()
+
+    def test_preflight_refuses_a_pending_publication(self) -> None:
+        self.publish("OGS-00005")
+        paths.publication_marker("OGS-00005", root=self.root).write_text("{}")
+        with self.assertRaises(run.PublicationPendingError):
+            run.prepare_release_run([(self.root, "OGS-00005")], forced=frozenset({"OGS-00005"}), stamp=self.STAMP)
+        self.assertEqual(run.pending_force_snapshots("OGS-00005", self.root), [])
+        record_check()
+
+    def test_preflight_removes_an_interrupted_partial_copy(self) -> None:
+        """A snapshot copy killed half way never became a snapshot; preflight removes it."""
+        self.publish("OGS-00005")
+        stale = paths.store_dir("OGS-00005", root=self.root) / ".records.before-force-20261006T000000Z.copying"
+        stale.mkdir()
+        (stale / "build.json").write_text("half")
+
+        run.prepare_release_run([(self.root, "OGS-00005")], forced=frozenset({"OGS-00005"}), stamp=self.STAMP)
+
+        self.assertFalse(stale.exists())
+        record_check()
+
+    def test_force_reaches_only_the_transactions_own_snapshot(self) -> None:
+        """`release_run` forces a release only if it holds that run's snapshot."""
+        self.publish("OGS-00005")
+        self.publish("OGS-00004")
+        scheduled = [(self.root, "OGS-00005"), (self.root, "OGS-00004")]
+        run.prepare_release_run(scheduled, forced=frozenset({"OGS-00005", "OGS-00004"}), stamp=self.STAMP)
+        paths.force_snapshot_path("OGS-00004", self.STAMP, root=self.root).rename(
+            paths.force_snapshot_path("OGS-00004", "20261001T000000Z", root=self.root)
+        )
+
+        self.assertEqual(run.forced_by_transaction(self.STAMP, scheduled), frozenset({"OGS-00005"}))
+        self.assertEqual(run.forced_by_transaction(None, scheduled), frozenset())
+        with self.assertRaises(ValueError):
+            run.forced_by_transaction("../../etc", scheduled)
+        record_check()
+
+    def test_a_successful_run_archives_a_remaining_snapshot(self) -> None:
+        records = self.publish("OGS-00005")
+        before = self.contents(records)
+        snapshots = run.prepare_release_run(
+            [(self.root, "OGS-00005")], forced=frozenset({"OGS-00005"}), stamp=self.STAMP
+        )
+
+        run.settle_force_snapshots(snapshots, succeeded=True)
+
+        archive = paths.replaced_dir("OGS-00005", self.STAMP, root=self.root)
+        self.assertEqual(self.contents(archive / "records"), before)
+        self.assertFalse(snapshots[0].exists())
         record_check()
 
 
@@ -1621,6 +1843,7 @@ def main() -> None:
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestSupervisorGroupGuard))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestCommandExecClassification))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPublicationRollbackAndCrashRecovery))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestForcedRunGuard))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestProvenanceAndSequentialPlan))
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)

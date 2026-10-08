@@ -25,7 +25,24 @@ Test suite for `ogstores.register` (Issue #117), governed by [ADR 0022](../../do
 6. **Atomic publication**:
    - Invokes `ogstores.run.publish_store()` upon successful registration to atomically rename `.partial` to the final Store artifact.
 
-7. **Documented record shape**:
+7. **Only this run's findings (#195)**:
+   - The verdict, `checks` (`{store: <verdict>}`), `warnings` and `errors` come from this run's `opengwasdb validate --format json` record, exactly. A bundle whose previous `validation.yaml` carries stale checks, a reports pointer and 30 warnings registers with none of them.
+   - `validate_verdict` accepts exactly the pinned CLI's object: no other output or keys, a boolean `ok`, string lists, `ok == (not errors)`, an int `exit_code` and bool `success` (`false`/`true`/`0.0`/`1.0` exit codes are refused), and an exit code and success that agree with `ok`. The full matrix is covered: passing, warning, failing, 14 malformed outputs, 10 wrongly typed record fields and 6 contradictions. Any other record raises `ValidateVerdictError`, leaving `validation.yaml` untouched; text output is never searched for the word "warning".
+
+8. **Phase B acceptance evidence is kept apart (#195)**:
+   - A candidate record's `checks`, `warnings`, `reports` and `reference_overlap` appear verbatim under a dated `acceptance` block with the candidate's commit, and never in the run's `status`, `checks`, `warnings` or `errors`.
+   - A re-registration passes the block on verbatim; a migrated register-shape record without one gives none.
+   - `committed_revision` returns a file's commit only when the file on disk is that commit's.
+
+9. **Forced replacement (#195)**:
+   - `register_release(force=True)` over a published Store archives the old Store, the run's records snapshot (as `records/`) and a copy of the old `validation.yaml` into `replaced/<stamp>/`, and records the archive in `validation.yaml` (`replaced.archive`) and `register.json` (`replaced_archive`). Without `force` it raises `StoreExistsError` and changes nothing.
+
+10. **Publication is a recoverable transaction (#195)**:
+    - The run is killed (a subprocess exiting as SIGKILL would) at every boundary after `publication.json` is written. `complete_publication` then finishes it: the new Store is published, the old Store, records and Validation Record are archived, `validation.yaml` and `register.json` are written, and nothing is left pending. An exception at each boundary is finished the same way.
+    - With `finalize=False` (the entry point's register job), the marker is kept after the last step, for the entry point to remove.
+    - A kill before the marker leaves the old Store and record in place, and its snapshot refuses the next run. A killed first publication is completed too. An impossible state raises `PublicationError` and keeps the marker, and `register` refuses while a publication is pending.
+
+11. **Documented record shape**:
    - The written `validation.yaml` carries exactly the canonical `validator`, `build_environment` and `observed` keys that `tests/validation-record/` asserts against the committed records (issue #135).
 
 ## Running the suite

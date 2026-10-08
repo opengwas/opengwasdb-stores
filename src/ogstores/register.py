@@ -13,6 +13,10 @@ Responsibilities:
 3. Harvests observed measurements from step records:
    `format_version`, `n_variants`, `n_analyses`, `n_associations`, `store_bytes`,
    `build_elapsed_s`, and `validate_status`.
+   The verdict, `checks`, `warnings` and `errors` are this run's alone: they come
+   from `opengwasdb validate --format json`, and nothing is carried from the
+   Validation Record being replaced (#195). A candidate's Phase B evidence is
+   kept apart, in a dated `acceptance` block that feeds none of them.
 4. Atomic write: `validation.yaml` is written atomically only by `register`, so failed
    runs leave any previous `validation.yaml` intact.
 5. Strict seam compliance: `register` opens NO Store and re-runs NO validation (ADR 0023).
@@ -23,11 +27,14 @@ See docs/spec/store-release-workflow.md and ADRs 0022, 0023.
 
 from __future__ import annotations
 
+import copy
 import datetime
 import json
 import os
 import platform
 import re
+import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -84,6 +91,18 @@ class StepFailedError(RegisterError):
 
 class ArgvDriftError(RegisterError, ValueError):
     """Raised when an executed argv drifted from the planned argv."""
+
+    pass
+
+
+class ValidateVerdictError(RegisterError, ValueError):
+    """Raised when the validate step's record carries no `--format json` verdict."""
+
+    pass
+
+
+class PublicationError(RegisterError):
+    """Raised when a pending publication's state matches no step of its transaction."""
 
     pass
 
@@ -190,6 +209,147 @@ def _extract_json_from_text(text: str) -> dict[str, Any] | None:
     return None
 
 
+# The object `opengwasdb validate --format json` prints at the pinned revision:
+# {"ok": bool, "errors": [str], "warnings": [str]}, with ok == (not errors), and
+# exit 1 exactly when not ok (opengwasdb#175; cli/main.py validate_command).
+VALIDATE_JSON_KEYS: frozenset[str] = frozenset({"ok", "errors", "warnings"})
+
+
+def validate_verdict(validate_record: dict[str, Any] | None) -> tuple[str, list[str], list[str]]:
+    """This run's validate verdict, warnings and errors, read from `--format json`.
+
+    The record's stdout must be exactly the one JSON object the pinned CLI
+    prints, `{"ok", "errors", "warnings"}`, with nothing before or after it, no
+    other key, a boolean `ok`, and lists of strings. It must also agree with
+    itself and with the step: `ok` is true exactly when `errors` is empty, and
+    the step, whose `exit_code` must be an int and `success` a bool, exited 0
+    and succeeded exactly when `ok` (#195). Then the verdict
+    is `failed` when not ok, `passed_with_warnings` when it reported a warning,
+    and `passed` otherwise. A plan without a validate step has no verdict, so it
+    is `not_run` rather than an assumed pass.
+
+    Anything else is refused with `ValidateVerdictError`, never coerced or
+    searched for the word "warning": a record the pinned CLI could not have
+    written would otherwise become a wrong answer that looks like a right one.
+    """
+    if validate_record is None:
+        return "not_run", [], []
+    where = validate_record.get("record_path") or "records/validate.json"
+
+    def refuse(reason: str) -> ValidateVerdictError:
+        return ValidateVerdictError(
+            f"The validate record {where} does not carry the verdict `opengwasdb validate "
+            f"--format json` prints: {reason}"
+        )
+
+    stdout = validate_record.get("stdout")
+    if not isinstance(stdout, str):
+        raise refuse("its stdout is not text")
+    try:
+        payload = json.loads(stdout)
+    except json.JSONDecodeError as exc:
+        raise refuse(f"its stdout is not exactly one JSON object ({exc.msg})") from exc
+    if not isinstance(payload, dict):
+        raise refuse(f"its stdout is a JSON {type(payload).__name__}, not an object")
+    if set(payload) != VALIDATE_JSON_KEYS:
+        raise refuse(f"expected exactly the keys {sorted(VALIDATE_JSON_KEYS)}, got {sorted(payload)}")
+    ok, errors, warnings = payload["ok"], payload["errors"], payload["warnings"]
+    if not isinstance(ok, bool):
+        raise refuse(f"`ok` is {ok!r}, not a boolean")
+    for name, items in (("errors", errors), ("warnings", warnings)):
+        if not isinstance(items, list) or not all(isinstance(item, str) for item in items):
+            raise refuse(f"`{name}` is {items!r}, not a list of strings")
+    if ok != (not errors):
+        raise refuse(f"`ok` is {ok} with {len(errors)} error(s); the CLI sets ok exactly when there are none")
+    # The record's own fields must have the exact types run.py writes: an int
+    # exit code (bool and float compare equal to 0 and 1, so they are refused by
+    # type, not value) and a bool success.
+    exit_code, success = validate_record.get("exit_code"), validate_record.get("success")
+    if type(exit_code) is not int:
+        raise refuse(f"its exit_code is {exit_code!r}, not an int")
+    if type(success) is not bool:
+        raise refuse(f"its success is {success!r}, not a bool")
+    expected_exit = 0 if ok else 1
+    if exit_code != expected_exit or success is not ok:
+        raise refuse(
+            f"`ok: {str(ok).lower()}` means exit code {expected_exit} and success {ok}, "
+            f"but the record has exit code {exit_code!r} and success {success!r}"
+        )
+    if not ok:
+        return "failed", warnings, errors
+    if warnings:
+        return "passed_with_warnings", warnings, errors
+    return "passed", warnings, errors
+
+
+def committed_revision(path: Path | str) -> str | None:
+    """The commit `path` was last changed in, or None when the file is not that commit's.
+
+    None covers a path outside a git repository, an untracked file, and a file
+    modified (staged or not) since its last commit: in each case no commit
+    describes what is on disk. The workflow calls this before `register_release`,
+    which itself spawns no subprocess (ADR 0023).
+    """
+    record_p = Path(path)
+    if not record_p.is_file():
+        return None
+
+    def git(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", "-C", str(record_p.parent), *args, "--", record_p.name],
+            capture_output=True,
+            text=True,
+        )
+
+    try:
+        if git("ls-files", "--error-unmatch").returncode != 0:
+            return None
+        if git("diff", "--quiet", "HEAD").returncode != 0:
+            return None
+        log = git("log", "-1", "--format=%H")
+    except OSError:
+        return None
+    revision = log.stdout.strip()
+    return revision if log.returncode == 0 and run.is_exact_commit_hash(revision) else None
+
+
+def acceptance_evidence(
+    previous: Mapping[str, Any] | None, *, commit: str | None = None
+) -> dict[str, Any] | None:
+    """The Phase B acceptance evidence a new Validation Record keeps, apart from its findings.
+
+    A candidate record, one a Manifest Generator wrote rather than `register`,
+    gives its `checks`, `warnings`, `reports` and `reference_overlap` verbatim,
+    dated by its own `validated_at` and tied to `commit`, the commit it came
+    from (#195). A
+    `register`-written record passes on the `acceptance` block it already
+    carries, because the accepted bundle it describes has not changed. A
+    `register`-shape record without one (the records #135 migrated) mixes
+    Phase B evidence with an earlier build's findings, so nothing is extracted
+    from it.
+
+    The block never feeds the record's `status`, `checks.store`, `warnings`
+    or `errors`.
+    """
+    if not isinstance(previous, Mapping):
+        return None
+    validator = previous.get("validator")
+    written_by = validator.get("name") if isinstance(validator, Mapping) else None
+    if written_by != VALIDATOR_NAME:
+        return {
+            "recorded_at": previous.get("validated_at"),
+            "commit": commit,
+            "checks": copy.deepcopy(previous.get("checks")),
+            "warnings": copy.deepcopy(previous.get("warnings")),
+            "reports": copy.deepcopy(previous.get("reports")),
+            # OGS-00011's generator records its reference-overlap evidence as a
+            # top-level block; it is named here, not swept up as "everything else".
+            "reference_overlap": copy.deepcopy(previous.get("reference_overlap")),
+        }
+    carried = previous.get("acceptance")
+    return copy.deepcopy(dict(carried)) if isinstance(carried, Mapping) else None
+
+
 def harvest_observed_measurements(
     planned_steps: list[Step],
     step_records: dict[str, dict[str, Any]],
@@ -204,12 +364,14 @@ def harvest_observed_measurements(
         for rec in step_records.values()
     )
 
-    format_version = "1.0"
+    # Only a step that printed it can report the format version; none is
+    # assumed, because 0.1.0 Stores were registered as "1.0" (#135, #195).
+    format_version: str | None = None
     n_variants: int | None = None
     n_analyses: int | None = None
     n_associations: int | None = None
     store_bytes: int | None = None
-    validate_status = "passed"
+    validate_status, _, _ = validate_verdict(step_records.get("validate"))
 
     # 1. Harvest from build or complete record
     producing_step = next((s.name for s in planned_steps if s.name in ("build", "complete")), None)
@@ -234,36 +396,8 @@ def harvest_observed_measurements(
             if m_ana:
                 n_analyses = int(m_ana.group(1))
 
-    # 2. Harvest from validate record
-    if "validate" in step_records:
-        val_rec = step_records["validate"]
-        val_exit = val_rec.get("exit_code", 0)
-        val_stdout = val_rec.get("stdout", "")
-        val_stderr = val_rec.get("stderr", "")
-
-        val_json = _extract_json_from_text(val_stdout)
-        if val_json:
-            if "status" in val_json:
-                validate_status = str(val_json["status"])
-            elif "valid" in val_json:
-                validate_status = "passed" if val_json["valid"] else "failed"
-            if "format_version" in val_json:
-                format_version = str(val_json["format_version"])
-            if "n_variants" in val_json and isinstance(val_json["n_variants"], int):
-                n_variants = val_json["n_variants"]
-            if "n_analyses" in val_json and isinstance(val_json["n_analyses"], int):
-                n_analyses = val_json["n_analyses"]
-            if "n_associations" in val_json and isinstance(val_json["n_associations"], int):
-                n_associations = val_json["n_associations"]
-            if "store_bytes" in val_json and isinstance(val_json["store_bytes"], int):
-                store_bytes = val_json["store_bytes"]
-        else:
-            if val_exit != 0:
-                validate_status = "failed"
-            elif "warning" in val_stdout.lower() or "warning" in val_stderr.lower():
-                validate_status = "passed_with_warnings"
-            else:
-                validate_status = "passed"
+    # 2. The validate record carries only its verdict: its JSON has exactly the
+    # keys `validate_verdict` accepts, so it reports no measurement (#195).
 
     # Fallback for n_analyses from the derived build manifest, if the builder did
     # not print it. Count the built manifest, never the bundle's audit table:
@@ -318,13 +452,189 @@ def _write_yaml_atomically(data: dict[str, Any], dest_path: Path) -> None:
     """Atomically write data to dest_path using a temporary file and os.replace."""
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = dest_path.with_name(f".{dest_path.name}.tmp.{os.getpid()}.{time.time_ns()}")
-    payload = yaml.safe_dump(data, sort_keys=False, default_flow_style=False)
+    payload = _dump_yaml(data)
     with open(temp_path, "w", encoding="utf-8") as f:
         f.write(payload)
         f.flush()
         os.fsync(f.fileno())
     os.replace(temp_path, dest_path)
     run._fsync_dir(dest_path.parent)
+
+
+# The durable steps of a publication, in order: a crash between any two leaves
+# a state `complete_publication` recognises and finishes (#195). Tests inject a
+# crash at each through `run.fault_boundary`.
+PUBLICATION_BOUNDARIES: tuple[str, ...] = (
+    "publication-started",
+    "marker-written",
+    "store-set-aside",
+    "store-published",
+    "old-store-archived",
+    "old-records-archived",
+    "old-record-archived",
+    "record-written",
+    "register-record-written",
+    "marker-removed",
+)
+_MARKER_KEYS: frozenset[str] = frozenset({
+    "store_id",
+    "archive",
+    "snapshot",
+    "bundle_validation",
+    "previous_validation",
+    "validation_yaml",
+    "register_record",
+    "written_at",
+})
+
+
+def _dump_yaml(data: dict[str, Any]) -> str:
+    return yaml.safe_dump(data, sort_keys=False, default_flow_style=False)
+
+
+def _write_text_atomically(text: str, dest_path: Path) -> None:
+    """Atomically write text to dest_path using a temporary file and os.replace."""
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = dest_path.with_name(f".{dest_path.name}.tmp.{os.getpid()}.{time.time_ns()}")
+    with open(temp_path, "w", encoding="utf-8") as f:
+        f.write(text)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(temp_path, dest_path)
+    run._fsync_dir(dest_path.parent)
+
+
+def _exists(path: Path) -> bool:
+    return os.path.lexists(path)
+
+
+def _load_marker(store_id: str, root: Path) -> dict[str, Any] | None:
+    marker_p = paths.publication_marker(store_id, root=root)
+    if not _exists(marker_p):
+        return None
+    try:
+        marker = json.loads(marker_p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise PublicationError(f"Cannot read the pending publication {marker_p}: {exc}") from exc
+    if not isinstance(marker, dict) or set(marker) != _MARKER_KEYS or marker.get("store_id") != store_id:
+        raise PublicationError(f"{marker_p} is not a publication marker for {store_id}")
+    store_dir_p = paths.store_dir(store_id, root=root)
+    archive, snapshot = marker["archive"], marker["snapshot"]
+    if archive is not None and Path(archive).parent != store_dir_p / paths.REPLACED_DIRNAME:
+        raise PublicationError(f"{marker_p} names an archive outside {store_dir_p}: {archive}")
+    if snapshot is not None and (
+        Path(snapshot).parent != store_dir_p
+        or not Path(snapshot).name.startswith(paths.FORCE_SNAPSHOT_PREFIX)
+    ):
+        raise PublicationError(f"{marker_p} names a snapshot outside {store_dir_p}: {snapshot}")
+    return marker
+
+
+def remove_publication_marker(store_id: str, root: Path | str) -> None:
+    """Remove a finished publication's marker: always the transaction's last step (#195)."""
+    marker_p = paths.publication_marker(store_id, root=root)
+    marker_p.unlink()
+    run._fsync_dir(marker_p.parent)
+    run.fault_boundary("marker-removed")
+
+
+def complete_publication(
+    store_id: str, root: Path | str, *, finalize: bool = True
+) -> dict[str, Any] | None:
+    """Finish a pending publication from wherever it stopped (#195).
+
+    `register_release` writes `publication.json` once it has verified every
+    record and assembled the Validation Record, and then calls this function.
+    The entry point calls it again for any marker a crash left behind. Each
+    step checks what is already done, so the function is idempotent, and the
+    marker is removed last, only when everything below agrees:
+
+    1. The staged Store is published. For a replacement, the old Store is first
+       set aside as `.backup`, and after the swap it is renamed into the
+       archive, never deleted.
+    2. For a replacement, the run's records snapshot moves into the archive as
+       `records/`, and the replaced Validation Record is written there.
+    3. The new `validation.yaml` and `records/register.json` are written from
+       the marker.
+    4. With `finalize`, the marker is removed. The entry point passes False and
+       removes it itself, after Snakemake has finished the register job and
+       any mark that a killed job left `register.json` incomplete is cleared.
+       So a crash before then always leaves a marker for the next run.
+
+    A state that fits no step, such as neither a Store nor a staged Store, is
+    raised as `PublicationError` and the marker is kept. Returns the marker, or
+    None when nothing was pending.
+    """
+    resolved_root = Path(root)
+    marker = _load_marker(store_id, resolved_root)
+    if marker is None:
+        return None
+    marker_p = paths.publication_marker(store_id, root=resolved_root)
+    store_p = paths.store_path(store_id, root=resolved_root)
+    partial_p = paths.partial_store_path(store_id, root=resolved_root)
+    backup_p = paths.backup_store_path(store_id, root=resolved_root)
+    store_dir_p = store_p.parent
+
+    def stuck(state: str) -> PublicationError:
+        return PublicationError(
+            f"Cannot complete the publication of {store_id} ({marker_p}): {state}. "
+            "Nothing was changed; the marker is kept for an operator."
+        )
+
+    if marker["archive"] is None:
+        # A first publication: no Store is replaced.
+        if not _exists(store_p):
+            if not _exists(partial_p):
+                raise stuck("neither the Store nor the staged Store exists")
+            partial_p.rename(store_p)
+            run._fsync_dir(store_dir_p)
+            run.fault_boundary("store-published")
+        elif _exists(partial_p):
+            raise stuck("a Store and a staged Store both exist, but nothing is being replaced")
+    else:
+        archive = Path(marker["archive"])
+        archived_store = archive / store_p.name
+        if _exists(archived_store):
+            if _exists(backup_p):
+                raise stuck(f"both {archived_store} and {backup_p} exist")
+            if not _exists(store_p):
+                raise stuck(f"the old Store is archived but no Store is published at {store_p}")
+        else:
+            if not _exists(backup_p):
+                if not (_exists(store_p) and _exists(partial_p)):
+                    raise stuck("the Store to replace or its replacement is missing")
+                store_p.rename(backup_p)
+                run._fsync_dir(store_dir_p)
+                run.fault_boundary("store-set-aside")
+            if not _exists(store_p):
+                if not _exists(partial_p):
+                    raise stuck(f"the old Store is at {backup_p} but the staged Store is missing")
+                partial_p.rename(store_p)
+                run._fsync_dir(store_dir_p)
+                run.fault_boundary("store-published")
+            archive.mkdir(parents=True, exist_ok=True)
+            backup_p.rename(archived_store)
+            run._fsync_dir(archive)
+            run._fsync_dir(store_dir_p)
+            run.fault_boundary("old-store-archived")
+
+        snapshot = Path(marker["snapshot"]) if marker["snapshot"] else None
+        if snapshot is not None and _exists(snapshot):
+            run.archive_force_snapshot(snapshot, archive)
+            run.fault_boundary("old-records-archived")
+        if marker["previous_validation"] is not None and not _exists(archive / "validation.yaml"):
+            _write_text_atomically(marker["previous_validation"], archive / "validation.yaml")
+            run.fault_boundary("old-record-archived")
+
+    _write_text_atomically(marker["validation_yaml"], Path(marker["bundle_validation"]))
+    run.fault_boundary("record-written")
+    run._write_record_atomically(
+        marker["register_record"], paths.record_path(store_id, "register", root=resolved_root)
+    )
+    run.fault_boundary("register-record-written")
+    if finalize:
+        remove_publication_marker(store_id, resolved_root)
+    return marker
 
 
 def register_release(
@@ -334,6 +644,8 @@ def register_release(
     artifact_root: Path | str | None = None,
     force: bool = False,
     publish: bool = True,
+    acceptance_commit: str | None = None,
+    finalize: bool = True,
 ) -> dict[str, Any]:
     """Assemble validation.yaml, verify executed vs planned argv, publish store, and record register.json.
 
@@ -343,6 +655,10 @@ def register_release(
         artifact_root: Optional artifact root path override.
         force: If True, permit replacing an existing final Store during terminal publication.
         publish: If True, atomically publish staging store (.partial -> final store).
+        acceptance_commit: The commit of the bundle's current validation.yaml
+            (`committed_revision`), recorded when that is a candidate record.
+        finalize: If False, leave `publication.json` for the caller to remove.
+            The entry point does so once Snakemake has finished this job (#195).
 
     Returns:
         dict containing the assembled validation.yaml data.
@@ -350,6 +666,7 @@ def register_release(
         MissingRecordError: If an expected step record is missing.
         StepFailedError: If a step record indicates a failed step.
         ArgvDriftError: If executed argv differs from planned argv.
+        ValidateVerdictError: If the validate record carries no `--format json` verdict.
     """
     if isinstance(bundle_input, str):
         b = bundle.load(bundle_input, registry_root=registry_root)
@@ -363,6 +680,13 @@ def register_release(
     resolved_root = (
         Path(artifact_root) if artifact_root is not None else paths.artifact_root()
     )
+
+    marker_p = paths.publication_marker(store_id, root=resolved_root)
+    if _exists(marker_p):
+        raise run.PublicationPendingError(
+            f"Cannot register {store_id}: the publication {marker_p} has not finished; "
+            "`pixi run release` completes it first"
+        )
 
     planned_steps = plan(b, artifact_root=resolved_root)
     step_records: dict[str, dict[str, Any]] = {}
@@ -388,7 +712,9 @@ def register_release(
             any_resumed = True
         step_records[step.name] = rec
 
-    # 2. Harvest observed measurements across all step records
+    # 2. This run's verdict and findings, then its observed measurements
+    val_status, val_warnings, val_errors = validate_verdict(step_records.get("validate"))
+    acceptance = acceptance_evidence(b.validation, commit=acceptance_commit)
     observed = harvest_observed_measurements(
         planned_steps,
         step_records,
@@ -399,24 +725,18 @@ def register_release(
 
     # 3. Assemble validation.yaml dictionary
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
-    val_status = observed.get("validate_status", "passed")
-
-    # Determine overall status
-    overall_status = "passed"
-    if val_status == "failed":
-        overall_status = "failed"
-    elif val_status == "passed_with_warnings":
-        overall_status = "passed_with_warnings"
 
     ogdb_exe = run.get_opengwasdb_executable()
     ogdb_rev = run.get_opengwasdb_revision(executable=ogdb_exe)
     ogdb_ver = run.get_opengwasdb_version()
 
-    # Base dictionary merges existing Phase B checks/reports if present
-    existing_val = b.validation or {}
-
+    # Only this run's findings. The bundle's previous validation.yaml is
+    # replaced, never merged: its checks, warnings, errors and reports describe
+    # another run, and republishing them under this run's validated_at is the
+    # wrong answer that looks right (#195). Phase B acceptance evidence survives
+    # only in its own labelled `acceptance` block, added below.
     validation_data: dict[str, Any] = {
-        "status": overall_status,
+        "status": val_status,
         "validated_at": now_iso,
         "validator": {
             "name": VALIDATOR_NAME,
@@ -429,37 +749,51 @@ def register_release(
             "platform": platform.platform(),
         },
         "observed": observed,
-        "checks": existing_val.get("checks", {
-            "schema": "passed",
-            "files": "passed",
-            "store": val_status,
-        }),
+        "checks": {"store": val_status},
+        "warnings": val_warnings,
+        "errors": val_errors,
     }
+    if acceptance is not None:
+        validation_data["acceptance"] = acceptance
 
-    if "reports" in existing_val:
-        validation_data["reports"] = existing_val["reports"]
-    if "warnings" in existing_val:
-        validation_data["warnings"] = existing_val["warnings"]
-    if "errors" in existing_val:
-        validation_data["errors"] = existing_val["errors"]
-
-    # 4. Atomically publish store if publish=True
-    published_p_str: str | None = None
-    if publish:
-        partial_p = paths.partial_store_path(store_id, root=resolved_root)
-        target_p = paths.store_path(store_id, root=resolved_root)
-        if partial_p.is_dir():
-            published_target = run.publish_store(store_id, artifact_root=resolved_root, force=force)
-            published_p_str = str(published_target)
-        elif target_p.is_dir():
-            published_p_str = str(target_p)
-
-    # 5. Atomically write validation.yaml into stores/<store_id>/validation.yaml
+    # 4. Publication. Staging a Store is one transaction (#195): once everything
+    # is verified, publication.json records the whole outcome, the new and old
+    # Validation Records and register.json included, and complete_publication
+    # carries it out. A crash at any point leaves the marker, so the next run
+    # finishes the job; nothing below raises before the marker without leaving
+    # the published release as it was.
     val_yaml_path = b.root / "validation.yaml"
-    _write_yaml_atomically(validation_data, val_yaml_path)
-
-    # 6. Atomically write records/register.json
     reg_rec_p = paths.record_path(store_id, "register", root=resolved_root)
+    partial_p = paths.partial_store_path(store_id, root=resolved_root)
+    target_p = paths.store_path(store_id, root=resolved_root)
+    staged = publish and partial_p.is_dir()
+    replacing = staged and _exists(target_p)
+    if replacing and not force:
+        raise run.StoreExistsError(f"Target store already exists at {target_p}. Set force=True to replace.")
+
+    archive: Path | None = None
+    snapshot: Path | None = None
+    if replacing:
+        # Replacing archives the old release under replaced/<stamp>/, with the
+        # stamp of the forced run's records snapshot, so the two name each other.
+        snapshots = run.pending_force_snapshots(store_id, resolved_root)
+        if len(snapshots) > 1:
+            raise RegisterError(
+                f"Cannot replace {store_id}: more than one forced-run records snapshot: "
+                + ", ".join(str(p) for p in snapshots)
+            )
+        snapshot = snapshots[0] if snapshots else None
+        stamp = snapshot.name[len(paths.FORCE_SNAPSHOT_PREFIX):] if snapshot else run.utc_stamp()
+        archive = paths.replaced_dir(store_id, stamp, root=resolved_root)
+        if _exists(archive / target_p.name):
+            raise FileExistsError(f"Cannot replace {store_id}: {archive / target_p.name} already exists")
+        validation_data["replaced"] = {"archive": str(archive), "replaced_at": now_iso}
+
+    if staged or (publish and target_p.is_dir()):
+        published_p_str: str | None = str(target_p)
+    else:
+        published_p_str = None
+
     input_record_paths = [str(paths.record_path(store_id, s.name, root=resolved_root)) for s in planned_steps]
     register_result = {
         "step": "register",
@@ -480,7 +814,36 @@ def register_release(
         "stderr": "",
         "record_path": str(reg_rec_p),
         "published_store": published_p_str,
+        "replaced_archive": str(archive) if archive else None,
     }
+
+    if staged:
+        run._preflight_paths(store_id, resolved_root)
+        val_rec = step_records.get("validate")
+        if not val_rec or not val_rec.get("success") or val_rec.get("exit_code") != 0:
+            raise RegisterError(
+                f"Cannot publish {store_id}: missing successful 'validate' record in records/."
+            )
+        run.fault_boundary("publication-started")
+        marker = {
+            "store_id": store_id,
+            "archive": str(archive) if archive else None,
+            "snapshot": str(snapshot) if snapshot else None,
+            "bundle_validation": str(val_yaml_path.resolve()),
+            "previous_validation": (
+                val_yaml_path.read_text(encoding="utf-8") if replacing and val_yaml_path.is_file() else None
+            ),
+            "validation_yaml": _dump_yaml(validation_data),
+            "register_record": register_result,
+            "written_at": now_iso,
+        }
+        run._write_record_atomically(marker, marker_p)
+        run.fault_boundary("marker-written")
+        complete_publication(store_id, resolved_root, finalize=finalize)
+        return validation_data
+
+    # Nothing staged: write the record beside whatever is (or is not) published.
+    _write_yaml_atomically(validation_data, val_yaml_path)
     run._write_record_atomically(register_result, reg_rec_p)
 
     return validation_data
@@ -492,11 +855,19 @@ __all__ = [
     "VALIDATOR_NAME",
     "ArgvDriftError",
     "MissingRecordError",
+    "PUBLICATION_BOUNDARIES",
+    "PublicationError",
     "RegisterError",
     "StepFailedError",
+    "ValidateVerdictError",
+    "acceptance_evidence",
     "check_argv_drift",
+    "committed_revision",
+    "complete_publication",
     "harvest_observed_measurements",
     "normalize_executed_argv_for_staging",
     "normalize_executed_argv_for_variant_reference",
     "register_release",
+    "remove_publication_marker",
+    "validate_verdict",
 ]
