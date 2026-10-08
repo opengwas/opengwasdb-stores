@@ -110,13 +110,15 @@ class PublishedReleaseFixture(unittest.TestCase):
         self.assertIn(f"finished the publication of {STORE_ID}", self.first.stdout)
         self.assertFalse(paths.publication_marker(STORE_ID, root=self.template_artifacts).exists())
 
-    def published_copy(self) -> tuple[Path, Path]:
-        """A fresh copy of the published release, aged so the bundle is newer than its records."""
+    def published_copy(self, aged: bool = True) -> tuple[Path, Path]:
+        """A fresh copy of the published release, aged (by default) so the bundle is newer than its records."""
         td = Path(tempfile.mkdtemp(prefix="release_fault_"))
         self.addCleanup(shutil.rmtree, td, True)
         stores, artifacts = td / "stores", td / "artifacts"
         shutil.copytree(self.template_stores, stores)
         shutil.copytree(self.template_artifacts, artifacts)
+        if not aged:
+            return stores, artifacts
         day_ns = 86_400 * 10**9
         for p in paths.store_dir(STORE_ID, root=artifacts).rglob("*"):
             if p.is_file():
@@ -311,6 +313,20 @@ class TestLiveAndInterruptedRuns(PublishedReleaseFixture):
         self.assertEqual(messages, [])
         self.assertEqual(marker.read_text(encoding="utf-8"), '{"not": "for recovery to read"}')
         self.assertFalse(mine.holds(STORE_ID))
+
+    def test_a_dry_run_during_a_live_publication_says_in_progress(self) -> None:
+        """A marker under a live run's lock is that run's publication, not one a crash interrupted (round 4)."""
+        stores, artifacts = self.published_copy(aged=False)
+        paths.publication_marker(STORE_ID, root=artifacts).write_text("{}", encoding="utf-8")
+        live = release.ReleaseLocks(artifacts)
+        live.acquire(STORE_ID)
+        self.addCleanup(live.release_all)
+
+        dry = run_release([STORE_ID, "--dry-run"], registry_root=stores, artifact_root=artifacts)
+
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        self.assertIn(f"a run of {STORE_ID} is in progress (pid {os.getpid()},", dry.stdout)
+        self.assertNotIn("completes the interrupted publication", dry.stdout)
 
     def check_interrupt(self, deliver: str, signum: int) -> None:
         stores, artifacts = self.published_copy()

@@ -589,12 +589,20 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
             busy[store_id] = holder
     for store_id, holder in sorted(busy.items()):
         print(f"release-dry: a run of {store_id} is in progress ({holder}); the real run would refuse")
-    pending = [
-        store_id for store_id in registered_ids(registry_root)
-        if store_id not in busy and paths.publication_marker(store_id, root=root).exists()
-    ]
-    for store_id in pending:
-        print(f"release-dry: the real run first completes the interrupted publication of {store_id}")
+    # A pending marker under a live run's lock is that run's publication in
+    # progress, not one a crash interrupted, whether or not this plan schedules
+    # the release (review round 4 of #196).
+    for store_id in registered_ids(registry_root):
+        if store_id in busy or not paths.publication_marker(store_id, root=root).exists():
+            continue
+        holder = lock_holder(store_id, root)
+        if holder is not None:
+            print(
+                f"release-dry: a run of {store_id} is in progress ({holder}) and is publishing; "
+                "it finishes its own publication"
+            )
+        else:
+            print(f"release-dry: the real run first completes the interrupted publication of {store_id}")
     idle = [(r, store_id) for r, store_id in scheduled if store_id not in busy]
     forced = run.forced_releases(force, inv.targets)
     try:

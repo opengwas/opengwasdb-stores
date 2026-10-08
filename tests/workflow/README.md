@@ -50,6 +50,7 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
 9. **Live and interrupted runs (#195, review round 3; also in `release-faults`)**:
    - A forced run is paused once its build starts. A second run, a forced one, `--resolve-snapshot restore` and `delete` are each refused with "a run of OGS-00099 is in progress (pid <the paused run>)", never the leftover-snapshot message. A dry run reports the holder, the live snapshot is untouched, and the paused run then completes and archives the old release correctly.
    - Recovery from another run never reads or completes a marker under a live run's lock.
+   - A dry run during a live run's publication says the run is in progress, not that it will complete an interrupted publication.
    - Ctrl-C to the foreground group, SIGTERM to the entry point, and SIGTERM to every process of the run, each mid-build, exit 130 or 143. The records are restored byte for byte (bytes and mtimes), with no snapshot, marker or archive left. The next unforced run meets only the ordinary "already published" refusal, with no `IncompleteFilesException` and no leftover message, and a forced run then replaces the release cleanly.
 
 8. **Operator config reaches Snakemake (#195)**:
