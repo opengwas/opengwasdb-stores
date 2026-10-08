@@ -15,7 +15,10 @@ This suite asserts the container migration:
      validator; every record names `opengwasdb validate`, and its version is
      the `opengwasdb` revision the record's build_environment records.
   3. The three records already rebuilt and re-registered (OGS-00001..3) keep
-     their observed measurements exactly.
+     their observed measurements exactly. The one correction since is their
+     `format_version`, a Release Erratum (issue #195): `register` recorded its
+     own fabricated default "1.0", and the true value is the "0.1.0" each
+     Store's manifest declares.
   4. The four migrated records (OGS-00004..7) record every measurement they do
      not have as `null` rather than inventing one. Only the release-level
      verdict is carried, as `observed.validate_status`, because it is already
@@ -25,6 +28,9 @@ This suite asserts the container migration:
      `observed` would launder a fact about a different run (issue #122).
   5. `observed.validate_status` agrees with the record's own `status`, which is
      the only value the master list publishes (issue #124).
+  6. A recorded `observed.format_version` is MAJOR.MINOR.PATCH, the only shape
+     opengwasdb stamps (its ADR 0041). A two-component value such as "1.0" is
+     never a version these Stores carry: it names a retired pre-reset encoding.
 
 Run from the repository root:
     pixi run python tests/validation-record/test_validation_record.py
@@ -32,6 +38,7 @@ Run from the repository root:
 
 from __future__ import annotations
 
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -54,14 +61,23 @@ MIGRATED: tuple[str, ...] = ("OGS-00004", "OGS-00005", "OGS-00006", "OGS-00007")
 # The adapter ADR 0023 deleted. A Validation Record must never name it.
 DELETED_ADAPTERS: tuple[str, ...] = ("build-store.py",)
 
+# The only shape opengwasdb stamps a Store's format_version in (its ADR 0041).
+FORMAT_VERSION_SHAPE = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
+
 # Observed measurements of the three records rebuilt through the workflow.
 # Pinned so a later change that rewrites or drops them fails here. The
 # fabricated OGS-00003 `n_associations` (n_variants x n_analyses, issue #122)
 # is preserved as-is: this ticket migrates the container and must not make that
 # number look more credible by recomputing it.
+#
+# `format_version` is pinned at its corrected value. `register` recorded "1.0",
+# its own default when no step reported a version, and issue #195 removed that
+# default. Each Store's manifest.json declares "0.1.0", the only format the
+# recorded opengwasdb revisions wrote; the correction is a Release Erratum in
+# each release.yaml.
 GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     "OGS-00001": {
-        "format_version": "1.0",
+        "format_version": "0.1.0",
         "n_analyses": 10,
         "n_variants": 86376,
         "n_associations": 86373,
@@ -70,7 +86,7 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "validate_status": "passed",
     },
     "OGS-00002": {
-        "format_version": "1.0",
+        "format_version": "0.1.0",
         "n_analyses": 10,
         "n_variants": 207764,
         "n_associations": 207761,
@@ -79,7 +95,7 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "validate_status": "passed",
     },
     "OGS-00003": {
-        "format_version": "1.0",
+        "format_version": "0.1.0",
         "n_analyses": 10,
         "n_variants": 21230615,
         "n_associations": 212306150,
@@ -150,13 +166,32 @@ class TestCommittedValidationRecords(unittest.TestCase):
             )
 
     def test_already_registered_records_keep_their_observed_measurements(self) -> None:
-        """OGS-00001..3 are untouched by this ticket: their observed block is exactly pinned."""
+        """OGS-00001..3 are untouched by this ticket: their observed block is exactly pinned.
+
+        Pinned with the issue-#195 erratum applied, so `format_version` is "0.1.0".
+        """
         for store_id, expected in GOLDEN_OBSERVED.items():
             self.assertEqual(
                 self.load(store_id)["observed"],
                 expected,
-                f"{store_id}.observed changed; this ticket must leave the three "
-                "already-registered records untouched",
+                f"{store_id}.observed changed; the three already-registered records "
+                "change only through a Release Erratum",
+            )
+
+    def test_recorded_format_versions_are_ones_opengwasdb_stamps(self) -> None:
+        """Every committed record's format_version is MAJOR.MINOR.PATCH or null, never a two-part name."""
+        recorded = sorted(path.parent.name for path in (REPO_ROOT / "stores").glob("OGS-*/validation.yaml"))
+        self.assertTrue(set(STORES) <= set(recorded), "every pinned store must have a committed record")
+        for store_id in recorded:
+            # A record with no observed block records no version.
+            version = (self.load(store_id).get("observed") or {}).get("format_version")
+            if version is None:
+                continue
+            self.assertIsInstance(version, str, f"{store_id}.observed.format_version must be a string")
+            self.assertIsNotNone(
+                FORMAT_VERSION_SHAPE.fullmatch(version),
+                f"{store_id}.observed.format_version {version!r} is not MAJOR.MINOR.PATCH; "
+                "a two-component value names a retired pre-reset encoding, not this Store's",
             )
 
     def test_migrated_records_record_absence_rather_than_inventing(self) -> None:

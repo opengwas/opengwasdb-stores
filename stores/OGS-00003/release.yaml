@@ -33,4 +33,17 @@ notes: 'Quantitative endpoints are ordered by phenocode. For each binary categor
   recommends NO-GO for the complete R13 collection until that discrepancy is resolved; the failure is
   deliberately retained rather than silently rescaling the endpoint.
 
+
+  Release Erratum (issue #195): validation.yaml recorded observed.format_version as "1.0".
+  No build or validate step reported that value. It was register''s own default, written
+  when no step reported a version; PR #196 removes that default, so a version no step
+  reports is now recorded as null. "1.0" is not this Store''s format: it names a retired
+  pre-reset encoding (fixed-point z, opengwasdb#114) that current opengwasdb refuses to
+  read. The true value comes from the Store''s manifest.json, which declares
+  format_version "0.1.0".
+  0.1.0 is the only format opengwasdb writes at 987aec1, the revision this record
+  names and the one that built the published Store.
+  Corrected to 0.1.0 in validation.yaml. No Store artifact was rebuilt or rewritten
+  by this registry metadata correction.
+
   '
