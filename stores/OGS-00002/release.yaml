@@ -47,4 +47,17 @@ notes: 'Completion adds no new Analyses -- analyses.tsv here is unchanged from p
   both fields are now empty rather than carrying a gene id or a guess: the absence
   is the visible, correct answer. The gene identity remains target annotation in
   trait_chr/trait_bp and analysis_label. No Store artifact was rebuilt or rewritten.
+
+  Release Erratum (issue #195): validation.yaml recorded observed.format_version as "1.0".
+  No build or validate step reported that value. It was register''s own default, written
+  when no step reported a version; PR #196 removes that default, so a version no step
+  reports is now recorded as null. "1.0" is not this Store''s format: it names a retired
+  pre-reset encoding (fixed-point z, opengwasdb#114) that current opengwasdb refuses to
+  read. The true value comes from the Store''s manifest.json, which declares
+  format_version "0.1.0".
+  Completion keeps its source''s format_version (opengwasdb ADR 0038), and 0.1.0 is
+  the only format opengwasdb writes at a9e8bc8, the revision this record names, and
+  at 987aec1, the revision that rebuilt the published Store.
+  Corrected to 0.1.0 in validation.yaml. No Store artifact was rebuilt or rewritten
+  by this registry metadata correction.
   '

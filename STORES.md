@@ -6,9 +6,9 @@ Generated master list of Store Releases in this registry.
 
 | Store ID | Label | Layout | Completion | Status | Format | Analyses | Variants | Associations | Validated |
 |:---|:---|:---|:---|:---|:---|:---|---:|---:|---:|:---|
-| `OGS-00001` | pilot-10 | ragged | observed_only | built | 1.0 | 10 | 86,376 | 86,373 | passed |
-| `OGS-00002` | pilot-10-completed | ragged | reference_completed | validated | 1.0 | 10 | 207,764 | 207,761 | passed |
-| `OGS-00003` | r13-pilot-20 | dense | observed_only | built | 1.0 | 10 | 21,230,615 | 212,306,150 | passed |
+| `OGS-00001` | pilot-10 | ragged | observed_only | built | 0.1.0 | 10 | 86,376 | 86,373 | passed |
+| `OGS-00002` | pilot-10-completed | ragged | reference_completed | validated | 0.1.0 | 10 | 207,764 | 207,761 | passed |
+| `OGS-00003` | r13-pilot-20 | dense | observed_only | built | 0.1.0 | 10 | 21,230,615 | 212,306,150 | passed |
 | `OGS-00004` | eur-hybrid-pilot-10 | hybrid | observed_only | built | - | 10 | - | - | passed_with_warnings |
 | `OGS-00005` | eur-hybrid-quant-pilot-10 | hybrid | observed_only | built | - | 10 | - | - | passed_with_warnings |
 | `OGS-00006` | 2023-chen-full-european | ragged | observed_only | built | - | 1,400 | - | - | passed_with_warnings |

@@ -15,7 +15,10 @@ Test suite for the committed Validation Records (issue #135), governed by
 3. **The three already-registered records are untouched.** OGS-00001..3 keep
    their observed measurements exactly, including the fabricated OGS-00003
    `n_associations` that issue #122 owns. This ticket migrates the container and
-   must not make that value look more credible.
+   must not make that value look more credible. The one later correction is
+   their `format_version`, a Release Erratum (issue #195) recorded in each
+   `release.yaml`: `register` wrote its own default `"1.0"`, and the pinned
+   value is the `"0.1.0"` each Store's `manifest.json` declares.
 4. **Absence is recorded, not invented.** OGS-00004..7 record every measurement
    they do not have as `null`. The only value carried is the release-level
    verdict, as `observed.validate_status`, because it is already recorded as the
@@ -24,6 +27,9 @@ Test suite for the committed Validation Records (issue #135), governed by
    describes a build the Validation Record did not observe.
 5. **The verdict the master list publishes.** `observed.validate_status` agrees
    with the record's top-level `status` (issue #124).
+6. **Only a version opengwasdb stamps.** A recorded `observed.format_version` is
+   `MAJOR.MINOR.PATCH` (opengwasdb ADR 0041) or `null`. A two-component value
+   such as `"1.0"` names a retired pre-reset encoding, never these Stores'.
 
 The format is defined once in
 [`docs/release-metadata-schema.md`](../../docs/release-metadata-schema.md#validationyaml).
