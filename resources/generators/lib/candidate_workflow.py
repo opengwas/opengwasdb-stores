@@ -2298,8 +2298,8 @@ def build_candidate_tables(
     ancestry_check, sd_check, effect_scale_check, warnings = _derive_checks(
         outcomes, sd_rows, exclusion_counts, duplicate_membership
     )
-    warnings.extend(_store_composition_warnings(outcomes, config))
     store_composition = _store_composition(outcomes, config)
+    warnings.extend(_store_composition_warnings(store_composition))
 
     return CandidateTables(
         analyses_tsv=_render_tsv(ANALYSES_COLUMNS, analyses_rows),
@@ -2377,30 +2377,20 @@ def _off_reference_sum(
     return total
 
 
-def _store_composition_warnings(
-    outcomes: Sequence[AnalysisOutcome], config: CandidateConfiguration
-) -> list[str]:
-    """The Store-composition review warnings (issue #203)."""
+def _store_composition_warnings(composition: Mapping[str, Any]) -> list[str]:
+    """The Store-composition review warnings (issue #203), from its summary."""
     warnings: list[str] = []
-    routed = sum(
-        1
-        for outcome in outcomes
-        if not outcome.included and outcome.exclusion_reason == "not_maf_filtered"
-    )
+    routed = composition["unfiltered_routed"]
     if routed:
         warnings.append(
             f"{routed} Analysis/Analyses had no MAF floor applied and were excluded "
             "from this shared Store as not_maf_filtered (#203); see "
             "sidecars/exclusions.tsv"
         )
-    unfiltered_included = sum(
-        1
-        for outcome in outcomes
-        if outcome.included and outcome.maf_threshold == "NaN"
-    )
+    unfiltered_included = composition["unfiltered_included"]
     if (
-        not config.require_maf_filtered
-        and config.maf_threshold is not None
+        not composition["require_maf_filtered"]
+        and composition["maf_floor"] is not None
         and unfiltered_included
     ):
         warnings.append(
