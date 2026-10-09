@@ -157,7 +157,16 @@ threadpoolctl = ">=3.0"
 # exactly 0 or 1 as missing, and fingerprints resolver records with the core's
 # own commit rather than this repository's. Candidate generation and the build
 # must run at this same revision.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "a0656c0d073875c17088972b24cbb9568c0467a2" }
+#
+# Bumped for #195 (OGS-00005 re-registration): this pins the `dev` merge commit
+# of opengwasdb#256 (#255). A plain-ALID `--variant-reference` build now
+# collects the sources' rsids, where it previously went single-pass with an
+# empty rsid map and wrote a Store with none, which `opengwasdb validate`
+# passed. OGS-00004's and OGS-00005's recipes take that path. Deliberately not
+# `dev`'s head: epic #240 (`5910e29`) has since merged there, and its builders
+# write format 0.2.0, which the catalogue does not adopt until #197. This
+# revision still writes 0.1.0, like every registered Store.
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "7b0c42d94e439d4ce6de2cf046fb41a9f3a7eb2e" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"
