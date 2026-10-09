@@ -432,6 +432,15 @@ CANDIDATE_RECORD: dict[str, Any] = {
         "included_measured": 3317,
         "ancestry_low_overlap_analyses": ["GCST003898", "GCST005898"],
     },
+    # And its shared-Store MAF-filtered admission summary (issue #203).
+    "store_composition": {
+        "require_maf_filtered": True,
+        "maf_floor": "0.005",
+        "unfiltered_included": 0,
+        "unfiltered_included_off_reference_rows": 0,
+        "unfiltered_routed": 148,
+        "unfiltered_routed_off_reference_rows": 49500000,
+    },
     "warnings": [
         "1162 Analysis/Analyses excluded by ancestry policy (unassigned, non-target, or orientation failure); see sidecars/exclusions.tsv",
         "173 included Analysis/Analyses have a high-dispersion SD estimate; see sidecars/sd_estimation.tsv",
@@ -605,9 +614,13 @@ class TestRegisterKeepsPhaseBAcceptanceApart(unittest.TestCase):
                 "warnings": CANDIDATE_RECORD["warnings"],
                 "reports": CANDIDATE_RECORD["reports"],
                 "reference_overlap": CANDIDATE_RECORD["reference_overlap"],
+                "store_composition": CANDIDATE_RECORD["store_composition"],
             },
         )
         self.assertNotIn("reference_overlap", written, "Phase B evidence stays inside the block")
+        self.assertNotIn(
+            "store_composition", written, "Phase B evidence stays inside the block"
+        )
         for warning in CANDIDATE_RECORD["warnings"]:
             self.assertNotIn(warning, written["warnings"])
         self.assertEqual(written["warnings"], [])

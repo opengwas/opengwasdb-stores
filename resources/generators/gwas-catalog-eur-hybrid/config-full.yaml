@@ -161,6 +161,18 @@ source:
       - role: rescue_upstream_harmonised
         path: /data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-rescue-upstream-harmonised-manifest.tsv
 
+# Store composition (issue #203, levers A and B; ADR 0033). A shared Store's variant
+# axis is the union of its Analyses' variants, so an Analysis whose rows were never
+# frequency-filtered puts its whole rare tail on every per-variant structure. The
+# sequencing Analyses exempted from the MAF floor above (148 in OGS-00011: 97 WGS,
+# 51 WES) add 49.5 M of the 150.6 M off-panel variants on 64 M rows (2 %). They
+# report EAF; they were exempted, not unfilterable. With this rule an included
+# Analysis with no applied MAF floor is excluded as `not_maf_filtered`; it belongs
+# in a separate sequencing Store. Emit-time only: it does not change the resolver
+# manifest or the resolution receipt.
+store_composition:
+  require_maf_filtered: true
+
 defaults:
   # Facts this release asserts about every source, carried into analyses.tsv.
   source_genome_build: GRCh38
