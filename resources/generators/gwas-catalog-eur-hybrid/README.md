@@ -175,8 +175,10 @@ stores/OGS-xxxxx/
   orientation failures, unusable source AF, incomplete metadata, ordinary
   resolution failures, and a successful record whose own tally of build-eligible
   rows is zero (`no_build_eligible_rows`: no row has a finite effect and a
-  positive standard error), and Analyses on the reviewed placeholder-effect
-  list (`effect_placeholder_rows`, see below).
+  positive standard error), Analyses on the reviewed placeholder-effect list
+  (`effect_placeholder_rows`, see below), and -- when
+  `store_composition.require_maf_filtered` is on -- otherwise admissible
+  Analyses with no applied MAF floor (`not_maf_filtered`, see below).
 * Duplicate-content accessions (`GCST90565871`/`GCST90565872` and
   `GCST90624704`/`GCST90624705`) are surfaced in `sidecars/source_readiness.tsv`
   and a warning; they are never silently collapsed.
@@ -349,6 +351,49 @@ resolution receipt's contract records the configured default and both exemption
 rules, so changing any of them makes the receipt stale. `bundle.check()` rejects any
 `maf_threshold` value that is not literal `NaN` or a finite number in
 `[0, 0.5]`.
+
+### Store composition (#203)
+
+`store_composition.require_maf_filtered` is an optional Phase B generator-config
+rule deciding whether a shared Store may admit an Analysis with no applied MAF
+floor. Absent or `false`, membership is unchanged; `true` requires a positive
+`defaults.maf_threshold` and adds one gate after every other membership decision:
+an otherwise admissible Analysis whose emitted `maf_threshold` is literal `NaN`
+is excluded as `not_maf_filtered` (category `store_composition`), and its
+exclusion detail records the requested floor, the resolver's `maf_state`, the
+source's `genotyping_technology`, and how many of its build-eligible rows are off
+the variant reference. An Analysis excluded for any other reason keeps that
+reason.
+
+The rule exists because the 148 included Analyses the sequencing exemption
+leaves unfiltered in `config-full.yaml` (97 WGS and 51 WES) carry 49,537,183
+Overflow variants -- 32.9 % of `OGS-00011`'s Overflow -- on 63,770,673 rows, and
+49.3 M of the axis's 75.9 M variants below 0.5 % MAF are carried only by them.
+Build and validation scale with that axis (opengwasdb #254), even though the
+Store opens in about 0.29 GiB (opengwasdb #252). Issue #203 called these Analyses
+"no-EAF", but they report EAF: every one passed the EAF-orientation check, 126
+had their phenotype SD estimated from source MAF, and a sampled WGS source
+(`GCST90446475`) carries `effect_allele_frequency` on every one of its first 2 M
+rows, 81 % of them below 0.5 % MAF. They are exempt from the floor, not
+unfilterable, so the rule is worded as "rows were MAF-filtered" rather than "the
+source reports EAF". See
+[ADR 0033](../../../docs/adr/0033-shared-stores-admit-only-maf-filtered-analyses.md).
+
+The gate is an emit-time membership decision, like `effect_placeholder_rows`: it
+does not change the resolver manifest or the resolution receipt, so toggling it
+needs only `--stage emit` and never a re-resolve. Every candidate
+`validation.yaml` gains a top-level `store_composition` block recording whether
+the rule ran, the configured floor, how many included Analyses have no applied
+floor and how many were routed, and the off-reference row sums for each (a sum
+is `null` when no `variant-reference` is declared or any counted Analysis lacks
+the resolver count). Two warnings become `Review:` lines: one when Analyses were
+routed as `not_maf_filtered`, and -- when the rule is off but a floor is
+configured -- one when included Analyses have no applied floor, so a later
+release cannot silently re-inflate the axis. With the rule on, `release.yaml` notes state the composition the Store
+admits.
+
+The 148 routed Analyses need their own sequencing Store, a separate Store
+Release not yet made (follow-up work).
 
 ### Human review before acceptance
 

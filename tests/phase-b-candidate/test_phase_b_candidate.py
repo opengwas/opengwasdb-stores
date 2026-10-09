@@ -68,17 +68,20 @@ from resources.generators.lib.candidate_workflow import (  # noqa: E402
     apply_release_policy,
     build_candidate_tables,
     check_staged_candidate,
+    compute_resolution_contract,
     derive_resolver_manifest,
     info_score_emission,
     load_candidate_configuration,
     maf_threshold_emission,
     parse_maf_filter_exempt_technologies,
     parse_maf_threshold,
+    parse_store_composition,
     read_candidate_metadata,
     read_genotyping_technologies,
     read_effect_placeholder_exclusions,
     read_maf_filter_exempt_analyses,
     read_resolution_receipt,
+    render_release_yaml,
     render_validation_yaml,
     render_resolver_manifest,
     resolver_argv,
@@ -750,6 +753,14 @@ class CandidateWorkflowTests(unittest.TestCase):
             document["source"].pop("maf_filter_exempt_analyses", None)
         else:
             document["source"]["maf_filter_exempt_analyses"] = path
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+
+    def _set_store_composition(self, value: object) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        if value is None:
+            document.pop("store_composition", None)
+        else:
+            document["store_composition"] = value
         self.fixture.config_path.write_text(yaml.safe_dump(document))
 
     def _write_exemptions(
@@ -1929,6 +1940,363 @@ class CandidateWorkflowTests(unittest.TestCase):
             REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/config-full.yaml", REPO_ROOT
         )
         self.assertEqual(config.effect_placeholder_exclusions, found)
+
+    # -- Store composition / MAF-filtered admission (issue #203) --------------
+
+    def _maf_filtered_fixture(self):
+        """A synthetic pair: one MAF-filtered Analysis, one with no applied floor."""
+        filtered = _synthetic_inventory_row()
+        unfiltered = replace(
+            filtered, analysis_id="GCST90000002", data_file="/mirror/second.gz"
+        )
+        filtered_record = _synthetic_resolver_record()
+        filtered_record["analysis_id"] = filtered.analysis_id
+        filtered_record["diagnostics"].update(
+            maf_state="filtered",
+            build_eligible_rows=100,
+            build_eligible_rows_off_variant_reference=40,
+        )
+        filtered_record["fingerprints"] = {
+            "resolution_config": {"maf_threshold": 0.005}
+        }
+        unfiltered_record = _synthetic_resolver_record()
+        unfiltered_record["analysis_id"] = unfiltered.analysis_id
+        unfiltered_record["diagnostics"].update(
+            maf_state="unavailable",
+            build_eligible_rows=200,
+            build_eligible_rows_off_variant_reference=50,
+        )
+        declarations = [
+            ResolverRow(
+                filtered.analysis_id, "/mirror/GCST90000001.h.tsv.gz",
+                "opengwasdb.gwas-ssf", "sd", "estimated_from_source_maf", "5000",
+                "a" * 64, "sha256", "100", maf_threshold="0.005",
+            ),
+            ResolverRow(
+                unfiltered.analysis_id, "/mirror/second.gz", "opengwasdb.gwas-ssf",
+                "sd", "estimated_from_source_maf", "5000", "b" * 64, "sha256",
+                "100", maf_threshold="NaN",
+            ),
+        ]
+        return filtered, unfiltered, [filtered_record, unfiltered_record], declarations
+
+    def _store_composition_outcomes(self, config: object, records: list[dict]):
+        filtered = _synthetic_inventory_row()
+        unfiltered = replace(
+            filtered, analysis_id="GCST90000002", data_file="/mirror/second.gz"
+        )
+        return apply_release_policy(
+            [filtered, unfiltered],
+            config,
+            {
+                row.analysis_id: _synthetic_candidate_metadata()
+                for row in (filtered, unfiltered)
+            },
+            {record["analysis_id"]: record for record in records},
+            self._maf_filtered_fixture()[3],
+        )
+
+    def test_store_composition_excludes_unfiltered_and_keeps_maf_filtered(self) -> None:
+        config = replace(
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            require_maf_filtered=True,
+            maf_threshold="0.005",
+        )
+        filtered, unfiltered, records, declarations = self._maf_filtered_fixture()
+        outcomes = apply_release_policy(
+            [filtered, unfiltered],
+            config,
+            {
+                row.analysis_id: _synthetic_candidate_metadata()
+                for row in (filtered, unfiltered)
+            },
+            {record["analysis_id"]: record for record in records},
+            declarations,
+        )
+        by_id = {outcome.analysis_id: outcome for outcome in outcomes}
+        self.assertTrue(by_id["GCST90000001"].included)
+        self.assertEqual(by_id["GCST90000001"].maf_threshold, "0.005")
+        routed = by_id["GCST90000002"]
+        self.assertFalse(routed.included)
+        self.assertEqual(routed.exclusion_reason, "not_maf_filtered")
+        # The last gate keeps the other decided fields: the reason is only Store
+        # composition, not an ancestry or effect-scale failure.
+        self.assertEqual(routed.assigned_ancestry, "EUR")
+        self.assertEqual(routed.original_sd, "1")
+        self.assertEqual(
+            routed.exclusion_detail,
+            "no MAF floor applied (requested maf_threshold=NaN, resolver "
+            "maf_state=unavailable, genotyping_technology=unrecorded); 50 of 200 "
+            "build-eligible rows are off the variant reference (#203)",
+        )
+        tables = build_candidate_tables(
+            inventory_rows=[filtered, unfiltered],
+            outcomes=outcomes,
+            config=config,
+            index_summary={},
+        )
+        self.assertEqual(dict(tables.exclusion_counts), {"not_maf_filtered": 1})
+        (excluded,) = csv.DictReader(io.StringIO(tables.exclusions_tsv), delimiter="\t")
+        self.assertEqual(excluded["category"], "store_composition")
+        self.assertEqual(excluded["reason"], "not_maf_filtered")
+
+    def test_store_composition_keeps_a_stronger_existing_exclusion(self) -> None:
+        config = replace(
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            require_maf_filtered=True,
+            maf_threshold="0.005",
+        )
+        filtered, unfiltered, records, declarations = self._maf_filtered_fixture()
+        # The unfiltered Analysis already fails the target-ancestry gate.
+        records[1]["ancestry"]["assigned_ancestry"] = "EAS"
+        outcomes = apply_release_policy(
+            [filtered, unfiltered],
+            config,
+            {
+                row.analysis_id: _synthetic_candidate_metadata()
+                for row in (filtered, unfiltered)
+            },
+            {record["analysis_id"]: record for record in records},
+            declarations,
+        )
+        by_id = {outcome.analysis_id: outcome for outcome in outcomes}
+        self.assertEqual(by_id["GCST90000002"].exclusion_reason, "ancestry_not_eur")
+
+    def test_store_composition_refuses_to_run_without_manifest_rows(self) -> None:
+        config = replace(
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            require_maf_filtered=True,
+            maf_threshold="0.005",
+        )
+        filtered, unfiltered, records, _ = self._maf_filtered_fixture()
+        # Without the manifest no Analysis can show an applied floor, so the rule
+        # would exclude every one of them; that must fail, not empty the Store.
+        with self.assertRaisesRegex(CandidateError, "resolver manifest rows"):
+            apply_release_policy(
+                [filtered, unfiltered],
+                config,
+                {
+                    row.analysis_id: _synthetic_candidate_metadata()
+                    for row in (filtered, unfiltered)
+                },
+                {record["analysis_id"]: record for record in records},
+            )
+
+    def test_store_composition_detail_names_a_missing_declaration(self) -> None:
+        config = replace(
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            require_maf_filtered=True,
+            maf_threshold="0.005",
+        )
+        filtered, unfiltered, records, declarations = self._maf_filtered_fixture()
+        outcomes = apply_release_policy(
+            [filtered, unfiltered],
+            config,
+            {
+                row.analysis_id: _synthetic_candidate_metadata()
+                for row in (filtered, unfiltered)
+            },
+            {record["analysis_id"]: record for record in records},
+            declarations[:1],
+        )
+        by_id = {outcome.analysis_id: outcome for outcome in outcomes}
+        self.assertEqual(by_id["GCST90000002"].exclusion_reason, "not_maf_filtered")
+        # An absent manifest row is not the same fact as a declared NaN request.
+        self.assertIn(
+            "requested maf_threshold=undeclared", by_id["GCST90000002"].exclusion_detail
+        )
+
+    def test_store_composition_off_warns_about_unfiltered_inclusion(self) -> None:
+        config = replace(
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            maf_threshold="0.005",
+        )
+        self.assertFalse(config.require_maf_filtered)
+        filtered, unfiltered, records, declarations = self._maf_filtered_fixture()
+        outcomes = apply_release_policy(
+            [filtered, unfiltered],
+            config,
+            {
+                row.analysis_id: _synthetic_candidate_metadata()
+                for row in (filtered, unfiltered)
+            },
+            {record["analysis_id"]: record for record in records},
+            declarations,
+        )
+        by_id = {outcome.analysis_id: outcome for outcome in outcomes}
+        self.assertTrue(by_id["GCST90000002"].included)
+        self.assertEqual(by_id["GCST90000002"].maf_threshold, "NaN")
+        tables = build_candidate_tables(
+            inventory_rows=[filtered, unfiltered],
+            outcomes=outcomes,
+            config=config,
+            index_summary={},
+        )
+        self.assertIn(
+            "1 included Analysis/Analyses had no MAF floor applied, so their "
+            "off-reference rows enter the shared variant axis unfiltered (#203); "
+            "see store_composition in validation.yaml",
+            tables.warnings,
+        )
+
+    def test_store_composition_summary_values_and_missing_sums(self) -> None:
+        base = replace(
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            require_maf_filtered=True,
+            maf_threshold="0.005",
+        )
+        axis = replace(
+            base, build_options={**base.build_options, "variant-reference": "/axis.gz"}
+        )
+        filtered, unfiltered, records, declarations = self._maf_filtered_fixture()
+        outcomes = self._store_composition_outcomes(axis, records)
+        tables = build_candidate_tables(
+            inventory_rows=[filtered, unfiltered],
+            outcomes=outcomes,
+            config=axis,
+            index_summary={},
+        )
+        self.assertEqual(
+            tables.store_composition,
+            {
+                "require_maf_filtered": True,
+                "maf_floor": "0.005",
+                "unfiltered_included": 0,
+                "unfiltered_included_off_reference_rows": 0,
+                "unfiltered_routed": 1,
+                "unfiltered_routed_off_reference_rows": 50,
+            },
+        )
+        # No declared variant-reference: absence is never summed as zero.
+        no_axis = build_candidate_tables(
+            inventory_rows=[filtered, unfiltered],
+            outcomes=outcomes,
+            config=base,
+            index_summary={},
+        )
+        self.assertIsNone(
+            no_axis.store_composition["unfiltered_routed_off_reference_rows"]
+        )
+        # A counted Analysis without a valid off-reference count makes the sum
+        # unknown, not zero.
+        del records[1]["diagnostics"]["build_eligible_rows_off_variant_reference"]
+        missing = build_candidate_tables(
+            inventory_rows=[filtered, unfiltered],
+            outcomes=self._store_composition_outcomes(axis, records),
+            config=axis,
+            index_summary={},
+        )
+        self.assertIsNone(
+            missing.store_composition["unfiltered_routed_off_reference_rows"]
+        )
+        # Rule off: the unfiltered Analysis is included and its off-reference
+        # rows are counted, while nothing is routed.
+        off_axis = replace(axis, require_maf_filtered=False)
+        included_tables = build_candidate_tables(
+            inventory_rows=[filtered, unfiltered],
+            outcomes=self._store_composition_outcomes(off_axis, records),
+            config=off_axis,
+            index_summary={},
+        )
+        self.assertEqual(included_tables.store_composition["unfiltered_included"], 1)
+        self.assertEqual(included_tables.store_composition["unfiltered_routed"], 0)
+
+    def test_store_composition_configuration_parsing(self) -> None:
+        self.assertFalse(
+            load_candidate_configuration(
+                self.fixture.config_path, REPO_ROOT
+            ).require_maf_filtered
+        )
+        self._set_store_composition({"require_maf_filtered": True})
+        # The rule needs a positive default floor or no Analysis can be filtered.
+        with self.assertRaisesRegex(ValueError, "positive.*maf_threshold"):
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self._set_maf_threshold(0.005)
+        self.assertTrue(
+            load_candidate_configuration(
+                self.fixture.config_path, REPO_ROOT
+            ).require_maf_filtered
+        )
+        self._set_maf_threshold(0)
+        with self.assertRaisesRegex(ValueError, "positive.*maf_threshold"):
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        for invalid, message in (
+            (["require_maf_filtered"], "store_composition must be a mapping"),
+            ({"unknown": True}, "unknown key"),
+            ({"require_maf_filtered": "yes"}, "must be a boolean"),
+            ({"require_maf_filtered": 1}, "must be a boolean"),
+        ):
+            with self.subTest(invalid=invalid):
+                self._set_store_composition(invalid)
+                with self.assertRaisesRegex(ValueError, message):
+                    load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+
+    def test_store_composition_rule_does_not_change_the_resolution_contract(self) -> None:
+        self._set_maf_threshold(0.005)
+        off = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        on = replace(off, require_maf_filtered=True)
+        self.assertEqual(
+            compute_resolution_contract(off), compute_resolution_contract(on)
+        )
+
+    def test_store_composition_documents_carry_the_rule(self) -> None:
+        config = replace(
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            require_maf_filtered=True,
+            maf_threshold="0.005",
+        )
+        filtered, unfiltered, records, declarations = self._maf_filtered_fixture()
+        outcomes = apply_release_policy(
+            [filtered, unfiltered],
+            config,
+            {
+                row.analysis_id: _synthetic_candidate_metadata()
+                for row in (filtered, unfiltered)
+            },
+            {record["analysis_id"]: record for record in records},
+            declarations,
+        )
+        tables = build_candidate_tables(
+            inventory_rows=[filtered, unfiltered],
+            outcomes=outcomes,
+            config=config,
+            index_summary={},
+        )
+        validation = yaml.safe_load(
+            render_validation_yaml(
+                tables=tables,
+                index_summary={},
+                validated_at="now",
+                validator_name="test",
+            )
+        )
+        self.assertEqual(validation["store_composition"], dict(tables.store_composition))
+        release = yaml.safe_load(
+            render_release_yaml(
+                store_id=STORE_ID,
+                config=config,
+                tables=tables,
+                commands=["preflight"],
+                created_at="2026-01-01T00:00:00Z",
+                inventory_sha256="a" * 64,
+                preflight_report=Path("preflight.json"),
+                index_summary={},
+                generator_version="test",
+            )
+        )
+        self.assertIn(
+            "Store composition (#203): this shared Store admits only Analyses whose "
+            "rows were MAF-filtered; an included Analysis with no applied MAF floor "
+            "is excluded as not_maf_filtered.",
+            release["notes"],
+        )
+
+    def test_committed_store_composition_requires_maf_filtering(self) -> None:
+        config = load_candidate_configuration(
+            REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/config-full.yaml",
+            REPO_ROOT,
+        )
+        self.assertTrue(config.require_maf_filtered)
 
     def test_zero_build_eligible_rows_is_excluded_and_not_missing(self) -> None:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)

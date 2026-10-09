@@ -319,9 +319,9 @@ def acceptance_evidence(
     """The Phase B acceptance evidence a new Validation Record keeps, apart from its findings.
 
     A candidate record, one a Manifest Generator wrote rather than `register`,
-    gives its `checks`, `warnings`, `reports` and `reference_overlap` verbatim,
-    dated by its own `validated_at` and tied to `commit`, the commit it came
-    from (#195). A
+    gives its `checks`, `warnings`, `reports`, `reference_overlap` and
+    `store_composition` verbatim, dated by its own `validated_at` and tied to
+    `commit`, the commit it came from (#195). A
     `register`-written record passes on the `acceptance` block it already
     carries, because the accepted bundle it describes has not changed. A
     `register`-shape record without one (the records #135 migrated) mixes
@@ -345,6 +345,9 @@ def acceptance_evidence(
             # OGS-00011's generator records its reference-overlap evidence as a
             # top-level block; it is named here, not swept up as "everything else".
             "reference_overlap": copy.deepcopy(previous.get("reference_overlap")),
+            # The shared-Store MAF-filtered admission summary (#203) is another
+            # named top-level block, never swept up as "everything else".
+            "store_composition": copy.deepcopy(previous.get("store_composition")),
         }
     carried = previous.get("acceptance")
     return copy.deepcopy(dict(carried)) if isinstance(carried, Mapping) else None

@@ -56,6 +56,13 @@ alignment or SD — those stay OpenGWASDB's and are exercised upstream.
     hermetic `snakemake --dry-run` (skipped when `snakemake` is not on PATH, as
     in the default environment) plus a check that missing required config fails
     loudly.
+12. **The Store composition rule is an emit-time gate** — when
+    `store_composition.require_maf_filtered` is on, an otherwise admissible
+    Analysis with no applied MAF floor is excluded as `not_maf_filtered` while
+    an Analysis excluded for any other reason keeps that reason; the
+    `store_composition` block records what the gate saw; and toggling the rule
+    changes no resolver manifest or resolution receipt, so the rule stays
+    outside the resolution contract.
 
 ## Running the suite
 

@@ -714,7 +714,7 @@ GCST90000618	ref_freqs.hg38.tsv.gz	78186	50000	0.639501	/data/opengwasdb/referen
 GCST90000621	ref_freqs.hg38.tsv.gz	67200	50000	0.744048	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	5866675	5819907	0.992028	5866510	5819743	46767	0.992028	eof	
 GCST90000654	ref_freqs.hg38.tsv.gz	5540750	4346979	0.784547	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	5540750	5480360	0.989101	5540095	5479710	60385	0.9891	eof	true
 GCST90001389	ref_freqs.hg38.tsv.gz	78978	50000	0.633088	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6300402	6049952	0.960249	6300402	6049952	250450	0.960249	eof	true
-GCST90001390	ref_freqs.hg38.tsv.gz	88928	50000	0.562253	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7654310	7519821	0.98243	7654310	7519821	134489	0.98243	eof	
+GCST90001390	ref_freqs.hg38.tsv.gz	88928	50000	0.562253	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7654310	7519821	0.98243	7654310	7519821	134489	0.98243	eof	true
 GCST90002227	ref_freqs.hg38.tsv.gz	308281	52536	0.170416	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	26931418	9290929	0.344985	21982434	9045709	12936725	0.411497	eof	
 GCST90002232	ref_freqs.hg38.tsv.gz	339052	52308	0.154277	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	31136579	9506135	0.305304	25729335	9256441	16472894	0.359762	eof	
 GCST90002238	ref_freqs.hg38.tsv.gz	324328	52306	0.161275	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	29778563	9503586	0.319142	24474081	9254746	15219335	0.378145	eof	
@@ -1571,8 +1571,8 @@ GCST90093343	ref_freqs.hg38.tsv.gz	74846	50000	0.668038	/data/opengwasdb/referen
 GCST90093344	ref_freqs.hg38.tsv.gz	74043	50000	0.675283	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7612421	7362350	0.96715	7612421	7362350	250071	0.96715	eof	
 GCST90093345	ref_freqs.hg38.tsv.gz	76932	50000	0.649925	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8037210	7771602	0.966953	8037210	7771602	265608	0.966953	eof	
 GCST90093346	ref_freqs.hg38.tsv.gz	73715	50000	0.678288	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7548661	7301935	0.967315	7548661	7301935	246726	0.967315	eof	
-GCST90093377	ref_freqs.hg38.tsv.gz	88576	50000	0.564487	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7536081	7420478	0.98466	7536081	7420478	115603	0.98466	eof	
-GCST90093378	ref_freqs.hg38.tsv.gz	90453	50000	0.552773	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	5957155	5840787	0.980466	5957155	5840787	116368	0.980466	eof	
+GCST90093377	ref_freqs.hg38.tsv.gz	88576	50000	0.564487	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7536081	7420478	0.98466	7536081	7420478	115603	0.98466	eof	true
+GCST90093378	ref_freqs.hg38.tsv.gz	90453	50000	0.552773	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	5957155	5840787	0.980466	5957155	5840787	116368	0.980466	eof	true
 GCST90093465	ref_freqs.hg38.tsv.gz	197513	50001	0.253153	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	18108882	8902346	0.491601	9518781	8538225	980556	0.896987	eof	
 GCST90093466	ref_freqs.hg38.tsv.gz	249694	50001	0.200249	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	22516080	8938251	0.396972	9529448	8537646	991802	0.895922	eof	
 GCST90094400	ref_freqs.hg38.tsv.gz	146172	50001	0.34207	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	15868357	9895062	0.623572	10824374	9540913	1283461	0.881429	eof	
@@ -1699,10 +1699,10 @@ GCST90104339	ref_freqs.hg38.tsv.gz	183366	50006	0.272711	/data/opengwasdb/refere
 GCST90104341	ref_freqs.hg38.tsv.gz	204012	50006	0.245113	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	21718051	10196330	0.469486	12013562	9842394	2171168	0.819274	eof	
 GCST90104343	ref_freqs.hg38.tsv.gz	171320	50006	0.291887	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	18310057	10005736	0.546461	11071994	9609644	1462350	0.867924	eof	
 GCST90104345	ref_freqs.hg38.tsv.gz	197483	50006	0.253217	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	21101936	10195139	0.483138	12167574	9835938	2331636	0.808373	eof	
-GCST90104458	ref_freqs.hg38.tsv.gz	106459	50000	0.469664	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	9810963	8403803	0.856573	9810963	8403803	1407160	0.856573	eof	
-GCST90104459	ref_freqs.hg38.tsv.gz	106457	50000	0.469673	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	9810946	8403803	0.856574	9810946	8403803	1407143	0.856574	eof	
-GCST90104460	ref_freqs.hg38.tsv.gz	106446	50000	0.469722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	9811021	8404438	0.856632	9811021	8404438	1406583	0.856632	eof	
-GCST90104461	ref_freqs.hg38.tsv.gz	106457	50000	0.469673	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	9810946	8403803	0.856574	9810946	8403803	1407143	0.856574	eof	
+GCST90104458	ref_freqs.hg38.tsv.gz	106459	50000	0.469664	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	9810963	8403803	0.856573	9810963	8403803	1407160	0.856573	eof	true
+GCST90104459	ref_freqs.hg38.tsv.gz	106457	50000	0.469673	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	9810946	8403803	0.856574	9810946	8403803	1407143	0.856574	eof	true
+GCST90104460	ref_freqs.hg38.tsv.gz	106446	50000	0.469722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	9811021	8404438	0.856632	9811021	8404438	1406583	0.856632	eof	true
+GCST90104461	ref_freqs.hg38.tsv.gz	106457	50000	0.469673	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	9810946	8403803	0.856574	9810946	8403803	1407143	0.856574	eof	true
 GCST90104462	ref_freqs.hg38.tsv.gz	95030	50000	0.52615	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	9079329	7908874	0.871086	9079329	7908874	1170455	0.871086	eof	
 GCST90104463	ref_freqs.hg38.tsv.gz	85657	50000	0.583723	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7773984	7662587	0.985671	7773984	7662587	111397	0.985671	eof	
 GCST90104464	ref_freqs.hg38.tsv.gz	84596	50000	0.591044	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7862601	7788060	0.99052	7862601	7788060	74541	0.99052	eof	
@@ -2424,7 +2424,7 @@ GCST90271802	ref_freqs.hg38.tsv.gz	84807	50000	0.589574	/data/opengwasdb/referen
 GCST90271807	ref_freqs.hg38.tsv.gz	84807	50000	0.589574	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7830526	7748021	0.989464	7830526	7748021	82505	0.989464	eof	
 GCST90271813	ref_freqs.hg38.tsv.gz	84807	50000	0.589574	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7830526	7748021	0.989464	7830526	7748021	82505	0.989464	eof	
 GCST90271814	ref_freqs.hg38.tsv.gz	84807	50000	0.589574	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7830526	7748021	0.989464	7830526	7748021	82505	0.989464	eof	
-GCST90271928	ref_freqs.hg38.tsv.gz	148462	50000	0.336787	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	13206043	8292149	0.627906	13206043	8292149	4913894	0.627906	eof	
+GCST90271928	ref_freqs.hg38.tsv.gz	148462	50000	0.336787	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	13206043	8292149	0.627906	13206043	8292149	4913894	0.627906	eof	true
 GCST90272883	ref_freqs.hg38.tsv.gz	199207	50000	0.250995	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	17686120	8990921	0.50836	9571984	8817812	754172	0.92121	eof	
 GCST90274713	ref_freqs.hg38.tsv.gz	375701	50042	0.133196	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	39652429	10149883	0.255971	26165510	10081642	16083868	0.385303	eof	
 GCST90274714	ref_freqs.hg38.tsv.gz	243548	50042	0.205471	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	25233548	10130802	0.401481	12456773	10040678	2416095	0.806042	eof	
@@ -3112,8 +3112,8 @@ GCST90399908	ref_freqs.hg38.tsv.gz	8177769	4725176	0.577807	/data/opengwasdb/ref
 GCST90399909	ref_freqs.hg38.tsv.gz	8177769	4725176	0.577807	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8177769	8054479	0.984924	0				eof	true
 GCST90399910	ref_freqs.hg38.tsv.gz	8177769	4725176	0.577807	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8177769	8054479	0.984924	0				eof	true
 GCST90399911	ref_freqs.hg38.tsv.gz	8177769	4725176	0.577807	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8177769	8054479	0.984924	0				eof	true
-GCST90406924	ref_freqs.hg38.tsv.gz	88049	50000	0.567866	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7368527	7238307	0.982328	7368527	7238307	130220	0.982328	eof	
-GCST90406925	ref_freqs.hg38.tsv.gz	85756	50000	0.58305	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7148754	7076758	0.989929	7148754	7076758	71996	0.989929	eof	
+GCST90406924	ref_freqs.hg38.tsv.gz	88049	50000	0.567866	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7368527	7238307	0.982328	7368527	7238307	130220	0.982328	eof	true
+GCST90406925	ref_freqs.hg38.tsv.gz	85756	50000	0.58305	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7148754	7076758	0.989929	7148754	7076758	71996	0.989929	eof	true
 GCST90421022	ref_freqs.hg38.tsv.gz	91960	50000	0.543715	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	9782985	8235475	0.841816	9782985	8235475	1547510	0.841816	eof	true
 GCST90421023	ref_freqs.hg38.tsv.gz	91960	50000	0.543715	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	9782985	8235475	0.841816	9782985	8235475	1547510	0.841816	eof	true
 GCST90421024	ref_freqs.hg38.tsv.gz	91960	50000	0.543715	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	9782985	8235475	0.841816	9782985	8235475	1547510	0.841816	eof	true
@@ -3277,12 +3277,12 @@ GCST90432158	ref_freqs.hg38.tsv.gz	91830	50000	0.544484	/data/opengwasdb/referen
 GCST90432179	ref_freqs.hg38.tsv.gz	216933	50003	0.2305	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	22936597	9710620	0.423368	10516600	9274606	1241994	0.881902	eof	
 GCST90432180	ref_freqs.hg38.tsv.gz	215676	50003	0.231843	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	22780938	9708873	0.426184	10515369	9274234	1241135	0.881969	eof	
 GCST90432181	ref_freqs.hg38.tsv.gz	260015	50003	0.192308	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	27493199	9768749	0.355315	10516276	9274511	1241765	0.88192	eof	
-GCST90435134	ref_freqs.hg38.tsv.gz	100132	50000	0.499341	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8250449	7421037	0.899471	8250449	7421037	829412	0.899471	eof	
-GCST90435135	ref_freqs.hg38.tsv.gz	90434	50000	0.552889	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7394942	7078386	0.957193	7394942	7078386	316556	0.957193	eof	
-GCST90435136	ref_freqs.hg38.tsv.gz	91936	50000	0.543857	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7514522	7138646	0.94998	7514522	7138646	375876	0.94998	eof	
-GCST90435137	ref_freqs.hg38.tsv.gz	96378	50000	0.518791	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7911161	7286589	0.921052	7911161	7286589	624572	0.921052	eof	
-GCST90435138	ref_freqs.hg38.tsv.gz	97584	50000	0.512379	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8008699	7315725	0.913472	8008699	7315725	692974	0.913472	eof	
-GCST90435139	ref_freqs.hg38.tsv.gz	100257	50000	0.498718	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8243819	7393761	0.896885	8243819	7393761	850058	0.896885	eof	
+GCST90435134	ref_freqs.hg38.tsv.gz	100132	50000	0.499341	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8250449	7421037	0.899471	8250449	7421037	829412	0.899471	eof	true
+GCST90435135	ref_freqs.hg38.tsv.gz	90434	50000	0.552889	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7394942	7078386	0.957193	7394942	7078386	316556	0.957193	eof	true
+GCST90435136	ref_freqs.hg38.tsv.gz	91936	50000	0.543857	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7514522	7138646	0.94998	7514522	7138646	375876	0.94998	eof	true
+GCST90435137	ref_freqs.hg38.tsv.gz	96378	50000	0.518791	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7911161	7286589	0.921052	7911161	7286589	624572	0.921052	eof	true
+GCST90435138	ref_freqs.hg38.tsv.gz	97584	50000	0.512379	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8008699	7315725	0.913472	8008699	7315725	692974	0.913472	eof	true
+GCST90435139	ref_freqs.hg38.tsv.gz	100257	50000	0.498718	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8243819	7393761	0.896885	8243819	7393761	850058	0.896885	eof	true
 GCST90435144	ref_freqs.hg38.tsv.gz	128414	50000	0.389366	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	14006214	9461010	0.675487	10299471	9197781	1101690	0.893034	eof	
 GCST90435145	ref_freqs.hg38.tsv.gz	128414	50000	0.389366	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	14006214	9461010	0.675487	10299471	9197781	1101690	0.893034	eof	
 GCST90435146	ref_freqs.hg38.tsv.gz	134935	77807	0.576626	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	11978669	11714300	0.97793	11954915	11708565	246350	0.979393	eof	
@@ -3345,7 +3345,7 @@ GCST90446163	ref_freqs.hg38.tsv.gz	837003	50000	0.0597369	/data/opengwasdb/refer
 GCST90446168	ref_freqs.hg38.tsv.gz	81260	50000	0.615309	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7302188	7260983	0.994357	7302188	7260983	41205	0.994357	eof	true
 GCST90446169	ref_freqs.hg38.tsv.gz	81260	50000	0.615309	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7305529	7264309	0.994358	7305529	7264309	41220	0.994358	eof	true
 GCST90446466	ref_freqs.hg38.tsv.gz	75296	50000	0.664046	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7251167	7210385	0.994376	7251151	7210378	40773	0.994377	eof	true
-GCST90446475	ref_freqs.hg38.tsv.gz	584608	50007	0.0855394	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	56718072	10298555	0.181574	56718072	10298555	46419517	0.181574	eof	
+GCST90446475	ref_freqs.hg38.tsv.gz	584608	50007	0.0855394	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	56718072	10298555	0.181574	56718072	10298555	46419517	0.181574	eof	true
 GCST90446627	ref_freqs.hg38.tsv.gz	103268	50000	0.484177	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6844210	5735412	0.837995	6844210	5735412	1108798	0.837995	eof	
 GCST90446628	ref_freqs.hg38.tsv.gz	103271	50000	0.484163	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6845502	5736455	0.837989	6845502	5736455	1109047	0.837989	eof	
 GCST90446629	ref_freqs.hg38.tsv.gz	103277	50000	0.484135	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6844545	5735700	0.837996	6844545	5735700	1108845	0.837996	eof	
@@ -3743,8 +3743,8 @@ GCST90502757	ref_freqs.hg38.tsv.gz	84313	50015	0.593206	/data/opengwasdb/referen
 GCST90502821	ref_freqs.hg38.tsv.gz	254142	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	254142	249267	0.980818	254142	249267	4875	0.980818	eof	true
 GCST90502822	ref_freqs.hg38.tsv.gz	254815	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	254815	250294	0.982258	254815	250294	4521	0.982258	eof	true
 GCST90502823	ref_freqs.hg38.tsv.gz	253891	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	253891	249949	0.984474	253891	249949	3942	0.984474	eof	true
-GCST90502911	ref_freqs.hg38.tsv.gz	927625	50000	0.0539011	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	85226719	9498577	0.111451	85226719	9498577	75728142	0.111451	eof	
-GCST90502912	ref_freqs.hg38.tsv.gz	227101	50000	0.220166	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	21541041	9388324	0.435834	21541041	9388324	12152717	0.435834	eof	
+GCST90502911	ref_freqs.hg38.tsv.gz	927625	50000	0.0539011	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	85226719	9498577	0.111451	85226719	9498577	75728142	0.111451	eof	true
+GCST90502912	ref_freqs.hg38.tsv.gz	227101	50000	0.220166	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	21541041	9388324	0.435834	21541041	9388324	12152717	0.435834	eof	true
 GCST90502916	ref_freqs.hg38.tsv.gz	76548	50000	0.653185	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	1145324	1142520	0.997552	1145324	1142520	2804	0.997552	eof	
 GCST90503074	ref_freqs.hg38.tsv.gz	84696	50000	0.590347	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7601009	7530822	0.990766	7601009	7530822	70187	0.990766	eof	
 GCST90503075	ref_freqs.hg38.tsv.gz	84697	50000	0.59034	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7601310	7531042	0.990756	7601310	7531042	70268	0.990756	eof	
@@ -3781,7 +3781,7 @@ GCST90551849	ref_freqs.hg38.tsv.gz	87090	50000	0.574119	/data/opengwasdb/referen
 GCST90551884	ref_freqs.hg38.tsv.gz	177833	50008	0.281208	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	18613964	9678201	0.519943	10567734	9291820	1275914	0.879263	eof	true
 GCST90551885	ref_freqs.hg38.tsv.gz	177829	50008	0.281214	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	18611544	9678201	0.520011	10568320	9291927	1276393	0.879225	eof	true
 GCST90551886	ref_freqs.hg38.tsv.gz	177834	50008	0.281206	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	18612037	9678189	0.519996	10567301	9291767	1275534	0.879294	eof	true
-GCST90558034	ref_freqs.hg38.tsv.gz	85258	50000	0.586455	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8673797	8526856	0.983059	8673797	8526856	146941	0.983059	eof	
+GCST90558034	ref_freqs.hg38.tsv.gz	85258	50000	0.586455	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8673797	8526856	0.983059	8673797	8526856	146941	0.983059	eof	true
 GCST90558035	ref_freqs.hg38.tsv.gz	170757	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	170757	170588	0.99901	170757	170588	169	0.99901	eof	true
 GCST90558036	ref_freqs.hg38.tsv.gz	170730	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	170730	170555	0.998975	170730	170555	175	0.998975	eof	true
 GCST90558037	ref_freqs.hg38.tsv.gz	169888	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	169888	169724	0.999035	169888	169724	164	0.999035	eof	true
@@ -3802,10 +3802,10 @@ GCST90558099	ref_freqs.hg38.tsv.gz	1576555	40295	0.0255589	/data/opengwasdb/refe
 GCST90558100	ref_freqs.hg38.tsv.gz	1576544	40296	0.0255597	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	1576544	57435	0.036431	1576544	57435	1519109	0.036431	eof	true
 GCST90558101	ref_freqs.hg38.tsv.gz	1576593	40299	0.0255608	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	1576593	57432	0.0364279	1576593	57432	1519161	0.0364279	eof	true
 GCST90558258	ref_freqs.hg38.tsv.gz	88985	50001	0.561904	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8889805	8669330	0.975199	8889805	8669330	220475	0.975199	eof	
-GCST90558311	ref_freqs.hg38.tsv.gz	89351	50000	0.559591	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6517559	6381649	0.979147	6517559	6381649	135910	0.979147	eof	
-GCST90558312	ref_freqs.hg38.tsv.gz	92252	50000	0.541994	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6456844	6155617	0.953348	6456844	6155617	301227	0.953348	eof	
-GCST90558313	ref_freqs.hg38.tsv.gz	90708	50000	0.551219	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6733250	6499483	0.965282	6733250	6499483	233767	0.965282	eof	
-GCST90558314	ref_freqs.hg38.tsv.gz	89403	50000	0.559265	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6582306	6414566	0.974517	6582306	6414566	167740	0.974517	eof	
+GCST90558311	ref_freqs.hg38.tsv.gz	89351	50000	0.559591	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6517559	6381649	0.979147	6517559	6381649	135910	0.979147	eof	true
+GCST90558312	ref_freqs.hg38.tsv.gz	92252	50000	0.541994	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6456844	6155617	0.953348	6456844	6155617	301227	0.953348	eof	true
+GCST90558313	ref_freqs.hg38.tsv.gz	90708	50000	0.551219	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6733250	6499483	0.965282	6733250	6499483	233767	0.965282	eof	true
+GCST90558314	ref_freqs.hg38.tsv.gz	89403	50000	0.559265	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6582306	6414566	0.974517	6582306	6414566	167740	0.974517	eof	true
 GCST90559107	ref_freqs.hg38.tsv.gz	15924	668	0.0419493	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	15924	1087	0.0682617	15917	1087	14830	0.0682918	eof	true
 GCST90559108	ref_freqs.hg38.tsv.gz	14800	516	0.0348649	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	14800	810	0.0547297	14794	810	13984	0.0547519	eof	true
 GCST90559109	ref_freqs.hg38.tsv.gz	15228	650	0.0426845	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	15228	1082	0.0710533	15212	1082	14130	0.0711281	eof	true
@@ -3854,57 +3854,57 @@ GCST90559151	ref_freqs.hg38.tsv.gz	14431	770	0.0533574	/data/opengwasdb/referenc
 GCST90559152	ref_freqs.hg38.tsv.gz	15331	522	0.0340487	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	15331	822	0.0536169	15328	822	14506	0.0536273	eof	true
 GCST90559153	ref_freqs.hg38.tsv.gz	16144	865	0.0535803	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	16144	1212	0.0750743	16131	1212	14919	0.0751348	eof	true
 GCST90559154	ref_freqs.hg38.tsv.gz	15023	506	0.0336817	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	15023	887	0.0590428	15014	886	14128	0.0590116	eof	true
-GCST90559155	ref_freqs.hg38.tsv.gz	123822	11650	0.0940867	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123822	23808	0.192276	123822	23808	100014	0.192276	eof	
-GCST90559156	ref_freqs.hg38.tsv.gz	123418	11377	0.0921827	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123418	23065	0.186885	123418	23065	100353	0.186885	eof	
-GCST90559157	ref_freqs.hg38.tsv.gz	123504	11293	0.0914383	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123504	23107	0.187095	123504	23107	100397	0.187095	eof	
-GCST90559158	ref_freqs.hg38.tsv.gz	122825	11249	0.0915856	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122825	23177	0.188699	122825	23177	99648	0.188699	eof	
-GCST90559159	ref_freqs.hg38.tsv.gz	124293	12113	0.0974552	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124293	24430	0.196552	124293	24430	99863	0.196552	eof	
-GCST90559160	ref_freqs.hg38.tsv.gz	124064	11726	0.0945157	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124064	23832	0.192094	124064	23832	100232	0.192094	eof	
-GCST90559161	ref_freqs.hg38.tsv.gz	124656	12443	0.0998187	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124656	24888	0.199653	124656	24888	99768	0.199653	eof	
-GCST90559162	ref_freqs.hg38.tsv.gz	125121	12367	0.0988403	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	125121	24910	0.199087	125121	24910	100211	0.199087	eof	
-GCST90559163	ref_freqs.hg38.tsv.gz	125261	12594	0.100542	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	125261	25277	0.201795	125261	25277	99984	0.201795	eof	
-GCST90559164	ref_freqs.hg38.tsv.gz	125176	12428	0.0992842	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	125176	24994	0.199671	125176	24994	100182	0.199671	eof	
-GCST90559165	ref_freqs.hg38.tsv.gz	125309	12361	0.0986442	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	125309	24851	0.198318	125309	24851	100458	0.198318	eof	
-GCST90559166	ref_freqs.hg38.tsv.gz	125391	12410	0.0989704	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	125391	24781	0.19763	125391	24781	100610	0.19763	eof	
-GCST90559167	ref_freqs.hg38.tsv.gz	123230	11045	0.0896291	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123230	22896	0.185799	123230	22896	100334	0.185799	eof	
-GCST90559168	ref_freqs.hg38.tsv.gz	123129	11505	0.0934386	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123129	23376	0.18985	123129	23376	99753	0.18985	eof	
-GCST90559169	ref_freqs.hg38.tsv.gz	123325	11104	0.0900385	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123325	23118	0.187456	123325	23118	100207	0.187456	eof	
-GCST90559170	ref_freqs.hg38.tsv.gz	122838	11342	0.092333	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122838	23262	0.189371	122838	23262	99576	0.189371	eof	
-GCST90559171	ref_freqs.hg38.tsv.gz	123205	11148	0.0904833	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123205	23282	0.18897	123205	23282	99923	0.18897	eof	
-GCST90559172	ref_freqs.hg38.tsv.gz	124186	11724	0.0944068	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124186	23725	0.191044	124186	23725	100461	0.191044	eof	
-GCST90559173	ref_freqs.hg38.tsv.gz	123219	11095	0.0900429	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123219	23043	0.187008	123219	23043	100176	0.187008	eof	
-GCST90559174	ref_freqs.hg38.tsv.gz	121158	10344	0.0853761	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	121158	21656	0.178742	121158	21656	99502	0.178742	eof	
-GCST90559175	ref_freqs.hg38.tsv.gz	122299	10659	0.0871553	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122299	22054	0.180329	122299	22054	100245	0.180329	eof	
-GCST90559176	ref_freqs.hg38.tsv.gz	122729	11121	0.0906143	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122729	22706	0.185009	122729	22706	100023	0.185009	eof	
-GCST90559177	ref_freqs.hg38.tsv.gz	123318	11308	0.0916979	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123318	23328	0.189169	123318	23328	99990	0.189169	eof	
-GCST90559178	ref_freqs.hg38.tsv.gz	123329	11366	0.09216	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123329	23090	0.187223	123329	23090	100239	0.187223	eof	
-GCST90559179	ref_freqs.hg38.tsv.gz	124538	11833	0.0950152	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124538	24468	0.19647	124538	24468	100070	0.19647	eof	
-GCST90559180	ref_freqs.hg38.tsv.gz	122090	10730	0.087886	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122090	22081	0.180858	122090	22081	100009	0.180858	eof	
-GCST90559181	ref_freqs.hg38.tsv.gz	122321	10914	0.0892243	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122321	22621	0.184931	122321	22621	99700	0.184931	eof	
-GCST90559182	ref_freqs.hg38.tsv.gz	122470	10663	0.0870662	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122470	22151	0.180869	122470	22151	100319	0.180869	eof	
-GCST90559183	ref_freqs.hg38.tsv.gz	124903	11757	0.094129	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124903	23946	0.191717	124903	23946	100957	0.191717	eof	
-GCST90559184	ref_freqs.hg38.tsv.gz	124815	11488	0.0920402	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124815	23707	0.189937	124815	23707	101108	0.189937	eof	
-GCST90559185	ref_freqs.hg38.tsv.gz	124191	11597	0.0933804	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124191	23623	0.190215	124191	23623	100568	0.190215	eof	
-GCST90559186	ref_freqs.hg38.tsv.gz	123699	11310	0.0914316	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123699	23120	0.186905	123699	23120	100579	0.186905	eof	
-GCST90559187	ref_freqs.hg38.tsv.gz	123079	11033	0.0896416	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123079	22587	0.183516	123079	22587	100492	0.183516	eof	
-GCST90559188	ref_freqs.hg38.tsv.gz	122569	10703	0.0873222	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122569	21838	0.178169	122569	21838	100731	0.178169	eof	
-GCST90559189	ref_freqs.hg38.tsv.gz	123232	11218	0.0910316	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123232	22918	0.185974	123232	22918	100314	0.185974	eof	
-GCST90559190	ref_freqs.hg38.tsv.gz	122874	11494	0.093543	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122874	23248	0.189202	122874	23248	99626	0.189202	eof	
-GCST90559191	ref_freqs.hg38.tsv.gz	122316	11309	0.0924572	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122316	22902	0.187236	122316	22902	99414	0.187236	eof	
-GCST90559192	ref_freqs.hg38.tsv.gz	123576	11398	0.0922347	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123576	23323	0.188734	123576	23323	100253	0.188734	eof	
-GCST90559193	ref_freqs.hg38.tsv.gz	123603	11608	0.0939136	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123603	23701	0.191751	123603	23701	99902	0.191751	eof	
-GCST90559194	ref_freqs.hg38.tsv.gz	123111	11238	0.0912835	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123111	23006	0.186872	123111	23006	100105	0.186872	eof	
-GCST90559195	ref_freqs.hg38.tsv.gz	123143	11257	0.091414	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123143	23075	0.187384	123143	23075	100068	0.187384	eof	
-GCST90559196	ref_freqs.hg38.tsv.gz	123222	11211	0.0909821	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123222	23133	0.187734	123222	23133	100089	0.187734	eof	
-GCST90559197	ref_freqs.hg38.tsv.gz	123208	11127	0.0903107	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123208	23136	0.18778	123208	23136	100072	0.18778	eof	
-GCST90559198	ref_freqs.hg38.tsv.gz	123377	11243	0.0911272	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123377	23135	0.187515	123377	23135	100242	0.187515	eof	
-GCST90559199	ref_freqs.hg38.tsv.gz	124252	11649	0.093753	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124252	23733	0.191007	124252	23733	100519	0.191007	eof	
-GCST90559200	ref_freqs.hg38.tsv.gz	123724	11224	0.090718	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123724	23191	0.187441	123724	23191	100533	0.187441	eof	
-GCST90559201	ref_freqs.hg38.tsv.gz	124893	11787	0.0943768	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124893	24361	0.195055	124893	24361	100532	0.195055	eof	
-GCST90559202	ref_freqs.hg38.tsv.gz	123537	11277	0.0912844	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123537	23731	0.192096	123537	23731	99806	0.192096	eof	
-GCST90559203	ref_freqs.hg38.tsv.gz	126589	12932	0.102157	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	126589	25872	0.204378	126589	25872	100717	0.204378	eof	
-GCST90559204	ref_freqs.hg38.tsv.gz	126063	12412	0.0984587	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	126063	25184	0.199773	126063	25184	100879	0.199773	eof	
-GCST90559205	ref_freqs.hg38.tsv.gz	125459	12107	0.0965016	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	125459	24761	0.197363	125459	24761	100698	0.197363	eof	
+GCST90559155	ref_freqs.hg38.tsv.gz	123822	11650	0.0940867	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123822	23808	0.192276	123822	23808	100014	0.192276	eof	true
+GCST90559156	ref_freqs.hg38.tsv.gz	123418	11377	0.0921827	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123418	23065	0.186885	123418	23065	100353	0.186885	eof	true
+GCST90559157	ref_freqs.hg38.tsv.gz	123504	11293	0.0914383	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123504	23107	0.187095	123504	23107	100397	0.187095	eof	true
+GCST90559158	ref_freqs.hg38.tsv.gz	122825	11249	0.0915856	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122825	23177	0.188699	122825	23177	99648	0.188699	eof	true
+GCST90559159	ref_freqs.hg38.tsv.gz	124293	12113	0.0974552	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124293	24430	0.196552	124293	24430	99863	0.196552	eof	true
+GCST90559160	ref_freqs.hg38.tsv.gz	124064	11726	0.0945157	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124064	23832	0.192094	124064	23832	100232	0.192094	eof	true
+GCST90559161	ref_freqs.hg38.tsv.gz	124656	12443	0.0998187	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124656	24888	0.199653	124656	24888	99768	0.199653	eof	true
+GCST90559162	ref_freqs.hg38.tsv.gz	125121	12367	0.0988403	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	125121	24910	0.199087	125121	24910	100211	0.199087	eof	true
+GCST90559163	ref_freqs.hg38.tsv.gz	125261	12594	0.100542	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	125261	25277	0.201795	125261	25277	99984	0.201795	eof	true
+GCST90559164	ref_freqs.hg38.tsv.gz	125176	12428	0.0992842	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	125176	24994	0.199671	125176	24994	100182	0.199671	eof	true
+GCST90559165	ref_freqs.hg38.tsv.gz	125309	12361	0.0986442	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	125309	24851	0.198318	125309	24851	100458	0.198318	eof	true
+GCST90559166	ref_freqs.hg38.tsv.gz	125391	12410	0.0989704	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	125391	24781	0.19763	125391	24781	100610	0.19763	eof	true
+GCST90559167	ref_freqs.hg38.tsv.gz	123230	11045	0.0896291	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123230	22896	0.185799	123230	22896	100334	0.185799	eof	true
+GCST90559168	ref_freqs.hg38.tsv.gz	123129	11505	0.0934386	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123129	23376	0.18985	123129	23376	99753	0.18985	eof	true
+GCST90559169	ref_freqs.hg38.tsv.gz	123325	11104	0.0900385	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123325	23118	0.187456	123325	23118	100207	0.187456	eof	true
+GCST90559170	ref_freqs.hg38.tsv.gz	122838	11342	0.092333	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122838	23262	0.189371	122838	23262	99576	0.189371	eof	true
+GCST90559171	ref_freqs.hg38.tsv.gz	123205	11148	0.0904833	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123205	23282	0.18897	123205	23282	99923	0.18897	eof	true
+GCST90559172	ref_freqs.hg38.tsv.gz	124186	11724	0.0944068	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124186	23725	0.191044	124186	23725	100461	0.191044	eof	true
+GCST90559173	ref_freqs.hg38.tsv.gz	123219	11095	0.0900429	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123219	23043	0.187008	123219	23043	100176	0.187008	eof	true
+GCST90559174	ref_freqs.hg38.tsv.gz	121158	10344	0.0853761	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	121158	21656	0.178742	121158	21656	99502	0.178742	eof	true
+GCST90559175	ref_freqs.hg38.tsv.gz	122299	10659	0.0871553	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122299	22054	0.180329	122299	22054	100245	0.180329	eof	true
+GCST90559176	ref_freqs.hg38.tsv.gz	122729	11121	0.0906143	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122729	22706	0.185009	122729	22706	100023	0.185009	eof	true
+GCST90559177	ref_freqs.hg38.tsv.gz	123318	11308	0.0916979	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123318	23328	0.189169	123318	23328	99990	0.189169	eof	true
+GCST90559178	ref_freqs.hg38.tsv.gz	123329	11366	0.09216	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123329	23090	0.187223	123329	23090	100239	0.187223	eof	true
+GCST90559179	ref_freqs.hg38.tsv.gz	124538	11833	0.0950152	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124538	24468	0.19647	124538	24468	100070	0.19647	eof	true
+GCST90559180	ref_freqs.hg38.tsv.gz	122090	10730	0.087886	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122090	22081	0.180858	122090	22081	100009	0.180858	eof	true
+GCST90559181	ref_freqs.hg38.tsv.gz	122321	10914	0.0892243	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122321	22621	0.184931	122321	22621	99700	0.184931	eof	true
+GCST90559182	ref_freqs.hg38.tsv.gz	122470	10663	0.0870662	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122470	22151	0.180869	122470	22151	100319	0.180869	eof	true
+GCST90559183	ref_freqs.hg38.tsv.gz	124903	11757	0.094129	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124903	23946	0.191717	124903	23946	100957	0.191717	eof	true
+GCST90559184	ref_freqs.hg38.tsv.gz	124815	11488	0.0920402	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124815	23707	0.189937	124815	23707	101108	0.189937	eof	true
+GCST90559185	ref_freqs.hg38.tsv.gz	124191	11597	0.0933804	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124191	23623	0.190215	124191	23623	100568	0.190215	eof	true
+GCST90559186	ref_freqs.hg38.tsv.gz	123699	11310	0.0914316	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123699	23120	0.186905	123699	23120	100579	0.186905	eof	true
+GCST90559187	ref_freqs.hg38.tsv.gz	123079	11033	0.0896416	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123079	22587	0.183516	123079	22587	100492	0.183516	eof	true
+GCST90559188	ref_freqs.hg38.tsv.gz	122569	10703	0.0873222	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122569	21838	0.178169	122569	21838	100731	0.178169	eof	true
+GCST90559189	ref_freqs.hg38.tsv.gz	123232	11218	0.0910316	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123232	22918	0.185974	123232	22918	100314	0.185974	eof	true
+GCST90559190	ref_freqs.hg38.tsv.gz	122874	11494	0.093543	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122874	23248	0.189202	122874	23248	99626	0.189202	eof	true
+GCST90559191	ref_freqs.hg38.tsv.gz	122316	11309	0.0924572	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	122316	22902	0.187236	122316	22902	99414	0.187236	eof	true
+GCST90559192	ref_freqs.hg38.tsv.gz	123576	11398	0.0922347	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123576	23323	0.188734	123576	23323	100253	0.188734	eof	true
+GCST90559193	ref_freqs.hg38.tsv.gz	123603	11608	0.0939136	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123603	23701	0.191751	123603	23701	99902	0.191751	eof	true
+GCST90559194	ref_freqs.hg38.tsv.gz	123111	11238	0.0912835	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123111	23006	0.186872	123111	23006	100105	0.186872	eof	true
+GCST90559195	ref_freqs.hg38.tsv.gz	123143	11257	0.091414	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123143	23075	0.187384	123143	23075	100068	0.187384	eof	true
+GCST90559196	ref_freqs.hg38.tsv.gz	123222	11211	0.0909821	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123222	23133	0.187734	123222	23133	100089	0.187734	eof	true
+GCST90559197	ref_freqs.hg38.tsv.gz	123208	11127	0.0903107	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123208	23136	0.18778	123208	23136	100072	0.18778	eof	true
+GCST90559198	ref_freqs.hg38.tsv.gz	123377	11243	0.0911272	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123377	23135	0.187515	123377	23135	100242	0.187515	eof	true
+GCST90559199	ref_freqs.hg38.tsv.gz	124252	11649	0.093753	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124252	23733	0.191007	124252	23733	100519	0.191007	eof	true
+GCST90559200	ref_freqs.hg38.tsv.gz	123724	11224	0.090718	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123724	23191	0.187441	123724	23191	100533	0.187441	eof	true
+GCST90559201	ref_freqs.hg38.tsv.gz	124893	11787	0.0943768	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	124893	24361	0.195055	124893	24361	100532	0.195055	eof	true
+GCST90559202	ref_freqs.hg38.tsv.gz	123537	11277	0.0912844	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	123537	23731	0.192096	123537	23731	99806	0.192096	eof	true
+GCST90559203	ref_freqs.hg38.tsv.gz	126589	12932	0.102157	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	126589	25872	0.204378	126589	25872	100717	0.204378	eof	true
+GCST90559204	ref_freqs.hg38.tsv.gz	126063	12412	0.0984587	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	126063	25184	0.199773	126063	25184	100879	0.199773	eof	true
+GCST90559205	ref_freqs.hg38.tsv.gz	125459	12107	0.0965016	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	125459	24761	0.197363	125459	24761	100698	0.197363	eof	true
 GCST90559206	ref_freqs.hg38.tsv.gz	88092	50000	0.567588	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8080104	7942928	0.983023	8062592	7936042	126550	0.984304	eof	true
 GCST90559207	ref_freqs.hg38.tsv.gz	88092	50000	0.567588	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8080104	7942928	0.983023	8062592	7936042	126550	0.984304	eof	true
 GCST90559208	ref_freqs.hg38.tsv.gz	88092	50000	0.567588	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8080104	7942928	0.983023	8062592	7936042	126550	0.984304	eof	true
@@ -4073,66 +4073,66 @@ GCST90566705	ref_freqs.hg38.tsv.gz	153871	50007	0.324993	/data/opengwasdb/refere
 GCST90566706	ref_freqs.hg38.tsv.gz	74685	50000	0.669478	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6749934	6660039	0.986682	6749934	6660039	89895	0.986682	eof	
 GCST90566707	ref_freqs.hg38.tsv.gz	82988	50000	0.602497	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7443701	7390814	0.992895	7443701	7390814	52887	0.992895	eof	
 GCST90566708	ref_freqs.hg38.tsv.gz	82961	50000	0.602693	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	7441998	7389545	0.992952	7441998	7389545	52453	0.992952	eof	
-GCST90566709	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566710	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566711	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566712	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566713	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566714	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566715	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566716	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566717	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566718	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566719	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566720	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566721	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566722	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566723	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566724	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566725	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566726	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566727	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566728	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566729	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566730	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566731	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566732	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566733	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566734	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566735	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566736	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566737	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566738	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566739	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566740	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566741	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566742	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566743	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566744	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566745	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566746	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566747	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566748	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566749	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566750	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566751	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566752	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566753	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566754	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566755	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566756	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566757	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566758	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566759	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566760	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566761	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566762	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566763	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566764	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566765	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566766	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566767	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
-GCST90566768	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	
+GCST90566709	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566710	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566711	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566712	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566713	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566714	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566715	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566716	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566717	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566718	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566719	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566720	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566721	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566722	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566723	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566724	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566725	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566726	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566727	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566728	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566729	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566730	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566731	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566732	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566733	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566734	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566735	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566736	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566737	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566738	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566739	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566740	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566741	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566742	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566743	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566744	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566745	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566746	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566747	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566748	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566749	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566750	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566751	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566752	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566753	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566754	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566755	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566756	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566757	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566758	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566759	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566760	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566761	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566762	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566763	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566764	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566765	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566766	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566767	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
+GCST90566768	ref_freqs.hg38.tsv.gz	101847	50000	0.490932	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6362616	6158385	0.967901	6362616	6158385	204231	0.967901	eof	true
 GCST90566795	ref_freqs.hg38.tsv.gz	200149	52878	0.264193	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	20568676	10818413	0.525965	20568676	10818413	9750263	0.525965	eof	
 GCST90566796	ref_freqs.hg38.tsv.gz	151708	50380	0.332085	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	15500595	9528609	0.614725	15500595	9528609	5971986	0.614725	eof	
 GCST90566797	ref_freqs.hg38.tsv.gz	172759	50596	0.29287	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	17985969	9702529	0.53945	17985969	9702529	8283440	0.53945	eof	
@@ -4359,7 +4359,7 @@ GCST90627769	ref_freqs.hg38.tsv.gz	177429	50000	0.281803	/data/opengwasdb/refere
 GCST90627771	ref_freqs.hg38.tsv.gz	176134	50000	0.283875	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	16888000	9334548	0.552733	10490135	9290571	1199564	0.885648	eof	
 GCST90627773	ref_freqs.hg38.tsv.gz	112847	50000	0.443078	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	11001021	9011037	0.819109	10092894	8908462	1184432	0.882647	eof	true
 GCST90627775	ref_freqs.hg38.tsv.gz	179037	50000	0.279272	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	17675652	9581136	0.542053	10992060	9564418	1427642	0.870121	eof	
-GCST90627781	ref_freqs.hg38.tsv.gz	67804	50000	0.73742	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	5667620	5662809	0.999151	5667620	5662809	4811	0.999151	eof	
+GCST90627781	ref_freqs.hg38.tsv.gz	67804	50000	0.73742	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	5667620	5662809	0.999151	5667620	5662809	4811	0.999151	eof	true
 GCST90627994	ref_freqs.hg38.tsv.gz	131270	50000	0.380894	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	13577963	9418171	0.693637	9888890	9006366	882524	0.910756	eof	
 GCST90627995	ref_freqs.hg38.tsv.gz	118659	50000	0.421376	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	12395910	9342047	0.753639	9904487	9007258	897229	0.909412	eof	
 GCST90627996	ref_freqs.hg38.tsv.gz	116158	50000	0.430448	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	12130459	9316009	0.767985	9920075	9008251	911824	0.908083	eof	
@@ -4649,31 +4649,31 @@ GCST90809425	ref_freqs.hg38.tsv.gz	91608	50000	0.545804	/data/opengwasdb/referen
 GCST90809426	ref_freqs.hg38.tsv.gz	91850	50000	0.544366	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8908410	8754449	0.982717	8908410	8754449	153961	0.982717	eof	
 GCST90809427	ref_freqs.hg38.tsv.gz	91761	50000	0.544894	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8895267	8737336	0.982246	8895267	8737336	157931	0.982246	eof	
 GCST90809464	ref_freqs.hg38.tsv.gz	73816	50000	0.67736	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	6761653	6692125	0.989717	6761653	6692125	69528	0.989717	eof	
-GCST90809802	ref_freqs.hg38.tsv.gz	138372	50000	0.361345	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	13617763	9293085	0.682424	13617763	9293085	4324678	0.682424	eof	
+GCST90809802	ref_freqs.hg38.tsv.gz	138372	50000	0.361345	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	13617763	9293085	0.682424	13617763	9293085	4324678	0.682424	eof	true
 GCST90809803	ref_freqs.hg38.tsv.gz	132148	50000	0.378364	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	13078128	9333802	0.713696	10204136	9095238	1108898	0.891329	eof	true
 GCST90809804	ref_freqs.hg38.tsv.gz	143553	50000	0.348303	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	14272300	9429610	0.660693	10199822	9130148	1069674	0.895128	eof	
-GCST90809805	ref_freqs.hg38.tsv.gz	88990	50000	0.561861	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8734349	8671267	0.992778	8734349	8671267	63082	0.992778	eof	
-GCST90809806	ref_freqs.hg38.tsv.gz	89075	50000	0.561325	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8732467	8672685	0.993154	8732467	8672685	59782	0.993154	eof	
+GCST90809805	ref_freqs.hg38.tsv.gz	88990	50000	0.561861	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8734349	8671267	0.992778	8734349	8671267	63082	0.992778	eof	true
+GCST90809806	ref_freqs.hg38.tsv.gz	89075	50000	0.561325	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8732467	8672685	0.993154	8732467	8672685	59782	0.993154	eof	true
 GCST90809807	ref_freqs.hg38.tsv.gz	90384	50000	0.553195	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8926627	8787163	0.984377	8898769	8773005	125764	0.985867	eof	
 GCST90809808	ref_freqs.hg38.tsv.gz	90357	50000	0.553361	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8928290	8798598	0.985474	8900258	8784426	115832	0.986986	eof	
 GCST90809809	ref_freqs.hg38.tsv.gz	90357	50000	0.553361	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8928290	8798598	0.985474	8900258	8784426	115832	0.986986	eof	
-GCST90809810	ref_freqs.hg38.tsv.gz	88889	50000	0.562499	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8744780	8681498	0.992763	8744780	8681498	63282	0.992763	eof	
+GCST90809810	ref_freqs.hg38.tsv.gz	88889	50000	0.562499	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8744780	8681498	0.992763	8744780	8681498	63282	0.992763	eof	true
 GCST90809811	ref_freqs.hg38.tsv.gz	88345	50000	0.565963	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8679047	8655949	0.997339	8679046	8655948	23098	0.997339	eof	true
 GCST90809812	ref_freqs.hg38.tsv.gz	90351	50000	0.553397	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8928172	8798410	0.985466	8900170	8784244	115926	0.986975	eof	
-GCST90809813	ref_freqs.hg38.tsv.gz	89004	50000	0.561773	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8734351	8671110	0.99276	8734351	8671110	63241	0.99276	eof	
-GCST90809815	ref_freqs.hg38.tsv.gz	138388	50000	0.361303	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	13618699	9293136	0.682381	13618699	9293136	4325563	0.682381	eof	
+GCST90809813	ref_freqs.hg38.tsv.gz	89004	50000	0.561773	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8734351	8671110	0.99276	8734351	8671110	63241	0.99276	eof	true
+GCST90809815	ref_freqs.hg38.tsv.gz	138388	50000	0.361303	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	13618699	9293136	0.682381	13618699	9293136	4325563	0.682381	eof	true
 GCST90809816	ref_freqs.hg38.tsv.gz	132252	50000	0.378066	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	13075991	9333225	0.713768	10195352	9091509	1103843	0.891731	eof	true
 GCST90809817	ref_freqs.hg38.tsv.gz	143553	50000	0.348303	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	14272301	9429610	0.660693	10199814	9130148	1069666	0.895129	eof	
-GCST90809818	ref_freqs.hg38.tsv.gz	88992	50000	0.561848	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8735240	8671770	0.992734	8735240	8671770	63470	0.992734	eof	
-GCST90809819	ref_freqs.hg38.tsv.gz	89019	50000	0.561678	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8734377	8671266	0.992774	8734377	8671266	63111	0.992774	eof	
-GCST90809820	ref_freqs.hg38.tsv.gz	88992	50000	0.561848	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8735240	8671770	0.992734	8735240	8671770	63470	0.992734	eof	
-GCST90809821	ref_freqs.hg38.tsv.gz	88901	50000	0.562423	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8744712	8681698	0.992794	8744712	8681698	63014	0.992794	eof	
+GCST90809818	ref_freqs.hg38.tsv.gz	88992	50000	0.561848	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8735240	8671770	0.992734	8735240	8671770	63470	0.992734	eof	true
+GCST90809819	ref_freqs.hg38.tsv.gz	89019	50000	0.561678	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8734377	8671266	0.992774	8734377	8671266	63111	0.992774	eof	true
+GCST90809820	ref_freqs.hg38.tsv.gz	88992	50000	0.561848	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8735240	8671770	0.992734	8735240	8671770	63470	0.992734	eof	true
+GCST90809821	ref_freqs.hg38.tsv.gz	88901	50000	0.562423	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8744712	8681698	0.992794	8744712	8681698	63014	0.992794	eof	true
 GCST90809822	ref_freqs.hg38.tsv.gz	88355	50000	0.565899	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8679565	8656370	0.997328	8679556	8656361	23195	0.997328	eof	true
 GCST90809823	ref_freqs.hg38.tsv.gz	90352	50000	0.553391	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8928212	8798350	0.985455	8900219	8784184	116035	0.986963	eof	
-GCST90809824	ref_freqs.hg38.tsv.gz	88901	50000	0.562423	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8744712	8681698	0.992794	8744712	8681698	63014	0.992794	eof	
+GCST90809824	ref_freqs.hg38.tsv.gz	88901	50000	0.562423	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8744712	8681698	0.992794	8744712	8681698	63014	0.992794	eof	true
 GCST90809825	ref_freqs.hg38.tsv.gz	88355	50000	0.565899	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8679565	8656370	0.997328	8679558	8656363	23195	0.997328	eof	true
 GCST90809826	ref_freqs.hg38.tsv.gz	90352	50000	0.553391	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8928212	8798350	0.985455	8900219	8784184	116035	0.986963	eof	
-GCST90809827	ref_freqs.hg38.tsv.gz	88901	50000	0.562423	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8744712	8681698	0.992794	8744712	8681698	63014	0.992794	eof	
+GCST90809827	ref_freqs.hg38.tsv.gz	88901	50000	0.562423	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8744712	8681698	0.992794	8744712	8681698	63014	0.992794	eof	true
 GCST90809828	ref_freqs.hg38.tsv.gz	88355	50000	0.565899	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8679565	8656370	0.997328	8679562	8656367	23195	0.997328	eof	true
 GCST90809829	ref_freqs.hg38.tsv.gz	90352	50000	0.553391	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	8928212	8798350	0.985455	8900219	8784184	116035	0.986963	eof	
 GCST90809869	ref_freqs.hg38.tsv.gz	244603	50005	0.204433	/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz	23325951	9596881	0.411425	12605186	9438331	3166855	0.748766	eof	

@@ -3,7 +3,7 @@ label: eur-hybrid-full
 access_posture: public
 status: accepted
 derived_from: null
-created_at: '2026-09-30T00:25:26Z'
+created_at: '2026-10-09T15:49:30Z'
 source_snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-22
 source_snapshot:
   inventory_snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-22
@@ -37,7 +37,7 @@ notes: 'The candidate pool is 6,035 Analyses across 1,007 publications. Only the
   and `duplicates` in the preflight report).
 
 
-  Candidate status: human review required before acceptance (issue #153). 3317 included, 1466 excluded
+  Candidate status: human review required before acceptance (issue #153). 3169 included, 1614 excluded
   of 6035 frozen inventory rows.
 
 
@@ -52,15 +52,19 @@ notes: 'The candidate pool is 6,035 Analyses across 1,007 publications. Only the
   failures, unusable source AF and ordinary resolution failures are controlled exclusions (sidecars/exclusions.tsv).
 
 
+  Store composition (#203): this shared Store admits only Analyses whose rows were MAF-filtered; an included
+  Analysis with no applied MAF floor is excluded as not_maf_filtered.
+
+
   Exclusions by reason: ancestry_not_eur=3, ancestry_unassigned=997, effect_placeholder_rows=27, missing_case_control_counts=20,
-  no_build_eligible_rows=256, orientation_failure=162, resolution_failed=1
+  no_build_eligible_rows=256, not_maf_filtered=148, orientation_failure=162, resolution_failed=1
 
 
   Review: 1162 Analysis/Analyses excluded by ancestry policy (unassigned, non-target, or orientation failure);
   see sidecars/exclusions.tsv
 
 
-  Review: 173 included Analysis/Analyses have a high-dispersion SD estimate; see sidecars/sd_estimation.tsv
+  Review: 166 included Analysis/Analyses have a high-dispersion SD estimate; see sidecars/sd_estimation.tsv
 
 
   Review: 1 Analysis/Analyses failed resolution and were excluded; see sidecars/exclusions.tsv
@@ -70,4 +74,8 @@ notes: 'The candidate pool is 6,035 Analyses across 1,007 publications. Only the
 
 
   Review: 2 duplicate-content group(s) surfaced for review, not collapsed: GCST90565871+GCST90565872;
-  GCST90624704+GCST90624705'
+  GCST90624704+GCST90624705
+
+
+  Review: 148 Analysis/Analyses had no MAF floor applied and were excluded from this shared Store as not_maf_filtered
+  (#203); see sidecars/exclusions.tsv'
