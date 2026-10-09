@@ -315,6 +315,16 @@ fingerprint binding decide the emitted candidate value, exactly as for INFO.
 `bundle.check()` validates the column independently of the pinned OpenGWASDB
 Analysis schema.
 
+A separate optional `store_composition.require_maf_filtered` generator-config
+rule decides whether a shared Store may admit an Analysis with no applied MAF
+floor. Absent or `false`, every otherwise admissible Analysis is included;
+`true` requires a positive `defaults.maf_threshold` and excludes an otherwise
+admissible Analysis whose emitted `maf_threshold` is `NaN` as
+`not_maf_filtered` (see the exclusions sidecar). The rule runs after every other
+membership decision and only at emit, so toggling it needs `--stage emit` and
+never a re-resolve. See
+[ADR 0033](adr/0033-shared-stores-admit-only-maf-filtered-analyses.md).
+
 Some generators add release-specific columns beyond this table, such as the
 `gwas-ssf-ragged` generator's single-gene-target columns (`trait_chr`,
 `trait_bp`, `n`, `mhc`, `target_resolution_method`, `n_target_rows`) for
@@ -485,8 +495,8 @@ The candidate's Phase B acceptance evidence is kept in its own labelled
 `acceptance` block, apart from those findings, and nothing in it feeds them
 (#195). `register` fills the block in one of three ways:
 - **From a candidate record** (one whose `validator.name` is not
-  `opengwasdb validate`): its `checks`, `warnings`, `reports` and
-  `reference_overlap`, verbatim. The
+  `opengwasdb validate`): its `checks`, `warnings`, `reports`,
+  `reference_overlap` and `store_composition`, verbatim. The
   block is dated by the candidate's own `validated_at` and tied to the commit
   that record came from.
 - **From a `register`-written record:** its `acceptance` block is passed on
@@ -495,9 +505,10 @@ The candidate's Phase B acceptance evidence is kept in its own labelled
   mix Phase B evidence with an earlier build's findings, so nothing is
   extracted from them; git keeps them.
 
-Only those four named fields are carried; a new kind of Phase B evidence is
+Only those five named fields are carried; a new kind of Phase B evidence is
 added here by name, never swept up as "everything else". `reference_overlap` is
-the top-level block OGS-00011's generator writes.
+the top-level block OGS-00011's generator writes, and `store_composition` is the
+block it writes for #203.
 
 A `built` or `validated` release must carry a `validation.yaml` whose `status`
 is one of `not_run`, `passed`, `passed_with_warnings`, or `failed`;
@@ -533,6 +544,13 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `checks.effect_scale` | No | `not_run` when the release has not opted into `effect_scale_validation`, or when it has opted in but reflects only controlled-vocabulary validity. Once a release opts in, this must reflect the empirical reference-AF/source-AF SD-estimation sidecar outcome across attempted Analyses (`passed`, `passed_with_warnings`, or `failed`), not merely that declared vocabulary values are valid. |
 | `checks.sd_estimation` | No | `not_run` when SD-estimation was not attempted. Otherwise `passed` only when the sidecar is internally consistent (every attempted, warned, or failed Analysis has a matching sidecar row with required fields populated) and no attempted Analysis has status `failed`; `passed_with_warnings` when at least one Analysis has status `warning`, or `skipped` for a reason that should be reviewed (for example `no_reference_resource_for_ancestry`); `failed` otherwise. |
 | `checks.sparse_regions` | No | Whether ragged region sidecars match filtered files. |
+| `store_composition` | No | The candidate's Store composition rule evidence (Phase B record, #203; [ADR 0033](adr/0033-shared-stores-admit-only-maf-filtered-analyses.md)). |
+| `store_composition.require_maf_filtered` | No | Whether the rule ran: `true` when the generator config set `store_composition.require_maf_filtered`, `false` otherwise. |
+| `store_composition.maf_floor` | No | The configured `defaults.maf_threshold` as a string, or `null` when none was configured. |
+| `store_composition.unfiltered_included` | No | Number of included Analyses with no applied MAF floor. |
+| `store_composition.unfiltered_included_off_reference_rows` | No | Sum of those Analyses' build-eligible rows off the variant reference, or `null` when no `variant-reference` is declared or any counted Analysis lacks the resolver count. |
+| `store_composition.unfiltered_routed` | No | Number of Analyses excluded as `not_maf_filtered`. |
+| `store_composition.unfiltered_routed_off_reference_rows` | No | The same off-reference sum for the routed Analyses, or `null` under the same absence rule. |
 | `reports` | No | URIs or paths to detailed reports. A Phase B record points at its sidecars; `register` writes no top-level `reports` (#195). |
 | `warnings` | No | List of non-blocking warnings. In a `register`-written record, exactly the `warnings` list `opengwasdb validate --format json` printed for this run. Reference-AF effect-scale warnings should name the Analysis and reason, for example low reference-AF overlap, an allele mismatch, unstable implied SD, a missing reference resource for the assigned ancestry, or scale inconsistency versus the declared effect scale. |
 | `errors` | No | List of blocking errors. In a `register`-written record, exactly the `errors` list `opengwasdb validate --format json` printed for this run. |
@@ -541,7 +559,7 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `acceptance` | No | The accepted bundle's Phase B acceptance evidence, kept apart from this run's findings (#195). See above for when `register` writes it. Absent when there is none to keep. |
 | `acceptance.recorded_at` | Yes, in the block | The candidate record's own `validated_at`. |
 | `acceptance.commit` | Yes, in the block | The commit the candidate record came from, or `null` when the file was untracked or modified since its last commit, so no commit describes it. |
-| `acceptance.checks`, `acceptance.warnings`, `acceptance.reports`, `acceptance.reference_overlap` | Yes, in the block | The candidate record's `checks`, `warnings`, `reports` and `reference_overlap`, verbatim (`null` where it had none). |
+| `acceptance.checks`, `acceptance.warnings`, `acceptance.reports`, `acceptance.reference_overlap`, `acceptance.store_composition` | Yes, in the block | The candidate record's `checks`, `warnings`, `reports`, `reference_overlap` and `store_composition`, verbatim (`null` where it had none). |
 
 The record's top-level `status` is the release-level verdict, and the generated
 master list publishes that value and no other. A per-check entry in `checks`
@@ -653,8 +671,8 @@ reason. The same reason is carried in the excluded `analyses.tsv` row's
 | `analysis_id` | Yes | Registry Analysis ID matching `analyses.tsv`. |
 | `source_analysis_id` | No | Upstream analysis identifier. |
 | `study_design` | No | The frozen inventory's `study_design`. |
-| `category` | Yes | `ancestry`, `orientation`, `effect_scale`, `resolution`, or `metadata`. |
-| `reason` | Yes | Controlled vocabulary: `resolution_failed`, `ancestry_unassigned`, `ancestry_not_eur`, `orientation_failure`, `sd_no_reference_resource_for_ancestry`, `sd_no_qualifying_evidence`, `sd_no_usable_sample_size`, `sd_failed`, `missing_sample_size`, `missing_case_control_counts`, `no_build_eligible_rows`, or `effect_placeholder_rows` (a reviewed listing of Analyses whose source writes unestimated effects as a `±2.2e-308` placeholder with `standard_error` 0). |
+| `category` | Yes | `ancestry`, `orientation`, `effect_scale`, `resolution`, `metadata`, or `store_composition`. |
+| `reason` | Yes | Controlled vocabulary: `resolution_failed`, `ancestry_unassigned`, `ancestry_not_eur`, `orientation_failure`, `sd_no_reference_resource_for_ancestry`, `sd_no_qualifying_evidence`, `sd_no_usable_sample_size`, `sd_failed`, `missing_sample_size`, `missing_case_control_counts`, `no_build_eligible_rows`, `effect_placeholder_rows` (a reviewed listing of Analyses whose source writes unestimated effects as a `±2.2e-308` placeholder with `standard_error` 0), or `not_maf_filtered` (an otherwise admissible Analysis with no applied MAF floor while `store_composition.require_maf_filtered` is on; [ADR 0033](adr/0033-shared-stores-admit-only-maf-filtered-analyses.md)). |
 | `detail` | No | The concrete evidence (assigned ancestry, gate reason, resolver error, missing field). |
 | `resolver_status` | No | The resolver record's status (`success`, `controlled_failure`, or `missing`). |
 | `exclude_from_build` | Yes | Always `true`; the exclusion is enforced at build time per [ADR 0025](adr/0025-registry-filters-excluded-analyses.md). |
