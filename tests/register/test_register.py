@@ -439,7 +439,7 @@ CANDIDATE_RECORD: dict[str, Any] = {
         "unfiltered_included": 0,
         "unfiltered_included_off_reference_rows": 0,
         "unfiltered_routed": 148,
-        "unfiltered_routed_off_reference_rows": 49500000,
+        "unfiltered_routed_off_reference_rows": 176733851,
     },
     "warnings": [
         "1162 Analysis/Analyses excluded by ancestry policy (unassigned, non-target, or orientation failure); see sidecars/exclusions.tsv",

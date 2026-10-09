@@ -61,7 +61,9 @@ masks a resolution, ancestry, orientation, or metadata failure.
 
 Like `effect_placeholder_rows`, this is an **emit-time membership decision**: it
 does not change the resolver manifest or the resolution receipt's contract, so
-toggling it needs only `--stage emit`, never a re-resolve.
+toggling it needs only `--stage emit`, never a re-resolve. It reads the
+resolver manifest rows, so it refuses to run without them: with no manifest no
+Analysis could show an applied floor, and every one would be excluded.
 
 Every candidate `validation.yaml` carries a top-level `store_composition` block
 recording what the gate saw:
@@ -99,9 +101,16 @@ all 148, because they report EAF; the evidence above is that a missing floor, no
 a missing frequency, is what lets their variants inflate the axis.
 
 **Key the rule on the genotyping technology** (route WGS only). Technology is the
-reason a floor was waived, not the property that inflates the axis. It would keep
-the 51 unfiltered WES Analyses, and it would route WGS-plus-array Analyses that
-were filtered; and missing technology metadata would decide membership.
+reason a floor was waived, not the property that inflates the axis. It would
+route WGS-plus-array Analyses that were filtered (76 in `OGS-00011`), and missing
+technology metadata would decide membership.
+
+The issue's lever A said "WES can stay with arrays", since the 51 WES-only
+Analyses add only 76,409 exclusive variants. Under this rule they leave too,
+because their rows were not filtered either: one rule, with no technology
+exception. Keeping them is an operator decision this ADR does not take. It would
+need either a WES exception to the rule or withdrawing their MAF exemption,
+which means a re-resolve.
 
 **Withdraw the sequencing MAF exemption** (filter WGS/WES at 0.5 % and keep
 them). It discards the observed rare variants the exemption exists to keep, and

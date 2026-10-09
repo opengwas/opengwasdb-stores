@@ -2062,6 +2062,50 @@ class CandidateWorkflowTests(unittest.TestCase):
         by_id = {outcome.analysis_id: outcome for outcome in outcomes}
         self.assertEqual(by_id["GCST90000002"].exclusion_reason, "ancestry_not_eur")
 
+    def test_store_composition_refuses_to_run_without_manifest_rows(self) -> None:
+        config = replace(
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            require_maf_filtered=True,
+            maf_threshold="0.005",
+        )
+        filtered, unfiltered, records, _ = self._maf_filtered_fixture()
+        # Without the manifest no Analysis can show an applied floor, so the rule
+        # would exclude every one of them; that must fail, not empty the Store.
+        with self.assertRaisesRegex(CandidateError, "resolver manifest rows"):
+            apply_release_policy(
+                [filtered, unfiltered],
+                config,
+                {
+                    row.analysis_id: _synthetic_candidate_metadata()
+                    for row in (filtered, unfiltered)
+                },
+                {record["analysis_id"]: record for record in records},
+            )
+
+    def test_store_composition_detail_names_a_missing_declaration(self) -> None:
+        config = replace(
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            require_maf_filtered=True,
+            maf_threshold="0.005",
+        )
+        filtered, unfiltered, records, declarations = self._maf_filtered_fixture()
+        outcomes = apply_release_policy(
+            [filtered, unfiltered],
+            config,
+            {
+                row.analysis_id: _synthetic_candidate_metadata()
+                for row in (filtered, unfiltered)
+            },
+            {record["analysis_id"]: record for record in records},
+            declarations[:1],
+        )
+        by_id = {outcome.analysis_id: outcome for outcome in outcomes}
+        self.assertEqual(by_id["GCST90000002"].exclusion_reason, "not_maf_filtered")
+        # An absent manifest row is not the same fact as a declared NaN request.
+        self.assertIn(
+            "requested maf_threshold=undeclared", by_id["GCST90000002"].exclusion_detail
+        )
+
     def test_store_composition_off_warns_about_unfiltered_inclusion(self) -> None:
         config = replace(
             load_candidate_configuration(self.fixture.config_path, REPO_ROOT),

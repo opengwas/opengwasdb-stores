@@ -1867,6 +1867,11 @@ class AnalysisOutcome:
     def analysis_id(self) -> str:
         return self.row.analysis_id
 
+    @property
+    def maf_filtered(self) -> bool:
+        """True when a MAF floor was emitted on resolver evidence (#203)."""
+        return self.maf_threshold != "NaN"
+
 
 def _record_mapping(record: Mapping[str, Any] | None, key: str) -> Mapping[str, Any]:
     value = (record or {}).get(key)
@@ -1899,8 +1904,15 @@ def apply_release_policy(
     ``manifest_rows`` are the resolver manifest rows this run resolved, if the
     caller has them: they carry the approved per-Analysis INFO declarations that
     decide the emitted threshold (stores #175). Omitting them emits ``NaN`` for
-    every Analysis, the no-declaration behaviour.
+    every Analysis, the no-declaration behaviour, so the Store-composition gate
+    refuses to run without them rather than exclude every Analysis.
     """
+    if config.require_maf_filtered and not manifest_rows:
+        raise CandidateError(
+            "store_composition.require_maf_filtered needs the resolver manifest rows: "
+            "without them no Analysis can show an applied MAF floor, and every one "
+            "would be excluded as not_maf_filtered"
+        )
     declaration_by_id = {row.analysis_id: row for row in manifest_rows}
     outcomes: list[AnalysisOutcome] = []
     for row in rows:
@@ -1914,11 +1926,7 @@ def apply_release_policy(
             config=config,
             declaration=declaration_by_id.get(row.analysis_id),
         )
-        if (
-            config.require_maf_filtered
-            and outcome.included
-            and outcome.maf_threshold == "NaN"
-        ):
+        if config.require_maf_filtered and outcome.included and not outcome.maf_filtered:
             outcome = replace(
                 outcome,
                 included=False,
@@ -1943,10 +1951,11 @@ def _not_maf_filtered_detail(
     Names the requested floor, the resolver's own MAF state, the Analysis's
     genotyping technologies, and the off-reference share of its build-eligible
     rows, so the exclusion can be judged from the sidecar alone. Absence is
-    rendered explicitly (``unrecorded``, ``?``), never as a zero count.
+    rendered explicitly (``undeclared``, ``unrecorded``, ``?``), never as a zero
+    count or as a declared ``NaN``.
     """
     diagnostics = _record_mapping(record, "diagnostics")
-    declared = declaration.maf_threshold if declaration is not None else "NaN"
+    declared = declaration.maf_threshold if declaration is not None else "undeclared"
     state = str(diagnostics.get("maf_state") or "unrecorded")
     technologies = "; ".join(read_genotyping_technologies(row.yaml_file)) or "unrecorded"
     off = _diagnostic_count(diagnostics.get("build_eligible_rows_off_variant_reference"))
@@ -2333,9 +2342,7 @@ def _store_composition(
     :func:`_off_reference_sum`, which never treats absence as zero.
     """
     unfiltered_included = [
-        outcome
-        for outcome in outcomes
-        if outcome.included and outcome.maf_threshold == "NaN"
+        outcome for outcome in outcomes if outcome.included and not outcome.maf_filtered
     ]
     routed = [
         outcome
