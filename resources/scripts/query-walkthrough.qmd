@@ -17,7 +17,7 @@ an actual run on 2026-08-19 — except the `ogdb info` block in Step 1, re-run
 on 2026-08-30 after opengwasdb#114 added the `encoding` line to its output.
 
 If you want the inventory of what exists rather than how to use it, see
-[the store master list](../../STORES.md).
+[the store master list](https://github.com/opengwas/opengwasdb-stores/blob/main/STORES.md).
 
 ## What is a store, exactly?
 
@@ -111,7 +111,7 @@ The four fields worth understanding:
   to about 1.6% anywhere, and values too large for the range (up to |z| = 137.5
   in UK Biobank) held exactly in a side table rather than rounded.
   **You query both identically**; only the accuracy of what comes back differs.
-  Every store in this catalogue is still 0.1 — rebuilding them is
+  Every store in the registry is still 0.1 — rebuilding them is
   opengwasdb#117.
 
 ## Step 2 — what's in it?
@@ -236,6 +236,10 @@ ogdb query-analysis "$STORE" "ENSG00000136997::whole_blood" | tail -n +2 | wc -l
 ```
 
 7,584 cis associations for *MYC*.
+
+On a Dense store that carries one, `--indexed-subset NAME` reads
+the same Analysis from a named Indexed Variant Subset instead of the primary
+planes; see [Indexed Variant Subsets](#indexed-variant-subsets) below.
 
 ### query-phewas
 
@@ -427,6 +431,197 @@ filter on it (`awk -F'\t' '$11=="observed"'`) or query the `observed_only`
 release instead.
 :::
 
+## Indexed Variant Subsets — fast repeated extraction {#indexed-variant-subsets}
+
+::: {.callout-warning}
+## Provisional — blocked on upstream opengwas/opengwasdb#263 and #267
+
+This section documents a workflow that is **not yet available in the
+`opengwasdb` revision pinned by this repository**. It describes the CLI contract
+landed on the upstream integration branches for opengwas/opengwasdb#263 and
+benchmarked by opengwas/opengwasdb#267, and it must not be read as a claim that
+the package pinned here already provides it. The section loses its provisional
+status, and the pin moves, only when that upstream change lands.
+:::
+
+An **Indexed Variant Subset** is an optional, named, rebuildable query index
+over a caller-supplied list of canonical ALIDs, stored beside the other derived
+artifacts under `data.zarr/indexed_subsets/<name>/`. It is **full-statistic and
+all-Analysis**:
+
+- it holds the subset for **every Analysis** in the release — there is no
+  partial-Analysis mode;
+- it stores Z and SE always, EAF when the release has an EAF plane, and the
+  per-cell Association Status for a Reference-Completed release. Beta and
+  p-values stay derived from Z and SE, and Analysis-level sample size stays in
+  `analyses.tsv`, so nothing is duplicated into the index;
+- it is **non-authoritative derived data**: adding, replacing, or deleting one
+  changes no association and no Analytical Metadata, so it does not mint a new
+  Store Release and does not move `format_version`. Deleting the group leaves a
+  valid release whose ordinary queries are unchanged;
+- it is **Dense-only**: both Observed-Only and Reference-Completed Dense
+  releases carry one (opengwas/opengwasdb#266, ADR 0061). Ragged already stores
+  each Analysis as a direct CSR slice, and a Hybrid index would have to define
+  how its Dense and Ragged Overflow Components unify; neither is implied by the
+  Dense result. A selector on a Ragged or Hybrid release is refused.
+
+### Build one
+
+The Store Release used below is the authoritative OGS-00009 Dense release.
+**It currently carries no Indexed Variant Subset.** The #267 benchmark measured
+on a reflinked copy under
+`/data/opengwasdb/work/267-indexed/store-copy.opengwasdb` so the authoritative
+release stayed untouched. Building an index writes derived data into the
+release in place (it is non-authoritative and deletable); copy the release first
+if you want the benchmark's isolation.
+
+```bash
+STORE=/data/opengwasdb/stores/OGS-00009/store.opengwasdb
+ALIDS=/data/opengwasdb/work/267-indexed/hm3.grch38.alid.txt
+
+ogdb build-indexed-subset "$STORE" hm3 \
+  --variant-list "$ALIDS" \
+  --reference-assembly GRCh38
+```
+
+The variant list is one canonical ALID per nonblank line
+(`chr:pos:effect_allele:other_allele`). `--reference-assembly` is **mandatory**:
+cross-store variant identity is Reference Assembly plus ALID, so a list built on
+a different assembly is refused before anything is written. `--overwrite`
+atomically replaces an existing subset of the same name, and `--band-cells`
+bounds peak build memory. Generation stages the complete group, validates it
+against the primary planes, and publishes it by rename under a release-local
+lock; a failed replacement preserves the existing published group byte-for-byte.
+
+The build reports the requested, resolved, and absent counts. For the OGS-00009
+HapMap3 index measured below those are:
+
+```
+built indexed subset 'hm3' at /data/opengwasdb/work/267-indexed/store-copy.opengwasdb/data.zarr/indexed_subsets/hm3
+requested 1206903, resolved 1206903, absent 0
+```
+
+The writer's `absent` is **0** even though **10,385** HapMap3 rsids are absent
+from the Store Variant Index. Both counts are recorded and reconciled: an absent
+rsid has no GRCh38 position in this release, so it cannot appear in the ALID
+list at all, and the writer only counts requested *ALIDs* it could not match.
+The rsid-level absence is a separate measurement (see the HapMap3 provenance
+callout below).
+
+Failure is deliberate and loud:
+
+- a malformed, repeated, or non-canonical ALID fails the build, naming the line:
+  ```
+  error: /tmp/hm3_malformed.alid.txt:1: '1:817186:A' is not a canonical ALID
+  ```
+- a Reference Assembly mismatch is refused:
+  ```
+  error: requested Reference Assembly 'GRCh37' (hg19) does not match this Store Release's 'GRCh38' (hg38); an Indexed Variant Subset is only meaningful against the assembly its Variant Index was built on
+  ```
+- a list that matches no Store variant is refused:
+  ```
+  error: variant list /tmp/hm3_nomatch.alid.txt names no Store variants; an Indexed Variant Subset with no variants is not a valid index
+  ```
+  A subset name outside `[A-Za-z0-9][A-Za-z0-9._-]{0,127}` is refused too;
+- ALIDs absent from the Store Variant Table are **counted and recorded, never
+  treated as present**;
+- a second same-name build without `--overwrite` fails rather than silently
+  replacing the first:
+  ```
+  error: output path already exists: /data/.../data.zarr/indexed_subsets/hm3
+  ```
+
+### Query through one
+
+With the index published, the same Analysis reads through it — the #267 harness
+built this one on its reflinked OGS-00009 copy:
+
+```bash
+ogdb query-analysis "$STORE" ukb-b-17805 --indexed-subset hm3 \
+  | cut -f1,5,8,9,10,11,12 | head -5 | column -t -s$'\t'
+```
+
+```
+analysis_id  alid          z          se          p      eaf       association_status
+ukb-b-17805  1:817186:A:G  0.670898   0.00130396  0.502  0.838945  observed
+ukb-b-17805  1:817341:A:G  -0.795898  0.00130273  0.426  0.161427  observed
+ukb-b-17805  1:818802:A:G  0.0644531  0.00139275  0.949  0.131336  observed
+ukb-b-17805  1:825532:C:T  -0.591797  0.00129673  0.554  0.161694  observed
+```
+
+The indexed result is identical to filtering the ordinary `query-analysis`
+result to the subset's Store Variant Indices: the same fields, allele
+orientation, missing-cell filtering (including the per-cell `association_status`
+on a Reference-Completed release), and store ordering.
+
+An explicit selector **never silently falls back**. An unknown, incomplete,
+stale, corrupt, or unsupported subset stops with an error naming the store and
+the subset, rather than returning the slow primary-plane answer while appearing
+to be indexed:
+
+```
+error: store /data/opengwasdb/work/267-indexed/store-copy.opengwasdb: this release has no Indexed Variant Subset 'nope'
+```
+
+A Ragged or Hybrid release is refused the same way, because subsets are
+Dense-only (both Observed-Only and Reference-Completed Dense are supported):
+
+```
+error: release /data/opengwasdb/stores/OGS-00001/store.opengwasdb has Ragged layout; an Indexed Variant Subset ('hm3') is Dense-only and cannot be used here
+```
+
+A query without `--indexed-subset` is unchanged and consults no subset state.
+
+### Measured evidence (OGS-00009)
+
+The numbers below are read from the final generated `opengwasdb#267` benchmark
+artifact (`docs/benchmark-output/opengwasdb_267_indexed_subset_benchmark.json`,
+measured 2026-10-10 at opengwasdb commit `90c4ca8`, fingerprint
+`216b6affaaca4976…`, analysis `ukb-b-17805`), not typed in by hand. The build ran
+**fresh** and the ordinary read was **bracketed**: measured before the subset
+was built and again after it.
+
+| Measurement | Value |
+|---|---:|
+| HapMap3 variants in the index (all 2,024 Analyses) | 1,206,903 |
+| finite associations returned by the indexed query | 1,178,549 |
+| indexed query, warm median | 407.267 ms |
+| indexed query, first read (not cold-cache) | 409.682 ms |
+| indexed query, p95 (nearest-rank, max of 5) | 407.823 ms |
+| ordinary primary-plane query before the index, warm median | 16,389.083 ms |
+| ordinary primary-plane query after the index, warm median | 15,991.763 ms |
+| exact decoded equivalence across all six result fields | true |
+| index physical size | 6,235,037,696 B (17.852% of the 34,926,288,896 B release) |
+| build wall time | 4,198.0 s (fresh; no reused build block) |
+| build peak RSS | 1,234.8 MB, above the harness's declared 1,146.1 MB band-plus-overhead bound; recorded, not tuned away |
+
+The harness builds against a reflinked copy and proves the authoritative release
+unchanged, and it refuses to publish unless every one of the six parallel arrays
+decodes exactly equal to the ordinary filtered result. The ordinary query changed
+by 2.424% between the two brackets, inside the harness's 25% noise envelope.
+**No Store Release in the Store Registry publishes an index yet**, so the
+registry does not advertise one; re-run the upstream harness rather than editing
+these numbers.
+
+::: {.callout-note}
+## Who owns the HapMap3 list
+
+The canonical source is the LDSC HapMap3 list `w_hm3.snplist.gz` from Zenodo
+record 7773502, publisher MD5 `153ecc2bcfa740afafe656e6a384d769`. The GRCh38
+ALID list is **derived** by resolving those rsids by allele compatibility
+against a specific release's Variant Index, so it is release-specific: the
+OGS-00009 list has SHA-256
+`4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398`
+(1,217,311 rsids requested, 1,206,903 resolved, 10,385 absent from that axis, 23
+present but allele-incompatible, 2,743 aliased store rows, 0 duplicate ALIDs).
+The sibling `opengwasdb` repository owns the build recipe and its provenance
+(`benchmarks/benchmark_indexed_subset.py`); this registry declares no HapMap3
+Reference Resource because it has no registry-side consumer — index builds are
+invoked directly, not planned from a Release Bundle — and a single derived ALID
+file would misrepresent which release's axis it was resolved against. Rebuild it
+from the upstream harness; never hand-edit it.
+:::
+
 ## Gotchas — things that will trip you up {#gotchas}
 
 **Queries take `alid`, not rsid.** This is the big one. Every store here has
@@ -496,11 +691,11 @@ a window.
 **Store paths are not uniform.** Each family lays its releases out slightly
 differently — `.../store.opengwasdb` for FinnGen, `.../store/<name>` for the
 others. Use tab-completion, or copy the paths from
-[the store master list](../../STORES.md).
+[the store master list](https://github.com/opengwas/opengwasdb-stores/blob/main/STORES.md).
 
 ## Where to go next
 
-- [Store master list](../../STORES.md) — every built release, its exact path,
+- [Store master list](https://github.com/opengwas/opengwasdb-stores/blob/main/STORES.md) — every built release, its exact path,
   size, and known caveats.
 - `ogdb <command> --help` — every command takes it.
 - The Python API (`import opengwasdb`) — same queries, plus
