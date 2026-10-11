@@ -45,6 +45,7 @@ SUITES: list[tuple[str, str, list[str]]] = [
     ("eqtlgen-besd-ragged", "python", ["tests/eqtlgen-besd-ragged/test_subset_besd.py"]),
     ("hapmap3-resource", "python", ["tests/hapmap3-resource/test_hapmap3_resource.py"]),
     ("hm3-migration", "python", ["tests/hm3-migration/test_hm3_migration.py"]),
+    ("hm3-benchmark-report", "python", ["tests/hm3-benchmark-report/test_release_benchmark_report.py"]),
     ("indexed-subsets", "python", ["tests/indexed-subsets/test_indexed_subsets.py"]),
     ("indexed-subsets-generator-defaults", "python", ["tests/indexed-subsets/test_generator_defaults.py"]),
     ("indexed-subsets-generator-defaults (R)", "r", ["tests/indexed-subsets/test_generator_defaults.R"]),

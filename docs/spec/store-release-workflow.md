@@ -514,6 +514,41 @@ without the reference root. The unmigrated `families/*/releases/*` bundles are
 out of scope: they are unregistered, use the retired family-first schema, and
 are not planned by the workflow.
 
+### HM3 benchmark reporting
+
+An Indexed Variant Subset is an optional derived artifact, so a routine release
+benchmark must be able to report a Store that has none without failing. That is
+the contract of opengwas/opengwasdb#272's shared
+`benchmarks._query_shapes.measure_hm3_extract`, and the registry-side report is
+`resources/scripts/release-benchmark-report.py` (stores#212, epic #214):
+
+```text
+pixi run -e dev python <stores>/resources/scripts/release-benchmark-report.py \
+  --opengwasdb-checkout /path/to/opengwasdb --all --hm3-only \
+  --output docs/benchmark-output/opengwasdb_hm3_release_benchmark.json \
+  --report docs/benchmark-output/opengwasdb_hm3_release_benchmark.md
+```
+
+The report measures every registered Store's `hm3` record only through that
+core seam and records the core status verbatim: `measured` carries the timing
+and result count, and `missing`, `not_applicable` (Ragged-only) and
+`unsupported` are non-failing operational statuses. It never times a query or
+reimplements classification. Where a per-Store anchor exists
+(`resources/scripts/release-benchmark-anchors.yaml`) the core generic harness
+surfaces the seven query shapes beside HM3; otherwise the shapes are marked
+`not_configured` and the run continues. Because the tracked pin predates the
+capability, the report is run against an explicit `--opengwasdb-checkout` and
+records that checkout's git revision and the imported package's fingerprint.
+
+**HM3 benchmark absence is operational evidence, not a Store validation
+failure.** None of `missing`, `not_applicable` or `unsupported` is a
+`bundle.check()` error, a Validation Record verdict, or a Release Status
+change; a Store with no `hm3` subset is still a valid Store. The one loud case
+is a subset that is *present and structurally valid* whose extraction raises:
+the core helper propagates it, and the report does not downgrade it to
+`missing`, because a broken index reported as absent is a wrong answer that
+looks like a right one.
+
 **Lineage ordering is why the DAG spans every store rather than one.** A Reference-Completed release declares its parent's `register` record as an input, resolved from `release.yaml`'s `derived_from`. A per-release workflow driven by a batch loop would have to sequence parents before children by hand, and would get it wrong. Here it is a declared edge.
 
 Resumption is Snakemake's, over the record files. `complete-dense` additionally owns a checkpoint directory and a separate `complete-dense-resume` entry point, but the workflow does not yet select it: a resume must be invoked by hand, and `register` accepts the substitution when it sees it. Wiring this into the workflow needs a decision about how a resume participates in the `.partial` staging transaction, which `rewrite_argv_for_staging` currently rejects.
