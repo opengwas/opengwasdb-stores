@@ -91,6 +91,31 @@ checkpoints and unrelated working-tree changes.
 - Full release execution needs a release-specific gate and resource allocation,
   coordinated with core #254. Query RSS is not a validation concurrency budget.
 
+## UKB verification checkpoint — preliminary
+
+#219 reports **2,514 intended Source Analysis IDs**, reconciled between the
+legacy declared selection and core batch manifest, with **2,514 available VCFs**
+and **490 additions** relative to the 2,024-Analysis historical baseline. These
+are preliminary reconciliation counts, not a completed integrity audit or
+accepted membership. Source checksum/integrity verification is allocated the
+bulk I/O slot (approximately 410 GB, at most two readers).
+
+Three historical metadata-resolution exclusions still require disposition,
+including `ukb-b-1585`, which appears in the old built baseline. Intended,
+admitted and accepted membership must remain separate until this is resolved.
+
+The orchestrator reserves **OGS-00030 / OGS-00031** for the restored UKB
+observed/completed **candidate proposal**. They are not accepted or registered
+release identities. OGS-00017/00018 remain unallocated pending #221's MVP/FinnGen
+identity plan; OGS-00009/00010 remain unchanged.
+
+There is a completion-reference declaration conflict to resolve: OGS-00010's
+historical recipe specifies HGDP+1kGP/EUR, while that Reference Resource describes
+EUR as a calibration control and the separate GPM resource declares the
+production UKB EUR panel. Neither historical recipe reuse nor switching panels
+is an automatic successor-completion approval. Record suitable reference
+identity and its approval/evidence before executing completion.
+
 ## Initial review checkpoint
 
 Draft [PR #233](https://github.com/opengwas/opengwasdb-stores/pull/233) targets
