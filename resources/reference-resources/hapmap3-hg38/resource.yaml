@@ -1,0 +1,89 @@
+resource_id: hapmap3-hg38
+label: HapMap3 GRCh38 canonical ALID list
+kind: variant_list
+ancestry: multi
+genome_build: GRCh38
+variant_id_convention: >-
+  chr:pos:a1:a2 (a1 = min(allele1, allele2), alphabetically first); chromosome
+  without a 'chr' prefix; one canonical ALID per nonblank line, exactly the
+  input `opengwasdb build-indexed-subset --variant-list` accepts
+location: /data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt
+location_kind: external_file
+row_count: 1206903
+checksums:
+  alid_sha256: 4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398
+  alid_bytes: 18892749
+  source_md5: 153ecc2bcfa740afafe656e6a384d769
+  source_sha256: 3c876903ea996851fefabbb0460190ddbc8366fb7bc1ab4dea02335714d45a48
+source:
+  name: LDSC canonical HapMap3 SNP list
+  file: w_hm3.snplist.gz
+  url: https://zenodo.org/api/records/7773502/files/w_hm3.snplist.gz/content
+  snapshot: /data/opengwasdb/reference/hapmap3-hg38/w_hm3.snplist.gz
+  bytes: 5221397
+  columns: [SNP, A1, A2]
+  rsid_rows: 1217311
+derivation:
+  method: >-
+    Allele-safe rsID resolution of the LDSC HapMap3 rsID list against the
+    OGS-00009 GRCh38 Store Variant Table, performed by the sibling benchmark
+    script `benchmarks/benchmark_indexed_subset.py`
+    (`read_hapmap3` -> `resolve_hapmap3` -> `write_alid_list`), not by
+    `build-indexed-subset --variant-list`: that consumer accepts an
+    already-canonical ALID list and does not derive ALIDs from rsIDs. Each rsID
+    is mapped to the Store row whose canonical ALID allele pair is compatible;
+    rsIDs absent from the axis or allele-incompatible are not represented as
+    matches, and an rsID with more than one allele-compatible Store row is
+    refused rather than guessed.
+  store: OGS-00009
+  store_reference_assembly: GRCh38
+  resolution_script: opengwas/opengwasdb benchmarks/benchmark_indexed_subset.py
+  resolution_functions: [read_hapmap3, resolve_hapmap3, write_alid_list]
+  resolution_revision: a36ea78
+  rsids_requested: 1217311
+  resolved: 1206903
+  absent_from_store_axis: 10385
+  allele_incompatible: 23
+  multiple_store_rows: 2743
+  duplicate_alids: 0
+  evidence: >-
+    opengwas/opengwasdb docs/benchmark-output/opengwasdb_267_indexed_subset_benchmark.json
+    at revision a36ea78 (input.counts_reconciled, input.hapmap3_resolution)
+description: >
+  The maintained HapMap3 GRCh38 variant list used as the build input for the
+  default `hm3` Indexed Variant Subset (epic opengwas/opengwasdb-stores#214,
+  ticket #208). It is the 1,206,903-row canonical ALID list benchmarked in
+  opengwas/opengwasdb#262/#267 against OGS-00009, preserved byte-for-byte: the
+  declared `alid_sha256` is the checksum of the exact bytes the
+  `build-indexed-subset` variant-list reader hashes.
+
+  The list is not a pure function of the LDSC source alone. Of the source's
+  1,217,311 rsIDs, 10,385 do not occur on the OGS-00009 GRCh38 axis and 23 have
+  an incompatible allele pair, so they have no OGS-00009 ALID and are absent
+  here rather than invented. `multiple_store_rows` counts rsIDs whose allele-
+  compatible row had to be chosen among several Store rows sharing the rsID
+  (the source list has no unique-rsID guarantee); they are resolved, not
+  dropped, so the reconciliation balance is
+  `1217311 - 10385 - 23 = 1206903 = row_count`. When a later Store's axis lacks
+  some of these ALIDs, that is the ordinary "absent from the axis" case the
+  subset builder already counts and reports -- it never changes this list.
+status: available
+notes: >
+  Large data lives outside Git under the configured reference root (ADR 0015):
+  this declaration points at `/data/opengwasdb/reference/hapmap3-hg38/`, which
+  holds the 18.9 MB ALID list and the unmodified 5.2 MB LDSC source snapshot.
+  Nothing here is tracked in the repository.
+
+  Verify with `resources/reference-resources/hapmap3-hg38/verify_hm3_resource.py`,
+  which refuses a missing, malformed, duplicate, non-canonical, wrong-length or
+  checksum-mismatched list. The rule it applies is the pinned opengwasdb
+  `parse_canonical_alid` round-trip, so it reads the same canonical-ALID
+  convention the consumer does rather than a private copy.
+
+  Consumers need an opengwasdb runtime that provides `build-indexed-subset`
+  (opengwas/opengwasdb#264-#271). The repository pin (`opengwasdb 0.3.0`,
+  revision 7b0c42d) is deliberately left unchanged here: adopting a newer
+  runtime and Store format is the separate migration tracked by stores#197.
+  stores#209 plans and runs the subset step and must document and preflight the
+  newer-runtime prerequisite; this ticket only promotes the input resource and
+  does not bump the pin.

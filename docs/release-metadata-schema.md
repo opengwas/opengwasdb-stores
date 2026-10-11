@@ -883,7 +883,7 @@ validation should declare at least:
 | Field | Required | Description |
 |---|---:|---|
 | `resource_id` | Yes | Stable ID for this Reference Resource, referenced from `effect_scale_validation.reference_resources` or `ancestry_assignment.reference_resource_id`. |
-| `kind` | Yes | `reference_af` for single-ancestry allele-frequency lookup resources used by effect-scale validation; `ancestry_mixture` for multi-ancestry mixture-frequency resources used by AF-based ancestry assignment (issue #23); `qc_panel` for the fixed QC variant panel unconditionally retained regardless of significance (issue #28/#29); `trait_ontology_mapping` for a curated trait-label-to-ontology-term lookup; `hybrid_dense_panel` for a Hybrid release's Dense Component reference panel; other kinds (for example LD panels) may reuse the same declaration shape. |
+| `kind` | Yes | `reference_af` for single-ancestry allele-frequency lookup resources used by effect-scale validation; `ancestry_mixture` for multi-ancestry mixture-frequency resources used by AF-based ancestry assignment (issue #23); `qc_panel` for the fixed QC variant panel unconditionally retained regardless of significance (issue #28/#29); `trait_ontology_mapping` for a curated trait-label-to-ontology-term lookup; `hybrid_dense_panel` for a Hybrid release's Dense Component reference panel; `variant_list` for a canonical ALID list consumed as an Indexed Variant Subset build input (`hapmap3-hg38`, epic #214); other kinds (for example LD panels) may reuse the same declaration shape. |
 | `ancestry` | Yes for `reference_af` | Ancestry/population label the resource represents, matching the controlled `assigned_ancestry` vocabulary. For `ancestry_mixture` resources, which cover multiple super-populations at once, use `ancestry: multi` and list the covered super-populations in `super_populations` instead. Not applicable for `trait_ontology_mapping`. |
 | `super_populations` | Yes for `ancestry_mixture` | List of super-population labels the mixture reference can assign to (for example `AFR, AMR, EAS, EUR, MID, NAF, SAS`). |
 | `genome_build` | Yes, except `trait_ontology_mapping` | Genome build of the resource's coordinates. Not applicable for `trait_ontology_mapping`, which has no genomic coordinates. |
@@ -891,11 +891,20 @@ validation should declare at least:
 | `allele_columns` | No | Column-name mapping the resource uses for effect/other allele and frequency, for example `{effect: EA, other: OA, freq: EAF}`. |
 | `location` | Yes | External path or URI for the resource, outside this repository — except `kind: qc_panel` and `kind: trait_ontology_mapping`, both small enough to track directly in this repository, so `location` is a repo-relative path instead. |
 | `location_kind` | No | How to interpret `location`, for example `external_directory`, `external_file`, or `tracked_file` for a small resource tracked directly in this repository. |
+| `row_count` | Yes for `variant_list` | Number of variant rows the resource contains. Verification fails on a mismatch, so a truncated or appended list cannot pass as the declared one. |
+| `checksums` | Yes for `variant_list` | The exact bytes the resource was accepted at: `alid_sha256` and `alid_bytes` for the maintained list, plus `source_md5`/`source_sha256` for the upstream source snapshot. The consumer hashes the same bytes (`opengwasdb build-indexed-subset` records the list's SHA-256 in the subset metadata), so this is the identity a reviewer compares against. |
+| `source` | Yes for `variant_list` | Upstream provenance of the list: source name, file, download URL, snapshot path, size, columns and source row count. |
+| `derivation` | Yes for `variant_list` | How the maintained list was derived from the source and the counts that reconcile it, including `rsids_requested`, `resolved`, `absent_from_store_axis`, `allele_incompatible` and `duplicate_alids`. The arithmetic must balance and `resolved` must equal `row_count`; verification refuses otherwise. |
 | `fine_group_map` | Yes for `ancestry_mixture` | External path to the fine-ancestry-group -> super-population map (one row per fine group in the resource) used to aggregate a fitted mixture to super-population composition. |
 
 Reference-AF and ancestry-mixture resources are recorded here for provenance;
 the resource data itself lives under the configured artifact root or another
-external location, never inside this repository (ADR 0015).
+external location, never inside this repository (ADR 0015). A `kind: variant_list`
+resource is the same shape for an Indexed Variant Subset build input: the
+`hapmap3-hg38` declaration records the canonical-ALID list's `row_count` and
+byte checksums, its LDSC source checksum and snapshot, and the rsID
+reconciliation, and `resources/reference-resources/hapmap3-hg38/verify_hm3_resource.py`
+is the executable check of all of them.
 
 ### Effect-scale validation configuration
 
