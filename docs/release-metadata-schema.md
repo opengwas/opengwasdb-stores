@@ -948,6 +948,26 @@ byte checksums, its LDSC source checksum and snapshot, and the rsID
 reconciliation, and `resources/reference-resources/hapmap3-hg38/verify_hm3_resource.py`
 is the executable check of all of them.
 
+### Indexed Variant Subset defaults
+
+Every future Dense and Hybrid Store Release declares the maintained `hm3`
+Indexed Variant Subset by default (stores #210, epic #214); a Ragged-only release
+does not. A generator resolves that declaration through
+`resources/generators/lib/indexed_subsets.py` (or its R mirror
+`resources/generators/lib/indexed_subsets.R`), which reads the one maintained
+`hapmap3-hg38` Reference Resource, so no writer copies the list path, assembly
+or checksum. The default is not a requirement:
+
+| Field | Required | Description |
+|---|---:|---|
+| `indexed_subsets` | No | A Dense or Hybrid release that omits the key gets the default `hm3` declaration. An explicit `[]` is a deliberate opt-out and must be paired with `indexed_subsets_opt_out`. A non-empty list overrides the default verbatim (validated by `bundle.check()`). A Ragged release may not declare one. |
+| `indexed_subsets_opt_out` | Yes when `indexed_subsets: []` | The written reason a Dense or Hybrid release omits the default. The generator records it in `release.yaml` notes so the omission is reviewable; an empty list with no reason, a null value, or a malformed entry is a generator error rather than a silent omission. |
+
+The resolved declaration is written to `build.yaml` in the shape documented under
+[`build.yaml`](#indexed-variant-subset-declarations). Because a subset-declaring
+release needs an `opengwasdb` providing `build-indexed-subset`, the pre-#197 pin
+needs a capability runtime on PATH; see `src/ogstores/resources.py`.
+
 ### Effect-scale validation configuration
 
 A generator config's `effect_scale_validation` block configures the reference-AF
