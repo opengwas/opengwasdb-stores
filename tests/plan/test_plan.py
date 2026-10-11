@@ -5,7 +5,10 @@ Verifies:
 - OGS-00003 Dense observed-only golden test against external JSON fixture.
 - OGS-00004 and OGS-00005 Hybrid observed-only golden tests against external JSON fixtures.
 - OGS-00006 and OGS-00007 Ragged SSF observed-only golden tests against external JSON fixtures.
-- Post-step sequencing: build -> top-hits (dense/ragged) -> rho (dense only) -> overview (Dense/Hybrid only) -> validate.
+- Committed registry (#211): the eight Dense-component bundles declare `hm3`, and
+  the declared subset Step sits before overview/validate; the four Ragged-only
+  bundles declare none and plan unchanged.
+- Post-step sequencing: build -> top-hits (dense/ragged) -> rho (dense only) -> indexed-subset-<name> (Dense/Hybrid, when declared) -> overview (Dense/Hybrid only) -> validate.
 - Hybrid top-hits policy: top hits are built inline during build-hybrid, so no redundant/invalid
   dense-root build-dense-top-hits step is planned; setting post.top_hits=true on Hybrid is rejected.
 - Ragged top-hits policy: build-ragged-top-hits is planned for ragged layout when post.top_hits=true.
@@ -70,6 +73,11 @@ def record_check() -> None:
     n_checks += 1
 
 
+def without_indexed_subsets(build: dict) -> dict:
+    """Strip #211's declared subsets to isolate pre-migration post-step behaviour."""
+    return {key: value for key, value in build.items() if key != "indexed_subsets"}
+
+
 def assert_steps_match_golden(
     test_case: unittest.TestCase,
     actual_steps: list[Step],
@@ -126,6 +134,12 @@ def validate_step_argv_against_cli(test_case: unittest.TestCase, step: Step) -> 
 
     cmd_name = step.argv[1]
     cmd_args = step.argv[2:]
+
+    if cmd_name == "build-indexed-subset":
+        # The tracked pin (7b0c42d) predates the capability (opengwasdb#264);
+        # an Indexed Variant Subset is an opt-in format-0.2.0 path tracked by
+        # stores#197, so it cannot parse against the pinned CLI (#209/#211).
+        return
 
     test_case.assertIn(
         cmd_name,
@@ -294,7 +308,7 @@ class TestPlanDense(unittest.TestCase):
             root=Path("stores/OGS-00003"),
             release=self.bundle_00003.release,
             build={
-                **self.bundle_00003.build,
+                **without_indexed_subsets(self.bundle_00003.build),
                 "post": {
                     "top_hits": True,
                     "rho": True,
@@ -326,7 +340,7 @@ class TestPlanDense(unittest.TestCase):
             root=Path("stores/OGS-00003"),
             release=self.bundle_00003.release,
             build={
-                **self.bundle_00003.build,
+                **without_indexed_subsets(self.bundle_00003.build),
                 "post": {
                     "top_hits": False,
                     "rho": False,
@@ -573,7 +587,7 @@ class TestPlanHybrid(unittest.TestCase):
             root=Path("stores/OGS-00004"),
             release=self.bundle_00004.release,
             build={
-                **self.bundle_00004.build,
+                **without_indexed_subsets(self.bundle_00004.build),
                 "post": {
                     "top_hits": False,
                     "rho": False,
@@ -2262,14 +2276,16 @@ class TestIndexedSubsets(unittest.TestCase):
                                         )
                                         record_check()
 
-    def test_committed_bundles_declare_no_subsets(self) -> None:
-        """The seven committed releases plan no subset step (no-declaration parity)."""
+    def test_committed_ragged_bundles_declare_no_subsets(self) -> None:
+        """Ragged-only committed releases plan no subset step (#211 parity).
+
+        The eight Dense-component bundles now declare `hm3`; their plans are
+        asserted by tests/hm3-migration/test_hm3_migration.py and the updated
+        OGS-00003/04/05 goldens.
+        """
         for store_id in (
             "OGS-00001",
             "OGS-00002",
-            "OGS-00003",
-            "OGS-00004",
-            "OGS-00005",
             "OGS-00006",
             "OGS-00007",
         ):

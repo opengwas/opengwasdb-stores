@@ -496,6 +496,24 @@ must audit and report the namespace -- so it is format 0.2.0 and its Validation
 Record names that runtime's commit, not the tracked pin. This is opt-in per
 release: no existing 0.1.0 Store is touched.
 
+**Registry migration (stores#211, epic #214).** Every existing registered
+Release Bundle with a Dense Component now declares the default `hm3` subset:
+`OGS-00003`, `OGS-00004`, `OGS-00005`, `OGS-00008`, `OGS-00009`, `OGS-00010`,
+`OGS-00011` and `OGS-00016`. The four Ragged-only bundles (`OGS-00001`,
+`OGS-00002`, `OGS-00006`, `OGS-00007`) are unchanged. The declaration is
+planning metadata only: it adds no Analysis and changes no `release.yaml`
+status, lineage or `analyses.tsv`, so it mints no new Store Release and rebuilds
+no primary data; building the derived namespace for an already-published Store
+is a deliberate capability-runtime run, not part of this migration.
+`resources/scripts/audit_indexed_subsets.py` (`pixi run
+audit-indexed-subsets`) prints the full in-scope list and refuses a
+Dense-component bundle that is neither migrated nor explicitly opted out
+(`indexed_subsets: []`), and a Ragged-only bundle that declares a subset. It
+reads only `build.yaml` and the small resource declaration, so it runs in CI
+without the reference root. The unmigrated `families/*/releases/*` bundles are
+out of scope: they are unregistered, use the retired family-first schema, and
+are not planned by the workflow.
+
 **Lineage ordering is why the DAG spans every store rather than one.** A Reference-Completed release declares its parent's `register` record as an input, resolved from `release.yaml`'s `derived_from`. A per-release workflow driven by a batch loop would have to sequence parents before children by hand, and would get it wrong. Here it is a declared edge.
 
 Resumption is Snakemake's, over the record files. `complete-dense` additionally owns a checkpoint directory and a separate `complete-dense-resume` entry point, but the workflow does not yet select it: a resume must be invoked by hand, and `register` accepts the substitution when it sees it. Wiring this into the workflow needs a decision about how a resume participates in the `.partial` staging transaction, which `rewrite_argv_for_staging` currently rejects.
