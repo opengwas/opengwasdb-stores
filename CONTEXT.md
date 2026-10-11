@@ -77,6 +77,10 @@ _Avoid_: source collection
 The storage organisation used for a Store Release, such as dense observed-only, dense reference-completed, ragged observed-only, ragged reference-completed, or hybrid.
 _Avoid_: source format
 
+**Store Composition Rule**:
+A release-level admission rule deciding which Analyses may share one Store's variant axis, applied after every other membership decision. A shared Store admits only Analyses whose rows were MAF-filtered (ADR 0033); an otherwise admissible Analysis it refuses is excluded as `not_maf_filtered` and belongs in a separate Store Release.
+_Avoid_: routing rule, panel policy
+
 **Store Release**:
 A versioned, immutable, validated OpenGWASDB analytical asset produced from an accepted Release Manifest and material Build Recipe choices.
 _Avoid_: database, live store

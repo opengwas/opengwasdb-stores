@@ -46,7 +46,7 @@ import os
 import shutil
 import statistics
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
 from pathlib import Path
@@ -262,6 +262,7 @@ EXCLUSION_REASONS: frozenset[str] = frozenset(
         "missing_case_control_counts",
         "no_build_eligible_rows",
         "effect_placeholder_rows",
+        "not_maf_filtered",
     }
 )
 
@@ -279,6 +280,7 @@ EXCLUSION_CATEGORIES: Mapping[str, str] = {
     "missing_case_control_counts": "metadata",
     "no_build_eligible_rows": "effect_scale",
     "effect_placeholder_rows": "effect_scale",
+    "not_maf_filtered": "store_composition",
 }
 
 #: Resolver record statuses that this module treats as a completed resolution.
@@ -380,6 +382,10 @@ class CandidateConfiguration:
     #: ``analysis_id -> recorded reason`` read from that file; each listed
     #: Analysis is excluded as ``effect_placeholder_rows``.
     effect_placeholder_exclusions: Mapping[str, str] = field(default_factory=dict)
+    #: ``store_composition.require_maf_filtered`` (issue #203): a shared Store
+    #: admits only Analyses whose rows were MAF-filtered, so an included Analysis
+    #: with no applied MAF floor is excluded as ``not_maf_filtered``.
+    require_maf_filtered: bool = False
 
 
 def _require(document: Mapping[str, Any], key: str, where: str) -> Any:
@@ -427,6 +433,9 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         defaults.get("info_score_threshold", 0.6)
     )
     maf_threshold = parse_maf_threshold(defaults.get("maf_threshold"))
+    require_maf_filtered = parse_store_composition(
+        document.get("store_composition"), maf_threshold, path
+    )
     target_ancestry = read_source_label_map(repo_root, base.ancestry_group)
     source = _mapping(document.get("source"))
     maf_filter_exempt = parse_maf_filter_exempt_technologies(
@@ -489,6 +498,7 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         maf_filter_exempt_analyses=maf_filter_exempt_analyses,
         effect_placeholder_exclusions_path=placeholder_path,
         effect_placeholder_exclusions=effect_placeholder_exclusions,
+        require_maf_filtered=require_maf_filtered,
     )
 
 
@@ -529,6 +539,39 @@ def parse_maf_threshold(value: Any) -> str | None:
     if not number.is_finite() or not 0 <= number <= Decimal("0.5"):
         raise PreflightConfigError("defaults.maf_threshold must be a number in [0,0.5]")
     return format(number, "f")
+
+
+def parse_store_composition(value: Any, maf_threshold: str | None, path: Path) -> bool:
+    """Validate the top-level ``store_composition`` block (issue #203).
+
+    An absent block (or an absent ``require_maf_filtered``) defaults to ``False``,
+    so a Store that has not opted in is unchanged. The block accepts exactly one
+    key; an unknown key is an error rather than being ignored. Turning the rule
+    on also requires a positive ``defaults.maf_threshold``: with no floor (or an
+    explicit zero floor) no Analysis can be MAF-filtered, so the rule would
+    silently empty the Store or admit everything.
+    """
+    if value is None:
+        return False
+    if not isinstance(value, dict):
+        raise PreflightConfigError(f"{path}:store_composition must be a mapping")
+    unknown = sorted(set(value) - {"require_maf_filtered"})
+    if unknown:
+        raise PreflightConfigError(
+            f"{path}:store_composition has unknown key(s): {', '.join(unknown)}"
+        )
+    require = value.get("require_maf_filtered", False)
+    if not isinstance(require, bool):
+        raise PreflightConfigError(
+            f"{path}:store_composition.require_maf_filtered must be a boolean"
+        )
+    if require and (maf_threshold is None or Decimal(maf_threshold) == 0):
+        raise PreflightConfigError(
+            f"{path}:store_composition.require_maf_filtered needs a positive "
+            "defaults.maf_threshold; with no floor (or a disabled floor of 0) no "
+            "Analysis can be MAF-filtered"
+        )
+    return require
 
 
 def parse_maf_filter_exempt_technologies(value: Any) -> tuple[str, ...]:
@@ -1824,6 +1867,11 @@ class AnalysisOutcome:
     def analysis_id(self) -> str:
         return self.row.analysis_id
 
+    @property
+    def maf_filtered(self) -> bool:
+        """True when a MAF floor was emitted on resolver evidence (#203)."""
+        return self.maf_threshold != "NaN"
+
 
 def _record_mapping(record: Mapping[str, Any] | None, key: str) -> Mapping[str, Any]:
     value = (record or {}).get(key)
@@ -1846,27 +1894,77 @@ def apply_release_policy(
     value. Duplicate-content accessions are not collapsed: each keeps its own
     row and its own decision.
 
+    The Store-composition gate (#203) is the *last* one, on purpose: when
+    ``store_composition.require_maf_filtered`` is on, an otherwise-included
+    Analysis whose emitted ``maf_threshold`` is literal ``NaN`` is excluded as
+    ``not_maf_filtered``, but an Analysis that already failed any earlier gate
+    keeps that reason. ``not_maf_filtered`` therefore means "admissible except
+    for Store composition".
+
     ``manifest_rows`` are the resolver manifest rows this run resolved, if the
     caller has them: they carry the approved per-Analysis INFO declarations that
     decide the emitted threshold (stores #175). Omitting them emits ``NaN`` for
-    every Analysis, the no-declaration behaviour.
+    every Analysis, the no-declaration behaviour, so the Store-composition gate
+    refuses to run without them rather than exclude every Analysis.
     """
+    if config.require_maf_filtered and not manifest_rows:
+        raise CandidateError(
+            "store_composition.require_maf_filtered needs the resolver manifest rows: "
+            "without them no Analysis can show an applied MAF floor, and every one "
+            "would be excluded as not_maf_filtered"
+        )
     declaration_by_id = {row.analysis_id: row for row in manifest_rows}
     outcomes: list[AnalysisOutcome] = []
     for row in rows:
         if not row.ready:
             continue
-        outcomes.append(
-            _decide(
-                row=row,
-                resolved=metadata[row.analysis_id],
-                tier=config.base.method_tiers[row.study_design],
-                record=records.get(row.analysis_id),
-                config=config,
-                declaration=declaration_by_id.get(row.analysis_id),
-            )
+        outcome = _decide(
+            row=row,
+            resolved=metadata[row.analysis_id],
+            tier=config.base.method_tiers[row.study_design],
+            record=records.get(row.analysis_id),
+            config=config,
+            declaration=declaration_by_id.get(row.analysis_id),
         )
+        if config.require_maf_filtered and outcome.included and not outcome.maf_filtered:
+            outcome = replace(
+                outcome,
+                included=False,
+                exclusion_reason="not_maf_filtered",
+                exclusion_detail=_not_maf_filtered_detail(
+                    declaration_by_id.get(row.analysis_id),
+                    records.get(row.analysis_id),
+                    row,
+                ),
+            )
+        outcomes.append(outcome)
     return outcomes
+
+
+def _not_maf_filtered_detail(
+    declaration: ResolverRow | None,
+    record: Mapping[str, Any] | None,
+    row: SourceInventoryRow,
+) -> str:
+    """The ``not_maf_filtered`` audit detail (issue #203).
+
+    Names the requested floor, the resolver's own MAF state, the Analysis's
+    genotyping technologies, and the off-reference share of its build-eligible
+    rows, so the exclusion can be judged from the sidecar alone. Absence is
+    rendered explicitly (``undeclared``, ``unrecorded``, ``?``), never as a zero
+    count or as a declared ``NaN``.
+    """
+    diagnostics = _record_mapping(record, "diagnostics")
+    declared = declaration.maf_threshold if declaration is not None else "undeclared"
+    state = str(diagnostics.get("maf_state") or "unrecorded")
+    technologies = "; ".join(read_genotyping_technologies(row.yaml_file)) or "unrecorded"
+    off = _diagnostic_count(diagnostics.get("build_eligible_rows_off_variant_reference"))
+    eligible = _diagnostic_count(diagnostics.get("build_eligible_rows"))
+    return (
+        f"no MAF floor applied (requested maf_threshold={declared}, "
+        f"resolver maf_state={state}, genotyping_technology={technologies}); "
+        f"{off} of {eligible} build-eligible rows are off the variant reference (#203)"
+    )
 
 
 def _decide(
@@ -2142,6 +2240,7 @@ class CandidateTables:
     reference_overlap_tsv: str
     reference_overlap: Mapping[str, Any]
     reference_overlap_errors: tuple[str, ...]
+    store_composition: Mapping[str, Any]
     inventory_rows: int
     included_rows: int
     excluded_rows: int
@@ -2208,6 +2307,8 @@ def build_candidate_tables(
     ancestry_check, sd_check, effect_scale_check, warnings = _derive_checks(
         outcomes, sd_rows, exclusion_counts, duplicate_membership
     )
+    store_composition = _store_composition(outcomes, config)
+    warnings.extend(_store_composition_warnings(store_composition))
 
     return CandidateTables(
         analyses_tsv=_render_tsv(ANALYSES_COLUMNS, analyses_rows),
@@ -2218,6 +2319,7 @@ def build_candidate_tables(
         reference_overlap_tsv=_render_tsv(REFERENCE_OVERLAP_COLUMNS, overlap_rows),
         reference_overlap=overlap_summary,
         reference_overlap_errors=tuple(overlap_errors),
+        store_composition=store_composition,
         inventory_rows=len(inventory_rows),
         included_rows=sum(1 for outcome in outcomes if outcome.included),
         excluded_rows=sum(1 for outcome in outcomes if not outcome.included),
@@ -2227,6 +2329,83 @@ def build_candidate_tables(
         effect_scale_check=effect_scale_check,
         warnings=tuple(warnings),
     )
+
+
+def _store_composition(
+    outcomes: Sequence[AnalysisOutcome], config: CandidateConfiguration
+) -> dict[str, Any]:
+    """Summarise MAF-filtered admission for the shared Store (issue #203).
+
+    ``unfiltered_*`` counts the Analyses whose emitted ``maf_threshold`` is
+    literal ``NaN`` -- those included despite no applied MAF floor, and those
+    routed out by the ``not_maf_filtered`` gate. The off-reference row sums use
+    :func:`_off_reference_sum`, which never treats absence as zero.
+    """
+    unfiltered_included = [
+        outcome for outcome in outcomes if outcome.included and not outcome.maf_filtered
+    ]
+    routed = [
+        outcome
+        for outcome in outcomes
+        if not outcome.included and outcome.exclusion_reason == "not_maf_filtered"
+    ]
+    return {
+        "require_maf_filtered": config.require_maf_filtered,
+        "maf_floor": config.maf_threshold,
+        "unfiltered_included": len(unfiltered_included),
+        "unfiltered_included_off_reference_rows": _off_reference_sum(
+            unfiltered_included, config
+        ),
+        "unfiltered_routed": len(routed),
+        "unfiltered_routed_off_reference_rows": _off_reference_sum(routed, config),
+    }
+
+
+def _off_reference_sum(
+    outcomes: Sequence[AnalysisOutcome], config: CandidateConfiguration
+) -> int | None:
+    """Sum off-reference build-eligible rows, or ``None`` when it is not knowable.
+
+    The config must declare a ``build.options.variant-reference`` axis and every
+    counted Analysis must carry a valid non-negative integer
+    ``build_eligible_rows_off_variant_reference``; absence is never summed as
+    zero. With zero counted Analyses and a declared axis the sum is a definite
+    ``0``.
+    """
+    if not config.build_options.get("variant-reference"):
+        return None
+    total = 0
+    for outcome in outcomes:
+        diagnostics = _record_mapping(outcome.record, "diagnostics")
+        off = diagnostics.get("build_eligible_rows_off_variant_reference")
+        if type(off) is not int or off < 0:
+            return None
+        total += off
+    return total
+
+
+def _store_composition_warnings(composition: Mapping[str, Any]) -> list[str]:
+    """The Store-composition review warnings (issue #203), from its summary."""
+    warnings: list[str] = []
+    routed = composition["unfiltered_routed"]
+    if routed:
+        warnings.append(
+            f"{routed} Analysis/Analyses had no MAF floor applied and were excluded "
+            "from this shared Store as not_maf_filtered (#203); see "
+            "sidecars/exclusions.tsv"
+        )
+    unfiltered_included = composition["unfiltered_included"]
+    if (
+        not composition["require_maf_filtered"]
+        and composition["maf_floor"] is not None
+        and unfiltered_included
+    ):
+        warnings.append(
+            f"{unfiltered_included} included Analysis/Analyses had no MAF floor "
+            "applied, so their off-reference rows enter the shared variant axis "
+            "unfiltered (#203); see store_composition in validation.yaml"
+        )
+    return warnings
 
 
 def _reference_overlap(
@@ -2721,6 +2900,12 @@ def render_release_yaml(
         "non-target/unassigned ancestry, orientation failures, unusable source AF and "
         "ordinary resolution failures are controlled exclusions (sidecars/exclusions.tsv)."
     )
+    if config.require_maf_filtered:
+        notes_lines.append(
+            "Store composition (#203): this shared Store admits only Analyses whose "
+            "rows were MAF-filtered; an included Analysis with no applied MAF floor "
+            "is excluded as not_maf_filtered."
+        )
     if tables.exclusion_counts:
         notes_lines.append(
             "Exclusions by reason: "
@@ -2799,6 +2984,7 @@ def render_validation_yaml(
             "reference_overlap": "failed" if tables.reference_overlap_errors else "passed",
         },
         "reference_overlap": dict(tables.reference_overlap),
+        "store_composition": dict(tables.store_composition),
         "reports": {
             "source_readiness": "sidecars/source_readiness.tsv",
             "ancestry": "sidecars/ancestry.tsv",
@@ -3024,6 +3210,7 @@ __all__ = [
     "load_candidate_configuration",
     "maf_threshold_emission",
     "now_utc",
+    "parse_store_composition",
     "publish_candidate",
     "read_candidate_metadata",
     "read_genotyping_technologies",

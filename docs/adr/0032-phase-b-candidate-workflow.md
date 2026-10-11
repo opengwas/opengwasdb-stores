@@ -37,7 +37,8 @@ It runs five stages — `preflight`, `prepare`, `resolve`, `verify`, `emit` — 
   `orientation_failure`, `sd_no_reference_resource_for_ancestry`,
   `sd_no_qualifying_evidence`, `sd_no_usable_sample_size`, `sd_failed`,
   `missing_sample_size`, `missing_case_control_counts`,
-  `no_build_eligible_rows` and `effect_placeholder_rows`; each is explained in `sidecars/exclusions.tsv`.
+  `no_build_eligible_rows`, `effect_placeholder_rows` and `not_maf_filtered`
+  (ADR 0033); each is explained in `sidecars/exclusions.tsv`.
 
 - **Every record is accounted before anything is replaced.** Finalisation refuses
   a selected Analysis with no record, a record that names an Analysis the
