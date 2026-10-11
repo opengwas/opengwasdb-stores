@@ -85,6 +85,10 @@ check(identical(build_with$qc_panel$enabled, TRUE), "build.yaml qc_panel.enabled
 check(identical(build_with$qc_panel$resource_id, "qc-panel-fixture"), "build.yaml qc_panel.resource_id should round-trip")
 check(any(vapply(build_with$reference_resources, function(r) identical(r$kind, "qc_panel"), logical(1))),
       "build.yaml reference_resources should include the qc_panel entry")
+# Ragged releases have no Dense Component and must not declare an Indexed Variant
+# Subset (stores #210).
+check(is.null(build_with$indexed_subsets),
+      "Ragged build.yaml must not declare an Indexed Variant Subset (#210)")
 
 # --- Without the QC panel configured: nothing retained (prior behaviour) ---
 regions_without <- fread(file.path(output_without, "sidecars", "sparse_regions.tsv"), sep = "\t", na.strings = "")

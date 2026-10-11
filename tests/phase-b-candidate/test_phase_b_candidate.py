@@ -667,6 +667,22 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertEqual(build["completion_state"], "observed_only")
         self.assertEqual(build["build"]["command"], "build-hybrid")
         self.assertNotIn("artifacts", build)
+        # Dense/Hybrid releases declare the maintained hm3 Indexed Variant Subset
+        # by default (stores #210), sourced from the hapmap3-hg38 resource.
+        self.assertEqual(
+            build["indexed_subsets"],
+            [{
+                "name": "hm3",
+                "resource_id": "hapmap3-hg38",
+                "variant_list": (
+                    "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt"
+                ),
+                "reference_assembly": "GRCh38",
+                "checksum": (
+                    "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398"
+                ),
+            }],
+        )
 
         validation = yaml.safe_load((bundle_dir / "validation.yaml").read_text(encoding="utf-8"))
         self.assertIn(validation["status"], {"passed", "passed_with_warnings"})
@@ -683,6 +699,12 @@ class CandidateWorkflowTests(unittest.TestCase):
         steps = plan(loaded)
         self.assertEqual(steps[0].name, "build")
         self.assertIn("build-hybrid", steps[0].argv)
+        step_names = [step.name for step in steps]
+        self.assertIn("indexed-subset-hm3", step_names)
+        self.assertLess(
+            step_names.index("indexed-subset-hm3"),
+            step_names.index("validate"),
+        )
 
     def test_info_threshold_configuration_and_no_declaration_emission(self) -> None:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
@@ -761,6 +783,22 @@ class CandidateWorkflowTests(unittest.TestCase):
             document.pop("store_composition", None)
         else:
             document["store_composition"] = value
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+
+    def _set_indexed_subsets(self, value: object, *, present: bool = True) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        if not present:
+            document.pop("indexed_subsets", None)
+        else:
+            document["indexed_subsets"] = value
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+
+    def _set_indexed_subsets_opt_out(self, value: object) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        if value is None:
+            document.pop("indexed_subsets_opt_out", None)
+        else:
+            document["indexed_subsets_opt_out"] = value
         self.fixture.config_path.write_text(yaml.safe_dump(document))
 
     def _write_exemptions(
@@ -1940,6 +1978,85 @@ class CandidateWorkflowTests(unittest.TestCase):
             REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/config-full.yaml", REPO_ROOT
         )
         self.assertEqual(config.effect_placeholder_exclusions, found)
+
+    # -- Indexed Variant Subset defaults (stores #210, epic #214) -------------
+
+    def test_indexed_subsets_default_opt_out_and_malformed_errors(self) -> None:
+        # Default: a config that says nothing emits the maintained hm3 entry.
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertEqual(len(config.indexed_subsets), 1)
+        self.assertEqual(config.indexed_subsets[0]["name"], "hm3")
+        self.assertEqual(config.indexed_subsets[0]["resource_id"], "hapmap3-hg38")
+        self.assertIsNone(config.indexed_subsets_opt_out)
+        build = yaml.safe_load(candidate_workflow.render_build_yaml(STORE_ID, config))
+        self.assertEqual(build["indexed_subsets"][0]["name"], "hm3")
+
+        # A reviewed opt-out is an explicit empty list plus a written reason;
+        # the build still declares the key, so the omission is reviewable.
+        self._set_indexed_subsets([])
+        self._set_indexed_subsets_opt_out("pilot predates the maintained HapMap3 list")
+        opt_out = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertEqual(tuple(opt_out.indexed_subsets), ())
+        self.assertEqual(
+            opt_out.indexed_subsets_opt_out,
+            "pilot predates the maintained HapMap3 list",
+        )
+        self.assertEqual(
+            yaml.safe_load(candidate_workflow.render_build_yaml(STORE_ID, opt_out))[
+                "indexed_subsets"
+            ],
+            [],
+        )
+
+        # Empty without a reason is a generator error, not a silent omission.
+        self._set_indexed_subsets_opt_out(None)
+        with self.assertRaisesRegex(ValueError, "record why"):
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+
+        # A null value is malformed, matching plan()/bundle.check().
+        self._set_indexed_subsets(None)
+        with self.assertRaisesRegex(ValueError, "not null"):
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+
+        # A declaration missing a required field, or with a bad checksum, errors.
+        self._set_indexed_subsets([{"name": "hm3"}])
+        with self.assertRaisesRegex(ValueError, "requires a non-empty string"):
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self._set_indexed_subsets([{
+            "name": "hm3",
+            "resource_id": "hapmap3-hg38",
+            "variant_list": "/list.txt",
+            "reference_assembly": "GRCh38",
+            "checksum": "not-a-sha256",
+        }])
+        with self.assertRaisesRegex(ValueError, "64-character hex sha256"):
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+
+        # A Ragged release may never declare one.
+        self._set_indexed_subsets([{
+            "name": "hm3",
+            "resource_id": "hapmap3-hg38",
+            "variant_list": "/list.txt",
+            "reference_assembly": "GRCh38",
+        }])
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["build"]["layout"] = "ragged"
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        with self.assertRaisesRegex(ValueError, "Ragged"):
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+
+    def test_indexed_subsets_reviewed_opt_out_is_recorded_in_release_notes(self) -> None:
+        self._set_indexed_subsets([])
+        self._set_indexed_subsets_opt_out("pilot predates the maintained HapMap3 list")
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        bundle = self.fixture.registry_root / STORE_ID
+        build = yaml.safe_load((bundle / "build.yaml").read_text())
+        self.assertEqual(build["indexed_subsets"], [])
+        release = yaml.safe_load((bundle / "release.yaml").read_text())
+        self.assertIn("Indexed Variant Subsets (#210)", release["notes"])
+        self.assertIn("intentionally omitted", release["notes"])
+        self.assertIn("pilot predates the maintained HapMap3 list", release["notes"])
 
     # -- Store composition / MAF-filtered admission (issue #203) --------------
 

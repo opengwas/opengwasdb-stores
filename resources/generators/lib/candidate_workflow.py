@@ -55,6 +55,7 @@ from typing import Any, Iterable, Mapping, Sequence
 import yaml
 
 from resources.generators.lib.ancestry_sidecar import format_sidecar_float
+from resources.generators.lib.indexed_subsets import resolve_indexed_subsets
 from resources.generators.lib.source_inventory import (
     INVENTORY_COLUMNS,
     PreflightConfigError,
@@ -386,6 +387,13 @@ class CandidateConfiguration:
     #: admits only Analyses whose rows were MAF-filtered, so an included Analysis
     #: with no applied MAF floor is excluded as ``not_maf_filtered``.
     require_maf_filtered: bool = False
+    #: The ``indexed_subsets`` declarations to emit (stores #210). ``None`` means
+    #: emit no key at all (a Ragged release); the default is the maintained
+    #: ``hm3`` declaration for Dense and Hybrid releases.
+    indexed_subsets: tuple[Mapping[str, Any], ...] | None = None
+    #: The reviewed reason an operator deliberately omitted the default (`#210`).
+    #: Recorded in release.yaml notes so the omission is reviewable.
+    indexed_subsets_opt_out: str | None = None
 
 
 def _require(document: Mapping[str, Any], key: str, where: str) -> Any:
@@ -474,6 +482,11 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
     if declaration_path is not None and not declaration_path.is_absolute():
         declaration_path = repo_root / declaration_path
 
+    layout = str(build.get("layout") or "hybrid")
+    indexed_subsets, indexed_subsets_opt_out = resolve_indexed_subsets(
+        document, layout, repo_root
+    )
+
     return CandidateConfiguration(
         base=base,
         label=label,
@@ -481,7 +494,7 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         description=str(document.get("description") or ""),
         notes=str(document.get("notes") or ""),
         defaults=defaults,
-        layout=str(build.get("layout") or "hybrid"),
+        layout=layout,
         completion_state=str(build.get("completion_state") or "observed_only"),
         build_command=str(build.get("command") or "build-hybrid"),
         build_options=dict(options),
@@ -499,6 +512,10 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         effect_placeholder_exclusions_path=placeholder_path,
         effect_placeholder_exclusions=effect_placeholder_exclusions,
         require_maf_filtered=require_maf_filtered,
+        indexed_subsets=(
+            tuple(indexed_subsets) if indexed_subsets is not None else None
+        ),
+        indexed_subsets_opt_out=indexed_subsets_opt_out,
     )
 
 
@@ -2849,6 +2866,11 @@ def render_build_yaml(store_id: str, config: CandidateConfiguration) -> str:
         },
         "post": dict(config.post) or {"top_hits": False, "overview": True},
     }
+    # Dense and Hybrid releases declare the maintained hm3 Indexed Variant
+    # Subset by default (stores #210). ``None`` is a Ragged release, which emits
+    # no key at all; ``[]`` is a Dense/Hybrid release's reviewed opt-out.
+    if config.indexed_subsets is not None:
+        document["indexed_subsets"] = [dict(entry) for entry in config.indexed_subsets]
     return _dump_yaml(document)
 
 
@@ -2910,6 +2932,11 @@ def render_release_yaml(
         notes_lines.append(
             "Exclusions by reason: "
             + ", ".join(f"{reason}={count}" for reason, count in tables.exclusion_counts.items())
+        )
+    if config.indexed_subsets_opt_out:
+        notes_lines.append(
+            "Indexed Variant Subsets (#210): the default hm3 Indexed Variant "
+            f"Subset is intentionally omitted: {config.indexed_subsets_opt_out}"
         )
     for warning in tables.warnings:
         notes_lines.append(f"Review: {warning}")

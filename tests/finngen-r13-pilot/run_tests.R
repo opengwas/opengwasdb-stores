@@ -243,7 +243,52 @@ check(identical(registry_release$generator$commands[[2]],
 registry_build <- read_yaml(file.path(bundle_dir, "build.yaml"))
 check(identical(registry_build$build$command, "build-dense-vcf"),
       "registry build command mismatch")
+# Dense releases declare the maintained hm3 Indexed Variant Subset by default
+# (stores #210), read from the one hapmap3-hg38 resource declaration.
+check(identical(registry_build$indexed_subsets[[1]]$name, "hm3"),
+      "registry build.yaml should declare the default hm3 Indexed Variant Subset (#210)")
+check(identical(registry_build$indexed_subsets[[1]]$resource_id, "hapmap3-hg38"),
+      "hm3 declaration should name the maintained resource")
+check(identical(registry_build$indexed_subsets[[1]]$checksum,
+                "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398"),
+      "hm3 declaration checksum should come from the maintained resource")
 check(nrow(fread(file.path(bundle_dir, "analyses.tsv"), sep = "\t")) == nrow(manifest),
       "registry analyses.tsv should carry every manifest row")
+
+# The legacy family-scoped Dense writer declares the same default (#210).
+legacy_build <- read_yaml(file.path(full_release_dir, "build.yaml"))
+check(identical(legacy_build$indexed_subsets[[1]]$name, "hm3"),
+      "legacy dense build.yaml should declare the default hm3 Indexed Variant Subset (#210)")
+
+# Reviewed opt-out (#210): an explicit empty list plus a written reason keeps the
+# release valid, declares the empty list, and records the reason in release.yaml.
+optout_config <- full_config
+optout_config$indexed_subsets <- list()
+optout_config$indexed_subsets_opt_out <- "fixture predates the maintained list"
+optout_registry_root <- file.path(tmp, "registry-optout")
+optout_config$output$registry_root <- optout_registry_root
+optout_config_path <- file.path(tmp, "optout-config.yaml")
+writeLines(as.yaml(optout_config), optout_config_path)
+optout_result <- system2(
+  "Rscript",
+  c(
+    "resources/generators/lib/source-formats/finngen-r13-dense/generate.R",
+    paste0("--config=", optout_config_path),
+    "--mode=emit-registry"
+  ),
+  stdout = TRUE,
+  stderr = TRUE
+)
+optout_status <- attr(optout_result, "status")
+check(is.null(optout_status) || optout_status == 0L,
+      "opt-out emit-registry failed:\n%s", paste(optout_result, collapse = "\n"))
+optout_build <- read_yaml(file.path(optout_registry_root, "OGS-99001", "build.yaml"))
+check(identical(optout_build$indexed_subsets, list()),
+      "opt-out build.yaml should declare the explicit empty list (#210)")
+optout_release <- read_yaml(file.path(optout_registry_root, "OGS-99001", "release.yaml"))
+check(grepl("intentionally omitted", optout_release$notes, fixed = TRUE),
+      "the opt-out reason should be recorded in release.yaml notes (#210)")
+check(grepl("fixture predates the maintained list", optout_release$notes, fixed = TRUE),
+      "the opt-out note should carry the written reason")
 
 cat(sprintf("ALL %d CHECKS PASSED\n", n_checks))

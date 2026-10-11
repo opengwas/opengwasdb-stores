@@ -38,8 +38,8 @@ script_version <- function(root) {
   paste0("sha256:", sha256_file(path_abs(root, "resources/generators/lib/source-formats/finngen-r13-dense/generate.R")))
 }
 
-write_build_yaml <- function(cfg, release_dir) {
-  write_yaml_file(list(
+write_build_yaml <- function(cfg, root, release_dir) {
+  build <- list(
     store_family_id = cfg$store_family_id,
     family_release_id = cfg$family_release_id,
     store_layout = "dense-observed",
@@ -67,7 +67,12 @@ write_build_yaml <- function(cfg, release_dir) {
       store_uri = cfg$output$planned_store_uri
     ),
     notes = cfg$build_notes %||% ""
-  ), file.path(release_dir, "build.yaml"))
+  )
+  # Dense releases declare the maintained hm3 Indexed Variant Subset by default
+  # (stores #210); NULL means a reviewed omission emits no key at all.
+  indexed <- resolve_indexed_subsets(cfg, "dense", root)
+  if (!is.null(indexed$subsets)) build$indexed_subsets <- indexed$subsets
+  write_yaml_file(build, file.path(release_dir, "build.yaml"))
 }
 
 update_schema_check <- function(release_dir, root) {
@@ -157,9 +162,9 @@ emit_bundle <- function(cfg, root, config_path) {
       sd_estimation = "sidecars/sd_estimation.tsv",
       build_report = "sidecars/build_report.tsv"
     ),
-    notes = cfg$notes %||% ""
+    notes = notes_with_indexed_subsets_opt_out(cfg$notes %||% "", "dense", cfg, root)
   ), file.path(release_dir, "release.yaml"))
-  write_build_yaml(cfg, release_dir)
+  write_build_yaml(cfg, root, release_dir)
   write_yaml_file(list(
     status = "candidate",
     validated_at = NULL,
@@ -195,8 +200,8 @@ emit_bundle <- function(cfg, root, config_path) {
 # it can be re-run after any acquisition fix and is a pure projection of the
 # acquisition evidence.
 
-render_registry_build_yaml <- function(cfg) {
-  list(
+render_registry_build_yaml <- function(cfg, root) {
+  build <- list(
     store_id = cfg$output$store_id,
     layout = cfg$build$layout,
     completion_state = cfg$build$completion_state,
@@ -206,6 +211,12 @@ render_registry_build_yaml <- function(cfg) {
     ),
     post = cfg$build$post
   )
+  # Dense (and, for a future Hybrid config, Hybrid) releases default to the
+  # maintained hm3 Indexed Variant Subset (stores #210). The declaration is read
+  # from the one maintained resource; Ragged emits nothing.
+  indexed <- resolve_indexed_subsets(cfg, cfg$build$layout, root)
+  if (!is.null(indexed$subsets)) build$indexed_subsets <- indexed$subsets
+  build
 }
 
 render_registry_release_yaml <- function(cfg, root, commands, created_at) {
@@ -230,7 +241,7 @@ render_registry_release_yaml <- function(cfg, root, commands, created_at) {
       commands = commands
     ),
     description = cfg$description,
-    notes = cfg$notes %||% ""
+    notes = notes_with_indexed_subsets_opt_out(cfg$notes %||% "", cfg$build$layout, cfg, root)
   )
 }
 
@@ -288,7 +299,7 @@ emit_registry_bundle <- function(cfg, root) {
     render_registry_release_yaml(cfg, root, list(emit_command, acquire_command, registry_command), created_at),
     file.path(bundle_dir, "release.yaml")
   )
-  write_yaml_file(render_registry_build_yaml(cfg), file.path(bundle_dir, "build.yaml"))
+  write_yaml_file(render_registry_build_yaml(cfg, root), file.path(bundle_dir, "build.yaml"))
 
   legacy_validation_path <- file.path(legacy_dir, "validation.yaml")
   if (file.exists(legacy_validation_path)) {
@@ -307,6 +318,7 @@ source(path_abs(root, "resources/generators/lib/metadata_resolvers/finngen_manif
 source(path_abs(root, "resources/generators/lib/build_environment.R"))
 source(path_abs(root, "resources/generators/lib/schema_validate.R"))
 source(path_abs(root, "resources/generators/lib/finngen_r13_pilot.R"))
+source(path_abs(root, "resources/generators/lib/indexed_subsets.R"))
 cfg <- read_yaml(path_abs(root, args$config))
 cfg$.config_path <- args$config
 

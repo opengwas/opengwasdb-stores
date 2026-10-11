@@ -272,7 +272,7 @@ manifest_rows <- function(cfg, selected, paths, canonical_table = NULL, ancestry
 }
 
 write_build_yaml <- function(cfg, root, release_dir, paths) {
-  write_yaml_file(list(
+  build <- list(
     store_family_id = cfg$store_family_id,
     family_release_id = cfg$family_release_id,
     store_layout = "hybrid-observed",
@@ -303,7 +303,12 @@ write_build_yaml <- function(cfg, root, release_dir, paths) {
       store_uri = paths$store_uri,
       build_log_uri = NULL
     )
-  ), file.path(release_dir, "build.yaml"))
+  )
+  # Hybrid releases declare the maintained hm3 Indexed Variant Subset by default,
+  # bound to the Dense Component, not the Ragged Overflow (stores #210).
+  indexed <- resolve_indexed_subsets(cfg, "hybrid", root)
+  if (!is.null(indexed$subsets)) build$indexed_subsets <- indexed$subsets
+  write_yaml_file(build, file.path(release_dir, "build.yaml"))
 }
 
 emit_bundle <- function(cfg, root) {
@@ -356,7 +361,7 @@ emit_bundle <- function(cfg, root) {
       build_report = "sidecars/build_report.tsv",
       sd_estimation = "sidecars/sd_estimation.tsv"
     ),
-    notes = cfg$notes %||% ""
+    notes = notes_with_indexed_subsets_opt_out(cfg$notes %||% "", "hybrid", cfg, root)
   ), file.path(release_dir, "release.yaml"))
 
   write_build_yaml(cfg, root, release_dir, paths)
@@ -662,6 +667,7 @@ source(path_abs(root, "resources/generators/lib/build_environment.R"))
 source(path_abs(root, "resources/generators/lib/schema_validate.R"))
 source(path_abs(root, "resources/generators/lib/metadata_resolvers/ontology_contract.R"))
 source(path_abs(root, "resources/generators/lib/metadata_resolvers/canonical_trait_table.R"))
+source(path_abs(root, "resources/generators/lib/indexed_subsets.R"))
 cfg <- read_yaml(path_abs(root, args$config))
 cfg$.config_path <- args$config
 
