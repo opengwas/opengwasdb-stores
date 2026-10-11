@@ -91,6 +91,20 @@ checkpoints and unrelated working-tree changes.
 - Full release execution needs a release-specific gate and resource allocation,
   coordinated with core #254. Query RSS is not a validation concurrency budget.
 
+## Initial review checkpoint
+
+Draft [PR #233](https://github.com/opengwas/opengwasdb-stores/pull/233) targets
+`dev` from `feat/232-execution-frontier`. It records this execution setup only;
+no worker implementation is integrated or ticket completion claimed. The initial
+documentation check was `git diff --check`. Implementation checkpoints will be
+reviewed and raised as separate coherent feature PRs.
+
+One declaration-level blocker is already visible: `hgdp1kgp-hg38-ld` declares
+AFR/EAS/SAS, not AMR, and #171 excludes ancestries without block definitions.
+#229 therefore needs an explicitly suitable AMR completion resource; it cannot
+be treated as observed-only success. This inspection is not fresh physical-panel
+verification or calibration evidence.
+
 Subsequent checkpoints must record actual commits, reviewed scope, commands,
 evidence locations, unresolved owner decisions and PR URLs. Missing completion
 or correctness gates prevent a blanket ingestion-readiness claim.
