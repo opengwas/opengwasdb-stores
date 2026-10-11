@@ -289,6 +289,7 @@ test-python = { cmd = "python3 resources/scripts/run_all_tests.py --only python"
 test-r = { cmd = "python3 resources/scripts/run_all_tests.py --only r" }
 concordance-run = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/run_concordance_study.py" }
 bundle-check = { cmd = "python3 resources/scripts/check_bundles.py" }
+audit-indexed-subsets = { cmd = "python3 resources/scripts/audit_indexed_subsets.py" }
 env-check = { cmd = "python3 resources/scripts/env_check.py" }
 index-ci = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 

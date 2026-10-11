@@ -39,6 +39,26 @@
     ]
   },
   {
+    "name": "indexed-subset-hm3",
+    "argv": [
+      "opengwasdb",
+      "build-indexed-subset",
+      "/data/opengwasdb/stores/OGS-00003/store.opengwasdb",
+      "hm3",
+      "--variant-list",
+      "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt",
+      "--reference-assembly",
+      "GRCh38"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00003/store.opengwasdb",
+      "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00003/store.opengwasdb"
+    ]
+  },
+  {
     "name": "overview",
     "argv": [
       "opengwasdb",
