@@ -1,0 +1,48 @@
+{
+  "resource_id": "hapmap3-hg38",
+  "label": "HapMap3 GRCh38 canonical ALID list",
+  "kind": "variant_list",
+  "reference_assembly": "GRCh38",
+  "variant_id_convention": "chr:pos:a1:a2 (a1 = min(allele1, allele2)); canonical ALID, no 'chr' prefix",
+  "maintained_location": "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt",
+  "ticket": "opengwas/opengwasdb-stores#208",
+  "epic": "opengwas/opengwasdb-stores#214",
+  "alid_file": {
+    "path": "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt",
+    "sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+    "bytes": 18892749,
+    "row_count": 1206903,
+    "duplicate_alids": 0
+  },
+  "source": {
+    "name": "LDSC canonical HapMap3 SNP list",
+    "file": "w_hm3.snplist.gz",
+    "url": "https://zenodo.org/api/records/7773502/files/w_hm3.snplist.gz/content",
+    "snapshot": "/data/opengwasdb/reference/hapmap3-hg38/w_hm3.snplist.gz",
+    "md5": "153ecc2bcfa740afafe656e6a384d769",
+    "sha256": "3c876903ea996851fefabbb0460190ddbc8366fb7bc1ab4dea02335714d45a48",
+    "bytes": 5221397,
+    "columns": ["SNP", "A1", "A2"],
+    "rsid_rows": 1217311
+  },
+  "derivation": {
+    "method": "allele-safe rsID resolution of the LDSC HapMap3 list against the OGS-00009 GRCh38 Store Variant Table, performed by opengwas/opengwasdb benchmarks/benchmark_indexed_subset.py (read_hapmap3 -> resolve_hapmap3 -> write_alid_list), not by build-indexed-subset --variant-list, which consumes the already-canonical ALID list",
+    "resolution_script": "opengwas/opengwasdb benchmarks/benchmark_indexed_subset.py",
+    "resolution_functions": ["read_hapmap3", "resolve_hapmap3", "write_alid_list"],
+    "resolution_revision": "a36ea78",
+    "store": "OGS-00009",
+    "store_reference_assembly": "GRCh38",
+    "rsids_requested": 1217311,
+    "resolved": 1206903,
+    "absent_from_store_axis": 10385,
+    "allele_incompatible": 23,
+    "multiple_store_rows": 2743,
+    "duplicate_alids": 0
+  },
+  "evidence": {
+    "opengwasdb": "docs/benchmark-output/opengwasdb_267_indexed_subset_benchmark.json",
+    "revision": "a36ea78",
+    "fields": ["input.variant_list_sha256", "input.hapmap3_source_md5", "input.hapmap3_resolution", "input.counts_reconciled"]
+  },
+  "byte_identity": "The maintained ALID list is byte-for-byte the 1,206,903-row list benchmarked in opengwas/opengwasdb#262/#267; the declared sha256 is over those exact bytes."
+}
