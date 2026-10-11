@@ -28,3 +28,22 @@ pixi run -e dev python <stores>/resources/scripts/release-benchmark-report.py \
 HM3 benchmark absence (`missing`, `not_applicable`, `unsupported`) is operational
 evidence, not a Store validation failure; see
 [`docs/spec/store-release-workflow.md`](../spec/store-release-workflow.md).
+
+## HM3 pipeline proof (stores #213, epic #214)
+
+`resources/scripts/hm3-pipeline-proof.py` runs a real-data end-to-end proof that
+the maintained HapMap3 resource, release planning, bundle migration, overview,
+validation and benchmark reporting work together. It writes:
+
+- `opengwasdb_213_hm3_pipeline_proof.json` — the generated proof artifact (store
+  and release identity, runtime and stores revisions, the planned Step argv and
+  dry-run job list, the disclosed prerequisite-record relocation, subset
+  counts/checksums, overview and validation evidence, and headline timings);
+- [`docs/hm3-pipeline-proof.md`](../hm3-pipeline-proof.md) — the rendered report.
+
+It runs against a fresh reflink copy of OGS-00009 under a dedicated artifact
+root, so the authoritative Store is read-only, and executes the subset as a
+planned Step through `workflow/release.py` on the capability runtime
+(`opengwasdb` commit `1c2c85d`). The HM3 timing in the artifact is the core
+`opengwasdb#272` seam, `benchmarks._query_shapes.measure_hm3_extract`, surfaced
+by the stores#212 report.
