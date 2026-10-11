@@ -96,6 +96,49 @@ INFO_SCORE_KINDS: frozenset[str] = frozenset({"imputation_info", "imputation_r2"
 # left to the core reader.
 MAF_THRESHOLD_COLUMN: str = "maf_threshold"
 
+# Optional named Indexed Variant Subset declarations (stores #209, epic #214).
+# A Build Recipe may declare one or more; `plan()` turns each into a
+# `build-indexed-subset` Step. The declaration names a maintained variant-list
+# Reference Resource by `resource_id` and records the resolved `variant_list`
+# path and `reference_assembly` it uses, so the immutable bundle is
+# self-contained and `plan()` needs no resource I/O. Ragged Store Releases have
+# no Dense Component to index, so they reject any declaration rather than
+# silently dropping it (CONTRIBUTING's fail-loud rule; epic #214 non-goal).
+INDEXED_SUBSETS_KEY: str = "indexed_subsets"
+INDEXED_SUBSET_STEP_PREFIX: str = "indexed-subset-"
+# The subset-name grammar is opengwasdb's own (`_NAME_RE`,
+# `opengwas/layouts/dense/indexed_subsets.py`), so a name the planner accepts is
+# one the consumer accepts. The registry is additionally stricter in rejecting
+# `..`, because the name becomes part of a record filename.
+INDEXED_SUBSET_NAME_RE: re.Pattern[str] = re.compile(
+    r"\A[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z"
+)
+INDEXED_SUBSET_REQUIRED_KEYS: tuple[str, ...] = (
+    "name",
+    "resource_id",
+    "variant_list",
+    "reference_assembly",
+)
+INDEXED_SUBSET_OPTIONAL_KEYS: tuple[str, ...] = ("checksum", "options")
+# Dense and Hybrid releases have a self-contained Dense Component; Ragged does
+# not (ADR 0061 in the sibling `opengwasdb` repository).
+INDEXED_SUBSET_LAYOUTS: frozenset[str] = frozenset({"dense", "hybrid"})
+
+
+def is_valid_indexed_subset_name(name: object) -> bool:
+    """Return True if `name` is a filesystem- and consumer-safe subset name."""
+    return (
+        isinstance(name, str)
+        and ".." not in name
+        and INDEXED_SUBSET_NAME_RE.fullmatch(name) is not None
+    )
+
+
+def indexed_subset_step_name(name: str) -> str:
+    """The execution Step name carrying one declared subset's identity."""
+    return f"{INDEXED_SUBSET_STEP_PREFIX}{name}"
+
+
 # Legacy Trial Store Releases where required Analysis metadata is unpopulated
 # in upstream BESD sources and cannot be resolved without external study metadata
 # (issue #134). Blank required values are tolerated strictly for these two named
@@ -547,6 +590,85 @@ def _check_release(bundle: Bundle) -> list[str]:
     return errors
 
 
+def _check_indexed_subsets(build: Mapping[str, Any]) -> list[str]:
+    """Validate optional `indexed_subsets` declarations without any resource I/O.
+
+    Shape and vocabulary only: names, required string fields, checksum syntax,
+    uniqueness, and the Ragged refusal. Whether the declared `resource_id`
+    resolves to the maintained resource, and whether the list's bytes match the
+    declared checksum, are runtime facts the release entry point checks before a
+    build (`ogstores.resources`); `check()` never opens a resource or a Store.
+    """
+    errors: list[str] = []
+    raw = build.get(INDEXED_SUBSETS_KEY)
+    if raw is None:
+        return errors
+    if not isinstance(raw, list):
+        return [
+            f"build.yaml {INDEXED_SUBSETS_KEY} must be a list of declarations, "
+            f"not {type(raw).__name__}"
+        ]
+    if not raw:
+        return errors
+
+    layout = build.get("layout")
+    if layout not in INDEXED_SUBSET_LAYOUTS:
+        errors.append(
+            f"build.yaml {INDEXED_SUBSETS_KEY} may be declared only for "
+            f"{sorted(INDEXED_SUBSET_LAYOUTS)} layout, not {layout!r}"
+        )
+
+    allowed = set(INDEXED_SUBSET_REQUIRED_KEYS) | set(INDEXED_SUBSET_OPTIONAL_KEYS)
+    seen: set[str] = set()
+    for index, entry in enumerate(raw):
+        where = f"build.yaml {INDEXED_SUBSETS_KEY}[{index}]"
+        if not isinstance(entry, Mapping):
+            errors.append(f"{where} must be a mapping")
+            continue
+
+        unknown = sorted(set(entry) - allowed)
+        if unknown:
+            errors.append(
+                f"{where} has unknown key(s) {unknown}; allowed keys are "
+                f"{sorted(allowed)}"
+            )
+        for key in INDEXED_SUBSET_REQUIRED_KEYS:
+            value = entry.get(key)
+            if not isinstance(value, str) or not value.strip():
+                errors.append(f"{where} requires a non-empty string {key!r}")
+
+        name = entry.get("name")
+        if isinstance(name, str) and name.strip():
+            if not is_valid_indexed_subset_name(name):
+                errors.append(
+                    f"{where} name {name!r} must match "
+                    f"{INDEXED_SUBSET_NAME_RE.pattern} and contain no '..'"
+                )
+            elif name in seen:
+                errors.append(f"{where} duplicates subset name {name!r}")
+            else:
+                seen.add(name)
+
+        checksum = entry.get("checksum")
+        if checksum is not None and not _is_valid_hex(checksum, 64):
+            errors.append(
+                f"{where} checksum must be a 64-character hex sha256, "
+                f"got {checksum!r}"
+            )
+
+        options = entry.get("options")
+        if options is not None:
+            if not isinstance(options, Mapping):
+                errors.append(f"{where} options must be a mapping")
+            elif "overwrite" in options:
+                errors.append(
+                    f"{where} options must not set 'overwrite'; a Release Bundle "
+                    "declares a named subset to build, not to replace in place"
+                )
+
+    return errors
+
+
 def _check_build(bundle: Bundle) -> list[str]:
     build, errors = _document_errors(bundle.build, "build.yaml")
     if build is None:
@@ -597,6 +719,8 @@ def _check_build(bundle: Bundle) -> list[str]:
             "build.yaml must not declare 'artifacts'; the artifact root is "
             "deployment configuration resolved by paths.artifact_root() (issue #126)"
         )
+
+    errors.extend(_check_indexed_subsets(build))
 
     # 908797f made the BESD prefix a frozen bundle provenance fact. Validate
     # the value, but deliberately do not stat the external BESD artifacts.

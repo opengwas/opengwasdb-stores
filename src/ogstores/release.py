@@ -56,7 +56,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-from ogstores import paths, register, run
+from ogstores import paths, register, resources, run
 
 SNAKEFILE: Path = paths.REPO_ROOT / "workflow" / "Snakefile"
 
@@ -614,6 +614,12 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
     for scheduled_root, store_id in idle:
         if store_id in forced and paths.store_path(store_id, root=scheduled_root).exists():
             print(f"release-dry: the real run would snapshot the records of {store_id} and replace it")
+    try:
+        resources.verify_indexed_subsets_for_releases(
+            idle, registry_root=registry_root, repo_root=paths.REPO_ROOT
+        )
+    except (resources.IndexedSubsetRuntimeError, resources.ReferenceResourceError) as exc:
+        print(f"release-dry: the real run would refuse:\n{exc}")
     return result.returncode
 
 
@@ -623,6 +629,8 @@ GUARD_ERRORS: tuple[type[BaseException], ...] = (
     run.ForceSnapshotPendingError,
     run.PublicationPendingError,
     register.PublicationError,
+    resources.IndexedSubsetRuntimeError,
+    resources.ReferenceResourceError,
     UsageError,
 )
 
@@ -652,6 +660,13 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
         return 0
     for _, store_id in scheduled:
         locks.acquire(store_id)
+
+    # Declared Indexed Variant Subsets need a runtime capability the tracked pin
+    # deliberately predates, and a maintained variant list that matches its
+    # declaration. Refuse before the snapshot or any build work (#209).
+    resources.verify_indexed_subsets_for_releases(
+        scheduled, registry_root=registry_root, repo_root=paths.REPO_ROOT
+    )
 
     stamp = run.utc_stamp()
     snapshots: list[Path] = []

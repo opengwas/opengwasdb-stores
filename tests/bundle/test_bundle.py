@@ -424,6 +424,108 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertTrue(any("must not declare 'artifacts'" in error for error in errors))
 
+    def _subset_declaration(self, **overrides: Any) -> dict[str, Any]:
+        declaration: dict[str, Any] = {
+            "name": "hm3",
+            "resource_id": "hapmap3-hg38",
+            "variant_list": (
+                "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt"
+            ),
+            "reference_assembly": "GRCh38",
+        }
+        declaration.update(overrides)
+        return declaration
+
+    def test_indexed_subsets_are_optional_and_valid_on_dense_and_hybrid(self) -> None:
+        checked = self.make_bundle()
+        self.assertEqual(bundle.check(checked, registry_root=self.tmp_dir), [])
+        record_check()
+
+        dense = self.make_bundle(build={
+            "indexed_subsets": [self._subset_declaration()],
+        })
+        self.assertEqual(bundle.check(dense, registry_root=self.tmp_dir), [])
+        record_check()
+
+        hybrid = self.make_bundle(build={
+            "layout": "hybrid",
+            "build": {"command": "build-hybrid", "options": {}},
+            "indexed_subsets": [self._subset_declaration(name="eur", checksum="a" * 64)],
+        })
+        self.assertEqual(bundle.check(hybrid, registry_root=self.tmp_dir), [])
+        record_check()
+
+        empty = self.make_bundle(build={"indexed_subsets": []})
+        self.assertEqual(bundle.check(empty, registry_root=self.tmp_dir), [])
+        record_check()
+
+    def test_indexed_subsets_reject_ragged_layout(self) -> None:
+        ragged = self.make_bundle(build={
+            "layout": "ragged",
+            "build": {"command": "build-ragged-ssf", "options": {}},
+            "indexed_subsets": [self._subset_declaration()],
+        })
+        errors = bundle.check(ragged, registry_root=self.tmp_dir)
+        record_check()
+        self.assertTrue(
+            any("indexed_subsets" in error and "ragged" in error for error in errors),
+            errors,
+        )
+
+    def test_indexed_subsets_reject_malformed_declarations(self) -> None:
+        cases: list[dict[str, Any]] = [
+            {"indexed_subsets": "not-a-list"},
+            {"indexed_subsets": ["not-a-mapping"]},
+            {"indexed_subsets": [self._subset_declaration(name="")]},
+            {"indexed_subsets": [self._subset_declaration(name="../escape")]},
+            {
+                "indexed_subsets": [
+                    self._subset_declaration(name="dup"),
+                    self._subset_declaration(name="dup"),
+                ]
+            },
+            {"indexed_subsets": [self._subset_declaration(checksum="nothex")]},
+            {"indexed_subsets": [self._subset_declaration(unknown_key=1)]},
+            {"indexed_subsets": [self._subset_declaration(options=["a"])]},
+            {
+                "indexed_subsets": [
+                    self._subset_declaration(options={"overwrite": True})
+                ]
+            },
+            {
+                "indexed_subsets": [
+                    {
+                        key: value
+                        for key, value in self._subset_declaration().items()
+                        if key != "resource_id"
+                    }
+                ]
+            },
+            {
+                "indexed_subsets": [
+                    {
+                        key: value
+                        for key, value in self._subset_declaration().items()
+                        if key != "variant_list"
+                    }
+                ]
+            },
+            {
+                "indexed_subsets": [
+                    {
+                        key: value
+                        for key, value in self._subset_declaration().items()
+                        if key != "reference_assembly"
+                    }
+                ]
+            },
+        ]
+        for overrides in cases:
+            checked = self.make_bundle(build=overrides)
+            errors = bundle.check(checked, registry_root=self.tmp_dir)
+            record_check()
+            self.assertTrue(errors, overrides)
+
     def test_retired_analysis_columns_come_from_upstream_and_name_the_release(self) -> None:
         checked = self.make_bundle()
         lines = checked.analyses_path.read_text(encoding="utf-8").splitlines()

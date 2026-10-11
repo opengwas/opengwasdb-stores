@@ -55,7 +55,9 @@ from ogstores.plan import (
     COMMANDS,
     DEFAULT_COMMANDS,
     POST_DEFAULTS,
+    IndexedSubsetDeclaration,
     Step,
+    indexed_subset_declarations,
     plan,
     render_options,
 )
@@ -2020,6 +2022,251 @@ class TestVariantReferencePreStage(unittest.TestCase):
                                         record_check()
 
 
+class TestIndexedSubsets(unittest.TestCase):
+    """Optional named Indexed Variant Subset declarations (stores #209).
+
+    `plan()` is pure: it validates declarations from the bundle dict and emits
+    one `build-indexed-subset` Step per declaration, before overview and
+    validate, without opening the resource or the variant list.
+    """
+
+    VARIANT_LIST = "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt"
+    CHECKSUM = "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398"
+
+    def _bundle(
+        self,
+        *,
+        layout: str = "dense",
+        completion_state: str = "observed_only",
+        command: str = "build-dense-vcf",
+        post: dict | None = None,
+        indexed_subsets: object = None,
+        derived_from: str | None = None,
+    ) -> Bundle:
+        build: dict = {
+            "store_id": "OGS-00090",
+            "layout": layout,
+            "completion_state": completion_state,
+            (
+                "complete" if completion_state == "reference_completed" else "build"
+            ): {"command": command, "options": {}},
+            "post": post
+            if post is not None
+            else {"top_hits": False, "rho": False, "overview": True, "validate": True},
+        }
+        if indexed_subsets is not None:
+            build["indexed_subsets"] = indexed_subsets
+        return Bundle(
+            store_id="OGS-00090",
+            root=Path("stores/OGS-00090"),
+            release={
+                "store_id": "OGS-00090",
+                "label": "fixture",
+                "status": "accepted",
+                "derived_from": derived_from,
+            },
+            build=build,
+            analyses_path=Path("stores/OGS-00090/analyses.tsv"),
+        )
+
+    def _declaration(self, name: str = "hm3") -> dict:
+        return {
+            "name": name,
+            "resource_id": "hapmap3-hg38",
+            "variant_list": self.VARIANT_LIST,
+            "reference_assembly": "GRCh38",
+        }
+
+    def test_no_declaration_plan_is_unchanged(self) -> None:
+        """Absent and empty declarations leave the command/step sequence identical."""
+        base = plan(self._bundle(), artifact_root="/AR")
+        empty = plan(self._bundle(indexed_subsets=[]), artifact_root="/AR")
+        record_check()
+        self.assertEqual(base, empty)
+        record_check()
+        self.assertNotIn("indexed-subset", [s.name for s in base])
+
+    def test_dense_declaration_builds_before_overview_and_validate(self) -> None:
+        steps = plan(self._bundle(indexed_subsets=[self._declaration()]), artifact_root="/AR")
+        record_check()
+        self.assertEqual(
+            [s.name for s in steps],
+            ["build", "indexed-subset-hm3", "overview", "validate"],
+        )
+        store_p = Path("/AR/OGS-00090/store.opengwasdb")
+        record_check()
+        self.assertEqual(
+            steps[1],
+            Step(
+                name="indexed-subset-hm3",
+                argv=[
+                    "opengwasdb",
+                    "build-indexed-subset",
+                    str(store_p),
+                    "hm3",
+                    "--variant-list",
+                    self.VARIANT_LIST,
+                    "--reference-assembly",
+                    "GRCh38",
+                ],
+                inputs=[store_p, Path(self.VARIANT_LIST)],
+                outputs=[store_p],
+            ),
+        )
+
+    def test_multiple_subsets_keep_declaration_order(self) -> None:
+        steps = plan(
+            self._bundle(
+                indexed_subsets=[
+                    self._declaration("hm3"),
+                    self._declaration("hm3-alt"),
+                    self._declaration("eur"),
+                ]
+            ),
+            artifact_root="/AR",
+        )
+        record_check()
+        self.assertEqual(
+            [s.name for s in steps],
+            [
+                "build",
+                "indexed-subset-hm3",
+                "indexed-subset-hm3-alt",
+                "indexed-subset-eur",
+                "overview",
+                "validate",
+            ],
+        )
+
+    def test_subset_precedes_validate_when_overview_is_off(self) -> None:
+        post = {"top_hits": False, "rho": False, "overview": False, "validate": True}
+        steps = plan(
+            self._bundle(post=post, indexed_subsets=[self._declaration()]),
+            artifact_root="/AR",
+        )
+        record_check()
+        self.assertEqual(
+            [s.name for s in steps], ["build", "indexed-subset-hm3", "validate"]
+        )
+
+    def test_checksum_and_options_flow_without_changing_required_argv(self) -> None:
+        declaration = {
+            **self._declaration(),
+            "checksum": self.CHECKSUM,
+            "options": {"band-cells": 65536000, "quiet": True},
+        }
+        steps = plan(self._bundle(indexed_subsets=[declaration]), artifact_root="/AR")
+        subset = next(s for s in steps if s.name == "indexed-subset-hm3")
+        record_check()
+        self.assertEqual(
+            subset.argv[-3:], ["--band-cells", "65536000", "--quiet"]
+        )
+        record_check()
+        self.assertNotIn(self.CHECKSUM, subset.argv)
+
+    def test_hybrid_and_reference_completed_are_supported(self) -> None:
+        hybrid = plan(
+            self._bundle(
+                layout="hybrid",
+                command="build-hybrid",
+                indexed_subsets=[self._declaration()],
+            ),
+            artifact_root="/AR",
+        )
+        record_check()
+        self.assertIn("indexed-subset-hm3", [s.name for s in hybrid])
+
+        completed = plan(
+            self._bundle(
+                layout="dense",
+                completion_state="reference_completed",
+                command="complete-dense",
+                derived_from="OGS-00001",
+                indexed_subsets=[self._declaration()],
+            ),
+            artifact_root="/AR",
+        )
+        record_check()
+        self.assertEqual(
+            [s.name for s in completed],
+            ["complete", "indexed-subset-hm3", "overview", "validate"],
+        )
+
+    def test_ragged_declaration_is_rejected_not_dropped(self) -> None:
+        ragged = self._bundle(
+            layout="ragged",
+            command="build-ragged-ssf",
+            post={"top_hits": False, "rho": False, "overview": False, "validate": True},
+            indexed_subsets=[self._declaration()],
+        )
+        with self.assertRaises(ValueError) as ctx:
+            plan(ragged, artifact_root="/AR")
+        record_check()
+        self.assertIn("indexed_subsets", str(ctx.exception))
+        with self.assertRaises(ValueError):
+            indexed_subset_declarations(ragged)
+        record_check()
+
+    def test_malformed_declarations_are_rejected(self) -> None:
+        bad_entries: list[object] = [
+            "not-a-list",
+            ["not-a-mapping"],
+            [{k: v for k, v in self._declaration().items() if k != "resource_id"}],
+            [{k: v for k, v in self._declaration().items() if k != "variant_list"}],
+            [{k: v for k, v in self._declaration().items() if k != "reference_assembly"}],
+            [{**self._declaration(), "name": "../escape"}],
+            [{**self._declaration(), "name": "bad name"}],
+            [self._declaration("dup"), self._declaration("dup")],
+            [{**self._declaration(), "checksum": "nothex"}],
+            [{**self._declaration(), "options": ["not", "a", "mapping"]}],
+        ]
+        for entry in bad_entries:
+            with self.assertRaises(ValueError):
+                indexed_subset_declarations(self._bundle(indexed_subsets=entry))
+            record_check()
+
+    def test_planner_is_pure_with_declarations(self) -> None:
+        """plan() reads no resource: no open/stat/exists under tripwires."""
+        declaration = {**self._declaration(), "checksum": self.CHECKSUM}
+        b = self._bundle(indexed_subsets=[declaration])
+
+        def forbidden_io(*args, **kwargs):
+            raise AssertionError(f"Forbidden I/O called with args={args}, kwargs={kwargs}")
+
+        with mock.patch("builtins.open", side_effect=forbidden_io):
+            with mock.patch.object(Path, "open", side_effect=forbidden_io):
+                with mock.patch.object(Path, "exists", side_effect=forbidden_io):
+                    with mock.patch.object(Path, "is_file", side_effect=forbidden_io):
+                        with mock.patch.object(Path, "is_dir", side_effect=forbidden_io):
+                            with mock.patch.object(Path, "stat", side_effect=forbidden_io):
+                                with mock.patch("os.path.exists", side_effect=forbidden_io):
+                                    with mock.patch("os.stat", side_effect=forbidden_io):
+                                        steps = plan(b, artifact_root="/AR")
+                                        record_check()
+                                        self.assertIn(
+                                            "indexed-subset-hm3",
+                                            [s.name for s in steps],
+                                        )
+                                        record_check()
+
+    def test_committed_bundles_declare_no_subsets(self) -> None:
+        """The seven committed releases plan no subset step (no-declaration parity)."""
+        for store_id in (
+            "OGS-00001",
+            "OGS-00002",
+            "OGS-00003",
+            "OGS-00004",
+            "OGS-00005",
+            "OGS-00006",
+            "OGS-00007",
+        ):
+            names = [s.name for s in plan(load(store_id))]
+            record_check()
+            self.assertFalse(
+                any(n.startswith("indexed-subset-") for n in names), store_id
+            )
+
+
 def main() -> None:
     suite = unittest.TestSuite()
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanDense))
@@ -2030,6 +2277,7 @@ def main() -> None:
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestArtifactRootConfiguration))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPostDefaults))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestVariantReferencePreStage))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestIndexedSubsets))
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     if not result.wasSuccessful():
