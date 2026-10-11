@@ -326,6 +326,8 @@ It reads `build.yaml` and `release.yaml` and nothing else: no I/O beyond path co
 
 A Build Recipe may also declare an optional `variant_reference` pre-build stage for the Dense-VCF and Hybrid builders (issue #145). `plan()` then prepends an `extract-variant-reference` Step and appends the artifact to the build step's inputs. The declared destination must equal the build step's `--variant-reference` option -- the one bounded, syntactic exception to ADR 0023's never-interpret rule -- but whether the artifact already exists is a runtime fact the executor decides when the step runs, never the planner (ADR 0031, issue #147).
 
+A Build Recipe may declare optional named `indexed_subsets` (stores #209). `plan()` then emits one `build-indexed-subset` Step per declaration, in declaration order, after the Store and its inline index steps exist and before `overview` and `validate`. Each Step is an ordinary `Step`, so `run.py` gives it the usual durable `records/indexed-subset-<name>.json`. `plan()` resolves nothing: the declaration records the maintained `resource_id`, the concrete `variant_list` path and the `reference_assembly`, and the release entry point verifies the maintained resource and the runtime capability before a build. A Ragged release rejects any declaration rather than silently dropping it. See "Indexed Variant Subsets" below and [ADR 0034](../adr/0034-indexed-variant-subsets-in-release-planning.md).
+
 This is the entire adapter layer. It replaces `workflow/phase.py`, `workflow/model.py`, `release_plan.py`, `release_manifest.py`, `metadata_resolution.py` and `catalogue_coverage.py` (~4,100 lines on PR #105).
 
 `paths.py` also names the derived build manifest. The `analyses` token — positional for Dense/Hybrid/Ragged-SSF and the `--analyses` flag for Ragged BESD — resolves to `<artifact-root>/<store_id>/work/analyses.tsv`, and the step's declared `inputs` name it too, so the workflow builds the manifest before the builder runs. The bundle's own `analyses.tsv` never appears in a build argv. Completion (`complete-*`) commands consume only a parent Store and take no analyses manifest.
@@ -448,12 +450,51 @@ One Snakefile for the whole registry, not one per release. It scans `stores/*/` 
 Dependency wiring only, per ADR 0023. It contains no source column name, no manifest translation, and no layout branch. `get_artifact_root()` is the one configuration read: it resolves the artifact root through `paths.artifact_root()`, so the workflow never takes it from a Build Recipe (issue #126).
 
 ```text
-build_manifest ──> build ──> top_hits ──> rho ──> overview ──> validate ──> register
+build_manifest ──> build ──> top_hits ──> rho ──> indexed-subset-<name> ──> overview ──> validate ──> register
 ```
 
 `build_manifest` is the derived build manifest's rule (ADR 0025). It runs before every observed-only build command, because `plan()` names the manifest it writes as the build step's first input. A Reference-Completed release substitutes `complete` for `build` and takes the supported tail; completion consumes only a parent Store, so it depends on no manifest step.
 
-Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. `rho` defaults off and `validate` defaults on, so a Build Recipe names only the steps it chooses differently (ADR 0027, issue #128). A Reference-Completed release substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
+Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. A declared `indexed_subsets` list inserts one `build-indexed-subset` Step per declaration between those inline index steps and `overview`/`validate`, so overview reports the subsets and validation audits them. `rho` defaults off and `validate` defaults on, so a Build Recipe names only the steps it chooses differently (ADR 0027, issue #128). A Reference-Completed release substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
+
+### Indexed Variant Subsets
+
+An optional named Indexed Variant Subset (stores #209, epic #214) is a
+Dense-only derived acceleration artifact defined by opengwas/opengwasdb ADR
+0061. It is built from a maintained canonical-ALID variant list:
+
+```text
+opengwasdb build-indexed-subset STORE SUBSET_NAME \
+  --variant-list hm3.alid.txt --reference-assembly GRCh38
+```
+
+A Build Recipe declares the subset in a top-level `indexed_subsets` list, and
+`plan()` emits one Step per declaration before `overview` and `validate`. The
+Step's record is the ordinary durable record every Step gets, so planned and
+executed argv, inputs, outputs, stdout/stderr, timing, success and the
+`opengwasdb` revision used are all captured; `register` requires the record and
+compares executed against planned argv like any other Step.
+
+**Runtime prerequisite, with the pin held.** The capability first ships in
+opengwas/opengwasdb `4819a2ee` (opengwas/opengwasdb#264), a descendant of the
+format-0.2.0 builders. The repository pin (`7b0c42d`) deliberately predates it,
+and adopting format 0.2.0 catalogue-wide is the separate migration tracked by
+stores#197. Before a run that declares a subset, `ogstores.release` (and the
+Snakefile `onstart` hook, for a direct `snakemake` run) therefore:
+
+1. probes the resolved `opengwasdb` for `build-indexed-subset` and refuses with
+the required capability when it is absent;
+2. resolves each declaration's `resource_id` under
+`resources/reference-resources/<id>/resource.yaml` and hashes the declared
+`variant_list` against the maintained sha256, byte size and row count.
+
+Both refusals happen before the snapshot or any build work. `plan()` never reads
+a resource. A run with no declaration is never gated on the runtime version, so
+every existing recipe plans and runs unchanged. A subset-declaring release must
+run the whole workflow on the capability runtime -- `validate` and `overview`
+must audit and report the namespace -- so it is format 0.2.0 and its Validation
+Record names that runtime's commit, not the tracked pin. This is opt-in per
+release: no existing 0.1.0 Store is touched.
 
 **Lineage ordering is why the DAG spans every store rather than one.** A Reference-Completed release declares its parent's `register` record as an input, resolved from `release.yaml`'s `derived_from`. A per-release workflow driven by a batch loop would have to sequence parents before children by hand, and would get it wrong. Here it is a declared edge.
 

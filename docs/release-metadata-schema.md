@@ -400,6 +400,7 @@ registry fact or an `opengwasdb` flag. It does not record *where* artifacts land
 | `build.command` / `complete.command` | Yes | An `opengwasdb` CLI subcommand; never a Python import path. Supported values are keyed by phase in `plan.COMMANDS`: `build-dense-vcf`, `build-hybrid`, `build-ragged-ssf`, `build-ragged-besd`; `complete-dense`, `complete-hybrid`, `complete-ragged`. |
 | `build.options` / `complete.options` | No | `opengwasdb` flag names passed through verbatim; see "The passthrough rule". |
 | `post` | Yes | Post-processing choices: `top_hits`, `rho`, `overview`, `validate`. `rho` defaults off and `validate` defaults on (`plan.POST_DEFAULTS`); a recipe states only what it chooses differently. `top_hits` and `overview` are always explicit because they vary per release. |
+| `indexed_subsets` | No | Optional named Indexed Variant Subset declarations (stores #209, epic #214). A list of `{name, resource_id, variant_list, reference_assembly, checksum?, options?}`. Dense and Hybrid only; a Ragged release rejects any declaration. Every declaration adds one `build-indexed-subset` Step before `overview` and `validate`. See "Indexed Variant Subset declarations". |
 
 A Build Recipe must **not** declare an `artifacts` block: `bundle.check()`
 rejects it, because the artifact root is deployment configuration (issue #126).
@@ -445,6 +446,47 @@ post:
   top_hits: true
   overview: true
 ```
+
+### Indexed Variant Subset declarations
+
+A Dense or Hybrid Build Recipe may declare optional named Indexed Variant
+Subsets (stores #209). Each declaration becomes one `opengwasdb
+build-indexed-subset` Step, planned after the Store and its inline top-hit/rho
+steps exist and before `overview` and `validate`, so overview reports the subset
+and validation audits it. The Step's durable `records/indexed-subset-<name>.json`
+is written by the ordinary step executor; no new record schema is introduced.
+
+| Field | Required | Description |
+|---|---:|---|
+| `name` | Yes | The subset identity. The consumer's grammar `[A-Za-z0-9][A-Za-z0-9._-]{0,127}`, and the registry additionally refuses `..` because the name becomes part of the record filename. Unique within the release. |
+| `resource_id` | Yes | `resource_id` of a maintained `kind: variant_list` Reference Resource (`resources/reference-resources/<id>/resource.yaml`). |
+| `variant_list` | Yes | The concrete canonical-ALID list path the build passes as `--variant-list`. It must match the resource declaration's `location`. Recorded so the immutable bundle is self-contained; `plan()` never opens it. |
+| `reference_assembly` | Yes | The list's assembly, passed as `--reference-assembly`. It must match the resource declaration's `genome_build`. |
+| `checksum` | No | The maintained list's sha256 as 64 hex characters. When present it must equal the resource declaration's `checksums.alid_sha256`. |
+| `options` | No | `build-indexed-subset` flags passed through verbatim (`plan.render_options`). `overwrite` is refused, and so is any key that normalises (`strip().lstrip('-')`) to `variant-list` or `reference-assembly`: those are the declaration's own verified inputs, and re-specifying one in `options` would let the executed CLI use a value the runtime did not hash or check. |
+
+The key is optional; omit it to declare no subsets. An explicit `indexed_subsets:
+null` is malformed rather than treated as omitted, so a generator cannot
+silently drop a declaration.
+
+```yaml
+indexed_subsets:
+  - name: hm3
+    resource_id: hapmap3-hg38
+    variant_list: /data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt
+    reference_assembly: GRCh38
+    checksum: 4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398
+```
+
+`bundle.check()` validates the declaration shape (names, required strings,
+checksum syntax, uniqueness, Dense/Hybrid only, no `overwrite`) without any
+resource I/O. Whether the `resource_id` resolves, whether the list matches the
+maintained checksum, and whether the runtime provides `build-indexed-subset`
+are run-time facts the release entry point verifies before a build; the
+tracked `opengwasdb` pin stays at its pre-subset revision until stores#197
+adopts format 0.2.0. See
+[ADR 0034](adr/0034-indexed-variant-subsets-in-release-planning.md) and the
+workflow specification's "Indexed Variant Subsets".
 
 ### The passthrough rule
 

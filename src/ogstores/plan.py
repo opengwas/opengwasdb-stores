@@ -35,6 +35,16 @@ artifact to the build step's inputs. The declared destination must equal the
 build option's `--variant-reference` path, and existence is a runtime fact: the
 planner stays pure and never touches the filesystem (#145/#147).
 
+A Build Recipe may also declare optional named `indexed_subsets` (stores #209).
+Each declaration carries a subset `name`, the maintained `resource_id`, the
+resolved `variant_list` path and `reference_assembly` it uses. `plan()` emits one
+`build-indexed-subset` Step per declaration, after the Store and its inline
+index steps exist and before `overview` and `validate`, so overview reports the
+subset and validate audits it. `plan()` never opens the resource or the variant
+list; the release entry point verifies the maintained resource at run time
+(`ogstores.resources`). Ragged releases reject any declaration rather than
+silently dropping it.
+
 This is the only place in the repository that knows how to invoke
 `opengwasdb`, which is why the Snakefile's rules and the master list's
 `build_command` are two renderings of one thing and cannot disagree.
@@ -44,13 +54,24 @@ See docs/spec/store-release-workflow.md and ADRs 0022, 0023, 0024.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from ogstores import paths
-from ogstores.bundle import Bundle
+from ogstores.bundle import (
+    INDEXED_SUBSETS_KEY,
+    INDEXED_SUBSET_LAYOUTS,
+    INDEXED_SUBSET_NAME_RE,
+    INDEXED_SUBSET_REQUIRED_KEYS,
+    INDEXED_SUBSET_RESERVED_OPTION_KEYS,
+    Bundle,
+    indexed_subset_step_name,
+    is_valid_indexed_subset_name,
+    normalize_option_key,
+)
 
 
 @dataclass(frozen=True)
@@ -61,6 +82,23 @@ class Step:
     argv: list[str]
     inputs: list[Path]
     outputs: list[Path]
+
+
+@dataclass(frozen=True)
+class IndexedSubsetDeclaration:
+    """One declared Indexed Variant Subset, resolved from a Build Recipe.
+
+    Pure data: `plan()` builds the Step from it and never opens `variant_list`
+    or the `resource_id` declaration. The checksum is optional provenance the
+    runtime verifier cross-checks against the maintained resource.
+    """
+
+    name: str
+    resource_id: str
+    variant_list: Path
+    reference_assembly: str
+    checksum: str | None
+    options: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -157,6 +195,18 @@ VARIANT_REFERENCE_COMMANDS: frozenset[str] = frozenset(VARIANT_REFERENCE_LAYOUT_
 VARIANT_REFERENCE_BLOCK_KEYS: tuple[str, ...] = ("variant_reference", "variant-reference")
 VARIANT_REFERENCE_OUTPUT_KEYS: tuple[str, ...] = ("output", "path", "output_path", "output-path")
 
+# Optional named Indexed Variant Subset declarations (#209). Each declaration
+# becomes one `build-indexed-subset` Step after the Store exists and before
+# overview and validation, so overview reports the subset and validate audits
+# it. `plan()` resolves no resource: the declaration records the concrete
+# `variant_list` path and `reference_assembly` it uses (bundle.INDEXED_SUBSET_*),
+# and the release entry point verifies the maintained resource at run time
+# (`ogstores.resources`) so the planner stays a pure function.
+INDEXED_SUBSET_COMMAND: str = "build-indexed-subset"
+INDEXED_SUBSET_OPTIONS_KEY: str = "options"
+INDEXED_SUBSET_CHECKSUM_KEY: str = "checksum"
+_SHA256_RE: re.Pattern[str] = re.compile(r"\A[0-9a-fA-F]{64}\Z")
+
 DEFAULT_COMMANDS: dict[tuple[str, str], str] = {
     ("dense", "observed_only"): "build-dense-vcf",
     ("hybrid", "observed_only"): "build-hybrid",
@@ -194,7 +244,7 @@ def render_options(options: dict[str, Any] | None) -> list[str]:
     for key, value in options.items():
         if value is None:
             continue
-        raw_key = str(key).strip().lstrip("-")
+        raw_key = normalize_option_key(key)
         flag = f"--{raw_key}"
         if isinstance(value, bool):
             argv.append(flag if value else f"--no-{raw_key}")
@@ -410,6 +460,116 @@ def _variant_reference_declaration(
     return Path(declared_output), extract_options
 
 
+def indexed_subset_declarations(bundle: Bundle) -> list[IndexedSubsetDeclaration]:
+    """Parse and validate optional `indexed_subsets` declarations (pure).
+
+    Absence or an empty list returns `[]`, so a recipe with no declaration
+    plans exactly as it did before #209. A Ragged layout has no Dense Component
+    and rejects any declaration rather than silently dropping it.
+    """
+    if INDEXED_SUBSETS_KEY not in bundle.build:
+        return []
+    raw = bundle.build[INDEXED_SUBSETS_KEY]
+    if raw is None:
+        raise ValueError(
+            f"Bundle {bundle.store_id}: build.yaml {INDEXED_SUBSETS_KEY} must be a "
+            "list of declarations, not null; omit the key to declare none"
+        )
+    if not isinstance(raw, list):
+        raise ValueError(
+            f"Bundle {bundle.store_id}: build.yaml {INDEXED_SUBSETS_KEY} must be a "
+            f"list of declarations, not {type(raw).__name__}"
+        )
+    if not raw:
+        return []
+
+    layout = bundle.layout
+    if layout not in INDEXED_SUBSET_LAYOUTS:
+        raise ValueError(
+            f"Bundle {bundle.store_id}: {INDEXED_SUBSETS_KEY} may be declared only "
+            f"for {sorted(INDEXED_SUBSET_LAYOUTS)} layout, not {layout!r}; a Ragged "
+            "Store Release has no Dense Component to index"
+        )
+
+    declarations: list[IndexedSubsetDeclaration] = []
+    seen: set[str] = set()
+    for index, entry in enumerate(raw):
+        where = f"Bundle {bundle.store_id}: build.yaml {INDEXED_SUBSETS_KEY}[{index}]"
+        if not isinstance(entry, Mapping):
+            raise ValueError(f"{where} must be a mapping")
+        for key in INDEXED_SUBSET_REQUIRED_KEYS:
+            value = entry.get(key)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{where} requires a non-empty string {key!r}")
+        name = str(entry["name"])
+        if not is_valid_indexed_subset_name(name):
+            raise ValueError(
+                f"{where} name {name!r} must match "
+                f"{INDEXED_SUBSET_NAME_RE.pattern} and contain no '..'"
+            )
+        if name in seen:
+            raise ValueError(f"{where} duplicates subset name {name!r}")
+        seen.add(name)
+        checksum = entry.get(INDEXED_SUBSET_CHECKSUM_KEY)
+        if checksum is not None and not (
+            isinstance(checksum, str) and _SHA256_RE.fullmatch(checksum)
+        ):
+            raise ValueError(f"{where} checksum must be a 64-character hex sha256")
+        options = entry.get(INDEXED_SUBSET_OPTIONS_KEY)
+        if options is not None and not isinstance(options, Mapping):
+            raise ValueError(f"{where} options must be a mapping")
+        if isinstance(options, Mapping):
+            reserved = sorted(
+                str(key)
+                for key in options
+                if normalize_option_key(key) in INDEXED_SUBSET_RESERVED_OPTION_KEYS
+            )
+            if reserved:
+                raise ValueError(
+                    f"{where} options must not set {reserved}; variant_list and "
+                    "reference_assembly are the declaration's own verified inputs"
+                )
+        declarations.append(
+            IndexedSubsetDeclaration(
+                name=name,
+                resource_id=str(entry["resource_id"]),
+                variant_list=Path(str(entry["variant_list"])),
+                reference_assembly=str(entry["reference_assembly"]),
+                checksum=str(checksum) if checksum is not None else None,
+                options=dict(options) if isinstance(options, Mapping) else {},
+            )
+        )
+    return declarations
+
+
+def _indexed_subset_steps(
+    store_p: Path, declarations: list[IndexedSubsetDeclaration]
+) -> list[Step]:
+    """One `build-indexed-subset` Step per declaration, in declaration order."""
+    steps: list[Step] = []
+    for declaration in declarations:
+        argv = [
+            "opengwasdb",
+            INDEXED_SUBSET_COMMAND,
+            str(store_p),
+            declaration.name,
+            "--variant-list",
+            str(declaration.variant_list),
+            "--reference-assembly",
+            declaration.reference_assembly,
+        ]
+        argv.extend(render_options(declaration.options))
+        steps.append(
+            Step(
+                name=indexed_subset_step_name(declaration.name),
+                argv=argv,
+                inputs=[store_p, declaration.variant_list],
+                outputs=[store_p],
+            )
+        )
+    return steps
+
+
 def _select_spec(bundle: Bundle, key: tuple[str, str]) -> tuple[str, CommandSpec]:
     """Resolve the declared subcommand and its spec, or raise NotImplementedError."""
     phase = "complete" if bundle.completion_state == "reference_completed" else "build"
@@ -507,20 +667,37 @@ def plan(
         inputs.append(ref_output)
 
     steps.append(Step(name=spec.phase, argv=argv, inputs=inputs, outputs=[store_p]))
-    steps.extend(_post_steps(store_p, bundle.build.get("post") or {}, spec))
+    # Parse declarations before post-step validation so a Ragged recipe's
+    # declaration is refused for the reason that matters (#209).
+    subset_declarations = indexed_subset_declarations(bundle)
+    post_steps = _post_steps(store_p, bundle.build.get("post") or {}, spec)
+    subset_steps = _indexed_subset_steps(store_p, subset_declarations)
+    if subset_steps:
+        # Declared subsets are built after the Store and its inline index/rho
+        # steps exist and before overview and validation, so overview reports
+        # them and validate audits them (stores #209 acceptance criteria).
+        insert_at = next(
+            (i for i, s in enumerate(post_steps) if s.name in ("overview", "validate")),
+            len(post_steps),
+        )
+        post_steps[insert_at:insert_at] = subset_steps
+    steps.extend(post_steps)
     return steps
 
 
 __all__ = [
     "COMMANDS",
     "DEFAULT_COMMANDS",
+    "INDEXED_SUBSET_COMMAND",
     "POST_DEFAULTS",
     "VARIANT_REFERENCE_BLOCK_KEYS",
     "VARIANT_REFERENCE_COMMANDS",
     "VARIANT_REFERENCE_LAYOUT_COMMANDS",
     "VARIANT_REFERENCE_OUTPUT_KEYS",
     "CommandSpec",
+    "IndexedSubsetDeclaration",
     "Step",
+    "indexed_subset_declarations",
     "plan",
     "render_options",
 ]
