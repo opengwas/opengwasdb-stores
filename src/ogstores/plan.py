@@ -66,9 +66,11 @@ from ogstores.bundle import (
     INDEXED_SUBSET_LAYOUTS,
     INDEXED_SUBSET_NAME_RE,
     INDEXED_SUBSET_REQUIRED_KEYS,
+    INDEXED_SUBSET_RESERVED_OPTION_KEYS,
     Bundle,
     indexed_subset_step_name,
     is_valid_indexed_subset_name,
+    normalize_option_key,
 )
 
 
@@ -242,7 +244,7 @@ def render_options(options: dict[str, Any] | None) -> list[str]:
     for key, value in options.items():
         if value is None:
             continue
-        raw_key = str(key).strip().lstrip("-")
+        raw_key = normalize_option_key(key)
         flag = f"--{raw_key}"
         if isinstance(value, bool):
             argv.append(flag if value else f"--no-{raw_key}")
@@ -465,9 +467,14 @@ def indexed_subset_declarations(bundle: Bundle) -> list[IndexedSubsetDeclaration
     plans exactly as it did before #209. A Ragged layout has no Dense Component
     and rejects any declaration rather than silently dropping it.
     """
-    raw = bundle.build.get(INDEXED_SUBSETS_KEY)
-    if raw is None:
+    if INDEXED_SUBSETS_KEY not in bundle.build:
         return []
+    raw = bundle.build[INDEXED_SUBSETS_KEY]
+    if raw is None:
+        raise ValueError(
+            f"Bundle {bundle.store_id}: build.yaml {INDEXED_SUBSETS_KEY} must be a "
+            "list of declarations, not null; omit the key to declare none"
+        )
     if not isinstance(raw, list):
         raise ValueError(
             f"Bundle {bundle.store_id}: build.yaml {INDEXED_SUBSETS_KEY} must be a "
@@ -511,6 +518,17 @@ def indexed_subset_declarations(bundle: Bundle) -> list[IndexedSubsetDeclaration
         options = entry.get(INDEXED_SUBSET_OPTIONS_KEY)
         if options is not None and not isinstance(options, Mapping):
             raise ValueError(f"{where} options must be a mapping")
+        if isinstance(options, Mapping):
+            reserved = sorted(
+                str(key)
+                for key in options
+                if normalize_option_key(key) in INDEXED_SUBSET_RESERVED_OPTION_KEYS
+            )
+            if reserved:
+                raise ValueError(
+                    f"{where} options must not set {reserved}; variant_list and "
+                    "reference_assembly are the declaration's own verified inputs"
+                )
         declarations.append(
             IndexedSubsetDeclaration(
                 name=name,

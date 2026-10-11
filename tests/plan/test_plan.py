@@ -2219,11 +2219,24 @@ class TestIndexedSubsets(unittest.TestCase):
             [self._declaration("dup"), self._declaration("dup")],
             [{**self._declaration(), "checksum": "nothex"}],
             [{**self._declaration(), "options": ["not", "a", "mapping"]}],
+            [{**self._declaration(), "options": {"variant-list": "/evil"}}],
+            [{**self._declaration(), "options": {"--reference-assembly": "hg19"}}],
         ]
         for entry in bad_entries:
             with self.assertRaises(ValueError):
                 indexed_subset_declarations(self._bundle(indexed_subsets=entry))
             record_check()
+
+    def test_explicit_null_declaration_is_rejected(self) -> None:
+        """`indexed_subsets: null` is malformed, not silently "omitted" (#209 review)."""
+        b = self._bundle()
+        b.build["indexed_subsets"] = None
+        with self.assertRaises(ValueError):
+            indexed_subset_declarations(b)
+        record_check()
+        with self.assertRaises(ValueError):
+            plan(b, artifact_root="/AR")
+        record_check()
 
     def test_planner_is_pure_with_declarations(self) -> None:
         """plan() reads no resource: no open/stat/exists under tripwires."""

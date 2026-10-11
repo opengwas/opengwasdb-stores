@@ -463,7 +463,11 @@ is written by the ordinary step executor; no new record schema is introduced.
 | `variant_list` | Yes | The concrete canonical-ALID list path the build passes as `--variant-list`. It must match the resource declaration's `location`. Recorded so the immutable bundle is self-contained; `plan()` never opens it. |
 | `reference_assembly` | Yes | The list's assembly, passed as `--reference-assembly`. It must match the resource declaration's `genome_build`. |
 | `checksum` | No | The maintained list's sha256 as 64 hex characters. When present it must equal the resource declaration's `checksums.alid_sha256`. |
-| `options` | No | `build-indexed-subset` flags passed through verbatim (`plan.render_options`). `overwrite` is refused: a Release Bundle declares a named subset to build, not to replace in place. |
+| `options` | No | `build-indexed-subset` flags passed through verbatim (`plan.render_options`). `overwrite` is refused, and so is any key that normalises (`strip().lstrip('-')`) to `variant-list` or `reference-assembly`: those are the declaration's own verified inputs, and re-specifying one in `options` would let the executed CLI use a value the runtime did not hash or check. |
+
+The key is optional; omit it to declare no subsets. An explicit `indexed_subsets:
+null` is malformed rather than treated as omitted, so a generator cannot
+silently drop a declaration.
 
 ```yaml
 indexed_subsets:

@@ -123,6 +123,18 @@ INDEXED_SUBSET_OPTIONAL_KEYS: tuple[str, ...] = ("checksum", "options")
 # Dense and Hybrid releases have a self-contained Dense Component; Ragged does
 # not (ADR 0061 in the sibling `opengwasdb` repository).
 INDEXED_SUBSET_LAYOUTS: frozenset[str] = frozenset({"dense", "hybrid"})
+# An `options` key that re-specifies an input the runtime verifies would let the
+# executed CLI consume a different list or assembly than the one hashed and
+# checked -- a silent integrity failure. Keys are normalised exactly as
+# `render_options` renders them (`str(key).strip().lstrip("-")`).
+INDEXED_SUBSET_RESERVED_OPTION_KEYS: frozenset[str] = frozenset(
+    {"variant-list", "reference-assembly"}
+)
+
+
+def normalize_option_key(key: object) -> str:
+    """The flag name `render_options` derives from an `options` key (ADR 0023)."""
+    return str(key).strip().lstrip("-")
 
 
 def is_valid_indexed_subset_name(name: object) -> bool:
@@ -600,9 +612,14 @@ def _check_indexed_subsets(build: Mapping[str, Any]) -> list[str]:
     build (`ogstores.resources`); `check()` never opens a resource or a Store.
     """
     errors: list[str] = []
+    if INDEXED_SUBSETS_KEY not in build:
+        return errors
     raw = build.get(INDEXED_SUBSETS_KEY)
     if raw is None:
-        return errors
+        return [
+            f"build.yaml {INDEXED_SUBSETS_KEY} must be a list of declarations, "
+            "not null; omit the key to declare none"
+        ]
     if not isinstance(raw, list):
         return [
             f"build.yaml {INDEXED_SUBSETS_KEY} must be a list of declarations, "
@@ -660,11 +677,22 @@ def _check_indexed_subsets(build: Mapping[str, Any]) -> list[str]:
         if options is not None:
             if not isinstance(options, Mapping):
                 errors.append(f"{where} options must be a mapping")
-            elif "overwrite" in options:
-                errors.append(
-                    f"{where} options must not set 'overwrite'; a Release Bundle "
-                    "declares a named subset to build, not to replace in place"
+            else:
+                reserved = sorted(
+                    str(key)
+                    for key in options
+                    if normalize_option_key(key) in INDEXED_SUBSET_RESERVED_OPTION_KEYS
                 )
+                if reserved:
+                    errors.append(
+                        f"{where} options must not set {reserved}; variant_list and "
+                        "reference_assembly are the declaration's own verified inputs"
+                    )
+                elif "overwrite" in options:
+                    errors.append(
+                        f"{where} options must not set 'overwrite'; a Release Bundle "
+                        "declares a named subset to build, not to replace in place"
+                    )
 
     return errors
 

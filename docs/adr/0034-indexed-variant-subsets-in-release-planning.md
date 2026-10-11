@@ -46,7 +46,12 @@ indexed_subsets:
 - `checksum` (optional) is the maintained list's sha256, cross-checked against
   the resource declaration at run time.
 - `options` (optional) is `opengwasdb` flag passthrough for the subset command;
-  `overwrite` is refused because a release declares a named subset to build.
+  `overwrite` is refused because a release declares a named subset to build, and
+  so is any key that normalises to `variant-list` or `reference-assembly`, since
+  those are the declaration's own verified inputs and re-specifying one would
+  let the executed CLI use a value the runtime never checked. The key is
+  optional; omitting it declares none, while an explicit `indexed_subsets: null`
+  is malformed rather than silently treated as omitted.
 
 `plan()` emits one `build-indexed-subset` Step per declaration, in declaration
 order, after the Store and its inline top-hit/rho steps exist and before

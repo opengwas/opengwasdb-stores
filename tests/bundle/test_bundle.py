@@ -519,6 +519,19 @@ class TestBundleContract(unittest.TestCase):
                     }
                 ]
             },
+            {"indexed_subsets": None},
+            {
+                "indexed_subsets": [
+                    self._subset_declaration(options={"variant-list": "/evil"})
+                ]
+            },
+            {
+                "indexed_subsets": [
+                    self._subset_declaration(
+                        options={"--reference-assembly": "hg19"}
+                    )
+                ]
+            },
         ]
         for overrides in cases:
             checked = self.make_bundle(build=overrides)
