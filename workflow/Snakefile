@@ -51,7 +51,7 @@ for _src in _CANDIDATE_SRC_DIRS:
     if _src is not None and _src.is_dir() and str(_src) not in sys.path:
         sys.path.insert(0, str(_src))
 
-from ogstores import bundle, index, manifest, paths, register, run
+from ogstores import bundle, index, manifest, paths, register, resources, run
 from ogstores.plan import plan
 
 REGISTRY_ROOT: Path = Path(config.get("registry_root", "stores"))
@@ -64,6 +64,10 @@ ALL_STORE_IDS: list[str] = sorted([
 ]) if REGISTRY_ROOT.is_dir() else []
 
 EXECUTION_STEPS = ["variant-reference", "build", "complete", "top-hits", "rho", "overview", "validate"]
+# Declared Indexed Variant Subsets (#209) add one dynamically named step per
+# declaration, `indexed-subset-<name>`, so the `{step}` wildcard admits that
+# bounded prefix in addition to the fixed execution steps.
+INDEXED_SUBSET_STEP_PATTERN = "indexed-subset-[A-Za-z0-9._-]+"
 
 
 def get_bundle(store_id: str) -> bundle.Bundle:
@@ -111,7 +115,7 @@ def step_input(wildcards) -> list[str]:
 wildcard_constraints:
     root=".+",
     store_id=r"OGS-\d{5}",
-    step="|".join(EXECUTION_STEPS)
+    step="|".join([*EXECUTION_STEPS, INDEXED_SUBSET_STEP_PATTERN])
 
 
 onstart:
@@ -129,6 +133,19 @@ onstart:
         scheduled,
         forced=run.forced_by_transaction(config.get("release_run"), scheduled),
     )
+    # Defence in depth for a direct `snakemake` run (#209): a declared Indexed
+    # Variant Subset needs a `build-indexed-subset`-capable runtime and a
+    # maintained variant list that matches its declaration. Refuse before the
+    # build starts rather than hours in.
+    try:
+        resources.verify_indexed_subsets_for_releases(
+            scheduled, registry_root=REGISTRY_ROOT, repo_root=paths.REPO_ROOT
+        )
+    except (
+        resources.IndexedSubsetRuntimeError,
+        resources.ReferenceResourceError,
+    ) as exc:
+        raise WorkflowError(str(exc))
 
 
 rule all:

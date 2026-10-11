@@ -73,6 +73,10 @@ _Avoid_: pipeline, script, release manifest
 An auxiliary build-time resource such as an LD reference panel or genome reference used by a Build Recipe without becoming the Source Collection for a Store Release.
 _Avoid_: source collection
 
+**Indexed Variant Subset**:
+A named, optional, rebuildable Dense-store query index over a caller-supplied set of canonical ALIDs, built from a maintained variant-list Reference Resource as a derived artifact after the Store exists and before overview and validation (opengwas/opengwasdb ADR 0061; stores epic #214). It is not part of Store validity: deleting it leaves a valid release and no query answer changes.
+_Avoid_: projection, membership index, HM3 store
+
 **Store Layout**:
 The storage organisation used for a Store Release, such as dense observed-only, dense reference-completed, ragged observed-only, ragged reference-completed, or hybrid.
 _Avoid_: source format

@@ -1,0 +1,404 @@
+{
+  "issue": "opengwas/opengwasdb-stores#213",
+  "epic": "opengwas/opengwasdb-stores#214",
+  "title": "Real-data HM3 Indexed Variant Subset pipeline proof",
+  "generated_at": "2026-10-11T19:08:10.940756+00:00",
+  "generator": {
+    "script": "resources/scripts/hm3-pipeline-proof.py",
+    "script_sha256": "50d154e396851dfd4fc302444598859742154592a0ad9538503ed05c7b8939a0",
+    "stores": {
+      "commit": "37695e4052f6f90d2c69153a4a8455f85bd93792",
+      "branch": "ticket/213-hm3-proof"
+    }
+  },
+  "approach": {
+    "kind": "fresh-faithful-reflink-copy",
+    "staged_as": "store.opengwasdb.partial",
+    "copy_kind": "reflink",
+    "dedicated_artifact_root": "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009",
+    "scratch_registry": "/data/opengwasdb/work/213-hm3-proof/registry/OGS-00009",
+    "authoritative_root_read_only": true,
+    "primary_untouched": true,
+    "not_an_in_place_append": "the pipeline stages every Step into store.opengwasdb.partial and register publishes it; an in-place run would force-replace and archive the authoritative store, so the proof runs against a reflink copy instead",
+    "record_relocation": {
+      "rule": "strict byte substitution of the authoritative artifact-root prefix /data/opengwasdb/stores -> /data/opengwasdb/work/213-hm3-proof/artifacts in the recorded argv/planned_argv/inputs/outputs/record_path of the build and top-hits records only; every other byte is unchanged",
+      "records": [
+        {
+          "record": "build.json",
+          "replacements": 8,
+          "sha256_before": "a37f92415bc3a3907a32971eca165687c10fd394ad9fd1b0769df98ef9eda17a",
+          "sha256_after": "4d85f861bfb96c20972fe178ca47505b8107f6c9629649426c385f1bfd94ba87"
+        },
+        {
+          "record": "top-hits.json",
+          "replacements": 5,
+          "sha256_before": "baab018890f99606cce7914822855e850f0d8ec562b53327b27a3100997ad751",
+          "sha256_after": "29386f8cf6911478234de2bd63acb380831d6dc6ab61bd34f834cc73e5132aec"
+        }
+      ],
+      "disclosure": "build.json and top-hits.json describe the already-built Store and had to name the proof artifact root for register's argv-drift check. Only the artifact-root prefix was substituted; the before/after sha256 are recorded."
+    }
+  },
+  "runtime": {
+    "checkout": "/home/gh13047/repo/opengwasdb-worktrees/hm3-272",
+    "commit": "1c2c85dfa8ec567bad3624962c4972aefb361215",
+    "capability_floor": "4819a2ee",
+    "install": "opengwasdb @ git+file://...@<commit> (VCS install; direct_url records the commit)",
+    "step_record_opengwasdb_rev": "1c2c85dfa8ec567bad3624962c4972aefb361215",
+    "step_record_opengwasdb_version": "0.3.0"
+  },
+  "maintained_resource": {
+    "resource_id": "hapmap3-hg38",
+    "location": "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt",
+    "alid_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+    "row_count": 1206903
+  },
+  "release": {
+    "store_id": "OGS-00009",
+    "release_id": "OGS-00009",
+    "layout": "dense",
+    "completion_state": "observed_only",
+    "format_version": "0.1.0",
+    "n_analyses": 2024,
+    "n_variants": 9847701,
+    "bundle_sha256": {
+      "release.yaml": "ca5021833b667371b83653bd4209f63a6efe08145bdc1275e5d5d7e89ef8ab5c",
+      "build.yaml": "172f0f249e1a21839dc2c182babcb44d870cd1028b5367c0135a22e3b6bdb27b",
+      "analyses.tsv": "eacfac7d98bf441bd9b35b1ba0779a4cbee26799cb7166c7022e1bf44ea6866a"
+    },
+    "authoritative_store": "/data/opengwasdb/stores/OGS-00009/store.opengwasdb",
+    "proof_store": "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb",
+    "bundle_errors": null,
+    "indexed_subsets_declaration": [
+      {
+        "name": "hm3",
+        "resource_id": "hapmap3-hg38",
+        "variant_list": "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt",
+        "reference_assembly": "GRCh38",
+        "checksum": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398"
+      }
+    ]
+  },
+  "plan": {
+    "steps": [
+      "build",
+      "top-hits",
+      "indexed-subset-hm3",
+      "overview",
+      "validate"
+    ],
+    "planned_argv": {
+      "build": [
+        "opengwasdb",
+        "build-dense-vcf",
+        "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/work/analyses.tsv",
+        "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb",
+        "--store-id",
+        "OGS-00009",
+        "--release-id",
+        "OGS-00009",
+        "--source-reader-capability",
+        "opengwasdb.gwas-vcf",
+        "--source-assembly",
+        "hg19",
+        "--n-workers",
+        "32"
+      ],
+      "top-hits": [
+        "opengwasdb",
+        "build-dense-top-hits",
+        "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb"
+      ],
+      "indexed-subset-hm3": [
+        "opengwasdb",
+        "build-indexed-subset",
+        "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb",
+        "hm3",
+        "--variant-list",
+        "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt",
+        "--reference-assembly",
+        "GRCh38"
+      ],
+      "overview": [
+        "opengwasdb",
+        "regenerate-overview",
+        "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb"
+      ],
+      "validate": [
+        "opengwasdb",
+        "validate",
+        "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb",
+        "--format",
+        "json"
+      ]
+    },
+    "dry_run_exit_code": 0,
+    "dry_run_scheduled_steps": [
+      "indexed-subset-hm3",
+      "overview",
+      "validate"
+    ],
+    "dry_run_scheduled_rules": {
+      "step": 3,
+      "register": 1,
+      "OGS-00009": 1
+    }
+  },
+  "subset": {
+    "name": "hm3",
+    "namespace": "data.zarr/indexed_subsets/hm3",
+    "statistic_profile": "full_statistic",
+    "reference_assembly": "hg38",
+    "requested_count": 1206903,
+    "resolved_count": 1206903,
+    "absent_count": 0,
+    "n_subset_variants": 1206903,
+    "n_analyses": 2024,
+    "input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+    "source_store_id": "OGS-00009",
+    "source_release_id": "OGS-00009",
+    "source_format_version": "0.1.0",
+    "builder_version": "0.3.0",
+    "created_at": "2026-10-11T17:00:44.376873+00:00",
+    "physical_bytes": 6235000832
+  },
+  "records": {
+    "build": {
+      "success": true,
+      "exit_code": 0,
+      "elapsed_seconds": 21298.442,
+      "opengwasdb_rev": "f8125322f9d9b71db8b05d1c18d507612bf654e2",
+      "opengwasdb_version": "0.3.0",
+      "planned_argv": [
+        "opengwasdb",
+        "build-dense-vcf",
+        "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/work/analyses.tsv",
+        "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb",
+        "--store-id",
+        "OGS-00009",
+        "--release-id",
+        "OGS-00009",
+        "--source-reader-capability",
+        "opengwasdb.gwas-vcf",
+        "--source-assembly",
+        "hg19",
+        "--n-workers",
+        "32"
+      ],
+      "executed_argv": [
+        "opengwasdb",
+        "build-dense-vcf",
+        "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/work/analyses.tsv",
+        "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb.partial",
+        "--store-id",
+        "OGS-00009",
+        "--release-id",
+        "OGS-00009",
+        "--source-reader-capability",
+        "opengwasdb.gwas-vcf",
+        "--source-assembly",
+        "hg19",
+        "--n-workers",
+        "32"
+      ],
+      "stdout": "{\"n_analyses\": 2024, \"n_variants\": 9847701, \"output_path\": \"/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb.partial\"}",
+      "stderr": "2026-09-19 19:00:37 INFO opengwasdb.layouts.dense.build_vcf: Pass 1: collecting source variants from 2024 files (parallel, 32 workers, 20 Mb windows, batch 16)\n2026-09-19 19:17:41 INFO opengwasdb.layouts.dense.build_vcf: Pass 1 extraction: 2024 files \u2192 154 window group(s)\n2026-09-19 19:17:55 INFO opengwasdb.layouts.dense.build_vcf: Pass 1 merge: 154 window(s) \u2192 9851866 unique variants in 17m17s\n2026-09-19 19:17:55 INFO opengwasdb.layouts.dense.build_vcf: Running liftover hg19 \u2192 hg38 (9851866 variants)\n2026-09-19 19:18:22 WARNING opengwasdb.build.liftover: Liftover hg19\u2192hg38: 4160/9851866 variants failed (0.0%)\n2026-09-19 19:18:22 INFO opengwasdb.layouts.dense.build_vcf: Liftover complete: 9847706 variants mapped\n2026-09-19 19:18:31 INFO opengwasdb.layouts.dense.build_vcf: Pass 1 liftover/finalisation: 9847706 source variants \u2192 9847701 hg38 ALIDs in 35s\n2026-09-19 19:20:42 INFO opengwasdb.layouts.dense.build_vcf: Pass 2 lookup: 9847706 variant keys, max key length 16 bytes\n2026-09-19 19:20:44 INFO opengwasdb.layouts.dense.build_vcf: Pass 2: resolving 2024 analyses \u00d7 9847701 variants (n_workers=32)\n2026-09-19 19:21:15 INFO opengwasdb.layouts.dense.build_vcf: Pass 2: 25/2024 done (last: ukb-b-13696) \u2014 elapsed 31s, ETA 42m05s\n2026-09-19 19:21:37 INFO opengwasdb.layouts.dense.build_vcf: Pass 2: 50/2024 done (last: ukb-b-13423) \u2014 elapsed 53s, ETA 35m28s\n2026-09-19 19:22:02 INFO opengwasdb.layouts.dense.build_vcf: Pass 2: 75/2024 done (last: ukb-b-1390) \u2014 elapsed 1m18s, ETA 33m52s\n2026-09-19 19:22:25 INFO opengwasdb.layouts.dense.build_vcf: Pass 2: 100/2024 done (last: ukb-b-14157) \u2014 elapsed 1m41s, ETA 32m36s\n2026-09-19 19:22:53 INFO opengwasdb.layouts.dense.build_vcf: Pass 2: 125/2024 done (last: ukb-b-14182) \u2014 elapsed 2m09s, ETA 32m47s\n2026-09-19 19:23:13 INFO opengwasdb.layouts.dense.build_vcf: Pass 2: 150/2024 done (last: ukb-b-14303) \u2014 elapsed 2m29s, ETA 31m04s\n2026-09-19 19:23:40 INFO opengwasdb.layouts.dense.build_vcf: Pass 2: 175/2024 done (last: ukb-b-1480) \u2014 elap"
+    },
+    "top-hits": {
+      "success": true,
+      "exit_code": 0,
+      "elapsed_seconds": 2335.25,
+      "opengwasdb_rev": "f8125322f9d9b71db8b05d1c18d507612bf654e2",
+      "opengwasdb_version": "0.3.0",
+      "planned_argv": [
+        "opengwasdb",
+        "build-dense-top-hits",
+        "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb"
+      ],
+      "executed_argv": [
+        "opengwasdb",
+        "build-dense-top-hits",
+        "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb.partial"
+      ],
+      "stdout": "done",
+      "stderr": ""
+    },
+    "indexed-subset-hm3": {
+      "success": true,
+      "exit_code": 0,
+      "elapsed_seconds": 247.244,
+      "opengwasdb_rev": "1c2c85dfa8ec567bad3624962c4972aefb361215",
+      "opengwasdb_version": "0.3.0",
+      "planned_argv": [
+        "opengwasdb",
+        "build-indexed-subset",
+        "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb",
+        "hm3",
+        "--variant-list",
+        "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt",
+        "--reference-assembly",
+        "GRCh38"
+      ],
+      "executed_argv": [
+        "opengwasdb",
+        "build-indexed-subset",
+        "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb.partial",
+        "hm3",
+        "--variant-list",
+        "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt",
+        "--reference-assembly",
+        "GRCh38"
+      ],
+      "stdout": "built indexed subset 'hm3' at /data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb.partial/data.zarr/indexed_subsets/hm3\nrequested 1206903, resolved 1206903, absent 0\npublication gate: sampled, 528 decoded sample cells (seed 166638625948460791) in 2.0 s; standalone validate remains exhaustive",
+      "stderr": ""
+    },
+    "overview": {
+      "success": true,
+      "exit_code": 0,
+      "elapsed_seconds": 4.263,
+      "opengwasdb_rev": "1c2c85dfa8ec567bad3624962c4972aefb361215",
+      "opengwasdb_version": "0.3.0",
+      "planned_argv": [
+        "opengwasdb",
+        "regenerate-overview",
+        "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb"
+      ],
+      "executed_argv": [
+        "opengwasdb",
+        "regenerate-overview",
+        "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb.partial"
+      ],
+      "stdout": "wrote /data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb.partial/overview.html",
+      "stderr": ""
+    },
+    "validate": {
+      "success": true,
+      "exit_code": 0,
+      "elapsed_seconds": 6862.356,
+      "opengwasdb_rev": "1c2c85dfa8ec567bad3624962c4972aefb361215",
+      "opengwasdb_version": "0.3.0",
+      "planned_argv": [
+        "opengwasdb",
+        "validate",
+        "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb",
+        "--format",
+        "json"
+      ],
+      "executed_argv": [
+        "opengwasdb",
+        "validate",
+        "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb.partial",
+        "--format",
+        "json"
+      ],
+      "stdout": "{\"errors\": [], \"ok\": true, \"warnings\": []}",
+      "stderr": ""
+    },
+    "register": {
+      "success": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.0,
+      "opengwasdb_rev": "1c2c85dfa8ec567bad3624962c4972aefb361215",
+      "opengwasdb_version": "0.3.0",
+      "planned_argv": [],
+      "executed_argv": [],
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  "pipeline": {
+    "command": [
+      "/home/gh13047/repo/worktrees/stores-213/.pixi/envs/workflow/bin/python",
+      "/home/gh13047/repo/worktrees/stores-213/workflow/release.py",
+      "OGS-00009",
+      "--config",
+      "artifact_root=/data/opengwasdb/work/213-hm3-proof/artifacts",
+      "registry_root=/data/opengwasdb/work/213-hm3-proof/registry",
+      "--cores",
+      "2"
+    ],
+    "exit_code": 0,
+    "total_seconds": 7136.036
+  },
+  "overview": {
+    "present": true,
+    "has_indexed_subsets_tab": true,
+    "sha256": "98e28820f9f409a19e587c32d454aa9f7c9c82d6e60c40c1b7d11244f1c31066"
+  },
+  "validation": {
+    "status": "passed",
+    "record_success": true,
+    "exit_code": 0,
+    "verdict": {
+      "errors": [],
+      "ok": true,
+      "warnings": []
+    },
+    "exhaustive": "standalone validate decodes every indexed cell; the build's own publication gate is sampled but the release validate Step is exhaustive",
+    "validation_yaml_sha256": "ae26a0d1c9e7fd696d0046101406bdd2215dd1f8296ee8dc812285b0d4cb1633"
+  },
+  "benchmark": {
+    "report_script": "resources/scripts/release-benchmark-report.py",
+    "registry_issue": "opengwas/opengwasdb-stores#212",
+    "core_seam": "benchmarks._query_shapes.measure_hm3_extract",
+    "core_issue": "opengwas/opengwasdb#272",
+    "core_checkout": "/home/gh13047/repo/opengwasdb-worktrees/hm3-272",
+    "artifact": "/data/opengwasdb/work/213-hm3-proof/evidence/hm3-release-benchmark.json",
+    "entry": {
+      "analysis_id": "ukb-b-13414",
+      "artifact_path": "/data/opengwasdb/work/213-hm3-proof/artifacts/OGS-00009/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "analysis_id": "ukb-b-13414",
+        "detail": "",
+        "first_read_ms": 786.938,
+        "median_ms": 731.983,
+        "p95_ms": 762.973,
+        "reps": 5,
+        "result_count": 506718,
+        "status": "measured",
+        "subset": "hm3",
+        "subset_absent_count": 0,
+        "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+        "subset_n_analyses": 2024,
+        "subset_n_variants": 1206903,
+        "subset_reference_assembly": "hg38",
+        "subset_requested_count": 1206903,
+        "subset_resolved_count": 1206903,
+        "warm_result_count": 506718
+      },
+      "layout": "dense",
+      "shapes": {
+        "detail": "--hm3-only",
+        "status": "not_configured"
+      },
+      "store_id": "OGS-00009"
+    },
+    "core": {
+      "checkout": "/home/gh13047/repo/opengwasdb-worktrees/hm3-272",
+      "opengwasdb_fingerprint": "982840eb581bc35c20c46a77f62d7aa03c7ee072efddab317f757a4db8902a74",
+      "opengwasdb_path": "/home/gh13047/repo/opengwasdb-worktrees/hm3-272/opengwasdb",
+      "revision": "1c2c85dfa8ec567bad3624962c4972aefb361215"
+    },
+    "measured_at": "2026-10-11T19:07:35.894416+00:00",
+    "summary": {
+      "measured": 1
+    }
+  },
+  "timings": {
+    "headline_hm3_build_seconds": 247.244,
+    "headline_hm3_extract_median_ms": 731.983,
+    "hm3_extract_p95_ms": 762.973,
+    "hm3_extract_first_read_ms": 786.938,
+    "hm3_extract_result_count": 506718,
+    "overview_seconds": 4.263,
+    "validate_seconds": 6862.356,
+    "register_seconds": 0.0,
+    "pipeline_total_seconds": 7136.036
+  },
+  "references": {
+    "core_272": "https://github.com/opengwas/opengwasdb/pull/272",
+    "prior_indexed_subset_evidence": "opengwasdb docs/benchmark-output/opengwasdb_267_indexed_subset_benchmark.json (#267/#270; the 187.53 s post-#270 build is the comparison point)",
+    "release_benchmark_report": "docs/benchmark-output/opengwasdb_hm3_release_benchmark.{json,md}"
+  }
+}

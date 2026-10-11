@@ -166,6 +166,16 @@ threadpoolctl = ">=3.0"
 # `dev`'s head: epic #240 (`5910e29`) has since merged there, and its builders
 # write format 0.2.0, which the catalogue does not adopt until #197. This
 # revision still writes 0.1.0, like every registered Store.
+#
+# #209 (Indexed Variant Subsets) deliberately does not bump this pin: every
+# opengwasdb revision that provides `build-indexed-subset` (first at
+# `4819a2ee`, opengwasdb#264) is a descendant of the format-0.2.0 builders
+# (`5910e29`), so a bump would silently adopt the catalogue-wide migration
+# tracked by #197. A release that declares `indexed_subsets` instead carries a
+# documented runtime prerequisite: its run needs a subset-capable `opengwasdb`
+# on PATH, and the release entry point refuses loudly when the resolved
+# executable does not provide the command. A release with no declaration is
+# never gated on the runtime version.
 opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "7b0c42d94e439d4ce6de2cf046fb41a9f3a7eb2e" }
 
 [feature.r.dependencies]
@@ -279,6 +289,7 @@ test-python = { cmd = "python3 resources/scripts/run_all_tests.py --only python"
 test-r = { cmd = "python3 resources/scripts/run_all_tests.py --only r" }
 concordance-run = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/run_concordance_study.py" }
 bundle-check = { cmd = "python3 resources/scripts/check_bundles.py" }
+audit-indexed-subsets = { cmd = "python3 resources/scripts/audit_indexed_subsets.py" }
 env-check = { cmd = "python3 resources/scripts/env_check.py" }
 index-ci = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 

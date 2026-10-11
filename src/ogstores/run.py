@@ -76,7 +76,11 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from ogstores import paths
-from ogstores.bundle import Bundle
+from ogstores.bundle import (
+    INDEXED_SUBSET_STEP_PREFIX,
+    Bundle,
+    is_valid_indexed_subset_name,
+)
 from ogstores.plan import Step
 
 STORE_PRODUCING_STEPS: frozenset[str] = frozenset({"build", "complete"})
@@ -205,19 +209,30 @@ class StepResult:
 
 
 def validate_step_name(name: str) -> str:
-    """Validate step.name against allowlist and reject path traversal characters."""
-    if (
-        not isinstance(name, str)
-        or name not in VALID_STEP_NAMES
-        or "/" in name
-        or "\\" in name
-        or ".." in name
-    ):
+    """Validate a step name against the allowlist and path-traversal rules.
+
+    A fixed name must be in :data:`VALID_STEP_NAMES`. A declared Indexed Variant
+    Subset (#209) is allowed as ``indexed-subset-<name>``, where ``<name>`` is a
+    valid subset name; the prefix bounds the dynamic space without opening the
+    record filename to an arbitrary string.
+    """
+    if not isinstance(name, str) or "/" in name or "\\" in name or ".." in name:
         raise ValueError(
             f"Invalid step name {name!r}; must be one of {sorted(VALID_STEP_NAMES)} "
-            "and contain no path separators or traversal sequences."
+            f"or '{INDEXED_SUBSET_STEP_PREFIX}<name>', and contain no path "
+            "separators or traversal sequences."
         )
-    return name
+    if name in VALID_STEP_NAMES:
+        return name
+    if name.startswith(INDEXED_SUBSET_STEP_PREFIX):
+        subset_name = name[len(INDEXED_SUBSET_STEP_PREFIX):]
+        if is_valid_indexed_subset_name(subset_name):
+            return name
+    raise ValueError(
+        f"Invalid step name {name!r}; must be one of {sorted(VALID_STEP_NAMES)} "
+        f"or '{INDEXED_SUBSET_STEP_PREFIX}<name>', and contain no path "
+        "separators or traversal sequences."
+    )
 
 
 def is_exact_commit_hash(s: str | None) -> bool:

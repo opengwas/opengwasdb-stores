@@ -177,6 +177,26 @@ class TestStepClassificationAndArgvRewrite(unittest.TestCase):
                     self.assertIn("Invalid step name", rec["stderr"])
                     record_check()
 
+    def test_indexed_subset_step_names_are_bounded(self) -> None:
+        """`indexed-subset-<name>` is admitted; a malformed suffix is not (#209)."""
+        for valid_name in (
+            "indexed-subset-hm3",
+            "indexed-subset-hm3-alt.b_1",
+            "indexed-subset-0",
+        ):
+            self.assertEqual(validate_step_name(valid_name), valid_name)
+            record_check()
+        for bad_name in (
+            "indexed-subset-",
+            "indexed-subset-..x",
+            "indexed-subset-hm3/sub",
+            "indexed_subsets-hm3",
+            "indexed-subset- bad",
+        ):
+            with self.assertRaises(ValueError):
+                validate_step_name(bad_name)
+            record_check()
+
     def test_build_argv_rewriting(self) -> None:
         root = Path("/data/opengwasdb/stores")
         store_id = "OGS-00042"

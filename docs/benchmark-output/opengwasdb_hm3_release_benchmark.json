@@ -1,0 +1,216 @@
+{
+  "artifact_root": "/data/opengwasdb/stores",
+  "core": {
+    "checkout": "/home/gh13047/repo/opengwasdb-worktrees/hm3-272",
+    "opengwasdb_fingerprint": "982840eb581bc35c20c46a77f62d7aa03c7ee072efddab317f757a4db8902a74",
+    "opengwasdb_path": "/home/gh13047/repo/opengwasdb-worktrees/hm3-272/opengwasdb",
+    "revision": "1c2c85dfa8ec567bad3624962c4972aefb361215"
+  },
+  "epic": "opengwas/opengwasdb-stores#214",
+  "harness": "release_benchmark_report",
+  "hm3_only": true,
+  "hm3_source": "benchmarks._query_shapes.measure_hm3_extract",
+  "issue": "opengwas/opengwasdb-stores#212",
+  "measured_at": "2026-10-11T16:53:46.161810+00:00",
+  "reps": 5,
+  "shape_errors": [],
+  "shapes_source": "benchmarks.benchmark_store_comparison (one Store per run)",
+  "stores": [
+    {
+      "analysis_id": "ENSG00000175445::whole_blood",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00001/store.opengwasdb",
+      "dense_component": false,
+      "hm3_extract": {
+        "detail": "Ragged layout carries no Dense Component; an Indexed Variant Subset is Dense-only (ADR 0061)",
+        "status": "not_applicable",
+        "subset": "hm3"
+      },
+      "layout": "ragged",
+      "shapes": {
+        "detail": "Ragged-only Store: no Dense query shapes",
+        "status": "not_applicable"
+      },
+      "store_id": "OGS-00001"
+    },
+    {
+      "analysis_id": "ENSG00000175445::whole_blood",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00002/store.opengwasdb",
+      "dense_component": false,
+      "hm3_extract": {
+        "detail": "Ragged layout carries no Dense Component; an Indexed Variant Subset is Dense-only (ADR 0061)",
+        "status": "not_applicable",
+        "subset": "hm3"
+      },
+      "layout": "ragged",
+      "shapes": {
+        "detail": "Ragged-only Store: no Dense query shapes",
+        "status": "not_applicable"
+      },
+      "store_id": "OGS-00002"
+    },
+    {
+      "analysis_id": "finngen-r13-BMI_IRN",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00003/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "detail": "no Indexed Variant Subset named 'hm3' is published",
+        "status": "missing",
+        "subset": "hm3"
+      },
+      "layout": "dense",
+      "shapes": {
+        "detail": "--hm3-only",
+        "status": "not_configured"
+      },
+      "store_id": "OGS-00003"
+    },
+    {
+      "analysis_id": "GCST003566",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00004/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "detail": "no Indexed Variant Subset named 'hm3' is published",
+        "status": "missing",
+        "subset": "hm3"
+      },
+      "layout": "hybrid",
+      "shapes": {
+        "detail": "--hm3-only",
+        "status": "not_configured"
+      },
+      "store_id": "OGS-00004"
+    },
+    {
+      "analysis_id": "GCST002047",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00005/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "detail": "no Indexed Variant Subset named 'hm3' is published",
+        "status": "missing",
+        "subset": "hm3"
+      },
+      "layout": "hybrid",
+      "shapes": {
+        "detail": "--hm3-only",
+        "status": "not_configured"
+      },
+      "store_id": "OGS-00005"
+    },
+    {
+      "analysis_id": "GCST90199621",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
+      "dense_component": false,
+      "hm3_extract": {
+        "detail": "Ragged layout carries no Dense Component; an Indexed Variant Subset is Dense-only (ADR 0061)",
+        "status": "not_applicable",
+        "subset": "hm3"
+      },
+      "layout": "ragged",
+      "shapes": {
+        "detail": "Ragged-only Store: no Dense query shapes",
+        "status": "not_applicable"
+      },
+      "store_id": "OGS-00006"
+    },
+    {
+      "analysis_id": "GCST005806",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00007/store.opengwasdb",
+      "dense_component": false,
+      "hm3_extract": {
+        "detail": "Ragged layout carries no Dense Component; an Indexed Variant Subset is Dense-only (ADR 0061)",
+        "status": "not_applicable",
+        "subset": "hm3"
+      },
+      "layout": "ragged",
+      "shapes": {
+        "detail": "Ragged-only Store: no Dense query shapes",
+        "status": "not_applicable"
+      },
+      "store_id": "OGS-00007"
+    },
+    {
+      "analysis_id": "ukb-b-19953",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00008/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "detail": "no Indexed Variant Subset named 'hm3' is published",
+        "status": "missing",
+        "subset": "hm3"
+      },
+      "layout": "dense",
+      "shapes": {
+        "detail": "--hm3-only",
+        "status": "not_configured"
+      },
+      "store_id": "OGS-00008"
+    },
+    {
+      "analysis_id": "ukb-b-13414",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00009/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "detail": "no Indexed Variant Subset named 'hm3' is published",
+        "status": "missing",
+        "subset": "hm3"
+      },
+      "layout": "dense",
+      "shapes": {
+        "detail": "--hm3-only",
+        "status": "not_configured"
+      },
+      "store_id": "OGS-00009"
+    },
+    {
+      "analysis_id": "ukb-b-13414",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00010/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "detail": "no Indexed Variant Subset named 'hm3' is published",
+        "status": "missing",
+        "subset": "hm3"
+      },
+      "layout": "dense",
+      "shapes": {
+        "detail": "--hm3-only",
+        "status": "not_configured"
+      },
+      "store_id": "OGS-00010"
+    },
+    {
+      "analysis_id": "GCST000028",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "detail": "no Indexed Variant Subset named 'hm3' is published",
+        "status": "missing",
+        "subset": "hm3"
+      },
+      "layout": "hybrid",
+      "shapes": {
+        "detail": "--hm3-only",
+        "status": "not_configured"
+      },
+      "store_id": "OGS-00011"
+    },
+    {
+      "analysis_id": "finngen-r13-AB1_ACTINOMYCOSIS",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00016/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "detail": "no Indexed Variant Subset named 'hm3' is published",
+        "status": "missing",
+        "subset": "hm3"
+      },
+      "layout": "dense",
+      "shapes": {
+        "detail": "--hm3-only",
+        "status": "not_configured"
+      },
+      "store_id": "OGS-00016"
+    }
+  ],
+  "summary": {
+    "missing": 8,
+    "not_applicable": 4
+  }
+}
