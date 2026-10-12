@@ -542,6 +542,7 @@ class KeyDiscrepancy:
     candidate_n_cases: int
     candidate_n_controls: int
     owner_question: str
+    owner_decision: str = ""
 
     @property
     def dbgap_key(self) -> tuple[str, int, int, int]:
@@ -569,6 +570,17 @@ def read_discrepancies(path: Path) -> list[KeyDiscrepancy]:
             analysis_id = str(record["analysis_id"]).strip()
             if disposition not in DISCREPANCY_DISPOSITIONS:
                 raise AcquisitionError(f"{where}: unknown disposition {disposition!r}")
+            raw_decision = record.get("owner_decision")
+            if isinstance(raw_decision, dict):
+                owner_decision = " ".join(
+                    str(raw_decision.get("quote") or raw_decision.get("statement") or "").split()
+                )
+            elif raw_decision is None:
+                owner_decision = ""
+            else:
+                owner_decision = " ".join(str(raw_decision).split())
+            if disposition == "resolved" and not owner_decision:
+                raise AcquisitionError(f"{where}: a resolved record needs an owner_decision")
             discrepancy = KeyDiscrepancy(
                 member=member,
                 analysis_id=analysis_id,
@@ -581,6 +593,7 @@ def read_discrepancies(path: Path) -> list[KeyDiscrepancy]:
                 candidate_n_cases=int(candidate.get("n_cases", 0)),
                 candidate_n_controls=int(candidate.get("n_controls", 0)),
                 owner_question=" ".join(str(record.get("owner_question", "")).split()),
+                owner_decision=owner_decision,
             )
         except (TypeError, KeyError, ValueError) as exc:
             raise AcquisitionError(f"{where}: malformed record ({exc})") from exc
@@ -1135,10 +1148,41 @@ def convert_analysis(
     return "converted", "", time.monotonic() - started
 
 
+def catalog_provenance(row: dict[str, str], candidate: Candidate) -> dict[str, object] | None:
+    """The Catalog values, kept only when they differ from the canonical dbGaP values.
+
+    A row whose Catalog metadata already agrees with the deposit adds no block,
+    so an ordinary converted sidecar keeps EBI's field set.  A disagreement
+    (the 2 sample-size discrepancies and the 57 label mismatches) preserves the
+    Catalog counterpart as provenance rather than discarding it.
+    """
+    canonical_sample_size = int(row["sample_size"])
+    if (
+        candidate.trait == row.get("analyzed_variable", "")
+        and candidate.sample_size == canonical_sample_size
+        and candidate.n_cases == int(row.get("n_cases") or 0)
+        and candidate.n_controls == int(row.get("n_controls") or 0)
+    ):
+        return None
+    return {
+        "trait_description": [candidate.trait],
+        "sample_size": candidate.sample_size,
+        "n_cases": candidate.n_cases,
+        "n_controls": candidate.n_controls,
+        "ancestry_group": candidate.ancestry,
+        "ancestry_fraction": candidate.ancestry_fraction,
+    }
+
+
 def render_metadata_yaml(
     row: dict[str, str], candidate: Candidate, data_path: Path, out: Path, tars_dir: Path
 ) -> str:
-    """EBI's ``*-meta.yaml`` fields plus the dbGaP provenance, as one document."""
+    """EBI's ``*-meta.yaml`` fields plus dbGaP-canonical metadata and provenance.
+
+    Canonical metadata follows the owner decision for ticket #220 (2026-10-11):
+    the dbGaP ``Analyzed variable`` and deposit sample size are authoritative.
+    A Catalog counterpart that disagrees is retained under ``catalog_metadata``.
+    """
     ancestry = candidate.yaml_ancestry
     samples: dict[str, object] = {
         "sample_ancestry_category": [ancestry],
@@ -1149,7 +1193,7 @@ def render_metadata_yaml(
     tar = row["tar"]
     document: dict[str, object] = {
         "gwas_id": row["analysis_id"],
-        "trait_description": [candidate.trait],
+        "trait_description": [row.get("analyzed_variable") or candidate.trait],
         "genome_assembly": "GRCh38",
         "coordinate_system": "1-based",
         "genotyping_technology": ["Genome-wide genotyping array"],
@@ -1169,6 +1213,9 @@ def render_metadata_yaml(
         },
         "dbgap_analysis_description": metadata_description(out, row["member"]),
     }
+    catalog = catalog_provenance(row, candidate)
+    if catalog is not None:
+        document["catalog_metadata"] = catalog
     return yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100)
 
 
@@ -1237,12 +1284,17 @@ def manifest_row(
     candidate: Candidate, mapping: dict[str, str] | None, data_digest: str, path: Path, yaml_path: Path
 ) -> dict[str, str]:
     row = {name: "" for name in MANIFEST_COLUMNS}
+    canonical_trait = (mapping or {}).get("analyzed_variable") or candidate.trait
+    canonical_sample_size = (mapping or {}).get("sample_size") or str(candidate.sample_size)
     row.update({
         "analysis_id": candidate.analysis_id,
         "publication_pmid": PUBMED_ID,
-        "trait": candidate.trait,
+        # Canonical label/size follow the owner decision (#220, 2026-10-11):
+        # dbGaP is authoritative.  The Catalog counterpart lives in mapping.tsv
+        # and, where it differs, in the converted sidecar's catalog_metadata.
+        "trait": canonical_trait,
         "study_design": candidate.study_design,
-        "sample_size": str(candidate.sample_size),
+        "sample_size": canonical_sample_size,
         # The dbGaP pass is not preceded by a harmonised pass on this mirror, so
         # there is no harmonised status to report; EBI's raw manifest carries the
         # other pass's fact here, and an empty value is the honest analogue.

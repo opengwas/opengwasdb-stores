@@ -4,11 +4,12 @@
 # `map` binds an Analysis to a candidate row by the exact key
 # (ancestry, sample_size, n_cases, n_controls).  Where the two first-party
 # sources disagree, the binding is never relaxed or guessed: this ledger names
-# each disagreement with its primary evidence, and `map` re-validates every
-# record against the extracted metadata and the candidate table on each run.
+# each disagreement with its primary evidence and its owner decision, and `map`
+# re-validates every record against the extracted metadata and the candidate
+# table on each run.
 #
 # A `resolved` record binds the named pair with match_basis=discrepancy-ledger
-# only after a recorded human decision.  An `owner_decision_required` record is
+# and MUST carry an `owner_decision`.  An `owner_decision_required` record is
 # reported as numeric_key_discrepancy and keeps the bijection gate red.  A stale
 # record (keys now agree, member/candidate absent, or an entry already bound)
 # fails the run loudly rather than passing silently.
@@ -18,10 +19,46 @@
 #   * GWAS Catalog EBI raw meta.yaml (md5 recorded per record);
 #   * GWAS Catalog REST v2 study JSON (URLs recorded per record).
 version: 1
+
+#: Owner decisions (epic #232, ticket #220), recorded 2026-10-11.
+#: The owner's instruction was: "for mvp use the dbgap information for all
+#: three queries."  dbGaP phs002453 is therefore authoritative; the GWAS
+#: Catalog values are retained below as non-canonical provenance only.
+owner_decisions:
+  - id: D1
+    authority: dbGaP
+    quote: "for mvp use the dbgap information for all three queries."
+    recorded: "2026-10-11"
+    effect: >-
+      GCST90476298 canonical sample_size is the deposit 114731; the Catalog 235
+      is retained as provenance.
+  - id: D2
+    authority: dbGaP
+    quote: "for mvp use the dbgap information for all three queries."
+    recorded: "2026-10-11"
+    effect: >-
+      GCST90481129 canonical metadata is the 3-ancestry deposit meta-analysis
+      (N=571620, cases=49766, controls=521854).  The 4-ancestry Catalog
+      aggregate (N=577873) is retained as provenance; the META mixture stays
+      with ticket #221.
+  - id: traits
+    authority: dbGaP
+    quote: "use the dbgap information for all three queries"
+    recorded: "2026-10-11"
+    effect: >-
+      For the 57 trait-label mismatches the canonical label is the dbGaP
+      analyzed_variable; the GWAS Catalog counterpart is retained as
+      provenance.  No fuzzy identity binding is performed.
+
 records:
   - member: MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.Platelet_Mean_INT.AFR.GIA.dbGaP.txt.gz
     analysis_id: GCST90476298
-    disposition: owner_decision_required
+    disposition: resolved
+    owner_decision:
+      id: D1
+      authority: dbGaP
+      quote: "for mvp use the dbgap information for all three queries."
+      recorded: "2026-10-11"
     dbgap:
       ancestry: AFR
       analyzed_variable: platelet count (mean, inv-norm transformed)
@@ -38,11 +75,8 @@ records:
     owner_question: >-
       The deposited GWAS-SSF member's own metadata and num_samples column say
       N=114731, while the GWAS Catalog record says 235; trait text and ancestry
-      agree exactly. Decide whether the Catalog sample size is a curation error
-      this acquisition may correct (set disposition resolved), or whether
-      GCST90476298 is a genuinely different Analysis whose deposited file is
-      missing (leave owner_decision_required). No dbGaP member declares
-      Total Sample Size=235, so no alternative candidate pairing exists.
+      agree exactly. Owner decided 2026-10-11 that dbGaP is authoritative, so
+      the binding is resolved and the canonical N is 114731.
     evidence:
       - >-
         dbGaP member metadata: "Sample size: Total Sample Size=114731",
@@ -58,7 +92,12 @@ records:
         https://www.ebi.ac.uk/gwas/rest/api/v2/studies/GCST90476298
   - member: MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2/MVP_R4.1000G_AGR.Phe_371_3.META.GIA.dbGaP.txt.gz
     analysis_id: GCST90481129
-    disposition: owner_decision_required
+    disposition: resolved
+    owner_decision:
+      id: D2
+      authority: dbGaP
+      quote: "for mvp use the dbgap information for all three queries."
+      recorded: "2026-10-11"
     dbgap:
       ancestry: META
       analyzed_variable: Inflammation of eyelids
@@ -78,11 +117,9 @@ records:
       controls 527751 = 101547+51121+5897+369186), while the deposit's
       Phe_371_3.META is a 3-ancestry meta-analysis (AFR+AMR+EUR = 571620;
       49766; 521854). The 6253 difference is exactly the EAS component, and no
-      EAS Phe_371_3 member is deposited. Decide whether GCST90481129's Analysis
-      is genuinely absent from this deposit (leave owner_decision_required) or
-      the deposit META is the intended Analysis and the Catalog EAS contribution
-      is an error (set disposition resolved). Preserve the META mixture
-      provenance for ticket #221 either way.
+      EAS Phe_371_3 member is deposited. Owner decided 2026-10-11 that dbGaP is
+      authoritative, so the canonical metadata is the 3-ancestry deposit meta
+      and the 4-ancestry Catalog aggregate is retained as provenance only.
     evidence:
       - >-
         dbGaP member description: "Meta-analysis of Phe_371_3 (Inflammation of

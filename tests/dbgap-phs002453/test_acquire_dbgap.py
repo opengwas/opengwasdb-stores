@@ -510,7 +510,12 @@ class AcquisitionTest(unittest.TestCase):
         path = self.data("GCST90475097").with_name("GCST90475097.tsv.gz-meta.yaml")
         document = yaml.safe_load(path.read_text(encoding="utf-8"))
         self.assertEqual(document["gwas_id"], "GCST90475097")
-        self.assertEqual(document["trait_description"], ["Hemoglobin A1c (HbA1c, minimum, inv-norm transformed)"])
+        self.assertEqual(document["trait_description"], ["hemoglobin A1c (HbA1c, minimum, inv-norm transformed)"])
+        # The Catalog counterpart is retained when it differs from the deposit.
+        self.assertEqual(
+            document["catalog_metadata"]["trait_description"],
+            ["Hemoglobin A1c (HbA1c, minimum, inv-norm transformed)"],
+        )
         self.assertEqual(document["genome_assembly"], "GRCh38")
         self.assertEqual(document["coordinate_system"], "1-based")
         self.assertEqual(document["genotyping_technology"], ["Genome-wide genotyping array"])
@@ -632,28 +637,36 @@ class KeyDiscrepancyTests(unittest.TestCase):
         self.write_ledger("owner_decision_required")
 
     def write_ledger(self, disposition: str) -> None:
+        decision = textwrap.dedent("""\
+            owner_decision:
+              authority: dbGaP
+              quote: fixture owner decision
+              recorded: '2026-10-11'
+            """) if disposition == "resolved" else ""
+        body = textwrap.dedent(f"""\
+            version: 1
+            records:
+              - member: {self.member}
+                analysis_id: GCST90475097
+                disposition: {disposition}
+                dbgap:
+                  ancestry: EUR
+                  analyzed_variable: hemoglobin A1c (HbA1c, minimum, inv-norm transformed)
+                  sample_size: 338640
+                  n_cases: 0
+                  n_controls: 0
+                candidate:
+                  ancestry_group: European
+                  ancestry_fraction: 1
+                  trait: Hemoglobin A1c (HbA1c, minimum, inv-norm transformed)
+                  sample_size: 999999
+                  n_cases: 0
+                  n_controls: 0
+                owner_question: fixture review question
+            """)
+        marker = f"    disposition: {disposition}\n"
         self.ledger.write_text(
-            textwrap.dedent(f"""\
-                version: 1
-                records:
-                  - member: {self.member}
-                    analysis_id: GCST90475097
-                    disposition: {disposition}
-                    dbgap:
-                      ancestry: EUR
-                      analyzed_variable: hemoglobin A1c (HbA1c, minimum, inv-norm transformed)
-                      sample_size: 338640
-                      n_cases: 0
-                      n_controls: 0
-                    candidate:
-                      ancestry_group: European
-                      ancestry_fraction: 1
-                      trait: Hemoglobin A1c (HbA1c, minimum, inv-norm transformed)
-                      sample_size: 999999
-                      n_cases: 0
-                      n_controls: 0
-                    owner_question: fixture review question
-                """),
+            body.replace(marker, marker + textwrap.indent(decision, "    ")),
             encoding="utf-8",
         )
 
@@ -661,6 +674,11 @@ class KeyDiscrepancyTests(unittest.TestCase):
     def rows(path: Path) -> list[dict[str, str]]:
         with path.open(newline="", encoding="utf-8") as handle:
             return list(csv.DictReader(handle, delimiter="\t"))
+
+    def data(self, accession: str) -> Path:
+        found = list((self.root / "gwas-ssf").glob(f"*/{accession}/{accession}.tsv.gz"))
+        self.assertEqual(len(found), 1, f"expected one data file for {accession}, found {found}")
+        return found[0]
 
     def test_pending_discrepancy_blocks_and_is_named(self) -> None:
         result = run(
@@ -689,6 +707,40 @@ class KeyDiscrepancyTests(unittest.TestCase):
         self.assertEqual(mapping["GCST90475097"]["match_basis"], "discrepancy-ledger")
         self.assertEqual(mapping["GCST90475097"]["member"], self.member)
         self.assertEqual([row["kind"] for row in self.rows(self.root / "mapping-report.tsv")], [])
+
+    def test_resolved_canonical_metadata_uses_deposit_values(self) -> None:
+        import yaml
+
+        self.write_ledger("resolved")
+        result = run(
+            self.root, "map", "--candidates", str(self.mismatched),
+            "--discrepancies", str(self.ledger), "--allow-partial",
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = run(self.root, "convert", "--candidates", str(self.mismatched), "--analysis", "GCST90475097")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+        # The data row and canonical YAML metadata carry the deposit value; the
+        # 999999 Catalog value survives only as provenance.
+        data_line = decompress(self.data("GCST90475097")).splitlines()[1]
+        self.assertEqual(data_line.split("\t")[10], "338640")
+        document = yaml.safe_load(
+            self.data("GCST90475097").with_name("GCST90475097.tsv.gz-meta.yaml").read_text(encoding="utf-8")
+        )
+        self.assertEqual(document["trait_description"], ["hemoglobin A1c (HbA1c, minimum, inv-norm transformed)"])
+        self.assertEqual(document["samples"], [{"sample_ancestry_category": ["European"], "sample_size": 338640}])
+        self.assertEqual(document["catalog_metadata"]["sample_size"], 999999)
+        self.assertEqual(
+            document["catalog_metadata"]["trait_description"],
+            ["Hemoglobin A1c (HbA1c, minimum, inv-norm transformed)"],
+        )
+
+        result = run(self.root, "manifest", "--candidates", str(self.mismatched), "--analysis", "GCST90475097")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        manifest = self.root / "manifests" / "dense-pmid-39024449-European-download-manifest.tsv"
+        rows = {row["analysis_id"]: row for row in self.rows(manifest)}
+        self.assertEqual(rows["GCST90475097"]["sample_size"], "338640")
+        self.assertEqual(rows["GCST90475097"]["trait"], "hemoglobin A1c (HbA1c, minimum, inv-norm transformed)")
 
     def test_stale_ledger_entry_fails_loudly(self) -> None:
         # With the original candidate table the keys agree, so the ledger entry
@@ -762,6 +814,19 @@ class TraitDispositionTests(unittest.TestCase):
 
 
 class DiscrepancyLedgerTests(unittest.TestCase):
+    def test_resolved_requires_an_owner_decision(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ledger.yaml"
+            path.write_text(
+                "version: 1\nrecords:\n"
+                "  - member: m\n    analysis_id: GCST1\n    disposition: resolved\n"
+                "    dbgap: {ancestry: EUR, sample_size: 1}\n"
+                "    candidate: {sample_size: 2}\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "needs an owner_decision"):
+                ACQUIRE.read_discrepancies(path)
+
     def test_unknown_disposition_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "ledger.yaml"
@@ -780,7 +845,7 @@ class DiscrepancyLedgerTests(unittest.TestCase):
             path = Path(tmp) / "ledger.yaml"
             record = (
                 "  - member: m{index}\n    analysis_id: GCST1\n"
-                "    disposition: resolved\n"
+                "    disposition: owner_decision_required\n"
                 "    dbgap: {{ancestry: EUR, sample_size: 1}}\n"
                 "    candidate: {{sample_size: 2}}\n"
             )
