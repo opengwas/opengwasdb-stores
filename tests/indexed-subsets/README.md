@@ -8,9 +8,10 @@ planning:
   `genome_build`/`location`/`checksums` to agree, and hashes the maintained ALID
   list (sha256, byte size, row count). Every mismatch is a refusal.
 - a run that declares a subset needs an `opengwasdb` providing
-  `build-indexed-subset`; the repository pin deliberately predates it until
-  #197, so the entry point refuses with the required capability rather than
-  failing mid-build. A no-declaration run is never gated on the runtime.
+  `build-indexed-subset`; the repository's tracked current-format runtime
+  provides it (stores#218), and the entry point still refuses with the required
+  capability rather than failing mid-build when it is absent. A no-declaration
+  run is never gated on the runtime.
 
 Fixtures are tiny and hermetic; the capability probe is exercised against a
 stub executable, so no real HapMap3 data or newer opengwasdb is required.

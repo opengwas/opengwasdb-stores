@@ -35,8 +35,10 @@ resources/data/derived/store-candidates-analyses.tsv   candidate table (gitignor
 pixi run python resources/scripts/acquire-dbgap-phs002453.py \
   --out /data/opengwasdb/raw/dbgap-phs002453 extract --jobs 4
 
-# 2. bind each Analysis to its candidate-table row; writes mapping.tsv and
-#    mapping-report.tsv, and exits non-zero unless the bijection is complete
+# 2. bind each Analysis to its candidate-table row; writes mapping.tsv,
+#    mapping-report.tsv and the mapping-review.tsv trait queue, and exits
+#    non-zero unless the bijection is complete (the default
+#    --discrepancies ledger is resources/scripts/dbgap-phs002453-key-discrepancies.yaml)
 pixi run python resources/scripts/acquire-dbgap-phs002453.py map \
   --candidates resources/data/derived/store-candidates-analyses.tsv
 
@@ -82,6 +84,22 @@ disagrees with the table of contents is re-extracted.
 `duplicate_analysis_match`, `trait_check_mismatch` and `unused_candidate` rows.
 The command exits non-zero unless all 6,022 candidate rows are bound to exactly
 one Analysis each.
+
+A numeric-key disagreement is never relaxed or guessed. The committed
+`dbgap-phs002453-key-discrepancies.yaml` ledger records each known disagreement
+with its first-party evidence. A `resolved` record binds the named pair with
+`match_basis=discrepancy-ledger` after a recorded human decision; an
+`owner_decision_required` record is reported as `numeric_key_discrepancy` and
+keeps the bijection gate red. Every record is re-validated against the
+extracted metadata and the candidate table, so a stale record (keys now agree,
+member/candidate absent, or already bound) fails the run loudly. Pass
+`--discrepancies` to point at a different ledger.
+
+`mapping-review.tsv` is the per-record trait-label queue. Every
+`trait_check=mismatch` row keeps its original dbGaP and Catalog labels and is
+classified as `punctuation_only` (formatting-only; pending a recorded policy)
+or `lexical_variant` (`owner_scientific_review`). It is a review artifact: it
+never changes a binding and no spelling/synonym heuristic accepts a label.
 
 **convert** runs `gzip -dc member | awk | gzip` per Analysis. The awk program is
 header-driven and matches columns by name; the output column set is EBI's, so a
@@ -149,7 +167,10 @@ non-ready rather than as a usable member.
 `resources/scripts/run_all_tests.py`) builds synthetic real-format tars and
 covers extraction, mapping (including the ambiguity and unmatched cases),
 golden row equality against EBI's published rows, the META shape without `r2`,
-unrecognised headers, idempotence/atomicity and the inventory freeze.
+unrecognised headers, idempotence/atomicity and the inventory freeze. It also
+covers the key-discrepancy ledger (a pending record blocks and is named, a
+resolved record binds with provenance, a stale record fails) and the
+trait-disposition classification.
 
 The end-to-end check on real data is a line-by-line comparison with EBI's raw
 file (on the decompressed streams; our gzip settings differ from EBI's):
