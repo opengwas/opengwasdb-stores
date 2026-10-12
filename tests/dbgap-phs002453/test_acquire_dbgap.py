@@ -877,6 +877,67 @@ class DiscrepancyLedgerTests(unittest.TestCase):
                 ACQUIRE.read_discrepancies(path)
 
 
+class CanonicalMetadataTests(unittest.TestCase):
+    """dbGaP canonical metadata with the Catalog counterpart retained (D1/D2)."""
+
+    @staticmethod
+    def meta_candidate() -> "ACQUIRE.Candidate":
+        return ACQUIRE.Candidate(
+            analysis_id="GCST90481129",
+            trait="Inflammation of eyelids (PheCode 371.3)",
+            ancestry="European",
+            ancestry_fraction=0.703775743113106,
+            store_key="dense__pmid-39024449__Multi-ancestry",
+            study_design="case-control",
+            n_cases=50122,
+            n_controls=527751,
+            sample_size=577873,
+        )
+
+    @staticmethod
+    def meta_row() -> dict[str, str]:
+        return {
+            "analysis_id": "GCST90481129", "member": "m", "tar": "t", "ancestry": "META",
+            "study_design": "case-control", "dbgap_trait_type": "binary", "sample_size": "571620",
+            "n_cases": "49766", "n_controls": "521854", "dbgap_trait_code": "Phe_371_3",
+            "analyzed_variable": "Inflammation of eyelids",
+            "candidate_trait": "Inflammation of eyelids (PheCode 371.3)",
+            "candidate_store_key": "dense__pmid-39024449__Multi-ancestry",
+            "match_basis": "discrepancy-ledger", "trait_check": "exact",
+        }
+
+    def test_meta_sidecar_uses_deposit_and_keeps_catalog_provenance(self) -> None:
+        import yaml
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            data = root / "GCST90481129.tsv.gz"
+            data.write_bytes(b"x")
+            document = yaml.safe_load(
+                ACQUIRE.render_metadata_yaml(self.meta_row(), self.meta_candidate(), data, root / "out", root / "tars")
+            )
+        self.assertEqual(document["trait_description"], ["Inflammation of eyelids"])
+        self.assertEqual(
+            document["samples"],
+            [{"sample_ancestry_category": ["Multi-ancestry"], "sample_size": 571620, "case_control_study": True}],
+        )
+        provenance = document["catalog_metadata"]
+        self.assertEqual(provenance["trait_description"], ["Inflammation of eyelids (PheCode 371.3)"])
+        self.assertEqual(provenance["sample_size"], 577873)
+        self.assertEqual(provenance["n_cases"], 50122)
+        self.assertEqual(provenance["n_controls"], 527751)
+        self.assertEqual(provenance["ancestry_fraction"], self.meta_candidate().ancestry_fraction)
+
+    def test_matching_row_adds_no_catalog_block(self) -> None:
+        candidate = self.meta_candidate()
+        row = self.meta_row()
+        # Make the Catalog values agree with the deposit: no block is needed.
+        for key, value in (("sample_size", "577873"), ("n_cases", "50122"), ("n_controls", "527751"),
+                           ("analyzed_variable", candidate.trait)):
+            row[key] = value
+        self.assertIsNone(ACQUIRE.catalog_provenance(row, candidate))
+
+
 class ConverterEdgeCaseTests(unittest.TestCase):
     """The awk program run directly, on rows the fixture tars do not carry."""
 
