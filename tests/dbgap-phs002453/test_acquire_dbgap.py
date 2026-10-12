@@ -1247,6 +1247,111 @@ class RefreshTests(unittest.TestCase):
             with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "duplicate sidecar"):
                 ACQUIRE.load_sidecar_index(root)
 
+    def test_validate_digest_and_isolation_gates(self) -> None:
+        self.assertEqual(ACQUIRE.validate_digest("A" * 64, "sha256", "x"), "a" * 64)
+        with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "invalid sha256"):
+            ACQUIRE.validate_digest("short", "sha256", "x")
+        with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "invalid md5"):
+            ACQUIRE.validate_digest("z" * 32, "md5", "x")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "out").mkdir()
+            (root / "src").mkdir()
+            ACQUIRE.ensure_isolated(root / "out", root / "src", "src")
+            with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "must not overlap"):
+                ACQUIRE.ensure_isolated(root / "src" / "nested", root / "src", "src")
+
+    def test_canonical_manifest_row_regenerates_metadata_keeps_identity(self) -> None:
+        inherited = {"status": "ok", "data_bytes": "10", "yaml_bytes": "2", "sha256": "a" * 64,
+                     "genome_assembly": "GRCh38", "file_type": "GWAS-SSF v1.0", "is_harmonised": "false"}
+        row = {"analysis_id": "GCST1", "member": "m", "tar": "T",
+               "analyzed_variable": "dbgap label", "sample_size": "123", "n_cases": "1", "n_controls": "2"}
+        candidate = ACQUIRE.Candidate(
+            analysis_id="GCST1", trait="catalog label", ancestry="European", ancestry_fraction=1,
+            store_key="s", study_design="case-control", n_cases=1, n_controls=2, sample_size=999,
+        )
+        out = ACQUIRE.canonical_manifest_row(
+            inherited, row, candidate, data_file="/iso/GCST1.tsv.gz", yaml_file="/iso/GCST1.tsv.gz-meta.yaml"
+        )
+        self.assertEqual(out["trait"], "dbgap label")
+        self.assertEqual(out["sample_size"], "123")
+        self.assertEqual(out["study_design"], "case-control")
+        self.assertEqual(out["data_url"], ACQUIRE.DBGAP_BASE + "/T")
+        self.assertEqual(out["sha256"], "a" * 64)  # inherited, not re-derived
+        self.assertEqual(out["data_file"], "/iso/GCST1.tsv.gz")
+        with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "invalid sha256"):
+            ACQUIRE.canonical_manifest_row(
+                {**inherited, "sha256": "bad"}, row, candidate, data_file="d", yaml_file="y"
+            )
+
+    def test_canonical_sidecar_keeps_meta_mixture_ancestry(self) -> None:
+        document, _ = ACQUIRE.canonical_sidecar(
+            self.existing_sidecar(), self.mapping_row(), self.candidate(), source_sidecar="x"
+        )
+        self.assertEqual(document["samples"][0]["sample_ancestry_category"], ["Multi-ancestry"])
+
+    def test_missing_data_preview_succeeds_full_fails(self) -> None:
+        import yaml
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            iso = root / "iso"
+            accession = "GCST90475097"
+            store = STORE_KEY
+            sidecar = root / "mirror" / "gwas-ssf" / ACQUIRE.bucket_of(accession) / accession / f"{accession}.tsv.gz-meta.yaml"
+            sidecar.parent.mkdir(parents=True)
+            sidecar.write_text(yaml.safe_dump({
+                "gwas_id": accession, "trait_description": ["old"],
+                "samples": [{"sample_ancestry_category": ["European"], "sample_size": 100}],
+                "data_file_name": f"{accession}.tsv.gz", "data_file_md5sum": "b" * 32,
+                "source": {"repository": "dbGaP"},
+            }), encoding="utf-8")
+            manifest_dir = root / "mirror" / "manifests"
+            manifest_dir.mkdir(parents=True)
+            base_row = {name: "" for name in ACQUIRE.MANIFEST_COLUMNS}
+            base_row.update({
+                "analysis_id": accession, "status": "ok", "sha256": "a" * 64, "data_bytes": "10",
+                "data_file": str(sidecar.parent / f"{accession}.tsv.gz"), "yaml_file": str(sidecar),
+                "genome_assembly": "GRCh38", "file_type": "GWAS-SSF v1.0", "is_harmonised": "false",
+                "trait": "old", "sample_size": "100",
+            })
+            (manifest_dir / "dense-pmid-39024449-European-download-manifest.tsv").write_text(
+                "\t".join(ACQUIRE.MANIFEST_COLUMNS) + "\n"
+                + "\t".join(base_row[name] for name in ACQUIRE.MANIFEST_COLUMNS) + "\n",
+                encoding="utf-8",
+            )
+            write_candidates(root / "candidates.tsv", [
+                {**CANDIDATES[0], "STUDY.ACCESSION": accession, "store_key": store,
+                 "DISEASE.TRAIT": "catalog label", "sample_size": "999"}
+            ])
+            mapping_row = {
+                "analysis_id": accession, "member": "MVP_R4.1000G_AGR.A1C_Min_INT.EUR.GIA.dbGaP.txt.gz",
+                "tar": "T", "ancestry": "EUR", "study_design": "quantitative",
+                "dbgap_trait_type": "quantitative", "sample_size": "100", "n_cases": "0", "n_controls": "0",
+                "dbgap_trait_code": "A1C_Min_INT", "analyzed_variable": "dbgap label",
+                "candidate_trait": "catalog label", "candidate_store_key": store,
+                "match_basis": "unique-key", "trait_check": "exact",
+            }
+            mapping_path = root / "mapping.tsv"
+            with mapping_path.open("w", newline="", encoding="utf-8") as handle:
+                writer = csv.DictWriter(handle, fieldnames=list(ACQUIRE.MAPPING_COLUMNS), delimiter="\t", lineterminator="\n")
+                writer.writeheader()
+                writer.writerow(mapping_row)
+            base = [sys.executable, str(SCRIPT), "--out", str(iso), "refresh",
+                    "--candidates", str(root / "candidates.tsv"), "--mapping", str(mapping_path),
+                    "--source-sidecars", str(root / "mirror" / "gwas-ssf"),
+                    "--source-manifest-dir", str(manifest_dir)]
+            preview = subprocess.run(base + ["--preview"], capture_output=True, text=True, check=False)
+            self.assertEqual(preview.returncode, 0, preview.stderr + preview.stdout)
+            full = subprocess.run(base, capture_output=True, text=True, check=False)
+            self.assertEqual(full.returncode, 1, full.stderr + full.stdout)
+            merged_path = iso / "manifests" / "dense-pmid-39024449-European-download-manifest.tsv"
+            with merged_path.open(newline="", encoding="utf-8") as handle:
+                merged = list(csv.DictReader(handle, delimiter="\t"))
+            self.assertEqual(merged[0]["status"], "error")
+            self.assertEqual(merged[0]["trait"], "dbgap label")  # canonical even when non-ready
+            self.assertFalse(list((iso / "gwas-ssf").glob("*/*/*.tsv.gz")))
+
 
 class ConverterEdgeCaseTests(unittest.TestCase):
     """The awk program run directly, on rows the fixture tars do not carry."""

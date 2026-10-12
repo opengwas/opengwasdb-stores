@@ -98,6 +98,11 @@ canonical manifest reproducible without reprocessing the 6,020 existing files.
 
 ### Implemented and run (isolated)
 
+> Note: the run recorded in this subsection used the pre-hardening tool and is
+> an indicative dry run only. The identity/path/data gates below are now in the
+> code; the authoritative isolated run will be repeated after review and only
+> that re-run counts.
+
 A new `refresh` subcommand implements exactly this, plus a metadata-only
 canonical sidecar refresh. It reads mapping/manifests/sidecar YAML only — never a
 `.tsv.gz` — and carries each existing data identity (`data_file_md5sum`,
@@ -122,6 +127,30 @@ identical run produced a byte-identical tree (`md5 1760f541…`).
 
 The refreshed sidecars and merged manifests are **isolated review artifacts**,
 not a mirror promotion; the two new rows reference the isolated retry data paths.
+
+### Hardened gates (awaiting review)
+
+* Canonical metadata fields (`trait`, `sample_size`, `study_design`, `data_url`)
+  are regenerated from the mapping/candidate for every row, so no stale Catalog
+  field survives; data identity (`status`, sizes, `sha256`, assembly) is
+  inherited and labelled `sha256_provenance=inherited` (the two new rows are
+  `derived` in the receipt).
+* Strict digest shapes are enforced (`sha256` 64 hex, `md5` 32 hex); a malformed
+  inherited digest fails.
+* `--out`/`--source-sidecars`/`--source-manifest-dir` overlap is refused, and
+  data is materialised as **read-only symlinks inside the isolated root** so
+  each refreshed sidecar sits beside its data (no dead relative paths, no legacy
+  sidecar symlinks); an existing non-symlink file is never overwritten.
+* Data presence: `--preview` reports absent data as a non-ready row and still
+  exits 0; the full manifest marks absent data `error` and exits non-zero.
+* Identity binding: duplicate accession/member, a member not shaped
+  `MVP_R4.1000G_AGR.*.txt.gz`, a missing source tar, or a
+  `candidate_store_key`/`store_key` mismatch all fail; the existing manifest row
+  set must equal the candidate store set exactly.
+* Case-control META keeps its mixture ancestry (`Multi-ancestry`), not a
+  European interpretation.
+* Full membership is validated as 6,022 unique accessions before any ready
+  claim.
 
 ## Guarantees and exclusions
 

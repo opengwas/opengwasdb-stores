@@ -1464,8 +1464,58 @@ def command_manifest(args: argparse.Namespace) -> int:
 #: identity carried forward from the existing sidecar, never re-validated here.
 REFRESH_RECEIPT_COLUMNS: tuple[str, ...] = (
     "analysis_id", "member", "store_key", "action", "changed_fields",
-    "data_file_md5sum", "data_file_name", "source_sidecar", "note",
+    "data_file_md5sum", "data_file_name", "sha256_provenance", "source_sidecar", "note",
 )
+
+#: Strict digest shapes; a malformed value is an error, never silently accepted.
+_SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
+_MD5_HEX = re.compile(r"^[0-9a-f]{32}$")
+
+
+def validate_digest(value: str, kind: str, where: str) -> str:
+    pattern = _SHA256_HEX if kind == "sha256" else _MD5_HEX
+    value = (value or "").strip().lower()
+    if not pattern.match(value):
+        raise AcquisitionError(f"{where}: invalid {kind} digest {value!r}")
+    return value
+
+
+def ensure_isolated(out: Path, source: Path, label: str) -> None:
+    """Refuse an output root that overlaps a read-only source root."""
+    out_r, src_r = out.resolve(), source.resolve()
+    if out_r == src_r or out_r in src_r.parents or src_r in out_r.parents:
+        raise AcquisitionError(f"--out {out_r} must not overlap {label} {src_r}")
+
+
+def canonical_manifest_row(
+    inherited: dict[str, str], row: dict[str, str], candidate: Candidate,
+    *, data_file: str, yaml_file: str,
+) -> dict[str, str]:
+    """A canonical manifest row: regenerated metadata fields + inherited data identity.
+
+    Canonical metadata (``trait``, ``sample_size``, ``study_design``, ``data_url``)
+    is regenerated from the mapping/candidate so no stale Catalog field survives.
+    Data identity (``status``, sizes, ``sha256``, assembly, ...) is inherited from
+    ``inherited``; it is provenance carried forward, not a current validation.
+    """
+    result = {name: "" for name in MANIFEST_COLUMNS}
+    result.update({
+        "analysis_id": candidate.analysis_id,
+        "publication_pmid": PUBMED_ID,
+        "trait": row.get("analyzed_variable") or candidate.trait,
+        "study_design": candidate.study_design,
+        "sample_size": row.get("sample_size") or str(candidate.sample_size),
+        "data_url": f"{DBGAP_BASE}/{row['tar']}" if row.get("tar") else "",
+        "harmonised_status": inherited.get("harmonised_status", ""),
+    })
+    for name in ("status", "data_bytes", "yaml_bytes", "sha256", "genome_assembly",
+                 "file_type", "is_harmonised", "seconds", "error"):
+        result[name] = inherited.get(name, "")
+    result["data_file"] = data_file
+    result["yaml_file"] = yaml_file
+    if result["sha256"]:
+        result["sha256"] = validate_digest(result["sha256"], "sha256", f"{candidate.analysis_id} inherited sha256")
+    return result
 
 
 def read_sidecar_document(path: Path) -> dict[str, object]:
@@ -1566,8 +1616,9 @@ def merge_manifest_rows(
         canonical_row = canonical.get(accession, {})
         new = dict(row)
         if canonical_row:
-            new["trait"] = canonical_row.get("trait", row["trait"])
-            new["sample_size"] = canonical_row.get("sample_size", row["sample_size"])
+            for field in ("trait", "sample_size", "study_design", "data_url"):
+                if field in canonical_row:
+                    new[field] = canonical_row[field]
         if accession in refreshed:
             new = dict(refreshed[accession])
         merged.append(new)
@@ -1580,6 +1631,10 @@ def command_refresh(args: argparse.Namespace) -> int:
     rows = read_tsv(mapping_path)
     if not rows:
         raise SystemExit(f"refresh: mapping is empty: {mapping_path}")
+    source_sidecar_root = Path(args.source_sidecars)
+    source_manifest_dir = Path(args.source_manifest_dir)
+    ensure_isolated(out, source_sidecar_root, "--source-sidecars")
+    ensure_isolated(out, source_manifest_dir, "--source-manifest-dir")
     candidates = read_candidates(Path(args.candidates))
     by_accession: dict[str, Candidate] = {}
     for candidate in candidates:
@@ -1592,15 +1647,27 @@ def command_refresh(args: argparse.Namespace) -> int:
         accession = row["analysis_id"]
         if accession in mapping_by_id:
             raise AcquisitionError(f"duplicate mapping analysis_id {accession}")
-        if row["member"] in seen_members:
-            raise AcquisitionError(f"duplicate mapping member {row['member']}")
-        seen_members.add(row["member"])
+        member = row["member"]
+        if not member or not member.endswith(".txt.gz") or not member.startswith("MVP_R4.1000G_AGR."):
+            raise AcquisitionError(f"{accession}: unexpected member binding {member!r}")
+        if member in seen_members:
+            raise AcquisitionError(f"duplicate mapping member {member}")
+        seen_members.add(member)
+        if not row.get("tar"):
+            raise AcquisitionError(f"{accession}: mapping has no source tar")
         if accession not in by_accession:
             raise AcquisitionError(f"{accession}: not present in the candidate table")
+        candidate = by_accession[accession]
+        if row.get("candidate_store_key") and row["candidate_store_key"] != candidate.store_key:
+            raise AcquisitionError(
+                f"{accession}: store_key binding mismatch "
+                f"({row['candidate_store_key']} vs {candidate.store_key})"
+            )
         mapping_by_id[accession] = row
 
-    source_sidecars = load_sidecar_index(Path(args.source_sidecars)) if Path(args.source_sidecars).is_dir() else {}
-    new_sidecars = load_sidecar_index(Path(args.new_sidecars)) if Path(args.new_sidecars).is_dir() else {}
+    source_sidecars = load_sidecar_index(source_sidecar_root) if source_sidecar_root.is_dir() else {}
+    new_sidecar_root = Path(args.new_sidecars) if args.new_sidecars else None
+    new_sidecars = load_sidecar_index(new_sidecar_root) if new_sidecar_root and new_sidecar_root.is_dir() else {}
     new_manifests: dict[str, dict[str, str]] = {}
     if args.new_manifest_dir and Path(args.new_manifest_dir).is_dir():
         for path in sorted(Path(args.new_manifest_dir).glob("*-download-manifest.tsv")):
@@ -1616,7 +1683,8 @@ def command_refresh(args: argparse.Namespace) -> int:
             document = read_sidecar_document(new_sidecars[accession])
             if document.get("gwas_id") != accession:
                 raise AcquisitionError(f"{new_sidecars[accession]}: gwas_id != {accession}")
-            action, changed, source = "new-conversion", ["all"], str(new_sidecars[accession])
+            action, changed, source, provenance = "new-conversion", ["all"], str(new_sidecars[accession]), "derived"
+            source_data = new_sidecar_root / bucket_of(accession) / accession / f"{accession}.tsv.gz"
         else:
             path = source_sidecars.get(accession)
             if path is None:
@@ -1627,14 +1695,25 @@ def command_refresh(args: argparse.Namespace) -> int:
             if existing.get("gwas_id") != accession:
                 raise AcquisitionError(f"{path}: gwas_id != {accession}")
             document, changed = canonical_sidecar(existing, row, candidate, source_sidecar=str(path))
-            action, source = ("canonicalised" if changed else "unchanged"), str(path)
-        target = out_sidecars / bucket_of(accession) / accession / f"{accession}.tsv.gz-meta.yaml"
-        target.parent.mkdir(parents=True, exist_ok=True)
+            action, source, provenance = ("canonicalised" if changed else "unchanged"), str(path), "inherited"
+            source_data = source_sidecar_root / bucket_of(accession) / accession / f"{accession}.tsv.gz"
+        validate_digest(str(document.get("data_file_md5sum", "")), "md5", f"{accession} sidecar")
+        directory = out_sidecars / bucket_of(accession) / accession
+        directory.mkdir(parents=True, exist_ok=True)
+        target = directory / f"{accession}.tsv.gz-meta.yaml"
         partial = target.with_name(target.name + ".partial")
         partial.write_text(
             yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100), encoding="utf-8"
         )
         os.replace(partial, target)
+        link = directory / f"{accession}.tsv.gz"
+        if link.is_symlink():
+            if link.resolve() != source_data.resolve():
+                raise AcquisitionError(f"{link}: existing symlink points elsewhere")
+        elif link.exists():
+            raise AcquisitionError(f"{link}: refusing to replace a non-symlink file")
+        elif source_data.exists():
+            os.symlink(source_data.resolve(), link)
         receipt.append({
             "analysis_id": accession,
             "member": row["member"],
@@ -1643,35 +1722,58 @@ def command_refresh(args: argparse.Namespace) -> int:
             "changed_fields": ",".join(changed),
             "data_file_md5sum": str(document.get("data_file_md5sum", "")),
             "data_file_name": str(document.get("data_file_name", "")),
+            "sha256_provenance": provenance,
             "source_sidecar": source,
-            "note": "data identity carried forward" if accession not in new_sidecars else "new conversion",
+            "note": "data identity carried forward" if provenance == "inherited" else "new conversion",
         })
     write_tsv(out / "refresh-receipt.tsv", REFRESH_RECEIPT_COLUMNS, receipt)
 
-    manifest_source = Path(args.source_manifest_dir)
     manifest_dir = Path(args.manifest_dir) if args.manifest_dir else out / "manifests"
     by_store: dict[str, list[str]] = {}
     for accession, candidate in by_accession.items():
         if accession in mapping_by_id:
             by_store.setdefault(candidate.store_key, []).append(accession)
+    failures = 0
     merged_total = 0
     for store_key, accessions in sorted(by_store.items()):
         slug = store_key.replace("__", "-")
-        existing_path = manifest_source / f"{slug}-download-manifest.tsv"
+        existing_path = source_manifest_dir / f"{slug}-download-manifest.tsv"
         if not existing_path.is_file():
             raise AcquisitionError(f"missing existing manifest: {existing_path}")
-        canonical_rows = {
-            accession: {"trait": mapping_by_id[accession].get("analyzed_variable", ""),
-                        "sample_size": mapping_by_id[accession].get("sample_size", "")}
-            for accession in accessions
-        }
-        refreshed = {a: new_manifests[a] for a in accessions if a in new_manifests}
-        merged = merge_manifest_rows(read_tsv(existing_path), canonical_rows, refreshed)
+        existing_rows = read_tsv(existing_path)
+        existing_by_id: dict[str, dict[str, str]] = {}
+        for existing_row in existing_rows:
+            if existing_row["analysis_id"] in existing_by_id:
+                raise AcquisitionError(f"{existing_path}: duplicate analysis_id {existing_row['analysis_id']}")
+            existing_by_id[existing_row["analysis_id"]] = existing_row
+        if set(existing_by_id) != set(accessions):
+            raise AcquisitionError(f"{slug}: existing manifest rows do not match the candidate store set")
+        merged: list[dict[str, str]] = []
+        for existing_row in existing_rows:
+            accession = existing_row["analysis_id"]
+            candidate = by_accession[accession]
+            inherited = dict(new_manifests.get(accession, existing_row))
+            directory = out_sidecars / bucket_of(accession) / accession
+            data_path = directory / f"{accession}.tsv.gz"
+            yaml_path = directory / f"{accession}.tsv.gz-meta.yaml"
+            if not data_path.exists():
+                # Metadata preview may report a non-ready row; the full manifest
+                # must not claim readiness for absent data.
+                inherited["status"] = "error"
+                inherited["error"] = f"data file missing: {data_path}"
+                if not args.preview:
+                    failures += 1
+            merged.append(
+                canonical_manifest_row(
+                    inherited, mapping_by_id[accession], candidate,
+                    data_file=str(data_path), yaml_file=str(yaml_path),
+                )
+            )
         write_tsv(manifest_dir / f"{slug}-download-manifest.tsv", MANIFEST_COLUMNS, merged)
         merged_total += len(merged)
         print(f"refresh: {store_key}: {len(merged)} rows -> {manifest_dir / f'{slug}-download-manifest.tsv'}")
-    print(f"refresh: {len(receipt)} sidecar(s), {merged_total} manifest row(s)")
-    return 0
+    print(f"refresh: {len(receipt)} sidecar(s), {merged_total} manifest row(s), preview={bool(args.preview)}")
+    return 1 if failures else 0
 
 
 # ---------------------------------------------------------------------------
@@ -1732,6 +1834,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     refresh.add_argument("--new-sidecars", default="", help="newly converted gwas-ssf root (the retry outputs)")
     refresh.add_argument("--new-manifest-dir", default="", help="newly converted manifest directory")
     refresh.add_argument("--manifest-dir", help="default: <out>/manifests")
+    refresh.add_argument(
+        "--preview", action="store_true",
+        help="metadata preview: absent data is reported non-ready instead of failing the run",
+    )
     refresh.set_defaults(func=command_refresh)
 
     args = parser.parse_args(argv)
