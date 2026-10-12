@@ -10,7 +10,7 @@
   }
  },
  "inventory_path": "resources/inventories/ukb-b-restored-2026-10-11.tsv",
- "inventory_sha256": "3784abade55150684fb4c837ccb49195d09c50540b940356e48f5887fa8c14b4",
+ "inventory_sha256": "48207ab8da03324e98e62b87767b9b90381ac8457b0c8585b952648c0d7a5a26",
  "provider_batch_expected": "ukb-b",
  "resolution_path": "resources/inventories/ukb-b-provider-resolution-2026-10-11.tsv",
  "resolution_sha256": "62e04f578afaa90f45a44a1042d168986482099b43e65f7a19ad4a85024c9e18",

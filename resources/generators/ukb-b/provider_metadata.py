@@ -179,7 +179,16 @@ def resolve_record(analysis_id: str, document: Mapping[str, object], *, sha256: 
     if is_case_control:
         kind = "case_control"
         total = sample_size if sample_size is not None else n_cases + n_controls  # type: ignore[operator]
-        status, notes = "resolved", ""
+        status = "resolved"
+        # When the provider also declares a total N, an ncase+ncontrol sum that
+        # disagrees is a provenance fact worth surfacing, never silently reconciled.
+        if sample_size is not None and sample_size != n_cases + n_controls:  # type: ignore[operator]
+            notes = (
+                f"provider sample_size {_render_number(sample_size)} != "
+                f"ncase+ncontrol {_render_number(n_cases + n_controls)}"  # type: ignore[operator]
+            )
+        else:
+            notes = ""
     elif sample_size is not None:
         kind, total = "total", sample_size
         n_cases = n_controls = None

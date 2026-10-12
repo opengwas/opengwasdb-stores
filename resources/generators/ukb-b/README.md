@@ -95,9 +95,11 @@ by two pure-Python tools:
   `resources/inventories/<snapshot>.{tsv,meta.yaml}`. It never treats a glob as
   intent, refuses to freeze a partial copy, and hashes with at most two reader
   threads using a resumable receipt.
-- `generate_candidate.py` emits `stores/<id>/{release.yaml,build.yaml,analyses.tsv,
+- `generate_candidate.py` emits `<out-dir>/{release.yaml,build.yaml,analyses.tsv,
   summary.yaml,validation.yaml}` from that frozen inventory plus the recorded
-  resolution, and only publishes after `bundle.check()` passes.
+  resolution, and only publishes after `bundle.check()` passes. The restored
+  UKB candidate is emitted to a staging directory, not `stores/`, until the
+  release gate and human acceptance open (epic #232).
 
 ```sh
 python3 resources/generators/ukb-b/inventory.py reconcile \

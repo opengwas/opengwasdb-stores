@@ -134,6 +134,28 @@ class ProviderMetadataTest(unittest.TestCase):
         self.assertEqual(check["compared"], 1)
         self.assertEqual([d["field"] for d in check["disagreements"]], ["stored_effect_scale"])
 
+    def test_contradictory_case_control_total_is_surfaced_not_hidden(self) -> None:
+        # ncase+ncontrol disagrees with the provider's declared total N.
+        self._write("ukb-b-4", record("ukb-b-4", sample_size=999, ncase="100", ncontrol="900"))
+        records, problems = provider.read_provider_records(["ukb-b-4"], self.source)
+        self.assertEqual(problems, [])
+        resolved = records["ukb-b-4"]
+        self.assertEqual(resolved.resolution_status, "resolved")
+        self.assertIn("!= ncase+ncontrol", resolved.resolution_notes)
+        # The provider's own total N is preserved, not silently recomputed.
+        self.assertEqual(resolved.sample_size, "999")
+        self.assertEqual(resolved.n_cases, "100")
+        self.assertEqual(resolved.n_controls, "900")
+
+    def test_derivation_is_deterministic_on_retry(self) -> None:
+        self._write("ukb-b-1", record("ukb-b-1"))
+        self._write("ukb-b-2", record("ukb-b-2", ncase=None, ncontrol=None, sample_size=500))
+        first_records, _ = provider.read_provider_records(["ukb-b-1", "ukb-b-2"], self.source)
+        second_records, _ = provider.read_provider_records(["ukb-b-1", "ukb-b-2"], self.source)
+        first = provider.render_resolution_tsv(provider.build_resolution_rows(first_records, inclusion_reason="r"))
+        second = provider.render_resolution_tsv(provider.build_resolution_rows(second_records, inclusion_reason="r"))
+        self.assertEqual(first, second)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

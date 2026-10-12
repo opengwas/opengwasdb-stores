@@ -3,11 +3,13 @@ inventory_schema_version: 1
 source_collection_id: opengwas-gwas-vcf
 store_key: ukb-b
 ancestry_group: EUR
-frozen_at: '2026-10-12T00:01:15Z'
+frozen_at: '2026-10-12T00:48:51Z'
 rows: 2514
 ready_rows: 2514
 ready_bytes: 425402488477
+ready_index_bytes: 3711756173
 checksum_algorithm: sha256
+index_checksum_algorithm: sha256
 upstream_batch:
   id: ukb-b
   count: 2514
@@ -25,4 +27,4 @@ built_baseline:
   rows: 2024
 restored_not_built: 490
 duplicate_content_groups: []
-inventory_tsv_sha256: 3784abade55150684fb4c837ccb49195d09c50540b940356e48f5887fa8c14b4
+inventory_tsv_sha256: 48207ab8da03324e98e62b87767b9b90381ac8457b0c8585b952648c0d7a5a26

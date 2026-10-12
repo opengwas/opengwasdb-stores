@@ -88,6 +88,8 @@ INVENTORY_COLUMNS: tuple[str, ...] = (
     "checksum_algorithm",
     "mtime_ns",
     "index_file",
+    "index_bytes",
+    "index_sha256",
     "index_status",
     "readiness_status",
     "exclusion_reason",
@@ -250,6 +252,8 @@ class SourceIdentity:
     mtime_ns: int
     sha256: str
     index_file: Path
+    index_bytes: int
+    index_sha256: str
 
 
 @dataclass(frozen=True)
@@ -550,6 +554,8 @@ def hash_sources(
                 mtime_ns=source.mtime_ns,
                 sha256=result["sha256"],
                 index_file=source.index_file,
+                index_bytes=source.index_file.stat().st_size if source.index_file.is_file() else 0,
+                index_sha256=sha256_file(source.index_file) if source.index_file.is_file() else "",
             )
     return identities, reused
 
@@ -601,6 +607,8 @@ def build_inventory_rows(
                 "checksum_algorithm": "sha256",
                 "mtime_ns": str(identity.mtime_ns),
                 "index_file": str(identity.index_file),
+                "index_bytes": str(identity.index_bytes),
+                "index_sha256": identity.index_sha256,
                 "index_status": "ok" if identity.index_file.is_file() else "missing",
                 "readiness_status": "ok",
                 "exclusion_reason": "",
@@ -694,7 +702,9 @@ def freeze(
         "rows": len(rows),
         "ready_rows": len(rows),
         "ready_bytes": ready_bytes,
+        "ready_index_bytes": sum(identity.index_bytes for identity in identities.values()),
         "checksum_algorithm": "sha256",
+        "index_checksum_algorithm": "sha256",
         "upstream_batch": upstream,
         "declared_selection": {
             "path": str(selection.path),
@@ -760,6 +770,7 @@ def verify_inventory(
     size_mismatch: list[str] = []
     mtime_changed: list[str] = []
     checksum_mismatch: list[str] = []
+    index_mismatch: list[str] = []
     to_hash: list[tuple[str, Path, str]] = []
     for row in rows:
         source = Path(row["source_file"])
@@ -772,6 +783,16 @@ def verify_inventory(
             continue
         if stat.st_mtime_ns != int(row["mtime_ns"]):
             mtime_changed.append(row["analysis_id"])
+        # The Tabix index identity is frozen too and is re-verified independently
+        # of the (larger) data checksum scan.
+        if "index_sha256" in row:
+            index = Path(row.get("index_file", ""))
+            if not index.is_file():
+                index_mismatch.append(f"{row['analysis_id']} (index missing: {index})")
+            elif row.get("index_bytes", "").isdigit() and index.stat().st_size != int(row["index_bytes"]):
+                index_mismatch.append(f"{row['analysis_id']} (index size changed)")
+            elif sha256_file(index) != row.get("index_sha256", ""):
+                index_mismatch.append(f"{row['analysis_id']} (index checksum mismatch)")
         to_hash.append((row["analysis_id"], source, row["sha256"]))
     if deep and to_hash:
         with ThreadPoolExecutor(max_workers=min(workers, MAX_READER_THREADS)) as executor:
@@ -789,8 +810,9 @@ def verify_inventory(
         "size_mismatch": sorted(size_mismatch),
         "mtime_changed": sorted(mtime_changed),
         "checksum_mismatch": sorted(checksum_mismatch),
+        "index_mismatch": sorted(index_mismatch),
     }
-    report["ok"] = not (missing or size_mismatch or checksum_mismatch)
+    report["ok"] = not (missing or size_mismatch or checksum_mismatch or index_mismatch)
     return report
 
 
@@ -1084,7 +1106,8 @@ def render_verify_summary(report: Mapping[str, object]) -> str:
         f"  missing {len(report['missing'])}",  # type: ignore[arg-type]
         f"  size mismatch {len(report['size_mismatch'])}",  # type: ignore[arg-type]
         f"  mtime changed {len(report['mtime_changed'])}",  # type: ignore[arg-type]
-        f"  checksum mismatch {len(report['checksum_mismatch'])}",  # type: ignore[arg-type]
+        f"  checksum mismatch {len(report['checksum_mismatch'])}\n",  # type: ignore[arg-type]
+        f"  index mismatch {len(report.get('index_mismatch', []))}",  # type: ignore[arg-type]
     ]
     lines.append("OK: frozen inventory matches the disk." if report["ok"] else "FAILED: frozen inventory no longer matches the disk.")
     return "\n".join(lines)

@@ -14,10 +14,12 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = REPO_ROOT / "resources" / "generators" / "ukb-b" / "inventory.py"
@@ -244,6 +246,50 @@ class UkbInventoryTest(unittest.TestCase):
         sources = ukb.discover_source_collection(self.source_dir)[0]
         _third, reused_third = ukb.hash_sources(sources, receipt=receipt)
         self.assertEqual(reused_third, 2)
+
+    def test_receipt_reuse_invalidated_by_mtime_change(self) -> None:
+        _selection, sources, _unexpected = self._exact_fixture()
+        receipt = self.root / "receipt.json"
+        ukb.hash_sources(sources, receipt=receipt)
+        # Same bytes, new mtime: the size+mtime receipt is only a cache hint, so
+        # the entry must be recomputed rather than trusted.
+        target = self.source_dir / "ukb-b-1.vcf.gz"
+        stat = target.stat()
+        os.utime(target, ns=(stat.st_atime_ns, stat.st_mtime_ns + 10_000_000))
+        refreshed = ukb.discover_source_collection(self.source_dir)[0]
+        _identities, reused = ukb.hash_sources(refreshed, receipt=receipt)
+        self.assertEqual(reused, 2)
+
+    def test_source_changed_during_hashing_is_refused(self) -> None:
+        _selection, sources, _unexpected = self._exact_fixture()
+        target = self.source_dir / "ukb-b-1.vcf.gz"
+        real = ukb.sha256_file
+
+        def racing(path: Path) -> str:
+            if Path(path) == target:
+                target.write_bytes(b"mutated while hashing")
+            return real(path)
+
+        with mock.patch.object(ukb, "sha256_file", side_effect=racing):
+            with self.assertRaises(ukb.InventoryError):
+                ukb.hash_sources(sources, workers=1)
+
+    def test_index_identity_is_frozen_and_verify_detects_index_tamper(self) -> None:
+        selection, sources, unexpected = self._exact_fixture()
+        inventory, _report, _ = ukb.freeze(
+            selection=selection, sources=sources, unexpected_files=unexpected, snapshot_id="fixture"
+        )
+        row = next(r for r in inventory.rows if r["analysis_id"] == "ukb-b-1")
+        self.assertEqual(row["index_sha256"], ukb.sha256_file(Path(row["index_file"])))
+        self.assertTrue(row["index_bytes"].isdigit())
+
+        tsv_path, _meta = ukb.write_inventory(inventory, self.root / "inventories")
+        self.assertTrue(ukb.verify_inventory(tsv_path)["ok"])
+
+        Path(row["index_file"]).write_bytes(b"tampered-index")
+        result = ukb.verify_inventory(tsv_path)
+        self.assertFalse(result["ok"])
+        self.assertEqual(len(result["index_mismatch"]), 1)
 
     def test_reader_thread_cap_is_enforced(self) -> None:
         _selection, sources, _unexpected = self._exact_fixture()
