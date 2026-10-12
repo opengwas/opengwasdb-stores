@@ -191,7 +191,9 @@ class TestEvidenceChannels(unittest.TestCase):
     def test_missing_ledger_entry_is_not_a_clean_pass(self) -> None:
         b = create_mock_bundle(self.stores, "OGS-00010", validation_data=STORE_VALIDATION)
         record = self._reconcile(b, {"releases": {}})
-        self.assertEqual(record.channels["store_validation"].state, EvidenceState.PASS)
+        # A committed verdict not proven to match the published artifact is not a
+        # current pass; with no host history it is unknown.
+        self.assertEqual(record.channels["store_validation"].state, EvidenceState.UNKNOWN)
         self.assertEqual(record.channels["registration"].state, EvidenceState.UNKNOWN)
         self.assertEqual(record.channels["format_runtime"].state, EvidenceState.UNKNOWN)
         self.assertTrue(record.channels["registration"].is_gap)
@@ -390,6 +392,98 @@ class TestEvidenceChannels(unittest.TestCase):
         # admitted membership (1), so the mismatch is visible rather than hidden.
         self.assertEqual(record.built.state, EvidenceState.FAIL)
 
+    def test_configured_evidence_is_not_a_verified_pass(self) -> None:
+        b = create_mock_bundle(self.stores, "OGS-00030")
+        record = self._reconcile(b, {"releases": {}})
+        self.assertEqual(
+            record.channels["source_acquisition"].state, EvidenceState.UNKNOWN
+        )
+        record = self._reconcile(
+            b, {"releases": {"OGS-00030": {"source_acquisition_verified": True}}}
+        )
+        self.assertEqual(record.channels["source_acquisition"].state, EvidenceState.PASS)
+
+    def test_completion_configured_is_unknown_and_verified_is_pass(self) -> None:
+        parent = create_mock_bundle(
+            self.stores, "OGS-00031", analyses_rows=[{"analysis_id": "a"}]
+        )
+        child = create_mock_bundle(
+            self.stores,
+            "OGS-00032",
+            completion_state="reference_completed",
+            derived_from="OGS-00031",
+            analyses_rows=[{"analysis_id": "a"}],
+        )
+        by_id = {"OGS-00031": parent, "OGS-00032": child}
+        record = readiness.reconcile_release(child, {"releases": {}}, by_id, set())
+        self.assertEqual(
+            record.channels["reference_completion"].state, EvidenceState.UNKNOWN
+        )
+        record = readiness.reconcile_release(
+            child,
+            {"releases": {"OGS-00032": {"completion_verified": True}}},
+            by_id,
+            set(),
+        )
+        self.assertEqual(
+            record.channels["reference_completion"].state, EvidenceState.PASS
+        )
+
+    def test_store_validation_provenance_is_classified(self) -> None:
+        b = create_mock_bundle(
+            self.stores, "OGS-00033", validation_data=STORE_VALIDATION
+        )
+        matched = self._reconcile(
+            b, {"releases": {"OGS-00033": {"committed_matches_published": True}}}
+        )
+        self.assertEqual(matched.channels["store_validation"].state, EvidenceState.PASS)
+        mismatched = self._reconcile(
+            b,
+            {
+                "releases": {
+                    "OGS-00033": {
+                        "committed_matches_published": False,
+                        "host_validation": "published Store built 2026-09-18",
+                    }
+                }
+            },
+        )
+        self.assertEqual(
+            mismatched.channels["store_validation"].state, EvidenceState.HISTORICAL
+        )
+        self.assertIn("different", mismatched.channels["store_validation"].detail)
+
+    def test_incomplete_info_is_unknown(self) -> None:
+        b = create_mock_bundle(self.stores, "OGS-00034", layout="dense")
+        record = self._reconcile(b, {"releases": {}}, info={})
+        self.assertEqual(record.channels["format_runtime"].state, EvidenceState.UNKNOWN)
+
+    def test_format_migration_is_separate_from_baseline_validity(self) -> None:
+        b = create_mock_bundle(self.stores, "OGS-00035", layout="ragged")
+        record = self._reconcile(
+            b, {"releases": {"OGS-00035": {"published_format": "0.1.0"}}}
+        )
+        self.assertEqual(
+            record.channels["required_variant_index"].state, EvidenceState.NOT_APPLICABLE
+        )
+        self.assertEqual(record.channels["format_migration"].state, EvidenceState.MISSING)
+        record = self._reconcile(
+            b, {"releases": {"OGS-00035": {"published_format": "0.2.0"}}}
+        )
+        self.assertEqual(record.channels["format_migration"].state, EvidenceState.PASS)
+
+    def test_ledger_only_built_count_is_historical_not_pass(self) -> None:
+        b = create_mock_bundle(
+            self.stores, "OGS-00036", analyses_rows=[{"analysis_id": "a"}]
+        )
+        record = self._reconcile(
+            b, {"releases": {"OGS-00036": {"built_analyses": 1}}}
+        )
+        self.assertEqual(record.built.state, EvidenceState.HISTORICAL)
+        self.assertEqual(
+            record.channels["built_membership"].state, EvidenceState.HISTORICAL
+        )
+
     def test_baseline_delta_and_built_history(self) -> None:
         b = create_mock_bundle(
             self.stores,
@@ -418,10 +512,10 @@ class TestEvidenceChannels(unittest.TestCase):
         )
         self.assertEqual(record.delta.baseline_admitted, 2)
         self.assertEqual(record.delta.removed, ("old",))
-        # The historical artifact matches its baseline, so the built channel is
-        # a pass even though the current admitted set has one fewer ID.
+        # A recorded historical count that matches its baseline is not a pass:
+        # identity is unread, so it is history only.
         self.assertEqual(record.built.analyses, 2)
-        self.assertEqual(record.built.state, EvidenceState.PASS)
+        self.assertEqual(record.built.state, EvidenceState.HISTORICAL)
 
 
 class TestSupportedInfoSeam(unittest.TestCase):

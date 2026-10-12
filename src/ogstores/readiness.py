@@ -288,13 +288,28 @@ def _status_channel(bundle_obj: Bundle) -> Channel:
     )
 
 
-def _acquisition_channel(bundle_obj: Bundle) -> Channel:
+def _acquisition_channel(bundle_obj: Bundle, entry: Mapping[str, Any]) -> Channel:
+    """Source acquisition evidence: a declared snapshot is configuration, not proof.
+
+    A recorded ``source_snapshot_id`` says which inventory the bundle *names*;
+    only an explicit verification flag (source files selected, present and
+    checksum-matched) is a pass (issue #217).
+    """
     snapshot = bundle_obj.release.get("source_snapshot_id")
-    if snapshot:
-        return Channel(EvidenceState.PASS, f"source snapshot {snapshot!r} recorded")
+    if not snapshot:
+        return Channel(
+            EvidenceState.MISSING,
+            "no source_snapshot_id recorded; source acquisition is not evidenced",
+        )
+    if entry.get("source_acquisition_verified") is True:
+        return Channel(
+            EvidenceState.PASS,
+            f"source snapshot {snapshot!r} independently verified (selection and checksums)",
+        )
     return Channel(
-        EvidenceState.MISSING,
-        "no source_snapshot_id recorded; source acquisition is not evidenced",
+        EvidenceState.UNKNOWN,
+        f"source snapshot {snapshot!r} is declared but its selection and checksums "
+        "are not independently verified here",
     )
 
 
@@ -330,19 +345,38 @@ def _committed_validation(bundle_obj: Bundle) -> Channel:
 def _store_validation_channel(entry: Mapping[str, Any], committed: Channel) -> Channel:
     """Store validation evidence: committed verdict first, host history otherwise.
 
-    A candidate-generation record is not a Store validation, so it falls
-    through to the host-side history (or a gap) instead of passing.
+    A committed verdict is only a current pass when the ledger records that it
+    describes the published artifact. A committed record the ledger marks as
+    describing a *different* artifact is historical; one not proven to match is
+    unknown. A candidate-generation record never passes (issue #217).
     """
     host = entry.get("host_validation")
+    matches = entry.get("committed_matches_published")
     if committed.state in (
         EvidenceState.PASS,
         EvidenceState.PASS_WITH_WARNINGS,
         EvidenceState.FAIL,
     ):
-        detail = committed.detail
+        if matches is True:
+            detail = committed.detail
+            if host:
+                detail += f"; host-side history corroborates: {host}"
+            return Channel(committed.state, detail, committed.citation)
+        if matches is False:
+            detail = (
+                f"committed record ({committed.detail}) describes a different "
+                "artifact than the published Store; kept as history, not a current verdict"
+            )
+            if host:
+                detail += f"; host-side: {host}"
+            return Channel(EvidenceState.HISTORICAL, detail, committed.citation)
+        detail = (
+            f"committed record ({committed.detail}) is not proven to match the "
+            "published artifact"
+        )
         if host:
-            detail += f"; host-side history, not this record: {host}"
-        return Channel(committed.state, detail, committed.citation)
+            detail += f"; host-side: {host}"
+        return Channel(EvidenceState.UNKNOWN, detail, committed.citation)
     if host:
         return Channel(EvidenceState.HISTORICAL, f"host-side validation: {host}")
     detail = committed.detail or "no committed or host-side Store validation recorded"
@@ -359,7 +393,7 @@ def _registration_channel(entry: Mapping[str, Any]) -> Channel:
     return Channel(EvidenceState.HISTORICAL, f"host-side registration: {detail}")
 
 
-def _completion_channel(bundle_obj: Bundle) -> Channel:
+def _completion_channel(bundle_obj: Bundle, entry: Mapping[str, Any]) -> Channel:
     completion = bundle_obj.completion_state or ""
     if completion != "reference_completed":
         return Channel(EvidenceState.NOT_APPLICABLE, f"completion_state={completion!r}")
@@ -376,11 +410,21 @@ def _completion_channel(bundle_obj: Bundle) -> Channel:
             EvidenceState.MISSING,
             "reference completion declares no ancestry; reference appropriateness unproven",
         )
-    return Channel(
-        EvidenceState.PASS,
-        f"reference completion from {bundle_obj.derived_from!r} "
-        f"against ancestry {ancestry!r}",
+    if entry.get("completion_verified") is True:
+        return Channel(
+            EvidenceState.PASS,
+            f"reference completion from {bundle_obj.derived_from!r} against "
+            f"ancestry {ancestry!r} verified against the published artifact",
+        )
+    detail = (
+        f"recipe completes from {bundle_obj.derived_from!r} with ancestry "
+        f"{ancestry!r}; completion is configured but not verified against the "
+        "published artifact"
     )
+    note = entry.get("reference_note") or entry.get("completion_note")
+    if note:
+        detail += f"; {note}"
+    return Channel(EvidenceState.UNKNOWN, detail)
 
 
 def _observed_build_channel(
@@ -415,9 +459,7 @@ def _required_index_channel(
             EvidenceState.NOT_APPLICABLE,
             f"layout {layout!r} has no required variant-side index",
         )
-    fmt = str((info or {}).get("format_version") or "") if info else ""
-    if not fmt:
-        fmt = str(entry.get("published_format") or "")
+    fmt = _published_format(info, entry)
     if fmt.startswith("0.2"):
         return Channel(
             EvidenceState.UNKNOWN,
@@ -458,6 +500,11 @@ def _hm3_channel(bundle_obj: Bundle, entry: Mapping[str, Any]) -> Channel:
     )
 
 
+def _published_format(info: Mapping[str, Any] | None, entry: Mapping[str, Any]) -> str:
+    fmt = str((info or {}).get("format_version") or "") if info else ""
+    return fmt or str(entry.get("published_format") or "")
+
+
 def _format_runtime_channel(
     bundle_obj: Bundle,
     info: Mapping[str, Any] | None,
@@ -474,20 +521,50 @@ def _format_runtime_channel(
     fmt = str(info.get("format_version") or "")
     layout = str(info.get("primary_layout") or "")
     completion = str(info.get("completion_state") or "")
+    if not (fmt and layout and completion):
+        return Channel(
+            EvidenceState.UNKNOWN,
+            "`opengwasdb info` returned incomplete manifest metadata "
+            f"(format={fmt or 'absent'}, layout={layout or 'absent'}, "
+            f"completion={completion or 'absent'}); not a verified read",
+        )
     mismatches: list[str] = []
-    if layout and layout != (bundle_obj.layout or ""):
+    if layout != (bundle_obj.layout or ""):
         mismatches.append(f"layout {layout!r} != bundle {bundle_obj.layout!r}")
-    if completion and completion != (bundle_obj.completion_state or ""):
+    if completion != (bundle_obj.completion_state or ""):
         mismatches.append(
             f"completion {completion!r} != bundle {bundle_obj.completion_state!r}"
         )
     detail = (
-        f"opengwasdb info: format {fmt or 'unknown'}, layout {layout or 'unknown'}, "
-        f"completion {completion or 'unknown'}"
+        f"opengwasdb info: format {fmt}, layout {layout}, completion {completion}"
     )
     if mismatches:
         return Channel(EvidenceState.FAIL, detail + "; " + "; ".join(mismatches))
     return Channel(EvidenceState.PASS, detail)
+
+
+def _format_migration_channel(
+    bundle_obj: Bundle,
+    info: Mapping[str, Any] | None,
+    entry: Mapping[str, Any],
+) -> Channel:
+    """The format-0.1.0 -> 0.2.0 migration gap, separate from baseline validity.
+
+    A 0.1.0 artifact is valid as 0.1.0; the gap is that new builds (and the
+    required Ragged/Overflow ``by_variant`` index) need the adopted 0.2.0
+    runtime (issue #218). This is not Store invalidity.
+    """
+    fmt = _published_format(info, entry)
+    if fmt.startswith("0.2"):
+        return Channel(EvidenceState.PASS, f"published format {fmt}")
+    if fmt.startswith("0.1"):
+        return Channel(
+            EvidenceState.MISSING,
+            f"published format {fmt} is valid as {fmt}, but migration to 0.2.0 "
+            "(sharding and required variant indexes) is pending the adopted "
+            "runtime (#218); not a 0.1.0 invalidity",
+        )
+    return Channel(EvidenceState.UNKNOWN, f"published format {fmt or 'unknown'}")
 
 
 def _warning_text(warning: Any) -> str:
@@ -798,9 +875,15 @@ def reconcile_release(
         )
     else:
         target = delta.baseline_admitted if delta is not None else len(membership.admitted)
-        state = EvidenceState.PASS if int(ledger_built) == target else EvidenceState.FAIL
+        if int(ledger_built) != target:
+            state = EvidenceState.FAIL
+        else:
+            # A recorded count equal to the baseline is not proof of identity:
+            # without a supported built-ID read this is history, never a pass.
+            state = EvidenceState.HISTORICAL
         detail = (
-            f"published artifact holds {ledger_built} Analyses (historical record)"
+            f"published artifact holds {ledger_built} Analyses (historical record; "
+            "built Analysis IDs not read through the supported core API)"
             + (f" (baseline {baseline_ref})" if baseline_ref else "")
         )
         if state is EvidenceState.FAIL:
@@ -810,14 +893,15 @@ def reconcile_release(
     committed = _committed_validation(bundle_obj)
     channels: dict[str, Channel] = {
         "release_status": _status_channel(bundle_obj),
-        "source_acquisition": _acquisition_channel(bundle_obj),
+        "source_acquisition": _acquisition_channel(bundle_obj, entry),
         "intended_membership": _intended_channel(membership),
         "observed_build": _observed_build_channel(bundle_obj, built),
         "built_membership": _built_membership_channel(
             membership, built_ids, built_delta, built, built_runtime
         ),
-        "reference_completion": _completion_channel(bundle_obj),
+        "reference_completion": _completion_channel(bundle_obj, entry),
         "required_variant_index": _required_index_channel(bundle_obj, info, entry),
+        "format_migration": _format_migration_channel(bundle_obj, info, entry),
         "optional_hm3": _hm3_channel(bundle_obj, entry),
         "store_validation": _store_validation_channel(entry, committed),
         "registration": _registration_channel(entry),

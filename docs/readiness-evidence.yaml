@@ -63,6 +63,7 @@ releases:
       published Store built/validated 2026-09-18; committed Validation Record
       describes the 2026-09-16 build (opengwasdb@a9e8bc8)
     host_registration: 'host records/register.json from 2026-09-18'
+    committed_matches_published: false
     warnings:
       - '#134: 70 blank required Analysis values tolerated (BESD metadata exemption)'
     errata:
@@ -78,6 +79,7 @@ releases:
       published Store reference-completed and validated 2026-09-18; committed
       record describes the 2026-09-15 build (opengwasdb@a9e8bc8)
     host_registration: 'host records/complete.json, validate.json, register.json from 2026-09-18'
+    committed_matches_published: false
     warnings:
       - '#134: 70 blank required Analysis values tolerated (BESD metadata exemption)'
     errata:
@@ -92,6 +94,7 @@ releases:
       published Store built/validated 2026-09-18; committed record describes the
       2026-09-16 build
     host_registration: 'host records/build.json, validate.json, register.json from 2026-09-18'
+    committed_matches_published: false
     hm3_present: false
     errata:
       - >-
@@ -104,6 +107,7 @@ releases:
     published_format: '0.1.0'
     host_validation: 'published Store built/validated 2026-09-18'
     host_registration: 'host records/build.json, validate.json, register.json from 2026-09-18'
+    committed_matches_published: false
     hm3_present: false
     warnings:
       - >-
@@ -115,6 +119,7 @@ releases:
     published_format: '0.1.0'
     host_validation: 'published Store rebuilt and re-registered 2026-10-08/09 through the supported force/archive workflow'
     host_registration: 'host records from the 2026-10-08/09 re-registration'
+    committed_matches_published: true
     hm3_present: false
     warnings:
       - >-
@@ -127,6 +132,7 @@ releases:
     published_format: '0.1.0'
     host_validation: 'published Store built/validated 2026-09-18'
     host_registration: 'host records/build.json, validate.json, register.json from 2026-09-18'
+    committed_matches_published: false
     warnings:
       - 'bundle carries a scientific association-count warning; production-sized Ragged qualification asset'
 
@@ -135,6 +141,7 @@ releases:
     published_format: '0.1.0'
     host_validation: 'published Store built/validated 2026-09-18'
     host_registration: 'host records/build.json, validate.json, register.json from 2026-09-18'
+    committed_matches_published: false
 
   OGS-00008:
     built_analyses: 10

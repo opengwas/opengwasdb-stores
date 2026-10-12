@@ -275,6 +275,19 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         # The admitted and excluded counts are separate cells.
         self.assertIn("| 1 | 1 |", md)
 
+    def test_stores_md_table_rows_have_matching_column_counts(self) -> None:
+        """Issue #217: the new Excluded column must not desynchronise the table."""
+        b1 = create_mock_bundle(self.stores_dir, "OGS-00017", label="wide-1")
+        b2 = create_mock_bundle(self.stores_dir, "OGS-00018", label="wide-2")
+        rows = [render_stores_row(b) for b in (b1, b2)]
+        md = render_stores_md([b1, b2], rows)
+        main_section = md.split("\n## ")[0]
+        main_rows = [line for line in main_section.splitlines() if line.startswith("|")]
+        counts = {line.count("|") for line in main_rows}
+        self.assertEqual(len(counts), 1, f"inconsistent STORES.md columns: {counts}")
+        header = next(line for line in main_rows if line.startswith("| Store ID"))
+        self.assertIn("Excluded", header)
+
     def test_observed_columns_ignore_legacy_top_level_values(self) -> None:
         """Issue #135: observed columns come only from the register-written `observed` block.
 
