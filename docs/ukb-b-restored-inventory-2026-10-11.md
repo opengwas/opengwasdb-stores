@@ -147,6 +147,10 @@ host's `/local-scratch` paths.
    second on the verified immutable #218 runtime (`1be2a156…`). The code branch
    (`opengwasdb/build/resolve.py` requires a `MetricsReader`; `GwasVcfReader` is
    not one) explains it structurally, so it is not runtime-version-specific.
+   The focused core follow-up is **#278** (one-pass resolver cannot stream
+   GWAS-VCF metrics); **#207** is the historical SSF-foundation issue (merged via
+   #210), not current implementation scope, and **#277** (assign-ancestry
+   liftover) remains current.
    **This must not be read as "all AF-based ancestry/SD is impossible".** The
    committed core exposes separate commands that DO read GWAS-VCF — but the
    ancestry command as invoked is assembly-incompatible for ukb-b (GRCh37 source
