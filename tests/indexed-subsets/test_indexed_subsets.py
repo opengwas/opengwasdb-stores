@@ -251,6 +251,7 @@ class TestIndexedSubsetRuntimeGate(unittest.TestCase):
         self.assertIn("build-indexed-subset", message)
         self.assertIn("4819a2ee", message)
         self.assertIn("stores#218", message)
+        self.assertIn("stores#197", message)
 
     def test_declaration_with_capable_runtime_and_valid_input_passes(self) -> None:
         resources.verify_indexed_subsets_for_releases(

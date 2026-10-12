@@ -5,17 +5,18 @@ Covers the contract `ogstores.runtime.verify_runtime_for_releases` adds to
 `pixi run release` (and, as defence in depth, the Snakefile `onstart`):
 
 * the tracked pin is explicit and the same revision in `pixi.toml`,
-  `pixi.lock`, and `ogstores.runtime.PINNED_OPENGWASDB_REVISION`;
-* a missing executable, a known different revision, or a runtime missing any
-  subcommand a scheduled plan names is refused before any write;
-* a scheduled Reference-Completed release whose existing parent Store is
-  format 0.1.0 is refused, while a 0.2.0 parent or a parent that will be built
-  in the same run passes;
-* a capable pinned runtime reports its identity and is not gated when it is
-  missing nothing.
+  `pixi.lock`, and `ogstores.runtime.PINNED_OPENGWASDB_REVISION`, and it fails
+  closed on an unknown or non-exact revision;
+* the version and revision come from the executable that will run, not from
+  the ambient interpreter;
+* only the subcommands the *scheduled steps* need are probed;
+* the completion-parent gate is precise about scheduled work: a same-run
+  `build`/`complete` of the parent skips the stale on-disk artifact, a missing
+  parent that is not scheduled is refused, and an enhancement-only job (HM3,
+  validate, overview) never consults its unused completion recipe.
 
-The fixtures are tiny shell stubs plus a `direct_url.json`, so no real
-`opengwasdb` install or Store is opened.
+Fixtures are a shell `opengwasdb` stub, a `direct_url.json` and a dist-info
+`METADATA`, so no real `opengwasdb` install or Store is opened.
 """
 
 from __future__ import annotations
@@ -26,7 +27,6 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 import tomllib
 import yaml
@@ -35,8 +35,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from ogstores import runtime  # noqa: E402
-from ogstores.plan import plan  # noqa: E402
-from ogstores import bundle as bundle_module  # noqa: E402
 
 n_checks = 0
 
@@ -54,9 +52,17 @@ def _pin_from_pixi_toml(toml_path: Path) -> str:
 
 
 class _FakeRuntime:
-    """A shell `opengwasdb` stub plus the direct_url.json metadata beside it."""
+    """A shell `opengwasdb` stub plus the metadata a real install carries."""
 
-    def __init__(self, root: Path, *, commands: set[str], commit: str | None, format_version: str = "0.2.0"):
+    def __init__(
+        self,
+        root: Path,
+        *,
+        commands: set[str],
+        commit: str | None,
+        version: str = "0.3.0",
+        format_version: str = "0.2.0",
+    ):
         self.root = root
         self.bin = root / "bin"
         self.bin.mkdir(parents=True)
@@ -77,7 +83,6 @@ class _FakeRuntime:
             encoding="utf-8",
         )
         self.executable.chmod(0o755)
-        self.format_version = format_version
         if commit is not None:
             dist = root / "lib" / "python3.12" / "site-packages" / "opengwasdb-0.3.0.dist-info"
             dist.mkdir(parents=True)
@@ -88,6 +93,10 @@ class _FakeRuntime:
                         "vcs_info": {"vcs": "git", "commit_id": commit},
                     }
                 ),
+                encoding="utf-8",
+            )
+            (dist / "METADATA").write_text(
+                f"Metadata-Version: 2.1\nName: opengwasdb\nVersion: {version}\n",
                 encoding="utf-8",
             )
 
@@ -103,13 +112,15 @@ class RuntimeGuardTestCase(unittest.TestCase):
     def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
 
+    # --- fixtures ---------------------------------------------------------
+
     def _write_bundle(
         self,
         store_id: str,
         *,
         completion: bool = False,
         derived_from: str | None = None,
-        commands: tuple[str, ...] = ("build-dense-vcf", "build-dense-top-hits", "regenerate-overview", "validate"),
+        indexed_subset: bool = False,
     ) -> None:
         bundle_root = self.registry / store_id
         bundle_root.mkdir(parents=True, exist_ok=True)
@@ -129,14 +140,32 @@ class RuntimeGuardTestCase(unittest.TestCase):
             "post": {"top_hits": not completion, "rho": False, "overview": True},
         }
         if completion:
-            build["complete"] = {"command": "complete-dense", "options": {"ld-panel": "/p", "ancestry": "EUR"}}
+            build["complete"] = {
+                "command": "complete-dense",
+                "options": {"ld-panel": "/p", "ancestry": "EUR"},
+            }
         else:
             build["build"] = {"command": "build-dense-vcf", "options": {}}
+        if indexed_subset:
+            build["indexed_subsets"] = [
+                {
+                    "name": "hm3",
+                    "resource_id": "hapmap3-hg38",
+                    "variant_list": str(self.tmp / "hm3.alid.txt"),
+                    "reference_assembly": "GRCh38",
+                }
+            ]
         (bundle_root / "release.yaml").write_text(yaml.safe_dump(release), encoding="utf-8")
         (bundle_root / "build.yaml").write_text(yaml.safe_dump(build), encoding="utf-8")
 
-    def _scheduled(self, store_id: str) -> list[tuple[str, str]]:
-        return [(str(self.artifact_root), store_id)]
+    def _runnable(self, name: str, **kwargs) -> _FakeRuntime:
+        kwargs.setdefault("commit", runtime.PINNED_OPENGWASDB_REVISION)
+        return _FakeRuntime(self.tmp / name, **kwargs)
+
+    def _job(self, store_id: str, step: str | None) -> tuple[str, str, str | None]:
+        return (str(self.artifact_root), store_id, step)
+
+    # --- pin & identity ---------------------------------------------------
 
     def test_pin_is_explicit_and_consistent(self) -> None:
         """The tracked pin is one immutable revision across toml, lock and module."""
@@ -150,42 +179,84 @@ class RuntimeGuardTestCase(unittest.TestCase):
 
     def test_missing_executable_is_refused(self) -> None:
         self._write_bundle("OGS-00090")
-        with mock.patch.object(runtime.run, "get_opengwasdb_executable", return_value=runtime.run.UNAVAILABLE):
-            with self.assertRaises(runtime.RuntimeCapabilityError) as ctx:
-                runtime.verify_runtime_for_releases(
-                    self._scheduled("OGS-00090"),
-                    registry_root=self.registry,
-                    executable=runtime.run.UNAVAILABLE,
-                )
+        with self.assertRaises(runtime.RuntimeCapabilityError) as ctx:
+            runtime.verify_runtime_for_releases(
+                [self._job("OGS-00090", "build")],
+                registry_root=self.registry,
+                executable=runtime.run.UNAVAILABLE,
+            )
         record_check()
         self.assertIn("no opengwasdb executable", str(ctx.exception))
 
-    def test_known_other_revision_is_refused(self) -> None:
+    def test_unprovable_revision_is_refused(self) -> None:
+        """An install whose identity cannot be proven is not the pin: fail closed."""
         self._write_bundle("OGS-00090")
-        other = _FakeRuntime(
-            self.tmp / "other",
-            commands={"build-dense-vcf", "build-dense-top-hits", "regenerate-overview", "validate"},
-            commit="deadbeef" * 5,
+        anonymous = self._runnable(
+            "anonymous",
+            commands={"build-dense-vcf"},
+            commit=None,
         )
         with self.assertRaises(runtime.RuntimeRevisionError) as ctx:
             runtime.verify_runtime_for_releases(
-                self._scheduled("OGS-00090"),
+                [self._job("OGS-00090", "build")],
+                registry_root=self.registry,
+                executable=str(anonymous.executable),
+            )
+        record_check()
+        self.assertIn("not the tracked pin", str(ctx.exception))
+
+    def test_known_other_revision_is_refused(self) -> None:
+        self._write_bundle("OGS-00090")
+        other = self._runnable("other", commands={"build-dense-vcf"}, commit="deadbeef" * 5)
+        with self.assertRaises(runtime.RuntimeRevisionError) as ctx:
+            runtime.verify_runtime_for_releases(
+                [self._job("OGS-00090", "build")],
                 registry_root=self.registry,
                 executable=str(other.executable),
             )
         record_check()
         self.assertIn(runtime.PINNED_OPENGWASDB_REVISION, str(ctx.exception))
 
-    def test_missing_capability_is_refused(self) -> None:
+    def test_version_comes_from_the_executable_not_the_ambient_interpreter(self) -> None:
         self._write_bundle("OGS-00090")
-        partial = _FakeRuntime(
-            self.tmp / "partial",
+        versioned = self._runnable(
+            "versioned",
             commands={"build-dense-vcf"},
-            commit=runtime.PINNED_OPENGWASDB_REVISION,
+            version="9.9.9-from-executable",
         )
+        identity = runtime.verify_runtime_for_releases(
+            [self._job("OGS-00090", "build")],
+            registry_root=self.registry,
+            executable=str(versioned.executable),
+        )
+        record_check()
+        self.assertEqual(identity.version, "9.9.9-from-executable")
+
+    # --- scheduled capabilities ------------------------------------------
+
+    def test_only_scheduled_step_commands_are_probed(self) -> None:
+        """A run that schedules only validate must not need the build commands."""
+        self._write_bundle("OGS-00090")
+        only_validate = self._runnable("only-validate", commands={"validate"})
+        identity = runtime.verify_runtime_for_releases(
+            [self._job("OGS-00090", "validate")],
+            registry_root=self.registry,
+            executable=str(only_validate.executable),
+        )
+        record_check()
+        self.assertEqual(identity.revision, runtime.PINNED_OPENGWASDB_REVISION)
+
+    def test_missing_scheduled_capability_is_refused(self) -> None:
+        self._write_bundle("OGS-00090")
+        partial = self._runnable("partial", commands={"build-dense-vcf"})
         with self.assertRaises(runtime.RuntimeCapabilityError) as ctx:
             runtime.verify_runtime_for_releases(
-                self._scheduled("OGS-00090"),
+                [
+                    self._job("OGS-00090", "build"),
+                    self._job("OGS-00090", "top-hits"),
+                    self._job("OGS-00090", "overview"),
+                    self._job("OGS-00090", "validate"),
+                ],
                 registry_root=self.registry,
                 executable=str(partial.executable),
             )
@@ -197,13 +268,9 @@ class RuntimeGuardTestCase(unittest.TestCase):
 
     def test_capable_pinned_runtime_reports_identity(self) -> None:
         self._write_bundle("OGS-00090")
-        capable = _FakeRuntime(
-            self.tmp / "capable",
-            commands={"build-dense-vcf", "build-dense-top-hits", "regenerate-overview", "validate"},
-            commit=runtime.PINNED_OPENGWASDB_REVISION,
-        )
+        capable = self._runnable("capable", commands={"build-dense-vcf", "validate"})
         identity = runtime.verify_runtime_for_releases(
-            self._scheduled("OGS-00090"),
+            [self._job("OGS-00090", "build"), self._job("OGS-00090", "validate")],
             registry_root=self.registry,
             executable=str(capable.executable),
         )
@@ -211,94 +278,232 @@ class RuntimeGuardTestCase(unittest.TestCase):
         self.assertEqual(identity.revision, runtime.PINNED_OPENGWASDB_REVISION)
         self.assertIn(runtime.PINNED_OPENGWASDB_REVISION, identity.describe())
 
+    # --- completion-parent format gate -----------------------------------
+
+    def _capable_for_completion(self, name: str, **kwargs) -> _FakeRuntime:
+        return self._runnable(
+            name,
+            commands={
+                "build-dense-vcf",
+                "build-dense-top-hits",
+                "complete-dense",
+                "build-indexed-subset",
+                "regenerate-overview",
+                "validate",
+                "info",
+            },
+            **kwargs,
+        )
+
+    def _capable_for_parent_build(self, name: str, **kwargs) -> _FakeRuntime:
+        return self._capable_for_completion(name, **kwargs)
+
     def test_completion_parent_0_1_0_is_refused(self) -> None:
         self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090")
         self._write_bundle("OGS-00090")
-        _FakeRuntime(
-            self.tmp / "capable",
-            commands={"complete-dense", "build-indexed-subset", "regenerate-overview", "validate", "info"},
-            commit=runtime.PINNED_OPENGWASDB_REVISION,
-            format_version="0.1.0",
-        )
-        # The parent Store must exist on disk for the format gate to inspect it.
+        capable = self._capable_for_completion("capable", format_version="0.1.0")
         (self.artifact_root / "OGS-00090" / "store.opengwasdb").mkdir(parents=True)
         with self.assertRaises(runtime.CompletionParentFormatError) as ctx:
             runtime.verify_runtime_for_releases(
-                self._scheduled("OGS-00091"),
+                [self._job("OGS-00091", "complete")],
                 registry_root=self.registry,
-                executable=str(self.tmp / "capable" / "bin" / "opengwasdb"),
+                executable=str(capable.executable),
             )
         record_check()
-        message = str(ctx.exception)
-        self.assertIn("0.1.0", message)
-        self.assertIn("convert_store_to_0_2_0.py", message)
+        self.assertIn("0.1.0", str(ctx.exception))
 
     def test_completion_parent_0_2_0_passes(self) -> None:
         self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090")
         self._write_bundle("OGS-00090")
-        capable = _FakeRuntime(
-            self.tmp / "capable",
-            commands={"complete-dense", "build-indexed-subset", "regenerate-overview", "validate", "info"},
-            commit=runtime.PINNED_OPENGWASDB_REVISION,
-            format_version="0.2.0",
-        )
+        capable = self._capable_for_completion("capable", format_version="0.2.0")
         (self.artifact_root / "OGS-00090" / "store.opengwasdb").mkdir(parents=True)
         identity = runtime.verify_runtime_for_releases(
-            self._scheduled("OGS-00091"),
+            [self._job("OGS-00091", "complete")],
             registry_root=self.registry,
             executable=str(capable.executable),
         )
         record_check()
         self.assertEqual(identity.format_version, "0.2.0")
 
-    def test_completion_parent_absent_is_not_gated(self) -> None:
-        """A parent scheduled in the same run is a fresh 0.2.0 build, not a Store to gate."""
-        self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090")
-        capable = _FakeRuntime(
-            self.tmp / "capable",
-            commands={"complete-dense", "build-indexed-subset", "regenerate-overview", "validate", "info"},
-            commit=runtime.PINNED_OPENGWASDB_REVISION,
-        )
+    def test_enhancement_only_child_is_not_gated(self) -> None:
+        """Adding HM3 to an existing 0.1.0 completed Store does not run completion."""
+        self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090", indexed_subset=True)
+        capable = self._runnable("subset", commands={"build-indexed-subset"})
+        (self.artifact_root / "OGS-00090" / "store.opengwasdb").mkdir(parents=True)
         runtime.verify_runtime_for_releases(
-            self._scheduled("OGS-00091"),
+            [self._job("OGS-00091", "indexed-subset-hm3")],
             registry_root=self.registry,
             executable=str(capable.executable),
         )
         record_check()
 
-    def test_completion_parent_without_info_capability_is_refused(self) -> None:
-        """`info` is required once a parent exists, so its absence is a capability refusal."""
+    def test_same_run_parent_build_skips_the_stale_parent_gate(self) -> None:
+        self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090")
+        self._write_bundle("OGS-00090", indexed_subset=True)
+        capable = self._capable_for_parent_build("parent-build", format_version="0.1.0")
+        (self.artifact_root / "OGS-00090" / "store.opengwasdb").mkdir(parents=True)
+        runtime.verify_runtime_for_releases(
+            [
+                self._job("OGS-00090", "build"),
+                self._job("OGS-00091", "complete"),
+            ],
+            registry_root=self.registry,
+            executable=str(capable.executable),
+        )
+        record_check()
+
+    def test_same_run_parent_enhancement_only_still_gates_the_stale_parent(self) -> None:
+        """An HM3/validate job on the parent is not a rebuild, so its 0.1.0 Store is consumed."""
+        self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090")
+        self._write_bundle("OGS-00090", indexed_subset=True)
+        capable = self._capable_for_completion("capable", format_version="0.1.0")
+        (self.artifact_root / "OGS-00090" / "store.opengwasdb").mkdir(parents=True)
+        with self.assertRaises(runtime.CompletionParentFormatError):
+            runtime.verify_runtime_for_releases(
+                [
+                    self._job("OGS-00090", "indexed-subset-hm3"),
+                    self._job("OGS-00091", "complete"),
+                ],
+                registry_root=self.registry,
+                executable=str(capable.executable),
+            )
+        record_check()
+
+    def test_missing_parent_not_scheduled_is_refused(self) -> None:
+        self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090")
+        capable = self._capable_for_completion("capable")
+        with self.assertRaises(runtime.CompletionParentFormatError) as ctx:
+            runtime.verify_runtime_for_releases(
+                [self._job("OGS-00091", "complete")],
+                registry_root=self.registry,
+                executable=str(capable.executable),
+            )
+        record_check()
+        self.assertIn("no Store exists", str(ctx.exception))
+        self.assertIn("scheduled in this run", str(ctx.exception))
+
+    def test_missing_parent_scheduled_build_passes(self) -> None:
+        self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090")
+        self._write_bundle("OGS-00090", indexed_subset=True)
+        capable = self._capable_for_parent_build("parent-build")
+        runtime.verify_runtime_for_releases(
+            [
+                self._job("OGS-00090", "build"),
+                self._job("OGS-00091", "complete"),
+            ],
+            registry_root=self.registry,
+            executable=str(capable.executable),
+        )
+        record_check()
+
+    def test_completion_missing_info_capability_is_refused(self) -> None:
+        """`info` is required once a parent is inspected, so its absence is a capability refusal."""
         self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090")
         self._write_bundle("OGS-00090")
-        no_info = _FakeRuntime(
-            self.tmp / "no-info",
+        no_info = self._runnable(
+            "no-info",
             commands={"complete-dense", "build-indexed-subset", "regenerate-overview", "validate"},
-            commit=runtime.PINNED_OPENGWASDB_REVISION,
         )
         (self.artifact_root / "OGS-00090" / "store.opengwasdb").mkdir(parents=True)
         with self.assertRaises(runtime.RuntimeCapabilityError) as ctx:
             runtime.verify_runtime_for_releases(
-                self._scheduled("OGS-00091"),
+                [self._job("OGS-00091", "complete")],
                 registry_root=self.registry,
                 executable=str(no_info.executable),
             )
         record_check()
         self.assertIn("info", str(ctx.exception))
 
-    def test_commands_are_derived_from_the_plan_not_hardcoded(self) -> None:
+    def test_unreadable_parent_info_is_refused(self) -> None:
+        """A runtime that cannot report the parent format refuses rather than guessing."""
+        self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090")
         self._write_bundle("OGS-00090")
-        commands = runtime.required_commands_for_release("OGS-00090", registry_root=self.registry)
+        # `info` exists (so the capability probe passes) but exits non-zero.
+        stub = self.tmp / "bad-info"
+        stub.mkdir(parents=True)
+        exe = stub / "bin" / "opengwasdb"
+        exe.parent.mkdir(parents=True)
+        exe.write_text(
+            "#!/bin/sh\n"
+            "if [ \"$1\" = \"info\" ]; then\n"
+            "  if [ \"$2\" = \"--help\" ]; then exit 0; fi\n"
+            "  exit 3\n"
+            "fi\n"
+            "exit 0\n",
+            encoding="utf-8",
+        )
+        exe.chmod(0o755)
+        dist = stub / "lib" / "python3.12" / "site-packages" / "opengwasdb-0.3.0.dist-info"
+        dist.mkdir(parents=True)
+        (dist / "direct_url.json").write_text(
+            json.dumps(
+                {
+                    "url": runtime.OPENGWASDB_GIT_URL,
+                    "vcs_info": {"vcs": "git", "commit_id": runtime.PINNED_OPENGWASDB_REVISION},
+                }
+            ),
+            encoding="utf-8",
+        )
+        (dist / "METADATA").write_text(
+            "Metadata-Version: 2.1\nName: opengwasdb\nVersion: 0.3.0\n", encoding="utf-8"
+        )
+        (self.artifact_root / "OGS-00090" / "store.opengwasdb").mkdir(parents=True)
+        with self.assertRaises(runtime.CompletionParentFormatError) as ctx:
+            runtime.verify_runtime_for_releases(
+                [self._job("OGS-00091", "complete")],
+                registry_root=self.registry,
+                executable=str(exe),
+            )
         record_check()
-        self.assertIn("build-dense-vcf", commands)
-        self.assertIn("build-dense-top-hits", commands)
-        self.assertIn("regenerate-overview", commands)
-        self.assertIn("validate", commands)
-        self.assertNotIn("info", commands)
+        self.assertIn("exited 3", str(ctx.exception))
+
+
+class ScheduledJobsParserTestCase(unittest.TestCase):
+    """`release.scheduled_jobs` must expose the step, not just the Store id (#218)."""
+
+    SAMPLE = """Job stats:
+rule build_manifest:
+    jobid: 7
+    wildcards: root=/AR, store_id=OGS-00003
+rule step:
+    jobid: 6
+    wildcards: root=/AR, store_id=OGS-00003, step=build
+rule step:
+    jobid: 5
+    wildcards: root=/AR, store_id=OGS-00003, step=indexed-subset-hm3
+rule register:
+    jobid: 1
+    wildcards: root=/AR, store_id=OGS-00003
+"""
+
+    def test_step_is_captured_and_none_for_stepless_jobs(self) -> None:
+        from ogstores import release
+
+        jobs = release.scheduled_jobs(self.SAMPLE)
+        record_check()
+        self.assertEqual(
+            jobs,
+            [
+                ("/AR", "OGS-00003", None),
+                ("/AR", "OGS-00003", "build"),
+                ("/AR", "OGS-00003", "indexed-subset-hm3"),
+            ],
+        )
+        record_check()
+        self.assertEqual(release.scheduled_releases(self.SAMPLE), [("/AR", "OGS-00003")])
+
+    def test_under_reported_wildcards_fail_loudly(self) -> None:
+        from ogstores import release
+
+        with self.assertRaises(RuntimeError):
+            release.scheduled_jobs("rule step:\n    jobid: 1\n    wildcards: root=/AR\n")
+        record_check()
 
 
 def main() -> None:
     suite = unittest.TestSuite()
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(RuntimeGuardTestCase))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(ScheduledJobsParserTestCase))
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     if not result.wasSuccessful():

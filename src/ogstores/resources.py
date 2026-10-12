@@ -236,8 +236,9 @@ def verify_indexed_subsets_for_releases(
             "opengwasdb runtime providing `build-indexed-subset` "
             "(opengwas/opengwasdb#264, revision 4819a2ee or later). The resolved "
             f"opengwasdb is {resolved!r}. That capability is part of the repository's "
-            "pinned current-format runtime (stores#218); install the tracked lock with "
-            "`pixi install` and re-run rather than substituting an executable on PATH."
+            "pinned current-format runtime (stores#218, coordinating stores#197); install "
+            "the tracked lock with `pixi install` and re-run rather than substituting an "
+            "executable on PATH."
         )
 
     for store_id, declarations in declarations_by_store:

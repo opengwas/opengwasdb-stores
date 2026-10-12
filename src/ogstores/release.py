@@ -207,14 +207,17 @@ def snakemake_argv(
     return argv
 
 
-def scheduled_releases(dry_run_output: str) -> list[tuple[str, str]]:
-    """The (artifact root, store_id) of every job a Snakemake dry run scheduled.
+def scheduled_jobs(dry_run_output: str) -> list[tuple[str, str, str | None]]:
+    """The (artifact root, store_id, step) of every job a Snakemake dry run scheduled.
 
     Every step, register and build_manifest job prints its wildcards, so a job
     block without one means the output is not what this parser expects, and
     that fails loudly rather than under-reporting what the run will touch.
+    `step` is `None` for a job with no `step` wildcard (`build_manifest`,
+    `register`). The runtime guard needs the step to tell a real parent rebuild
+    from an enhancement-only job on the same Store (#218).
     """
-    found: list[tuple[str, str]] = []
+    found: list[tuple[str, str, str | None]] = []
     jobs = 0
     for line in dry_run_output.splitlines():
         if _RELEASE_JOB.match(line):
@@ -224,13 +227,19 @@ def scheduled_releases(dry_run_output: str) -> list[tuple[str, str]]:
             continue
         fields = dict(part.split("=", 1) for part in match["body"].split(", ") if "=" in part)
         if "root" in fields and "store_id" in fields:
-            found.append((fields["root"], fields["store_id"]))
+            step = fields.get("step")
+            found.append((fields["root"], fields["store_id"], step))
     if len(found) != jobs:
         raise RuntimeError(
             f"The dry run listed {jobs} release job(s) but the wildcards of {len(found)}; "
             "refusing to guess what the run would touch"
         )
-    return sorted(set(found))
+    return sorted(set(found), key=lambda job: (job[0], job[1], job[2] or ""))
+
+
+def scheduled_releases(dry_run_output: str) -> list[tuple[str, str]]:
+    """The (artifact root, store_id) of every job a Snakemake dry run scheduled."""
+    return sorted({(root, store_id) for root, store_id, _step in scheduled_jobs(dry_run_output)})
 
 
 def registered_ids(registry_root: Path) -> list[str]:
@@ -582,6 +591,7 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
     if result.returncode != 0:
         return result.returncode
     scheduled = scheduled_releases(result.stdout + result.stderr)
+    jobs = scheduled_jobs(result.stdout + result.stderr)
     busy = {}
     for _, store_id in scheduled:
         holder = lock_holder(store_id, root)
@@ -604,6 +614,7 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
         else:
             print(f"release-dry: the real run first completes the interrupted publication of {store_id}")
     idle = [(r, store_id) for r, store_id in scheduled if store_id not in busy]
+    idle_jobs = [(r, store_id, step) for r, store_id, step in jobs if store_id not in busy]
     forced = run.forced_releases(force, inv.targets)
     try:
         run.refuse_pending_force_snapshots(idle)
@@ -615,7 +626,7 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
         if store_id in forced and paths.store_path(store_id, root=scheduled_root).exists():
             print(f"release-dry: the real run would snapshot the records of {store_id} and replace it")
     try:
-        identity = runtime.verify_runtime_for_releases(idle, registry_root=registry_root)
+        identity = runtime.verify_runtime_for_releases(idle_jobs, registry_root=registry_root)
         print(f"release-dry: the real run would use {identity.describe()}")
     except runtime.RuntimeGuardError as exc:
         print(f"release-dry: the real run would refuse:\n{exc}")
@@ -661,6 +672,7 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
         sys.stderr.write(plan.stderr)
         return plan.returncode
     scheduled = scheduled_releases(plan.stdout + plan.stderr)
+    jobs = scheduled_jobs(plan.stdout + plan.stderr)
     if not scheduled:
         print("release: nothing to be done; every requested release is up to date")
         return 0
@@ -671,7 +683,7 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     # the environment's tracked revision, provide every subcommand the scheduled
     # plans name, and be able to complete every Reference-Completed release's
     # existing parent. Refuse before the snapshot or any build work.
-    identity = runtime.verify_runtime_for_releases(scheduled, registry_root=registry_root)
+    identity = runtime.verify_runtime_for_releases(jobs, registry_root=registry_root)
     print(f"release: runtime {identity.describe()}")
 
     # Declared Indexed Variant Subsets need a runtime capability the tracked pin
@@ -778,6 +790,7 @@ __all__ = [
     "registered_ids",
     "release_outputs",
     "resolve_snapshot",
+    "scheduled_jobs",
     "scheduled_releases",
     "settle",
     "snakemake_argv",

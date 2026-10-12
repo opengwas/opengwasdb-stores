@@ -51,20 +51,33 @@ Before the entry point snapshots anything or a build writes a Store,
 `snakemake` run) refuses a run when:
 
 1. no `opengwasdb` executable resolves on `PATH`;
-2. the resolved executable's known revision is not the tracked pin, so an
-   ad-hoc executable substituted onto `PATH` cannot silently become the
-   factory runtime;
-3. the runtime does not provide every subcommand the scheduled bundles plan to
-   run (probed with `--help`); or
-4. a scheduled Reference-Completed release's **existing** parent Store reports
-   a `format_version` other than `0.2.0`.
+2. the revision cannot be proven from the executed install's own metadata, or
+   is a known revision other than the tracked pin -- an unprovable identity is
+   refused, not assumed, so an ad-hoc executable substituted onto `PATH` cannot
+   silently become the factory runtime;
+3. the runtime does not provide every subcommand the *scheduled* jobs will run
+   (probed with `--help`); or
+4. a **scheduled** `complete` job would consume an existing parent Store whose
+   declared `format_version` is not `0.2.0`.
 
-The fourth gate reads the parent's declared format through `opengwasdb info
---format json` -- the core's supported reporting interface -- not by opening
-the Store in this repository. A parent scheduled in the same run does not exist
-yet and is a fresh format-0.2.0 build, so it is not gated. The run prints the
-resolved identity it will use, and every Step's durable record already carries
-the exact `opengwasdb` revision and executable that ran.
+The gate is scheduled-step-aware, because an id appearing in the dry run is not
+proof that the Store is rebuilt. `workflow/release.py` and the Snakefile
+`onstart` pass `(artifact_root, store_id, step)` for every dry-run job, so:
+
+* the parent format is gated only when the child's own `complete` job will run;
+  an enhancement-only rerun of an existing completed Store (build its HM3
+  subset, validate, overview) never consults its unused completion recipe;
+* a same-run `build` or `complete` job for the parent produces a fresh
+  format-0.2.0 Store, so the stale on-disk artifact is not consumed and is not
+  gated;
+* a parent that is neither on disk nor scheduled to be produced is refused
+  loudly before Snakemake starts.
+
+The parent's declared format is read through `opengwasdb info --format json` --
+the core's supported reporting interface -- not by opening the Store in this
+repository. The run prints the resolved identity it will use, and every Step's
+durable record already carries the exact `opengwasdb` revision and executable
+that ran.
 
 The ordinary invocation therefore uses the pinned runtime with no `PATH`
 overlay:
@@ -76,6 +89,30 @@ pixi run release OGS-00016
 The HM3 pipeline proof's temporary explicit `--opengwasdb-checkout` remains a
 proof tool, not the supported release entry point.
 
+## Converting or rebuilding a format-0.1.0 parent
+
+A `0.1.0` parent is readable but not completable by a format-0.2.0 builder
+(opengwas/opengwasdb ADR 0038 §4); completion writes into the source's arrays
+and never re-encodes them. When a build ticket needs a completed descendant of
+an existing `0.1.0` Store, it has two supported orders, both **core-owned
+procedures** rather than registry API:
+
+1. **Convert, then complete.** In the pinned `opengwasdb` checkout, convert the
+   parent to format 0.2.0 with the core's conversion tool
+   (`scripts/convert_store_to_0_2_0.py`; see the core's own documentation and
+   CHANGELOG), register the converted parent as its own release, then run the
+   completion against the converted Store. The core tool is the authority on
+   which layouts it supports and on its verification gate.
+2. **Rebuild the parent, then complete.** A fresh `pixi run release <parent>` at
+   the pinned runtime writes a new format-0.2.0 observed Store; the completion
+   can then consume it. This is the only order that applies the current builder
+   fixes to the parent's bytes.
+
+The runtime gate refuses the wrong order before any write and directs the
+operator here; it does not itself invoke a converter. Remember that converting
+or rebuilding a *registered* release is a catalogue action with its own
+gates, not a side effect of a completion run.
+
 ## Upgrading does not convert or requalify anything
 
 Bumping the pin changes what a **new** build is. It does not rebuild, convert,
@@ -85,10 +122,10 @@ the pin is still format 0.1.0, remains readable, and stays exactly as it was.
 Consequences a build ticket must handle explicitly:
 
 - A Reference Completion of a 0.1.0 parent is refused at the gate above and by
-  the core builder itself. The one order that works is to convert the parent to
-  format 0.2.0 with `scripts/convert_store_to_0_2_0.py` (in the `opengwasdb`
-  checkout), then complete the converted release; or rebuild the parent at the
-  pinned runtime. A completion never re-encodes its source.
+  the core builder itself. Convert the parent to format 0.2.0 with the core's
+  conversion procedure, or rebuild the parent at the pinned runtime, then
+  complete the converted/rebuild release. A completion never re-encodes its
+  source. See "Converting or rebuilding a format-0.1.0 parent" above.
 - Each build ticket must therefore supply a compatible observed parent before
   it can register a completed descendant. The existence of a published 0.1.0
   parent is not that parent.

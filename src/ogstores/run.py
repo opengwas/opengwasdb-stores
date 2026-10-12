@@ -270,6 +270,40 @@ def _extract_commit_from_direct_url_file(direct_url_p: Path) -> str | None:
     return None
 
 
+def _executable_metadata_roots(
+    executable: str, env: Mapping[str, str] | None = None
+) -> list[Path]:
+    """Candidate install-prefix roots to read `opengwasdb*.dist-info` metadata from.
+
+    An explicit executable is trusted over ambient process metadata: the guard
+    must report the runtime it will actually run, not whichever `opengwasdb`
+    happens to be importable by the current interpreter.
+    """
+    exe_p = Path(executable).resolve()
+    candidate_roots = [
+        exe_p.parents[1] if len(exe_p.parents) > 1 else exe_p.parent,
+        exe_p.parent,
+    ]
+    if env and "PYTHONPATH" in env:
+        for pth in env["PYTHONPATH"].split(os.pathsep):
+            if pth.strip():
+                candidate_roots.append(Path(pth.strip()).resolve())
+    if env and "CONDA_PREFIX" in env:
+        candidate_roots.append(Path(env["CONDA_PREFIX"]).resolve())
+    if env and "VIRTUAL_ENV" in env:
+        candidate_roots.append(Path(env["VIRTUAL_ENV"]).resolve())
+    return candidate_roots
+
+
+def _dist_info_globs(c_root: Path, filename: str) -> list[str]:
+    """The platform layouts a `opengwasdb*.dist-info` directory may use."""
+    return [
+        str(c_root / "lib" / "python*" / "site-packages" / "opengwasdb*.dist-info" / filename),
+        str(c_root / "Lib" / "site-packages" / "opengwasdb*.dist-info" / filename),
+        str(c_root / "opengwasdb*.dist-info" / filename),
+    ]
+
+
 def get_opengwasdb_revision(
     executable: str | None = None,
     env: Mapping[str, str] | None = None,
@@ -277,36 +311,12 @@ def get_opengwasdb_revision(
     """Return the exact resolved 40/64-char opengwasdb git commit hash bound to executable/env."""
     # 1. If an explicit executable is provided, search only its environment prefix
     if executable and executable != UNAVAILABLE:
-        exe_p = Path(executable).resolve()
-        candidate_roots = [
-            exe_p.parents[1] if len(exe_p.parents) > 1 else exe_p.parent,
-            exe_p.parent,
-        ]
-        if env and "PYTHONPATH" in env:
-            for pth in env["PYTHONPATH"].split(os.pathsep):
-                if pth.strip():
-                    candidate_roots.append(Path(pth.strip()).resolve())
-        if env and "CONDA_PREFIX" in env:
-            candidate_roots.append(Path(env["CONDA_PREFIX"]).resolve())
-        if env and "VIRTUAL_ENV" in env:
-            candidate_roots.append(Path(env["VIRTUAL_ENV"]).resolve())
-
-        for c_root in candidate_roots:
-            pattern = str(c_root / "lib" / "python*" / "site-packages" / "opengwasdb*.dist-info" / "direct_url.json")
-            for direct_url_match in glob.glob(pattern):
-                commit = _extract_commit_from_direct_url_file(Path(direct_url_match))
-                if commit:
-                    return commit
-            pattern_win = str(c_root / "Lib" / "site-packages" / "opengwasdb*.dist-info" / "direct_url.json")
-            for direct_url_match in glob.glob(pattern_win):
-                commit = _extract_commit_from_direct_url_file(Path(direct_url_match))
-                if commit:
-                    return commit
-            pattern_direct = str(c_root / "opengwasdb*.dist-info" / "direct_url.json")
-            for direct_url_match in glob.glob(pattern_direct):
-                commit = _extract_commit_from_direct_url_file(Path(direct_url_match))
-                if commit:
-                    return commit
+        for c_root in _executable_metadata_roots(executable, env):
+            for pattern in _dist_info_globs(c_root, "direct_url.json"):
+                for direct_url_match in glob.glob(pattern):
+                    commit = _extract_commit_from_direct_url_file(Path(direct_url_match))
+                    if commit:
+                        return commit
         return UNAVAILABLE
 
     # 2. Ambient process metadata (only when no explicit executable is specified)
@@ -331,8 +341,35 @@ def get_opengwasdb_revision(
     return UNAVAILABLE
 
 
-def get_opengwasdb_version() -> str:
-    """Return the installed opengwasdb version or 'unavailable'."""
+def _extract_version_from_metadata_file(metadata_p: Path) -> str | None:
+    """Read `Version:` from a dist-info METADATA file, or None."""
+    try:
+        for line in metadata_p.read_text(encoding="utf-8", errors="replace").splitlines():
+            if line.startswith("Version:"):
+                version = line.split(":", 1)[1].strip()
+                return version or None
+    except OSError:
+        return None
+    return None
+
+
+def get_opengwasdb_version(
+    executable: str | None = None, env: Mapping[str, str] | None = None
+) -> str:
+    """Return the opengwasdb version, from the given executable's install or ambient.
+
+    With `executable`, read the version from that executable's own dist-info so
+    the reported identity belongs to the runtime that will run, never to an
+    unrelated ambient environment.
+    """
+    if executable and executable != UNAVAILABLE:
+        for c_root in _executable_metadata_roots(executable, env):
+            for pattern in _dist_info_globs(c_root, "METADATA"):
+                for metadata_match in glob.glob(pattern):
+                    version = _extract_version_from_metadata_file(Path(metadata_match))
+                    if version:
+                        return version
+        return UNAVAILABLE
     try:
         import importlib.metadata as metadata
 

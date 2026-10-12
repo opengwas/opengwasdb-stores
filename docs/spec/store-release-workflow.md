@@ -386,11 +386,13 @@ replace, and settles the run. See Safety.
 The run-time counterparts to the pure planner. `resources.py` verifies a
 declared Indexed Variant Subset's maintained variant list against its
 `resource_id` declaration. `runtime.py` (stores#218) is the pre-write runtime
-guard: it proves the resolved `opengwasdb` is the tracked pin, provides every
-subcommand the scheduled plans name, and can complete each existing parent
-Store because that parent is format 0.2.0. Both are called by the entry point
-before the snapshot and by the Snakefile's `onstart` for a direct `snakemake`
-run. See [the release runtime](../runtime.md).
+guard: it proves the resolved `opengwasdb` is the tracked pin (from the
+executable's own install metadata, failing closed on an unprovable identity),
+provides every subcommand the *scheduled steps* name, and can complete each
+parent a scheduled `complete` job consumes -- where a same-run `build`/`complete`
+of that parent makes the stale on-disk artifact irrelevant. Both are called by
+the entry point before the snapshot and by the Snakefile's `onstart` for a
+direct `snakemake` run. See [the release runtime](../runtime.md).
 
 ## Safety
 
@@ -737,10 +739,14 @@ Two consequences are contract, not incidental:
 
 - **Reference Completion needs a format-0.2.0 observed parent.** A 0.1.0 parent
   is readable but not completable by a 0.2.0 builder (opengwas/opengwasdb ADR
-  0038 §4). The runtime guard refuses the run before any write and names
-  `scripts/convert_store_to_0_2_0.py`; every completed-release build ticket
-  must supply a compatible parent, or convert one first. Bumping the runtime
-  does not convert or requalify a published Store.
+  0038 §4). The runtime guard refuses the run before any write when a
+  *scheduled* `complete` job would consume a 0.1.0 parent, and directs the
+  operator to [the release runtime](../runtime.md) for the supported conversion
+  or rebuild order. A same-run `build`/`complete` of the parent is a fresh
+  0.2.0 Store and is not gated; a missing parent that is not scheduled to be
+  produced is refused. Every completed-release build ticket must supply a
+  compatible parent, or convert/rebuild one first. Bumping the runtime does not
+  convert or requalify a published Store.
 - **Inner chunks name the format's shape, and must tile the decided shard.**
   `--chunk-variants` / `--chunk-analyses` name the inner chunk; their defaults
   are `[1000, 64]`, and the shard `[100000, 1024]` is fixed and not exposed. On

@@ -5,27 +5,35 @@ place that proves, *before any artifact is written*, that the `opengwasdb`
 runtime that run will actually execute:
 
 * is the environment's tracked, immutable pin (the pixi lock's git revision),
-  so a supported run does not silently follow an ad-hoc executable substituted
-  onto `PATH`;
-* provides every subcommand the scheduled Release Bundles plan to run; and
-* can complete each scheduled Reference-Completed release, i.e. its existing
-  parent Store is format 0.2.0.
+  so a supported run cannot silently follow an ad-hoc executable substituted
+  onto `PATH`, and an unprovable identity is refused rather than assumed;
+* provides every subcommand the *scheduled* jobs will actually run; and
+* can complete each scheduled Reference-Completed release, i.e. the parent it
+  will consume is format 0.2.0 or is itself built in the same run.
 
 The last point is a *format* gate, not a Store inspection: a 0.1.0 parent can
 be read but not completed by a format-0.2.0 builder (opengwas/opengwasdb#247,
-`opengwasdb.store.open.check_completion_source`), and the supported order is to
-convert the parent first (`scripts/convert_store_to_0_2_0.py`) or rebuild it.
-Asking the runtime's own `info --format json` reports the parent's declared
-format version through the core's supported interface, so this repository
-never opens the Store itself (`CONTRIBUTING.md`).
+`opengwasdb.store.open.check_completion_source`). Asking the runtime's own
+`info --format json` reports the parent's declared format through the core's
+supported interface, so this repository never opens the Store itself
+(`CONTRIBUTING.md`).
 
-This is deliberately strict. A missing capability or a format-0.1.0 parent is
-refused with the release and the reason rather than discovered hours into a
-build, which is the same discipline ADR 0034 applied to Indexed Variant
-Subsets. The guard runs from the entry point and, as defence in depth, from the
-Snakefile's `onstart` hook for a direct `snakemake` run.
+The gate is precise about *scheduled* work, because "the id appears in the dry
+run" is not the same as "the Store is rebuilt". `workflow/release.py` and the
+Snakefile `onstart` pass `(artifact_root, store_id, step)` for every dry-run
+job, so:
 
-See docs/spec/store-release-workflow.md and ADR 0034.
+* a child's parent is gated only when the child's own `complete` step is
+  scheduled -- an enhancement-only rerun of an existing completed Store (build
+  its HM3 subset, validate, overview) never consults its unused completion
+  recipe;
+* a parent on disk at 0.1.0 is not gated when a same-run `build`/`complete`
+  producing step for that parent is scheduled, because that produces a fresh
+  0.2.0 Store;
+* a parent that is neither on disk nor scheduled to be produced is refused
+  loudly rather than left for Snakemake to fail on hours later.
+
+See docs/runtime.md, docs/spec/store-release-workflow.md and ADR 0034.
 """
 
 from __future__ import annotations
@@ -57,7 +65,13 @@ REQUIRED_FORMAT_VERSION: str = "0.2.0"
 #: completion-parent format gate.
 INFO_COMMAND: str = "info"
 
+#: A Snakemake dry-run job: `(artifact_root, store_id, step)`. `step` is None
+#: for jobs with no `step` wildcard (`build_manifest`, `register`).
+ScheduledJob = tuple[str, str, str | None]
+
 DEFAULT_PROBE_TIMEOUT_SECONDS: float = 60.0
+
+_STORE_PRODUCING_STEPS: frozenset[str] = frozenset({"build", "complete"})
 
 
 class RuntimeGuardError(RuntimeError):
@@ -69,7 +83,7 @@ class RuntimeCapabilityError(RuntimeGuardError):
 
 
 class RuntimeRevisionError(RuntimeGuardError):
-    """The resolved `opengwasdb` is a known revision other than the tracked pin."""
+    """The resolved `opengwasdb` is not the tracked, provable pin."""
 
 
 class CompletionParentFormatError(RuntimeGuardError):
@@ -154,14 +168,61 @@ def _read_store_format_version(
     return format_version
 
 
+def normalize_scheduled(scheduled: Iterable[tuple]) -> list[ScheduledJob]:
+    """Normalize `(root, store_id)` or `(root, store_id, step)` dry-run jobs.
+
+    An item without a step is a job that has no CLI step (`build_manifest`,
+    `register`) or a caller that did not supply one; see
+    `resolve_scheduled_steps` for how an unknown step set is handled.
+    """
+    jobs: list[ScheduledJob] = []
+    for item in scheduled:
+        if len(item) == 2:
+            jobs.append((str(item[0]), str(item[1]), None))
+        elif len(item) == 3:
+            step = item[2]
+            jobs.append((str(item[0]), str(item[1]), None if step is None else str(step)))
+        else:
+            raise ValueError(
+                f"scheduled job must be (root, store_id) or (root, store_id, step), not {item!r}"
+            )
+    return jobs
+
+
+def _planned_steps(store_id: str, *, registry_root: Path | str, artifact_root: Path | str | None):
+    return plan(bundle_module.load(store_id, registry_root=registry_root), artifact_root=artifact_root)
+
+
 def required_commands_for_release(
     store_id: str, *, registry_root: Path | str, artifact_root: Path | str | None = None
 ) -> list[str]:
-    """The distinct `opengwasdb` subcommands one scheduled release's plan names."""
-    loaded = bundle_module.load(store_id, registry_root=registry_root)
+    """Every distinct `opengwasdb` subcommand one release's plan can name."""
     commands: list[str] = []
-    for step in plan(loaded, artifact_root=artifact_root):
+    for step in _planned_steps(store_id, registry_root=registry_root, artifact_root=artifact_root):
         command = step.argv[1] if len(step.argv) > 1 else ""
+        if command and command not in commands:
+            commands.append(command)
+    return commands
+
+
+def commands_for_scheduled_steps(
+    store_id: str,
+    steps: Iterable[str],
+    *,
+    registry_root: Path | str,
+    artifact_root: Path | str | None = None,
+) -> list[str]:
+    """The `opengwasdb` subcommands the named planned steps will actually run."""
+    planned = {
+        step.name: step
+        for step in _planned_steps(store_id, registry_root=registry_root, artifact_root=artifact_root)
+    }
+    commands: list[str] = []
+    for name in steps:
+        planned_step = planned.get(name)
+        if planned_step is None:
+            continue
+        command = planned_step.argv[1] if len(planned_step.argv) > 1 else ""
         if command and command not in commands:
             commands.append(command)
     return commands
@@ -170,20 +231,35 @@ def required_commands_for_release(
 def completion_parents_for_release(
     store_id: str, *, registry_root: Path | str, artifact_root: Path | str | None = None
 ) -> list[str]:
-    """Parent Store ids a scheduled Reference-Completed release will complete.
-
-    Empty for an observed-only release. A parent may itself be scheduled in the
-    same run, in which case it will be a fresh format-0.2.0 build and needs no
-    format gate (its path does not exist yet).
-    """
+    """Parent Store ids a Reference-Completed release's plan would complete."""
     loaded = bundle_module.load(store_id, registry_root=registry_root)
-    if not any(step.name == "complete" for step in plan(loaded, artifact_root=artifact_root)):
+    steps = plan(loaded, artifact_root=artifact_root)
+    if not any(step.name == "complete" for step in steps):
         return []
     return [loaded.derived_from] if loaded.derived_from else []
 
 
+def _steps_by_store(jobs: Iterable[ScheduledJob]) -> dict[tuple[str, str], set[str]]:
+    """The resolved step names per `(root, store_id)`, ignoring step-less jobs."""
+    by_store: dict[tuple[str, str], set[str]] = {}
+    for root, store_id, step in jobs:
+        by_store.setdefault((root, store_id), set())
+        if step is not None:
+            by_store[(root, store_id)].add(step)
+    return by_store
+
+
+def _produces_store(jobs: Iterable[ScheduledJob]) -> set[tuple[str, str]]:
+    """`(root, store_id)` pairs with a scheduled `build` or `complete` job."""
+    return {
+        (root, store_id)
+        for root, store_id, step in jobs
+        if step in _STORE_PRODUCING_STEPS
+    }
+
+
 def verify_runtime_for_releases(
-    scheduled: Iterable[tuple[str, str]],
+    scheduled: Iterable[tuple],
     *,
     registry_root: Path | str,
     executable: str | None = None,
@@ -191,18 +267,19 @@ def verify_runtime_for_releases(
 ) -> RuntimeIdentity:
     """Refuse a run whose runtime is missing, unpinned, or cannot complete a parent.
 
-    `scheduled` is the Snakemake dry run's `[(artifact_root, store_id)]`. Every
-    check happens before the entry point snapshots anything or a build writes a
-    Store. The returned `RuntimeIdentity` is what the run records as its runtime.
+    `scheduled` is the Snakemake dry run's jobs, `(artifact_root, store_id)` or
+    `(artifact_root, store_id, step)`. Every check happens before the entry
+    point snapshots anything or a build writes a Store. The returned
+    `RuntimeIdentity` is what the run records as its runtime.
     """
-    scheduled = list(scheduled)
+    jobs = normalize_scheduled(scheduled)
     resolved = executable if executable is not None else run.get_opengwasdb_executable()
     revision = (
         run.get_opengwasdb_revision(executable=resolved)
         if resolved != run.UNAVAILABLE
         else run.UNAVAILABLE
     )
-    version = run.get_opengwasdb_version()
+    version = run.get_opengwasdb_version(executable=resolved)
 
     identity = RuntimeIdentity(
         executable=resolved,
@@ -219,33 +296,52 @@ def verify_runtime_for_releases(
             "`pixi run release ...` rather than an ad-hoc executable."
         )
 
-    if run.is_exact_commit_hash(revision) and revision != PINNED_OPENGWASDB_REVISION:
+    # Fail closed: an unknown or unprovable identity is not the pin. A git ref,
+    # empty metadata or "unavailable" must never pass as the tracked runtime.
+    if not run.is_exact_commit_hash(revision) or revision != PINNED_OPENGWASDB_REVISION:
         raise RuntimeRevisionError(
-            f"the resolved opengwasdb at {resolved!r} is revision {revision}, but this "
-            f"repository pins {PINNED_OPENGWASDB_REVISION} ({OPENGWASDB_GIT_URL}). A "
-            "supported release run must use the pinned runtime; do not substitute an "
-            "executable on PATH. Run `pixi install`/`pixi run release` so the tracked "
-            "lock selects the pin, or repin the repository deliberately (stores#218)."
+            f"the resolved opengwasdb at {resolved!r} reports revision {revision!r}, which "
+            f"is not the tracked pin {PINNED_OPENGWASDB_REVISION} ({OPENGWASDB_GIT_URL}). A "
+            "supported release run must use the pinned runtime and must be able to prove "
+            "its identity from the executable's own metadata; do not substitute an "
+            "executable on PATH. Run `pixi install`/`pixi run release` so the tracked lock "
+            "selects the pin, or repin the repository deliberately (stores#218)."
         )
 
+    steps_by_store = _steps_by_store(jobs)
+    produced = _produces_store(jobs)
+
+    # Required commands come only from scheduled steps. A store with no resolved
+    # step (only build_manifest/register scheduled) needs no capability; a
+    # caller that gave no step at all is treated conservatively and probed for
+    # its whole plan.
     commands: dict[str, list[str]] = {}
-    parents: dict[str, tuple[str, str]] = {}
-    for root, store_id in scheduled:
-        commands[store_id] = required_commands_for_release(
-            store_id, registry_root=registry_root, artifact_root=root
-        )
-        for parent in completion_parents_for_release(
-            store_id, registry_root=registry_root, artifact_root=root
-        ):
-            parents.setdefault(parent, (store_id, root))
-    if parents:
-        # The parent-format gate calls `opengwasdb info`; require the subcommand
-        # explicitly so a runtime that lacks it is refused as a capability, not
-        # as an unreadable Store.
-        for child_id, _parent_root in parents.values():
-            commands.setdefault(child_id, [])
-            if INFO_COMMAND not in commands[child_id]:
-                commands[child_id].append(INFO_COMMAND)
+    for (root, store_id), steps in steps_by_store.items():
+        if steps:
+            commands[store_id] = commands_for_scheduled_steps(
+                store_id, sorted(steps), registry_root=registry_root, artifact_root=root
+            )
+        else:
+            commands[store_id] = required_commands_for_release(
+                store_id, registry_root=registry_root, artifact_root=root
+            )
+
+    parents: dict[tuple[str, str], tuple[str, set[str] | None]] = {}
+    for (root, store_id), steps in steps_by_store.items():
+        loaded = bundle_module.load(store_id, registry_root=registry_root)
+        planned = _planned_steps(store_id, registry_root=registry_root, artifact_root=root)
+        if not any(step.name == "complete" for step in planned):
+            continue
+        # Gate only when the child's own complete step is scheduled. A caller
+        # that provided no step for this store is treated as potentially
+        # completing (conservative), since the plan has a complete step.
+        completion_scheduled = ("complete" in steps) if steps else True
+        if not completion_scheduled or not loaded.derived_from:
+            continue
+        parents[(root, store_id)] = (loaded.derived_from, steps or None)
+        commands.setdefault(store_id, [])
+        if INFO_COMMAND not in commands.get(store_id, []):
+            commands.setdefault(store_id, []).append(INFO_COMMAND)
 
     missing: dict[str, list[str]] = {}
     for store_id, store_commands in commands.items():
@@ -264,23 +360,30 @@ def verify_runtime_for_releases(
             "and re-run; never substitute a different executable."
         )
 
-    for parent_id, (child_id, root) in sorted(parents.items()):
+    for (root, store_id), (parent_id, _steps) in sorted(parents.items()):
+        if (root, parent_id) in produced:
+            # A same-run build or complete of the parent produces a fresh
+            # format-0.2.0 Store; the stale on-disk artifact is not consumed.
+            continue
         parent_store = paths.store_path(parent_id, root=root)
         if not parent_store.is_dir():
-            # A parent scheduled in the same run does not exist yet; it will be a
-            # fresh format-0.2.0 build, so there is nothing to gate.
-            continue
+            raise CompletionParentFormatError(
+                f"Release {store_id} is Reference-Completed from parent {parent_id}, but "
+                f"no Store exists at {parent_store} and no `build`/`complete` step for "
+                f"{parent_id} is scheduled in this run. Schedule the parent build first "
+                "(lineage does this automatically) or correct `derived_from`."
+            )
         format_version = _read_store_format_version(resolved, parent_store, timeout=timeout)
         if format_version != REQUIRED_FORMAT_VERSION:
             raise CompletionParentFormatError(
-                f"Release {child_id} is Reference-Completed from parent {parent_id}, whose "
+                f"Release {store_id} is Reference-Completed from parent {parent_id}, whose "
                 f"existing Store at {parent_store} is format_version={format_version!r}. A "
                 f"format-{REQUIRED_FORMAT_VERSION} builder reads but cannot write that "
-                "format; completion preserves its source's format (opengwas/opengwasdb "
-                "ADR 0038 §4). Convert the parent first with "
-                "`scripts/convert_store_to_0_2_0.py`, then complete the converted release; "
-                "or rebuild the parent at the pinned runtime. Upgrading the runtime does "
-                "not convert or requalify an existing Store."
+                "format; completion preserves its source's format (opengwas/opengwasdb ADR "
+                "0038 §4). Convert the parent to format 0.2.0 with the documented core "
+                "conversion procedure or rebuild the parent at the pinned runtime, then "
+                "complete the converted release. See docs/runtime.md; upgrading the runtime "
+                "does not convert or requalify an existing Store."
             )
 
     return identity
@@ -296,7 +399,10 @@ __all__ = [
     "RuntimeGuardError",
     "RuntimeIdentity",
     "RuntimeRevisionError",
+    "ScheduledJob",
+    "commands_for_scheduled_steps",
     "completion_parents_for_release",
+    "normalize_scheduled",
     "required_commands_for_release",
     "verify_runtime_for_releases",
 ]

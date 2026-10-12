@@ -105,13 +105,18 @@ so no `PATH` overlay is needed and a supported run never substitutes one. See
 [docs/runtime.md](../runtime.md).
 
 The guard was generalized with the pin. `ogstores.runtime.verify_runtime_for_releases`
-now also refuses a run whose resolved executable is a known revision other than
-the pin, whose plan names a subcommand the runtime lacks, or which would complete
-an existing parent Store that is not format 0.2.0. Rejected option 3 above is
-superseded by this ticket: the format adoption is now deliberate and pinned
-rather than deferred, and it still does not convert, rebuild or requalify any
-published Store. A format-0.1.0 parent is refused and must be converted or
-rebuilt before Reference Completion.
+now also refuses a run whose resolved executable's identity is unprovable or is
+a revision other than the pin, whose scheduled steps name a subcommand the
+runtime lacks, or which would complete an existing parent Store that is not
+format 0.2.0. The parent gate is scheduled-step-aware: it applies only when the
+child's own `complete` job will run, skips a stale parent when a same-run
+`build`/`complete` of that parent is scheduled, and refuses a missing parent
+that is not scheduled to be produced. Rejected option 3 above is superseded by
+this ticket: the format adoption is now deliberate and pinned rather than
+deferred, and it still does not convert, rebuild or requalify any published
+Store. A format-0.1.0 parent is refused and must be converted or rebuilt before
+Reference Completion, following the documented procedure in
+[docs/runtime.md](../runtime.md) rather than an ad-hoc script contract.
 
 ## Considered options
 
