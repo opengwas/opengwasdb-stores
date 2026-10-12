@@ -227,13 +227,15 @@ Subsequent checkpoints must record actual commits, reviewed scope, commands,
 evidence locations, unresolved owner decisions and PR URLs. Missing completion
 or correctness gates prevent a blanket ingestion-readiness claim.
 
-## Core #254 — landed (awaiting merge)
+## Core #254 — merged; coordinated repin in progress
 
-Core #254 is complete: PR #276 (`feature/254-bounded-dense-validation` → `dev`)
-is mergeable. Measured full-run peak RSS dropped 33.7→2.35 GiB (OGS-00009) and
-36.5→3.01 GiB (OGS-00010), both validating clean, with wall time also reduced
-(88→71 and 135→109 min). No heavy runs remain on the host.
+Core #254 merged to `dev` as `4e922566d7fa4c13a11be3637069da63e48be28c`
+(PR #276, squash). Measured full-run peak RSS dropped 33.7→2.35 GiB (OGS-00009)
+and 36.5→3.01 GiB (OGS-00010), both validating clean, with wall time also
+reduced (88→71 and 135→109 min). No heavy runs remain on the host.
 
-The stores runtime pin remains immutable `1be2a15` (#218). The coordinated
-repin is a follow-up that begins only after #276 merges to core `dev` and the
-merge SHA is known; full production validators stay paused until then.
+The stores runtime pin stays immutable `1be2a15` (#218) until the coordinated
+repin is reviewed. The repin (`1be2a15` → `4e92256`) is now in progress on
+`ticket/218-current-runtime` (worker218 owns pixi files; review218 re-verdict
+required) before PR #237 is updated. No full production validators run until
+that repin is reviewed.
