@@ -85,11 +85,12 @@ gnomAD v3.1.2). The primary description of the subset's sample QC and
 relatedness handling is **Koenig et al. 2024**, *Genome Research* 34(5):796–809
 (DOI 10.1101/gr.278378.123; PMID 38749656; PMC11216312). Their pipeline reduces
 the raw source **4,150 → 4,117 after 33 QC failures → 4,094 after 23 ancestry
-outliers**; the published 4,094 set comprises **3,400 unrelated + 698 related**
-samples (at the 4,117 PCA stage it was 3,419 unrelated + 698 related), genome-wide
-on GRCh38 (4,094 = 929 HGDP + 3,165 1kGP)
-([gnomAD v3.1.2 release](https://gnomad.broadinstitute.org/news/2021-10-22-gnomad-v3-1-2-minor-release/),
-[gnomAD downloads](https://gnomad.broadinstitute.org/downloads#v3-hgdp-1kg)).
+outliers**; the published 4,094 set contains **3,400 inferred unrelated
+individuals**. The **3,419 unrelated + 698 related** partition belongs to the
+**earlier 4,117-sample PCA stage**, not the final 4,094 set. The harmonized
+callset is genome-wide on GRCh38
+([primary paper](https://pmc.ncbi.nlm.nih.gov/articles/PMC11216312/);
+[download availability](https://gnomad.broadinstitute.org/downloads#v3-hgdp-1kg)).
 The **kinship > 0.05 / maximal-independent-set** prune reused for the LD subset
 here is a **proposed reuse of the paper's PCA-relatedness QC choice**, not a
 claim that upstream calibrated that threshold for LD-panel construction, and the
@@ -342,11 +343,11 @@ build is authorised by writing it.
   <https://www.internationalgenome.org/data-portal/population/PEL>,
   <https://www.internationalgenome.org/data-portal/population/PUR>
 - IGSR FAQ (relatedness/pedigrees): <https://www.internationalgenome.org/faq/>
-- gnomAD v3.1.2 release (HGDP+1kGP subset, 4,094 = 929 + 3,165, GRCh38):
-  <https://gnomad.broadinstitute.org/news/2021-10-22-gnomad-v3-1-2-minor-release/>
-  and downloads: <https://gnomad.broadinstitute.org/downloads#v3-hgdp-1kg>
+- gnomAD HGDP+1kGP download availability:
+  <https://gnomad.broadinstitute.org/downloads#v3-hgdp-1kg>
 - **Koenig et al. 2024**, *Genome Research* 34(5):796–809 (HGDP+1kGP sample QC
-  and relatedness: raw 4,150 → 4,117 → 4,094; 3,400 unrelated + 698 related);
+  and relatedness: raw 4,150 → 4,117 → 4,094; 3,419 unrelated + 698 related at
+  the 4,117-sample PCA stage; 3,400 inferred unrelated in the final 4,094);
   DOI 10.1101/gr.278378.123, PMID 38749656, PMC11216312:
   <https://pmc.ncbi.nlm.nih.gov/articles/PMC11216312/>
 - HGDP-CEPH resource: <https://www.hagsc.org/hgdp/>
