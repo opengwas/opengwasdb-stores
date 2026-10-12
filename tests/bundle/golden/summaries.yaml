@@ -106,12 +106,3 @@ OGS-00016:
   assigned_ancestry: NA
   sample_size: 68562-500186
   source_url: https://storage.googleapis.com/finngen-public-data-r13/summary_stats/
-OGS-00030:
-  n_analyses: 2514
-  first_author: Ben Elsworth
-  publication_pmid: NA
-  tissue: NA
-  context: NA
-  assigned_ancestry: EUR
-  sample_size: 10339-463010
-  source_url: NA
