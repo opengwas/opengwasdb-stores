@@ -95,6 +95,17 @@ extracted metadata and the candidate table, so a stale record (keys now agree,
 member/candidate absent, or already bound) fails the run loudly. Pass
 `--discrepancies` to point at a different ledger.
 
+A `resolved` record must carry an `owner_decision` (authority, quote, date); a
+resolved record without one is rejected. The ledger is the only place a numeric
+disagreement may be resolved, and the owner decision is committed with it.
+
+Canonical metadata follows the owner decision for ticket #220 (2026-10-11):
+dbGaP is authoritative. The converted sidecar's `trait_description` and
+`samples.sample_size` come from the deposit Analysis, and the acquisition
+manifest's `trait`/`sample_size` do too. Where the GWAS Catalog counterpart
+differs, it is retained as provenance in the sidecar's `catalog_metadata` block
+(and in `mapping.tsv`'s `candidate_trait`), never discarded.
+
 `mapping-review.tsv` is the per-record trait-label queue. Every
 `trait_check=mismatch` row keeps its original dbGaP and Catalog labels and is
 classified as `punctuation_only` (formatting-only; pending a recorded policy)
@@ -146,7 +157,9 @@ The sidecar mirrors EBI's `*-meta.yaml` fields (`gwas_id`, `trait_description`,
 `genotyping_technology`, `samples`, `data_file_name`, `file_type: GWAS-SSF v1.0`,
 `data_file_md5sum`, `is_harmonised: false`, `is_sorted: false`) and adds
 provenance: `source.{repository,study,tar,member,tar_md5,url}` and
-`dbgap_analysis_description`.
+`dbgap_analysis_description`. Per the ticket #220 owner decision, the canonical
+`trait_description` and `samples.sample_size` are the dbGaP deposit values; when
+the GWAS Catalog counterpart differs it is preserved under `catalog_metadata`.
 
 **manifest** writes `<out>/manifests/<store-key-slug>-download-manifest.tsv`
 using exactly the columns of the EBI raw-pass manifest
