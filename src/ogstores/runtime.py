@@ -298,6 +298,10 @@ def verify_runtime_for_releases(
 
     # Fail closed: an unknown or unprovable identity is not the pin. A git ref,
     # empty metadata or "unavailable" must never pass as the tracked runtime.
+    # This verified identity, not the `--help` probes below, is what licenses the
+    # format/by_variant guarantee: the pinned revision is the one documented to
+    # write format 0.2.0 with the required Ragged/Overflow index. A subcommand
+    # that answers `--help` proves only that the CLI surface exists.
     if not run.is_exact_commit_hash(revision) or revision != PINNED_OPENGWASDB_REVISION:
         raise RuntimeRevisionError(
             f"the resolved opengwasdb at {resolved!r} reports revision {revision!r}, which "

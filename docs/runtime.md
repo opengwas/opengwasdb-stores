@@ -79,6 +79,11 @@ repository. The run prints the resolved identity it will use, and every Step's
 durable record already carries the exact `opengwasdb` revision and executable
 that ran.
 
+The format-0.2.0 and required-`by_variant` guarantees rest on the **verified
+pin identity**, not on the `--help` probes: the subcommand probe only proves the
+CLI surface a scheduled step calls exists. That is why an unprovable revision is
+refused even when the commands answer.
+
 The ordinary invocation therefore uses the pinned runtime with no `PATH`
 overlay:
 
