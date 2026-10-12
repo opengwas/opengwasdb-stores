@@ -55,10 +55,12 @@ not a search summary. Verified from that file: **2,504 samples total**, of which
 | PUR (Puerto Ricans) | 104 | AMR |
 | **Total** | **347** | |
 
-The **347 total is verified, not assumed**, and it **includes related
-individuals**: Phase 3 trios were retained for phasing. Note also that the
-Phase 3 VCFs are GRCh37; they would require a liftover, so they are cited for
-counts only and are not the proposed genotype source
+The **347 total is verified from the panel file, not assumed.** Phase 3 is the
+2,504-sample panel — the "original unrelated" baseline cited in §2.2 — and the
+698 related samples / 602 trios belong to the separate 3,202 high-coverage
+expansion, so they must not be attributed to these 347. The Phase 3 VCFs are
+GRCh37 and would need liftover, so they are cited for counts only and are not
+the proposed genotype source
 ([IGSR Phase 3](https://www.internationalgenome.org/data-portal/data-collection/phase-3),
 [IGSR FAQ](https://www.internationalgenome.org/faq/)).
 
@@ -74,7 +76,7 @@ Filtering the related subset is advised for analyses that assume independence;
 the extra depth improves variant discovery, not sample independence. A panel
 built from all 3,202 would include 698 non-independent individuals.
 
-### 2.3 gnomAD v3.1.2 HGDP + 1kGP subset (already cached)
+### 2.3 gnomAD v3.1.2 HGDP + 1kGP subset (cached candidate)
 
 The registry already acquires this joint GRCh38 genome-wide callset
 ([`acquire_hgdp1kgp.py`](../resources/scripts/ld-panel/acquire_hgdp1kgp.py),
@@ -87,23 +89,26 @@ Measured directly from the host's cached
 `/data/opengwasdb/reference/hgdp1kgp-hg38/source/cohort_populations.tsv`
 (sample metadata only — no genotype read):
 
-- AMR rows by project: **1,000 Genomes 490, HGDP 62**; `high_quality == true`
-  (gnomAD QC flag) gives **487** 1kGP AMR and **62** HGDP American.
-- 1kGP AMR high-quality: CLM 130, MXL 97, PEL 122, PUR 138.
-- HGDP American high-quality: Maya 21, Pima 14, Karitiana 12, Surui 8,
-  Colombian 7.
-- The cache holds 3,202 1kGP rows and 948 HGDP rows, whereas the gnomAD release
-  note says 3,165 + 929. **This discrepancy must be reconciled before any build**
-  (a v3.1.2 vs later-subset mismatch is the likely cause); it is flagged rather
-  than smoothed over.
-- **Sample-ID availability is verified, not assumed.** Every one of the 490
-  cached AMR sample IDs is present in the joint per-chromosome VCFs (header read
-  only): CLM 132, MXL 97, PEL 122, PUR 139; 487 pass `high_quality`. All 347
-  Phase 3 AMR IDs are present too; the extra 143 are the high-coverage related
-  additions. Availability still does not settle relatedness per sample, which
-  must be read from the joint callset's own pedigree/QC metadata.
+- The cache has **4,151 rows = 3,202 1kGP + 948 HGDP + 1 control**;
+  `high_quality == true` is **4,097 = 3,166 1kGP + 931 HGDP**. The gnomAD release
+  note says 4,094 = 3,165 1kGP + 929 HGDP. Raw-vs-QC filtering explains most of
+  the difference, but a **3-sample discrepancy remains and must be verified
+  against the first-party release** rather than waved away as a version
+  mismatch.
+- **AMR rows:** 1,000 Genomes 490, HGDP 62 (all-project); `high_quality` gives
+  487 1kGP AMR and 62 HGDP American.
+- **The official Phase 3 AMR baseline is the 347 IDs from §2.1.** All 347 are in
+  the metadata; after the gnomAD `high_quality` flag **345 remain** (CLM 92,
+  MXL 64, PEL 85, PUR 104); `HG01137` and `HG01366` fail. The **baseline is
+  therefore ≤ 345 after QC/kinship filtering**, and the final n is unknown until
+  the joint callset's own kinship/pedigree is applied. The other 143 cached AMR
+  samples are the expanded related additions and are **not** an unrelated
+  baseline.
 - **Native GRCh38, not a Phase 3 lift-over.** The joint callset is gnomAD v3.1.2
   GRCh38 genome-wide; no liftover is required, unlike the GRCh37 Phase 3 VCFs.
+- This cached callset is a **candidate**, not a verified panel input: its sample
+  identity and QC still need reconciliation, and a different callset could carry
+  different QC and genotypes.
 
 ### 2.4 HGDP American populations are not a substitute for admixed 1kGP AMR
 
@@ -120,48 +125,46 @@ contemporary admixed cohorts.
 ## 3. Why HGDP American populations must not be silently pooled
 
 Pooling HGDP American `Pima/Maya/Karitiana/Surui/Colombian` with 1kGP
-`CLM/MXL/PEL/PUR` into one "AMR" panel would:
+`CLM/MXL/PEL/PUR` into one "AMR" panel is a **scientific-suitability decision,
+not a categorical invalidity.** A four-population 1kGP AMR panel is itself a
+pool, and the registry's ADR 0028/0039 ancestry alias matching would accept a
+declared pool just as it accepts that one. The concerns are instead:
 
-1. **Break ancestry identity.** The registry's ADR 0028 filters completion by
-   `assigned_ancestry`; ADR 0039 requires exact alias matching and refuses a
-   panel that matches nothing. A pool is a synthetic mixture that matches no
-   declared ancestry and cannot be audited against either source.
-2. **Mix incompatible LD regimes.** Bottlenecked, highly homozygous indigenous
+1. **A different LD regime.** Bottlenecked, highly homozygous indigenous
    Amazonian groups and post-Columbian admixed urban cohorts have different
-   long-range LD. The resulting eigenvectors are not the LD of any Analysis.
-3. **Reproduce the exact failure the policy exists to prevent.** ADR 0020 already
-   excludes 1kGP ASW/ACB from AFR because "recent admixture creates long-range LD
-   absent from continental African populations". The same argument excludes
-   pooling here — with the additional problem that it would look like an AMR
-   panel while being neither admixed nor indigenous.
+   long-range LD; a merged eigenbasis may not be the LD of any Analysis.
+2. **Auditability is not suitability.** ADR alias matching can audit *that* the
+   panel a release used matches its declaration; it cannot certify that the
+   pooled LD is scientifically appropriate.
+3. **It needs its own policy and calibration.** If HGDP American samples are
+   ever pooled with 1kGP AMR, that must be an explicit, separately calibrated
+   policy decision — not a default or an implicit side effect.
 
-If HGDP American samples are used at all, they belong on a **separate
-calibration axis** (an HGDP-American-only sensitivity panel), never silently
-merged. This document recommends deferring even that until the 1kGP-AMR
-calibration is measured.
+Recommendation: keep the HGDP American populations on a **separate calibration
+axis** and out of the primary AMR panel for now, but treat this as a
+policy/calibration question rather than a prohibition.
 
 ## 4. Recommendation
 
-**Build a calibration-only AMR panel from the already-cached gnomAD v3.1.2
-HGDP+1kGP GRCh38 callset, using 1kGP CLM/MXL/PEL/PUR as the sample set, and
-estimate it on the existing block layout.** Then decide production from measured
-calibration evidence, not from this proposal.
+**Propose a calibration-only AMR panel built from the official 347 Phase 3 AMR
+IDs (≤ 345 after gnomAD QC/kinship), sourced from the native-GRCh38 joint
+callset, and estimated on the existing block layout.** Then decide production
+from measured calibration evidence, not from this proposal.
 
 Rationale:
 
-- **Reuse, not new download.** The joint callset is already verified and cached
-  (§2.3); it contains 487 high-quality 1kGP AMR samples. A new 1kGP 30× download
-  would add depth but also 698 related samples and several hundred GB of
-  redundant data — no new information about AMR LD that the existing callset does
-  not already carry for the same individuals.
-- **n ≈ 487 is within the existing non-EUR regime, but the floor is not.** The
-  production AFR/EAS/SAS panels use 804/817/783 samples; 487 is smaller but not a
-  different order of magnitude, so an AMR panel is a legitimate calibration
-  artifact whose quality must be measured against the EUR control (ADR 0020,
-  ADR 0031). However, MAC ≥ 50 at that n implies MAF ≥ ~5–7%, so the
-  variant-inclusion floor must be chosen by the sensitivity pilot (§6), not
-  inherited. Relatedness pruning may also reduce the retained n below 487;
-  record the actual number.
+- **Start from the cached joint callset as a candidate.** It contains the 347
+  Phase 3 AMR IDs, but it is not yet a verified input: identity and QC need
+  reconciliation (§2.3). A fresh 1kGP 30× callset would add depth and different
+  QC/calls, but also 698 related samples; it is a genuine alternative, not
+  redundant, and the owner may prefer it.
+- **n is small and the floor is not fixed.** The official baseline is 347 (≤ 345
+  after QC), and the expanded 490/487 are **not** an unrelated baseline; the
+  final n is unknown until kinship filtering is applied. The production
+  AFR/EAS/SAS panels use 804/817/783 samples, so AMR is a calibration artifact
+  whose quality must be measured (ADR 0020, ADR 0031). MAC ≥ 50 at n = 347
+  implies MAF ≥ 7.20%, so the variant-inclusion floor must be chosen by the
+  sensitivity pilot (§6), not inherited.
 - **Separate resource declaration.** A new
   `hgdp1kgp-hg38-amr-calibration/` resource mirrors
   `hgdp1kgp-hg38-eur-calibration/` (status `available`, explicitly
@@ -175,10 +178,10 @@ Rationale:
 
 | Option | Basis | Assessment |
 |---|---|---|
-| **A. Reuse EUR boundaries (1,357 blocks)** | EUR is the largest ancestry component of admixed AMR; layout identical to the EUR calibration control | **Recommended for calibration.** Keeps the AMR calibration directly comparable to the EUR control and avoids re-deriving boundaries from n ≈ 487. |
+| **A. Reuse EUR boundaries (1,357 blocks)** | EUR is the largest ancestry component of admixed AMR; layout identical to the EUR calibration control | **Recommended for calibration.** Keeps the AMR calibration directly comparable to the EUR control and avoids re-deriving boundaries from n ≈ 347. |
 | B. Reuse AFR boundaries (1,580) | Captures the African-ancestry component | Use as a sensitivity check where A and B differ; not the primary layout. |
 | C. Union/intersection of A and B | Hybrid | Adds complexity before the primary calibration is understood. Defer. |
-| D. Derive AMR boundaries *de novo* | Recombination structure of the AMR sample | **Not recommended as policy.** Boundary detection at n ≈ 487 on an admixed sample yields noisier boundaries than the pinned production set (ADR 0020), and would break comparability. May be computed offline as evidence that the reused layout is adequate. |
+| D. Derive AMR boundaries *de novo* | Recombination structure of the AMR sample | **Not chosen for the first calibration, not categorically rejected.** Boundary detection at n ≈ 347 on an admixed sample is noisier than the pinned production set (ADR 0020) and breaks comparability, but de-novo boundaries remain a legitimate future option. |
 
 **Critical distinction:** reusing EUR **block boundaries** is not substituting the
 EUR **panel**. The LD/eigenvectors are still estimated from AMR samples. The
@@ -186,26 +189,33 @@ boundary reuse must be declared explicitly in the resource; a reader must never
 be able to mistake this for the EUR panel. Boundary choice is labelled
 **calibration** until the owner approves a production policy.
 
+**What the EUR-boundary control cannot see.** Reusing EUR boundaries may omit
+LD that crosses a EUR boundary in the admixed AMR sample, so a future production
+gate must include an explicit **cross-block test** (AMR-panel imputation across
+boundary edges, plus a de-novo-boundary sensitivity), not only within-block
+quality.
+
 ## 6. Variant QC, alignment, relatedness and sample inventory
 
 | Concern | Proposal |
 |---|---|
 | Assembly / identifiers | Native GRCh38 joint callset; canonical ALID `chr:pos:A1:A2`, matching `construct_block.canonical_alid` (ADR 0020/0031) |
-| Variant inclusion | **Do not blindly copy MAC ≥ 50.** At n = 347 diploid (694 chromosomes) MAC ≥ 50 implies MAF ≥ **7.20%**; at n = 487 it is MAF ≥ 5.13%. Propose a **MAC/MAF sensitivity pilot** over candidate floors (e.g. MAC 20/30/50) and adopt no lower cutoff without calibration evidence |
+| Variant inclusion | **Do not blindly copy MAC ≥ 50.** At n = 347 diploid (694 chromosomes) MAC ≥ 50 implies MAF ≥ **7.20%**; the optional expanded n = 487 only lowers that to 5.13% and is not the baseline. Propose a **MAC/MAF sensitivity pilot** over candidate floors (e.g. MAC 20/30/50) and adopt no lower cutoff without calibration evidence |
 | Missingness | mean-impute (existing `construct_block`), invariant/all-missing variants dropped |
 | Orientation | canonical EA = min(allele) with the existing reverse-code rule |
-| Relatedness | read the joint callset's own pedigree/QC, use gnomAD v3.1.2 kinship > 0.05 / maximal-independent-set pruning, and record the retained count; the 698 high-coverage related samples are **not** added |
-| Sample inventory | 1kGP only, per-population counts recorded (CLM/MXL/PEL/PUR); all 490 cached AMR IDs verified present in the joint VCFs, 487 high_quality; HGDP American excluded from the primary panel by default; a `membership.json` per panel |
+| Relatedness | apply the joint callset's own pedigree/QC and gnomAD v3.1.2 kinship > 0.05 / maximal-independent-set pruning; record the retained count; the baseline is the official 347 (≤ 345 by `high_quality`) and the final n is unknown until this runs |
+| Sample inventory | start from the official Phase 3 AMR IDs (CLM 94/MXL 64/PEL 85/PUR 104; 345 after `high_quality`); the 143 expanded related AMR IDs are optional pruned sensitivity only; HGDP American excluded from the primary panel by default; a `membership.json` per panel |
 | Assembly check | reuse `verify_vcf` (GRCh38 header) and `verify_index`; no liftover |
 | Provenance | every block's `.provenance.json` (n individuals, input/retained variants, MAC, cumvar, components, achieved variance) |
 
 **MAC/MAF is the sharpest open methodological question.** The existing
 AFR/EAS/SAS panels use MAC ≥ 50 because MAC tracks estimation precision at
-n ≈ 800 while MAF would not (ADR 0020). At AMR's much smaller n the same MAC
-floor becomes a 5–7% MAF filter, which could exclude exactly the lower-frequency
-variants completion needs. The pilot must therefore compare floors rather than
-inherit one, and must state the chosen floor's MAF-equivalent and retained
-variant counts per block. No lowered cutoff is adopted by this proposal.
+n ≈ 800 while MAF would not (ADR 0020). At AMR's ~345 samples the same MAC floor
+is a ≥ 7.20% MAF filter, and a smaller retained n raises it further, which could
+exclude exactly the lower-frequency variants completion needs. The pilot must
+compare floors rather than inherit one, and must state the chosen floor's
+MAF-equivalent and retained variant counts per block. No lowered cutoff is
+adopted by this proposal.
 
 The sample-metadata TSV is CRLF-terminated; any consumer must normalise line
 endings before comparing `high_quality` (found while measuring §2.3), and must
@@ -218,10 +228,12 @@ The panel must satisfy the existing core public contract, not invent a new one:
 - **Representation:** eigendecomposition, not an LD matrix
   ([core ADR 0031](https://github.com/opengwas/opengwasdb/blob/dev/docs/adr/0031-ld-panels-store-eigendecompositions.md)).
   `load_ld_eigenvectors` reads `.ldeig.npz`; the matrix is optional/dead weight.
-- **Components:** variance-driven, cumulative target **0.99**, `component_floor`
-  ≥ 250 (existing `construct_block` defaults), with the consumer's 0.9 truncation
-  provable from stored data (`find_underresolved_blocks.py` must report zero
-  under-resolved blocks at 0.9).
+- **Components:** variance-driven, cumulative target **0.99**. The existing
+  `component_floor` of 250 is a *minimum request limited by available rank*, not
+  a mathematical guarantee that every block has ≥ 250 components at n ≈ 347;
+  record the achieved component count and variance per block, and require the
+  consumer's 0.9 truncation to be satisfiable from stored data
+  (`find_underresolved_blocks.py` zero under-resolved blocks at 0.9).
 - **PSD:** the thin-SVD construction yields `eigenvalues = s² ≥ 0` by
   construction, so PSD is structural; the pilot still asserts non-negative
   eigenvalues and finite vectors.
@@ -254,10 +266,11 @@ The panel must satisfy the existing core public contract, not invent a new one:
    comparison (e.g. held-out ALIDs within the AMR cohort), **not** the EUR panel
    silently standing in for AMR.
 4. **Representation trade-offs to report.** 1kGP-only vs 1kGP+HGDP (separate vs
-   pooled); EUR-boundary vs AFR-boundary sensitivity; per-population versus
-   pooled AMR estimates; **MAC/MAF-floor sensitivity** (MAC 20/30/50 with the
-   MAF-equivalent and retained-variant counts); and the effect of relatedness
-   pruning on n and on block conditioning.
+   pooled); EUR-boundary vs AFR-boundary sensitivity **including an explicit
+   cross-block test** at boundary edges; per-population versus pooled AMR
+   estimates; **MAC/MAF-floor sensitivity** (MAC 20/30/50 with the MAF-equivalent
+   and retained-variant counts); and the effect of relatedness pruning on n and
+   on block conditioning.
 5. **Budget.** Measure in the pilot (wall time, peak RSS, scratch per block, job
    count) and record it with the evidence. **Do not infer the budget from core
    #254**, which is a validation-memory workstream, not an LD-panel measurement.
