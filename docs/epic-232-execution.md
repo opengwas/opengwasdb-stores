@@ -144,33 +144,69 @@ identity-matching evidence are explicitly distinct.
 
 #219's initial `c4a32d6` candidate checkpoint received **NO-GO**: stale candidate
 IDs, unresolved metadata exclusions, incomplete index/stream verification and
-missing regression cases. The worker is correcting these; no candidate
-acceptance or registry/publication write is authorised by that checkpoint.
-Source SHA256 freezing remains valid identity evidence, not full integrity proof.
+missing regression cases. The worker corrected these and the final checkpoint
+(see below) reached **GO** for code + staged candidate only.
+
+## Reviewed implementation checkpoints: #218, #219, #220
+
+The three remaining reviewed frontier checkpoints were independently re-verified
+by the orchestrator at their exact heads and raised to `dev`:
+
+| Ticket | Feature branch | PR | Reviewed head | Verdict | Orchestrator re-check |
+|---|---|---|---|---|---|
+| #218 | `feat/218-current-runtime` | [PR #237](https://github.com/opengwas/opengwasdb-stores/pull/237) | `745ec95` | GO | runtime-guard 19/19, plan 91/91 (324 checks) |
+| #219 | `feat/219-restored-ukb` | [PR #236](https://github.com/opengwas/opengwasdb-stores/pull/236) | `d4aa31c` | GO (staged candidate only) | ukb-b 38/38, bundle-check 12/12 |
+| #220 | `feat/220-mvp-acquisition` | [PR #235](https://github.com/opengwas/opengwasdb-stores/pull/235) | `cbac5b9` | GO tooling; gate HOLD | dbgap 27/27 |
+
+- **#218** adopts the immutable core pin `1be2a15` with a fail-closed pre-write
+  runtime/format guard. No production build/validation/artifact mutation. A
+  coordinated repin follows once core #254 lands.
+- **#219** freezes and integrity-verifies the restored 2,514-Analysis UKB Source
+  Inventory and stages the **unaccepted** candidate `OGS-00030`. `OGS-00031`
+  (completed) is not emitted and its reference is an open owner decision. The
+  ancestry/SD trial is recorded as a failed outcome with the structural finding
+  that `assign-ancestry` lacks GRCh37→GRCh38 liftover wiring.
+- **#220** makes the two numeric-key discrepancies loud and traceable and emits
+  the 57-row trait-disposition queue. The bijection gate stays red until the
+  owner decides D1/D2.
+
+Suggested merge order (minimises conflicts on `run_all_tests.py` and
+`docs/spec/store-release-workflow.md`): PR #234 → #237 → #236 → #235.
+
+## Owner decision queue (not delegated)
+
+- **#220 D1** `GCST90476298`: Catalog N=235 vs dbGaP 114,731 — bind with recorded
+  correction, or hold as unavailable. (Issue comment on #220.)
+- **#220 D2** `GCST90481129`: Catalog 4-ancestry 577,873 vs dbGaP 3-ancestry
+  571,620 (Δ = EAS 6,253) — intended Analysis absent from deposit, or bind with
+  recorded correction. META provenance preserved for #221 either way.
+- **#220 trait policy**: approve punctuation canonicalisation + review 27 lexical
+  rows individually.
+- **#219 acceptance**: explicit human acceptance of the staged 2,514 membership
+  before any build/registration.
+- **#219 reference**: choose the OGS-00031 completion panel (historical HGDP+1kGP
+  EUR calibration vs production UKB EUR; both absent on this host).
+- **Core (for #222)**: `assign-ancestry` GRCh37→GRCh38 liftover wiring; one-pass
+  `resolve-analyses` cannot stream GWAS-VCF (core #207). No registry-side copy of
+  association processing.
 
 ## Runtime and ancestry-resolution checkpoint
 
 The orchestrator independently checked the #218 worktree's installed runtime
 metadata: `opengwasdb 0.3.0`, Python 3.12, canonical Git URL and immutable
 `direct_url.json` commit `1be2a156649e4d444f31f9b4107c3f47a046f855`.
-This is an isolated installed environment, not a merged runtime-adoption PR or
-production qualification of that revision. #218's initial runtime-guard review
-is **NO-GO** despite its full local suite passing: unknown revisions must fail
-closed, runtime version must belong to the resolved executable, and completion
-parent checks must use actual scheduled producing steps rather than merely
-release IDs. An enhancement-only rerun must not be treated as a compatible
-parent rebuild or blocked by an unused completion recipe. The worker is adding
-these regressions and corrections before a new independent verdict.
+#218's final review is **GO**: unknown/unprovable revisions fail closed, version
+and revision come from the resolved executable's own metadata, and the
+completion-parent gate is step-aware (only actual scheduled build/complete
+producing jobs count; enhancement-only reruns are not gated).
 
-#219 has a conditional allocation for ten representative Analyses through the
-existing core Phase B resolver, at most two workers and BLAS threads one, after
-source-integrity checks complete. Quantitative SD resolution can traverse to
-EOF despite ancestry sample limits: establish actual traversal semantics and
-measure cost before authorising the full 2,514-Analysis resolution. Historical
-`source_trusted_no_af` must not be inherited where the VCF demonstrably has AF.
-No guessed `af_assigned` method or unrestricted source-ancestry substitution is
-permitted. Provider JSON metadata fallback needs exact-ID checks, consistent
-values, frozen sidecar identity and a traceable resolution record.
+#219's ten-Analysis ancestry/SD trial measured `assign-ancestry` at ~26.6 min
+and `estimate-phenotype-sd` at ~1.9 min (two workers, BLAS 1). All ten gated
+`Unassigned` under the unchanged residual gate because the GRCh37 VCFs were
+queried against the GRCh38 reference with no liftover wiring — an
+assembly-mismatch artifact, not calibration evidence. Historical
+`source_trusted_no_af` was not inherited; ancestry remains `source_fallback` and
+`af_assigned` is not claimed. Full 2,514 resolution is not authorised.
 
 ## Initial review checkpoint
 
