@@ -18,6 +18,9 @@
 #   * dbGaP phs002453 GIA extracted metadata (the fields recorded under `dbgap`);
 #   * GWAS Catalog EBI raw meta.yaml (md5 recorded per record);
 #   * GWAS Catalog REST v2 study JSON (URLs recorded per record).
+#
+# Durable owner decision:
+#   https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250
 version: 1
 
 #: Owner decisions (epic #232, ticket #220), recorded 2026-10-11.
@@ -29,6 +32,7 @@ owner_decisions:
     authority: dbGaP
     quote: "for mvp use the dbgap information for all three queries."
     recorded: "2026-10-11"
+    citation: https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250
     effect: >-
       GCST90476298 canonical sample_size is the deposit 114731; the Catalog 235
       is retained as provenance.
@@ -36,6 +40,7 @@ owner_decisions:
     authority: dbGaP
     quote: "for mvp use the dbgap information for all three queries."
     recorded: "2026-10-11"
+    citation: https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250
     effect: >-
       GCST90481129 canonical metadata is the 3-ancestry deposit meta-analysis
       (N=571620, cases=49766, controls=521854).  The 4-ancestry Catalog
@@ -45,6 +50,7 @@ owner_decisions:
     authority: dbGaP
     quote: "use the dbgap information for all three queries"
     recorded: "2026-10-11"
+    citation: https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250
     effect: >-
       For the 57 trait-label mismatches the canonical label is the dbGaP
       analyzed_variable; the GWAS Catalog counterpart is retained as
@@ -59,6 +65,7 @@ records:
       authority: dbGaP
       quote: "for mvp use the dbgap information for all three queries."
       recorded: "2026-10-11"
+      citation: https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250
     dbgap:
       ancestry: AFR
       analyzed_variable: platelet count (mean, inv-norm transformed)
@@ -98,6 +105,7 @@ records:
       authority: dbGaP
       quote: "for mvp use the dbgap information for all three queries."
       recorded: "2026-10-11"
+      citation: https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250
     dbgap:
       ancestry: META
       analyzed_variable: Inflammation of eyelids

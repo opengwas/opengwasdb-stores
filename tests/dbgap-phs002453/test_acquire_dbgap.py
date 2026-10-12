@@ -511,6 +511,12 @@ class AcquisitionTest(unittest.TestCase):
         document = yaml.safe_load(path.read_text(encoding="utf-8"))
         self.assertEqual(document["gwas_id"], "GCST90475097")
         self.assertEqual(document["trait_description"], ["hemoglobin A1c (HbA1c, minimum, inv-norm transformed)"])
+        # The sidecar keeps every EBI-required field; catalog_metadata is additive.
+        self.assertTrue(
+            {"gwas_id", "trait_description", "genome_assembly", "coordinate_system",
+             "genotyping_technology", "samples", "data_file_name", "file_type",
+             "data_file_md5sum", "is_harmonised", "is_sorted"}.issubset(document)
+        )
         # The Catalog counterpart is retained when it differs from the deposit.
         self.assertEqual(
             document["catalog_metadata"]["trait_description"],
@@ -814,6 +820,20 @@ class TraitDispositionTests(unittest.TestCase):
 
 
 class DiscrepancyLedgerTests(unittest.TestCase):
+    def test_committed_ledger_is_resolved_with_owner_citation(self) -> None:
+        import yaml
+
+        ledger = REPO_ROOT / "resources/scripts/dbgap-phs002453-key-discrepancies.yaml"
+        raw = yaml.safe_load(ledger.read_text(encoding="utf-8"))
+        citation = "issues/220#issuecomment-6132878250"
+        self.assertEqual(len(raw["records"]), 2)
+        for record in raw["records"]:
+            self.assertEqual(record["disposition"], "resolved")
+            self.assertIn(citation, record["owner_decision"]["citation"])
+        for decision in raw["owner_decisions"]:
+            self.assertIn(citation, decision["citation"])
+        self.assertEqual({d.disposition for d in ACQUIRE.read_discrepancies(ledger)}, {"resolved"})
+
     def test_resolved_requires_an_owner_decision(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "ledger.yaml"
