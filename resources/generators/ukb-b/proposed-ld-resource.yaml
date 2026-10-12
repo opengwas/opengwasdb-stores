@@ -1,0 +1,49 @@
+# PROPOSED Reference Resource declaration — not yet active (#219)
+#
+# Corrects the stale external path in `gpm-hg38-eur-ld`
+# (`/local-scratch/projects/genotype-phenotype-map/data/ld_reference_panel_hg38`,
+# absent on this host) to the owner-chosen production UKB EUR panel actually
+# present at `/data/opengwasdb/reference/ld/ukb`.
+#
+# DO NOT drop this into `resources/reference-resources/<id>/resource.yaml`
+# unchanged: `opengwasdb complete-dense` joins the same `--ancestry` string into
+# both the panel path (`ld_dir/{ancestry}/{chr}`) and the ancestry-match filter
+# (`derive_impute_analysis_ids`). The panel directory is named `ukb`, while the
+# Analyses' `assigned_ancestry` is `EUR`, so no single `--ancestry` value can
+# satisfy both until a canonical `EUR` folder exists at the declared root. The
+# owner-approved path is a later, non-destructive `EUR -> ukb` alias (or an
+# isolated reference root with that alias); this file only records the intended
+# declaration.
+resource_id: ukb-hg38-eur-ld
+label: UK Biobank hg38 EUR LD reference panel (49,766 UKB EUR; eigendecomposition)
+kind: ld_panel
+ancestry: EUR
+genome_build: GRCh38
+variant_id_convention: chr:pos_ref_alt
+allele_columns:
+  effect: EA
+  other: OA
+  freq: EAF
+# Root containing the canonical per-ancestry folder; needs an `EUR -> ukb` alias.
+location: /data/opengwasdb/reference/ld
+location_kind: external_directory
+ancestry_dir: ukb
+ld:
+  representation: eigendecomposition
+  block_file: structural_ld_blocks_lookup.tsv
+  n_blocks: 1357
+source:
+  cohort: UK Biobank (imputed genotypes, RAP)
+  n_individuals: 49766
+  variant_inclusion: MAF >= 0.005
+  generator: MRCIEU/ukb-rap-utils scripts/ld_matrix
+status: proposed
+notes: >
+  Verified by directory/file metadata only (no hashing, no full scan): 22
+  chromosome directories, 1,357 blocks, each with `<start>-<end>.tsv` +
+  `<start>-<end>.ldeig.npz` + `.afreq` (and optional `.unphased.vcor1.gz`); the
+  representative block `1/101384499-103762931` has 9,633 variants with
+  `values` (9633,) and `vectors` (9633, 250) in the `.npz`, matching the TSV.
+  GRCh38 is qualified by a bounded spot-check (841 of 9,633 panel ALIDs match the
+  maintained HapMap3 GRCh38 ALID list exactly on position and allele pair) and by
+  the `ld_reference_panel_hg38` source path in the block logs.
