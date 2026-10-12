@@ -112,8 +112,9 @@ differs, it is retained as provenance in the sidecar's `catalog_metadata` block
 `disposition`. `disposition` is derived from the validated, cited
 `owner_decisions` trait policy in the ledger: a complete policy yields
 `resolved_<authority>_authoritative` (for ticket #220's 2026-10-12 decision,
-`resolved_dbgap_authoritative`), while a missing or incomplete policy yields
-`owner_decision_pending`. The canonical label is then the dbGaP
+`resolved_dbgap_authoritative`), while a missing or incomplete policy keeps the
+category's original pending default (`formatting_only_pending_policy` or
+`owner_scientific_review`). The canonical label is then the dbGaP
 `Analyzed variable` and the Catalog counterpart is preserved. The classification
 does not assert the labels are lexically equivalent, and no spelling or synonym
 heuristic binds an Analysis.

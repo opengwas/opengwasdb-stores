@@ -445,18 +445,20 @@ def trait_disposition(
     two labels agree after :func:`canonical_trait`, otherwise ``lexical_variant``;
     it never asserts the labels are lexically equivalent.
 
-    ``disposition`` is ``owner_decision_pending`` unless a validated, cited
-    ``trait_policy`` (a top-level ``owner_decisions`` record in the ledger) is
-    supplied, in which case it is ``resolved_<authority>_authoritative`` -- for
-    the ticket #220 decision, ``resolved_dbgap_authoritative``.  A missing or
-    incomplete policy therefore stays pending rather than being assumed.
+    ``disposition`` keeps the original *pending* default for the category
+    (``formatting_only_pending_policy`` or ``owner_scientific_review``) unless a
+    validated, cited ``trait_policy`` (a top-level ``owner_decisions`` record in
+    the ledger) is supplied, in which case it is
+    ``resolved_<authority>_authoritative`` -- for the ticket #220 decision,
+    ``resolved_dbgap_authoritative``.  A missing or incomplete policy therefore
+    stays pending rather than being assumed resolved.
     """
     if canonical_trait(analyzed_variable) == canonical_trait(candidate_trait):
-        category = "punctuation_only"
+        category, pending = "punctuation_only", "formatting_only_pending_policy"
     else:
-        category = "lexical_variant"
+        category, pending = "lexical_variant", "owner_scientific_review"
     if trait_policy is None:
-        return category, "owner_decision_pending"
+        return category, pending
     token = re.sub(r"[^a-z0-9]+", "-", trait_policy.authority.casefold()).strip("-")
     return category, f"resolved_{token}_authoritative"
 

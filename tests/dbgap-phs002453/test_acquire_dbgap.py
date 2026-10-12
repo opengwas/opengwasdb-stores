@@ -816,7 +816,12 @@ class TraitDispositionTests(unittest.TestCase):
     def test_missing_policy_stays_pending(self) -> None:
         category, disposition = ACQUIRE.trait_disposition("Ostearthritis", "Osteoarthritis")
         self.assertEqual(category, "lexical_variant")
-        self.assertEqual(disposition, "owner_decision_pending")
+        self.assertEqual(disposition, "owner_scientific_review")
+        category, disposition = ACQUIRE.trait_disposition(
+            "Raynauds syndrome", "Raynaud's syndrome (PheCode 443.1)"
+        )
+        self.assertEqual(category, "punctuation_only")
+        self.assertEqual(disposition, "formatting_only_pending_policy")
 
     def test_build_review_rows_keeps_original_labels(self) -> None:
         rows = [
@@ -830,7 +835,7 @@ class TraitDispositionTests(unittest.TestCase):
         self.assertEqual(pending[0]["analysis_id"], "GCST1")
         self.assertEqual(pending[0]["analyzed_variable"], "Ostearthritis")
         self.assertEqual(pending[0]["candidate_trait"], "Osteoarthritis")
-        self.assertEqual(pending[0]["disposition"], "owner_decision_pending")
+        self.assertEqual(pending[0]["disposition"], "owner_scientific_review")
 
         resolved = ACQUIRE.build_review_rows(rows, trait_policy=self.dbgap_policy())
         self.assertEqual(resolved[0]["disposition"], "resolved_dbgap_authoritative")

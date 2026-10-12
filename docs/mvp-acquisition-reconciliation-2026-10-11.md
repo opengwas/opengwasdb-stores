@@ -46,18 +46,18 @@ records the raw classification alongside the resolved disposition:
 
 Every row's `disposition` is derived from the validated, cited `owner_decisions`
 trait policy in the ledger: `resolved_dbgap_authoritative` when that policy is
-complete, and `owner_decision_pending` when it is missing or incomplete (so a
-fixture or partial ledger never implies a resolution). `trait_category` is the
-raw classification. No fuzzy or typo-based identity binding is performed.
+complete, and the category's original *pending* default
+(`formatting_only_pending_policy` or `owner_scientific_review`) when it is
+missing or incomplete, so a fixture or partial ledger never implies a
+resolution. `trait_category` is the raw classification. No fuzzy or typo-based
+identity binding is performed.
 
 ## Reconciliation result
 
 Metadata-only `map` over the real mirror (reads `*.dbGaP.metadata.txt` and TOC
 files only; never opens a `.txt.gz`), written to the ticket work directory
-`/data/opengwasdb/work/epic232/220/policy-resolved-sim/` through a `GIA` symlink.
-The historical mirror mapping is **not** overwritten. The earlier
-`resolved-sim/` directory is preserved unchanged as the pre-correction audit
-copy (it holds the old `owner_decision_pending` review file).
+`/data/opengwasdb/work/epic232/220/resolved-sim/` through a `GIA` symlink. The
+historical mirror mapping is **not** overwritten.
 
 | Measure | Value |
 |---|---|
@@ -68,7 +68,7 @@ copy (it holds the old `owner_decision_pending` review file).
 | `trait_check` exact / prefix / mismatch | 5,962 / 3 / 57 |
 | `mapping-review.tsv` rows | 57 (30 punctuation-only, 27 lexical; all `resolved_dbgap_authoritative`) |
 
-Simulation output hashes (under `/data/opengwasdb/work/epic232/220/policy-resolved-sim/`):
+Simulation output hashes (under `/data/opengwasdb/work/epic232/220/resolved-sim/`):
 
 | File | md5 |
 |---|---|
@@ -76,8 +76,10 @@ Simulation output hashes (under `/data/opengwasdb/work/epic232/220/policy-resolv
 | `mapping-report.tsv` | `5a1ab1262266b47f6de258b6114b9e79` |
 | `mapping-review.tsv` | `08dd887bd789c0d6d46f89de0266cb4f` |
 
-All 57 review rows carry `disposition=resolved_dbgap_authoritative` (the earlier
-`c6064939…` review is the preserved pre-correction copy under `resolved-sim/`).
+All 57 review rows carry `disposition=resolved_dbgap_authoritative`. The old
+`c6064939acd52a4481b8c82ff5c2e0f1` review is the pre-correction
+pending-disposition artifact, preserved only in the audit copies
+(`resolved-mirror-overwrite/` and `historical/`); it is not the current result.
 
 The historical mirror `mapping.tsv`/`mapping-report.tsv` were regenerated
 byte-for-byte from an empty ledger and confirmed unchanged
