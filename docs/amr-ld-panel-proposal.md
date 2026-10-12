@@ -155,9 +155,9 @@ Rationale:
 
 - **Start from the cached joint callset as a candidate.** It contains the 347
   Phase 3 AMR IDs, but it is not yet a verified input: identity and QC need
-  reconciliation (§2.3). A fresh 1kGP 30× callset would add depth and different
-  QC/calls, but also 698 related samples; it is a genuine alternative, not
-  redundant, and the owner may prefer it.
+  reconciliation (§2.3). A fresh 1kGP 30× callset may differ in QC, calls and
+  source identity and would include 698 related samples; it is a genuine
+  alternative, not automatically deeper or better, and the owner may prefer it.
 - **n is small and the floor is not fixed.** The official baseline is 347 (≤ 345
   after QC), and the expanded 490/487 are **not** an unrelated baseline; the
   final n is unknown until kinship filtering is applied. The production
@@ -178,7 +178,7 @@ Rationale:
 
 | Option | Basis | Assessment |
 |---|---|---|
-| **A. Reuse EUR boundaries (1,357 blocks)** | EUR is the largest ancestry component of admixed AMR; layout identical to the EUR calibration control | **Recommended for calibration.** Keeps the AMR calibration directly comparable to the EUR control and avoids re-deriving boundaries from n ≈ 347. |
+| **A. Reuse EUR boundaries (1,357 blocks)** | Matches the already-built HGDP+1kGP EUR calibration control's layout | **Recommended for calibration.** The rationale is a fixed, matched control layout — comparable boundaries and a like-for-like comparison — not any assumption about AMR admixture proportions. Avoids re-deriving boundaries from n ≈ 347. |
 | B. Reuse AFR boundaries (1,580) | Captures the African-ancestry component | Use as a sensitivity check where A and B differ; not the primary layout. |
 | C. Union/intersection of A and B | Hybrid | Adds complexity before the primary calibration is understood. Defer. |
 | D. Derive AMR boundaries *de novo* | Recombination structure of the AMR sample | **Not chosen for the first calibration, not categorically rejected.** Boundary detection at n ≈ 347 on an admixed sample is noisier than the pinned production set (ADR 0020) and breaks comparability, but de-novo boundaries remain a legitimate future option. |
@@ -297,9 +297,10 @@ The panel must satisfy the existing core public contract, not invent a new one:
 4. **Production gate:** the minimum pilot evidence (n retained, blocks resolved,
    mean imputation-quality loss, peak RSS) required before AMR completion is
    declared production-suitable, and who signs it off.
-5. **Acceptability:** whether `n ≈ 487` AMR samples is sufficient for a
-   production panel at all, or AMR completion remains calibration/observed-only
-   pending a larger cohort.
+5. **Acceptability:** the measured retained AMR n is the primary baseline of at
+   most 345 (unknown after kinship pruning), **not 487**. If that is inadequate
+   for a production panel, the Reference-Completed release remains **blocked** —
+   a missing reference is not an observed-only epic success.
 6. **Variant floor:** the MAC/MAF floor adopted after the sensitivity pilot (no
    lowered cutoff without calibration), and whether a floor that implies a high
    MAF is acceptable for AMR completion.
