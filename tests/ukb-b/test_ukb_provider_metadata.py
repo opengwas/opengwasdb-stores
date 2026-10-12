@@ -131,8 +131,41 @@ class ProviderMetadataTest(unittest.TestCase):
             }
         }
         check = provider.cross_check(records, recorded)
-        self.assertEqual(check["compared"], 1)
+        self.assertEqual(check["shared_ids"], 1)
+        self.assertEqual(check["evaluated"], 1)
+        self.assertEqual(check["skipped"], 0)
         self.assertEqual([d["field"] for d in check["disagreements"]], ["stored_effect_scale"])
+        self.assertEqual(check["per_field"]["stored_effect_scale"]["disagreements"], 1)
+
+    def test_cross_check_skip_is_not_a_verified_match(self) -> None:
+        # The three historical rows are recorded exclusions with every compared
+        # field blank: they must be skipped, never counted as evaluated agreements.
+        self._write("ukb-b-1", record("ukb-b-1"))
+        self._write("ukb-b-2", record("ukb-b-2"))
+        self._write("ukb-b-3", record("ukb-b-3"))
+        records, _ = provider.read_provider_records(["ukb-b-1", "ukb-b-2", "ukb-b-3"], self.source)
+        recorded = {
+            "ukb-b-1": {field: "" for field in provider.COMPARED_FIELDS} | {"exclude_from_build": "true"},
+            "ukb-b-2": {field: "" for field in provider.COMPARED_FIELDS},
+            "ukb-b-3": {
+                "stored_effect_scale": "sd",
+                "sample_size_kind": "case_control",
+                "sample_size": "1000",
+                "n_cases": "100",
+                "n_controls": "900",
+                "exclude_from_build": "",
+            },
+        }
+        check = provider.cross_check(records, recorded)
+        self.assertEqual(check["shared_ids"], 3)
+        self.assertEqual(check["evaluated"], 1)
+        self.assertEqual(check["skipped"], 2)
+        self.assertEqual(sorted(check["skipped_ids"]), ["ukb-b-1", "ukb-b-2"])
+        self.assertEqual(check["disagreements"], [])
+        # n_cases was blank on the one all-blank non-excluded row, so coverage is
+        # honest; the excluded row is counted under skipped, not under per-field.
+        self.assertEqual(check["per_field"]["n_cases"]["compared"], 1)
+        self.assertEqual(check["per_field"]["n_cases"]["missing"], 1)
 
     def test_contradictory_case_control_total_is_surfaced_not_hidden(self) -> None:
         # ncase+ncontrol disagrees with the provider's declared total N.

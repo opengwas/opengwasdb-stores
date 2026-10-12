@@ -1,7 +1,8 @@
 {
- "built_baseline_path": "stores/OGS-00009/analyses.tsv",
- "built_baseline_rows": 2024,
- "built_baseline_sha256": "eacfac7d98bf441bd9b35b1ba0779a4cbee26799cb7166c7022e1bf44ea6866a",
+ "built_baseline_analyses": 2024,
+ "built_baseline_ids_sha256": "953ea543600608d2738eaec81da4df8fbe761e467acc94c40df26233d0b5f327",
+ "built_baseline_receipt_path": "resources/inventories/ukb-b-built-baseline-ogs00009.receipt.json",
+ "built_baseline_receipt_sha256": "c19725b619feb031132d937e0ac3f236cb782d6b270c526b4f291bf85cb5da1b",
  "checksum_algorithm": "sha256",
  "checksum_receipt_path": "/data/opengwasdb/work/epic232/219/ukb-b-restored-2026-10-11.checksums.json",
  "checksum_receipt_sha256": "0bf039ffc2adda4cf45880d2bfdc32ee643d9188338e0842bd9bd8674c9e52b5",
@@ -23,8 +24,19 @@
  "inventory_sha256": "48207ab8da03324e98e62b87767b9b90381ac8457b0c8585b952648c0d7a5a26",
  "provenance_path": "resources/inventories/ukb-b-restored-2026-10-11.meta.yaml",
  "provenance_sha256": "7695eedc2b837f1c08b5bd81fe241f96bae548b4f2e5c182a5c91e65f5cace59",
+ "provider_crosscheck": {
+  "disagreements": 0,
+  "evaluated": 2511,
+  "shared_ids": 2514,
+  "skipped": 3,
+  "skipped_ids": [
+   "ukb-b-12026",
+   "ukb-b-1226",
+   "ukb-b-1585"
+  ]
+ },
  "provider_resolution_path": "resources/inventories/ukb-b-provider-resolution-2026-10-11.tsv",
- "provider_resolution_receipt_sha256": "545c00d144bdf3e03615c1c1a18500f5a4fcc8798968fb697acb31e0f9c0b382",
+ "provider_resolution_receipt_sha256": "df97573038149eb978e3b737758505c4b4ed5c9d815a01c977844f08f020dd9b",
  "provider_resolution_sha256": "62e04f578afaa90f45a44a1042d168986482099b43e65f7a19ad4a85024c9e18",
  "ready_bytes": 425402488477,
  "ready_index_bytes": 3711756173,

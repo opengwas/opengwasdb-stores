@@ -3,11 +3,46 @@
   "batch_counts": {
    "ukb-b": 2514
   },
-  "compared": 2514,
   "disagreements": [],
+  "evaluated": 2511,
+  "per_field": {
+   "n_cases": {
+    "compared": 1844,
+    "disagreements": 0,
+    "missing": 667
+   },
+   "n_controls": {
+    "compared": 1844,
+    "disagreements": 0,
+    "missing": 667
+   },
+   "sample_size": {
+    "compared": 2511,
+    "disagreements": 0,
+    "missing": 0
+   },
+   "sample_size_kind": {
+    "compared": 2511,
+    "disagreements": 0,
+    "missing": 0
+   },
+   "stored_effect_scale": {
+    "compared": 2511,
+    "disagreements": 0,
+    "missing": 0
+   }
+  },
   "population_counts": {
    "European": 2514
-  }
+  },
+  "shared_ids": 2514,
+  "skipped": 3,
+  "skipped_ids": [
+   "ukb-b-12026",
+   "ukb-b-1226",
+   "ukb-b-1585"
+  ],
+  "skipped_reason": "recorded exclusion (exclude_from_build=true) or every compared field blank"
  },
  "inventory_path": "resources/inventories/ukb-b-restored-2026-10-11.tsv",
  "inventory_sha256": "48207ab8da03324e98e62b87767b9b90381ac8457b0c8585b952648c0d7a5a26",

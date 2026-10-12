@@ -328,14 +328,25 @@ def cross_check(
     records: Mapping[str, ProviderRecord],
     recorded: Mapping[str, Mapping[str, str]],
 ) -> dict[str, object]:
-    """Compare provider resolution against a recorded resolution for shared ids."""
-    compared = sorted(set(records) & set(recorded))
+    """Compare provider resolution against a recorded resolution for shared ids.
+
+    A shared id is only *evaluated* when the recorded row carries at least one
+    non-blank value to compare against. A recorded exclusion
+    (``exclude_from_build: true``) or an all-blank recorded row is **skipped**, not
+    counted as an agreement: the three historical API-missing rows have every
+    compared field blank, so they are provider-only resolutions, not crosschecked
+    matches. Per-field coverage is reported so a reader can see which fields were
+    actually compared.
+    """
+    shared = sorted(set(records) & set(recorded))
+    field_stats: dict[str, dict[str, int]] = {
+        field: {"compared": 0, "missing": 0, "disagreements": 0} for field in COMPARED_FIELDS
+    }
     disagreements: list[dict[str, str]] = []
-    for analysis_id in compared:
+    skipped: list[str] = []
+    evaluated = 0
+    for analysis_id in shared:
         row = recorded[analysis_id]
-        if row.get("exclude_from_build", "").lower() == "true":
-            # A recorded exclusion has no resolved values to compare against.
-            continue
         record = records[analysis_id]
         provider_values = {
             "stored_effect_scale": record.stored_effect_scale,
@@ -344,18 +355,34 @@ def cross_check(
             "n_cases": record.n_cases,
             "n_controls": record.n_controls,
         }
+        if row.get("exclude_from_build", "").lower() == "true":
+            skipped.append(analysis_id)
+            continue
+        present = 0
         for field in COMPARED_FIELDS:
             recorded_value = (row.get(field) or "").strip()
             if recorded_value == "":
+                field_stats[field]["missing"] += 1
                 continue
+            present += 1
+            field_stats[field]["compared"] += 1
             provider_value = provider_values[field]
-            if _numbers_equal(recorded_value, provider_value):
-                continue
-            disagreements.append(
-                {"analysis_id": analysis_id, "field": field, "recorded": recorded_value, "provider": provider_value}
-            )
+            if not _numbers_equal(recorded_value, provider_value):
+                field_stats[field]["disagreements"] += 1
+                disagreements.append(
+                    {"analysis_id": analysis_id, "field": field, "recorded": recorded_value, "provider": provider_value}
+                )
+        if present == 0:
+            skipped.append(analysis_id)
+        else:
+            evaluated += 1
     return {
-        "compared": len(compared),
+        "shared_ids": len(shared),
+        "evaluated": evaluated,
+        "skipped": len(skipped),
+        "skipped_ids": skipped,
+        "skipped_reason": "recorded exclusion (exclude_from_build=true) or every compared field blank",
+        "per_field": field_stats,
         "disagreements": disagreements,
         "population_counts": _counts(record.population for record in records.values()),
         "batch_counts": _counts(record.batch.lower() for record in records.values()),
@@ -458,7 +485,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     if check:
         print(
-            f"Cross-check against {args.recorded}: {check['compared']} shared ids, "
+            f"Cross-check against {args.recorded}: {check['shared_ids']} shared ids, "
+            f"{check['evaluated']} evaluated, {check['skipped']} skipped (no recorded values), "
             f"{len(check['disagreements'])} disagreement(s)"
         )
     return 0
