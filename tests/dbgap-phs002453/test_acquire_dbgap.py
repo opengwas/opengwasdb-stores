@@ -788,9 +788,9 @@ class TraitDispositionTests(unittest.TestCase):
         for left, right in pairs:
             category, disposition = ACQUIRE.trait_disposition(left, right)
             self.assertEqual(category, "punctuation_only", (left, right))
-            self.assertEqual(disposition, "formatting_only_pending_policy")
+            self.assertEqual(disposition, "resolved_dbgap_authoritative")
 
-    def test_lexical_variants_need_owner_review(self) -> None:
+    def test_lexical_variants_are_classified_but_resolved(self) -> None:
         pairs = [
             ("Disorders of lipoid metabolism", "Disorders of lipid metabolism (PheCode 272)"),
             ("H. pylori", "Helicobacter pylori infection  (PheCode 041.8)"),
@@ -803,7 +803,7 @@ class TraitDispositionTests(unittest.TestCase):
         for left, right in pairs:
             category, disposition = ACQUIRE.trait_disposition(left, right)
             self.assertEqual(category, "lexical_variant", (left, right))
-            self.assertEqual(disposition, "owner_scientific_review")
+            self.assertEqual(disposition, "resolved_dbgap_authoritative")
 
     def test_build_review_rows_keeps_original_labels(self) -> None:
         rows = [
@@ -816,7 +816,7 @@ class TraitDispositionTests(unittest.TestCase):
         self.assertEqual(len(review), 1)
         self.assertEqual(review[0]["analysis_id"], "GCST1")
         self.assertEqual(review[0]["analyzed_variable"], "Ostearthritis")
-        self.assertEqual(review[0]["disposition"], "owner_scientific_review")
+        self.assertEqual(review[0]["disposition"], "resolved_dbgap_authoritative")
 
 
 class DiscrepancyLedgerTests(unittest.TestCase):
@@ -829,8 +829,10 @@ class DiscrepancyLedgerTests(unittest.TestCase):
         self.assertEqual(len(raw["records"]), 2)
         for record in raw["records"]:
             self.assertEqual(record["disposition"], "resolved")
+            self.assertEqual(record["owner_decision"]["recorded"], "2026-10-12")
             self.assertIn(citation, record["owner_decision"]["citation"])
         for decision in raw["owner_decisions"]:
+            self.assertEqual(decision["recorded"], "2026-10-12")
             self.assertIn(citation, decision["citation"])
         self.assertEqual({d.disposition for d in ACQUIRE.read_discrepancies(ledger)}, {"resolved"})
 
@@ -936,6 +938,44 @@ class CanonicalMetadataTests(unittest.TestCase):
                            ("analyzed_variable", candidate.trait)):
             row[key] = value
         self.assertIsNone(ACQUIRE.catalog_provenance(row, candidate))
+
+    def test_d1_african_uses_deposit_n_and_retains_catalog_235(self) -> None:
+        import yaml
+
+        candidate = ACQUIRE.Candidate(
+            analysis_id="GCST90476298",
+            trait="platelet count (mean, inv-norm transformed)",
+            ancestry="African",
+            ancestry_fraction=1,
+            store_key="dense__pmid-39024449__African",
+            study_design="quantitative",
+            n_cases=0,
+            n_controls=0,
+            sample_size=235,
+        )
+        row = {
+            "analysis_id": "GCST90476298", "member": "m", "tar": "t", "ancestry": "AFR",
+            "study_design": "quantitative", "dbgap_trait_type": "quantitative", "sample_size": "114731",
+            "n_cases": "0", "n_controls": "0", "dbgap_trait_code": "Platelet_Mean_INT",
+            "analyzed_variable": "platelet count (mean, inv-norm transformed)",
+            "candidate_trait": "platelet count (mean, inv-norm transformed)",
+            "candidate_store_key": "dense__pmid-39024449__African",
+            "match_basis": "discrepancy-ledger", "trait_check": "exact",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            data = root / "GCST90476298.tsv.gz"
+            data.write_bytes(b"x")
+            document = yaml.safe_load(
+                ACQUIRE.render_metadata_yaml(row, candidate, data, root / "out", root / "tars")
+            )
+        self.assertEqual(document["samples"], [{"sample_ancestry_category": ["African"], "sample_size": 114731}])
+        self.assertEqual(document["trait_description"], ["platelet count (mean, inv-norm transformed)"])
+        self.assertEqual(document["catalog_metadata"]["sample_size"], 235)
+        self.assertEqual(
+            document["catalog_metadata"]["trait_description"],
+            ["platelet count (mean, inv-norm transformed)"],
+        )
 
 
 class ConverterEdgeCaseTests(unittest.TestCase):

@@ -14,16 +14,16 @@
 # record (keys now agree, member/candidate absent, or an entry already bound)
 # fails the run loudly rather than passing silently.
 #
-# Evidence captured 2026-10-11 from first-party sources only:
+# Evidence was captured 2026-10-11 from first-party sources only:
 #   * dbGaP phs002453 GIA extracted metadata (the fields recorded under `dbgap`);
 #   * GWAS Catalog EBI raw meta.yaml (md5 recorded per record);
 #   * GWAS Catalog REST v2 study JSON (URLs recorded per record).
 #
-# Durable owner decision:
+# Durable owner decision (created 2026-10-12 21:24:22 UTC):
 #   https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250
 version: 1
 
-#: Owner decisions (epic #232, ticket #220), recorded 2026-10-11.
+#: Owner decisions (epic #232, ticket #220), recorded 2026-10-12.
 #: The owner's instruction was: "for mvp use the dbgap information for all
 #: three queries."  dbGaP phs002453 is therefore authoritative; the GWAS
 #: Catalog values are retained below as non-canonical provenance only.
@@ -31,7 +31,7 @@ owner_decisions:
   - id: D1
     authority: dbGaP
     quote: "for mvp use the dbgap information for all three queries."
-    recorded: "2026-10-11"
+    recorded: "2026-10-12"
     citation: https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250
     effect: >-
       GCST90476298 canonical sample_size is the deposit 114731; the Catalog 235
@@ -39,7 +39,7 @@ owner_decisions:
   - id: D2
     authority: dbGaP
     quote: "for mvp use the dbgap information for all three queries."
-    recorded: "2026-10-11"
+    recorded: "2026-10-12"
     citation: https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250
     effect: >-
       GCST90481129 canonical metadata is the 3-ancestry deposit meta-analysis
@@ -49,12 +49,14 @@ owner_decisions:
   - id: traits
     authority: dbGaP
     quote: "use the dbgap information for all three queries"
-    recorded: "2026-10-11"
+    recorded: "2026-10-12"
     citation: https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250
     effect: >-
       For the 57 trait-label mismatches the canonical label is the dbGaP
       analyzed_variable; the GWAS Catalog counterpart is retained as
-      provenance.  No fuzzy identity binding is performed.
+      provenance.  All 57 are resolved as dbGaP-authoritative; the raw
+      punctuation-only/lexical-variant classification is retained but does not
+      assert the labels are lexically equivalent.  No fuzzy identity binding.
 
 records:
   - member: MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.Platelet_Mean_INT.AFR.GIA.dbGaP.txt.gz
@@ -64,7 +66,7 @@ records:
       id: D1
       authority: dbGaP
       quote: "for mvp use the dbgap information for all three queries."
-      recorded: "2026-10-11"
+      recorded: "2026-10-12"
       citation: https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250
     dbgap:
       ancestry: AFR
@@ -82,7 +84,7 @@ records:
     owner_question: >-
       The deposited GWAS-SSF member's own metadata and num_samples column say
       N=114731, while the GWAS Catalog record says 235; trait text and ancestry
-      agree exactly. Owner decided 2026-10-11 that dbGaP is authoritative, so
+      agree exactly. Owner decided 2026-10-12 that dbGaP is authoritative, so
       the binding is resolved and the canonical N is 114731.
     evidence:
       - >-
@@ -104,7 +106,7 @@ records:
       id: D2
       authority: dbGaP
       quote: "for mvp use the dbgap information for all three queries."
-      recorded: "2026-10-11"
+      recorded: "2026-10-12"
       citation: https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250
     dbgap:
       ancestry: META
@@ -125,7 +127,7 @@ records:
       controls 527751 = 101547+51121+5897+369186), while the deposit's
       Phe_371_3.META is a 3-ancestry meta-analysis (AFR+AMR+EUR = 571620;
       49766; 521854). The 6253 difference is exactly the EAS component, and no
-      EAS Phe_371_3 member is deposited. Owner decided 2026-10-11 that dbGaP is
+      EAS Phe_371_3 member is deposited. Owner decided 2026-10-12 that dbGaP is
       authoritative, so the canonical metadata is the 3-ancestry deposit meta
       and the 4-ancestry Catalog aggregate is retained as provenance only.
     evidence:

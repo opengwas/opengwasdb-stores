@@ -107,10 +107,13 @@ differs, it is retained as provenance in the sidecar's `catalog_metadata` block
 (and in `mapping.tsv`'s `candidate_trait`), never discarded.
 
 `mapping-review.tsv` is the per-record trait-label queue. Every
-`trait_check=mismatch` row keeps its original dbGaP and Catalog labels and is
-classified as `punctuation_only` (formatting-only; pending a recorded policy)
-or `lexical_variant` (`owner_scientific_review`). It is a review artifact: it
-never changes a binding and no spelling/synonym heuristic accepts a label.
+`trait_check=mismatch` row keeps its original dbGaP and Catalog labels, its raw
+`trait_category` (`punctuation_only` or `lexical_variant`) and its
+`disposition`. Per the ticket #220 owner decision (2026-10-12, dbGaP
+authoritative) every row is `resolved_dbgap_authoritative`: the canonical label
+is the dbGaP `Analyzed variable` and the Catalog counterpart is preserved. The
+classification does not assert the labels are lexically equivalent, and no
+spelling or synonym heuristic binds an Analysis.
 
 **convert** runs `gzip -dc member | awk | gzip` per Analysis. The awk program is
 header-driven and matches columns by name; the output column set is EBI's, so a

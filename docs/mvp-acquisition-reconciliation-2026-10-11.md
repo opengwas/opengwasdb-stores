@@ -1,16 +1,17 @@
 # MVP (PMID 39024449) acquisition reconciliation — owner decision record
 
-Snapshot 2026-10-11. Records the owner decision on the dbGaP `phs002453` GIA
-acquisition against the PMID 39024449 candidate table (epic #232, ticket #220)
-and the resulting metadata-only reconciliation. No association rows were read,
-no conversion or download was run, and no ancestry grouping was settled (ticket
-#221).
+Snapshot: evidence captured 2026-10-11; owner decision recorded 2026-10-12.
+Records the owner decision on the dbGaP `phs002453` GIA acquisition against the
+PMID 39024449 candidate table (epic #232, ticket #220) and the resulting
+metadata-only reconciliation. No association rows were read, no conversion or
+download was run, and no ancestry grouping was settled (ticket #221).
 
 ## Owner decision
 
 > "for mvp use the dbgap information for all three queries."
 
-Recorded 2026-10-11, authority **dbGaP**, durable citation
+Recorded 2026-10-12 (owner comment created 21:24:22 UTC; the primary evidence
+itself was captured 2026-10-11), authority **dbGaP**, durable citation
 <https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250>.
 dbGaP `phs002453` is the canonical source; the GWAS Catalog counterparts are
 retained as provenance. The decision is committed in
@@ -28,19 +29,24 @@ Both bind with `match_basis=discrepancy-ledger`. The converted sidecar's
 canonical `trait_description`/`samples.sample_size` follow dbGaP; the Catalog
 values are kept under `catalog_metadata` only where they differ.
 
-## Trait-label policy (57 mismatches)
+## Trait-label policy (57 mismatches) — resolved, dbGaP authoritative
 
 dbGaP `Analyzed variable` is the canonical label for all 57; the GWAS Catalog
 counterpart is preserved in `mapping.tsv` (`candidate_trait`) and in the
-converted sidecar's `catalog_metadata`. No fuzzy or typo-based identity binding
-is performed. `mapping-review.tsv` classifies them:
+converted sidecar's `catalog_metadata`.  All 57 are **resolved as
+dbGaP-authoritative** by the owner decision; none is an outstanding gate.  This
+does not assert the two labels are lexically equivalent.  `mapping-review.tsv`
+records the raw classification alongside the resolved disposition:
 
-* **30 punctuation-only** (case/quoting/possessives) — formatting-only, pending
-  a recorded policy acceptance.
-* **27 lexical/morphological** — `owner_scientific_review` for the record:
+* **30 punctuation-only** (case/quoting/possessives) — raw classification.
+* **27 lexical/morphological** — raw classification:
   `lipoid`/`lipid` (5), `H. pylori`/`Helicobacter pylori` (4),
   `Dermatomycoses`/`Dermatomycosis` (4), `examinations`/`examination` (2),
   `Prostrate`/`prostate` (8), `Ostearthritis`/`Osteoarthritis` (4).
+
+Every row's `disposition` is `resolved_dbgap_authoritative`; `trait_category`
+is the raw classification.  No fuzzy or typo-based identity binding is
+performed.
 
 ## Reconciliation result
 
@@ -56,7 +62,7 @@ historical mirror mapping is **not** overwritten.
 | Total bound | **6,022** |
 | `unmatched_analysis` / `unused_candidate` / `numeric_key_discrepancy` | 0 / 0 / 0 |
 | `trait_check` exact / prefix / mismatch | 5,962 / 3 / 57 |
-| `mapping-review.tsv` rows | 57 (30 punctuation-only, 27 lexical) |
+| `mapping-review.tsv` rows | 57 (30 punctuation-only, 27 lexical; all `resolved_dbgap_authoritative`) |
 
 Simulation output hashes (under `/data/opengwasdb/work/epic232/220/resolved-sim/`):
 
@@ -70,6 +76,24 @@ The historical mirror `mapping.tsv`/`mapping-report.tsv` were regenerated
 byte-for-byte from an empty ledger and confirmed unchanged
 (`a9b83d6c57874d00f71e2760c4a9edde` / `f0b00a0b3b2bc1422b10bba0b1b27f9b`); no
 `mapping-review.tsv` is written to the historical mirror.
+
+### Operational note (mirror footprint)
+
+An initial simulation ran directly over the mirror before the isolated-output
+instruction, then was relocated: the resolved outputs were moved to
+`/data/opengwasdb/work/epic232/220/resolved-mirror-overwrite/`, the historical
+mapping regenerated under `/data/opengwasdb/work/epic232/220/historical/`, and
+the mirror restored to the historical content (verified by the md5s above).  No
+mirror write has occurred since 2026-10-12 22:31:03 +0100.
+
+### Interpreter
+
+Unit tests were rerun with the adopted environment
+`/home/gh13047/repo/opengwasdb-stores-wt/218-current-runtime/.pixi/envs/dev/bin/python`
+(core `opengwasdb` at `4e92256`).  An earlier full-suite run used the
+`opengwasdb-stores/.pixi/envs/dev` interpreter whose installed core is older
+(zarr codec rename, no `build-indexed-subset`), which is why unrelated suites
+failed; those failures are environmental, not this ticket's.
 
 ## Sidecar schema
 

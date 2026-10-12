@@ -437,16 +437,19 @@ def canonical_trait(text: str) -> str:
 
 
 def trait_disposition(analyzed_variable: str, candidate_trait: str) -> tuple[str, str]:
-    """``(category, disposition)`` for one trait-text mismatch.
+    """``(trait_category, disposition)`` for one trait-text mismatch.
 
-    ``punctuation_only`` means the two labels agree after :func:`canonical_trait`
-    (case, quoting and possessives only); it still needs a recorded policy
-    acceptance and is never used to bind.  Everything else is a
-    ``lexical_variant`` and needs owner scientific review.
+    ``trait_category`` is the raw classification: ``punctuation_only`` when the
+    two labels agree after :func:`canonical_trait`, otherwise ``lexical_variant``.
+    The owner decision for ticket #220 (2026-10-12) makes dbGaP authoritative for
+    all 57 mismatches, so the disposition is always
+    ``resolved_dbgap_authoritative``.  The classification does NOT assert the two
+    labels are lexically equivalent; the original dbGaP and Catalog labels are
+    both retained on the row.
     """
     if canonical_trait(analyzed_variable) == canonical_trait(candidate_trait):
-        return "punctuation_only", "formatting_only_pending_policy"
-    return "lexical_variant", "owner_scientific_review"
+        return "punctuation_only", "resolved_dbgap_authoritative"
+    return "lexical_variant", "resolved_dbgap_authoritative"
 
 
 # ---------------------------------------------------------------------------
@@ -1006,7 +1009,11 @@ def map_analyses(
 
 
 def build_review_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
-    """Per-record trait-label review queue for every ``trait_check`` mismatch."""
+    """Per-record trait-label queue for every ``trait_check`` mismatch.
+
+    Keeps the original dbGaP and Catalog labels, the raw ``trait_category`` and
+    the owner-resolved ``disposition`` (dbGaP authoritative for ticket #220).
+    """
     review: list[dict[str, str]] = []
     for row in rows:
         if row.get("trait_check") != "mismatch":
