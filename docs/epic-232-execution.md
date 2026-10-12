@@ -28,10 +28,10 @@ then assess actual code and evidence at a worker checkpoint.
 
 | Ticket | Worker / reviewer | Deliverable | Initial state |
 |---|---|---|---|
-| #217 | `worker217` / `review217` | truthful release readiness and historical reconciliation | implementation started |
-| #218 | `worker218` / `review218` | immutable current-format runtime pin, lock and compatibility guards | implementation started |
-| #219 | `worker219` / `review219` | verified restored UKB inventory and unaccepted candidate | implementation started; copy prerequisite satisfied |
-| #220 | `worker220` / `review220` | MVP acquisition and mapping reconciliation | implementation started; full-data scan not authorised |
+| #217 | `worker217` / `review217` | truthful release readiness and historical reconciliation | tests green at `e8cdf38`; final independent review pending |
+| #218 | `worker218` / `review218` | immutable current-format runtime pin, lock and compatibility guards | own pinned environment installed; workflow fixtures green; fault tests/checkpoint pending |
+| #219 | `worker219` / `review219` | verified restored UKB inventory and unaccepted candidate | checksum freeze complete; candidate/integrity checkpoint review pending |
+| #220 | `worker220` / `review220` | MVP acquisition and mapping reconciliation | targeted mapping investigation; numerical discrepancies unresolved; full-data scan not authorised |
 
 Herdr session handles and local worktree paths are ephemeral operator state, not
 release provenance. Discover them from the live session; the initial layout is
@@ -96,9 +96,13 @@ checkpoints and unrelated working-tree changes.
 #219 reports **2,514 intended Source Analysis IDs**, reconciled between the
 legacy declared selection and core batch manifest, with **2,514 available VCFs**
 and **490 additions** relative to the 2,024-Analysis historical baseline. These
-are preliminary reconciliation counts, not a completed integrity audit or
-accepted membership. Source checksum/integrity verification is allocated the
-bulk I/O slot (approximately 410 GB, at most two readers).
+are preliminary reconciliation counts, not accepted membership. The source
+SHA256 freeze subsequently completed: the worker/reviewer report 2,514 inputs,
+425.4 GB (decimal), 258.9 seconds and two readers. Durable receipt:
+`/data/opengwasdb/work/epic232/219/ukb-b-restored-2026-10-11.checksums.json`.
+This cryptographic identity freeze is **not** proof of complete gzip/BGZF or
+Tabix integrity; deep integrity verification and its independent review remain
+pending. #219 retains the bulk I/O slot, at most two readers.
 
 Three historical metadata-resolution exclusions still require disposition,
 including `ukb-b-1585`, which appears in the old built baseline. Intended,
@@ -115,6 +119,24 @@ EUR as a calibration control and the separate GPM resource declares the
 production UKB EUR panel. Neither historical recipe reuse nor switching panels
 is an automatic successor-completion approval. Record suitable reference
 identity and its approval/evidence before executing completion.
+
+## Runtime and ancestry-resolution checkpoint
+
+The orchestrator independently checked the #218 worktree's installed runtime
+metadata: `opengwasdb 0.3.0`, Python 3.12, canonical Git URL and immutable
+`direct_url.json` commit `1be2a156649e4d444f31f9b4107c3f47a046f855`.
+This is an isolated installed environment, not a merged runtime-adoption PR or
+production qualification of that revision.
+
+#219 has a conditional allocation for ten representative Analyses through the
+existing core Phase B resolver, at most two workers and BLAS threads one, after
+source-integrity checks complete. Quantitative SD resolution can traverse to
+EOF despite ancestry sample limits: establish actual traversal semantics and
+measure cost before authorising the full 2,514-Analysis resolution. Historical
+`source_trusted_no_af` must not be inherited where the VCF demonstrably has AF.
+No guessed `af_assigned` method or unrestricted source-ancestry substitution is
+permitted. Provider JSON metadata fallback needs exact-ID checks, consistent
+values, frozen sidecar identity and a traceable resolution record.
 
 ## Initial review checkpoint
 
