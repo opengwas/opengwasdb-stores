@@ -567,6 +567,17 @@ class KeyDiscrepancy:
         return (self.candidate_sample_size, self.candidate_n_cases, self.candidate_n_controls)
 
 
+def required_text(value: object) -> str:
+    """A required provenance field; ``None``, blank or non-text is missing.
+
+    Absence is never coerced into evidence: a YAML ``null`` must not become the
+    string ``"None"`` and pass a completeness check.
+    """
+    if not isinstance(value, str):
+        return ""
+    return value.strip()
+
+
 @dataclass(frozen=True)
 class OwnerPolicy:
     """A validated, cited owner policy, e.g. the trait-label decision."""
@@ -591,12 +602,12 @@ def read_trait_policy(path: Path) -> OwnerPolicy | None:
         if not isinstance(decision, dict) or decision.get("id") != "traits":
             continue
         fields = {
-            name: str(decision.get(name, "")).strip()
+            name: required_text(decision.get(name))
             for name in ("authority", "quote", "recorded", "citation")
         }
         if not all(fields.values()):
             return None
-        return OwnerPolicy(id="traits", effect=str(decision.get("effect", "")).strip(), **fields)
+        return OwnerPolicy(id="traits", effect=required_text(decision.get("effect")), **fields)
     return None
 
 
@@ -622,14 +633,17 @@ def read_discrepancies(path: Path) -> list[KeyDiscrepancy]:
             decision_fields: dict[str, str] = {}
             if isinstance(raw_decision, dict):
                 owner_decision = " ".join(
-                    str(raw_decision.get("quote") or raw_decision.get("statement") or "").split()
+                    (
+                        required_text(raw_decision.get("quote"))
+                        or required_text(raw_decision.get("statement"))
+                    ).split()
                 )
                 decision_fields = {
-                    name: str(raw_decision.get(name, "")).strip()
+                    name: required_text(raw_decision.get(name))
                     for name in ("authority", "recorded", "citation")
                 }
             elif raw_decision is not None:
-                owner_decision = " ".join(str(raw_decision).split())
+                owner_decision = " ".join(required_text(raw_decision).split())
             if disposition == "resolved":
                 missing = sorted(name for name, value in decision_fields.items() if not value)
                 if not owner_decision or missing:

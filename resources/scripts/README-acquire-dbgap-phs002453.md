@@ -114,7 +114,10 @@ differs, it is retained as provenance in the sidecar's `catalog_metadata` block
 `resolved_<authority>_authoritative` (for ticket #220's 2026-10-12 decision,
 `resolved_dbgap_authoritative`), while a missing or incomplete policy keeps the
 category's original pending default (`formatting_only_pending_policy` or
-`owner_scientific_review`). The canonical label is then the dbGaP
+`owner_scientific_review`). A `null`, blank or non-text provenance field counts
+as missing rather than being coerced into evidence, and a `resolved`
+discrepancy record likewise needs a non-empty authority/quote/recorded/citation.
+The canonical label is then the dbGaP
 `Analyzed variable` and the Catalog counterpart is preserved. The classification
 does not assert the labels are lexically equivalent, and no spelling or synonym
 heuristic binds an Analysis.

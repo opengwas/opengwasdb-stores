@@ -879,6 +879,32 @@ class DiscrepancyLedgerTests(unittest.TestCase):
             )
             self.assertIsNone(ACQUIRE.read_trait_policy(path))
 
+    def test_null_policy_fields_are_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ledger.yaml"
+            path.write_text(
+                "version: 1\nowner_decisions:\n"
+                "  - id: traits\n    authority: dbGaP\n    quote: null\n"
+                "    recorded: null\n    citation: null\nrecords: []\n",
+                encoding="utf-8",
+            )
+            self.assertIsNone(ACQUIRE.read_trait_policy(path))
+
+    def test_null_resolved_provenance_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ledger.yaml"
+            path.write_text(
+                "version: 1\nrecords:\n"
+                "  - member: m\n    analysis_id: GCST1\n    disposition: resolved\n"
+                "    owner_decision:\n      authority: dbGaP\n      quote: null\n"
+                "      recorded: null\n      citation: null\n"
+                "    dbgap: {ancestry: EUR, sample_size: 1}\n"
+                "    candidate: {sample_size: 2}\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "owner_decision"):
+                ACQUIRE.read_discrepancies(path)
+
     def test_resolved_requires_an_owner_decision(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "ledger.yaml"
