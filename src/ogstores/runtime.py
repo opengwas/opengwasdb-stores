@@ -237,7 +237,13 @@ def verify_runtime_for_releases(
         for parent in completion_parents_for_release(store_id, registry_root=registry_root):
             parents.setdefault(parent, (store_id, root))
     if parents:
-        commands.setdefault("info", [])
+        # The parent-format gate calls `opengwasdb info`; require the subcommand
+        # explicitly so a runtime that lacks it is refused as a capability, not
+        # as an unreadable Store.
+        for parent_id, (child_id, _parent_root) in parents.items():
+            commands.setdefault(child_id, [])
+            if INFO_COMMAND not in commands[child_id]:
+                commands[child_id].append(INFO_COMMAND)
 
     missing: dict[str, list[str]] = {}
     for store_id, store_commands in commands.items():

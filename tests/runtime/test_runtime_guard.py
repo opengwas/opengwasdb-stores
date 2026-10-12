@@ -62,12 +62,17 @@ class _FakeRuntime:
         self.bin.mkdir(parents=True)
         self.executable = self.bin / "opengwasdb"
         supported = "|".join(sorted(commands))
-        self.executable.write_text(
-            "#!/bin/sh\n"
+        info_handler = (
             'if [ "$1" = "info" ]; then\n'
             f'  printf \'{{"format_version": "%s"}}\\n\' "{format_version}"\n'
             "  exit 0\n"
             "fi\n"
+            if "info" in commands
+            else ""
+        )
+        self.executable.write_text(
+            "#!/bin/sh\n"
+            f"{info_handler}"
             f'case "$1" in {supported}) exit 0 ;; *) exit 2 ;; esac\n',
             encoding="utf-8",
         )
@@ -260,6 +265,25 @@ class RuntimeGuardTestCase(unittest.TestCase):
             executable=str(capable.executable),
         )
         record_check()
+
+    def test_completion_parent_without_info_capability_is_refused(self) -> None:
+        """`info` is required once a parent exists, so its absence is a capability refusal."""
+        self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090")
+        self._write_bundle("OGS-00090")
+        no_info = _FakeRuntime(
+            self.tmp / "no-info",
+            commands={"complete-dense", "build-indexed-subset", "regenerate-overview", "validate"},
+            commit=runtime.PINNED_OPENGWASDB_REVISION,
+        )
+        (self.artifact_root / "OGS-00090" / "store.opengwasdb").mkdir(parents=True)
+        with self.assertRaises(runtime.RuntimeCapabilityError) as ctx:
+            runtime.verify_runtime_for_releases(
+                self._scheduled("OGS-00091"),
+                registry_root=self.registry,
+                executable=str(no_info.executable),
+            )
+        record_check()
+        self.assertIn("info", str(ctx.exception))
 
     def test_commands_are_derived_from_the_plan_not_hardcoded(self) -> None:
         self._write_bundle("OGS-00090")
