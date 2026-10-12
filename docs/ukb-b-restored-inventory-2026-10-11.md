@@ -173,6 +173,17 @@ bounded ten-Analysis trial through the immutable #218 runtime measured:
 | `assign-ancestry` | Read all 10 (`af_overlap` 29,825–45,484 of 5,810,530 reference sites; `eaf_orientation = passed`, r 0.83–0.88; dominant `EUR` 0.876–0.928) but every one gated `Unassigned` with `gate_reason = residual`. **Not interpretable — see assembly mismatch below.** | 26 m 34 s wall (< 30 min), ~50 m CPU, 8.2 GB peak RSS, ~1.4 GB read |
 | `estimate-phenotype-sd` (`--af-source source`, method `estimated_from_source_maf`) | Produced `original_sd` per Analysis (0.078–0.978, dispersion 0.0001–0.004) | 1 m 52 s wall (< 30 min), 1.2 GB peak RSS, ~25 MB read (bounded evidence sample, not EOF) |
 
+**Pilot result, preserved verbatim.** As run, the pilot is **10/10 `Unassigned`
+with `gate_reason=residual` under the unchanged `--residual-max 0.06`**. That is
+a **failed pilot outcome**, recorded as such: it is **not** a clean gate pass and
+**not** evidence that the threshold is wrong, so the threshold is untouched. A
+structural assembly gap (below) means the NNLS values are not interpretable as
+calibration evidence either. **The full 2,514-Analysis ancestry run was NOT run
+and is not authorised** (projected ≈57 h ancestry + ≈8 h SD). No
+`source_fallback` → `af_assigned` admission, no beta/SD override and no gate
+change is made; any such owner decision needs explicit approval. `OGS-00031`'s
+completion reference remains blocked.
+
 **Assembly / liftover convention — the decisive check.** The ukb-b VCFs are
 **GRCh37/hg19** (`##contig=<ID=1,…,assembly=GRCh37>`), the ancestry reference is
 **GRCh38/hg38** (`ref_freqs.hg38.tsv.gz`, 5,810,530 sites). The `assign-ancestry`
