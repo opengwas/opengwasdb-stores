@@ -81,9 +81,8 @@ notes: >
   convention the consumer does rather than a private copy.
 
   Consumers need an opengwasdb runtime that provides `build-indexed-subset`
-  (opengwas/opengwasdb#264-#271). The repository pin (`opengwasdb 0.3.0`,
-  revision 7b0c42d) is deliberately left unchanged here: adopting a newer
-  runtime and Store format is the separate migration tracked by stores#197.
-  stores#209 plans and runs the subset step and must document and preflight the
-  newer-runtime prerequisite; this ticket only promotes the input resource and
-  does not bump the pin.
+  (opengwas/opengwasdb#264-#271). The repository's tracked current-format
+  runtime (stores#218; `opengwasdb 0.3.0`, revision `4e92256`) provides it, so
+  the supported release entry point needs no `PATH` overlay. The entry point
+  still probes for the command and refuses loudly if the runtime does not
+  provide it. See [docs/runtime.md](../../../docs/runtime.md).

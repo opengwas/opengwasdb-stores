@@ -9,7 +9,7 @@ Covers the parts of #209 that are *not* pure planning:
   count, and a wrong list or a wrong declaration is refused, not substituted;
 * a run that declares a subset needs an `opengwasdb` runtime providing
   `build-indexed-subset`, and is refused with the required capability when it
-  does not (the repository pin deliberately predates it until #197);
+  does not (the repository's pinned current-format runtime provides it; #218);
 * a run with no declaration is never gated on the runtime version.
 
 Fixtures are tiny and hermetic; no real HapMap3 data or opengwasdb CLI is
@@ -250,6 +250,7 @@ class TestIndexedSubsetRuntimeGate(unittest.TestCase):
         message = str(ctx.exception)
         self.assertIn("build-indexed-subset", message)
         self.assertIn("4819a2ee", message)
+        self.assertIn("stores#218", message)
         self.assertIn("stores#197", message)
 
     def test_declaration_with_capable_runtime_and_valid_input_passes(self) -> None:

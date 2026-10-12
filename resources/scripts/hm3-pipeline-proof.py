@@ -27,13 +27,14 @@ no-primary-rebuild constraint):
   before/after sha256 of every relocated record is recorded in the proof
   artifact. Nothing else about those records changes.
 
-The capability runtime is the core checkout
+The capability runtime for this historical proof is the core checkout
 ``/home/gh13047/repo/opengwasdb-worktrees/hm3-272`` at ``1c2c85d`` (a descendant
 of ``4819a2ee``, opengwas/opengwasdb#264), installed as a VCS dependency so the
-Step records and the installed package report its commit. The repository pin is
-deliberately not bumped (stores#197 owns Store format 0.2.0); a subset-declaring
-release runs the whole workflow on the capability runtime, and because the
-subset builder is format-preserving the proof Store stays format 0.1.0.
+Step records and the installed package report its commit. The proof predates
+stores#218's pin adoption and deliberately used a separate checkout; the
+supported release entry point now runs the whole workflow on the tracked
+current-format pin. The proof Store stays format 0.1.0 because the subset
+builder is format-preserving.
 
 Usage (phases are independent and resumable):
 

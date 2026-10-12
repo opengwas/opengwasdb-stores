@@ -135,12 +135,6 @@ def validate_step_argv_against_cli(test_case: unittest.TestCase, step: Step) -> 
     cmd_name = step.argv[1]
     cmd_args = step.argv[2:]
 
-    if cmd_name == "build-indexed-subset":
-        # The tracked pin (7b0c42d) predates the capability (opengwasdb#264);
-        # an Indexed Variant Subset is an opt-in format-0.2.0 path tracked by
-        # stores#197, so it cannot parse against the pinned CLI (#209/#211).
-        return
-
     test_case.assertIn(
         cmd_name,
         click_group.commands,
@@ -2296,6 +2290,53 @@ class TestIndexedSubsets(unittest.TestCase):
             )
 
 
+class TestCurrentFormatRuntimeCompatibility(unittest.TestCase):
+    """The #218 pin bump's effects on the existing command assembly (#197/#247/#252).
+
+    The format-0.2.0 builders changed the inner-chunk defaults and made the
+    Ragged/Overflow `by_variant/` index part of the format contract. Neither
+    changes the planned command assembly: the index is written inline by the
+    builder, and no committed Build Recipe passes an inner-chunk option. These
+    assertions keep a future recipe from reintroducing `--chunk-analyses 1000`
+    (which cannot tile the fixed 1,024-Analysis shard) or a redundant index step.
+    """
+
+    INNER_CHUNK_KEYS = {"chunk-analyses", "chunk_analyses", "chunk-variants", "chunk_variants"}
+
+    def _committed_option_dicts(self):
+        for bundle_dir in sorted((REPO_ROOT / "stores").glob("OGS-*")):
+            bundle = load(bundle_dir.name)
+            for section in ("build", "complete"):
+                block = bundle.build.get(section)
+                if isinstance(block, dict) and isinstance(block.get("options"), dict):
+                    yield bundle_dir.name, section, block["options"]
+
+    def test_no_committed_recipe_passes_an_inner_chunk_option(self) -> None:
+        offenders = {
+            f"{store_id}.{section}": sorted(set(options) & self.INNER_CHUNK_KEYS)
+            for store_id, section, options in self._committed_option_dicts()
+            if set(options) & self.INNER_CHUNK_KEYS
+        }
+        record_check()
+        self.assertEqual(
+            offenders,
+            {},
+            "Committed recipes must take the pinned runtime's inner-chunk defaults "
+            "(1000, 64); passing an inner chunk that does not tile the fixed shard is "
+            "refused by the builder (#218/#247).",
+        )
+
+    def test_ragged_and_hybrid_plan_no_variant_index_step(self) -> None:
+        # The Ragged/Overflow by_variant/ index is written inline by the 0.2.0
+        # builders and required by validate (#252/#268), so the registry must not
+        # plan a separate build-variant-index step for a fresh build.
+        for store_id in ("OGS-00004", "OGS-00006"):
+            names = [step.name for step in plan(load(store_id))]
+            record_check()
+            self.assertNotIn("variant-index", names)
+            self.assertNotIn("build-variant-index", [step.argv[1] for step in plan(load(store_id))])
+
+
 def main() -> None:
     suite = unittest.TestSuite()
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanDense))
@@ -2307,6 +2348,7 @@ def main() -> None:
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPostDefaults))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestVariantReferencePreStage))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestIndexedSubsets))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestCurrentFormatRuntimeCompatibility))
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     if not result.wasSuccessful():

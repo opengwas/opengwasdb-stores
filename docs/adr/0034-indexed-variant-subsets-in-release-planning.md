@@ -92,6 +92,33 @@ This has two honest consequences:
    declares no subset is never gated on the runtime version, so every existing
    recipe and every no-declaration plan is unaffected.
 
+## Amendment (stores#218): the pin is now the current-format runtime
+
+stores#218 adopted the runtime portion of stores#197: the tracked pin is now
+`4e922566d7fa4c13a11be3637069da63e48be28c` (core `dev`, repinned from the initial
+#218 pin `1be2a15` when core #254 merged). It carries the
+format-0.2.0 builders, the required Ragged/Overflow `by_variant/` index, the
+Indexed Variant Subset capability and the shared HM3 benchmark seam. The
+decision above that the subset capability is an opt-in *run-time* prerequisite
+still holds, and the pre-run probe and resource hashing still run unchanged;
+what changes is consequence 2: the pinned runtime now provides the capability,
+so no `PATH` overlay is needed and a supported run never substitutes one. See
+[docs/runtime.md](../runtime.md).
+
+The guard was generalized with the pin. `ogstores.runtime.verify_runtime_for_releases`
+now also refuses a run whose resolved executable's identity is unprovable or is
+a revision other than the pin, whose scheduled steps name a subcommand the
+runtime lacks, or which would complete an existing parent Store that is not
+format 0.2.0. The parent gate is scheduled-step-aware: it applies only when the
+child's own `complete` job will run, skips a stale parent when a same-run
+`build`/`complete` of that parent is scheduled, and refuses a missing parent
+that is not scheduled to be produced. Rejected option 3 above is superseded by
+this ticket: the format adoption is now deliberate and pinned rather than
+deferred, and it still does not convert, rebuild or requalify any published
+Store. A format-0.1.0 parent is refused and must be converted or rebuilt before
+Reference Completion, following the documented procedure in
+[docs/runtime.md](../runtime.md) rather than an ad-hoc script contract.
+
 ## Considered options
 
 - **Resolve the resource inside `plan()`.** Rejected: `plan()` is a pure
