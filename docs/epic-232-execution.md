@@ -28,7 +28,7 @@ then assess actual code and evidence at a worker checkpoint.
 
 | Ticket | Worker / reviewer | Deliverable | Initial state |
 |---|---|---|---|
-| #217 | `worker217` / `review217` | truthful release readiness and historical reconciliation | tests green at `e8cdf38`; final independent review pending |
+| #217 | `worker217` / `review217` | truthful release readiness and historical reconciliation | reviewer GO at `886082b`; [PR #234](https://github.com/opengwas/opengwasdb-stores/pull/234) to `dev`, not merged |
 | #218 | `worker218` / `review218` | immutable current-format runtime pin, lock and compatibility guards | own pinned environment installed; workflow fixtures green; fault tests/checkpoint pending |
 | #219 | `worker219` / `review219` | verified restored UKB inventory and unaccepted candidate | checksum freeze complete; candidate/integrity checkpoint review pending |
 | #220 | `worker220` / `review220` | MVP acquisition and mapping reconciliation | targeted mapping investigation; numerical discrepancies unresolved; full-data scan not authorised |
@@ -119,6 +119,31 @@ EUR as a calibration control and the separate GPM resource declares the
 production UKB EUR panel. Neither historical recipe reuse nor switching panels
 is an automatic successor-completion approval. Record suitable reference
 identity and its approval/evidence before executing completion.
+
+## Reviewed implementation checkpoint: #217
+
+Independent Gemini reviewer verdict **GO**, no blockers, at exact head
+`886082bb0f83dd9d9f84cf79972923bb5c377d92`. The orchestrator fast-forwarded the
+four reviewed ticket commits into the primary feature branch
+`feat/217-release-readiness` and raised
+[PR #234](https://github.com/opengwas/opengwasdb-stores/pull/234) to `dev`.
+The PR is not automatically merged; #217 remains pending integration/CI.
+
+Orchestrator checks against the archived exact head: 26 readiness tests,
+12 index tests, 54 bundle test cases / 128 checks, bundle-check 12/12 and
+`git diff --check`. The two explicit legacy #134 tolerated gaps remain visible.
+The worker also ran manifest, register, plan, run, reconcile-build-yaml,
+validation-record and indexed-subset suites. The generated report compares
+actual built Analysis IDs through public core metadata APIs; it does not
+replace those sets with git-baseline counts. Manifest rows, source intention,
+admitted membership, configured evidence, historical validation and current
+identity-matching evidence are explicitly distinct.
+
+#219's initial `c4a32d6` candidate checkpoint received **NO-GO**: stale candidate
+IDs, unresolved metadata exclusions, incomplete index/stream verification and
+missing regression cases. The worker is correcting these; no candidate
+acceptance or registry/publication write is authorised by that checkpoint.
+Source SHA256 freezing remains valid identity evidence, not full integrity proof.
 
 ## Runtime and ancestry-resolution checkpoint
 
