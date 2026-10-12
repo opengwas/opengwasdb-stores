@@ -1304,7 +1304,9 @@ class RefreshTests(unittest.TestCase):
                 "gwas_id": accession, "trait_description": ["old"],
                 "samples": [{"sample_ancestry_category": ["European"], "sample_size": 100}],
                 "data_file_name": f"{accession}.tsv.gz", "data_file_md5sum": "b" * 32,
-                "source": {"repository": "dbGaP"},
+                "source": {"repository": "dbGaP", "tar": "T",
+                           "member": "MVP_R4.1000G_AGR.A1C_Min_INT.EUR.GIA.dbGaP.txt.gz",
+                           "tar_md5": "c" * 32},
             }), encoding="utf-8")
             manifest_dir = root / "mirror" / "manifests"
             manifest_dir.mkdir(parents=True)
@@ -1351,6 +1353,121 @@ class RefreshTests(unittest.TestCase):
             self.assertEqual(merged[0]["status"], "error")
             self.assertEqual(merged[0]["trait"], "dbgap label")  # canonical even when non-ready
             self.assertFalse(list((iso / "gwas-ssf").glob("*/*/*.tsv.gz")))
+
+    def _refresh_fixture(self, root: Path) -> dict[str, object]:
+        import yaml
+
+        accession = "GCST90475097"
+        store = STORE_KEY
+        sidecar = root / "mirror" / "gwas-ssf" / ACQUIRE.bucket_of(accession) / accession / f"{accession}.tsv.gz-meta.yaml"
+        sidecar.parent.mkdir(parents=True)
+        sidecar.write_text(yaml.safe_dump({
+            "gwas_id": accession, "trait_description": ["old"],
+            "samples": [{"sample_ancestry_category": ["European"], "sample_size": 100}],
+            "data_file_name": f"{accession}.tsv.gz", "data_file_md5sum": "b" * 32,
+            "source": {"repository": "dbGaP", "tar": "T",
+                       "member": "MVP_R4.1000G_AGR.A1C_Min_INT.EUR.GIA.dbGaP.txt.gz",
+                       "tar_md5": "c" * 32},
+        }), encoding="utf-8")
+        manifest_dir = root / "mirror" / "manifests"
+        manifest_dir.mkdir(parents=True)
+        base_row = {name: "" for name in ACQUIRE.MANIFEST_COLUMNS}
+        base_row.update({"analysis_id": accession, "status": "ok", "sha256": "a" * 64,
+                         "data_file": str(sidecar.parent / f"{accession}.tsv.gz"), "yaml_file": str(sidecar),
+                         "genome_assembly": "GRCh38", "file_type": "GWAS-SSF v1.0",
+                         "is_harmonised": "false", "trait": "old", "sample_size": "100"})
+        manifest_path = manifest_dir / "dense-pmid-39024449-European-download-manifest.tsv"
+        manifest_path.write_text(
+            "\t".join(ACQUIRE.MANIFEST_COLUMNS) + "\n"
+            + "\t".join(base_row[name] for name in ACQUIRE.MANIFEST_COLUMNS) + "\n",
+            encoding="utf-8",
+        )
+        write_candidates(root / "candidates.tsv", [
+            {**CANDIDATES[0], "STUDY.ACCESSION": accession, "store_key": store,
+             "DISEASE.TRAIT": "catalog label", "sample_size": "999"}
+        ])
+        mapping_row = {
+            "analysis_id": accession, "member": "MVP_R4.1000G_AGR.A1C_Min_INT.EUR.GIA.dbGaP.txt.gz",
+            "tar": "T", "ancestry": "EUR", "study_design": "quantitative",
+            "dbgap_trait_type": "quantitative", "sample_size": "100", "n_cases": "0", "n_controls": "0",
+            "dbgap_trait_code": "A1C_Min_INT", "analyzed_variable": "dbgap label",
+            "candidate_trait": "catalog label", "candidate_store_key": store,
+            "match_basis": "unique-key", "trait_check": "exact",
+        }
+        mapping_path = root / "mapping.tsv"
+        with mapping_path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(ACQUIRE.MAPPING_COLUMNS), delimiter="\t", lineterminator="\n")
+            writer.writeheader()
+            writer.writerow(mapping_row)
+        return {"root": root, "iso": root / "iso", "source_sidecars": root / "mirror" / "gwas-ssf",
+                "manifest_dir": manifest_dir, "manifest_path": manifest_path, "candidates": root / "candidates.tsv",
+                "mapping": mapping_path, "sidecar": sidecar, "accession": accession}
+
+    def _refresh_cli(self, fx: dict[str, object]) -> list[str]:
+        return [sys.executable, str(SCRIPT), "--out", str(fx["iso"]), "refresh",
+                "--candidates", str(fx["candidates"]), "--mapping", str(fx["mapping"]),
+                "--source-sidecars", str(fx["source_sidecars"]),
+                "--source-manifest-dir", str(fx["manifest_dir"])]
+
+    def test_manifest_dir_outside_out_is_rejected_before_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp))
+            before = Path(fx["manifest_path"]).read_bytes()
+            result = subprocess.run(
+                self._refresh_cli(fx) + ["--manifest-dir", str(fx["manifest_dir"])],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+            self.assertIn("--manifest-dir", result.stderr)
+            self.assertEqual(Path(fx["manifest_path"]).read_bytes(), before)
+
+    def test_symlinked_bucket_escape_is_rejected_and_source_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp))
+            iso = Path(fx["iso"])
+            iso.mkdir(parents=True, exist_ok=True)
+            (iso / "gwas-ssf").symlink_to(fx["source_sidecars"])
+            before = Path(fx["sidecar"]).read_bytes()
+            result = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+            self.assertIn("escapes", result.stderr)
+            self.assertEqual(Path(fx["sidecar"]).read_bytes(), before)
+
+    def test_membership_mismatch_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp))
+            rows = [dict(row) for row in CANDIDATES]
+            rows.append({**CANDIDATES[0], "STUDY.ACCESSION": "GCST90475098", "DISEASE.TRAIT": "other"})
+            write_candidates(Path(fx["candidates"]), rows)
+            result = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+            self.assertIn("membership mismatch", result.stderr)
+
+    def test_new_sidecar_manifest_pairing_mismatch_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp))
+            new_root = Path(tmp) / "retry" / "gwas-ssf"
+            sidecar = new_root / ACQUIRE.bucket_of("GCST90475097") / "GCST90475097" / "GCST90475097.tsv.gz-meta.yaml"
+            sidecar.parent.mkdir(parents=True)
+            sidecar.write_text("gwas_id: GCST90475097\n", encoding="utf-8")
+            (Path(tmp) / "retry" / "manifests").mkdir(parents=True)
+            result = subprocess.run(
+                self._refresh_cli(fx) + ["--new-sidecars", str(new_root),
+                                         "--new-manifest-dir", str(Path(tmp) / "retry" / "manifests")],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+            self.assertIn("sets differ", result.stderr)
+
+    def test_source_snapshot_unchanged_after_preview(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp))
+            sidecar_before = Path(fx["sidecar"]).read_bytes()
+            manifest_before = Path(fx["manifest_path"]).read_bytes()
+            result = subprocess.run(self._refresh_cli(fx) + ["--preview"], capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertEqual(Path(fx["sidecar"]).read_bytes(), sidecar_before)
+            self.assertEqual(Path(fx["manifest_path"]).read_bytes(), manifest_before)
 
 
 class ConverterEdgeCaseTests(unittest.TestCase):

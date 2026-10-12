@@ -149,8 +149,21 @@ not a mirror promotion; the two new rows reference the isolated retry data paths
   set must equal the candidate store set exactly.
 * Case-control META keeps its mixture ancestry (`Multi-ancestry`), not a
   European interpretation.
-* Full membership is validated as 6,022 unique accessions before any ready
-  claim.
+* Full membership is validated as the exact candidate accession set (no store
+  silently omitted); the count is not hard-coded.
+* Every write target (sidecar, `.partial`, data symlink, manifest, receipt) must
+  resolve inside the isolated root, and `--manifest-dir` must be inside `--out`;
+  a symlinked bucket/parent that escapes to the read-only source is refused
+  before any write, and the source tree is snapshotted unchanged in regression.
+* Source bindings are checked: the sidecar's `source.member`/`source.tar` must
+  equal the mapping row, `source.tar_md5`/`data_file_md5sum` must be well-formed
+  md5, and the existing manifest's `data_file` must bind the source data path.
+* New sidecars and new manifests must be a 1:1 set with `status=ok` and a
+  well-formed `sha256`; duplicates, unknown IDs or a missing pairing fail rather
+  than inventing derived evidence.
+* The full run exits non-zero for any non-`ok` row or identity/size mismatch;
+  `--preview` reports non-ready rows. `yaml_bytes` is the actual refreshed
+  sidecar size, and `data_bytes` is checked against the data file's `stat`.
 
 ## Guarantees and exclusions
 

@@ -1487,6 +1487,45 @@ def ensure_isolated(out: Path, source: Path, label: str) -> None:
         raise AcquisitionError(f"--out {out_r} must not overlap {label} {src_r}")
 
 
+def resolved_within(child: Path, root: Path) -> bool:
+    """True when ``child`` resolves to a path inside ``root`` (symlink-safe)."""
+    try:
+        child.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def ensure_write_within(target: Path, out_root: Path) -> None:
+    """Every write target/temp must resolve inside the isolated root.
+
+    Checks the deepest existing ancestor so a symlinked parent cannot redirect a
+    write into a read-only source tree.
+    """
+    if not resolved_within(target, out_root):
+        raise AcquisitionError(f"write target {target} escapes the isolated root {out_root}")
+
+
+def validate_sidecar_binding(
+    document: dict[str, object], row: dict[str, str], accession: str, where: str
+) -> None:
+    """The sidecar's source/data bindings must agree with the mapping row."""
+    source = document.get("source")
+    if not isinstance(source, dict):
+        raise AcquisitionError(f"{where}: sidecar has no source provenance")
+    if source.get("member") != row["member"]:
+        raise AcquisitionError(
+            f"{where}: source.member {source.get('member')!r} != mapping member {row['member']!r}"
+        )
+    if source.get("tar") != row["tar"]:
+        raise AcquisitionError(f"{where}: source.tar {source.get('tar')!r} != mapping tar {row['tar']!r}")
+    validate_digest(str(source.get("tar_md5", "")), "md5", f"{where} source.tar_md5")
+    if document.get("data_file_name") != f"{accession}.tsv.gz":
+        raise AcquisitionError(
+            f"{where}: data_file_name {document.get('data_file_name')!r} != {accession}.tsv.gz"
+        )
+
+
 def canonical_manifest_row(
     inherited: dict[str, str], row: dict[str, str], candidate: Candidate,
     *, data_file: str, yaml_file: str,
@@ -1633,8 +1672,17 @@ def command_refresh(args: argparse.Namespace) -> int:
         raise SystemExit(f"refresh: mapping is empty: {mapping_path}")
     source_sidecar_root = Path(args.source_sidecars)
     source_manifest_dir = Path(args.source_manifest_dir)
+    new_sidecar_root = Path(args.new_sidecars) if args.new_sidecars else None
+    raw_new_manifest_dir = Path(args.new_manifest_dir) if args.new_manifest_dir else None
     ensure_isolated(out, source_sidecar_root, "--source-sidecars")
     ensure_isolated(out, source_manifest_dir, "--source-manifest-dir")
+    if new_sidecar_root is not None:
+        ensure_isolated(out, new_sidecar_root, "--new-sidecars")
+    if raw_new_manifest_dir is not None:
+        ensure_isolated(out, raw_new_manifest_dir, "--new-manifest-dir")
+    manifest_dir = Path(args.manifest_dir) if args.manifest_dir else out / "manifests"
+    if not resolved_within(manifest_dir, out):
+        raise AcquisitionError(f"--manifest-dir {manifest_dir} must resolve inside --out {out}")
     candidates = read_candidates(Path(args.candidates))
     by_accession: dict[str, Candidate] = {}
     for candidate in candidates:
@@ -1665,14 +1713,39 @@ def command_refresh(args: argparse.Namespace) -> int:
             )
         mapping_by_id[accession] = row
 
+    if set(mapping_by_id) != set(by_accession):
+        missing = sorted(set(by_accession) - set(mapping_by_id))
+        extra = sorted(set(mapping_by_id) - set(by_accession))
+        raise AcquisitionError(
+            f"mapping/candidate membership mismatch: missing={missing[:10]} extra={extra[:10]}"
+        )
+
     source_sidecars = load_sidecar_index(source_sidecar_root) if source_sidecar_root.is_dir() else {}
-    new_sidecar_root = Path(args.new_sidecars) if args.new_sidecars else None
     new_sidecars = load_sidecar_index(new_sidecar_root) if new_sidecar_root and new_sidecar_root.is_dir() else {}
     new_manifests: dict[str, dict[str, str]] = {}
-    if args.new_manifest_dir and Path(args.new_manifest_dir).is_dir():
-        for path in sorted(Path(args.new_manifest_dir).glob("*-download-manifest.tsv")):
-            for row in read_tsv(path):
-                new_manifests[row["analysis_id"]] = row
+    if raw_new_manifest_dir and raw_new_manifest_dir.is_dir():
+        for path in sorted(raw_new_manifest_dir.glob("*-download-manifest.tsv")):
+            for manifest_row in read_tsv(path):
+                if manifest_row["analysis_id"] in new_manifests:
+                    raise AcquisitionError(
+                        f"duplicate new manifest analysis_id {manifest_row['analysis_id']}"
+                    )
+                new_manifests[manifest_row["analysis_id"]] = manifest_row
+    unknown = sorted(set(new_manifests) - set(by_accession))
+    if unknown:
+        raise AcquisitionError(f"new manifest row(s) not in the candidate set: {', '.join(unknown[:10])}")
+    if set(new_manifests) != set(new_sidecars):
+        raise AcquisitionError(
+            "new sidecar/manifest sets differ: "
+            f"sidecars_only={sorted(set(new_sidecars) - set(new_manifests))[:10]} "
+            f"manifests_only={sorted(set(new_manifests) - set(new_sidecars))[:10]}"
+        )
+    for accession, new_row in new_manifests.items():
+        if new_row["status"] != "ok":
+            raise AcquisitionError(f"{accession}: new manifest row is not ok (status={new_row['status']!r})")
+        validate_digest(new_row["sha256"], "sha256", f"{accession} new manifest sha256")
+        if Path(new_row["data_file"]).name != f"{accession}.tsv.gz":
+            raise AcquisitionError(f"{accession}: new manifest data_file does not bind {accession}.tsv.gz")
 
     out_sidecars = out / "gwas-ssf"
     receipt: list[dict[str, str]] = []
@@ -1694,19 +1767,22 @@ def command_refresh(args: argparse.Namespace) -> int:
             existing = read_sidecar_document(path)
             if existing.get("gwas_id") != accession:
                 raise AcquisitionError(f"{path}: gwas_id != {accession}")
+            validate_sidecar_binding(existing, row, accession, str(path))
             document, changed = canonical_sidecar(existing, row, candidate, source_sidecar=str(path))
             action, source, provenance = ("canonicalised" if changed else "unchanged"), str(path), "inherited"
             source_data = source_sidecar_root / bucket_of(accession) / accession / f"{accession}.tsv.gz"
         validate_digest(str(document.get("data_file_md5sum", "")), "md5", f"{accession} sidecar")
         directory = out_sidecars / bucket_of(accession) / accession
-        directory.mkdir(parents=True, exist_ok=True)
         target = directory / f"{accession}.tsv.gz-meta.yaml"
         partial = target.with_name(target.name + ".partial")
+        link = directory / f"{accession}.tsv.gz"
+        for write_target in (directory, target, partial, link):
+            ensure_write_within(write_target, out)
+        directory.mkdir(parents=True, exist_ok=True)
         partial.write_text(
             yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100), encoding="utf-8"
         )
         os.replace(partial, target)
-        link = directory / f"{accession}.tsv.gz"
         if link.is_symlink():
             if link.resolve() != source_data.resolve():
                 raise AcquisitionError(f"{link}: existing symlink points elsewhere")
@@ -1752,26 +1828,42 @@ def command_refresh(args: argparse.Namespace) -> int:
         for existing_row in existing_rows:
             accession = existing_row["analysis_id"]
             candidate = by_accession[accession]
+            mapping_row = mapping_by_id[accession]
             inherited = dict(new_manifests.get(accession, existing_row))
             directory = out_sidecars / bucket_of(accession) / accession
             data_path = directory / f"{accession}.tsv.gz"
             yaml_path = directory / f"{accession}.tsv.gz-meta.yaml"
+            if accession not in new_sidecars:
+                expected_source = source_sidecar_root / bucket_of(accession) / accession / f"{accession}.tsv.gz"
+                if Path(existing_row["data_file"]).resolve() != expected_source.resolve():
+                    raise AcquisitionError(
+                        f"{accession}: existing manifest data_file does not bind the source data path"
+                    )
             if not data_path.exists():
                 # Metadata preview may report a non-ready row; the full manifest
                 # must not claim readiness for absent data.
                 inherited["status"] = "error"
                 inherited["error"] = f"data file missing: {data_path}"
-                if not args.preview:
-                    failures += 1
-            merged.append(
-                canonical_manifest_row(
-                    inherited, mapping_by_id[accession], candidate,
-                    data_file=str(data_path), yaml_file=str(yaml_path),
-                )
+            else:
+                actual_bytes = data_path.stat().st_size
+                recorded = inherited.get("data_bytes", "")
+                if recorded and recorded != str(actual_bytes):
+                    inherited["status"] = "error"
+                    inherited["error"] = f"data size mismatch: manifest {recorded} != actual {actual_bytes}"
+                else:
+                    inherited["data_bytes"] = str(actual_bytes)
+            canonical_row = canonical_manifest_row(
+                inherited, mapping_row, candidate, data_file=str(data_path), yaml_file=str(yaml_path)
             )
-        write_tsv(manifest_dir / f"{slug}-download-manifest.tsv", MANIFEST_COLUMNS, merged)
+            canonical_row["yaml_bytes"] = str(yaml_path.stat().st_size)
+            if canonical_row["status"] != "ok" and not args.preview:
+                failures += 1
+            merged.append(canonical_row)
+        manifest_path = manifest_dir / f"{slug}-download-manifest.tsv"
+        ensure_write_within(manifest_path, out)
+        write_tsv(manifest_path, MANIFEST_COLUMNS, merged)
         merged_total += len(merged)
-        print(f"refresh: {store_key}: {len(merged)} rows -> {manifest_dir / f'{slug}-download-manifest.tsv'}")
+        print(f"refresh: {store_key}: {len(merged)} rows -> {manifest_path}")
     print(f"refresh: {len(receipt)} sidecar(s), {merged_total} manifest row(s), preview={bool(args.preview)}")
     return 1 if failures else 0
 
