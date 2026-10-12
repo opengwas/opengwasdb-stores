@@ -28,8 +28,8 @@ then assess actual code and evidence at a worker checkpoint.
 
 | Ticket | Worker / reviewer | Deliverable | Initial state |
 |---|---|---|---|
-| #217 | `worker217` / `review217` | truthful release readiness and historical reconciliation | reviewer GO at `886082b`; [PR #234](https://github.com/opengwas/opengwasdb-stores/pull/234) to `dev`, not merged |
-| #218 | `worker218` / `review218` | immutable current-format runtime pin, lock and compatibility guards | own pinned environment installed; workflow fixtures green; fault tests/checkpoint pending |
+| #217 | `worker217` / `review217` | truthful release readiness and historical reconciliation | reviewer GO and CI green at `886082b`; [PR #234](https://github.com/opengwas/opengwasdb-stores/pull/234) to `dev`, not merged |
+| #218 | `worker218` / `review218` | immutable current-format runtime pin, lock and compatibility guards | pin/lock and full local suite green; runtime-guard checkpoint NO-GO, corrections pending |
 | #219 | `worker219` / `review219` | verified restored UKB inventory and unaccepted candidate | checksum freeze complete; candidate/integrity checkpoint review pending |
 | #220 | `worker220` / `review220` | MVP acquisition and mapping reconciliation | targeted mapping investigation; numerical discrepancies unresolved; full-data scan not authorised |
 
@@ -127,7 +127,10 @@ Independent Gemini reviewer verdict **GO**, no blockers, at exact head
 four reviewed ticket commits into the primary feature branch
 `feat/217-release-readiness` and raised
 [PR #234](https://github.com/opengwas/opengwasdb-stores/pull/234) to `dev`.
-The PR is not automatically merged; #217 remains pending integration/CI.
+The PR is not automatically merged; #217 remains pending integration.
+CI `pixi test + docs smoke test` passed in 16m34s at the same exact head:
+[run 38187753289](https://github.com/opengwas/opengwasdb-stores/actions/runs/38187753289/job/114613681988).
+The orchestrator verified the terminal check through the GitHub PR API.
 
 Orchestrator checks against the archived exact head: 26 readiness tests,
 12 index tests, 54 bundle test cases / 128 checks, bundle-check 12/12 and
@@ -151,7 +154,13 @@ The orchestrator independently checked the #218 worktree's installed runtime
 metadata: `opengwasdb 0.3.0`, Python 3.12, canonical Git URL and immutable
 `direct_url.json` commit `1be2a156649e4d444f31f9b4107c3f47a046f855`.
 This is an isolated installed environment, not a merged runtime-adoption PR or
-production qualification of that revision.
+production qualification of that revision. #218's initial runtime-guard review
+is **NO-GO** despite its full local suite passing: unknown revisions must fail
+closed, runtime version must belong to the resolved executable, and completion
+parent checks must use actual scheduled producing steps rather than merely
+release IDs. An enhancement-only rerun must not be treated as a compatible
+parent rebuild or blocked by an unused completion recipe. The worker is adding
+these regressions and corrections before a new independent verdict.
 
 #219 has a conditional allocation for ten representative Analyses through the
 existing core Phase B resolver, at most two workers and BLAS threads one, after
