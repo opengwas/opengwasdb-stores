@@ -29,7 +29,9 @@ successors:
     completion_state: observed_only
     membership: 2514
     replaces: OGS-00009
-    emitted: false                     # staged evidence only; not registered
+    candidate_bundle: staged            # OGS-00030 candidate bundle emitted to staging, not registered
+    store_artifact: not_built
+    registered: false
   completed:
     store_id: OGS-00031
     label: ukb-b-full-completed-restored
@@ -37,8 +39,10 @@ successors:
     completion_state: reference_completed
     derived_from: OGS-00030
     replaces: OGS-00010
-    emitted: false                     # not constructed/stored yet
-    reference_status: pending-owner-approval
+    candidate_bundle: absent            # not constructed/stored yet
+    store_artifact: not_built
+    registered: false
+    reference_status: pending-qualification-and-activation   # owner already approved the UKB EUR panel
 
 lineage:
   # The Release Bundle schema has no `supersedes` field; replacement is recorded

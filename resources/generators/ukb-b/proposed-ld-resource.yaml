@@ -27,10 +27,16 @@ allele_columns:
   effect: EA
   other: OA
   freq: EAF
-# Root containing the canonical per-ancestry folder; needs an `EUR -> ukb` alias.
+# Root containing the canonical per-ancestry folder. The CLI resolves the panel
+# as `<location>/<ancestry_dir>/<chr>/...` and filters Analyses by the same
+# `--ancestry EUR`, so the declaration's ancestry_dir is the canonical `EUR`;
+# the physical directory on disk is named `ukb` and a non-destructive
+# `EUR -> ukb` alias supplies the canonical folder (isolated work-root alias
+# already created; production alias/declaration ACTIVATION still pending).
 location: /data/opengwasdb/reference/ld
 location_kind: external_directory
-ancestry_dir: ukb
+ancestry_dir: EUR
+physical_directory: ukb
 ld:
   representation: eigendecomposition
   block_file: structural_ld_blocks_lookup.tsv

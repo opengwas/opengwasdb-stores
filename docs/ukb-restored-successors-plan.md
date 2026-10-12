@@ -28,8 +28,8 @@ Lineage source (owner, durable): issue comment 6133853820.
 
 | Historical (preserved) | Successor | Relation |
 |---|---|---|
-| `OGS-00009` observed, 2,024 | `OGS-00030` observed, 2,514 | replacement observed release |
-| `OGS-00010` completed, 2,024 | `OGS-00031` completed, 2,514 | replacement completed release, `derived_from: OGS-00030` |
+| `OGS-00009` observed, 2,024 | `OGS-00030` observed, 2,514 | replacement observed release; candidate bundle **staged** (not registered), Store artifact **not built** |
+| `OGS-00010` completed, 2,024 | `OGS-00031` completed, 2,514 | replacement completed release, `derived_from: OGS-00030`; candidate bundle **absent**, Store artifact **not built**, reference status `pending-qualification-and-activation` |
 
 The Release Bundle schema has no `supersedes` field; replacement is recorded in
 the codification file and, at the release gate, by the historical releases' own
@@ -62,7 +62,11 @@ matches). With the directory named `ukb` and the Analyses' `assigned_ancestry`
 **Plan.** The production fix is a minimal, non-destructive `EUR -> ukb` alias at
 the declared reference root (owner/infra), after which
 `--ld-panel /data/opengwasdb/reference/ld --ancestry EUR` resolves both axes with
-no change to `assigned_ancestry` or to core. The isolated work root above provides
+no change to `assigned_ancestry` or to core. The proposed declaration therefore
+sets the canonical `ancestry_dir: EUR` (matching the `--ancestry EUR` the
+completion CLI passes and the ancestry filter uses) and records the physical
+directory `ukb` separately as `physical_directory`, rather than putting `ukb`
+where the CLI expects the ancestry label. The isolated work root above provides
 the same resolution for qualification today without mutating the physical panel,
 old Stores, mirror or production registry. To be precise about "pending": the
 isolated `reference-root/EUR` symlink **already exists** (created for
@@ -122,8 +126,10 @@ decision).
    for its header/count; its relationship to the 1,357 blocks is unqualified.
 5. Core **#277** (assign-ancestry liftover) and **#207** (resolve-analyses
    MetricsReader) remain open; candidate ancestry is `source_fallback`.
-6. `OGS-00031` is not constructed and `OGS-00030` is not built; identity is
-   codified but no release acceptance is implied.
+6. `OGS-00031` is not constructed (candidate bundle absent) and `OGS-00030` is
+   not built; `OGS-00030`'s candidate bundle is staged only and unregistered.
+   Identity is codified but no release acceptance is implied; reference status
+   is `pending-qualification-and-activation` (owner already approved the panel).
 
 ## Non-actions
 
