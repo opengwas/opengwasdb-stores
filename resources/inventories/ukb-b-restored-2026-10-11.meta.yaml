@@ -1,0 +1,28 @@
+snapshot_id: ukb-b-restored-2026-10-11
+inventory_schema_version: 1
+source_collection_id: opengwas-gwas-vcf
+store_key: ukb-b
+ancestry_group: EUR
+frozen_at: '2026-10-12T00:01:15Z'
+rows: 2514
+ready_rows: 2514
+ready_bytes: 425402488477
+checksum_algorithm: sha256
+upstream_batch:
+  id: ukb-b
+  count: 2514
+  description: IEU analysis of UK Biobank phenotypes
+  evidence_path: /home/gh13047/repo/opengwasdb-stores-wt/219-restored-ukb/resources/inventories/ukb-b-restored-2026-10-11.upstream-batches.json
+  evidence_sha256: f108faee01dbaffe9bd2114cdfbb8e423d852b30ff78ca4e30904d211e641457
+declared_selection:
+  path: /home/gh13047/repo/opengwasdb-stores-wt/219-restored-ukb/families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv
+  sha256: 0ae5c2d74d46dfcea7b2fcb36f3032e1ca4ae27117a1d6ac6915400cde060284
+  rows: 2514
+built_baseline:
+  store_id: OGS-00009
+  path: /home/gh13047/repo/opengwasdb-stores-wt/219-restored-ukb/stores/OGS-00009/analyses.tsv
+  sha256: eacfac7d98bf441bd9b35b1ba0779a4cbee26799cb7166c7022e1bf44ea6866a
+  rows: 2024
+restored_not_built: 490
+duplicate_content_groups: []
+inventory_tsv_sha256: 3784abade55150684fb4c837ccb49195d09c50540b940356e48f5887fa8c14b4
