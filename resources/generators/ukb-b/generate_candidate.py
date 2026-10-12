@@ -160,6 +160,14 @@ def _resolve(root: Path, value: str) -> Path:
     return path if path.is_absolute() else root / path
 
 
+def _display_path(path: Path, repo_root: Path) -> str:
+    """Prefer a repo-relative path so a committed bundle is not bound to one checkout."""
+    try:
+        return str(path.resolve().relative_to(repo_root.resolve()))
+    except ValueError:
+        return str(path)
+
+
 # ---------------------------------------------------------------------------
 # Loading inputs
 # ---------------------------------------------------------------------------
@@ -562,9 +570,9 @@ def main(argv: list[str] | None = None) -> int:
     release = render_release_yaml(
         store_id=args.store_id,
         config=document,
-        inventory_path=inventory_path.resolve(),
+        inventory_path=Path(_display_path(inventory_path, repo_root)),
         inventory_sha256=sha256_file(inventory_path),
-        resolution_path=resolution_path.resolve(),
+        resolution_path=Path(_display_path(resolution_path, repo_root)),
         resolution_sha256=sha256_file(resolution_path),
         n_rows=len(rows),
         n_buildable=n_buildable,
