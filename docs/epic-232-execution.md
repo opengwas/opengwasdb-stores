@@ -154,7 +154,7 @@ by the orchestrator at their exact heads and raised to `dev`:
 
 | Ticket | Feature branch | PR | Reviewed head | Verdict | Orchestrator re-check |
 |---|---|---|---|---|---|
-| #218 | `feat/218-current-runtime` | [PR #237](https://github.com/opengwas/opengwasdb-stores/pull/237) | `745ec95` | GO | runtime-guard 19/19, plan 91/91 (324 checks) |
+| #218 | `feat/218-current-runtime` | [PR #237](https://github.com/opengwas/opengwasdb-stores/pull/237) | `af6fc75` | GO (incl. repin to core `4e92256`) | runtime-guard 19/19, plan 91/91 |
 | #219 | `feat/219-restored-ukb` | [PR #236](https://github.com/opengwas/opengwasdb-stores/pull/236) | `d4aa31c` | GO (staged candidate only) | ukb-b 38/38, bundle-check 12/12 |
 | #220 | `feat/220-mvp-acquisition` | [PR #235](https://github.com/opengwas/opengwasdb-stores/pull/235) | `cbac5b9` | GO tooling; gate HOLD | dbgap 27/27 |
 
@@ -235,7 +235,7 @@ and 36.5→3.01 GiB (OGS-00010), both validating clean, with wall time also
 reduced (88→71 and 135→109 min). No heavy runs remain on the host.
 
 The stores runtime pin stays immutable `1be2a15` (#218) until the coordinated
-repin is reviewed. The repin (`1be2a15` → `4e92256`) is now in progress on
-`ticket/218-current-runtime` (worker218 owns pixi files; review218 re-verdict
-required) before PR #237 is updated. No full production validators run until
-that repin is reviewed.
+repin is reviewed. The repin (`1be2a15` → `4e92256`) is now **complete and
+reviewed GO** on `ticket/218-current-runtime` (`af6fc75`), integrated into
+`feat/218-current-runtime` and PR #237. Pin constant, `pixi.toml` and
+`pixi.lock` all resolve `4e92256`; runtime-guard 19/19 re-verified.
