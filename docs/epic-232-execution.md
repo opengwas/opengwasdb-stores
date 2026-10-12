@@ -225,3 +225,13 @@ verification or calibration evidence.
 Subsequent checkpoints must record actual commits, reviewed scope, commands,
 evidence locations, unresolved owner decisions and PR URLs. Missing completion
 or correctness gates prevent a blanket ingestion-readiness claim.
+
+## Core #254 coordination (in flight)
+
+The operator's `feature/254-bounded-dense-validation` is implementation-green
+(2,327 tests; byte-bounded Dense validation bands) with final full-run RSS
+measurements still running (~2-4 h) and two OGS-00009/OGS-00010 validation runs
+taking ~2 cores on this host. The stores side holds all heavy work during those
+runs. Our runtime pin stays immutable `1be2a15`; the coordinated repin happens
+after the #254 PR lands on core `dev`, and only then do full production
+validators resume under the new bounds.
