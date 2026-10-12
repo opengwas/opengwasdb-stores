@@ -59,7 +59,9 @@ import subprocess
 import sys
 import tarfile
 import time
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -67,7 +69,13 @@ import yaml
 
 DEFAULT_OUT = "/data/opengwasdb/raw/dbgap-phs002453"
 DEFAULT_CANDIDATES = "resources/data/derived/store-candidates-analyses.tsv"
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_DISCREPANCIES = str(_REPO_ROOT / "resources/scripts/dbgap-phs002453-key-discrepancies.yaml")
 PUBMED_ID = "39024449"
+
+#: Dispositions a key-discrepancy ledger record may carry.  Anything else is an
+#: error, so an unrecognised value can never be read as "resolved".
+DISCREPANCY_DISPOSITIONS: tuple[str, ...] = ("resolved", "owner_decision_required")
 DBGAP_BASE = "https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs002453/analyses/GIA"
 
 #: dbGaP GIA ancestries, as they appear in a member name
@@ -114,6 +122,14 @@ MAPPING_COLUMNS: tuple[str, ...] = (
 REPORT_COLUMNS: tuple[str, ...] = (
     "kind", "analysis_id", "member", "ancestry", "study_design", "sample_size",
     "n_cases", "n_controls", "analyzed_variable", "candidates", "detail",
+)
+
+#: The per-record trait-label review queue.  A mismatch does not change the
+#: numeric-key binding; it is surfaced with its original labels so a human can
+#: disposition it rather than have a spelling heuristic accept it silently.
+REVIEW_COLUMNS: tuple[str, ...] = (
+    "analysis_id", "member", "trait_category", "disposition", "trait_check",
+    "analyzed_variable", "candidate_trait",
 )
 
 #: The awk program that performs the per-row transform.  ``$1`` is the source
@@ -401,6 +417,38 @@ def trait_check(analyzed_variable: str, candidate_trait: str) -> str:
     return "mismatch"
 
 
+def canonical_trait(text: str) -> str:
+    """Formatting-only canonical form of a trait label.
+
+    Unicode-normalises, strips the GWAS Catalog's ``(PheCode N)`` suffix,
+    case-folds, removes apostrophes/quotes, and replaces every non-alphanumeric
+    run with a space.  It deliberately does NOT map spelling variants, plurals,
+    abbreviations or synonyms: ``lipoid``/``lipid``, ``prostate``/``prostrate``
+    and ``H. pylori``/``Helicobacter pylori`` must stay distinct so they land in
+    the human review queue rather than being accepted by a typo heuristic.
+    """
+    value = unicodedata.normalize("NFKC", text.strip()).casefold()
+    value = re.sub(r"\s*\(phecode\s+[0-9.]+\s*\)\s*$", "", value)
+    for straight, curly in (("'", "\u2019"), ("'", "\u2018"), ('"', "\u201c"), ('"', "\u201d")):
+        value = value.replace(curly, straight)
+    value = value.replace("'", "").replace('"', "")
+    value = re.sub(r"[^a-z0-9]+", " ", value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def trait_disposition(analyzed_variable: str, candidate_trait: str) -> tuple[str, str]:
+    """``(category, disposition)`` for one trait-text mismatch.
+
+    ``punctuation_only`` means the two labels agree after :func:`canonical_trait`
+    (case, quoting and possessives only); it still needs a recorded policy
+    acceptance and is never used to bind.  Everything else is a
+    ``lexical_variant`` and needs owner scientific review.
+    """
+    if canonical_trait(analyzed_variable) == canonical_trait(candidate_trait):
+        return "punctuation_only", "formatting_only_pending_policy"
+    return "lexical_variant", "owner_scientific_review"
+
+
 # ---------------------------------------------------------------------------
 # Candidates
 # ---------------------------------------------------------------------------
@@ -477,6 +525,70 @@ def selected_values(values: list[str] | None) -> set[str] | None:
     for value in values or []:
         chosen.update(part.strip() for part in value.split(",") if part.strip())
     return chosen or None
+
+
+@dataclass(frozen=True)
+class KeyDiscrepancy:
+    """One committed, evidence-backed numeric-key disagreement in the ledger."""
+
+    member: str
+    analysis_id: str
+    disposition: str
+    ancestry: str
+    sample_size: int
+    n_cases: int
+    n_controls: int
+    candidate_sample_size: int
+    candidate_n_cases: int
+    candidate_n_controls: int
+    owner_question: str
+
+    @property
+    def dbgap_key(self) -> tuple[str, int, int, int]:
+        return (self.ancestry, self.sample_size, self.n_cases, self.n_controls)
+
+    @property
+    def candidate_numeric_key(self) -> tuple[int, int, int]:
+        return (self.candidate_sample_size, self.candidate_n_cases, self.candidate_n_controls)
+
+
+def read_discrepancies(path: Path) -> list[KeyDiscrepancy]:
+    """Read the key-discrepancy ledger, failing loudly on a malformed record."""
+    if not path.is_file():
+        raise AcquisitionError(f"--discrepancies not found: {path}")
+    document = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    records = document.get("records") or []
+    discrepancies: list[KeyDiscrepancy] = []
+    for index, record in enumerate(records):
+        where = f"{path}:records[{index}]"
+        try:
+            dbgap = record["dbgap"]
+            candidate = record["candidate"]
+            disposition = record["disposition"]
+            member = str(record["member"]).strip()
+            analysis_id = str(record["analysis_id"]).strip()
+            if disposition not in DISCREPANCY_DISPOSITIONS:
+                raise AcquisitionError(f"{where}: unknown disposition {disposition!r}")
+            discrepancy = KeyDiscrepancy(
+                member=member,
+                analysis_id=analysis_id,
+                disposition=disposition,
+                ancestry=str(dbgap["ancestry"]).strip(),
+                sample_size=int(dbgap["sample_size"]),
+                n_cases=int(dbgap.get("n_cases", 0)),
+                n_controls=int(dbgap.get("n_controls", 0)),
+                candidate_sample_size=int(candidate["sample_size"]),
+                candidate_n_cases=int(candidate.get("n_cases", 0)),
+                candidate_n_controls=int(candidate.get("n_controls", 0)),
+                owner_question=" ".join(str(record.get("owner_question", "")).split()),
+            )
+        except (TypeError, KeyError, ValueError) as exc:
+            raise AcquisitionError(f"{where}: malformed record ({exc})") from exc
+        discrepancies.append(discrepancy)
+    ids = [record.analysis_id for record in discrepancies]
+    if len(ids) != len(set(ids)):
+        raise AcquisitionError(f"{path}: duplicate analysis_id in the discrepancy ledger")
+    return discrepancies
 
 
 # ---------------------------------------------------------------------------
@@ -695,9 +807,22 @@ def load_analysis(
 
 
 def map_analyses(
-    analyses: list[Analysis], candidates: list[Candidate], *, report_unused_candidates: bool
+    analyses: list[Analysis],
+    candidates: list[Candidate],
+    *,
+    report_unused_candidates: bool,
+    discrepancies: Sequence[KeyDiscrepancy] = (),
 ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
-    """Bind every Analysis to one candidate row; return ``(mapping rows, problems)``."""
+    """Bind every Analysis to one candidate row; return ``(mapping rows, problems)``.
+
+    A numeric-key disagreement is never resolved by guessing.  ``discrepancies``
+    is the committed ledger of known disagreements: a ``resolved`` entry binds
+    the named pair with ``match_basis=discrepancy-ledger`` after a recorded human
+    decision, and an ``owner_decision_required`` entry is reported as
+    ``numeric_key_discrepancy`` and keeps the bijection gate red.  Every entry is
+    re-validated against the extracted metadata and the candidate table, so a
+    stale or contradictory ledger fails loudly rather than passing silently.
+    """
     by_key: dict[tuple[str, int, int, int], list[Candidate]] = {}
     for candidate in candidates:
         by_key.setdefault(candidate.numeric_key, []).append(candidate)
@@ -705,6 +830,7 @@ def map_analyses(
     rows: list[dict[str, str]] = []
     problems: list[dict[str, str]] = []
     used: dict[str, str] = {}
+    matched_members: set[str] = set()
 
     def problem(kind: str, analysis: Analysis | None, candidates_here: list[Candidate], detail: str) -> None:
         problems.append({
@@ -753,6 +879,7 @@ def map_analyses(
             problem("duplicate_analysis_match", analysis, [chosen], f"already matched to {used[key]}")
             continue
         used[key] = analysis.member
+        matched_members.add(analysis.member)
         check = trait_check(analysis.analyzed_variable, chosen.trait)
         if check == "mismatch":
             problem("trait_check_mismatch", analysis, [chosen], f"analyzed variable {analysis.analyzed_variable!r} vs {chosen.trait!r}")
@@ -777,7 +904,111 @@ def map_analyses(
     for candidate in candidates:
         if report_unused_candidates and candidate.analysis_id not in used:
             problem("unused_candidate", None, [candidate], "no extracted Analysis mapped to this candidate row")
+
+    # Reconcile the committed ledger.  This runs after the exact-key pass so a
+    # record that is no longer needed (or now collides with a real binding) is
+    # detected as stale instead of silently replacing a valid binding.
+    by_member = {analysis.member: analysis for analysis in analyses}
+    by_accession = {candidate.analysis_id: candidate for candidate in candidates}
+    for discrepancy in discrepancies:
+        analysis = by_member.get(discrepancy.member)
+        if analysis is None:
+            # A partial run selected other members; the full run must account
+            # for every ledger record.
+            if report_unused_candidates:
+                raise AcquisitionError(
+                    f"discrepancy ledger names an Analysis that was not extracted: {discrepancy.member}"
+                )
+            continue
+        candidate = by_accession.get(discrepancy.analysis_id)
+        if candidate is None:
+            raise AcquisitionError(
+                f"discrepancy ledger names a candidate row that is absent: {discrepancy.analysis_id}"
+            )
+        if analysis.numeric_key != discrepancy.dbgap_key:
+            raise AcquisitionError(
+                f"discrepancy ledger key drift for {discrepancy.member}: "
+                f"ledger={discrepancy.dbgap_key} metadata={analysis.numeric_key}"
+            )
+        if analysis.numeric_key == candidate.numeric_key:
+            raise AcquisitionError(
+                f"discrepancy ledger entry for {discrepancy.analysis_id} is stale: "
+                "the metadata and candidate numeric keys now agree"
+            )
+        candidate_key = (candidate.sample_size, candidate.n_cases, candidate.n_controls)
+        if candidate_key != discrepancy.candidate_numeric_key:
+            raise AcquisitionError(
+                f"discrepancy ledger candidate key drift for {discrepancy.analysis_id}: "
+                f"ledger={discrepancy.candidate_numeric_key} candidate={candidate_key}"
+            )
+        if candidate.mapped_ancestry != analysis.ancestry:
+            raise AcquisitionError(
+                f"discrepancy ledger ancestry drift for {discrepancy.analysis_id}: "
+                f"metadata={analysis.ancestry} candidate={candidate.mapped_ancestry}"
+            )
+        if discrepancy.member in matched_members or discrepancy.analysis_id in used:
+            raise AcquisitionError(
+                f"discrepancy ledger entry for {discrepancy.analysis_id} conflicts with an existing binding"
+            )
+        problems[:] = [
+            row for row in problems
+            if not (
+                (row["kind"] == "unmatched_analysis" and row["member"] == discrepancy.member)
+                or (row["kind"] == "unused_candidate" and row["analysis_id"] == discrepancy.analysis_id)
+            )
+        ]
+        if discrepancy.disposition == "resolved":
+            used[discrepancy.analysis_id] = discrepancy.member
+            matched_members.add(discrepancy.member)
+            check = trait_check(analysis.analyzed_variable, candidate.trait)
+            rows.append({
+                "analysis_id": discrepancy.analysis_id,
+                "member": analysis.member,
+                "tar": analysis.tar,
+                "ancestry": analysis.ancestry,
+                "study_design": candidate.study_design,
+                "dbgap_trait_type": analysis.trait_type,
+                "sample_size": str(analysis.sample_size),
+                "n_cases": str(analysis.n_cases),
+                "n_controls": str(analysis.n_controls),
+                "dbgap_trait_code": analysis.trait_code,
+                "analyzed_variable": analysis.analyzed_variable,
+                "candidate_trait": candidate.trait,
+                "candidate_store_key": candidate.store_key,
+                "match_basis": "discrepancy-ledger",
+                "trait_check": check,
+            })
+            if check == "mismatch":
+                problem(
+                    "trait_check_mismatch", analysis, [candidate],
+                    f"analyzed variable {analysis.analyzed_variable!r} vs {candidate.trait!r}",
+                )
+        else:
+            problem(
+                "numeric_key_discrepancy", analysis, [candidate],
+                f"{discrepancy.disposition}: metadata key {analysis.numeric_key} vs "
+                f"candidate key {candidate.numeric_key}; {discrepancy.owner_question}",
+            )
     return rows, problems
+
+
+def build_review_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Per-record trait-label review queue for every ``trait_check`` mismatch."""
+    review: list[dict[str, str]] = []
+    for row in rows:
+        if row.get("trait_check") != "mismatch":
+            continue
+        category, disposition = trait_disposition(row["analyzed_variable"], row["candidate_trait"])
+        review.append({
+            "analysis_id": row["analysis_id"],
+            "member": row["member"],
+            "trait_category": category,
+            "disposition": disposition,
+            "trait_check": row["trait_check"],
+            "analyzed_variable": row["analyzed_variable"],
+            "candidate_trait": row["candidate_trait"],
+        })
+    return review
 
 
 def command_map(args: argparse.Namespace) -> int:
@@ -785,6 +1016,7 @@ def command_map(args: argparse.Namespace) -> int:
     candidates = read_candidates(Path(args.candidates))
     if not candidates:
         raise SystemExit(f"map: no PMID {PUBMED_ID} rows in {args.candidates}")
+    discrepancies = read_discrepancies(Path(args.discrepancies))
     extracted = out / "GIA" / "extracted"
     members = metadata_members(out)
     member_needles = selected_values(args.member)
@@ -820,29 +1052,43 @@ def command_map(args: argparse.Namespace) -> int:
     # whether everything it read is bound; only a full run can be asked whether
     # every candidate row is covered.
     covered_all = not (member_needles or analysis_needles or args.limit)
-    rows, problems = map_analyses(analyses, candidates, report_unused_candidates=covered_all)
+    rows, problems = map_analyses(
+        analyses, candidates, report_unused_candidates=covered_all, discrepancies=discrepancies
+    )
     write_tsv(out / "mapping.tsv", MAPPING_COLUMNS, rows)
     write_tsv(out / "mapping-report.tsv", REPORT_COLUMNS, problems)
+    review = build_review_rows(rows)
+    write_tsv(out / "mapping-review.tsv", REVIEW_COLUMNS, review)
 
     binding_ok = not any(
-        p["kind"] in ("unmatched_analysis", "ambiguous_analysis", "duplicate_analysis_match")
+        p["kind"] in (
+            "unmatched_analysis", "ambiguous_analysis", "duplicate_analysis_match",
+            "numeric_key_discrepancy",
+        )
         for p in problems
     )
     complete = binding_ok and len(candidates) == 6022 and len(rows) == len(candidates)
     print(
         f"map: {len(analyses)} Analysis(es), {len(candidates)} candidate(s), {len(rows)} matched, "
-        f"{len(problems)} problem row(s); binding={'ok' if binding_ok else 'incomplete'}; "
+        f"{len(problems)} problem row(s), {len(review)} trait review row(s); "
+        f"binding={'ok' if binding_ok else 'incomplete'}; "
         f"complete={'yes' if complete else 'no'}; wrote {out / 'mapping.tsv'}"
     )
     for kind, count in sorted(collections.Counter(p["kind"] for p in problems).items()):
         print(f"  {kind}={count}")
     if binding_ok and (complete or not covered_all or args.allow_partial):
         return 0
-    print(
-        "map: " + ("not a complete bijection over all 6,022 Analyses"
-                   if binding_ok else "the Analysis/candidate binding is not a bijection"),
-        file=sys.stderr,
-    )
+    pending = sum(1 for p in problems if p["kind"] == "numeric_key_discrepancy")
+    if binding_ok:
+        message = "not a complete bijection over all 6,022 Analyses"
+    elif pending:
+        message = (
+            f"the Analysis/candidate binding has {pending} numeric-key discrepancy(ies) "
+            "awaiting a recorded owner decision"
+        )
+    else:
+        message = "the Analysis/candidate binding is not a bijection"
+    print("map: " + message, file=sys.stderr)
     return 1
 
 
@@ -1093,6 +1339,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
     map_parser = subparsers.add_parser("map", help="bind dbGaP Analyses to candidate-table rows")
     map_parser.add_argument("--candidates", default=DEFAULT_CANDIDATES)
+    map_parser.add_argument(
+        "--discrepancies", default=DEFAULT_DISCREPANCIES,
+        help="key-discrepancy ledger (default: %(default)s)",
+    )
     map_parser.add_argument("--member", action="append", help="only metadata files whose name contains this (repeatable)")
     map_parser.add_argument("--analysis", action="append", help="only these trait codes / member stems")
     map_parser.add_argument("--limit", type=int)
