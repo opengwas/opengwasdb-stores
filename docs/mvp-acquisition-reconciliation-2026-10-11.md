@@ -10,8 +10,8 @@ download was run, and no ancestry grouping was settled (ticket #221).
 
 > "for mvp use the dbgap information for all three queries."
 
-Recorded 2026-10-12 (owner comment created 21:24:22 UTC; the primary evidence
-itself was captured 2026-10-11), authority **dbGaP**, durable citation
+Recorded 2026-10-12T21:24:22Z (the owner comment's creation time; the primary
+evidence itself was captured 2026-10-11), authority **dbGaP**, durable citation
 <https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250>.
 dbGaP `phs002453` is the canonical source; the GWAS Catalog counterparts are
 retained as provenance. The decision is committed in
@@ -44,16 +44,20 @@ records the raw classification alongside the resolved disposition:
   `Dermatomycoses`/`Dermatomycosis` (4), `examinations`/`examination` (2),
   `Prostrate`/`prostate` (8), `Ostearthritis`/`Osteoarthritis` (4).
 
-Every row's `disposition` is `resolved_dbgap_authoritative`; `trait_category`
-is the raw classification.  No fuzzy or typo-based identity binding is
-performed.
+Every row's `disposition` is derived from the validated, cited `owner_decisions`
+trait policy in the ledger: `resolved_dbgap_authoritative` when that policy is
+complete, and `owner_decision_pending` when it is missing or incomplete (so a
+fixture or partial ledger never implies a resolution). `trait_category` is the
+raw classification. No fuzzy or typo-based identity binding is performed.
 
 ## Reconciliation result
 
 Metadata-only `map` over the real mirror (reads `*.dbGaP.metadata.txt` and TOC
 files only; never opens a `.txt.gz`), written to the ticket work directory
-`/data/opengwasdb/work/epic232/220/resolved-sim/` through a `GIA` symlink. The
-historical mirror mapping is **not** overwritten.
+`/data/opengwasdb/work/epic232/220/policy-resolved-sim/` through a `GIA` symlink.
+The historical mirror mapping is **not** overwritten. The earlier
+`resolved-sim/` directory is preserved unchanged as the pre-correction audit
+copy (it holds the old `owner_decision_pending` review file).
 
 | Measure | Value |
 |---|---|
@@ -64,13 +68,16 @@ historical mirror mapping is **not** overwritten.
 | `trait_check` exact / prefix / mismatch | 5,962 / 3 / 57 |
 | `mapping-review.tsv` rows | 57 (30 punctuation-only, 27 lexical; all `resolved_dbgap_authoritative`) |
 
-Simulation output hashes (under `/data/opengwasdb/work/epic232/220/resolved-sim/`):
+Simulation output hashes (under `/data/opengwasdb/work/epic232/220/policy-resolved-sim/`):
 
 | File | md5 |
 |---|---|
 | `mapping.tsv` | `7a650879e70cdad773a912a168f0d856` |
 | `mapping-report.tsv` | `5a1ab1262266b47f6de258b6114b9e79` |
-| `mapping-review.tsv` | `c6064939acd52a4481b8c82ff5c2e0f1` |
+| `mapping-review.tsv` | `08dd887bd789c0d6d46f89de0266cb4f` |
+
+All 57 review rows carry `disposition=resolved_dbgap_authoritative` (the earlier
+`c6064939…` review is the preserved pre-correction copy under `resolved-sim/`).
 
 The historical mirror `mapping.tsv`/`mapping-report.tsv` were regenerated
 byte-for-byte from an empty ledger and confirmed unchanged

@@ -109,11 +109,14 @@ differs, it is retained as provenance in the sidecar's `catalog_metadata` block
 `mapping-review.tsv` is the per-record trait-label queue. Every
 `trait_check=mismatch` row keeps its original dbGaP and Catalog labels, its raw
 `trait_category` (`punctuation_only` or `lexical_variant`) and its
-`disposition`. Per the ticket #220 owner decision (2026-10-12, dbGaP
-authoritative) every row is `resolved_dbgap_authoritative`: the canonical label
-is the dbGaP `Analyzed variable` and the Catalog counterpart is preserved. The
-classification does not assert the labels are lexically equivalent, and no
-spelling or synonym heuristic binds an Analysis.
+`disposition`. `disposition` is derived from the validated, cited
+`owner_decisions` trait policy in the ledger: a complete policy yields
+`resolved_<authority>_authoritative` (for ticket #220's 2026-10-12 decision,
+`resolved_dbgap_authoritative`), while a missing or incomplete policy yields
+`owner_decision_pending`. The canonical label is then the dbGaP
+`Analyzed variable` and the Catalog counterpart is preserved. The classification
+does not assert the labels are lexically equivalent, and no spelling or synonym
+heuristic binds an Analysis.
 
 **convert** runs `gzip -dc member | awk | gzip` per Analysis. The awk program is
 header-driven and matches columns by name; the output column set is EBI's, so a

@@ -436,20 +436,29 @@ def canonical_trait(text: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
-def trait_disposition(analyzed_variable: str, candidate_trait: str) -> tuple[str, str]:
+def trait_disposition(
+    analyzed_variable: str, candidate_trait: str, *, trait_policy: "OwnerPolicy | None" = None
+) -> tuple[str, str]:
     """``(trait_category, disposition)`` for one trait-text mismatch.
 
     ``trait_category`` is the raw classification: ``punctuation_only`` when the
-    two labels agree after :func:`canonical_trait`, otherwise ``lexical_variant``.
-    The owner decision for ticket #220 (2026-10-12) makes dbGaP authoritative for
-    all 57 mismatches, so the disposition is always
-    ``resolved_dbgap_authoritative``.  The classification does NOT assert the two
-    labels are lexically equivalent; the original dbGaP and Catalog labels are
-    both retained on the row.
+    two labels agree after :func:`canonical_trait`, otherwise ``lexical_variant``;
+    it never asserts the labels are lexically equivalent.
+
+    ``disposition`` is ``owner_decision_pending`` unless a validated, cited
+    ``trait_policy`` (a top-level ``owner_decisions`` record in the ledger) is
+    supplied, in which case it is ``resolved_<authority>_authoritative`` -- for
+    the ticket #220 decision, ``resolved_dbgap_authoritative``.  A missing or
+    incomplete policy therefore stays pending rather than being assumed.
     """
     if canonical_trait(analyzed_variable) == canonical_trait(candidate_trait):
-        return "punctuation_only", "resolved_dbgap_authoritative"
-    return "lexical_variant", "resolved_dbgap_authoritative"
+        category = "punctuation_only"
+    else:
+        category = "lexical_variant"
+    if trait_policy is None:
+        return category, "owner_decision_pending"
+    token = re.sub(r"[^a-z0-9]+", "-", trait_policy.authority.casefold()).strip("-")
+    return category, f"resolved_{token}_authoritative"
 
 
 # ---------------------------------------------------------------------------
@@ -556,6 +565,39 @@ class KeyDiscrepancy:
         return (self.candidate_sample_size, self.candidate_n_cases, self.candidate_n_controls)
 
 
+@dataclass(frozen=True)
+class OwnerPolicy:
+    """A validated, cited owner policy, e.g. the trait-label decision."""
+
+    id: str
+    authority: str
+    quote: str
+    recorded: str
+    citation: str
+    effect: str = ""
+
+
+def read_trait_policy(path: Path) -> OwnerPolicy | None:
+    """The validated ``owner_decisions`` trait policy, or ``None`` if absent/incomplete.
+
+    A missing or incomplete policy is *pending*, never assumed resolved: only a
+    record with a non-empty authority, quote, recorded timestamp and citation is
+    returned.
+    """
+    document = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    for decision in document.get("owner_decisions") or []:
+        if not isinstance(decision, dict) or decision.get("id") != "traits":
+            continue
+        fields = {
+            name: str(decision.get(name, "")).strip()
+            for name in ("authority", "quote", "recorded", "citation")
+        }
+        if not all(fields.values()):
+            return None
+        return OwnerPolicy(id="traits", effect=str(decision.get("effect", "")).strip(), **fields)
+    return None
+
+
 def read_discrepancies(path: Path) -> list[KeyDiscrepancy]:
     """Read the key-discrepancy ledger, failing loudly on a malformed record."""
     if not path.is_file():
@@ -574,16 +616,25 @@ def read_discrepancies(path: Path) -> list[KeyDiscrepancy]:
             if disposition not in DISCREPANCY_DISPOSITIONS:
                 raise AcquisitionError(f"{where}: unknown disposition {disposition!r}")
             raw_decision = record.get("owner_decision")
+            owner_decision = ""
+            decision_fields: dict[str, str] = {}
             if isinstance(raw_decision, dict):
                 owner_decision = " ".join(
                     str(raw_decision.get("quote") or raw_decision.get("statement") or "").split()
                 )
-            elif raw_decision is None:
-                owner_decision = ""
-            else:
+                decision_fields = {
+                    name: str(raw_decision.get(name, "")).strip()
+                    for name in ("authority", "recorded", "citation")
+                }
+            elif raw_decision is not None:
                 owner_decision = " ".join(str(raw_decision).split())
-            if disposition == "resolved" and not owner_decision:
-                raise AcquisitionError(f"{where}: a resolved record needs an owner_decision")
+            if disposition == "resolved":
+                missing = sorted(name for name, value in decision_fields.items() if not value)
+                if not owner_decision or missing:
+                    raise AcquisitionError(
+                        f"{where}: a resolved record needs an owner_decision with "
+                        "authority, quote, recorded and citation"
+                    )
             discrepancy = KeyDiscrepancy(
                 member=member,
                 analysis_id=analysis_id,
@@ -1008,17 +1059,22 @@ def map_analyses(
     return rows, problems
 
 
-def build_review_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+def build_review_rows(
+    rows: list[dict[str, str]], *, trait_policy: OwnerPolicy | None = None
+) -> list[dict[str, str]]:
     """Per-record trait-label queue for every ``trait_check`` mismatch.
 
     Keeps the original dbGaP and Catalog labels, the raw ``trait_category`` and
-    the owner-resolved ``disposition`` (dbGaP authoritative for ticket #220).
+    the ``disposition`` derived from the validated ``trait_policy`` (pending if
+    none is supplied).
     """
     review: list[dict[str, str]] = []
     for row in rows:
         if row.get("trait_check") != "mismatch":
             continue
-        category, disposition = trait_disposition(row["analyzed_variable"], row["candidate_trait"])
+        category, disposition = trait_disposition(
+            row["analyzed_variable"], row["candidate_trait"], trait_policy=trait_policy
+        )
         review.append({
             "analysis_id": row["analysis_id"],
             "member": row["member"],
@@ -1037,6 +1093,7 @@ def command_map(args: argparse.Namespace) -> int:
     if not candidates:
         raise SystemExit(f"map: no PMID {PUBMED_ID} rows in {args.candidates}")
     discrepancies = read_discrepancies(Path(args.discrepancies))
+    trait_policy = read_trait_policy(Path(args.discrepancies))
     extracted = out / "GIA" / "extracted"
     members = metadata_members(out)
     member_needles = selected_values(args.member)
@@ -1077,7 +1134,7 @@ def command_map(args: argparse.Namespace) -> int:
     )
     write_tsv(out / "mapping.tsv", MAPPING_COLUMNS, rows)
     write_tsv(out / "mapping-report.tsv", REPORT_COLUMNS, problems)
-    review = build_review_rows(rows)
+    review = build_review_rows(rows, trait_policy=trait_policy)
     write_tsv(out / "mapping-review.tsv", REVIEW_COLUMNS, review)
 
     binding_ok = not any(
