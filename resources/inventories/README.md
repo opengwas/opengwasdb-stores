@@ -119,3 +119,15 @@ Its machine-readable report is written under the release's work root
 a preflight, it is the resolution run's job. It also never treats a non-ready row
 whose file has since appeared as ready — that only signals the frozen snapshot is
 stale and should be re-frozen deliberately.
+
+## Declared-selection inventories
+
+Not every Source Collection is described by acquisition manifests. The `ukb-b`
+batch (#219) has a fixed, declared membership: `resources/generators/ukb-b/inventory.py`
+reads the registry's own declared selection as intent, discovers the local
+`.vcf.gz` files, and reconciles the two against the old built baseline. There a
+glob is never intention: a declared Analysis missing from the mirror is a copy
+failure that blocks the freeze, not a smaller release. Its readiness vocabulary
+is local (`ok`, `missing_file`, `missing_index`) and its freeze records a
+sha256, size and mtime per Analysis, anchored to the upstream batch count from
+the unsecured OpenGWAS `/api/batches` endpoint (saved as evidence).
