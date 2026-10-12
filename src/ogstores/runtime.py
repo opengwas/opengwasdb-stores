@@ -168,7 +168,7 @@ def required_commands_for_release(
 
 
 def completion_parents_for_release(
-    store_id: str, *, registry_root: Path | str
+    store_id: str, *, registry_root: Path | str, artifact_root: Path | str | None = None
 ) -> list[str]:
     """Parent Store ids a scheduled Reference-Completed release will complete.
 
@@ -177,7 +177,7 @@ def completion_parents_for_release(
     format gate (its path does not exist yet).
     """
     loaded = bundle_module.load(store_id, registry_root=registry_root)
-    if not any(step.name == "complete" for step in plan(loaded)):
+    if not any(step.name == "complete" for step in plan(loaded, artifact_root=artifact_root)):
         return []
     return [loaded.derived_from] if loaded.derived_from else []
 
@@ -234,7 +234,9 @@ def verify_runtime_for_releases(
         commands[store_id] = required_commands_for_release(
             store_id, registry_root=registry_root, artifact_root=root
         )
-        for parent in completion_parents_for_release(store_id, registry_root=registry_root):
+        for parent in completion_parents_for_release(
+            store_id, registry_root=registry_root, artifact_root=root
+        ):
             parents.setdefault(parent, (store_id, root))
     if parents:
         # The parent-format gate calls `opengwasdb info`; require the subcommand
