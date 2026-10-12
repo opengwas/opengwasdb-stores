@@ -436,17 +436,31 @@ def canonical_trait(text: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
-def trait_disposition(analyzed_variable: str, candidate_trait: str) -> tuple[str, str]:
-    """``(category, disposition)`` for one trait-text mismatch.
+def trait_disposition(
+    analyzed_variable: str, candidate_trait: str, *, trait_policy: "OwnerPolicy | None" = None
+) -> tuple[str, str]:
+    """``(trait_category, disposition)`` for one trait-text mismatch.
 
-    ``punctuation_only`` means the two labels agree after :func:`canonical_trait`
-    (case, quoting and possessives only); it still needs a recorded policy
-    acceptance and is never used to bind.  Everything else is a
-    ``lexical_variant`` and needs owner scientific review.
+    ``trait_category`` is the raw classification: ``punctuation_only`` when the
+    two labels agree after :func:`canonical_trait`, otherwise ``lexical_variant``;
+    it never asserts the labels are lexically equivalent.
+
+    ``disposition`` keeps the original *pending* default for the category
+    (``formatting_only_pending_policy`` or ``owner_scientific_review``) unless a
+    validated, cited ``trait_policy`` (a top-level ``owner_decisions`` record in
+    the ledger) is supplied, in which case it is
+    ``resolved_<authority>_authoritative`` -- for the ticket #220 decision,
+    ``resolved_dbgap_authoritative``.  A missing or incomplete policy therefore
+    stays pending rather than being assumed resolved.
     """
     if canonical_trait(analyzed_variable) == canonical_trait(candidate_trait):
-        return "punctuation_only", "formatting_only_pending_policy"
-    return "lexical_variant", "owner_scientific_review"
+        category, pending = "punctuation_only", "formatting_only_pending_policy"
+    else:
+        category, pending = "lexical_variant", "owner_scientific_review"
+    if trait_policy is None:
+        return category, pending
+    token = re.sub(r"[^a-z0-9]+", "-", trait_policy.authority.casefold()).strip("-")
+    return category, f"resolved_{token}_authoritative"
 
 
 # ---------------------------------------------------------------------------
@@ -542,6 +556,7 @@ class KeyDiscrepancy:
     candidate_n_cases: int
     candidate_n_controls: int
     owner_question: str
+    owner_decision: str = ""
 
     @property
     def dbgap_key(self) -> tuple[str, int, int, int]:
@@ -550,6 +565,50 @@ class KeyDiscrepancy:
     @property
     def candidate_numeric_key(self) -> tuple[int, int, int]:
         return (self.candidate_sample_size, self.candidate_n_cases, self.candidate_n_controls)
+
+
+def required_text(value: object) -> str:
+    """A required provenance field; ``None``, blank or non-text is missing.
+
+    Absence is never coerced into evidence: a YAML ``null`` must not become the
+    string ``"None"`` and pass a completeness check.
+    """
+    if not isinstance(value, str):
+        return ""
+    return value.strip()
+
+
+@dataclass(frozen=True)
+class OwnerPolicy:
+    """A validated, cited owner policy, e.g. the trait-label decision."""
+
+    id: str
+    authority: str
+    quote: str
+    recorded: str
+    citation: str
+    effect: str = ""
+
+
+def read_trait_policy(path: Path) -> OwnerPolicy | None:
+    """The validated ``owner_decisions`` trait policy, or ``None`` if absent/incomplete.
+
+    A missing or incomplete policy is *pending*, never assumed resolved: only a
+    record with a non-empty authority, quote, recorded timestamp and citation is
+    returned.
+    """
+    document = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    for decision in document.get("owner_decisions") or []:
+        if not isinstance(decision, dict) or decision.get("id") != "traits":
+            continue
+        fields = {
+            name: required_text(decision.get(name))
+            for name in ("authority", "quote", "recorded", "citation")
+        }
+        if not all(fields.values()):
+            return None
+        return OwnerPolicy(id="traits", effect=required_text(decision.get("effect")), **fields)
+    return None
 
 
 def read_discrepancies(path: Path) -> list[KeyDiscrepancy]:
@@ -569,6 +628,32 @@ def read_discrepancies(path: Path) -> list[KeyDiscrepancy]:
             analysis_id = str(record["analysis_id"]).strip()
             if disposition not in DISCREPANCY_DISPOSITIONS:
                 raise AcquisitionError(f"{where}: unknown disposition {disposition!r}")
+            raw_decision = record.get("owner_decision")
+            owner_decision = ""
+            decision_fields: dict[str, str] = {}
+            if isinstance(raw_decision, dict):
+                owner_decision = " ".join(
+                    (
+                        required_text(raw_decision.get("quote"))
+                        or required_text(raw_decision.get("statement"))
+                    ).split()
+                )
+                decision_fields = {
+                    name: required_text(raw_decision.get(name))
+                    for name in ("authority", "recorded", "citation")
+                }
+            elif raw_decision is not None:
+                owner_decision = " ".join(required_text(raw_decision).split())
+            if disposition == "resolved":
+                missing = sorted(
+                    name for name in ("authority", "recorded", "citation")
+                    if not decision_fields.get(name)
+                )
+                if not owner_decision or missing:
+                    raise AcquisitionError(
+                        f"{where}: a resolved record needs an owner_decision with "
+                        "authority, quote, recorded and citation"
+                    )
             discrepancy = KeyDiscrepancy(
                 member=member,
                 analysis_id=analysis_id,
@@ -581,6 +666,7 @@ def read_discrepancies(path: Path) -> list[KeyDiscrepancy]:
                 candidate_n_cases=int(candidate.get("n_cases", 0)),
                 candidate_n_controls=int(candidate.get("n_controls", 0)),
                 owner_question=" ".join(str(record.get("owner_question", "")).split()),
+                owner_decision=owner_decision,
             )
         except (TypeError, KeyError, ValueError) as exc:
             raise AcquisitionError(f"{where}: malformed record ({exc})") from exc
@@ -992,13 +1078,22 @@ def map_analyses(
     return rows, problems
 
 
-def build_review_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
-    """Per-record trait-label review queue for every ``trait_check`` mismatch."""
+def build_review_rows(
+    rows: list[dict[str, str]], *, trait_policy: OwnerPolicy | None = None
+) -> list[dict[str, str]]:
+    """Per-record trait-label queue for every ``trait_check`` mismatch.
+
+    Keeps the original dbGaP and Catalog labels, the raw ``trait_category`` and
+    the ``disposition`` derived from the validated ``trait_policy`` (pending if
+    none is supplied).
+    """
     review: list[dict[str, str]] = []
     for row in rows:
         if row.get("trait_check") != "mismatch":
             continue
-        category, disposition = trait_disposition(row["analyzed_variable"], row["candidate_trait"])
+        category, disposition = trait_disposition(
+            row["analyzed_variable"], row["candidate_trait"], trait_policy=trait_policy
+        )
         review.append({
             "analysis_id": row["analysis_id"],
             "member": row["member"],
@@ -1017,6 +1112,7 @@ def command_map(args: argparse.Namespace) -> int:
     if not candidates:
         raise SystemExit(f"map: no PMID {PUBMED_ID} rows in {args.candidates}")
     discrepancies = read_discrepancies(Path(args.discrepancies))
+    trait_policy = read_trait_policy(Path(args.discrepancies))
     extracted = out / "GIA" / "extracted"
     members = metadata_members(out)
     member_needles = selected_values(args.member)
@@ -1057,7 +1153,7 @@ def command_map(args: argparse.Namespace) -> int:
     )
     write_tsv(out / "mapping.tsv", MAPPING_COLUMNS, rows)
     write_tsv(out / "mapping-report.tsv", REPORT_COLUMNS, problems)
-    review = build_review_rows(rows)
+    review = build_review_rows(rows, trait_policy=trait_policy)
     write_tsv(out / "mapping-review.tsv", REVIEW_COLUMNS, review)
 
     binding_ok = not any(
@@ -1135,10 +1231,41 @@ def convert_analysis(
     return "converted", "", time.monotonic() - started
 
 
+def catalog_provenance(row: dict[str, str], candidate: Candidate) -> dict[str, object] | None:
+    """The Catalog values, kept only when they differ from the canonical dbGaP values.
+
+    A row whose Catalog metadata already agrees with the deposit adds no block,
+    so an ordinary converted sidecar keeps EBI's field set.  A disagreement
+    (the 2 sample-size discrepancies and the 57 label mismatches) preserves the
+    Catalog counterpart as provenance rather than discarding it.
+    """
+    canonical_sample_size = int(row["sample_size"])
+    if (
+        candidate.trait == row.get("analyzed_variable", "")
+        and candidate.sample_size == canonical_sample_size
+        and candidate.n_cases == int(row.get("n_cases") or 0)
+        and candidate.n_controls == int(row.get("n_controls") or 0)
+    ):
+        return None
+    return {
+        "trait_description": [candidate.trait],
+        "sample_size": candidate.sample_size,
+        "n_cases": candidate.n_cases,
+        "n_controls": candidate.n_controls,
+        "ancestry_group": candidate.ancestry,
+        "ancestry_fraction": candidate.ancestry_fraction,
+    }
+
+
 def render_metadata_yaml(
     row: dict[str, str], candidate: Candidate, data_path: Path, out: Path, tars_dir: Path
 ) -> str:
-    """EBI's ``*-meta.yaml`` fields plus the dbGaP provenance, as one document."""
+    """EBI's ``*-meta.yaml`` fields plus dbGaP-canonical metadata and provenance.
+
+    Canonical metadata follows the owner decision for ticket #220 (2026-10-11):
+    the dbGaP ``Analyzed variable`` and deposit sample size are authoritative.
+    A Catalog counterpart that disagrees is retained under ``catalog_metadata``.
+    """
     ancestry = candidate.yaml_ancestry
     samples: dict[str, object] = {
         "sample_ancestry_category": [ancestry],
@@ -1149,7 +1276,7 @@ def render_metadata_yaml(
     tar = row["tar"]
     document: dict[str, object] = {
         "gwas_id": row["analysis_id"],
-        "trait_description": [candidate.trait],
+        "trait_description": [row.get("analyzed_variable") or candidate.trait],
         "genome_assembly": "GRCh38",
         "coordinate_system": "1-based",
         "genotyping_technology": ["Genome-wide genotyping array"],
@@ -1169,6 +1296,9 @@ def render_metadata_yaml(
         },
         "dbgap_analysis_description": metadata_description(out, row["member"]),
     }
+    catalog = catalog_provenance(row, candidate)
+    if catalog is not None:
+        document["catalog_metadata"] = catalog
     return yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100)
 
 
@@ -1237,12 +1367,17 @@ def manifest_row(
     candidate: Candidate, mapping: dict[str, str] | None, data_digest: str, path: Path, yaml_path: Path
 ) -> dict[str, str]:
     row = {name: "" for name in MANIFEST_COLUMNS}
+    canonical_trait = (mapping or {}).get("analyzed_variable") or candidate.trait
+    canonical_sample_size = (mapping or {}).get("sample_size") or str(candidate.sample_size)
     row.update({
         "analysis_id": candidate.analysis_id,
         "publication_pmid": PUBMED_ID,
-        "trait": candidate.trait,
+        # Canonical label/size follow the owner decision (#220, 2026-10-11):
+        # dbGaP is authoritative.  The Catalog counterpart lives in mapping.tsv
+        # and, where it differs, in the converted sidecar's catalog_metadata.
+        "trait": canonical_trait,
         "study_design": candidate.study_design,
-        "sample_size": str(candidate.sample_size),
+        "sample_size": canonical_sample_size,
         # The dbGaP pass is not preceded by a harmonised pass on this mirror, so
         # there is no harmonised status to report; EBI's raw manifest carries the
         # other pass's fact here, and an empty value is the honest analogue.

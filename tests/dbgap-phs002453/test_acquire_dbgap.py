@@ -510,7 +510,18 @@ class AcquisitionTest(unittest.TestCase):
         path = self.data("GCST90475097").with_name("GCST90475097.tsv.gz-meta.yaml")
         document = yaml.safe_load(path.read_text(encoding="utf-8"))
         self.assertEqual(document["gwas_id"], "GCST90475097")
-        self.assertEqual(document["trait_description"], ["Hemoglobin A1c (HbA1c, minimum, inv-norm transformed)"])
+        self.assertEqual(document["trait_description"], ["hemoglobin A1c (HbA1c, minimum, inv-norm transformed)"])
+        # The sidecar keeps every EBI-required field; catalog_metadata is additive.
+        self.assertTrue(
+            {"gwas_id", "trait_description", "genome_assembly", "coordinate_system",
+             "genotyping_technology", "samples", "data_file_name", "file_type",
+             "data_file_md5sum", "is_harmonised", "is_sorted"}.issubset(document)
+        )
+        # The Catalog counterpart is retained when it differs from the deposit.
+        self.assertEqual(
+            document["catalog_metadata"]["trait_description"],
+            ["Hemoglobin A1c (HbA1c, minimum, inv-norm transformed)"],
+        )
         self.assertEqual(document["genome_assembly"], "GRCh38")
         self.assertEqual(document["coordinate_system"], "1-based")
         self.assertEqual(document["genotyping_technology"], ["Genome-wide genotyping array"])
@@ -632,28 +643,37 @@ class KeyDiscrepancyTests(unittest.TestCase):
         self.write_ledger("owner_decision_required")
 
     def write_ledger(self, disposition: str) -> None:
+        decision = textwrap.dedent("""\
+            owner_decision:
+              authority: dbGaP
+              quote: fixture owner decision
+              recorded: '2026-10-12T21:24:22Z'
+              citation: https://example.invalid/220#fixture
+            """) if disposition == "resolved" else ""
+        body = textwrap.dedent(f"""\
+            version: 1
+            records:
+              - member: {self.member}
+                analysis_id: GCST90475097
+                disposition: {disposition}
+                dbgap:
+                  ancestry: EUR
+                  analyzed_variable: hemoglobin A1c (HbA1c, minimum, inv-norm transformed)
+                  sample_size: 338640
+                  n_cases: 0
+                  n_controls: 0
+                candidate:
+                  ancestry_group: European
+                  ancestry_fraction: 1
+                  trait: Hemoglobin A1c (HbA1c, minimum, inv-norm transformed)
+                  sample_size: 999999
+                  n_cases: 0
+                  n_controls: 0
+                owner_question: fixture review question
+            """)
+        marker = f"    disposition: {disposition}\n"
         self.ledger.write_text(
-            textwrap.dedent(f"""\
-                version: 1
-                records:
-                  - member: {self.member}
-                    analysis_id: GCST90475097
-                    disposition: {disposition}
-                    dbgap:
-                      ancestry: EUR
-                      analyzed_variable: hemoglobin A1c (HbA1c, minimum, inv-norm transformed)
-                      sample_size: 338640
-                      n_cases: 0
-                      n_controls: 0
-                    candidate:
-                      ancestry_group: European
-                      ancestry_fraction: 1
-                      trait: Hemoglobin A1c (HbA1c, minimum, inv-norm transformed)
-                      sample_size: 999999
-                      n_cases: 0
-                      n_controls: 0
-                    owner_question: fixture review question
-                """),
+            body.replace(marker, marker + textwrap.indent(decision, "    ")),
             encoding="utf-8",
         )
 
@@ -661,6 +681,11 @@ class KeyDiscrepancyTests(unittest.TestCase):
     def rows(path: Path) -> list[dict[str, str]]:
         with path.open(newline="", encoding="utf-8") as handle:
             return list(csv.DictReader(handle, delimiter="\t"))
+
+    def data(self, accession: str) -> Path:
+        found = list((self.root / "gwas-ssf").glob(f"*/{accession}/{accession}.tsv.gz"))
+        self.assertEqual(len(found), 1, f"expected one data file for {accession}, found {found}")
+        return found[0]
 
     def test_pending_discrepancy_blocks_and_is_named(self) -> None:
         result = run(
@@ -690,6 +715,40 @@ class KeyDiscrepancyTests(unittest.TestCase):
         self.assertEqual(mapping["GCST90475097"]["member"], self.member)
         self.assertEqual([row["kind"] for row in self.rows(self.root / "mapping-report.tsv")], [])
 
+    def test_resolved_canonical_metadata_uses_deposit_values(self) -> None:
+        import yaml
+
+        self.write_ledger("resolved")
+        result = run(
+            self.root, "map", "--candidates", str(self.mismatched),
+            "--discrepancies", str(self.ledger), "--allow-partial",
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = run(self.root, "convert", "--candidates", str(self.mismatched), "--analysis", "GCST90475097")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+        # The data row and canonical YAML metadata carry the deposit value; the
+        # 999999 Catalog value survives only as provenance.
+        data_line = decompress(self.data("GCST90475097")).splitlines()[1]
+        self.assertEqual(data_line.split("\t")[10], "338640")
+        document = yaml.safe_load(
+            self.data("GCST90475097").with_name("GCST90475097.tsv.gz-meta.yaml").read_text(encoding="utf-8")
+        )
+        self.assertEqual(document["trait_description"], ["hemoglobin A1c (HbA1c, minimum, inv-norm transformed)"])
+        self.assertEqual(document["samples"], [{"sample_ancestry_category": ["European"], "sample_size": 338640}])
+        self.assertEqual(document["catalog_metadata"]["sample_size"], 999999)
+        self.assertEqual(
+            document["catalog_metadata"]["trait_description"],
+            ["Hemoglobin A1c (HbA1c, minimum, inv-norm transformed)"],
+        )
+
+        result = run(self.root, "manifest", "--candidates", str(self.mismatched), "--analysis", "GCST90475097")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        manifest = self.root / "manifests" / "dense-pmid-39024449-European-download-manifest.tsv"
+        rows = {row["analysis_id"]: row for row in self.rows(manifest)}
+        self.assertEqual(rows["GCST90475097"]["sample_size"], "338640")
+        self.assertEqual(rows["GCST90475097"]["trait"], "hemoglobin A1c (HbA1c, minimum, inv-norm transformed)")
+
     def test_stale_ledger_entry_fails_loudly(self) -> None:
         # With the original candidate table the keys agree, so the ledger entry
         # is no longer a discrepancy; it must not pass silently.
@@ -717,7 +776,14 @@ class KeyDiscrepancyTests(unittest.TestCase):
 
 
 class TraitDispositionTests(unittest.TestCase):
-    """Formatting-only differences are classified; spelling/synonyms are queued."""
+    """Raw classification is separate from the validated owner-policy disposition."""
+
+    @staticmethod
+    def dbgap_policy() -> "ACQUIRE.OwnerPolicy":
+        return ACQUIRE.OwnerPolicy(
+            id="traits", authority="dbGaP", quote="use the dbgap information",
+            recorded="2026-10-12T21:24:22Z", citation="https://example.invalid/220#decision",
+        )
 
     def test_punctuation_only_is_not_a_typo_acceptance(self) -> None:
         pairs = [
@@ -728,11 +794,11 @@ class TraitDispositionTests(unittest.TestCase):
             ("Fuchs dystrophy", "Fuchs' dystrophy (PheCode 364.51)"),
         ]
         for left, right in pairs:
-            category, disposition = ACQUIRE.trait_disposition(left, right)
+            category, disposition = ACQUIRE.trait_disposition(left, right, trait_policy=self.dbgap_policy())
             self.assertEqual(category, "punctuation_only", (left, right))
-            self.assertEqual(disposition, "formatting_only_pending_policy")
+            self.assertEqual(disposition, "resolved_dbgap_authoritative")
 
-    def test_lexical_variants_need_owner_review(self) -> None:
+    def test_lexical_variants_are_classified_but_resolved(self) -> None:
         pairs = [
             ("Disorders of lipoid metabolism", "Disorders of lipid metabolism (PheCode 272)"),
             ("H. pylori", "Helicobacter pylori infection  (PheCode 041.8)"),
@@ -743,9 +809,19 @@ class TraitDispositionTests(unittest.TestCase):
              "Nonspecific abnormal findings on radiological and other examination of skull and head (PheCode 346.1)"),
         ]
         for left, right in pairs:
-            category, disposition = ACQUIRE.trait_disposition(left, right)
+            category, disposition = ACQUIRE.trait_disposition(left, right, trait_policy=self.dbgap_policy())
             self.assertEqual(category, "lexical_variant", (left, right))
-            self.assertEqual(disposition, "owner_scientific_review")
+            self.assertEqual(disposition, "resolved_dbgap_authoritative")
+
+    def test_missing_policy_stays_pending(self) -> None:
+        category, disposition = ACQUIRE.trait_disposition("Ostearthritis", "Osteoarthritis")
+        self.assertEqual(category, "lexical_variant")
+        self.assertEqual(disposition, "owner_scientific_review")
+        category, disposition = ACQUIRE.trait_disposition(
+            "Raynauds syndrome", "Raynaud's syndrome (PheCode 443.1)"
+        )
+        self.assertEqual(category, "punctuation_only")
+        self.assertEqual(disposition, "formatting_only_pending_policy")
 
     def test_build_review_rows_keeps_original_labels(self) -> None:
         rows = [
@@ -754,14 +830,117 @@ class TraitDispositionTests(unittest.TestCase):
             {"analysis_id": "GCST2", "member": "m2", "trait_check": "exact",
              "analyzed_variable": "x", "candidate_trait": "x"},
         ]
-        review = ACQUIRE.build_review_rows(rows)
-        self.assertEqual(len(review), 1)
-        self.assertEqual(review[0]["analysis_id"], "GCST1")
-        self.assertEqual(review[0]["analyzed_variable"], "Ostearthritis")
-        self.assertEqual(review[0]["disposition"], "owner_scientific_review")
+        pending = ACQUIRE.build_review_rows(rows)
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0]["analysis_id"], "GCST1")
+        self.assertEqual(pending[0]["analyzed_variable"], "Ostearthritis")
+        self.assertEqual(pending[0]["candidate_trait"], "Osteoarthritis")
+        self.assertEqual(pending[0]["disposition"], "owner_scientific_review")
+
+        resolved = ACQUIRE.build_review_rows(rows, trait_policy=self.dbgap_policy())
+        self.assertEqual(resolved[0]["disposition"], "resolved_dbgap_authoritative")
+        self.assertEqual(resolved[0]["analyzed_variable"], "Ostearthritis")
 
 
 class DiscrepancyLedgerTests(unittest.TestCase):
+    def test_committed_ledger_is_resolved_with_owner_citation(self) -> None:
+        import yaml
+
+        ledger = REPO_ROOT / "resources/scripts/dbgap-phs002453-key-discrepancies.yaml"
+        raw = yaml.safe_load(ledger.read_text(encoding="utf-8"))
+        citation = "issues/220#issuecomment-6132878250"
+        timestamp = "2026-10-12T21:24:22Z"
+        self.assertEqual(len(raw["records"]), 2)
+        for record in raw["records"]:
+            self.assertEqual(record["disposition"], "resolved")
+            self.assertEqual(record["owner_decision"]["recorded"], timestamp)
+            self.assertIn(citation, record["owner_decision"]["citation"])
+        for decision in raw["owner_decisions"]:
+            self.assertEqual(decision["recorded"], timestamp)
+            self.assertIn(citation, decision["citation"])
+        self.assertEqual({d.disposition for d in ACQUIRE.read_discrepancies(ledger)}, {"resolved"})
+        policy = ACQUIRE.read_trait_policy(ledger)
+        self.assertIsNotNone(policy)
+        self.assertEqual(policy.authority, "dbGaP")
+        self.assertEqual(policy.recorded, timestamp)
+        self.assertIn(citation, policy.citation)
+
+    def test_missing_or_partial_trait_policy_is_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ledger.yaml"
+            path.write_text("version: 1\nrecords: []\n", encoding="utf-8")
+            self.assertIsNone(ACQUIRE.read_trait_policy(path))
+            # Present but incomplete (no citation) is also pending, not resolved.
+            path.write_text(
+                "version: 1\nowner_decisions:\n"
+                "  - id: traits\n    authority: dbGaP\n    quote: q\n"
+                "    recorded: '2026-10-12T21:24:22Z'\nrecords: []\n",
+                encoding="utf-8",
+            )
+            self.assertIsNone(ACQUIRE.read_trait_policy(path))
+
+    def test_null_policy_fields_are_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ledger.yaml"
+            path.write_text(
+                "version: 1\nowner_decisions:\n"
+                "  - id: traits\n    authority: dbGaP\n    quote: null\n"
+                "    recorded: null\n    citation: null\nrecords: []\n",
+                encoding="utf-8",
+            )
+            self.assertIsNone(ACQUIRE.read_trait_policy(path))
+
+    def test_null_resolved_provenance_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ledger.yaml"
+            path.write_text(
+                "version: 1\nrecords:\n"
+                "  - member: m\n    analysis_id: GCST1\n    disposition: resolved\n"
+                "    owner_decision:\n      authority: dbGaP\n      quote: null\n"
+                "      recorded: null\n      citation: null\n"
+                "    dbgap: {ancestry: EUR, sample_size: 1}\n"
+                "    candidate: {sample_size: 2}\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "owner_decision"):
+                ACQUIRE.read_discrepancies(path)
+
+    def test_scalar_or_incomplete_resolved_provenance_fails(self) -> None:
+        import yaml
+
+        for decision in ("approved", {"quote": "approved"}):
+            with self.subTest(decision=decision), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "ledger.yaml"
+                path.write_text(
+                    yaml.safe_dump({
+                        "version": 1,
+                        "records": [{
+                            "member": "m",
+                            "analysis_id": "GCST1",
+                            "disposition": "resolved",
+                            "owner_decision": decision,
+                            "dbgap": {"ancestry": "EUR", "sample_size": 1},
+                            "candidate": {"sample_size": 2},
+                        }],
+                    }),
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "owner_decision"):
+                    ACQUIRE.read_discrepancies(path)
+
+    def test_resolved_requires_an_owner_decision(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ledger.yaml"
+            path.write_text(
+                "version: 1\nrecords:\n"
+                "  - member: m\n    analysis_id: GCST1\n    disposition: resolved\n"
+                "    dbgap: {ancestry: EUR, sample_size: 1}\n"
+                "    candidate: {sample_size: 2}\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "needs an owner_decision"):
+                ACQUIRE.read_discrepancies(path)
+
     def test_unknown_disposition_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "ledger.yaml"
@@ -780,7 +959,7 @@ class DiscrepancyLedgerTests(unittest.TestCase):
             path = Path(tmp) / "ledger.yaml"
             record = (
                 "  - member: m{index}\n    analysis_id: GCST1\n"
-                "    disposition: resolved\n"
+                "    disposition: owner_decision_required\n"
                 "    dbgap: {{ancestry: EUR, sample_size: 1}}\n"
                 "    candidate: {{sample_size: 2}}\n"
             )
@@ -790,6 +969,167 @@ class DiscrepancyLedgerTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "duplicate analysis_id"):
                 ACQUIRE.read_discrepancies(path)
+
+
+class CanonicalMetadataTests(unittest.TestCase):
+    """dbGaP canonical metadata with the Catalog counterpart retained (D1/D2)."""
+
+    @staticmethod
+    def meta_candidate() -> "ACQUIRE.Candidate":
+        return ACQUIRE.Candidate(
+            analysis_id="GCST90481129",
+            trait="Inflammation of eyelids (PheCode 371.3)",
+            ancestry="European",
+            ancestry_fraction=0.703775743113106,
+            store_key="dense__pmid-39024449__Multi-ancestry",
+            study_design="case-control",
+            n_cases=50122,
+            n_controls=527751,
+            sample_size=577873,
+        )
+
+    @staticmethod
+    def meta_row() -> dict[str, str]:
+        return {
+            "analysis_id": "GCST90481129", "member": "m", "tar": "t", "ancestry": "META",
+            "study_design": "case-control", "dbgap_trait_type": "binary", "sample_size": "571620",
+            "n_cases": "49766", "n_controls": "521854", "dbgap_trait_code": "Phe_371_3",
+            "analyzed_variable": "Inflammation of eyelids",
+            "candidate_trait": "Inflammation of eyelids (PheCode 371.3)",
+            "candidate_store_key": "dense__pmid-39024449__Multi-ancestry",
+            "match_basis": "discrepancy-ledger", "trait_check": "exact",
+        }
+
+    def test_meta_sidecar_uses_deposit_and_keeps_catalog_provenance(self) -> None:
+        import yaml
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            data = root / "GCST90481129.tsv.gz"
+            data.write_bytes(b"x")
+            document = yaml.safe_load(
+                ACQUIRE.render_metadata_yaml(self.meta_row(), self.meta_candidate(), data, root / "out", root / "tars")
+            )
+        self.assertEqual(document["trait_description"], ["Inflammation of eyelids"])
+        self.assertEqual(
+            document["samples"],
+            [{"sample_ancestry_category": ["Multi-ancestry"], "sample_size": 571620, "case_control_study": True}],
+        )
+        provenance = document["catalog_metadata"]
+        self.assertEqual(provenance["trait_description"], ["Inflammation of eyelids (PheCode 371.3)"])
+        self.assertEqual(provenance["sample_size"], 577873)
+        self.assertEqual(provenance["n_cases"], 50122)
+        self.assertEqual(provenance["n_controls"], 527751)
+        self.assertEqual(provenance["ancestry_fraction"], self.meta_candidate().ancestry_fraction)
+
+    def test_matching_row_adds_no_catalog_block(self) -> None:
+        candidate = self.meta_candidate()
+        row = self.meta_row()
+        # Make the Catalog values agree with the deposit: no block is needed.
+        for key, value in (("sample_size", "577873"), ("n_cases", "50122"), ("n_controls", "527751"),
+                           ("analyzed_variable", candidate.trait)):
+            row[key] = value
+        self.assertIsNone(ACQUIRE.catalog_provenance(row, candidate))
+
+    def test_d1_african_uses_deposit_n_and_retains_catalog_235(self) -> None:
+        import yaml
+
+        candidate = ACQUIRE.Candidate(
+            analysis_id="GCST90476298",
+            trait="platelet count (mean, inv-norm transformed)",
+            ancestry="African",
+            ancestry_fraction=1,
+            store_key="dense__pmid-39024449__African",
+            study_design="quantitative",
+            n_cases=0,
+            n_controls=0,
+            sample_size=235,
+        )
+        row = {
+            "analysis_id": "GCST90476298", "member": "m", "tar": "t", "ancestry": "AFR",
+            "study_design": "quantitative", "dbgap_trait_type": "quantitative", "sample_size": "114731",
+            "n_cases": "0", "n_controls": "0", "dbgap_trait_code": "Platelet_Mean_INT",
+            "analyzed_variable": "platelet count (mean, inv-norm transformed)",
+            "candidate_trait": "platelet count (mean, inv-norm transformed)",
+            "candidate_store_key": "dense__pmid-39024449__African",
+            "match_basis": "discrepancy-ledger", "trait_check": "exact",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            data = root / "GCST90476298.tsv.gz"
+            data.write_bytes(b"x")
+            document = yaml.safe_load(
+                ACQUIRE.render_metadata_yaml(row, candidate, data, root / "out", root / "tars")
+            )
+        self.assertEqual(document["samples"], [{"sample_ancestry_category": ["African"], "sample_size": 114731}])
+        self.assertEqual(document["trait_description"], ["platelet count (mean, inv-norm transformed)"])
+        self.assertEqual(document["catalog_metadata"]["sample_size"], 235)
+        self.assertEqual(
+            document["catalog_metadata"]["trait_description"],
+            ["platelet count (mean, inv-norm transformed)"],
+        )
+
+    def test_d2_mapping_record_keeps_deposit_counts_and_both_labels(self) -> None:
+        analysis = ACQUIRE.Analysis(
+            member="m", stem="s", tar="t", ancestry="META", trait_code="Phe_371_3",
+            analyzed_variable="Inflammation of eyelids",
+            description="Meta-analysis of Phe_371_3 (Inflammation of eyelids) in AFR, AMR, and EUR MVP participants",
+            trait_type="binary", sample_size=571620, n_cases=49766, n_controls=521854,
+        )
+        discrepancy = ACQUIRE.KeyDiscrepancy(
+            member="m", analysis_id="GCST90481129", disposition="resolved", ancestry="META",
+            sample_size=571620, n_cases=49766, n_controls=521854,
+            candidate_sample_size=577873, candidate_n_cases=50122, candidate_n_controls=527751,
+            owner_question="", owner_decision="for mvp use the dbgap information for all three queries.",
+        )
+        rows, problems = ACQUIRE.map_analyses(
+            [analysis], [self.meta_candidate()], report_unused_candidates=True, discrepancies=[discrepancy]
+        )
+        self.assertEqual(problems, [])
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["match_basis"], "discrepancy-ledger")
+        # The mapping record keeps the deposit counts, not the Catalog aggregate.
+        self.assertEqual((row["sample_size"], row["n_cases"], row["n_controls"]), ("571620", "49766", "521854"))
+        self.assertEqual(row["ancestry"], "META")
+        self.assertEqual(row["analyzed_variable"], "Inflammation of eyelids")
+        self.assertEqual(row["candidate_trait"], "Inflammation of eyelids (PheCode 371.3)")
+
+    def test_d2_sidecar_description_retains_deposit_three_ancestry(self) -> None:
+        import yaml
+
+        member = (
+            "MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2/"
+            "MVP_R4.1000G_AGR.Phe_371_3.META.GIA.dbGaP.txt.gz"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            metadata = root / "out" / "GIA" / "extracted" / member.replace(".txt.gz", ".metadata.txt")
+            metadata.parent.mkdir(parents=True)
+            metadata.write_text(
+                "Info\tDescription\n"
+                "Analysis description\tMeta-analysis of Phe_371_3 (Inflammation of eyelids) in AFR, "
+                "AMR, and EUR MVP participants as defined by GIA. The analysis contains a total of "
+                "571620 Veterans, including 49766 cases and 521854 controls.\n",
+                encoding="utf-8",
+            )
+            data = root / "GCST90481129.tsv.gz"
+            data.write_bytes(b"x")
+            row = self.meta_row()
+            row["member"] = member
+            document = yaml.safe_load(
+                ACQUIRE.render_metadata_yaml(row, self.meta_candidate(), data, root / "out", root / "tars")
+            )
+        # Canonical metadata is the deposit 3-ancestry meta; the Catalog
+        # 4-ancestry aggregate (incl. EAS) is retained as provenance.
+        self.assertIn("AFR, AMR, and EUR", document["dbgap_analysis_description"])
+        self.assertEqual(
+            document["samples"],
+            [{"sample_ancestry_category": ["Multi-ancestry"], "sample_size": 571620, "case_control_study": True}],
+        )
+        self.assertEqual(document["catalog_metadata"]["sample_size"], 577873)
+        self.assertEqual(document["catalog_metadata"]["n_cases"], 50122)
+        self.assertEqual(document["catalog_metadata"]["n_controls"], 527751)
 
 
 class ConverterEdgeCaseTests(unittest.TestCase):
