@@ -1354,13 +1354,15 @@ class RefreshTests(unittest.TestCase):
             self.assertEqual(merged[0]["trait"], "dbgap label")  # canonical even when non-ready
             self.assertFalse(list((iso / "gwas-ssf").glob("*/*/*.tsv.gz")))
 
-    def _refresh_fixture(self, root: Path) -> dict[str, object]:
+    def _refresh_fixture(self, root: Path, *, status: str = "ok", data_present: bool = False) -> dict[str, object]:
         import yaml
 
         accession = "GCST90475097"
         store = STORE_KEY
         sidecar = root / "mirror" / "gwas-ssf" / ACQUIRE.bucket_of(accession) / accession / f"{accession}.tsv.gz-meta.yaml"
         sidecar.parent.mkdir(parents=True)
+        if data_present:
+            (sidecar.parent / f"{accession}.tsv.gz").write_bytes(b"x" * 10)
         sidecar.write_text(yaml.safe_dump({
             "gwas_id": accession, "trait_description": ["old"],
             "samples": [{"sample_ancestry_category": ["European"], "sample_size": 100}],
@@ -1372,7 +1374,8 @@ class RefreshTests(unittest.TestCase):
         manifest_dir = root / "mirror" / "manifests"
         manifest_dir.mkdir(parents=True)
         base_row = {name: "" for name in ACQUIRE.MANIFEST_COLUMNS}
-        base_row.update({"analysis_id": accession, "status": "ok", "sha256": "a" * 64,
+        base_row.update({"analysis_id": accession, "status": status, "sha256": "a" * 64,
+                         "data_bytes": "10" if data_present else "",
                          "data_file": str(sidecar.parent / f"{accession}.tsv.gz"), "yaml_file": str(sidecar),
                          "genome_assembly": "GRCh38", "file_type": "GWAS-SSF v1.0",
                          "is_harmonised": "false", "trait": "old", "sample_size": "100"})
@@ -1423,15 +1426,17 @@ class RefreshTests(unittest.TestCase):
 
     def test_symlinked_bucket_escape_is_rejected_and_source_unchanged(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            fx = self._refresh_fixture(Path(tmp))
+            fx = self._refresh_fixture(Path(tmp), data_present=True)
             iso = Path(fx["iso"])
             iso.mkdir(parents=True, exist_ok=True)
             (iso / "gwas-ssf").symlink_to(fx["source_sidecars"])
-            before = Path(fx["sidecar"]).read_bytes()
+            sidecar_before = Path(fx["sidecar"]).read_bytes()
+            data_before = (Path(fx["sidecar"]).parent / "GCST90475097.tsv.gz").read_bytes()
             result = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
             self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
             self.assertIn("escapes", result.stderr)
-            self.assertEqual(Path(fx["sidecar"]).read_bytes(), before)
+            self.assertEqual(Path(fx["sidecar"]).read_bytes(), sidecar_before)
+            self.assertEqual((Path(fx["sidecar"]).parent / "GCST90475097.tsv.gz").read_bytes(), data_before)
 
     def test_membership_mismatch_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1468,6 +1473,33 @@ class RefreshTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
             self.assertEqual(Path(fx["sidecar"]).read_bytes(), sidecar_before)
             self.assertEqual(Path(fx["manifest_path"]).read_bytes(), manifest_before)
+
+    def test_full_mode_fails_on_inherited_error_row_with_data_present(self) -> None:
+        # Parent microprobe: an inherited error row whose data exists must still
+        # make the full manifest non-zero; preview may report it non-ready.
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp), status="error", data_present=True)
+            full = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
+            self.assertEqual(full.returncode, 1, full.stderr + full.stdout)
+            merged_path = Path(fx["iso"]) / "manifests" / "dense-pmid-39024449-European-download-manifest.tsv"
+            with merged_path.open(newline="", encoding="utf-8") as handle:
+                merged = list(csv.DictReader(handle, delimiter="\t"))
+            self.assertEqual(merged[0]["status"], "error")
+            preview = subprocess.run(self._refresh_cli(fx) + ["--preview"], capture_output=True, text=True, check=False)
+            self.assertEqual(preview.returncode, 0, preview.stderr + preview.stdout)
+
+    def test_manifest_dir_equals_source_manifest_dir_is_rejected(self) -> None:
+        # Parent microprobe: --manifest-dir pointing at the read-only source must
+        # be refused before it overwrites the source manifest.
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp), data_present=True)
+            before = Path(fx["manifest_path"]).read_bytes()
+            result = subprocess.run(
+                self._refresh_cli(fx) + ["--manifest-dir", str(fx["manifest_dir"])],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+            self.assertEqual(Path(fx["manifest_path"]).read_bytes(), before)
 
 
 class ConverterEdgeCaseTests(unittest.TestCase):

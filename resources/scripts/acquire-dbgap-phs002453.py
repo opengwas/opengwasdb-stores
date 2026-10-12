@@ -1496,14 +1496,21 @@ def resolved_within(child: Path, root: Path) -> bool:
         return False
 
 
-def ensure_write_within(target: Path, out_root: Path) -> None:
+def ensure_write_within(target: Path, out_root: Path, *, follow_final: bool = True) -> None:
     """Every write target/temp must resolve inside the isolated root.
 
     Checks the deepest existing ancestor so a symlinked parent cannot redirect a
-    write into a read-only source tree.
+    write into a read-only source tree.  ``follow_final=False`` is for a data
+    symlink we create on purpose: its *parent* must be inside the root, but its
+    target is the read-only source and may be outside.
     """
-    if not resolved_within(target, out_root):
-        raise AcquisitionError(f"write target {target} escapes the isolated root {out_root}")
+    out_r = out_root.resolve()
+    if follow_final:
+        resolved = target.resolve()
+    else:
+        resolved = target.parent.resolve() / target.name
+    if not (resolved == out_r or out_r in resolved.parents):
+        raise AcquisitionError(f"write target {target} escapes the isolated root {out_r}")
 
 
 def validate_sidecar_binding(
@@ -1776,8 +1783,9 @@ def command_refresh(args: argparse.Namespace) -> int:
         target = directory / f"{accession}.tsv.gz-meta.yaml"
         partial = target.with_name(target.name + ".partial")
         link = directory / f"{accession}.tsv.gz"
-        for write_target in (directory, target, partial, link):
+        for write_target in (directory, target, partial):
             ensure_write_within(write_target, out)
+        ensure_write_within(link, out, follow_final=False)
         directory.mkdir(parents=True, exist_ok=True)
         partial.write_text(
             yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100), encoding="utf-8"
