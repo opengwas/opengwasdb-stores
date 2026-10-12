@@ -6,7 +6,11 @@ The restored 2,514-Analysis target is accepted as the replacement for the
 incomplete `OGS-00009`/`OGS-00010` pair; the successor identities are
 **`OGS-00030`** (observed) and **`OGS-00031`** (completed). Historical **Store
 artifacts must be preserved**; retention of the old **Release Bundles** is
-waived (no deletion is performed now). This records identity, lineage and a
+waived only in the sense that their definitions need not be permanently
+archived — they are retired, not deleted, **once successor activation is
+genuinely ready**. Nothing is deleted now: `OGS-00030` is only staged and
+`OGS-00031` is absent, so the active bundles stay, and minimal artifact lineage
+/ evidence / Git history is retained. This records identity, lineage and a
 qualification plan only: **no acceptance, no production build, no `OGS-00031`
 construction, no `OGS-00030` build.**
 
@@ -112,4 +116,6 @@ decision).
 No mutation of the physical panel, `OGS-00009`/`OGS-00010` Stores, the source
 mirror or the production registry. No `EUR` alias created. No candidate
 regeneration, no Store construction, no build, no heavy LD scan, no ancestry
-re-run.
+re-run. No bundle deletion: old bundle definitions may be retired only when
+successor activation is genuinely ready, and minimal artifact lineage / evidence
+/ Git history is retained regardless.
