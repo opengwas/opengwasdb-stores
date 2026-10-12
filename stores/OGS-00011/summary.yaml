@@ -1,4 +1,7 @@
-n_analyses: 4783
+n_manifest: 4783
+n_admitted: 3169
+n_excluded: 1614
+n_analyses: 3169
 first_author: mixed (662)
 publication_pmid: mixed (758)
 tissue: NA
