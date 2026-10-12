@@ -304,6 +304,39 @@ class UkbCandidateTest(unittest.TestCase):
         self.assertEqual(not_run["checks"]["ancestry"], "not_run")
         self.assertEqual(not_run["reports"], {"ancestry": "x.tsv"})
 
+    def test_release_yaml_records_ancestry_records_provenance_when_supplied(self) -> None:
+        config = base_config()
+        identity = {"path": "ancestry.tsv", "sha256": "12" * 32, "rows": 3, "admitted_rows": 3}
+        release = candidate.render_release_yaml(
+            store_id="OGS-99001",
+            config=config,
+            inventory_path=Path("inventory.tsv"),
+            inventory_sha256="ab" * 32,
+            resolution_path=Path("resolution.tsv"),
+            resolution_sha256="cd" * 32,
+            n_rows=3,
+            n_buildable=3,
+            command="fixture",
+            generator_version="sha256:" + "ef" * 32,
+            created_at="2026-10-12T00:00:00Z",
+            ancestry_records_identity=identity,
+        )
+        self.assertEqual(release["source_snapshot"]["ancestry_records"], identity)
+        without = candidate.render_release_yaml(
+            store_id="OGS-99001",
+            config=config,
+            inventory_path=Path("inventory.tsv"),
+            inventory_sha256="ab" * 32,
+            resolution_path=Path("resolution.tsv"),
+            resolution_sha256="cd" * 32,
+            n_rows=3,
+            n_buildable=3,
+            command="fixture",
+            generator_version="sha256:" + "ef" * 32,
+            created_at="2026-10-12T00:00:00Z",
+        )
+        self.assertNotIn("ancestry_records", without["source_snapshot"])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
