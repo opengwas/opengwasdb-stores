@@ -1,0 +1,36 @@
+store_id: OGS-00030
+label: ukb-b-full-observed-restored
+access_posture: public
+status: candidate
+derived_from: null
+created_at: '2026-10-12T00:19:37Z'
+accepted_at: null
+source_snapshot_id: ukb-b-restored-2026-10-11
+source_snapshot:
+  source_collection_id: opengwas-gwas-vcf
+  inventory_path: resources/inventories/ukb-b-restored-2026-10-11.tsv
+  inventory_sha256: 3784abade55150684fb4c837ccb49195d09c50540b940356e48f5887fa8c14b4
+  resolution_path: resources/inventories/ukb-b-provider-resolution-2026-10-11.tsv
+  resolution_sha256: 62e04f578afaa90f45a44a1042d168986482099b43e65f7a19ad4a85024c9e18
+  resolution_snapshot_id: ukb-b-provider-json-2026-10-11
+  n_analyses: 2514
+  n_buildable: 2514
+generator:
+  name: resources/generators/ukb-b/generate_candidate.py
+  version: sha256:a84475166ae14503a23dc52f7c9055da87233ac2597dc93610335bf368c039af
+  commands:
+  - python3 resources/generators/ukb-b/generate_candidate.py OGS-00030
+description: Restored full dense observed-only Store Release containing all 2,514
+  ukb-b GWAS-VCF Analyses declared in the OpenGWAS IGD collection and verified present
+  in /data/opengwasdb/raw/gwas-vcf/ukb-b. Succeeds the incomplete 2,024-Analysis OGS-00009
+  baseline, which remains registered as a historical asset.
+notes: 'Membership is the frozen Source Inventory ukb-b-restored-2026-10-11: 2,514
+  Analyses, each with a recorded sha256, size and mtime. The 2,024-Analysis OGS-00009/OGS-00010
+  pair is preserved untouched as the incomplete baseline; this release adds the 490
+  previously missing Analyses. Analytical Metadata is resolved from each Analysis''s
+  provider JSON sidecar (exact-ID checked, batch checked, sha256-bound); that resolution
+  agrees with the recorded opengwas-api-r2026-08-10 resolution on every one of the
+  2,511 rows it covered and supplies the three rows it had left unresolved. Ancestry
+  is the provider''s own population label (source_fallback), not an AF-based assignment;
+  the ukb-b VCFs do carry FORMAT/AF, so the historical source_trusted_no_af value
+  is not reproduced.'

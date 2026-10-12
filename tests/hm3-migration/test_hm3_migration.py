@@ -60,6 +60,7 @@ EXPECTED_IN_SCOPE = (
     "OGS-00010",
     "OGS-00011",
     "OGS-00016",
+    "OGS-00030",
 )
 EXPECTED_RAGGED = ("OGS-00001", "OGS-00002", "OGS-00006", "OGS-00007")
 
@@ -157,6 +158,16 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
         "options": {
             "source-reader-capability": "opengwasdb.finngen-r13",
             "source-assembly": "hg38",
+            "n-workers": 32,
+        },
+        "post": {"top_hits": True, "overview": True},
+    },
+    "OGS-00030": {
+        "phase": "build",
+        "command": "build-dense-vcf",
+        "options": {
+            "source-reader-capability": "opengwasdb.gwas-vcf",
+            "source-assembly": "hg19",
             "n-workers": 32,
         },
         "post": {"top_hits": True, "overview": True},
@@ -288,7 +299,7 @@ class TestRegistryMigration(unittest.TestCase):
             record_check()
             self.assertIn(store_id, rendered)
         record_check()
-        self.assertIn("8/8 Dense-component bundles declare hm3", rendered)
+        self.assertIn("9/9 Dense-component bundles declare hm3", rendered)
         record_check()
         self.assertIn("4/4 Ragged-only bundles declare none", rendered)
         record_check()
