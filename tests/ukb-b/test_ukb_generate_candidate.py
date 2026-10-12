@@ -252,6 +252,58 @@ class UkbCandidateTest(unittest.TestCase):
         excluded["stored_effect_scale"] = ""
         candidate._validate_shared_schema(self.root, rows)
 
+    def _af(self, analysis_id: str) -> dict[str, str]:
+        return {"analysis_id": analysis_id, "assigned_ancestry": "EUR", "ancestry_assignment_method": "af_assigned"}
+
+    def test_ancestry_validation_full_af_coverage_passes(self) -> None:
+        records = {i: self._af(i) for i in self.ids}
+        ok, warnings = candidate.ancestry_validation(self.ids, records)
+        self.assertTrue(ok)
+        self.assertEqual(warnings, [])
+
+    def test_ancestry_validation_partial_coverage_is_not_run(self) -> None:
+        records = {i: self._af(i) for i in self.ids if i != "ukb-b-2"}
+        ok, warnings = candidate.ancestry_validation(self.ids, records)
+        self.assertFalse(ok)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("not fully AF-assigned", warnings[0])
+        self.assertIn("1 of 3", warnings[0])
+
+    def test_ancestry_validation_source_fallback_is_not_run(self) -> None:
+        records = {i: self._af(i) for i in self.ids}
+        records["ukb-b-3"] = {"analysis_id": "ukb-b-3", "assigned_ancestry": "EUR", "ancestry_assignment_method": "source_fallback"}
+        ok, warnings = candidate.ancestry_validation(self.ids, records)
+        self.assertFalse(ok)
+        self.assertIn("non-af_assigned or unassigned", warnings[0])
+
+    def test_ancestry_validation_unassigned_is_not_run(self) -> None:
+        records = {i: self._af(i) for i in self.ids}
+        records["ukb-b-3"] = {"analysis_id": "ukb-b-3", "assigned_ancestry": "", "ancestry_assignment_method": "unassigned"}
+        ok, _warnings = candidate.ancestry_validation(self.ids, records)
+        self.assertFalse(ok)
+
+    def test_ancestry_validation_no_records_is_not_run(self) -> None:
+        ok, warnings = candidate.ancestry_validation(self.ids, None)
+        self.assertFalse(ok)
+        self.assertIn("source_fallback", warnings[0])
+
+    def test_ancestry_records_outside_inventory_are_rejected(self) -> None:
+        records = {i: self._af(i) for i in self.ids}
+        records["ukb-b-999"] = self._af("ukb-b-999")
+        with self.assertRaises(candidate.CandidateError):
+            self._build(ancestry=records)
+
+    def test_render_validation_only_passes_ancestry_when_checked(self) -> None:
+        passed = candidate.render_validation_yaml(
+            n_rows=3, n_buildable=3, warnings=[], ancestry_checked=True, generated_at="t"
+        )
+        self.assertEqual(passed["checks"]["ancestry"], "passed")
+        not_run = candidate.render_validation_yaml(
+            n_rows=3, n_buildable=3, warnings=["w"], ancestry_checked=False, generated_at="t", reports={"ancestry": "x.tsv"}
+        )
+        self.assertEqual(not_run["checks"]["ancestry"], "not_run")
+        self.assertEqual(not_run["reports"], {"ancestry": "x.tsv"})
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

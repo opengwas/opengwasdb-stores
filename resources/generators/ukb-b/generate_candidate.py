@@ -234,6 +234,14 @@ def build_analyses_rows(
             f"{len(outside)} resolution record(s) are outside the frozen inventory: {', '.join(outside[:10])}"
         )
 
+    if ancestry_records is not None:
+        outside_ancestry = sorted(set(ancestry_records) - set(inventory_ids))
+        if outside_ancestry:
+            raise CandidateError(
+                f"{len(outside_ancestry)} ancestry record(s) are outside the frozen inventory: "
+                f"{', '.join(outside_ancestry[:10])}"
+            )
+
     rows: list[dict[str, str]] = []
     for position, inv in enumerate(inventory):
         analysis_id = inv["analysis_id"]
@@ -310,6 +318,47 @@ def build_analyses_rows(
     return rows, warnings
 
 
+def ancestry_validation(
+    admitted_ids: Sequence[str],
+    ancestry_records: Mapping[str, Mapping[str, str]] | None,
+) -> tuple[bool, list[str]]:
+    """Decide whether ``checks.ancestry`` may be ``passed``, never on partial evidence.
+
+    ``passed`` requires a matching record for **every** admitted (buildable)
+    Analysis whose ``ancestry_assignment_method`` is ``af_assigned`` and whose
+    ``assigned_ancestry`` is non-empty. A missing record, or a source_fallback /
+    unassigned record, keeps the check ``not_run`` with an explicit warning, so a
+    partial, extra or mixed-coverage record set can never render as a scientific
+    pass. Per-Analysis overrides are still applied to the rows by
+    `build_analyses_rows`; this only governs the release-level check verdict.
+    """
+    if not admitted_ids:
+        return False, ["no admitted Analyses to check ancestry against; checks.ancestry=not_run"]
+    if ancestry_records is None:
+        return False, [
+            "ancestry is the provider/source label (source_fallback), not an AF-based assignment; "
+            "no AF-assigned ancestry records were supplied; checks.ancestry=not_run "
+            "(run `opengwasdb assign-ancestry` before acceptance/build, #222)"
+        ]
+    missing = [aid for aid in admitted_ids if aid not in ancestry_records]
+    non_af = [
+        aid
+        for aid in admitted_ids
+        if aid in ancestry_records
+        and (
+            ancestry_records[aid].get("ancestry_assignment_method", "").strip() != "af_assigned"
+            or not ancestry_records[aid].get("assigned_ancestry", "").strip()
+        )
+    ]
+    if not missing and not non_af:
+        return True, []
+    return False, [
+        f"ancestry is not fully AF-assigned: {len(missing)} of {len(admitted_ids)} admitted Analyses have no "
+        f"ancestry record and {len(non_af)} have a non-af_assigned or unassigned record; checks.ancestry=not_run "
+        "(a partial or mixed record set must not render as a scientific pass)"
+    ]
+
+
 def validate_membership(
     rows: Sequence[Mapping[str, str]],
     inventory: Sequence[Mapping[str, str]],
@@ -376,7 +425,20 @@ def render_release_yaml(
     command: str,
     generator_version: str,
     created_at: str,
+    ancestry_records_identity: Mapping[str, object] | None = None,
 ) -> dict:
+    source_snapshot: dict = {
+        "source_collection_id": str(config.get("source_collection_id", "")),
+        "inventory_path": str(inventory_path),
+        "inventory_sha256": inventory_sha256,
+        "resolution_path": str(resolution_path),
+        "resolution_sha256": resolution_sha256,
+        "resolution_snapshot_id": str(config.get("resolution_snapshot_id", "")),
+        "n_analyses": n_rows,
+        "n_buildable": n_buildable,
+    }
+    if ancestry_records_identity is not None:
+        source_snapshot["ancestry_records"] = dict(ancestry_records_identity)
     return {
         "store_id": store_id,
         "label": str(config.get("label", "ukb-b-full-observed-restored")),
@@ -386,16 +448,7 @@ def render_release_yaml(
         "created_at": created_at,
         "accepted_at": None,
         "source_snapshot_id": str(config.get("source_snapshot_id", "")),
-        "source_snapshot": {
-            "source_collection_id": str(config.get("source_collection_id", "")),
-            "inventory_path": str(inventory_path),
-            "inventory_sha256": inventory_sha256,
-            "resolution_path": str(resolution_path),
-            "resolution_sha256": resolution_sha256,
-            "resolution_snapshot_id": str(config.get("resolution_snapshot_id", "")),
-            "n_analyses": n_rows,
-            "n_buildable": n_buildable,
-        },
+        "source_snapshot": source_snapshot,
         "generator": {
             "name": "resources/generators/ukb-b/generate_candidate.py",
             "version": generator_version,
@@ -430,6 +483,7 @@ def render_validation_yaml(
     warnings: Sequence[str],
     ancestry_checked: bool,
     generated_at: str,
+    reports: Mapping[str, str] | None = None,
 ) -> dict:
     status = "passed_with_warnings" if warnings else "passed"
     return {
@@ -444,7 +498,7 @@ def render_validation_yaml(
             "effect_scale": "not_run",
             "sd_estimation": "not_run",
         },
-        "reports": {},
+        "reports": dict(reports or {}),
         "warnings": list(warnings),
         "errors": [],
     }
@@ -567,6 +621,24 @@ def main(argv: list[str] | None = None) -> int:
     command = "python3 resources/generators/ukb-b/generate_candidate.py " + " ".join(sys.argv[1:])
     generator_version = "sha256:" + hashlib.sha256((REPO_ROOT / "resources/generators/ukb-b/generate_candidate.py").read_bytes()).hexdigest()
 
+    # `checks.ancestry` is `passed` only when EVERY admitted Analysis has a valid
+    # af_assigned record. A partial, extra or source-fallback record set yields
+    # `not_run` with a warning rather than a scientific pass.
+    admitted_ids = [row["analysis_id"] for row in rows if row["exclude_from_build"] != "true"]
+    ancestry_ok, ancestry_warnings = ancestry_validation(admitted_ids, ancestry_records)
+    warnings = list(warnings) + ancestry_warnings
+    ancestry_identity: dict | None = None
+    ancestry_reports: dict[str, str] = {}
+    if ancestry_records is not None and args.ancestry_records:
+        ancestry_path = Path(args.ancestry_records)
+        ancestry_identity = {
+            "path": str(ancestry_path),
+            "sha256": sha256_file(ancestry_path),
+            "rows": len(ancestry_records),
+            "admitted_rows": len(admitted_ids),
+        }
+        ancestry_reports["ancestry"] = str(ancestry_path)
+
     release = render_release_yaml(
         store_id=args.store_id,
         config=document,
@@ -579,23 +651,16 @@ def main(argv: list[str] | None = None) -> int:
         command=command,
         generator_version=generator_version,
         created_at=created_at,
+        ancestry_records_identity=ancestry_identity,
     )
     build = render_build_yaml(args.store_id, document)
-    # An AF-based ancestry assignment is only "checked" when resolver records
-    # supply it. A provider/source label is a source fallback, not an empirical
-    # ancestry check, so the check stays `not_run` and the gap stays visible.
-    ancestry_from_records = bool(ancestry_records)
-    if not ancestry_from_records:
-        warnings = list(warnings) + [
-            "ancestry is the provider/source label (source_fallback), not an AF-based assignment; "
-            "run `opengwasdb resolve-analyses` before acceptance/build (#222)"
-        ]
     validation = render_validation_yaml(
         n_rows=len(rows),
         n_buildable=n_buildable,
         warnings=warnings,
-        ancestry_checked=ancestry_from_records,
+        ancestry_checked=ancestry_ok,
         generated_at=created_at,
+        reports=ancestry_reports,
     )
 
     out_dir = Path(args.out_dir) if args.out_dir else _resolve(repo_root, args.registry_root) / args.store_id
