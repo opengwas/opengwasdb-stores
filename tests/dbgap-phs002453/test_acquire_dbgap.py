@@ -30,6 +30,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -254,14 +255,17 @@ def build_fixture(root: Path, verified: bool = True, candidates: list[dict[str, 
 
     candidate_path = root / "candidates.tsv"
     write_candidates(candidate_path, CANDIDATES if candidates is None else candidates)
+    (root / "discrepancy-ledger.yaml").write_text("version: 1\nrecords: []\n", encoding="utf-8")
     return candidate_path
 
 
 def run(root: Path, *argv: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), "--out", str(root), *argv],
-        capture_output=True, text=True, check=False,
-    )
+    command = [sys.executable, str(SCRIPT), "--out", str(root), *argv]
+    if argv and argv[0] == "map" and "--discrepancies" not in argv:
+        # The real repo ledger names dbGaP members this synthetic mirror does not
+        # carry; a fixture run supplies its own (empty by default) ledger.
+        command += ["--discrepancies", str(root / "discrepancy-ledger.yaml")]
+    return subprocess.run(command, capture_output=True, text=True, check=False)
 
 
 def decompress(path: Path) -> str:
@@ -604,6 +608,188 @@ class AcquisitionTest(unittest.TestCase):
         with path.open(newline="", encoding="utf-8") as handle:
             return list(csv.DictReader(handle, delimiter="\t"))
 
+
+
+class KeyDiscrepancyTests(unittest.TestCase):
+    """The committed key-discrepancy ledger: loud, traceable, never guessed."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory(prefix="dbgap-discrepancy-")
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "root"
+        build_fixture(self.root)
+        result = run(self.root, "extract")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        # Break the exact key for one candidate so the Analysis is unmatched.
+        rows = [dict(row) for row in CANDIDATES]
+        for row in rows:
+            if row["STUDY.ACCESSION"] == "GCST90475097":
+                row["sample_size"] = "999999"
+        self.mismatched = self.root / "candidates-mismatch.tsv"
+        write_candidates(self.mismatched, rows)
+        self.member = f"{INNER}/MVP_R4.1000G_AGR.A1C_Min_INT.EUR.GIA.dbGaP.txt.gz"
+        self.ledger = self.root / "ledger.yaml"
+        self.write_ledger("owner_decision_required")
+
+    def write_ledger(self, disposition: str) -> None:
+        self.ledger.write_text(
+            textwrap.dedent(f"""\
+                version: 1
+                records:
+                  - member: {self.member}
+                    analysis_id: GCST90475097
+                    disposition: {disposition}
+                    dbgap:
+                      ancestry: EUR
+                      analyzed_variable: hemoglobin A1c (HbA1c, minimum, inv-norm transformed)
+                      sample_size: 338640
+                      n_cases: 0
+                      n_controls: 0
+                    candidate:
+                      ancestry_group: European
+                      ancestry_fraction: 1
+                      trait: Hemoglobin A1c (HbA1c, minimum, inv-norm transformed)
+                      sample_size: 999999
+                      n_cases: 0
+                      n_controls: 0
+                    owner_question: fixture review question
+                """),
+            encoding="utf-8",
+        )
+
+    @staticmethod
+    def rows(path: Path) -> list[dict[str, str]]:
+        with path.open(newline="", encoding="utf-8") as handle:
+            return list(csv.DictReader(handle, delimiter="\t"))
+
+    def test_pending_discrepancy_blocks_and_is_named(self) -> None:
+        result = run(
+            self.root, "map", "--candidates", str(self.mismatched),
+            "--discrepancies", str(self.ledger),
+        )
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        report = self.rows(self.root / "mapping-report.tsv")
+        kinds = [row["kind"] for row in report]
+        self.assertIn("numeric_key_discrepancy", kinds)
+        self.assertNotIn("unmatched_analysis", kinds)
+        self.assertNotIn("unused_candidate", kinds)
+        row = next(r for r in report if r["kind"] == "numeric_key_discrepancy")
+        self.assertEqual(row["analysis_id"], "GCST90475097")
+        self.assertIn("owner_decision_required", row["detail"])
+        self.assertIn("awaiting a recorded owner decision", result.stderr)
+
+    def test_resolved_discrepancy_binds_with_provenance(self) -> None:
+        self.write_ledger("resolved")
+        result = run(
+            self.root, "map", "--candidates", str(self.mismatched),
+            "--discrepancies", str(self.ledger), "--allow-partial",
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        mapping = {row["analysis_id"]: row for row in self.rows(self.root / "mapping.tsv")}
+        self.assertEqual(mapping["GCST90475097"]["match_basis"], "discrepancy-ledger")
+        self.assertEqual(mapping["GCST90475097"]["member"], self.member)
+        self.assertEqual([row["kind"] for row in self.rows(self.root / "mapping-report.tsv")], [])
+
+    def test_stale_ledger_entry_fails_loudly(self) -> None:
+        # With the original candidate table the keys agree, so the ledger entry
+        # is no longer a discrepancy; it must not pass silently.
+        result = run(
+            self.root, "map", "--candidates", str(self.root / "candidates.tsv"),
+            "--discrepancies", str(self.ledger),
+        )
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("stale", result.stderr)
+
+    def test_map_is_byte_idempotent(self) -> None:
+        first = run(
+            self.root, "map", "--candidates", str(self.mismatched),
+            "--discrepancies", str(self.ledger), "--allow-partial",
+        )
+        mapping_before = (self.root / "mapping.tsv").read_bytes()
+        review_before = (self.root / "mapping-review.tsv").read_bytes()
+        second = run(
+            self.root, "map", "--candidates", str(self.mismatched),
+            "--discrepancies", str(self.ledger), "--allow-partial",
+        )
+        self.assertEqual(first.returncode, second.returncode)
+        self.assertEqual((self.root / "mapping.tsv").read_bytes(), mapping_before)
+        self.assertEqual((self.root / "mapping-review.tsv").read_bytes(), review_before)
+
+
+class TraitDispositionTests(unittest.TestCase):
+    """Formatting-only differences are classified; spelling/synonyms are queued."""
+
+    def test_punctuation_only_is_not_a_typo_acceptance(self) -> None:
+        pairs = [
+            ("Raynauds syndrome", "Raynaud's syndrome (PheCode 443.1)"),
+            ("Parkinsons disease", "Parkinson's disease"),
+            ("Diabetes / Sugar", 'Diabetes / "Sugar"'),
+            ("nights sleep", "night's sleep"),
+            ("Fuchs dystrophy", "Fuchs' dystrophy (PheCode 364.51)"),
+        ]
+        for left, right in pairs:
+            category, disposition = ACQUIRE.trait_disposition(left, right)
+            self.assertEqual(category, "punctuation_only", (left, right))
+            self.assertEqual(disposition, "formatting_only_pending_policy")
+
+    def test_lexical_variants_need_owner_review(self) -> None:
+        pairs = [
+            ("Disorders of lipoid metabolism", "Disorders of lipid metabolism (PheCode 272)"),
+            ("H. pylori", "Helicobacter pylori infection  (PheCode 041.8)"),
+            ("Ostearthritis", "Osteoarthritis"),
+            ("Enlarged Prostrate (Benign Prostatic Hyperplasia)", "Enlarged prostate (Benign prostatic hyperplasia)"),
+            ("Dermatomycoses", "Dermatomycosis (PheCode 110.2)"),
+            ("Nonspecific abnormal findings on radiological and other examinations of skull and head",
+             "Nonspecific abnormal findings on radiological and other examination of skull and head (PheCode 346.1)"),
+        ]
+        for left, right in pairs:
+            category, disposition = ACQUIRE.trait_disposition(left, right)
+            self.assertEqual(category, "lexical_variant", (left, right))
+            self.assertEqual(disposition, "owner_scientific_review")
+
+    def test_build_review_rows_keeps_original_labels(self) -> None:
+        rows = [
+            {"analysis_id": "GCST1", "member": "m1", "trait_check": "mismatch",
+             "analyzed_variable": "Ostearthritis", "candidate_trait": "Osteoarthritis"},
+            {"analysis_id": "GCST2", "member": "m2", "trait_check": "exact",
+             "analyzed_variable": "x", "candidate_trait": "x"},
+        ]
+        review = ACQUIRE.build_review_rows(rows)
+        self.assertEqual(len(review), 1)
+        self.assertEqual(review[0]["analysis_id"], "GCST1")
+        self.assertEqual(review[0]["analyzed_variable"], "Ostearthritis")
+        self.assertEqual(review[0]["disposition"], "owner_scientific_review")
+
+
+class DiscrepancyLedgerTests(unittest.TestCase):
+    def test_unknown_disposition_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ledger.yaml"
+            path.write_text(
+                "version: 1\nrecords:\n"
+                "  - member: m\n    analysis_id: GCST1\n    disposition: maybe\n"
+                "    dbgap: {ancestry: EUR, sample_size: 1}\n"
+                "    candidate: {sample_size: 1}\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "unknown disposition"):
+                ACQUIRE.read_discrepancies(path)
+
+    def test_duplicate_analysis_id_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ledger.yaml"
+            record = (
+                "  - member: m{index}\n    analysis_id: GCST1\n"
+                "    disposition: resolved\n"
+                "    dbgap: {{ancestry: EUR, sample_size: 1}}\n"
+                "    candidate: {{sample_size: 2}}\n"
+            )
+            path.write_text(
+                "version: 1\nrecords:\n" + record.format(index="") + record.format(index="2"),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "duplicate analysis_id"):
+                ACQUIRE.read_discrepancies(path)
 
 
 class ConverterEdgeCaseTests(unittest.TestCase):
