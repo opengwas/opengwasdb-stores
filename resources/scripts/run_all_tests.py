@@ -77,6 +77,7 @@ SUITES: list[tuple[str, str, list[str]]] = [
     ("source-inventory", "python", ["tests/source-inventory/test_source_inventory.py"]),
     ("ukb-b-inventory", "python", ["tests/ukb-b/test_ukb_inventory.py"]),
     ("ukb-b-candidate", "python", ["tests/ukb-b/test_ukb_generate_candidate.py"]),
+    ("ukb-b-provider-metadata", "python", ["tests/ukb-b/test_ukb_provider_metadata.py"]),
     ("validation-record", "python", ["tests/validation-record/test_validation_record.py"]),
     ("workflow", "python", ["tests/workflow/test_workflow.py"]),
     ("release-faults", "python", ["tests/workflow/test_release_faults.py"]),

@@ -261,6 +261,46 @@ class UkbInventoryTest(unittest.TestCase):
         row = next(r for r in inventory.rows if r["analysis_id"] == "ukb-b-1")
         self.assertEqual(row["source_file"], str(sources["ukb-b-1"].data_file))
 
+    def _bgzf_fixture(self, analysis_id: str) -> Path:
+        import pysam
+
+        self.source_dir.mkdir(parents=True, exist_ok=True)
+        vcf = self.source_dir / f"{analysis_id}.vcf"
+        vcf.write_text(
+            "##fileformat=VCFv4.2\n##contig=<ID=1,length=1000>\n"
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n1\t100\t.\tA\tC\t.\t.\t.\n",
+            encoding="utf-8",
+        )
+        gz = self.source_dir / f"{analysis_id}.vcf.gz"
+        pysam.tabix_compress(str(vcf), str(gz), force=True)
+        pysam.tabix_index(str(gz), preset="vcf", force=True)
+        return gz
+
+    def test_integrity_ok_then_corrupt_then_missing(self) -> None:
+        try:
+            import pysam  # noqa: F401
+        except ImportError:  # pragma: no cover - env-dependent
+            self.skipTest("pysam not available")
+        gz = self._bgzf_fixture("ukb-b-1")
+        rows = [{"analysis_id": "ukb-b-1", "source_file": str(gz)}]
+        result, _reused = ukb.check_source_integrity(rows, workers=1)
+        self.assertEqual(result["ukb-b-1"]["status"], "ok")
+        self.assertEqual(ukb.report_source_integrity(result)["passed"], True)
+
+        data = gz.read_bytes()
+        gz.write_bytes(data[: len(data) // 2])  # truncated BGZF stream
+        corrupt, _ = ukb.check_source_integrity(rows, workers=1)
+        self.assertEqual(corrupt["ukb-b-1"]["status"], "integrity_failed")
+        self.assertFalse(ukb.report_source_integrity(corrupt)["passed"])
+
+        gz.unlink()
+        missing, _ = ukb.check_source_integrity(rows, workers=1)
+        self.assertEqual(missing["ukb-b-1"]["status"], "missing_file")
+
+    def test_integrity_reader_thread_cap_is_enforced(self) -> None:
+        with self.assertRaises(ukb.InventoryError):
+            ukb.check_source_integrity([], workers=3)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

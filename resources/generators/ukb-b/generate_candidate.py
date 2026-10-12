@@ -581,16 +581,20 @@ def main(argv: list[str] | None = None) -> int:
         created_at=created_at,
     )
     build = render_build_yaml(args.store_id, document)
-    if not ancestry_records:
+    # An AF-based ancestry assignment is only "checked" when resolver records
+    # supply it. A provider/source label is a source fallback, not an empirical
+    # ancestry check, so the check stays `not_run` and the gap stays visible.
+    ancestry_from_records = bool(ancestry_records)
+    if not ancestry_from_records:
         warnings = list(warnings) + [
-            "ancestry is a batch source fallback (source_fallback), not an AF-based assignment; "
+            "ancestry is the provider/source label (source_fallback), not an AF-based assignment; "
             "run `opengwasdb resolve-analyses` before acceptance/build (#222)"
         ]
     validation = render_validation_yaml(
         n_rows=len(rows),
         n_buildable=n_buildable,
         warnings=warnings,
-        ancestry_checked=bool(ancestry_records),
+        ancestry_checked=ancestry_from_records,
         generated_at=created_at,
     )
 

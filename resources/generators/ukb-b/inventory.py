@@ -45,9 +45,11 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -100,6 +102,14 @@ KNOWN_READINESS_STATUSES: frozenset[str] = frozenset(
 
 RECEIPT_SCHEMA_VERSION: int = 1
 INVENTORY_SCHEMA_VERSION: int = 1
+INTEGRITY_RECEIPT_SCHEMA_VERSION: int = 1
+
+#: Deep source-integrity outcomes for the BGZF/Tabix check. `ok` means the
+#: compressed stream decompresses to EOF, the BGZF EOF marker survives, and the
+#: Tabix index opens and lists at least one contig.
+INTEGRITY_STATUSES: frozenset[str] = frozenset(
+    {"ok", "missing_file", "missing_index", "bad_index", "integrity_failed"}
+)
 
 DECLARED_COLUMNS_REQUIRED: tuple[str, ...] = (
     "analysis_id",
@@ -797,6 +807,159 @@ def _atomic_write(path: Path, text: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Deep BGZF / Tabix integrity
+# ---------------------------------------------------------------------------
+
+
+def _bgzip_test(path: Path) -> str:
+    """Decompress a BGZF file to EOF with the `bgzip` binary when present."""
+    result = subprocess.run(
+        ["bgzip", "-t", str(path)], capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        return (result.stderr or result.stdout or "bgzip -t failed").strip().splitlines()[0]
+    return ""
+
+
+def _pysam_test(path: Path) -> str:
+    """Fallback full BGZF decompression using the pinned environment's pysam."""
+    import pysam  # imported lazily so the rest of the module needs no pysam
+
+    try:
+        with pysam.BGZFile(str(path), "rb") as handle:
+            while handle.read(1 << 22):
+                pass
+    except Exception as exc:  # noqa: BLE001 - reported, never raised past the worker
+        return f"{type(exc).__name__}: {exc}"
+    return ""
+
+
+def _tabix_contigs(path: Path) -> tuple[list[str], str]:
+    """Validate the Tabix index; return ``(contigs, error)``."""
+    index = Path(str(path) + ".tbi")
+    if not index.is_file():
+        return [], "index_missing"
+    # A .tbi is itself BGZF-compressed (or raw in older tools), so the magic is
+    # not a reliable gate; opening it and listing contigs is the real check.
+    try:
+        result = subprocess.run(["tabix", "-l", str(path)], capture_output=True, text=True)
+    except FileNotFoundError:
+        import pysam  # noqa: PLC0415
+
+        with pysam.TabixFile(str(path)) as tabix:
+            return list(tabix.contigs), ""
+    if result.returncode != 0:
+        return [], f"bad_index: {(result.stderr or result.stdout).strip().splitlines()[0] if (result.stderr or result.stdout).strip() else 'tabix -l failed'}"
+    return [line for line in result.stdout.split() if line], ""
+
+
+def _check_integrity_one(item: tuple[str, str]) -> tuple[str, str, str]:
+    """Return ``(analysis_id, status, detail)`` for one source file."""
+    analysis_id, source_file = item
+    path = Path(source_file)
+    if not path.is_file():
+        return analysis_id, "missing_file", str(path)
+    if not Path(str(path) + ".tbi").is_file():
+        return analysis_id, "missing_index", str(path) + ".tbi"
+    bgzf_error = _bgzip_test(path) if shutil.which("bgzip") else _pysam_test(path)
+    if bgzf_error:
+        return analysis_id, "integrity_failed", bgzf_error
+    try:
+        contigs, index_error = _tabix_contigs(path)
+    except Exception as exc:  # noqa: BLE001
+        return analysis_id, "bad_index", f"{type(exc).__name__}: {exc}"
+    if index_error:
+        return analysis_id, index_error.split(":", 1)[0], index_error
+    if not contigs:
+        return analysis_id, "bad_index", "index lists no contigs"
+    return analysis_id, "ok", f"contigs={len(contigs)}"
+
+
+def check_source_integrity(
+    rows: Sequence[Mapping[str, str]],
+    *,
+    workers: int = MAX_READER_THREADS,
+    receipt: Path | None = None,
+    resume: bool = True,
+) -> tuple[dict[str, dict[str, str]], int]:
+    """Deeply check every source's BGZF stream and Tabix index, two readers at most.
+
+    The freeze proves the bytes have not changed; this proves the bytes are a
+    complete BGZF stream whose Tabix index opens. It is resumable through the
+    same size+mtime receipt discipline as the checksum freeze.
+    """
+    if workers < 1 or workers > MAX_READER_THREADS:
+        raise InventoryError(
+            f"workers must be between 1 and {MAX_READER_THREADS} (this ticket's reader grant); got {workers}"
+        )
+    entries = _read_integrity_receipt(receipt) if (receipt and resume) else {}
+    results: dict[str, dict[str, str]] = {}
+    reused = 0
+
+    pending: list[tuple[str, str]] = []
+    for row in rows:
+        analysis_id = row["analysis_id"]
+        path = Path(row["source_file"])
+        stat = path.stat() if path.is_file() else None
+        recorded = entries.get(analysis_id)
+        if (
+            isinstance(recorded, dict)
+            and recorded.get("data_bytes") == (stat.st_size if stat else None)
+            and recorded.get("mtime_ns") == (stat.st_mtime_ns if stat else None)
+            and recorded.get("status") == "ok"
+        ):
+            results[analysis_id] = {"status": "ok", "detail": str(recorded.get("detail", ""))}
+            reused += 1
+            continue
+        pending.append((analysis_id, str(path)))
+
+    if pending:
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            for analysis_id, status, detail in executor.map(_check_integrity_one, pending):
+                results[analysis_id] = {"status": status, "detail": detail}
+                if receipt is not None:
+                    row = next(r for r in rows if r["analysis_id"] == analysis_id)
+                    path = Path(row["source_file"])
+                    stat = path.stat()
+                    entries[analysis_id] = {
+                        "data_bytes": stat.st_size,
+                        "mtime_ns": stat.st_mtime_ns,
+                        "status": status,
+                        "detail": detail,
+                    }
+                    _write_integrity_receipt(receipt, entries)
+    return results, reused
+
+
+def _read_integrity_receipt(path: Path) -> dict[str, dict[str, object]]:
+    if not path.is_file():
+        return {}
+    document = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(document, dict) or document.get("schema_version") != INTEGRITY_RECEIPT_SCHEMA_VERSION:
+        raise InventoryError(f"integrity receipt {path} has an unsupported schema_version")
+    entries = document.get("entries")
+    return entries if isinstance(entries, dict) else {}
+
+
+def _write_integrity_receipt(path: Path, entries: Mapping[str, Mapping[str, object]]) -> None:
+    document = {
+        "schema_version": INTEGRITY_RECEIPT_SCHEMA_VERSION,
+        "entries": {key: dict(value) for key, value in sorted(entries.items())},
+    }
+    _atomic_write(path, json.dumps(document, indent=1, sort_keys=True) + "\n")
+
+
+def report_source_integrity(results: Mapping[str, Mapping[str, str]]) -> dict[str, object]:
+    failures = {aid: r for aid, r in results.items() if r["status"] != "ok"}
+    return {
+        "rows": len(results),
+        "ok": len(results) - len(failures),
+        "failures": {aid: {"status": r["status"], "detail": r["detail"]} for aid, r in sorted(failures.items())},
+        "passed": not failures,
+    }
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -833,6 +996,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     verify.add_argument("--deep", action="store_true", help="re-checksum every file (two readers max)")
     verify.add_argument("--workers", type=int, default=MAX_READER_THREADS)
     verify.add_argument("--json", action="store_true")
+
+    integrity = subparsers.add_parser(
+        "integrity", help="deep BGZF/Tabix integrity check of a frozen inventory (two readers max)"
+    )
+    integrity.add_argument("--inventory", required=True)
+    integrity.add_argument("--workers", type=int, default=MAX_READER_THREADS)
+    integrity.add_argument("--receipt", help="resumable integrity receipt path")
+    integrity.add_argument("--report", help="write the machine-readable JSON report here")
+    integrity.add_argument("--json", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -856,6 +1028,17 @@ def main(argv: list[str] | None = None) -> int:
         report = verify_inventory(Path(args.inventory), deep=args.deep, workers=args.workers)
         print(json.dumps(report, indent=1, sort_keys=True) if args.json else render_verify_summary(report))
         return 0 if report["ok"] else 1
+
+    if args.command == "integrity":
+        rows = read_inventory(Path(args.inventory))
+        receipt = Path(args.receipt) if args.receipt else None
+        results, reused = check_source_integrity(rows, workers=args.workers, receipt=receipt)
+        report = report_source_integrity(results)
+        report["reused"] = reused
+        if args.report:
+            _atomic_write(Path(args.report), json.dumps(report, indent=1, sort_keys=True) + "\n")
+        print(json.dumps(report, indent=1, sort_keys=True) if args.json else render_integrity_summary(report))
+        return 0 if report["passed"] else 1
 
     selection, sources, unexpected, baseline = _load(args, repo_root)
     report = reconcile(selection, sources, unexpected, baseline)
@@ -904,6 +1087,16 @@ def render_verify_summary(report: Mapping[str, object]) -> str:
         f"  checksum mismatch {len(report['checksum_mismatch'])}",  # type: ignore[arg-type]
     ]
     lines.append("OK: frozen inventory matches the disk." if report["ok"] else "FAILED: frozen inventory no longer matches the disk.")
+    return "\n".join(lines)
+
+
+def render_integrity_summary(report: Mapping[str, object]) -> str:
+    lines = [
+        f"BGZF/Tabix integrity: {report['ok']}/{report['rows']} source files pass",
+    ]
+    for analysis_id, failure in (report.get("failures") or {}).items():
+        lines.append(f"  {analysis_id}: {failure['status']} ({failure['detail']})")
+    lines.append("OK: every source decompresses to EOF and its Tabix index opens." if report["passed"] else "FAILED: source integrity is not clean.")
     return "\n".join(lines)
 
 
