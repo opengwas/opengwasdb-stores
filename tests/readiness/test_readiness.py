@@ -139,11 +139,12 @@ class TestMembership(unittest.TestCase):
             ],
         )
         membership = readiness.membership_of(b)
-        self.assertEqual(membership.n_intended, 3)
+        self.assertEqual(membership.n_manifest, 3)
         self.assertEqual(membership.n_admitted, 2)
         self.assertEqual(membership.n_excluded, 1)
         self.assertEqual(membership.admitted, ("keep1", "keep2"))
         self.assertEqual(membership.excluded, ("drop1",))
+        self.assertIsNone(membership.intended)
 
     def test_malformed_exclusion_fails_loudly(self) -> None:
         b = create_mock_bundle(
@@ -208,8 +209,16 @@ class TestEvidenceChannels(unittest.TestCase):
         ragged = create_mock_bundle(
             self.stores, "OGS-00012", layout="ragged", indexed_subsets=False
         )
+        # A published 0.1.0 baseline predates the format-0.2.0 requirement, so a
+        # missing by_variant index is not a gap on that artifact (#218).
         record = self._reconcile(ragged, {"releases": {"OGS-00012": {"published_format": "0.1.0"}}})
-        self.assertEqual(record.channels["required_variant_index"].state, EvidenceState.MISSING)
+        self.assertEqual(
+            record.channels["required_variant_index"].state, EvidenceState.NOT_APPLICABLE
+        )
+        record = self._reconcile(
+            ragged, {"releases": {"OGS-00012": {"published_format": "0.2.0"}}}
+        )
+        self.assertEqual(record.channels["required_variant_index"].state, EvidenceState.UNKNOWN)
         self.assertIn("by_variant", record.channels["required_variant_index"].detail)
         self.assertEqual(record.channels["optional_hm3"].state, EvidenceState.NOT_APPLICABLE)
 
@@ -222,6 +231,81 @@ class TestEvidenceChannels(unittest.TestCase):
         self.assertEqual(record.channels["required_variant_index"].state, EvidenceState.NOT_APPLICABLE)
         self.assertEqual(record.channels["optional_hm3"].state, EvidenceState.MISSING)
         self.assertIn("optional", record.channels["optional_hm3"].detail)
+
+    def test_intended_is_not_the_manifest_count(self) -> None:
+        b = create_mock_bundle(
+            self.stores,
+            "OGS-00020",
+            analyses_rows=[{"analysis_id": "a"}, {"analysis_id": "b"}],
+        )
+        # No authoritative inventory -> unknown, never the manifest count.
+        record = self._reconcile(b, {"releases": {}})
+        channel = record.channels["intended_membership"]
+        self.assertEqual(channel.state, EvidenceState.UNKNOWN)
+        self.assertIn("not intended membership", channel.detail)
+        self.assertIsNone(record.membership.intended)
+
+        # A preliminary inventory is reported but still not a pass.
+        record = self._reconcile(
+            b,
+            {
+                "releases": {
+                    "OGS-00020": {
+                        "intended_source_inventory": 5,
+                        "intended_state": "preliminary",
+                    }
+                }
+            },
+        )
+        self.assertEqual(record.membership.intended.count, 5)
+        self.assertEqual(record.channels["intended_membership"].state, EvidenceState.UNKNOWN)
+
+        # A frozen inventory is a pass.
+        record = self._reconcile(
+            b,
+            {
+                "releases": {
+                    "OGS-00020": {
+                        "intended_source_inventory": 5,
+                        "intended_state": "frozen",
+                    }
+                }
+            },
+        )
+        self.assertEqual(record.channels["intended_membership"].state, EvidenceState.PASS)
+
+    def test_built_id_reconciliation_uses_supported_read(self) -> None:
+        b = create_mock_bundle(
+            self.stores,
+            "OGS-00021",
+            layout="dense",
+            analyses_rows=[{"analysis_id": "keep"}],
+        )
+        matching = (("keep",), "opengwasdb v0.3.0")
+        record = readiness.reconcile_release(
+            b, {"releases": {}}, {"OGS-00021": b}, set(), built_read=matching
+        )
+        self.assertEqual(record.channels["built_membership"].state, EvidenceState.PASS)
+        self.assertEqual(record.built.runtime, "opengwasdb v0.3.0")
+        self.assertEqual(record.built_delta.added, ())
+        self.assertEqual(record.built_delta.removed, ())
+
+        extra = (("keep", "legacy"), "opengwasdb v0.3.0")
+        record = readiness.reconcile_release(
+            b, {"releases": {}}, {"OGS-00021": b}, set(), built_read=extra
+        )
+        self.assertEqual(record.channels["built_membership"].state, EvidenceState.FAIL)
+        self.assertEqual(record.built_delta.removed, ("legacy",))
+        self.assertEqual(record.built_delta.added, ())
+        self.assertEqual(record.built_delta.kind, "built_reconciliation")
+
+    def test_core_reporting_support_surface(self) -> None:
+        """The supported public core API this module relies on must exist."""
+        support = readiness.core_reporting_support()
+        self.assertTrue(support["open_store"])
+        self.assertTrue(support["analyses_path"])
+        self.assertTrue(support["read_analyses"])
+        self.assertIn("opengwasdb", readiness.core_runtime_identity())
 
     def test_incomplete_parent_flags_derived_child(self) -> None:
         parent = create_mock_bundle(
@@ -252,10 +336,15 @@ class TestEvidenceChannels(unittest.TestCase):
         self.assertEqual(child_record.channels["lineage"].state, EvidenceState.FAIL)
         self.assertIn("incomplete", child_record.channels["lineage"].detail)
         parent_record = readiness.reconcile_release(
-            parent, ledger, by_id, {"OGS-00009"}
+            parent,
+            ledger,
+            by_id,
+            {"OGS-00009"},
+            built_read=(("a", "b"), "opengwasdb v0.3.0"),
         )
         self.assertEqual(parent_record.channels["observed_build"].state, EvidenceState.FAIL)
         self.assertIn("incomplete", parent_record.channels["observed_build"].detail)
+        self.assertEqual(parent_record.built.runtime, "opengwasdb v0.3.0")
 
     def test_format_runtime_pass_and_mismatch(self) -> None:
         b = create_mock_bundle(self.stores, "OGS-00016", layout="dense")
@@ -362,9 +451,11 @@ class TestRenderingAndRepoView(unittest.TestCase):
         by_id = {r.store_id: r for r in releases}
         self.assertIn("OGS-00011", by_id)
         eleven = by_id["OGS-00011"]
-        self.assertEqual(eleven.membership.n_intended, 4783)
+        self.assertEqual(eleven.membership.n_manifest, 4783)
         self.assertEqual(eleven.membership.n_admitted, 3169)
         self.assertEqual(eleven.membership.n_excluded, 1614)
+        self.assertIsNotNone(eleven.membership.intended)
+        self.assertEqual(eleven.membership.intended.count, 6035)
         # The delta needs the baseline commit; a shallow checkout may not carry
         # it, in which case the tool records a blocker instead of inventing one.
         if eleven.delta is not None:

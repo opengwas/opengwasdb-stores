@@ -464,17 +464,18 @@ def summarise(bundle: Bundle) -> dict[str, str | int]:
     preserves absence as ``NA`` and raw constant values verbatim; it never
     substitutes metadata from ``release.yaml`` or a Build Recipe.
 
-    Membership counts are separated rather than collapsed: ``n_intended`` is
+    Membership counts are separated rather than collapsed: ``n_manifest`` is
     every manifest row, ``n_admitted`` the rows that pass the
     ``exclude_from_build`` admission column, and ``n_excluded`` the rest.
     ``n_analyses`` is the admitted count -- the Store's membership -- so a
     derived view never presents an excluded manifest row as a built Analysis
-    (issue #217).
+    (issue #217). ``n_manifest`` is a *selection* count, not the intended Source
+    Inventory size, and is named separately from ``n_admitted`` for that reason.
     """
     table = opengwasdb_analyses.read_analyses(bundle.analyses_path)
     admitted, excluded = partition_membership(table)
     summary: dict[str, str | int] = {
-        "n_intended": len(table.rows),
+        "n_manifest": len(table.rows),
         "n_admitted": len(admitted),
         "n_excluded": len(excluded),
         "n_analyses": len(admitted),

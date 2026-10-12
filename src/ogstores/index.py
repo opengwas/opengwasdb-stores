@@ -49,7 +49,7 @@ COLUMNS: tuple[str, ...] = (
     "build_command",
     "format_version",
     "n_analyses",
-    "n_intended",
+    "n_manifest",
     "n_excluded",
     "n_variants",
     "n_associations",
@@ -136,11 +136,12 @@ def render_stores_row(
     # Membership counts describe bundle membership, so they are derived from
     # the table rather than copied from build-time observations. Issue #135's
     # observed-only contract still applies to every actual Store measurement.
-    # n_analyses is the admitted (buildable) membership; n_intended and
-    # n_excluded keep the excluded rows visible instead of counting them as
-    # built Analyses (issue #217).
+    # n_analyses is the admitted (buildable) membership; n_manifest and
+    # n_excluded keep the manifest rows and excluded rows visible instead of
+    # counting them as built Analyses (issue #217). n_manifest is a selection
+    # count, not the intended Source Inventory size.
     n_analyses_str = str(membership_summary["n_analyses"])
-    n_intended_str = str(membership_summary["n_intended"])
+    n_manifest_str = str(membership_summary["n_manifest"])
     n_excluded_str = str(membership_summary["n_excluded"])
 
     n_variants = obs.get("n_variants")
@@ -176,7 +177,7 @@ def render_stores_row(
         "build_command": build_command,
         "format_version": format_version_str,
         "n_analyses": n_analyses_str,
-        "n_intended": n_intended_str,
+        "n_manifest": n_manifest_str,
         "n_excluded": n_excluded_str,
         "n_variants": n_variants_str,
         "n_associations": n_associations_str,

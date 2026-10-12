@@ -127,7 +127,7 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
             "build_command",
             "format_version",
             "n_analyses",
-            "n_intended",
+            "n_manifest",
             "n_excluded",
             "n_variants",
             "n_associations",
@@ -267,7 +267,7 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         )
         b = bundle.load("OGS-00016", registry_root=self.stores_dir)
         row = render_stores_row(b)
-        self.assertEqual(row["n_intended"], "2")
+        self.assertEqual(row["n_manifest"], "2")
         self.assertEqual(row["n_analyses"], "1")
         self.assertEqual(row["n_excluded"], "1")
         md = render_stores_md([b], [row])

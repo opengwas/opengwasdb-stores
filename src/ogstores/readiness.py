@@ -81,16 +81,39 @@ class Channel:
 
 
 @dataclass(frozen=True)
-class Membership:
-    """Intended, admitted and excluded membership of one Release Bundle."""
+class IntendedMembership:
+    """A source-inventory intended count, which is *not* the manifest row count.
 
-    intended: tuple[str, ...]
+    ``state`` is ``frozen`` for an accepted, checksummed Source Inventory and
+    ``preliminary`` for a count that is not yet verified (for example the UKB
+    restoration, whose copies have finished but whose integrity is unverified).
+    """
+
+    count: int
+    state: str
+    source: str = ""
+
+
+@dataclass(frozen=True)
+class Membership:
+    """Manifest, admitted and excluded membership of one Release Bundle.
+
+    ``manifest`` is every row of the committed ``analyses.tsv``, ``admitted``
+    the rows that pass ``exclude_from_build``, and ``excluded`` the rest.
+    ``intended`` is separate because an accepted manifest is a *selection* of a
+    Source Inventory, not the whole of it (issue #217): where no authoritative
+    inventory is recorded it stays ``None``, and the manifest count is never
+    aliased to intended membership.
+    """
+
+    manifest: tuple[str, ...]
     admitted: tuple[str, ...]
     excluded: tuple[str, ...]
+    intended: IntendedMembership | None = None
 
     @property
-    def n_intended(self) -> int:
-        return len(self.intended)
+    def n_manifest(self) -> int:
+        return len(self.manifest)
 
     @property
     def n_admitted(self) -> int:
@@ -103,23 +126,37 @@ class Membership:
 
 @dataclass(frozen=True)
 class MembershipDelta:
-    """Explicit ID-set difference between current admitted and a baseline."""
+    """Explicit ID-set difference, labelled with which evidence it compares.
+
+    ``kind`` is either ``built_reconciliation`` (admitted membership versus the
+    published Store's Analysis IDs, read through the supported core API) or
+    ``committed_baseline`` (current admitted membership versus a historical
+    committed bundle). The two are never interchangeable: a committed baseline
+    is a registry record, not proof of what is on disk.
+    """
 
     baseline_ref: str
     baseline_admitted: int
     added: tuple[str, ...]
     removed: tuple[str, ...]
     note: str = ""
+    kind: str = "committed_baseline"
 
 
 @dataclass(frozen=True)
 class BuiltEvidence:
-    """What the published artifact is recorded to hold, and against which ref."""
+    """What the published artifact is recorded to hold, and against which ref.
+
+    The ID set is only populated by a supported core read
+    (:func:`store_built_ids`); a historical count from the ledger is labelled
+    as history and never presented as a current read.
+    """
 
     state: EvidenceState
     analyses: int | None
     baseline_ref: str | None = None
     detail: str = ""
+    runtime: str = ""
 
 
 @dataclass(frozen=True)
@@ -135,6 +172,7 @@ class ReleaseReadiness:
     membership: Membership
     built: BuiltEvidence
     delta: MembershipDelta | None
+    built_delta: MembershipDelta | None
     channels: Mapping[str, Channel]
     warnings: tuple[str, ...] = ()
     blockers: tuple[str, ...] = ()
@@ -176,13 +214,13 @@ def release_ledger(ledger: Mapping[str, Any], store_id: str) -> dict[str, Any]:
 
 
 def membership_of(bundle_obj: Bundle) -> Membership:
-    """Return intended/admitted/excluded membership from ``analyses.tsv`` only."""
+    """Return manifest/admitted/excluded membership from ``analyses.tsv`` only."""
     table = opengwasdb_analyses.read_analyses(bundle_obj.analyses_path)
     admitted_rows, excluded_rows = bundle_module.partition_membership(table)
-    intended = tuple((row.get("analysis_id") or "").strip() for row in table.rows)
+    manifest = tuple((row.get("analysis_id") or "").strip() for row in table.rows)
     admitted = tuple((row.get("analysis_id") or "").strip() for row in admitted_rows)
     excluded = tuple((row.get("analysis_id") or "").strip() for row in excluded_rows)
-    return Membership(intended=intended, admitted=admitted, excluded=excluded)
+    return Membership(manifest=manifest, admitted=admitted, excluded=excluded)
 
 
 def membership_delta(
@@ -190,6 +228,8 @@ def membership_delta(
     baseline_admitted: Sequence[str],
     baseline_ref: str,
     note: str = "",
+    *,
+    kind: str = "committed_baseline",
 ) -> MembershipDelta:
     """Compute the explicit added/removed ID-set difference against a baseline."""
     current_set = set(current.admitted)
@@ -200,6 +240,7 @@ def membership_delta(
         added=tuple(sorted(current_set - baseline_set)),
         removed=tuple(sorted(baseline_set - current_set)),
         note=note,
+        kind=kind,
     )
 
 
@@ -383,11 +424,17 @@ def _required_index_channel(
             "format 0.2.0 requires by_variant (ADR 0060); presence not exposed "
             "by the supported info command and not verified by a validate run (#218)",
         )
+    if fmt.startswith("0.1"):
+        return Channel(
+            EvidenceState.NOT_APPLICABLE,
+            f"historical 0.1.0 baseline (layout {layout!r}); by_variant is a "
+            "format-0.2.0 requirement and is not expected on this artifact (#218)",
+        )
     shown = fmt or "not read"
     return Channel(
-        EvidenceState.MISSING,
-        f"layout {layout!r} requires the format-0.2.0 by_variant index "
-        f"(ADR 0060); published format is {shown}; pending runtime adoption (#218)",
+        EvidenceState.UNKNOWN,
+        f"layout {layout!r} needs a variant index under format 0.2.0 (ADR 0060); "
+        f"published format is {shown}",
     )
 
 
@@ -495,6 +542,62 @@ def _lineage_channel(
     return Channel(EvidenceState.PASS, detail)
 
 
+def _intended_channel(membership: Membership) -> Channel:
+    """Report intended Source Inventory membership separately from the manifest.
+
+    An accepted manifest is a selection of a Source Inventory; it is not the
+    whole intended set. Where no authoritative inventory is recorded the channel
+    stays ``unknown`` rather than aliasing the manifest count to intended.
+    """
+    intended = membership.intended
+    if intended is None:
+        return Channel(
+            EvidenceState.UNKNOWN,
+            f"no authoritative intended Source Inventory recorded; the "
+            f"{membership.n_manifest} manifest rows are a selection, not intended "
+            "membership",
+        )
+    state = EvidenceState.PASS if intended.state == "frozen" else EvidenceState.UNKNOWN
+    detail = (
+        f"intended {intended.count} from {intended.source or 'a declared Source Inventory'} "
+        f"({intended.state}); manifest {membership.n_manifest}, admitted {membership.n_admitted}"
+    )
+    return Channel(state, detail)
+
+
+def _built_membership_channel(
+    membership: Membership,
+    built_ids: tuple[str, ...] | None,
+    built_delta: MembershipDelta | None,
+    built: BuiltEvidence,
+    runtime: str,
+) -> Channel:
+    """Reconcile the published Store's Analysis IDs with admitted membership.
+
+    Only a supported core read populates ``built_ids``; a ledger count is
+    historical evidence and is labelled as such, never as a current read.
+    """
+    if built_ids is None:
+        if built.analyses is None:
+            return Channel(EvidenceState.MISSING, "no published artifact recorded")
+        return Channel(
+            EvidenceState.HISTORICAL,
+            f"historical count {built.analyses}; built Analysis IDs were not read "
+            "through the supported core API",
+        )
+    suffix = f" via {runtime}" if runtime else ""
+    if built_delta is None or (not built_delta.added and not built_delta.removed):
+        return Channel(
+            EvidenceState.PASS,
+            f"built Analysis IDs ({len(built_ids)}) match admitted membership{suffix}",
+        )
+    return Channel(
+        EvidenceState.FAIL,
+        f"built Analysis IDs ({len(built_ids)}) differ from admitted membership: "
+        f"{len(built_delta.removed)} built-only, {len(built_delta.added)} admitted-only{suffix}",
+    )
+
+
 # --------------------------------------------------------------------------
 # Supported OpenGWASDB reporting interface
 # --------------------------------------------------------------------------
@@ -530,6 +633,79 @@ def _default_runner(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(list(argv), capture_output=True, text=True, check=False)
 
 
+def core_runtime_identity() -> str:
+    """Record the OpenGWASDB runtime a built-ID read used.
+
+    A built-ID reconciliation is only meaningful relative to a known core
+    revision, so the identity travels with the read rather than being assumed.
+    """
+    try:
+        import importlib.metadata as metadata
+
+        dist = metadata.distribution("opengwasdb")
+        version = dist.version
+    except Exception as exc:  # pragma: no cover - metadata always present in env
+        return f"opengwasdb (version unavailable: {exc})"
+    commit = ""
+    try:  # a VCS install records the exact commit (as the pinned runtime does)
+        raw = dist.read_text("direct_url.json")
+        if raw:
+            info = json.loads(raw)
+            commit = ((info.get("vcs_info") or {}).get("commit_id") or "")[:12]
+    except Exception:
+        commit = ""
+    return f"opengwasdb v{version}" + (f"@{commit}" if commit else "")
+
+
+def _default_built_reader(store_path: Path | str) -> tuple[tuple[str, ...], str]:
+    """Read a published Store's Analysis IDs through the public core API.
+
+    The supported boundary is ``read_analyses(open_store(path).analyses_path)``:
+    core owns opening the Store and selecting/parsing the file, and this module
+    never constructs the ``analyses.tsv`` path, joins a filename, or touches a
+    storage array. ``opengwasdb info`` does not report membership IDs, so this
+    public API is the smallest interface that does (issue #217).
+    """
+    import opengwasdb
+    from opengwasdb.model import analyses as core_analyses
+
+    if not hasattr(opengwasdb, "open_store"):
+        raise ValueError(
+            "opengwasdb.open_store is not exported; built-ID reconciliation "
+            "needs a core reporting interface that exposes Analysis IDs"
+        )
+    store = opengwasdb.open_store(store_path)
+    analyses_path = store.analyses_path
+    table = core_analyses.read_analyses(analyses_path)
+    ids = tuple((row.get("analysis_id") or "").strip() for row in table.rows)
+    return ids, core_runtime_identity()
+
+
+def store_built_ids(
+    store_path: Path | str,
+    reader: Callable[[Path | str], tuple[tuple[str, ...], str]] | None = None,
+) -> tuple[tuple[str, ...], str]:
+    """Return ``(built analysis_ids, runtime identity)`` via the supported seam."""
+    return (reader or _default_built_reader)(store_path)
+
+
+def core_reporting_support() -> dict[str, bool]:
+    """Probe the documented core reporting/export surface this module relies on.
+
+    Used by the support/version test so a rename or removal of the public API
+    fails loudly instead of the reconciler silently falling back to history.
+    """
+    import opengwasdb
+    from opengwasdb.model import analyses as core_analyses
+    from opengwasdb.store.open import OpenGWASDBStore
+
+    return {
+        "open_store": hasattr(opengwasdb, "open_store"),
+        "analyses_path": hasattr(OpenGWASDBStore, "analyses_path"),
+        "read_analyses": callable(core_analyses.read_analyses),
+    }
+
+
 # --------------------------------------------------------------------------
 # Reconciliation
 # --------------------------------------------------------------------------
@@ -543,10 +719,28 @@ def reconcile_release(
     *,
     info: Mapping[str, Any] | None = None,
     baseline_reader: Callable[[str, str], tuple[str, ...]] | None = None,
+    built_read: tuple[tuple[str, ...], str] | None = None,
 ) -> ReleaseReadiness:
-    """Reconcile one release into an explicit readiness record."""
+    """Reconcile one release into an explicit readiness record.
+
+    ``built_read`` is a ``(analysis_ids, runtime)`` pair from
+    :func:`store_built_ids`; when absent the built count is historical ledger
+    evidence and no built-ID equivalence is inferred from a count.
+    """
     entry = release_ledger(ledger, bundle_obj.store_id)
     membership = membership_of(bundle_obj)
+    intended = entry.get("intended_source_inventory")
+    if intended is not None:
+        membership = Membership(
+            manifest=membership.manifest,
+            admitted=membership.admitted,
+            excluded=membership.excluded,
+            intended=IntendedMembership(
+                count=int(intended),
+                state=str(entry.get("intended_state") or "preliminary"),
+                source=str(entry.get("intended_source") or ""),
+            ),
+        )
 
     delta: MembershipDelta | None = None
     baseline_ref = entry.get("built_baseline_ref")
@@ -557,8 +751,7 @@ def reconcile_release(
             baseline_admitted = reader(bundle_obj.store_id, str(baseline_ref))
         except (ValueError, OSError) as exc:
             # A shallow checkout may not carry the baseline commit. Do not crash
-            # the view and do not invent the baseline: record the gap and fall
-            # back to comparing the published count with current membership.
+            # the view and do not invent the baseline: record the gap.
             baseline_error = f"baseline ref {baseline_ref!r} not readable: {exc}"
         else:
             delta = membership_delta(
@@ -566,10 +759,37 @@ def reconcile_release(
                 baseline_admitted,
                 str(baseline_ref),
                 note=str(entry.get("baseline_note") or ""),
+                kind="committed_baseline",
             )
 
-    built_analyses = entry.get("built_analyses")
-    if built_analyses is None:
+    built_ids: tuple[str, ...] | None = None
+    built_runtime = ""
+    if built_read is not None:
+        built_ids, built_runtime = built_read
+    built_delta: MembershipDelta | None = None
+    if built_ids is not None:
+        built_delta = membership_delta(
+            membership,
+            built_ids,
+            "published-artifact",
+            note="admitted membership vs the published Store's Analysis IDs",
+            kind="built_reconciliation",
+        )
+
+    ledger_built = entry.get("built_analyses")
+    if built_ids is not None:
+        state = (
+            EvidenceState.PASS
+            if not built_delta.added and not built_delta.removed
+            else EvidenceState.FAIL
+        )
+        detail = f"published artifact holds {len(built_ids)} Analyses (read via {built_runtime or 'core API'})"
+        if state is EvidenceState.FAIL:
+            detail += (
+                f"; {len(built_delta.removed)} built-only, {len(built_delta.added)} admitted-only"
+            )
+        built = BuiltEvidence(state, len(built_ids), None, detail, built_runtime)
+    elif ledger_built is None:
         built = BuiltEvidence(
             EvidenceState.MISSING,
             None,
@@ -578,22 +798,24 @@ def reconcile_release(
         )
     else:
         target = delta.baseline_admitted if delta is not None else len(membership.admitted)
-        state = EvidenceState.PASS if int(built_analyses) == target else EvidenceState.FAIL
+        state = EvidenceState.PASS if int(ledger_built) == target else EvidenceState.FAIL
         detail = (
-            f"published artifact holds {built_analyses} Analyses"
+            f"published artifact holds {ledger_built} Analyses (historical record)"
             + (f" (baseline {baseline_ref})" if baseline_ref else "")
         )
         if state is EvidenceState.FAIL:
-            detail += (
-                f"; current admitted membership is {len(membership.admitted)}"
-            )
-        built = BuiltEvidence(state, int(built_analyses), baseline_ref, detail)
+            detail += f"; current admitted membership is {len(membership.admitted)}"
+        built = BuiltEvidence(state, int(ledger_built), baseline_ref, detail)
 
     committed = _committed_validation(bundle_obj)
     channels: dict[str, Channel] = {
         "release_status": _status_channel(bundle_obj),
         "source_acquisition": _acquisition_channel(bundle_obj),
+        "intended_membership": _intended_channel(membership),
         "observed_build": _observed_build_channel(bundle_obj, built),
+        "built_membership": _built_membership_channel(
+            membership, built_ids, built_delta, built, built_runtime
+        ),
         "reference_completion": _completion_channel(bundle_obj),
         "required_variant_index": _required_index_channel(bundle_obj, info, entry),
         "optional_hm3": _hm3_channel(bundle_obj, entry),
@@ -614,6 +836,7 @@ def reconcile_release(
             built.baseline_ref,
             (built.detail or "published artifact recorded")
             + "; membership recorded incomplete pending restored inputs",
+            built.runtime,
         )
         channels["observed_build"] = _observed_build_channel(bundle_obj, built)
 
@@ -636,6 +859,7 @@ def reconcile_release(
         membership=membership,
         built=built,
         delta=delta,
+        built_delta=built_delta,
         channels=channels,
         warnings=warnings,
         blockers=tuple(blockers),
@@ -659,10 +883,16 @@ def reconcile_registry(
     *,
     bundle_objects: Sequence[Bundle] | None = None,
     info_by_store: Mapping[str, Mapping[str, Any]] | None = None,
+    built_by_store: Mapping[str, tuple[tuple[str, ...], str]] | None = None,
     baseline_reader: Callable[[str, str], tuple[str, ...]] | None = None,
     incomplete_parents: Iterable[str] = (),
 ) -> list[ReleaseReadiness]:
-    """Reconcile every registered release into a readiness record list."""
+    """Reconcile every registered release into a readiness record list.
+
+    ``built_by_store`` carries a supported core read of each published Store's
+    Analysis IDs; when absent, built membership is historical ledger evidence
+    only and no built-ID equivalence is inferred.
+    """
     loaded = list(bundle_objects) if bundle_objects is not None else discover_bundles(registry_root)
     loaded.sort(key=lambda b: b.store_id)
     ledger_doc = ledger if ledger is not None else load_ledger()
@@ -674,6 +904,7 @@ def reconcile_registry(
         if isinstance(entry, Mapping) and entry.get("incomplete_membership"):
             incomplete.add(entry_id)
     info_map = info_by_store or {}
+    built_map = built_by_store or {}
     return [
         reconcile_release(
             b,
@@ -682,6 +913,7 @@ def reconcile_registry(
             incomplete,
             info=info_map.get(b.store_id),
             baseline_reader=baseline_reader,
+            built_read=built_map.get(b.store_id),
         )
         for b in loaded
     ]
@@ -696,9 +928,12 @@ def readiness_document(
     ledger: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Render the readiness records as a JSON/YAML-serialisable document."""
+    runtimes = sorted({r.built.runtime for r in releases if r.built.runtime})
     return {
         "recorded_at": ledger.get("recorded_at"),
         "artifact_root": ledger.get("artifact_root"),
+        "core_runtime": runtimes,
+        "reference_declarations": list(ledger.get("reference_declarations") or []),
         "releases": [
             {
                 "store_id": r.store_id,
@@ -708,25 +943,26 @@ def readiness_document(
                 "completion_state": r.completion_state,
                 "derived_from": r.derived_from,
                 "membership": {
-                    "intended": r.membership.n_intended,
+                    "manifest": r.membership.n_manifest,
                     "admitted": r.membership.n_admitted,
                     "excluded": r.membership.n_excluded,
+                    "intended": None
+                    if r.membership.intended is None
+                    else {
+                        "count": r.membership.intended.count,
+                        "state": r.membership.intended.state,
+                        "source": r.membership.intended.source,
+                    },
                 },
                 "built": {
                     "state": r.built.state.value,
                     "analyses": r.built.analyses,
                     "baseline_ref": r.built.baseline_ref,
+                    "runtime": r.built.runtime,
                     "detail": r.built.detail,
                 },
-                "delta": None
-                if r.delta is None
-                else {
-                    "baseline_ref": r.delta.baseline_ref,
-                    "baseline_admitted": r.delta.baseline_admitted,
-                    "added": list(r.delta.added),
-                    "removed": list(r.delta.removed),
-                    "note": r.delta.note,
-                },
+                "committed_baseline_delta": _delta_document(r.delta),
+                "built_membership_delta": _delta_document(r.built_delta),
                 "channels": {
                     name: {
                         "state": channel.state.value,
@@ -744,6 +980,19 @@ def readiness_document(
     }
 
 
+def _delta_document(delta: MembershipDelta | None) -> dict[str, Any] | None:
+    if delta is None:
+        return None
+    return {
+        "kind": delta.kind,
+        "baseline_ref": delta.baseline_ref,
+        "baseline_admitted": delta.baseline_admitted,
+        "added": list(delta.added),
+        "removed": list(delta.removed),
+        "note": delta.note,
+    }
+
+
 def _cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ")
 
@@ -753,6 +1002,7 @@ def render_readiness_markdown(
     ledger: Mapping[str, Any],
 ) -> str:
     """Render a human-readable readiness view."""
+    runtimes = sorted({r.built.runtime for r in releases if r.built.runtime})
     lines: list[str] = [
         "# Store Release readiness reconciliation",
         "",
@@ -762,25 +1012,32 @@ def render_readiness_markdown(
         "",
         f"Recorded evidence date: {ledger.get('recorded_at') or 'unknown'}.",
         f"Artifact root: `{ledger.get('artifact_root') or 'unset'}`.",
-        "",
-        "Membership is derived from committed `analyses.tsv`; published-artifact",
-        "facts are read only through `opengwasdb info --format json` or recorded as",
-        "historical host evidence. `missing` and `unknown` are not passes.",
-        "",
-        "## Membership and published artifact",
-        "",
-        "| Store | Status | Layout | Intended | Admitted | Excluded | Built | Baseline / delta |",
-        "|:---|:---|:---|---:|---:|---:|---:|:---|",
     ]
+    if runtimes:
+        lines.append("Built-ID read runtime: " + ", ".join(f"`{r}`" for r in runtimes) + ".")
+    lines.extend(
+        [
+            "",
+            "Membership is derived from committed `analyses.tsv`. The manifest count is",
+            "a selection, not intended membership; intended is reported only from an",
+            "authoritative Source Inventory and stays `unknown` otherwise. Built Analysis",
+            "IDs come only from the supported core API",
+            "(`read_analyses(open_store(path).analyses_path)`); the `opengwasdb info`",
+            "manifest metadata is a separate channel. `missing` and `unknown` are not",
+            "passes, and a committed-baseline ID difference is not built-ID reconciliation.",
+            "",
+            "## Membership and published artifact",
+            "",
+            "| Store | Status | Layout | Manifest | Admitted | Excluded | Intended | Built |",
+            "|:---|:---|:---|---:|---:|---:|---:|---:|",
+        ]
+    )
     for r in releases:
         m = r.membership
-        if r.delta is None:
-            diff = "-"
+        if m.intended is None:
+            intended = "unknown"
         else:
-            diff = (
-                f"`{r.delta.baseline_ref}` ({r.delta.baseline_admitted} admitted): "
-                f"+{len(r.delta.added)} / -{len(r.delta.removed)}"
-            )
+            intended = f"{m.intended.count} ({m.intended.state})"
         built = "-" if r.built.analyses is None else str(r.built.analyses)
         lines.append(
             "| "
@@ -789,11 +1046,11 @@ def render_readiness_markdown(
                     f"`{r.store_id}`",
                     r.status or "-",
                     r.layout or "-",
-                    str(m.n_intended),
+                    str(m.n_manifest),
                     str(m.n_admitted),
                     str(m.n_excluded),
+                    intended,
                     built,
-                    diff,
                 ]
             )
             + " |"
@@ -814,7 +1071,49 @@ def render_readiness_markdown(
                 f"| `{r.store_id}` | {name} | {channel.state.value} | {_cell(channel.detail)} |"
             )
 
-    lines.extend(["", "## Membership differences", ""])
+    lines.extend(
+        [
+            "",
+            "## Built membership reconciliation",
+            "",
+            "A supported core read of the published Store's Analysis IDs, compared with",
+            "admitted membership. This is distinct from the committed-baseline section",
+            "below; a count alone is never treated as ID equivalence.",
+            "",
+        ]
+    )
+    any_built = False
+    for r in releases:
+        delta = r.built_delta
+        if delta is None:
+            continue
+        any_built = True
+        lines.append(f"### `{r.store_id}` published artifact ({r.built.runtime or 'runtime not recorded'})")
+        lines.append("")
+        lines.append(
+            f"Built-only ({len(delta.removed)}): {', '.join(delta.removed) or 'none'}"
+        )
+        lines.append(
+            f"Admitted but absent from the artifact ({len(delta.added)}): "
+            f"{', '.join(delta.added) or 'none'}"
+        )
+        lines.append("")
+    if not any_built:
+        lines.append(
+            "No release was read through the supported core API in this rendering; "
+            "built membership is historical ledger evidence only."
+        )
+        lines.append("")
+
+    lines.extend(
+        [
+            "## Committed membership baseline differences",
+            "",
+            "A committed bundle's admitted IDs against a historical committed baseline.",
+            "This is registry evidence, not proof of what the published Store holds.",
+            "",
+        ]
+    )
     any_delta = False
     for r in releases:
         if r.delta is None:
@@ -849,6 +1148,31 @@ def render_readiness_markdown(
             lines.append(f"- Blocker: {blocker}")
         lines.append("")
 
+    declarations = ledger.get("reference_declarations") or []
+    if declarations:
+        lines.extend(
+            [
+                "## Prospective reference declarations (epic #232)",
+                "",
+                "Declaration-level facts for not-yet-registered releases. A missing",
+                "completion reference is a visible blocker, not a silent",
+                "observed-only opt-out.",
+                "",
+                "| Ancestry | Status | Detail | Citation |",
+                "|:---|:---|:---|:---|",
+            ]
+        )
+        for declaration in declarations:
+            if not isinstance(declaration, Mapping):
+                continue
+            lines.append(
+                f"| {declaration.get('ancestry', '-')} | "
+                f"{declaration.get('status', '-')} | "
+                f"{_cell(str(declaration.get('detail', '')))} | "
+                f"{_cell(str(declaration.get('citation', '')))} |"
+            )
+        lines.append("")
+
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -864,12 +1188,14 @@ def dump_readiness_yaml(
 
 
 __all__ = [
-    "Channel",
     "BuiltEvidence",
     "EvidenceState",
+    "IntendedMembership",
     "Membership",
     "MembershipDelta",
     "ReleaseReadiness",
+    "core_reporting_support",
+    "core_runtime_identity",
     "discover_bundles",
     "dump_readiness_yaml",
     "git_admitted_ids",
@@ -881,5 +1207,6 @@ __all__ = [
     "reconcile_release",
     "release_ledger",
     "render_readiness_markdown",
+    "store_built_ids",
     "store_info",
 ]

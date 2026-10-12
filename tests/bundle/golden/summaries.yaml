@@ -1,5 +1,5 @@
 OGS-00001:
-  n_intended: 10
+  n_manifest: 10
   n_admitted: 10
   n_excluded: 0
   n_analyses: 10
@@ -11,7 +11,7 @@ OGS-00001:
   sample_size: NA
   source_url: NA
 OGS-00002:
-  n_intended: 10
+  n_manifest: 10
   n_admitted: 10
   n_excluded: 0
   n_analyses: 10
@@ -23,7 +23,7 @@ OGS-00002:
   sample_size: NA
   source_url: NA
 OGS-00003:
-  n_intended: 10
+  n_manifest: 10
   n_admitted: 10
   n_excluded: 0
   n_analyses: 10
@@ -35,7 +35,7 @@ OGS-00003:
   sample_size: 362216-500186
   source_url: https://storage.googleapis.com/finngen-public-data-r13/summary_stats/
 OGS-00004:
-  n_intended: 10
+  n_manifest: 10
   n_admitted: 9
   n_excluded: 1
   n_analyses: 9
@@ -47,7 +47,7 @@ OGS-00004:
   sample_size: 6753-482730
   source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
 OGS-00005:
-  n_intended: 10
+  n_manifest: 10
   n_admitted: 10
   n_excluded: 0
   n_analyses: 10
@@ -59,7 +59,7 @@ OGS-00005:
   sample_size: 511-300447
   source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
 OGS-00006:
-  n_intended: 1400
+  n_manifest: 1400
   n_admitted: 1400
   n_excluded: 0
   n_analyses: 1400
@@ -71,7 +71,7 @@ OGS-00006:
   sample_size: 3441-8299
   source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
 OGS-00007:
-  n_intended: 10
+  n_manifest: 10
   n_admitted: 10
   n_excluded: 0
   n_analyses: 10
@@ -83,7 +83,7 @@ OGS-00007:
   sample_size: '3301'
   source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
 OGS-00008:
-  n_intended: 10
+  n_manifest: 10
   n_admitted: 10
   n_excluded: 0
   n_analyses: 10
@@ -95,7 +95,7 @@ OGS-00008:
   sample_size: 352094-462933
   source_url: NA
 OGS-00009:
-  n_intended: 2024
+  n_manifest: 2024
   n_admitted: 2024
   n_excluded: 0
   n_analyses: 2024
@@ -107,7 +107,7 @@ OGS-00009:
   sample_size: 10339-463010
   source_url: NA
 OGS-00010:
-  n_intended: 2024
+  n_manifest: 2024
   n_admitted: 2024
   n_excluded: 0
   n_analyses: 2024
@@ -119,7 +119,7 @@ OGS-00010:
   sample_size: 10339-463010
   source_url: NA
 OGS-00011:
-  n_intended: 4783
+  n_manifest: 4783
   n_admitted: 3169
   n_excluded: 1614
   n_analyses: 3169
@@ -131,7 +131,7 @@ OGS-00011:
   sample_size: 15-2586691
   source_url: https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
 OGS-00016:
-  n_intended: 2754
+  n_manifest: 2754
   n_admitted: 2754
   n_excluded: 0
   n_analyses: 2754

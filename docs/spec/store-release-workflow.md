@@ -274,14 +274,14 @@ stats a source path, and never inspects any Release Artifact. The
 bypass the contract.
 
 `summarise` reads only the loaded bundle's `analyses.tsv` and derives admission
-counts (intended, admitted, excluded) plus first author, publication PMID,
+counts (manifest, admitted, excluded) plus first author, publication PMID,
 tissue, context, assigned ancestry, sample size, and download source. Constants
 remain verbatim, varying identifiers become `mixed (n)`, varying quantities
 become `min-max`, and varying URLs become their common host/path prefix. A
 missing column, an empty table, or any empty value renders as `NA`; zero is not
 absence.
 
-Admission is explicit (issue #217): `n_intended` is every manifest row,
+Admission is explicit (issue #217): `n_manifest` is every manifest row,
 `n_admitted` the rows whose `exclude_from_build` is not `true`, and
 `n_excluded` the rest, all parsed with the same strict classifier the build
 manifest uses (`manifest.classify_exclusion`). `n_analyses` is the admitted
@@ -615,13 +615,13 @@ The only thing deliberately excluded is anything whose answer changes without a 
 ```text
 derived   store_id  label  layout  completion_state  status  derived_from
           store_uri  created_at  opengwasdb_rev  generator_command  build_command
-          n_analyses  n_intended  n_excluded  first_author  publication_pmid
+          n_analyses  n_manifest  n_excluded  first_author  publication_pmid
           tissue  context  assigned_ancestry  sample_size  source_url
 observed  format_version  n_variants  n_associations  store_bytes
           build_elapsed_s  validate_status
 ```
 
-`n_analyses` is admitted membership; `n_intended` and `n_excluded` keep the
+`n_analyses` is admitted membership; `n_manifest` and `n_excluded` keep the
 excluded manifest rows visible (issue #217).
 
 `store_uri` is a pure function of the identifier (`<artifact-root>/<store-id>/store.opengwasdb`, ADRs 0022 and 0030). The one-time migration-note fallback that previously preferred a legacy family-first path is removed (issue #137), so the published location is where a Store must live, resolved from deployment configuration, never a stale note.
@@ -629,23 +629,33 @@ excluded manifest rows visible (issue #217).
 ### Readiness reconciliation (issue #217)
 
 `readiness.py` (driven by `resources/scripts/release_readiness.py`) renders a
-reconciliation view that separates intended, admitted and excluded bundle
-membership from what was actually published, and keeps each kind of evidence on
-its own channel: Release Status, source acquisition, observed build, Reference
-Completion, the required format-0.2.0 `by_variant` index, the optional HM3
-Indexed Variant Subset, Store validation, registration, format/runtime, lineage
-and warnings. `missing` and `unknown` are not passes, and a candidate-generation
-record is reported as a gap in Store validation rather than as a clean verdict.
+reconciliation view that separates manifest, admitted, excluded and intended
+bundle membership from what was actually published, and keeps each kind of
+evidence on its own channel: Release Status, source acquisition, intended
+membership, observed build, built membership, Reference Completion, the
+required format-0.2.0 `by_variant` index, the optional HM3 Indexed Variant
+Subset, Store validation, registration, format/runtime, lineage and warnings.
+`missing` and `unknown` are not passes, and a candidate-generation record is
+reported as a gap in Store validation rather than as a clean verdict.
 
-Membership is derived from the committed `analyses.tsv`, so an explicit ID-set
-difference can be computed against a committed historical baseline (for example
-OGS-00011's 3,317-admitted artifact at `26fb1ec`) without opening an artifact.
-The published Store is consulted only through the supported
-`opengwasdb info --format json` command -- the reconciler never opens a Store or
-`manifest.json` -- and historical host-side facts that cannot be re-derived from
-git live in `docs/readiness-evidence.yaml`, rendered to
-`docs/store-release-readiness.md`. Errata are recorded as history; rendering the
-view runs no build and no Store validation.
+The manifest count is a *selection*, not intended membership: an authoritative
+Source Inventory is reported separately and stays `unknown` where none is
+recorded (issue #217). Built Analysis IDs are read only through the supported
+core API, `read_analyses(open_store(path).analyses_path)`, which keeps Store
+opening and parsing in OpenGWASDB; the registry never constructs
+`analyses.tsv`, joins a filename, or touches a storage array. A built-ID
+reconciliation and a committed-bundle baseline difference are reported as
+separate sections, so a count is never treated as ID equivalence and a
+committed baseline is never presented as proof of what is on disk. The
+supported `opengwasdb info --format json` manifest metadata is a third,
+separate channel.
+
+`--info` refreshes the manifest-metadata channel and `--built` performs the
+built-ID read; both are read-only and neither runs a build or a Store
+validation. Historical host-side facts that cannot be re-derived from git,
+including the committed-versus-published provenance mismatches and the
+prospective reference-declaration gaps, live in `docs/readiness-evidence.yaml`,
+rendered to `docs/store-release-readiness.md`.
 
 Two commands per store matter, and they are different kinds of thing. The **generator command log** (`inventory.tsv` + config to bundle) is recorded by the generator into `release.yaml` as `generator.commands`. The **build command** (bundle to store) is *derived by `plan()`*, the same function the workflow renders its rules from. A hand-maintained list would be wrong within a month.
 
