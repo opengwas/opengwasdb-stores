@@ -1457,6 +1457,224 @@ def command_manifest(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# refresh (metadata-only canonicalisation + manifest merge)
+# ---------------------------------------------------------------------------
+
+#: Per-accession receipt for a metadata refresh.  ``data_file_md5sum`` is the
+#: identity carried forward from the existing sidecar, never re-validated here.
+REFRESH_RECEIPT_COLUMNS: tuple[str, ...] = (
+    "analysis_id", "member", "store_key", "action", "changed_fields",
+    "data_file_md5sum", "data_file_name", "source_sidecar", "note",
+)
+
+
+def read_sidecar_document(path: Path) -> dict[str, object]:
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(document, dict):
+        raise AcquisitionError(f"{path}: sidecar is not a YAML mapping")
+    return document
+
+
+def load_sidecar_index(root: Path) -> dict[str, Path]:
+    """``accession -> sidecar path`` under ``<root>/<bucket>/<GCST>/``."""
+    index: dict[str, Path] = {}
+    for path in sorted(root.glob("*/GCST*/GCST*.tsv.gz-meta.yaml")):
+        accession = path.name[: -len(".tsv.gz-meta.yaml")]
+        if accession in index:
+            raise AcquisitionError(
+                f"duplicate sidecar for {accession}: {index[accession]} and {path}"
+            )
+        index[accession] = path
+    return index
+
+
+def canonical_sidecar(
+    existing: dict[str, object], row: dict[str, str], candidate: Candidate, *, source_sidecar: str
+) -> tuple[dict[str, object], list[str]]:
+    """Return ``(document, changed_fields)`` for a metadata-only canonical refresh.
+
+    The data identity (``data_file_md5sum``, ``data_file_name``, ``source``) is
+    carried forward from the existing sidecar and never recomputed; a
+    ``metadata_refresh`` block records that provenance.  The canonical values
+    follow the owner decision (#220): dbGaP is authoritative and the Catalog
+    counterpart is retained under ``catalog_metadata`` only where it differs.
+    """
+    document = dict(existing)
+    changed: list[str] = []
+    canonical_trait = row.get("analyzed_variable") or candidate.trait
+    samples: dict[str, object] = {
+        "sample_ancestry_category": [candidate.yaml_ancestry],
+        "sample_size": int(row["sample_size"]),
+    }
+    if candidate.study_design == "case-control":
+        samples["case_control_study"] = True
+    if document.get("trait_description") != [canonical_trait]:
+        changed.append("trait_description")
+    document["trait_description"] = [canonical_trait]
+    if document.get("samples") != [samples]:
+        changed.append("samples")
+    document["samples"] = [samples]
+    catalog = catalog_provenance(row, candidate)
+    if catalog:
+        if document.get("catalog_metadata") != catalog:
+            changed.append("catalog_metadata")
+        document["catalog_metadata"] = catalog
+    elif "catalog_metadata" in document:
+        changed.append("catalog_metadata")
+        del document["catalog_metadata"]
+    carried = document.get("data_file_md5sum")
+    if not isinstance(carried, str) or not carried.strip():
+        raise AcquisitionError(f"{source_sidecar}: existing sidecar has no data_file_md5sum")
+    document["metadata_refresh"] = {"reused_data_md5sum": True, "source_sidecar": source_sidecar}
+    return document, changed
+
+
+def merge_manifest_rows(
+    existing_rows: list[dict[str, str]],
+    canonical: dict[str, dict[str, str]],
+    refreshed: dict[str, dict[str, str]],
+) -> list[dict[str, str]]:
+    """Replace refreshed accessions and canonicalise the trait/size of the rest.
+
+    Preserved rows keep every other column byte-for-byte (including their
+    recorded ``sha256``/``data_bytes``, treated as carried-forward provenance);
+    refreshed rows come from the isolated new conversion manifest.  An accession
+    absent from the existing manifest, or a manifest row outside the canonical
+    set, fails loudly rather than fabricating an ``ok`` row.
+    """
+    existing_ids = [row["analysis_id"] for row in existing_rows]
+    if len(existing_ids) != len(set(existing_ids)):
+        raise AcquisitionError("existing manifest has duplicate analysis_id rows")
+    unknown = sorted(set(refreshed) - set(existing_ids))
+    if unknown:
+        raise AcquisitionError(
+            f"refreshed accession(s) absent from the existing manifest: {', '.join(unknown)}"
+        )
+    outside = sorted(set(existing_ids) - set(canonical))
+    if outside:
+        raise AcquisitionError(
+            f"existing manifest row(s) outside the candidate store set: {', '.join(outside[:10])}"
+        )
+    missing = sorted(set(canonical) - set(existing_ids))
+    if missing:
+        raise AcquisitionError(
+            f"candidate store accession(s) absent from the existing manifest: {', '.join(missing[:10])}"
+        )
+    merged: list[dict[str, str]] = []
+    for row in existing_rows:
+        accession = row["analysis_id"]
+        canonical_row = canonical.get(accession, {})
+        new = dict(row)
+        if canonical_row:
+            new["trait"] = canonical_row.get("trait", row["trait"])
+            new["sample_size"] = canonical_row.get("sample_size", row["sample_size"])
+        if accession in refreshed:
+            new = dict(refreshed[accession])
+        merged.append(new)
+    return merged
+
+
+def command_refresh(args: argparse.Namespace) -> int:
+    out = Path(args.out)
+    mapping_path = Path(args.mapping) if args.mapping else out / "mapping.tsv"
+    rows = read_tsv(mapping_path)
+    if not rows:
+        raise SystemExit(f"refresh: mapping is empty: {mapping_path}")
+    candidates = read_candidates(Path(args.candidates))
+    by_accession: dict[str, Candidate] = {}
+    for candidate in candidates:
+        if candidate.analysis_id in by_accession:
+            raise AcquisitionError(f"duplicate candidate accession {candidate.analysis_id}")
+        by_accession[candidate.analysis_id] = candidate
+    mapping_by_id: dict[str, dict[str, str]] = {}
+    seen_members: set[str] = set()
+    for row in rows:
+        accession = row["analysis_id"]
+        if accession in mapping_by_id:
+            raise AcquisitionError(f"duplicate mapping analysis_id {accession}")
+        if row["member"] in seen_members:
+            raise AcquisitionError(f"duplicate mapping member {row['member']}")
+        seen_members.add(row["member"])
+        if accession not in by_accession:
+            raise AcquisitionError(f"{accession}: not present in the candidate table")
+        mapping_by_id[accession] = row
+
+    source_sidecars = load_sidecar_index(Path(args.source_sidecars)) if Path(args.source_sidecars).is_dir() else {}
+    new_sidecars = load_sidecar_index(Path(args.new_sidecars)) if Path(args.new_sidecars).is_dir() else {}
+    new_manifests: dict[str, dict[str, str]] = {}
+    if args.new_manifest_dir and Path(args.new_manifest_dir).is_dir():
+        for path in sorted(Path(args.new_manifest_dir).glob("*-download-manifest.tsv")):
+            for row in read_tsv(path):
+                new_manifests[row["analysis_id"]] = row
+
+    out_sidecars = out / "gwas-ssf"
+    receipt: list[dict[str, str]] = []
+    for accession in sorted(mapping_by_id):
+        row = mapping_by_id[accession]
+        candidate = by_accession[accession]
+        if accession in new_sidecars:
+            document = read_sidecar_document(new_sidecars[accession])
+            if document.get("gwas_id") != accession:
+                raise AcquisitionError(f"{new_sidecars[accession]}: gwas_id != {accession}")
+            action, changed, source = "new-conversion", ["all"], str(new_sidecars[accession])
+        else:
+            path = source_sidecars.get(accession)
+            if path is None:
+                raise AcquisitionError(
+                    f"{accession}: no existing sidecar under {args.source_sidecars} (refusing to fabricate one)"
+                )
+            existing = read_sidecar_document(path)
+            if existing.get("gwas_id") != accession:
+                raise AcquisitionError(f"{path}: gwas_id != {accession}")
+            document, changed = canonical_sidecar(existing, row, candidate, source_sidecar=str(path))
+            action, source = ("canonicalised" if changed else "unchanged"), str(path)
+        target = out_sidecars / bucket_of(accession) / accession / f"{accession}.tsv.gz-meta.yaml"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        partial = target.with_name(target.name + ".partial")
+        partial.write_text(
+            yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100), encoding="utf-8"
+        )
+        os.replace(partial, target)
+        receipt.append({
+            "analysis_id": accession,
+            "member": row["member"],
+            "store_key": candidate.store_key,
+            "action": action,
+            "changed_fields": ",".join(changed),
+            "data_file_md5sum": str(document.get("data_file_md5sum", "")),
+            "data_file_name": str(document.get("data_file_name", "")),
+            "source_sidecar": source,
+            "note": "data identity carried forward" if accession not in new_sidecars else "new conversion",
+        })
+    write_tsv(out / "refresh-receipt.tsv", REFRESH_RECEIPT_COLUMNS, receipt)
+
+    manifest_source = Path(args.source_manifest_dir)
+    manifest_dir = Path(args.manifest_dir) if args.manifest_dir else out / "manifests"
+    by_store: dict[str, list[str]] = {}
+    for accession, candidate in by_accession.items():
+        if accession in mapping_by_id:
+            by_store.setdefault(candidate.store_key, []).append(accession)
+    merged_total = 0
+    for store_key, accessions in sorted(by_store.items()):
+        slug = store_key.replace("__", "-")
+        existing_path = manifest_source / f"{slug}-download-manifest.tsv"
+        if not existing_path.is_file():
+            raise AcquisitionError(f"missing existing manifest: {existing_path}")
+        canonical_rows = {
+            accession: {"trait": mapping_by_id[accession].get("analyzed_variable", ""),
+                        "sample_size": mapping_by_id[accession].get("sample_size", "")}
+            for accession in accessions
+        }
+        refreshed = {a: new_manifests[a] for a in accessions if a in new_manifests}
+        merged = merge_manifest_rows(read_tsv(existing_path), canonical_rows, refreshed)
+        write_tsv(manifest_dir / f"{slug}-download-manifest.tsv", MANIFEST_COLUMNS, merged)
+        merged_total += len(merged)
+        print(f"refresh: {store_key}: {len(merged)} rows -> {manifest_dir / f'{slug}-download-manifest.tsv'}")
+    print(f"refresh: {len(receipt)} sidecar(s), {merged_total} manifest row(s)")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -1502,6 +1720,19 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     manifest.add_argument("--limit", type=int)
     manifest.add_argument("--allow-partial", action="store_true")
     manifest.set_defaults(func=command_manifest)
+
+    refresh = subparsers.add_parser(
+        "refresh",
+        help="metadata-only canonical sidecar refresh + manifest merge (no association reads)",
+    )
+    refresh.add_argument("--candidates", default=DEFAULT_CANDIDATES)
+    refresh.add_argument("--mapping", help="mapping TSV (default: <out>/mapping.tsv)")
+    refresh.add_argument("--source-sidecars", required=True, help="existing gwas-ssf root (read-only, metadata only)")
+    refresh.add_argument("--source-manifest-dir", required=True, help="existing manifest directory (read-only)")
+    refresh.add_argument("--new-sidecars", default="", help="newly converted gwas-ssf root (the retry outputs)")
+    refresh.add_argument("--new-manifest-dir", default="", help="newly converted manifest directory")
+    refresh.add_argument("--manifest-dir", help="default: <out>/manifests")
+    refresh.set_defaults(func=command_refresh)
 
     args = parser.parse_args(argv)
     if getattr(args, "jobs", 1) < 1:

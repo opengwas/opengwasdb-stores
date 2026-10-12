@@ -1132,6 +1132,122 @@ class CanonicalMetadataTests(unittest.TestCase):
         self.assertEqual(document["catalog_metadata"]["n_controls"], 527751)
 
 
+class RefreshTests(unittest.TestCase):
+    """Metadata-only canonical refresh: data identity carried forward, never re-read."""
+
+    @staticmethod
+    def candidate() -> "ACQUIRE.Candidate":
+        return ACQUIRE.Candidate(
+            analysis_id="GCST90480207",
+            trait="Raynaud's syndrome (PheCode 443.1)",
+            ancestry="European",
+            ancestry_fraction=0.703775743113106,
+            store_key="dense__pmid-39024449__European",
+            study_design="case-control",
+            n_cases=2581,
+            n_controls=569155,
+            sample_size=571736,
+        )
+
+    @staticmethod
+    def mapping_row() -> dict[str, str]:
+        return {
+            "analysis_id": "GCST90480207", "member": "m", "analyzed_variable": "Raynauds syndrome",
+            "sample_size": "571736", "n_cases": "2581", "n_controls": "569155",
+        }
+
+    @staticmethod
+    def existing_sidecar() -> dict[str, object]:
+        return {
+            "gwas_id": "GCST90480207",
+            "trait_description": ["Raynaud's syndrome (PheCode 443.1)"],
+            "genome_assembly": "GRCh38",
+            "samples": [{"sample_ancestry_category": ["Multi-ancestry"], "sample_size": 571736,
+                         "case_control_study": True}],
+            "data_file_name": "GCST90480207.tsv.gz",
+            "data_file_md5sum": "9976e21f2978972df32cd9460d61ad31",
+            "is_harmonised": False,
+            "source": {"repository": "dbGaP", "member": "m"},
+        }
+
+    def test_canonical_sidecar_reuses_data_identity_and_retains_catalog(self) -> None:
+        document, changed = ACQUIRE.canonical_sidecar(
+            self.existing_sidecar(), self.mapping_row(), self.candidate(), source_sidecar="mirror/x.yaml"
+        )
+        self.assertEqual(document["trait_description"], ["Raynauds syndrome"])
+        self.assertEqual(
+            document["catalog_metadata"]["trait_description"], ["Raynaud's syndrome (PheCode 443.1)"]
+        )
+        # data identity carried forward, not recomputed
+        self.assertEqual(document["data_file_md5sum"], "9976e21f2978972df32cd9460d61ad31")
+        self.assertEqual(document["data_file_name"], "GCST90480207.tsv.gz")
+        self.assertEqual(document["source"], {"repository": "dbGaP", "member": "m"})
+        self.assertIs(document["metadata_refresh"]["reused_data_md5sum"], True)
+        self.assertEqual(document["metadata_refresh"]["source_sidecar"], "mirror/x.yaml")
+        self.assertIn("trait_description", changed)
+        self.assertIn("catalog_metadata", changed)
+
+    def test_canonical_sidecar_requires_existing_data_identity(self) -> None:
+        existing = self.existing_sidecar()
+        del existing["data_file_md5sum"]
+        with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "data_file_md5sum"):
+            ACQUIRE.canonical_sidecar(existing, self.mapping_row(), self.candidate(), source_sidecar="x")
+
+    def test_canonical_sidecar_matching_catalog_removes_stale_block(self) -> None:
+        candidate = ACQUIRE.Candidate(
+            analysis_id="GCST90475097", trait="T", ancestry="European", ancestry_fraction=1,
+            store_key="s", study_design="quantitative", n_cases=0, n_controls=0, sample_size=100,
+        )
+        row = {"analysis_id": "GCST90475097", "member": "m", "analyzed_variable": "T",
+               "sample_size": "100", "n_cases": "0", "n_controls": "0"}
+        existing = self.existing_sidecar()
+        existing["gwas_id"] = "GCST90475097"
+        existing["trait_description"] = ["T"]
+        existing["catalog_metadata"] = {"stale": True}
+        document, _ = ACQUIRE.canonical_sidecar(existing, row, candidate, source_sidecar="x")
+        self.assertNotIn("catalog_metadata", document)
+        self.assertEqual(document["data_file_md5sum"], "9976e21f2978972df32cd9460d61ad31")
+
+    def test_merge_manifest_replaces_only_refreshed_and_preserves_columns(self) -> None:
+        existing = [
+            {"analysis_id": "A", "trait": "oldA", "sample_size": "1", "status": "ok", "sha256": "shaA", "data_file": "/mirror/A"},
+            {"analysis_id": "B", "trait": "oldB", "sample_size": "2", "status": "error", "sha256": "", "data_file": "/mirror/B"},
+        ]
+        canonical = {"A": {"trait": "newA", "sample_size": "10"}, "B": {"trait": "newB", "sample_size": "20"}}
+        refreshed = {"B": {"analysis_id": "B", "trait": "newB", "sample_size": "20", "status": "ok",
+                            "sha256": "shaB", "data_file": "/iso/B"}}
+        merged = ACQUIRE.merge_manifest_rows(existing, canonical, refreshed)
+        self.assertEqual(merged[0]["trait"], "newA")
+        self.assertEqual(merged[0]["status"], "ok")
+        self.assertEqual(merged[0]["sha256"], "shaA")  # carried forward
+        self.assertEqual(merged[0]["data_file"], "/mirror/A")
+        self.assertEqual(merged[1]["status"], "ok")
+        self.assertEqual(merged[1]["sha256"], "shaB")
+        self.assertEqual(merged[1]["data_file"], "/iso/B")
+
+    def test_merge_manifest_refreshed_absent_fails(self) -> None:
+        existing = [{"analysis_id": "A", "trait": "x", "sample_size": "1"}]
+        with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "absent from the existing manifest"):
+            ACQUIRE.merge_manifest_rows(existing, {"A": {"trait": "y", "sample_size": "2"}},
+                                        {"Z": {"analysis_id": "Z"}})
+
+    def test_merge_manifest_outside_canonical_set_fails(self) -> None:
+        existing = [{"analysis_id": "A", "trait": "x", "sample_size": "1"},
+                    {"analysis_id": "Z", "trait": "x", "sample_size": "1"}]
+        with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "outside the candidate store set"):
+            ACQUIRE.merge_manifest_rows(existing, {"A": {"trait": "y", "sample_size": "2"}}, {})
+
+    def test_load_sidecar_index_rejects_duplicates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for bucket in ("GCST90000001-GCST90001000", "GCST90001001-GCST90002000"):
+                path = root / bucket / "GCST90000001" / "GCST90000001.tsv.gz-meta.yaml"
+                path.parent.mkdir(parents=True)
+                path.write_text("gwas_id: GCST90000001\n", encoding="utf-8")
+            with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "duplicate sidecar"):
+                ACQUIRE.load_sidecar_index(root)
+
+
 class ConverterEdgeCaseTests(unittest.TestCase):
     """The awk program run directly, on rows the fixture tars do not carry."""
 

@@ -64,7 +64,7 @@ participants" (3-ancestry) while the Catalog 4-ancestry aggregate is provenance.
 Provenance fields (`source.repository/study/tar/member/tar_md5/url`) are present
 for both.
 
-## Manifest refresh is BLOCKED — CLI does not support a pure metadata merge
+## Manifest refresh — pure-metadata merge (implemented; mirror untouched)
 
 The existing CLI `manifest --analysis GCST90476298,GCST90481129` regenerates each
 per-`store_key` manifest from the files under the isolated `gwas-ssf`, so it
@@ -95,6 +95,33 @@ missing existing manifest / unknown accession fails loudly; a refreshed row
 whose `data_file` is absent is not marked `ok`; no full re-hash of preserved
 rows (assert the sha256 helper is called only for refreshed IDs). This keeps the
 canonical manifest reproducible without reprocessing the 6,020 existing files.
+
+### Implemented and run (isolated)
+
+A new `refresh` subcommand implements exactly this, plus a metadata-only
+canonical sidecar refresh. It reads mapping/manifests/sidecar YAML only — never a
+`.tsv.gz` — and carries each existing data identity (`data_file_md5sum`,
+`data_file_name`, `source`) forward under a `metadata_refresh` block
+(`reused_data_md5sum: true`, `source_sidecar`), so no new validation is claimed.
+
+Run into `/data/opengwasdb/work/epic232/220/metadata-refresh-20261012T225221Z/`:
+
+| Result | Value |
+|---|---|
+| Output sidecars | 6,022 (4,656 canonicalised, 1,364 unchanged, 2 new-conversion) |
+| Merged manifest rows | 6,022 across the 4 store manifests |
+| Association files written | 0 |
+| Receipt | `refresh-receipt.tsv` (action, changed fields, carried `data_file_md5sum`, source sidecar) |
+
+Spot checks: `GCST90480207` sidecar canonical trait becomes `Raynauds syndrome`
+with `catalog_metadata` retaining `Raynaud's syndrome (PheCode 443.1)` and
+`data_file_md5sum` `9976e21f…` unchanged; its merged manifest row keeps
+`sha256 17a108b6…` / `data_bytes 553320445` carried forward. The two new rows are
+`status=ok` with the freshly derived sha256 (see the receipts above). A second
+identical run produced a byte-identical tree (`md5 1760f541…`).
+
+The refreshed sidecars and merged manifests are **isolated review artifacts**,
+not a mirror promotion; the two new rows reference the isolated retry data paths.
 
 ## Guarantees and exclusions
 
