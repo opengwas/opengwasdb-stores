@@ -96,39 +96,42 @@ whose `data_file` is absent is not marked `ok`; no full re-hash of preserved
 rows (assert the sha256 helper is called only for refreshed IDs). This keeps the
 canonical manifest reproducible without reprocessing the 6,020 existing files.
 
-### Implemented and run (isolated)
+### Authoritative isolated run (post-hardening)
 
-> Note: the run recorded in this subsection used the pre-hardening tool and is
-> an indicative dry run only. The identity/path/data gates below are now in the
-> code; the authoritative isolated run will be repeated after review and only
-> that re-run counts.
+`refresh` reads mapping/manifests/sidecar YAML only — never a `.tsv.gz` — and
+carries each existing data identity (`data_file_md5sum`, `data_file_name`,
+`source`) forward under a `metadata_refresh` block (`reused_data_md5sum: true`,
+`source_sidecar`), so no new validation is claimed. Data is materialised as
+read-only symlinks inside the isolated root.
 
-A new `refresh` subcommand implements exactly this, plus a metadata-only
-canonical sidecar refresh. It reads mapping/manifests/sidecar YAML only — never a
-`.tsv.gz` — and carries each existing data identity (`data_file_md5sum`,
-`data_file_name`, `source`) forward under a `metadata_refresh` block
-(`reused_data_md5sum: true`, `source_sidecar`), so no new validation is claimed.
-
-Run into `/data/opengwasdb/work/epic232/220/metadata-refresh-20261012T225221Z/`:
+Run into `/data/opengwasdb/work/epic232/220/metadata-refresh-final-20261012T230702Z/`
+(full mode, exit 0):
 
 | Result | Value |
 |---|---|
 | Output sidecars | 6,022 (4,656 canonicalised, 1,364 unchanged, 2 new-conversion) |
-| Merged manifest rows | 6,022 across the 4 store manifests |
-| Association files written | 0 |
-| Receipt | `refresh-receipt.tsv` (action, changed fields, carried `data_file_md5sum`, source sidecar) |
+| Merged manifest rows | 6,022, all `ok`, across the 4 store manifests |
+| `sha256_provenance` | 2 `derived`, 6,020 `inherited` |
+| Read-only data symlinks | 6,022 |
+| Association files written / `.partial` left | 0 / 0 |
 
-Spot checks: `GCST90480207` sidecar canonical trait becomes `Raynauds syndrome`
-with `catalog_metadata` retaining `Raynaud's syndrome (PheCode 443.1)` and
+Spot checks: `GCST90480207` canonical trait becomes `Raynauds syndrome` with
+`catalog_metadata` retaining `Raynaud's syndrome (PheCode 443.1)` and
 `data_file_md5sum` `9976e21f…` unchanged; its merged manifest row keeps
 `sha256 17a108b6…` / `data_bytes 553320445` carried forward. The two new rows are
-`status=ok` with the freshly derived sha256 (see the receipts above). A second
-identical run produced a byte-identical tree (`md5 1760f541…`).
+`status=ok` with the freshly derived sha256 `17676797…` / `e40f44f8…`. A second
+run produced a byte-identical metadata tree (metadata-only snapshot `6d34ff2c…`,
+regular files hashed and symlink targets recorded, never the data contents); the
+mirror mapping (`a9b83d6c…`/`f0b00a0b…`), manifests (mtime 2026-10-01) and
+sidecar/data mtimes are unchanged.
+
+The earlier `metadata-refresh-20261012T225221Z` run used the pre-hardening tool
+and is a superseded dry run.
 
 The refreshed sidecars and merged manifests are **isolated review artifacts**,
 not a mirror promotion; the two new rows reference the isolated retry data paths.
 
-### Hardened gates (awaiting review)
+### Hardened gates (reviewed; GO on bf2e996)
 
 * Canonical metadata fields (`trait`, `sample_size`, `study_design`, `data_url`)
   are regenerated from the mapping/candidate for every row, so no stale Catalog
@@ -164,6 +167,14 @@ not a mirror promotion; the two new rows reference the isolated retry data paths
 * The full run exits non-zero for any non-`ok` row or identity/size mismatch;
   `--preview` reports non-ready rows. `yaml_bytes` is the actual refreshed
   sidecar size, and `data_bytes` is checked against the data file's `stat`.
+
+## Operational note (I/O)
+
+One metadata-only snapshot helper initially used `md5sum` over the data symlinks,
+which follows them and reads the referenced association files; it was stopped by
+a timeout and replaced with a metadata-only snapshot (regular files hashed,
+symlink targets recorded). The inadvertent read was read-only against the mirror
+and wrote nothing; no mirror path changed.
 
 ## Guarantees and exclusions
 
