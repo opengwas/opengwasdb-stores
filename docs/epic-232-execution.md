@@ -1,241 +1,185 @@
 # Epic #232 execution record
 
 Scope authority: [epic #232](https://github.com/opengwas/opengwasdb-stores/issues/232),
-the revised approved scope of #216. This is an execution record, not a claim that
-the full release matrix is qualified.
+the revised approved scope of #216. This record describes implementation and
+integration evidence, **not** qualification of the full release matrix.
 
-## Initial checkpoint — 11 October 2026 UTC
+## Current integration checkpoint — 12 October 2026 UTC
 
-Registry baseline: `dev@3a9cf780b5b77427f275533213b8a2c94b2afc82`.
-Core baseline: `dev@1be2a156649e4d444f31f9b4107c3f47a046f855`.
-The chosen production runtime remains a #218 deliverable; these baseline
-revisions do not imply a new runtime has been adopted or artifacts revalidated.
+The owner authorised review, conflict resolution and PR merges to `dev` after
+another orchestration session advanced the work. This supersedes the initial
+no-merge instruction; it does **not** accept scientific candidates or authorise
+production builds, conversions, completion, validation or publication.
 
-The operator confirms the additional `ukb-b` VCF copy is complete. This removes
-#219's copy prerequisite, **not** its file-identity, complete-membership or human
-acceptance gates. Never infer a restored total from the approximate missing count.
+Refreshed stores baseline: `dev@3f18ccbb75140828691de2574d9f63e6848dda36`.
+PR #237 is already merged, including the core #254 repin. The primary checkout's
+unrelated untracked documentation/model files are preserved.
 
-Core `opengwasdb#254` has an existing implementer and is excluded from this
-orchestrator's implementation ownership. Coordinate its integration and expensive
-validation runs; do not install its uncommitted checkout as a release runtime.
-
-## Active frontier
-
-Each ticket has an isolated `ticket/<number>-<slug>` worktree and one Herdr tab,
-with a `deepseek/deepseek-flash` worker and a separate
-`antigravity/gemini-3.8-flash` reviewer. Reviews first identify acceptance risks,
-then assess actual code and evidence at a worker checkpoint.
-
-| Ticket | Worker / reviewer | Deliverable | Initial state |
+| Ticket | PR | Checkpoint | Integration state |
 |---|---|---|---|
-| #217 | `worker217` / `review217` | truthful release readiness and historical reconciliation | reviewer GO and CI green at `886082b`; [PR #234](https://github.com/opengwas/opengwasdb-stores/pull/234) to `dev`, not merged |
-| #218 | `worker218` / `review218` | immutable current-format runtime pin, lock and compatibility guards | pin/lock and full local suite green; runtime-guard checkpoint NO-GO, corrections pending |
-| #219 | `worker219` / `review219` | verified restored UKB inventory and unaccepted candidate | checksum freeze complete; candidate/integrity checkpoint review pending |
-| #220 | `worker220` / `review220` | MVP acquisition and mapping reconciliation | targeted mapping investigation; numerical discrepancies unresolved; full-data scan not authorised |
+| #217 readiness | [#234](https://github.com/opengwas/opengwasdb-stores/pull/234) | `7336e37` | conflict resolved against current `dev`; fresh review and CI pending |
+| #218 runtime | [#237](https://github.com/opengwas/opengwasdb-stores/pull/237) | `af6fc75` | merged as `3f18ccb`; core pin `4e92256` |
+| #219 UKB inventory/candidate tooling | [#236](https://github.com/opengwas/opengwasdb-stores/pull/236) | original `d4aa31c` | ancestry-evidence false-pass correction under review; candidate unaccepted |
+| #220 MVP acquisition tooling | [#235](https://github.com/opengwas/opengwasdb-stores/pull/235) | `cbac5b9` | code re-review pending; scientific gate HOLD |
 
-Herdr session handles and local worktree paths are ephemeral operator state, not
-release provenance. Discover them from the live session; the initial layout is
-also recorded locally in `/tmp/epic232-herdr.json`.
+#234's only manual conflict was the workflow specification's module list. The
+resolution preserves `resources.py`, `runtime.py`, `release.py` and
+`readiness.py`; the test-runner changes combine automatically. A bounded fresh
+full-suite run uses four CPUs and BLAS threads one. Independent Standards and
+Spec reviews cover the remaining implementation PRs against the refreshed
+baseline; exact final heads govern merging, not stale verdicts.
 
-## Dependency order
+#236 re-review found that `bool(ancestry_records)` could mark ancestry `passed`
+even when supplied records were partial or non-AF assignments. A narrow
+fixture-tested correction is required before merging. No staged candidate or
+frozen source receipt is regenerated as a side effect.
 
-- #221 follows #220 and establishes disjoint MVP ancestry/META candidates,
-  explicit acceptance and release identity/lineage decisions. Any FinnGen
-  renumbering must preserve old identity and evidence through supported APIs;
-  moving a directory is not sufficient.
-- #222 follows #218 and #219: restored UKB observed/completed successors,
-  preserving the incomplete OGS-00009/00010 historical pair.
-- #223 follows #218 and #221: full FinnGen observed/completed qualification.
-- #224 and #225 follow #218: Chen EUR Ragged and the exactly 3,169-admitted-Analysis
-  Catalog Hybrid observed/completed pairs. Catalog's old 3,317-Analysis artifact
-  is a baseline; do not restore the 148 routed-out Analyses or change panel/MAF
-  policy.
-- #226–#230 follow #218 and #221. META is explicitly observed-only. EUR/AFR/AMR/EAS
-  each require suitable ancestry- and assembly-matched completion resources;
-  missing references are blockers, never silent completion exemptions.
-- #231 follows #217 and #222–#230. Rehearse bounded multi-release ingestion using
-  the existing interfaces, without removing the human acceptance boundary or
-  building another scheduler.
+#219 and #220 remain open for their outstanding scientific/owner gates; merging
+the tooling checkpoints must not auto-close unresolved acquisition or acceptance
+work. Unrelated draft PR #207 is outside this epic's merge scope.
 
 ## Execution and review gates
 
-1. Source Inventory identity and exact intended/admitted/excluded membership are
-   reconciled. Missing, duplicate, truncated or mismatched files fail loudly.
-2. Human acceptance freezes the Release Manifest Candidate. New material
-   membership/recipe choices require explicit immutable identity and lineage.
-3. The pinned runtime, required capabilities and format-compatible parent are
-   verified before writes; matching references are verified before completion.
-4. The supported Phase A `pixi run release` interface owns locking, recovery,
-   execution and publication. No direct Snakemake bypass or historical deletion.
-5. A release ticket includes its own scientific checks, applicable required
-   Ragged/Overflow indexes and optional Dense-component HM3, exhaustive
-   validation, genuine warnings and registration receipts. Fixtures are not
-   full-scale evidence.
-6. The independent reviewer reports actionable findings and an explicit
-   checkpoint verdict. The orchestrator integrates green ticket commits into
-   a human-readable `feat/<name>` branch in the primary checkout and raises PRs
-   to `dev` at coherent checkpoints. No automatic PR merge is authorised.
+1. Reconcile exact intended, manifest, admitted, excluded and actually built
+   membership. Missing, duplicate, truncated or mismatched files fail loudly.
+2. Explicit human acceptance freezes the Release Manifest Candidate. Material
+   membership/recipe choices require a new immutable identity and lineage.
+3. Verify the pinned runtime, required capabilities, format-compatible parent
+   and ancestry-/assembly-matched Reference Resources before writes.
+4. The existing Phase A `pixi run release` interface owns locking, recovery and
+   execution. No direct Snakemake bypass or registry-side association processing.
+5. Every full release ticket includes its scientific checks, applicable required
+   Ragged/Overflow variant indexes and optional Dense-component HM3, exhaustive
+   validation, genuine warnings and registration receipts. Fixture tests are not
+   full-scale qualification evidence.
+6. Code-review GO and code merge are not scientific acceptance or permission to
+   replace published Stores. Preserve historical artifacts and valid checkpoints.
 
-## Initial resource envelope
+## Resource envelope
 
-No production build, conversion, completion or exhaustive validation has been
-launched by this orchestration checkpoint. Preserve existing publications,
-checkpoints and unrelated working-tree changes.
-
-- Four active implementation workers; no recursive delegation.
 - Lightweight tests: at most four CPUs per worker, BLAS threads one.
-- One bulk source-identity I/O slot: #219, at most two readers/CPU threads,
-  resumable receipts under `/data/opengwasdb/work/epic232/219`.
-- #220 may inspect mapping tables, manifests and targeted missing-file metadata;
-  full multi-TB rereads and downloads/conversions require a separate allocation.
-- Full release execution needs a release-specific gate and resource allocation,
-  coordinated with core #254. Query RSS is not a validation concurrency budget.
+- Bulk source scans: one coordinated slot, at most two readers. #219's completed
+  source verification released that slot; no new bulk scan is authorised here.
+- #220 may inspect mapping tables and named metadata/header probes; no recursive
+  multi-TB content scans or automatic downloads/conversions.
+- Full release execution needs its own acceptance gate and resource allocation.
+- No recursive delegation; each ticket has a DeepSeek Flash worker and separate
+  Gemini 3.8 Flash reviewer in an isolated ticket worktree/Herdr tab. Session
+  handles are ephemeral operator state, not release provenance.
 
-## UKB verification checkpoint — preliminary
+## Core #254 and adopted runtime
 
-#219 reports **2,514 intended Source Analysis IDs**, reconciled between the
-legacy declared selection and core batch manifest, with **2,514 available VCFs**
-and **490 additions** relative to the 2,024-Analysis historical baseline. These
-are preliminary reconciliation counts, not accepted membership. The source
-SHA256 freeze subsequently completed: the worker/reviewer report 2,514 inputs,
-425.4 GB (decimal), 258.9 seconds and two readers. Durable receipt:
-`/data/opengwasdb/work/epic232/219/ukb-b-restored-2026-10-11.checksums.json`.
-This cryptographic identity freeze is **not** proof of complete gzip/BGZF or
-Tabix integrity; deep integrity verification and its independent review remain
-pending. #219 retains the bulk I/O slot, at most two readers.
+Core #254 merged through [core PR #276](https://github.com/opengwas/opengwasdb/pull/276)
+as `4e922566d7fa4c13a11be3637069da63e48be28c`. The separately owned implementation
+passed 2,327 tests. Reported full-run peak RSS dropped 33.7→2.35 GiB (OGS-00009)
+and 36.5→3.01 GiB (OGS-00010), both validating clean; wall times fell 88→71 and
+135→109 minutes. Its two validation processes finished. These measurements are
+not a concurrency budget or qualification of new releases.
 
-Three historical metadata-resolution exclusions still require disposition,
-including `ukb-b-1585`, which appears in the old built baseline. Intended,
-admitted and accepted membership must remain separate until this is resolved.
+Stores #218 initially pinned core `1be2a156649e4d444f31f9b4107c3f47a046f855` and
+then repinned to `4e922566d7fa4c13a11be3637069da63e48be28c` at `af6fc75`.
+Independent reviewer GO and orchestrator verification confirmed equality of the
+runtime constant, `pixi.toml`, `pixi.lock` and installed `direct_url.json`.
+Python 3.12, zarr 3.4.1 and numcodecs 0.17 remain unchanged. Format 0.2.0,
+fail-closed executable-bound revision checks and scheduled-step-aware completion
+gates are preserved. No historical Store was converted or requalified by this
+upgrade.
 
-The orchestrator reserves **OGS-00030 / OGS-00031** for the restored UKB
-observed/completed **candidate proposal**. They are not accepted or registered
-release identities. OGS-00017/00018 remain unallocated pending #221's MVP/FinnGen
-identity plan; OGS-00009/00010 remain unchanged.
+Repin checks: runtime-guard 19/19, plan 91/91, workflow 29/29, bundle-check 12/12,
+env-check and lock-check. Read-only real-host smoke refused OGS-00010
+complete-only against its 0.1.0 parent; same-run OGS-00009 build + OGS-00010
+complete and enhancement-only reruns passed the guard.
 
-There is a completion-reference declaration conflict to resolve: OGS-00010's
-historical recipe specifies HGDP+1kGP/EUR, while that Reference Resource describes
-EUR as a calibration control and the separate GPM resource declares the
-production UKB EUR panel. Neither historical recipe reuse nor switching panels
-is an automatic successor-completion approval. Record suitable reference
-identity and its approval/evidence before executing completion.
+## Readiness evidence (#217)
 
-## Reviewed implementation checkpoint: #217
+Original exact reviewed checkpoint: `886082bb0f83dd9d9f84cf79972923bb5c377d92`,
+independent GO; original CI passed in 16m34s. Orchestrator checks: 26 readiness
+tests, 12 index tests, 54 bundle test cases / 128 checks and bundle-check 12/12.
+Two explicit legacy #134 tolerated gaps remain visible.
 
-Independent Gemini reviewer verdict **GO**, no blockers, at exact head
-`886082bb0f83dd9d9f84cf79972923bb5c377d92`. The orchestrator fast-forwarded the
-four reviewed ticket commits into the primary feature branch
-`feat/217-release-readiness` and raised
-[PR #234](https://github.com/opengwas/opengwasdb-stores/pull/234) to `dev`.
-The PR is not automatically merged; #217 remains pending integration.
-CI `pixi test + docs smoke test` passed in 16m34s at the same exact head:
-[run 38187753289](https://github.com/opengwas/opengwasdb-stores/actions/runs/38187753289/job/114613681988).
-The orchestrator verified the terminal check through the GitHub PR API.
+The view separates intended Source Inventory, manifest/admitted/excluded IDs,
+actual built IDs, source acquisition, observed build, completion, required
+indexes, optional HM3, validation, registration, format/runtime, lineage and
+warnings. Built IDs use `read_analyses(open_store(path).analyses_path)`; historical
+committed baseline differences are a separate channel. Configured, unknown,
+missing or historical evidence cannot become a current clean pass.
 
-Orchestrator checks against the archived exact head: 26 readiness tests,
-12 index tests, 54 bundle test cases / 128 checks, bundle-check 12/12 and
-`git diff --check`. The two explicit legacy #134 tolerated gaps remain visible.
-The worker also ran manifest, register, plan, run, reconcile-build-yaml,
-validation-record and indexed-subset suites. The generated report compares
-actual built Analysis IDs through public core metadata APIs; it does not
-replace those sets with git-baseline counts. Manifest rows, source intention,
-admitted membership, configured evidence, historical validation and current
-identity-matching evidence are explicitly distinct.
+OGS-00011's target is exactly 3,169 admitted Analyses; the 3,317-Analysis published
+artifact remains historical. OGS-00009/00010 remain the incomplete historical
+UKB pair. FinnGen history remains preserved, including the receipt's `'1.0'`
+versus published `'0.1.0'` discrepancy on local evidence branch
+`fix/ogs-00016-build-tmpdir@c871b61`; no blanket branch adoption occurred.
 
-#219's initial `c4a32d6` candidate checkpoint received **NO-GO**: stale candidate
-IDs, unresolved metadata exclusions, incomplete index/stream verification and
-missing regression cases. The worker corrected these and the final checkpoint
-(see below) reached **GO** for code + staged candidate only.
+## Restored UKB evidence and acceptance (#219)
 
-## Reviewed implementation checkpoints: #218, #219, #220
+- Exact intended/available/provider-resolved membership: **2,514**, not an
+  approximate 2,524; **490 restored** beyond the historical 2,024 built IDs.
+- Frozen per-file data and index identities; source bytes 425,402,488,477. SHA
+  freeze took 258.9 seconds with two readers. Full decompression and Tabix contig
+  checks passed 2,514/2,514; retain their recorded coverage limitations.
+- Three historical API-missing records were resolved independently with
+  exact-ID/batch-checked, checksum-bound provider JSON. Comparison coverage is
+  shared 2,514 / evaluated 2,511 / skipped 3, zero evaluated-field disagreements;
+  provider-only resolutions are not API comparison matches.
+- Candidate **OGS-00030** remains `candidate`, unaccepted and unregistered, staged
+  under `/data/opengwasdb/work/epic232/219/candidates/OGS-00030`.
+  **OGS-00031** is not emitted; its completion reference is unresolved.
+- Durable evidence lives under `/data/opengwasdb/work/epic232/219/` and committed
+  `resources/inventories/ukb-b-*`. No historical OGS-00009/00010 artifact changed.
+- Original hermetic checks: 38 UKB tests and bundle-check 12/12; staged candidate
+  check had zero errors/tolerated gaps. Subsequent evidence-gate fixes need a new
+  exact-head verdict.
 
-The three remaining reviewed frontier checkpoints were independently re-verified
-by the orchestrator at their exact heads and raised to `dev`:
+The ten-Analysis trial measured ancestry at ~26.6 minutes and SD at ~1.9 minutes
+(two workers, BLAS one). All ancestry outputs were residual-gated `Unassigned`:
+GRCh37 source coordinates were queried against a GRCh38 reference without
+liftover. This is not valid calibration evidence or a valid lifted full-run
+cost estimate. Candidate ancestry remains `source_fallback`, check `not_run`;
+SD trial output did not replace candidate metadata. No full 2,514 run authorised.
 
-| Ticket | Feature branch | PR | Reviewed head | Verdict | Orchestrator re-check |
-|---|---|---|---|---|---|
-| #218 | `feat/218-current-runtime` | [PR #237](https://github.com/opengwas/opengwasdb-stores/pull/237) | `af6fc75` | GO (incl. repin to core `4e92256`) | runtime-guard 19/19, plan 91/91 |
-| #219 | `feat/219-restored-ukb` | [PR #236](https://github.com/opengwas/opengwasdb-stores/pull/236) | `d4aa31c` | GO (staged candidate only) | ukb-b 38/38, bundle-check 12/12 |
-| #220 | `feat/220-mvp-acquisition` | [PR #235](https://github.com/opengwas/opengwasdb-stores/pull/235) | `cbac5b9` | GO tooling; gate HOLD | dbgap 27/27 |
+## Owner and core decision queue
 
-- **#218** adopts the immutable core pin `1be2a15` with a fail-closed pre-write
-  runtime/format guard. No production build/validation/artifact mutation. A
-  coordinated repin follows once core #254 lands.
-- **#219** freezes and integrity-verifies the restored 2,514-Analysis UKB Source
-  Inventory and stages the **unaccepted** candidate `OGS-00030`. `OGS-00031`
-  (completed) is not emitted and its reference is an open owner decision. The
-  ancestry/SD trial is recorded as a failed outcome with the structural finding
-  that `assign-ancestry` lacks GRCh37→GRCh38 liftover wiring.
-- **#220** makes the two numeric-key discrepancies loud and traceable and emits
-  the 57-row trait-disposition queue. The bijection gate stays red until the
-  owner decides D1/D2.
+- **UKB acceptance:** explicit acceptance of the staged 2,514 membership and
+  material Build Recipe before any full build/registration.
+- **UKB completion reference:** historical HGDP+1kGP EUR is calibration-only;
+  production GPM UKB EUR is a different panel. Both panels are absent on this
+  host; neither reuse nor switching is auto-approved.
+- **MVP D1 `GCST90476298`:** Catalog N=235 vs dbGaP `Platelet_Mean_INT.AFR`
+  N=114,731. Owner must choose provenance correction/binding or unavailable.
+- **MVP D2 `GCST90481129`:** Catalog four-ancestry META N=577,873 vs dbGaP
+  three-ancestry META N=571,620; difference exactly EAS 6,253. Owner must decide
+  intended Analysis versus distinct/unavailable deposit, or documented correction.
+- **57 MVP labels:** 30 punctuation-only and 27 lexical differences require
+  recorded policy/individual review; no fuzzy automatic binding. Bijection stays
+  red at 6,020/6,022; no conversion or manifest promotion. Acquisition tests 27/27.
+- **Core [#277](https://github.com/opengwas/opengwasdb/issues/277):** ancestry CLI
+  liftover wiring; [#207](https://github.com/opengwas/opengwasdb/issues/207) owns
+  the one-pass resolver's GWAS-VCF rejection. Separate ancestry/SD commands read
+  VCF; do not claim all VCF resolution is unsupported. No registry pre-lifting or
+  residual-threshold relaxation.
+- **AMR completion:** #229 needs an explicitly suitable LD resource; HGDP resource
+  declares AFR/EAS/SAS, not AMR. Missing reference is not observed-only success.
 
-Suggested merge order (minimises conflicts on `run_all_tests.py` and
-`docs/spec/store-release-workflow.md`): PR #234 → #237 → #236 → #235.
+## Downstream dependency order
 
-## Owner decision queue (not delegated)
+#221 follows #220 and freezes disjoint MVP ancestry/META membership plus identity
+planning; FinnGen renumbering, if chosen, must preserve core identity and history.
+OGS-00017/00018 remain free; OGS-00030/00031 are UKB candidate proposals only.
 
-- **#220 D1** `GCST90476298`: Catalog N=235 vs dbGaP 114,731 — bind with recorded
-  correction, or hold as unavailable. (Issue comment on #220.)
-- **#220 D2** `GCST90481129`: Catalog 4-ancestry 577,873 vs dbGaP 3-ancestry
-  571,620 (Δ = EAS 6,253) — intended Analysis absent from deposit, or bind with
-  recorded correction. META provenance preserved for #221 either way.
-- **#220 trait policy**: approve punctuation canonicalisation + review 27 lexical
-  rows individually.
-- **#219 acceptance**: explicit human acceptance of the staged 2,514 membership
-  before any build/registration.
-- **#219 reference**: choose the OGS-00031 completion panel (historical HGDP+1kGP
-  EUR calibration vs production UKB EUR; both absent on this host).
-- **Core (for #222)**: `assign-ancestry` GRCh37→GRCh38 liftover wiring; one-pass
-  `resolve-analyses` cannot stream GWAS-VCF (core #207). No registry-side copy of
-  association processing. Filed: opengwas/opengwasdb#277 (liftover wiring) +
-  scoping comment on opengwas/opengwasdb#207.
+#222 follows #218/#219; #223 follows #218/#221. #224 (Chen EUR Ragged) and #225
+(Catalog 3,169-Analysis Hybrid) follow #218 and their own scientific/reference
+gates. Do not restore the 148 routed-out Catalog Analyses or alter MAF/panel
+policy. #226–#230 follow #218/#221: META is observed-only; EUR/AFR/AMR/EAS each
+require an appropriate observed/completed pair. #231 rehearses bounded ingestion
+only after the required full-release gates actually pass.
 
-## Runtime and ancestry-resolution checkpoint
+## Historical execution checkpoints
 
-The orchestrator independently checked the #218 worktree's installed runtime
-metadata: `opengwasdb 0.3.0`, Python 3.12, canonical Git URL and immutable
-`direct_url.json` commit `1be2a156649e4d444f31f9b4107c3f47a046f855`.
-#218's final review is **GO**: unknown/unprovable revisions fail closed, version
-and revision come from the resolved executable's own metadata, and the
-completion-parent gate is step-aware (only actual scheduled build/complete
-producing jobs count; enhancement-only reruns are not gated).
+Initial stores baseline `3a9cf780b5b77427f275533213b8a2c94b2afc82`; initial core
+baseline `1be2a156649e4d444f31f9b4107c3f47a046f855`. Copy completion removed the UKB
+copy prerequisite, not identity verification or acceptance. Initial runtime and
+UKB candidate NO-GO verdicts were corrected through review rounds; later exact
+SHAs supersede them. PR #233 records this chronology, not full epic completion.
 
-#219's ten-Analysis ancestry/SD trial measured `assign-ancestry` at ~26.6 min
-and `estimate-phenotype-sd` at ~1.9 min (two workers, BLAS 1). All ten gated
-`Unassigned` under the unchanged residual gate because the GRCh37 VCFs were
-queried against the GRCh38 reference with no liftover wiring — an
-assembly-mismatch artifact, not calibration evidence. Historical
-`source_trusted_no_af` was not inherited; ancestry remains `source_fallback` and
-`af_assigned` is not claimed. Full 2,514 resolution is not authorised.
-
-## Initial review checkpoint
-
-Draft [PR #233](https://github.com/opengwas/opengwasdb-stores/pull/233) targets
-`dev` from `feat/232-execution-frontier`. It records this execution setup only;
-no worker implementation is integrated or ticket completion claimed. The initial
-documentation check was `git diff --check`. Implementation checkpoints will be
-reviewed and raised as separate coherent feature PRs.
-
-One declaration-level blocker is already visible: `hgdp1kgp-hg38-ld` declares
-AFR/EAS/SAS, not AMR, and #171 excludes ancestries without block definitions.
-#229 therefore needs an explicitly suitable AMR completion resource; it cannot
-be treated as observed-only success. This inspection is not fresh physical-panel
-verification or calibration evidence.
-
-Subsequent checkpoints must record actual commits, reviewed scope, commands,
-evidence locations, unresolved owner decisions and PR URLs. Missing completion
-or correctness gates prevent a blanket ingestion-readiness claim.
-
-## Core #254 — merged; coordinated repin in progress
-
-Core #254 merged to `dev` as `4e922566d7fa4c13a11be3637069da63e48be28c`
-(PR #276, squash). Measured full-run peak RSS dropped 33.7→2.35 GiB (OGS-00009)
-and 36.5→3.01 GiB (OGS-00010), both validating clean, with wall time also
-reduced (88→71 and 135→109 min). No heavy runs remain on the host.
-
-The stores runtime pin stays immutable `1be2a15` (#218) until the coordinated
-repin is reviewed. The repin (`1be2a15` → `4e92256`) is now **complete and
-reviewed GO** on `ticket/218-current-runtime` (`af6fc75`), integrated into
-`feat/218-current-runtime` and PR #237. Pin constant, `pixi.toml` and
-`pixi.lock` all resolve `4e92256`; runtime-guard 19/19 re-verified.
+Missing required completion, membership acceptance or correctness gates prevent
+a blanket mass-ingestion-readiness claim.
