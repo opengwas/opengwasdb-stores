@@ -11,23 +11,26 @@ another orchestration session advanced the work. This supersedes the initial
 no-merge instruction; it does **not** accept scientific candidates or authorise
 production builds, conversions, completion, validation or publication.
 
-Refreshed stores baseline: `dev@3f18ccbb75140828691de2574d9f63e6848dda36`.
-PR #237 is already merged, including the core #254 repin. The primary checkout's
-unrelated untracked documentation/model files are preserved.
+Review baseline: `dev@3f18ccbb75140828691de2574d9f63e6848dda36`.
+All four frontier implementation PRs are now merged; stores `dev` is
+`5536907e4a094f6fb9b455eb583278076c3ce428` after integration. The primary
+checkout's unrelated untracked documentation/model files are preserved.
 
 | Ticket | PR | Checkpoint | Integration state |
 |---|---|---|---|
-| #217 readiness | [#234](https://github.com/opengwas/opengwasdb-stores/pull/234) | `7336e37` | conflict resolved against current `dev`; fresh review and CI pending |
+| #217 readiness | [#234](https://github.com/opengwas/opengwasdb-stores/pull/234) | `7336e37` | merged as `7f43c77` after conflict resolution, independent GO and fresh green CI |
 | #218 runtime | [#237](https://github.com/opengwas/opengwasdb-stores/pull/237) | `af6fc75` | merged as `3f18ccb`; core pin `4e92256` |
-| #219 UKB inventory/candidate tooling | [#236](https://github.com/opengwas/opengwasdb-stores/pull/236) | `40ac43b` (fix `d4192a6`) | correction reviewed, integrated with current `dev`; fresh CI pending; candidate unaccepted |
+| #219 UKB inventory/candidate tooling | [#236](https://github.com/opengwas/opengwasdb-stores/pull/236) | `40ac43b` (fix `d4192a6`) | merged as `5536907` after correction review and fresh green CI; candidate unaccepted |
 | #220 MVP acquisition tooling | [#235](https://github.com/opengwas/opengwasdb-stores/pull/235) | `cbac5b9` | merged as `d0b55e7` after fresh Standards/Spec GO and 27/27 tests; scientific gate HOLD |
 
 #234's only manual conflict was the workflow specification's module list. The
 resolution preserves `resources.py`, `runtime.py`, `release.py` and
-`readiness.py`; the test-runner changes combine automatically. A bounded fresh
-full-suite run uses four CPUs and BLAS threads one. Independent Standards and
-Spec reviews cover the remaining implementation PRs against the refreshed
-baseline; exact final heads govern merging, not stale verdicts.
+`readiness.py`; the test-runner changes combine automatically. Local regression
+runs use at most four CPUs and BLAS threads one. Fresh CI passed the complete
+lightweight suites, bundle checks, index regeneration/clean-tree and docs smoke
+on #234 (`7336e37`) and #236 (`40ac43b`); #235's unchanged reviewed head retained
+its green CI. Independent Standards and Spec reviews plus targeted integration
+checks govern merging, not stale verdicts.
 
 #236 re-review found that `bool(ancestry_records)` could mark ancestry `passed`
 even when supplied records were partial or non-AF assignments. The correction
@@ -37,6 +40,8 @@ and records ancestry-file SHA/path/counts. Independent Spec GO; orchestrator
 re-ran 46/46 UKB tests. Final integration `40ac43b` includes current runtime and
 MVP tooling. No staged candidate or frozen source receipt was regenerated: the
 candidate's original generator hash remains accurate historical provenance.
+The `release-readiness` Pixi task remains a separate #218 follow-up; the merged
+CLI is available directly as `python3 resources/scripts/release_readiness.py`.
 
 #219 and #220 remain open for their outstanding scientific/owner gates; merging
 the tooling checkpoints must not auto-close unresolved acquisition or acceptance
