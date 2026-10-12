@@ -62,5 +62,9 @@ notes: >
   stay. The restored membership is the frozen Source Inventory
   ukb-b-restored-2026-10-11 (2,514 Analyses). Ancestry assignment in the staged
   candidate is source_fallback, not AF; core #277 (assign-ancestry liftover) and
-  #207 (resolve-analyses MetricsReader) remain open. OGS-00009/OGS-00010 stay
-  byte-identical until the release gate decides their status transition.
+  the focused VCF blocker core #278 (one-pass resolver cannot stream GWAS-VCF
+  metrics) remain open. #207 is the historical SSF-foundation issue (merged via
+  #210), not new implementation scope. Physical OGS-00009/OGS-00010 Store
+  artifacts are preserved byte-identical ALWAYS; only their bundle definitions
+  may be retired or removed once successor activation is genuinely ready, and
+  nothing is removed now.

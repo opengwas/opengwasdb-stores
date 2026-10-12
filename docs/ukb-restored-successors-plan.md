@@ -10,10 +10,11 @@ incomplete `OGS-00009`/`OGS-00010` pair; the successor identities are
 **`OGS-00030`** (observed) and **`OGS-00031`** (completed). Historical **Store
 artifacts must be preserved**; retention of the old **Release Bundles** is
 waived only in the sense that their definitions need not be permanently
-archived — they are retired, not deleted, **once successor activation is
-genuinely ready**. Nothing is deleted now: `OGS-00030` is only staged and
-`OGS-00031` is absent, so the active bundles stay, and minimal artifact lineage
-/ evidence / Git history is retained. This records identity, lineage and a
+archived — they may be retired or removed once successor activation is
+genuinely ready (nothing is removed now: `OGS-00030` is only staged and
+`OGS-00031` is absent). Physical Store artifacts remain preserved
+**byte-identical always**, not merely until a lineage gate, and minimal artifact
+lineage / evidence / Git history is retained. This records identity, lineage and a
 qualification plan only: **no acceptance, no production build, no `OGS-00031`
 construction, no `OGS-00030` build.**
 
@@ -124,8 +125,10 @@ decision).
    performed. A bounded multi-block integrity sample is a candidate next step.
 4. `structural_ld_blocks_lookup.tsv` (610,314 per-SNP lookup rows) was read only
    for its header/count; its relationship to the 1,357 blocks is unqualified.
-5. Core **#277** (assign-ancestry liftover) and **#207** (resolve-analyses
-   MetricsReader) remain open; candidate ancestry is `source_fallback`.
+5. Core **#277** (assign-ancestry liftover) and the focused VCF blocker **#278**
+   (one-pass resolver cannot stream GWAS-VCF metrics) remain open; #207 is the
+   historical SSF-foundation issue (merged via #210), not current implementation
+   scope. Candidate ancestry is `source_fallback`.
 6. `OGS-00031` is not constructed (candidate bundle absent) and `OGS-00030` is
    not built; `OGS-00030`'s candidate bundle is staged only and unregistered.
    Identity is codified but no release acceptance is implied; reference status
@@ -140,6 +143,7 @@ qualification only). No new full-panel reads until parent review and a
 qualification budget; at most one panel reader, shared with the single MVP
 converter reader. No candidate regeneration, no Store construction, no build, no
 heavy LD scan, no ancestry re-run. No bundle deletion: old bundle definitions
-may be retired only when successor activation is genuinely ready, active
-bundles are not retired while `OGS-00030` is unbuilt and `OGS-00031` is absent,
-and minimal artifact lineage / evidence / Git history is retained regardless.
+may be retired or removed once successor activation is genuinely ready, and no
+active bundle is retired while `OGS-00030` is unbuilt and `OGS-00031` is absent.
+Physical Store artifacts remain preserved byte-identical always, and minimal
+artifact lineage / evidence / Git history is retained regardless.
