@@ -319,6 +319,17 @@ def write_tsv(path: Path, columns: tuple[str, ...], rows: list[dict[str, str]]) 
     os.replace(partial, path)
 
 
+def write_tsv_guarded(
+    path: Path, columns: tuple[str, ...], rows: list[dict[str, str]], out_root: Path
+) -> None:
+    """Refresh-specific TSV writer: the final path AND its ``.partial`` temp must
+    resolve inside the isolated root, so a symlinked temp cannot redirect the
+    write into a read-only source tree."""
+    for target in (path, path.with_name(path.name + ".partial")):
+        ensure_write_within(target, out_root)
+    write_tsv(path, columns, rows)
+
+
 def read_tsv(path: Path) -> list[dict[str, str]]:
     with path.open(newline="", encoding="utf-8") as handle:
         return list(csv.DictReader(handle, delimiter="\t"))
@@ -1559,8 +1570,17 @@ def canonical_manifest_row(
         result[name] = inherited.get(name, "")
     result["data_file"] = data_file
     result["yaml_file"] = yaml_file
-    if result["sha256"]:
-        result["sha256"] = validate_digest(result["sha256"], "sha256", f"{candidate.analysis_id} inherited sha256")
+    digest = str(result.get("sha256", "")).strip()
+    if result["status"] == "ok":
+        # A ready row must carry a valid sha256; an empty/malformed digest is a
+        # non-ready row, never a silent success.
+        if not digest or not _SHA256_HEX.match(digest.lower()):
+            result["status"] = "error"
+            result["error"] = "ready row has no valid sha256"
+        else:
+            result["sha256"] = digest.lower()
+    elif not str(result.get("error", "")).strip():
+        result["error"] = "non-ready row without an error message"
     return result
 
 
@@ -1751,8 +1771,12 @@ def command_refresh(args: argparse.Namespace) -> int:
         if new_row["status"] != "ok":
             raise AcquisitionError(f"{accession}: new manifest row is not ok (status={new_row['status']!r})")
         validate_digest(new_row["sha256"], "sha256", f"{accession} new manifest sha256")
-        if Path(new_row["data_file"]).name != f"{accession}.tsv.gz":
-            raise AcquisitionError(f"{accession}: new manifest data_file does not bind {accession}.tsv.gz")
+        expected_data = new_sidecar_root / bucket_of(accession) / accession / f"{accession}.tsv.gz"
+        expected_yaml = new_sidecar_root / bucket_of(accession) / accession / f"{accession}.tsv.gz-meta.yaml"
+        if Path(new_row["data_file"]).resolve() != expected_data.resolve():
+            raise AcquisitionError(f"{accession}: new manifest data_file does not bind the new source data path")
+        if Path(new_row["yaml_file"]).resolve() != expected_yaml.resolve():
+            raise AcquisitionError(f"{accession}: new manifest yaml_file does not bind the new sidecar path")
 
     out_sidecars = out / "gwas-ssf"
     receipt: list[dict[str, str]] = []
@@ -1763,6 +1787,7 @@ def command_refresh(args: argparse.Namespace) -> int:
             document = read_sidecar_document(new_sidecars[accession])
             if document.get("gwas_id") != accession:
                 raise AcquisitionError(f"{new_sidecars[accession]}: gwas_id != {accession}")
+            validate_sidecar_binding(document, row, accession, str(new_sidecars[accession]))
             action, changed, source, provenance = "new-conversion", ["all"], str(new_sidecars[accession]), "derived"
             source_data = new_sidecar_root / bucket_of(accession) / accession / f"{accession}.tsv.gz"
         else:
@@ -1810,7 +1835,7 @@ def command_refresh(args: argparse.Namespace) -> int:
             "source_sidecar": source,
             "note": "data identity carried forward" if provenance == "inherited" else "new conversion",
         })
-    write_tsv(out / "refresh-receipt.tsv", REFRESH_RECEIPT_COLUMNS, receipt)
+    write_tsv_guarded(out / "refresh-receipt.tsv", REFRESH_RECEIPT_COLUMNS, receipt, out)
 
     manifest_dir = Path(args.manifest_dir) if args.manifest_dir else out / "manifests"
     by_store: dict[str, list[str]] = {}
@@ -1868,8 +1893,7 @@ def command_refresh(args: argparse.Namespace) -> int:
                 failures += 1
             merged.append(canonical_row)
         manifest_path = manifest_dir / f"{slug}-download-manifest.tsv"
-        ensure_write_within(manifest_path, out)
-        write_tsv(manifest_path, MANIFEST_COLUMNS, merged)
+        write_tsv_guarded(manifest_path, MANIFEST_COLUMNS, merged, out)
         merged_total += len(merged)
         print(f"refresh: {store_key}: {len(merged)} rows -> {manifest_path}")
     print(f"refresh: {len(receipt)} sidecar(s), {merged_total} manifest row(s), preview={bool(args.preview)}")

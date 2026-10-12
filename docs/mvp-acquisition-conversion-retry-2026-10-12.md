@@ -98,6 +98,10 @@ canonical manifest reproducible without reprocessing the 6,020 existing files.
 
 ### Authoritative isolated run (post-hardening)
 
+> Note: this run was produced before the final guard set (valid-sha256 for ready
+> rows, guarded TSV temp, new-sidecar binding). It is superseded and will be
+> repeated with the corrected tool after review; only the re-run counts.
+
 `refresh` reads mapping/manifests/sidecar YAML only — never a `.tsv.gz` — and
 carries each existing data identity (`data_file_md5sum`, `data_file_name`,
 `source`) forward under a `metadata_refresh` block (`reused_data_md5sum: true`,

@@ -1279,10 +1279,11 @@ class RefreshTests(unittest.TestCase):
         self.assertEqual(out["data_url"], ACQUIRE.DBGAP_BASE + "/T")
         self.assertEqual(out["sha256"], "a" * 64)  # inherited, not re-derived
         self.assertEqual(out["data_file"], "/iso/GCST1.tsv.gz")
-        with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "invalid sha256"):
-            ACQUIRE.canonical_manifest_row(
-                {**inherited, "sha256": "bad"}, row, candidate, data_file="d", yaml_file="y"
-            )
+        malformed = ACQUIRE.canonical_manifest_row(
+            {**inherited, "sha256": "bad"}, row, candidate, data_file="d", yaml_file="y"
+        )
+        self.assertEqual(malformed["status"], "error")
+        self.assertIn("sha256", malformed["error"])
 
     def test_canonical_sidecar_keeps_meta_mixture_ancestry(self) -> None:
         document, _ = ACQUIRE.canonical_sidecar(
@@ -1487,6 +1488,93 @@ class RefreshTests(unittest.TestCase):
             self.assertEqual(merged[0]["status"], "error")
             preview = subprocess.run(self._refresh_cli(fx) + ["--preview"], capture_output=True, text=True, check=False)
             self.assertEqual(preview.returncode, 0, preview.stderr + preview.stdout)
+
+    def test_full_mode_requires_valid_sha_for_ok_row(self) -> None:
+        # B: status=ok with an empty sha256 must not pass full mode.
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp), data_present=True)
+            with Path(fx["manifest_path"]).open(newline="", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle, delimiter="\t"))
+            rows[0]["sha256"] = ""
+            ACQUIRE.write_tsv(Path(fx["manifest_path"]), ACQUIRE.MANIFEST_COLUMNS, rows)
+            full = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
+            self.assertEqual(full.returncode, 1, full.stderr + full.stdout)
+            merged_path = Path(fx["iso"]) / "manifests" / "dense-pmid-39024449-European-download-manifest.tsv"
+            with merged_path.open(newline="", encoding="utf-8") as handle:
+                merged = list(csv.DictReader(handle, delimiter="\t"))
+            self.assertEqual(merged[0]["status"], "error")
+            preview = subprocess.run(self._refresh_cli(fx) + ["--preview"], capture_output=True, text=True, check=False)
+            self.assertEqual(preview.returncode, 0, preview.stderr + preview.stdout)
+
+    def test_symlinked_tsv_partial_is_rejected(self) -> None:
+        # C: the receipt/manifest `.partial` temp must not follow a symlink into
+        # a read-only source tree.
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp), data_present=True)
+            iso = Path(fx["iso"])
+            iso.mkdir(parents=True, exist_ok=True)
+            victim = Path(tmp) / "victim.txt"
+            victim.write_text("original", encoding="utf-8")
+            (iso / "refresh-receipt.tsv.partial").symlink_to(victim)
+            result = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+            self.assertIn("escapes", result.stderr)
+            self.assertEqual(victim.read_text(encoding="utf-8"), "original")
+
+    def test_new_sidecar_binding_is_validated(self) -> None:
+        # D: a newly converted sidecar's source binding must match the mapping.
+        import yaml
+
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp), data_present=True)
+            accession = "GCST90475097"
+            new_dir = Path(tmp) / "retry" / "gwas-ssf" / ACQUIRE.bucket_of(accession) / accession
+            new_dir.mkdir(parents=True)
+            (new_dir / f"{accession}.tsv.gz").write_bytes(b"x" * 10)
+            (new_dir / f"{accession}.tsv.gz-meta.yaml").write_text(yaml.safe_dump({
+                "gwas_id": accession, "trait_description": ["new"],
+                "samples": [{"sample_ancestry_category": ["European"], "sample_size": 100}],
+                "data_file_name": f"{accession}.tsv.gz", "data_file_md5sum": "b" * 32,
+                "source": {"repository": "dbGaP", "tar": "T", "member": "WRONG.txt.gz", "tar_md5": "c" * 32},
+            }), encoding="utf-8")
+            new_manifest_dir = Path(tmp) / "retry" / "manifests"
+            new_manifest_dir.mkdir(parents=True)
+            row = {name: "" for name in ACQUIRE.MANIFEST_COLUMNS}
+            row.update({"analysis_id": accession, "status": "ok", "sha256": "a" * 64, "data_bytes": "10",
+                        "data_file": str(new_dir / f"{accession}.tsv.gz"),
+                        "yaml_file": str(new_dir / f"{accession}.tsv.gz-meta.yaml"),
+                        "genome_assembly": "GRCh38", "file_type": "GWAS-SSF v1.0",
+                        "is_harmonised": "false", "trait": "new", "sample_size": "100"})
+            ACQUIRE.write_tsv(new_manifest_dir / "dense-pmid-39024449-European-download-manifest.tsv",
+                              ACQUIRE.MANIFEST_COLUMNS, [row])
+            result = subprocess.run(
+                self._refresh_cli(fx) + ["--new-sidecars", str(Path(tmp) / "retry" / "gwas-ssf"),
+                                         "--new-manifest-dir", str(new_manifest_dir)],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+            self.assertIn("source.member", result.stderr)
+
+    def test_end_to_end_two_runs_identical(self) -> None:
+        # A: a second run with the same --out must succeed and be byte-identical.
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp), data_present=True)
+
+            def snapshot() -> str:
+                lines = []
+                for path in sorted(Path(fx["iso"]).rglob("*")):
+                    if path.is_symlink():
+                        lines.append(f"{path}->{path.readlink()}")
+                    elif path.is_file():
+                        lines.append(f"{path}:{hashlib.md5(path.read_bytes()).hexdigest()}")
+                return "\n".join(lines)
+
+            first = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
+            self.assertEqual(first.returncode, 0, first.stderr + first.stdout)
+            before = snapshot()
+            second = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
+            self.assertEqual(second.returncode, 0, second.stderr + second.stdout)
+            self.assertEqual(snapshot(), before)
 
     def test_manifest_dir_equals_source_manifest_dir_is_rejected(self) -> None:
         # Parent microprobe: --manifest-dir pointing at the read-only source must
