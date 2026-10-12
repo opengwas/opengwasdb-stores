@@ -73,6 +73,7 @@ SUITES: list[tuple[str, str, list[str]]] = [
     ("qc-panel-retention", "r", ["tests/qc-panel-retention/run_tests.R"]),
     ("reconcile-build-yaml", "python", ["tests/reconcile-build-yaml/test_reconcile_build_yaml.py"]),
     ("register", "python", ["tests/register/test_register.py"]),
+    ("runtime-guard", "python", ["tests/runtime/test_runtime_guard.py"]),
     ("run", "python", ["tests/run/test_run.py"]),
     ("schema-validation", "r", ["tests/schema-validation/run_tests.R"]),
     ("source-inventory", "python", ["tests/source-inventory/test_source_inventory.py"]),

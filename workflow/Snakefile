@@ -51,7 +51,7 @@ for _src in _CANDIDATE_SRC_DIRS:
     if _src is not None and _src.is_dir() and str(_src) not in sys.path:
         sys.path.insert(0, str(_src))
 
-from ogstores import bundle, index, manifest, paths, register, resources, run
+from ogstores import bundle, index, manifest, paths, register, resources, run, runtime
 from ogstores.plan import plan
 
 REGISTRY_ROOT: Path = Path(config.get("registry_root", "stores"))
@@ -129,10 +129,32 @@ onstart:
         for job in workflow.dag.needrun_jobs()
         if {"root", "store_id"} <= job.wildcards_dict.keys()
     ]
+    # Same jobs with the `step` wildcard, for the runtime guard's parent-format
+    # and capability checks: an enhancement-only job on a Store is not a build
+    # of that Store (#218).
+    scheduled_jobs = [
+        (
+            job.wildcards_dict["root"],
+            job.wildcards_dict["store_id"],
+            job.wildcards_dict.get("step"),
+        )
+        for job in workflow.dag.needrun_jobs()
+        if {"root", "store_id"} <= job.wildcards_dict.keys()
+    ]
     run.refuse_rebuilding_published_releases(
         scheduled,
         forced=run.forced_by_transaction(config.get("release_run"), scheduled),
     )
+    # Defence in depth for a direct `snakemake` run (#218): the resolved
+    # runtime must be the tracked pin, provide every capability the scheduled
+    # steps name, and be able to complete each parent a scheduled completion
+    # consumes. Refuse before the first job writes a Store.
+    try:
+        runtime.verify_runtime_for_releases(
+            scheduled_jobs, registry_root=REGISTRY_ROOT
+        )
+    except runtime.RuntimeGuardError as exc:
+        raise WorkflowError(str(exc))
     # Defence in depth for a direct `snakemake` run (#209): a declared Indexed
     # Variant Subset needs a `build-indexed-subset`-capable runtime and a
     # maintained variant list that matches its declaration. Refuse before the
