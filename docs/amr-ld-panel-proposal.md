@@ -81,25 +81,31 @@ built from all 3,202 would include 698 non-independent individuals.
 
 The registry already acquires this joint GRCh38 genome-wide callset
 ([`acquire_hgdp1kgp.py`](../resources/scripts/ld-panel/acquire_hgdp1kgp.py),
-gnomAD v3.1.2). gnomAD's v3.1.2 release describes the subset as **4,094 samples
-(929 HGDP + 3,165 1kGP)** genome-wide on GRCh38
+gnomAD v3.1.2). The primary description of the subset's sample QC and
+relatedness handling is **Koenig et al. 2024**, *Genome Research* 34(5):796–809
+(DOI 10.1101/gr.278378.123; PMID 38749656; PMC11216312). Their pipeline reduces
+the raw source **4,150 → 4,117 after 33 QC failures → 4,094 after 23 ancestry
+outliers**; the published 4,094 set comprises **3,400 unrelated + 698 related**
+samples (at the 4,117 PCA stage it was 3,419 unrelated + 698 related), genome-wide
+on GRCh38 (4,094 = 929 HGDP + 3,165 1kGP)
 ([gnomAD v3.1.2 release](https://gnomad.broadinstitute.org/news/2021-10-22-gnomad-v3-1-2-minor-release/),
 [gnomAD downloads](https://gnomad.broadinstitute.org/downloads#v3-hgdp-1kg)).
-The pairwise-kinship **> 0.05** / maximal-independent-set prune used here is a
-**proposed conservative choice for this pilot**, not asserted as a verified
-gnomAD threshold; confirm it against the first-party relatedness guidance
-before a build.
+The **kinship > 0.05 / maximal-independent-set** prune reused for the LD subset
+here is a **proposed reuse of the paper's PCA-relatedness QC choice**, not a
+claim that upstream calibrated that threshold for LD-panel construction, and the
+choice is this pilot's pending owner approval.
 
 Measured directly from the host's cached
 `/data/opengwasdb/reference/hgdp1kgp-hg38/source/cohort_populations.tsv`
 (sample metadata only — no genotype read):
 
 - The cache has **4,151 rows = 3,202 1kGP + 948 HGDP + 1 control**;
-  `high_quality == true` is **4,097 = 3,166 1kGP + 931 HGDP**. The gnomAD release
-  note says 4,094 = 3,165 1kGP + 929 HGDP. Raw-vs-QC filtering explains most of
-  the difference, but a **3-sample discrepancy remains and must be verified
-  against the first-party release** rather than waved away as a version
-  mismatch.
+  `high_quality == true` is **4,097 = 3,166 1kGP + 931 HGDP**. This named local
+  `high_quality` set is **not the same selection as the published 4,094**: the
+  paper's pipeline is raw 4,150 → 4,117 (33 QC) → 4,094 (23 ancestry outliers).
+  The task is therefore to **reconcile exact QC and ancestry-outlier membership**
+  against the paper's selection, not to resolve a 3-row count difference in
+  isolation.
 - **AMR rows:** 1,000 Genomes 490, HGDP 62 (all-project); `high_quality` gives
   487 1kGP AMR and 62 HGDP American.
 - **The official Phase 3 AMR baseline is the 347 IDs from §2.1.** All 347 are in
@@ -209,7 +215,7 @@ quality.
 | Variant inclusion | **Do not blindly copy MAC ≥ 50.** At n = 347 diploid (694 chromosomes) MAC ≥ 50 implies MAF ≥ **7.20%**; the optional expanded n = 487 only lowers that to 5.13% and is not the baseline. Propose a **MAC/MAF sensitivity pilot** over candidate floors (e.g. MAC 20/30/50) and adopt no lower cutoff without calibration evidence |
 | Missingness | mean-impute (existing `construct_block`), invariant/all-missing variants dropped |
 | Orientation | canonical EA = min(allele) with the existing reverse-code rule |
-| Relatedness | apply the joint callset's own pedigree/QC and gnomAD v3.1.2 kinship > 0.05 / maximal-independent-set pruning; record the retained count; the baseline is the official 347 (≤ 345 by `high_quality`) and the final n is unknown until this runs |
+| Relatedness | apply the joint callset's own pedigree/QC and the **Koenig et al. 2024** kinship > 0.05 / maximal-independent-set prune (proposed reuse of their PCA QC choice); record the retained count; the baseline is the official 347 (≤ 345 by `high_quality`) and the final n is unknown until this runs |
 | Sample inventory | start from the official Phase 3 AMR IDs (CLM 94/MXL 64/PEL 85/PUR 104; 345 after `high_quality`); the 143 expanded related AMR IDs are optional pruned sensitivity only; HGDP American excluded from the primary panel by default; a `membership.json` per panel |
 | Assembly check | reuse `verify_vcf` (GRCh38 header) and `verify_index`; no liftover |
 | Provenance | every block's `.provenance.json` (n individuals, input/retained variants, MAC, cumvar, components, achieved variance) |
@@ -339,6 +345,10 @@ build is authorised by writing it.
 - gnomAD v3.1.2 release (HGDP+1kGP subset, 4,094 = 929 + 3,165, GRCh38):
   <https://gnomad.broadinstitute.org/news/2021-10-22-gnomad-v3-1-2-minor-release/>
   and downloads: <https://gnomad.broadinstitute.org/downloads#v3-hgdp-1kg>
+- **Koenig et al. 2024**, *Genome Research* 34(5):796–809 (HGDP+1kGP sample QC
+  and relatedness: raw 4,150 → 4,117 → 4,094; 3,400 unrelated + 698 related);
+  DOI 10.1101/gr.278378.123, PMID 38749656, PMC11216312:
+  <https://pmc.ncbi.nlm.nih.gov/articles/PMC11216312/>
 - HGDP-CEPH resource: <https://www.hagsc.org/hgdp/>
 - Cann et al. 2002, "A human genome diversity cell line panel", *Science*
   296(5566):261–262; DOI 10.1126/science.296.5566.261b, PMID 11954565:
