@@ -281,7 +281,11 @@ def git_admitted_ids(store_id: str, ref: str, repo_root: Path | str | None = Non
 def _status_channel(bundle_obj: Bundle) -> Channel:
     status = bundle_obj.status or ""
     if status in bundle_module.VALID_STATUSES:
-        return Channel(EvidenceState.PASS, f"declared status {status!r}")
+        return Channel(
+            EvidenceState.PASS,
+            f"syntactically valid declared status {status!r} (a declared lifecycle "
+            "label, not an operational readiness verdict)",
+        )
     return Channel(
         EvidenceState.FAIL,
         f"declared status {status!r} is not in the Release Status vocabulary",
@@ -581,15 +585,25 @@ def _warnings_channel(
     validation = bundle_obj.validation or {}
     for warning in validation.get("warnings") or []:
         warnings.append(_warning_text(warning))
-    for warning in entry.get("warnings") or []:
+    ledger_warnings = entry.get("warnings") or []
+    for warning in ledger_warnings:
         warnings.append(_warning_text(warning))
-    if not warnings:
-        return Channel(EvidenceState.PASS, "no warnings recorded")
-    shown = warnings[:3]
-    detail = f"{len(warnings)} warning(s): " + "; ".join(shown)
-    if len(warnings) > len(shown):
-        detail += f"; … ({len(warnings) - len(shown)} more)"
-    return Channel(EvidenceState.PASS_WITH_WARNINGS, detail)
+    if warnings:
+        shown = warnings[:3]
+        detail = f"{len(warnings)} warning(s): " + "; ".join(shown)
+        if len(warnings) > len(shown):
+            detail += f"; … ({len(warnings) - len(shown)} more)"
+        return Channel(EvidenceState.PASS_WITH_WARNINGS, detail)
+    if bundle_obj.validation:
+        return Channel(
+            EvidenceState.PASS, "a Validation Record is present and records no warnings"
+        )
+    # No validation record and no captured warnings: the absence of recorded
+    # warnings is not evidence of a warning-free run (issue #217).
+    return Channel(
+        EvidenceState.UNKNOWN,
+        "no Validation Record and no captured warnings; a warning-free run is not evidenced",
+    )
 
 
 def _lineage_channel(

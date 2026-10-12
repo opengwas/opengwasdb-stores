@@ -37,7 +37,7 @@ passes, and a committed-baseline ID difference is not built-ID reconciliation.
 
 | Store | Channel | State | Detail |
 |:---|:---|:---|:---|
-| `OGS-00001` | release_status | pass | declared status 'built' |
+| `OGS-00001` | release_status | pass | syntactically valid declared status 'built' (a declared lifecycle label, not an operational readiness verdict) |
 | `OGS-00001` | source_acquisition | unknown | source snapshot 'eqtlgen-2019-cis-full' is declared but its selection and checksums are not independently verified here |
 | `OGS-00001` | intended_membership | unknown | no authoritative intended Source Inventory recorded; the 10 manifest rows are a selection, not intended membership |
 | `OGS-00001` | observed_build | pass | published artifact holds 10 Analyses (read via opengwasdb v0.3.0@7b0c42d94e43) |
@@ -52,7 +52,7 @@ passes, and a committed-baseline ID difference is not built-ID reconciliation.
 | `OGS-00001` | lineage | not_applicable | no derived_from lineage |
 | `OGS-00001` | warnings | pass_with_warnings | 1 warning(s): #134: 70 blank required Analysis values tolerated (BESD metadata exemption) |
 | `OGS-00001` | committed_validation_record | pass | committed Store validation 'passed' by opengwasdb validate |
-| `OGS-00002` | release_status | pass | declared status 'validated' |
+| `OGS-00002` | release_status | pass | syntactically valid declared status 'validated' (a declared lifecycle label, not an operational readiness verdict) |
 | `OGS-00002` | source_acquisition | unknown | source snapshot 'eqtlgen-2019-cis-full' is declared but its selection and checksums are not independently verified here |
 | `OGS-00002` | intended_membership | unknown | no authoritative intended Source Inventory recorded; the 10 manifest rows are a selection, not intended membership |
 | `OGS-00002` | observed_build | not_applicable | Reference-Completed release takes its observed parent's build |
@@ -67,7 +67,7 @@ passes, and a committed-baseline ID difference is not built-ID reconciliation.
 | `OGS-00002` | lineage | pass | derived from 'OGS-00001' |
 | `OGS-00002` | warnings | pass_with_warnings | 1 warning(s): #134: 70 blank required Analysis values tolerated (BESD metadata exemption) |
 | `OGS-00002` | committed_validation_record | pass | committed Store validation 'passed' by opengwasdb validate |
-| `OGS-00003` | release_status | pass | declared status 'built' |
+| `OGS-00003` | release_status | pass | syntactically valid declared status 'built' (a declared lifecycle label, not an operational readiness verdict) |
 | `OGS-00003` | source_acquisition | unknown | source snapshot 'finngen-r13-manifest-2026-05-12' is declared but its selection and checksums are not independently verified here |
 | `OGS-00003` | intended_membership | unknown | no authoritative intended Source Inventory recorded; the 10 manifest rows are a selection, not intended membership |
 | `OGS-00003` | observed_build | pass | published artifact holds 10 Analyses (read via opengwasdb v0.3.0@7b0c42d94e43) |
@@ -82,7 +82,7 @@ passes, and a committed-baseline ID difference is not built-ID reconciliation.
 | `OGS-00003` | lineage | not_applicable | no derived_from lineage |
 | `OGS-00003` | warnings | pass_with_warnings | 1 warning(s): finngen-r13-HEIGHT_IRN: empirical effect-scale status=failed |
 | `OGS-00003` | committed_validation_record | pass | committed Store validation 'passed' by opengwasdb validate |
-| `OGS-00004` | release_status | pass | declared status 'built' |
+| `OGS-00004` | release_status | pass | syntactically valid declared status 'built' (a declared lifecycle label, not an operational readiness verdict) |
 | `OGS-00004` | source_acquisition | unknown | source snapshot 'gwas-catalog-v1.0.3.1-r2026-07-10' is declared but its selection and checksums are not independently verified here |
 | `OGS-00004` | intended_membership | unknown | no authoritative intended Source Inventory recorded; the 10 manifest rows are a selection, not intended membership |
 | `OGS-00004` | observed_build | pass | published artifact holds 9 Analyses (read via opengwasdb v0.3.0@7b0c42d94e43) |
@@ -97,7 +97,7 @@ passes, and a committed-baseline ID difference is not built-ID reconciliation.
 | `OGS-00004` | lineage | not_applicable | no derived_from lineage |
 | `OGS-00004` | warnings | pass_with_warnings | 47 warning(s): GCST003566: excluded from build -- excluded_2026-08-22: effect_allele_frequency reported against the other allele (r=-0.999 vs EUR panel and vs the other nine studies); opengwasdb#115; GCST005076: n_cases present in the manifest but missing from the built store's analyses.tsv; GCST005076: n_controls present in the manifest but missing from the built store's analyses.tsv; … (44 more) |
 | `OGS-00004` | committed_validation_record | pass_with_warnings | committed Store validation 'passed_with_warnings' by opengwasdb validate |
-| `OGS-00005` | release_status | pass | declared status 'validated' |
+| `OGS-00005` | release_status | pass | syntactically valid declared status 'validated' (a declared lifecycle label, not an operational readiness verdict) |
 | `OGS-00005` | source_acquisition | unknown | source snapshot 'gwas-catalog-v1.0.3.1-r2026-07-10' is declared but its selection and checksums are not independently verified here |
 | `OGS-00005` | intended_membership | unknown | no authoritative intended Source Inventory recorded; the 10 manifest rows are a selection, not intended membership |
 | `OGS-00005` | observed_build | pass | published artifact holds 10 Analyses (read via opengwasdb v0.3.0@7b0c42d94e43) |
@@ -112,7 +112,7 @@ passes, and a committed-baseline ID difference is not built-ID reconciliation.
 | `OGS-00005` | lineage | not_applicable | no derived_from lineage |
 | `OGS-00005` | warnings | pass_with_warnings | 2 warning(s): analysis 'GCST003898' stores EAF whose orientation is unverified: only 120 variants overlap the reference, fewer than 500; GCST003898 stores EAF whose orientation is unverified (only 120 variants overlap the reference, fewer than 500); a known source-coordinate provenance difference remains. |
 | `OGS-00005` | committed_validation_record | pass_with_warnings | committed Store validation 'passed_with_warnings' by opengwasdb validate |
-| `OGS-00006` | release_status | pass | declared status 'built' |
+| `OGS-00006` | release_status | pass | syntactically valid declared status 'built' (a declared lifecycle label, not an operational readiness verdict) |
 | `OGS-00006` | source_acquisition | unknown | source snapshot 'gwas-catalog-v1.0.3.1-r2026-07-10' is declared but its selection and checksums are not independently verified here |
 | `OGS-00006` | intended_membership | unknown | no authoritative intended Source Inventory recorded; the 1400 manifest rows are a selection, not intended membership |
 | `OGS-00006` | observed_build | pass | published artifact holds 1400 Analyses (read via opengwasdb v0.3.0@7b0c42d94e43) |
@@ -127,7 +127,7 @@ passes, and a committed-baseline ID difference is not built-ID reconciliation.
 | `OGS-00006` | lineage | not_applicable | no derived_from lineage |
 | `OGS-00006` | warnings | pass_with_warnings | 2 warning(s): store has 58053989 associations but filter summary records 58054205; bundle carries a scientific association-count warning; production-sized Ragged qualification asset |
 | `OGS-00006` | committed_validation_record | pass_with_warnings | committed Store validation 'passed_with_warnings' by opengwasdb validate |
-| `OGS-00007` | release_status | pass | declared status 'built' |
+| `OGS-00007` | release_status | pass | syntactically valid declared status 'built' (a declared lifecycle label, not an operational readiness verdict) |
 | `OGS-00007` | source_acquisition | unknown | source snapshot 'gwas-catalog-v1.0.3.1-r2026-07-10' is declared but its selection and checksums are not independently verified here |
 | `OGS-00007` | intended_membership | unknown | no authoritative intended Source Inventory recorded; the 10 manifest rows are a selection, not intended membership |
 | `OGS-00007` | observed_build | pass | published artifact holds 10 Analyses (read via opengwasdb v0.3.0@7b0c42d94e43) |
@@ -142,7 +142,7 @@ passes, and a committed-baseline ID difference is not built-ID reconciliation.
 | `OGS-00007` | lineage | not_applicable | no derived_from lineage |
 | `OGS-00007` | warnings | pass_with_warnings | 30 warning(s): GCST005806: analysis_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83); GCST005806: trait_ontology_id present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83); GCST005806: trait_ontology_label present in the manifest but missing from the built store's analyses.tsv (see opengwasdb#83); … (27 more) |
 | `OGS-00007` | committed_validation_record | pass | committed Store validation 'passed' by opengwasdb validate |
-| `OGS-00008` | release_status | pass | declared status 'candidate' |
+| `OGS-00008` | release_status | pass | syntactically valid declared status 'candidate' (a declared lifecycle label, not an operational readiness verdict) |
 | `OGS-00008` | source_acquisition | unknown | source snapshot 'opengwas-gwas-vcf-ukb-b' is declared but its selection and checksums are not independently verified here |
 | `OGS-00008` | intended_membership | unknown | no authoritative intended Source Inventory recorded; the 10 manifest rows are a selection, not intended membership |
 | `OGS-00008` | observed_build | pass | published artifact holds 10 Analyses (read via opengwasdb v0.3.0@7b0c42d94e43) |
@@ -155,9 +155,9 @@ passes, and a committed-baseline ID difference is not built-ID reconciliation.
 | `OGS-00008` | registration | historical | host-side registration: host records/register.json from 2026-09-18 |
 | `OGS-00008` | format_runtime | pass | opengwasdb info: format 0.1.0, layout dense, completion observed_only |
 | `OGS-00008` | lineage | not_applicable | no derived_from lineage |
-| `OGS-00008` | warnings | pass | no warnings recorded |
+| `OGS-00008` | warnings | unknown | no Validation Record and no captured warnings; a warning-free run is not evidenced |
 | `OGS-00008` | committed_validation_record | missing | no committed Validation Record |
-| `OGS-00009` | release_status | pass | declared status 'candidate' |
+| `OGS-00009` | release_status | pass | syntactically valid declared status 'candidate' (a declared lifecycle label, not an operational readiness verdict) |
 | `OGS-00009` | source_acquisition | unknown | source snapshot 'opengwas-gwas-vcf-ukb-b' is declared but its selection and checksums are not independently verified here |
 | `OGS-00009` | intended_membership | unknown | intended 2514 from preliminary UKB intended/available count for #219; integrity verification pending (preliminary); manifest 2024, admitted 2024 |
 | `OGS-00009` | observed_build | fail | published artifact holds 2024 Analyses (read via opengwasdb v0.3.0@7b0c42d94e43); membership recorded incomplete pending restored inputs |
@@ -170,9 +170,9 @@ passes, and a committed-baseline ID difference is not built-ID reconciliation.
 | `OGS-00009` | registration | historical | host-side registration: host records/register.json from 2026-09-20 |
 | `OGS-00009` | format_runtime | pass | opengwasdb info: format 0.1.0, layout dense, completion observed_only |
 | `OGS-00009` | lineage | not_applicable | no derived_from lineage |
-| `OGS-00009` | warnings | pass | no warnings recorded |
+| `OGS-00009` | warnings | unknown | no Validation Record and no captured warnings; a warning-free run is not evidenced |
 | `OGS-00009` | committed_validation_record | missing | no committed Validation Record |
-| `OGS-00010` | release_status | pass | declared status 'candidate' |
+| `OGS-00010` | release_status | pass | syntactically valid declared status 'candidate' (a declared lifecycle label, not an operational readiness verdict) |
 | `OGS-00010` | source_acquisition | unknown | source snapshot 'opengwas-gwas-vcf-ukb-b' is declared but its selection and checksums are not independently verified here |
 | `OGS-00010` | intended_membership | unknown | no authoritative intended Source Inventory recorded; the 2024 manifest rows are a selection, not intended membership |
 | `OGS-00010` | observed_build | not_applicable | Reference-Completed release takes its observed parent's build |
@@ -185,9 +185,9 @@ passes, and a committed-baseline ID difference is not built-ID reconciliation.
 | `OGS-00010` | registration | historical | host-side registration: host records/register.json from 2026-09-20 |
 | `OGS-00010` | format_runtime | pass | opengwasdb info: format 0.1.0, layout dense, completion reference_completed |
 | `OGS-00010` | lineage | fail | derived from 'OGS-00009', whose membership is recorded incomplete; the derived artifact inherits that incompleteness |
-| `OGS-00010` | warnings | pass | no warnings recorded |
+| `OGS-00010` | warnings | unknown | no Validation Record and no captured warnings; a warning-free run is not evidenced |
 | `OGS-00010` | committed_validation_record | missing | no committed Validation Record |
-| `OGS-00011` | release_status | pass | declared status 'accepted' |
+| `OGS-00011` | release_status | pass | syntactically valid declared status 'accepted' (a declared lifecycle label, not an operational readiness verdict) |
 | `OGS-00011` | source_acquisition | unknown | source snapshot 'gwas-catalog-ssf-eur-hybrid-2026-09-22' is declared but its selection and checksums are not independently verified here |
 | `OGS-00011` | intended_membership | pass | intended 6035 from frozen Source Inventory gwas-catalog-ssf-eur-hybrid-2026-09-22; manifest is the selected subset (frozen); manifest 4783, admitted 3169 |
 | `OGS-00011` | observed_build | fail | published artifact holds 3317 Analyses (read via opengwasdb v0.3.0@7b0c42d94e43); 148 built-only, 0 admitted-only |
@@ -202,7 +202,7 @@ passes, and a committed-baseline ID difference is not built-ID reconciliation.
 | `OGS-00011` | lineage | not_applicable | no derived_from lineage |
 | `OGS-00011` | warnings | pass_with_warnings | 6 warning(s): 1162 Analysis/Analyses excluded by ancestry policy (unassigned, non-target, or orientation failure); see sidecars/exclusions.tsv; 166 included Analysis/Analyses have a high-dispersion SD estimate; see sidecars/sd_estimation.tsv; 1 Analysis/Analyses failed resolution and were excluded; see sidecars/exclusions.tsv; … (3 more) |
 | `OGS-00011` | committed_validation_record | missing | committed record 'passed_with_warnings' is candidate-generation evidence by resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py, not a Store validation |
-| `OGS-00016` | release_status | pass | declared status 'accepted' |
+| `OGS-00016` | release_status | pass | syntactically valid declared status 'accepted' (a declared lifecycle label, not an operational readiness verdict) |
 | `OGS-00016` | source_acquisition | unknown | source snapshot 'finngen-r13-manifest-2026-05-12' is declared but its selection and checksums are not independently verified here |
 | `OGS-00016` | intended_membership | unknown | no authoritative intended Source Inventory recorded; the 2754 manifest rows are a selection, not intended membership |
 | `OGS-00016` | observed_build | pass | published artifact holds 2754 Analyses (read via opengwasdb v0.3.0@7b0c42d94e43) |
@@ -215,7 +215,7 @@ passes, and a committed-baseline ID difference is not built-ID reconciliation.
 | `OGS-00016` | registration | historical | host-side registration: host records/register.json from 2026-09-30 |
 | `OGS-00016` | format_runtime | pass | opengwasdb info: format 0.1.0, layout dense, completion observed_only |
 | `OGS-00016` | lineage | not_applicable | no derived_from lineage |
-| `OGS-00016` | warnings | pass | no warnings recorded |
+| `OGS-00016` | warnings | pass | a Validation Record is present and records no warnings |
 | `OGS-00016` | committed_validation_record | missing | committed record 'passed' is candidate-generation evidence by resources/generators/lib/source-formats/finngen-r13-dense/acquire.py, not a Store validation |
 
 ## Built membership reconciliation

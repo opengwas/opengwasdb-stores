@@ -484,6 +484,36 @@ class TestEvidenceChannels(unittest.TestCase):
             record.channels["built_membership"].state, EvidenceState.HISTORICAL
         )
 
+    def test_release_status_declared_is_labelled_not_operational(self) -> None:
+        b = create_mock_bundle(self.stores, "OGS-00037", status="candidate")
+        record = self._reconcile(b, {"releases": {}})
+        channel = record.channels["release_status"]
+        self.assertEqual(channel.state, EvidenceState.PASS)
+        self.assertIn("declared", channel.detail)
+        self.assertIn("not an operational", channel.detail)
+        bad = create_mock_bundle(self.stores, "OGS-00038", status="not_a_status")
+        record = self._reconcile(bad, {"releases": {}})
+        self.assertEqual(record.channels["release_status"].state, EvidenceState.FAIL)
+
+    def test_warnings_absence_without_validation_is_unknown(self) -> None:
+        b = create_mock_bundle(self.stores, "OGS-00039")
+        record = self._reconcile(b, {"releases": {}})
+        self.assertEqual(record.channels["warnings"].state, EvidenceState.UNKNOWN)
+        clean = create_mock_bundle(
+            self.stores, "OGS-00040", validation_data=STORE_VALIDATION
+        )
+        record = self._reconcile(clean, {"releases": {}})
+        self.assertEqual(record.channels["warnings"].state, EvidenceState.PASS)
+        noisy = create_mock_bundle(
+            self.stores,
+            "OGS-00041",
+            validation_data=dict(STORE_VALIDATION, warnings=["orientation unverified"]),
+        )
+        record = self._reconcile(noisy, {"releases": {}})
+        self.assertEqual(
+            record.channels["warnings"].state, EvidenceState.PASS_WITH_WARNINGS
+        )
+
     def test_baseline_delta_and_built_history(self) -> None:
         b = create_mock_bundle(
             self.stores,
