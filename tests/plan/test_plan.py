@@ -135,12 +135,6 @@ def validate_step_argv_against_cli(test_case: unittest.TestCase, step: Step) -> 
     cmd_name = step.argv[1]
     cmd_args = step.argv[2:]
 
-    if cmd_name == "build-indexed-subset":
-        # The tracked pin (7b0c42d) predates the capability (opengwasdb#264);
-        # an Indexed Variant Subset is an opt-in format-0.2.0 path tracked by
-        # stores#197, so it cannot parse against the pinned CLI (#209/#211).
-        return
-
     test_case.assertIn(
         cmd_name,
         click_group.commands,

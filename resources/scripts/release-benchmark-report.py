@@ -25,12 +25,11 @@ The rule this script exists to keep (CONTRIBUTING):
   harness run as a subprocess, one Store per process (the harness enforces
   result identity across stores, so different-data Stores cannot share a run).
 
-The repository pin deliberately stays at a revision that predates Indexed
-Variant Subsets (stores#197 owns the format-0.2.0 bump), so the capability is an
-explicit run-time prerequisite: ``--opengwasdb-checkout PATH`` names the
-``opengwasdb`` checkout the helper and harness are imported from, and the
-artifact records that checkout's git revision and the imported package's
-fingerprint.
+The repository's tracked runtime now provides Indexed Variant Subsets
+(stores#218), but the benchmark report still takes an explicit
+``--opengwasdb-checkout PATH`` so it can name the ``opengwasdb`` checkout the
+helper and harness are imported from and record that checkout's git revision
+and the imported package's fingerprint in the artifact, per release:
 
 Usage (run under the opengwasdb checkout's environment, which carries zarr v3):
 

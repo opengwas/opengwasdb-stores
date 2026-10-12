@@ -56,7 +56,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-from ogstores import paths, register, resources, run
+from ogstores import paths, register, resources, run, runtime
 
 SNAKEFILE: Path = paths.REPO_ROOT / "workflow" / "Snakefile"
 
@@ -615,6 +615,11 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
         if store_id in forced and paths.store_path(store_id, root=scheduled_root).exists():
             print(f"release-dry: the real run would snapshot the records of {store_id} and replace it")
     try:
+        identity = runtime.verify_runtime_for_releases(idle, registry_root=registry_root)
+        print(f"release-dry: the real run would use {identity.describe()}")
+    except runtime.RuntimeGuardError as exc:
+        print(f"release-dry: the real run would refuse:\n{exc}")
+    try:
         resources.verify_indexed_subsets_for_releases(
             idle, registry_root=registry_root, repo_root=paths.REPO_ROOT
         )
@@ -629,6 +634,7 @@ GUARD_ERRORS: tuple[type[BaseException], ...] = (
     run.ForceSnapshotPendingError,
     run.PublicationPendingError,
     register.PublicationError,
+    runtime.RuntimeGuardError,
     resources.IndexedSubsetRuntimeError,
     resources.ReferenceResourceError,
     UsageError,
@@ -660,6 +666,13 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
         return 0
     for _, store_id in scheduled:
         locks.acquire(store_id)
+
+    # Pin and capability gate (#218): the runtime this run will execute must be
+    # the environment's tracked revision, provide every subcommand the scheduled
+    # plans name, and be able to complete every Reference-Completed release's
+    # existing parent. Refuse before the snapshot or any build work.
+    identity = runtime.verify_runtime_for_releases(scheduled, registry_root=registry_root)
+    print(f"release: runtime {identity.describe()}")
 
     # Declared Indexed Variant Subsets need a runtime capability the tracked pin
     # deliberately predates, and a maintained variant list that matches its

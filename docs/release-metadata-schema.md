@@ -483,8 +483,8 @@ checksum syntax, uniqueness, Dense/Hybrid only, no `overwrite`) without any
 resource I/O. Whether the `resource_id` resolves, whether the list matches the
 maintained checksum, and whether the runtime provides `build-indexed-subset`
 are run-time facts the release entry point verifies before a build; the
-tracked `opengwasdb` pin stays at its pre-subset revision until stores#197
-adopts format 0.2.0. See
+tracked `opengwasdb` pin provides the capability since stores#218, so the entry
+point needs no `PATH` overlay. See
 [ADR 0034](adr/0034-indexed-variant-subsets-in-release-planning.md) and the
 workflow specification's "Indexed Variant Subsets".
 
@@ -965,8 +965,11 @@ or checksum. The default is not a requirement:
 
 The resolved declaration is written to `build.yaml` in the shape documented under
 [`build.yaml`](#indexed-variant-subset-declarations). Because a subset-declaring
-release needs an `opengwasdb` providing `build-indexed-subset`, the pre-#197 pin
-needs a capability runtime on PATH; see `src/ogstores/resources.py`.
+release needs an `opengwasdb` providing `build-indexed-subset`, the release
+entry point probes for it and refuses a missing capability before any write; the
+repository's pinned current-format runtime provides it (stores#218). See
+`src/ogstores/resources.py`, `src/ogstores/runtime.py` and
+[the release runtime](../runtime.md).
 
 ### Effect-scale validation configuration
 

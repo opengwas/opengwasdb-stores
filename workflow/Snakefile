@@ -51,7 +51,7 @@ for _src in _CANDIDATE_SRC_DIRS:
     if _src is not None and _src.is_dir() and str(_src) not in sys.path:
         sys.path.insert(0, str(_src))
 
-from ogstores import bundle, index, manifest, paths, register, resources, run
+from ogstores import bundle, index, manifest, paths, register, resources, run, runtime
 from ogstores.plan import plan
 
 REGISTRY_ROOT: Path = Path(config.get("registry_root", "stores"))
@@ -133,6 +133,16 @@ onstart:
         scheduled,
         forced=run.forced_by_transaction(config.get("release_run"), scheduled),
     )
+    # Defence in depth for a direct `snakemake` run (#218): the resolved
+    # runtime must be the tracked pin, provide every capability the scheduled
+    # plans name, and be able to complete each existing parent. Refuse before
+    # the first job writes a Store.
+    try:
+        runtime.verify_runtime_for_releases(
+            scheduled, registry_root=REGISTRY_ROOT
+        )
+    except runtime.RuntimeGuardError as exc:
+        raise WorkflowError(str(exc))
     # Defence in depth for a direct `snakemake` run (#209): a declared Indexed
     # Variant Subset needs a `build-indexed-subset`-capable runtime and a
     # maintained variant list that matches its declaration. Refuse before the

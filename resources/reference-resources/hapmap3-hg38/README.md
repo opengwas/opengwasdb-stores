@@ -119,10 +119,8 @@ lacks some of these ALIDs is the ordinary "absent from the axis" case the subset
 builder counts and records; it does not change this list.
 
 Consuming this resource needs an `opengwasdb` runtime that provides
-`build-indexed-subset` (opengwas/opengwasdb#264–#271). The repository pin
-(`opengwasdb 0.3.0`, revision `7b0c42d`) is deliberately left unchanged here:
-adopting a newer runtime and Store format is the separate migration tracked by
-[stores#197](https://github.com/opengwas/opengwasdb-stores/issues/197).
-stores#209 plans and runs the subset step and must document and preflight the
-newer-runtime prerequisite; #208 only promotes the input and does not bump the
-pin.
+`build-indexed-subset` (opengwas/opengwasdb#264–#271). The repository's tracked
+current-format runtime now provides it (stores#218; `opengwasdb 0.3.0`,
+revision `1be2a15`), so the supported release entry point needs no `PATH`
+overlay. The entry point still probes for the command and refuses loudly when
+the runtime does not provide it; see [docs/runtime.md](../../../docs/runtime.md).

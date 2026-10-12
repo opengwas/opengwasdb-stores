@@ -6,13 +6,12 @@ and the Snakefile's `onstart` hook call before a run that declares Indexed
 Variant Subsets. It does two things, both before any expensive work:
 
 * **Runtime capability.** The declared step runs `opengwasdb
-  build-indexed-subset`, which the repository pin deliberately predates (the
-  capability first ships in opengwas/opengwasdb#264, revision `4819a2ee`, and
-  every revision that has it also writes Store format 0.2.0). Until stores#197
-  adopts that format, the capability is a documented run-time prerequisite: if
-  any scheduled release declares a subset and the resolved `opengwasdb` does not
-  provide the subcommand, the run is refused with the required capability and
-  the reason, rather than failing hours into a build.
+  build-indexed-subset`, which the repository's pinned current-format runtime
+  provides (first shipped in opengwas/opengwasdb#264, revision `4819a2ee`; the
+  pin adopted by stores#218 is a descendant). The capability is still probed
+  before a subset-declaring run: if the resolved `opengwasdb` does not provide
+  the subcommand, the run is refused with the required capability and the
+  reason, rather than failing hours into a build.
 
 * **Maintained input.** A declaration names a `resource_id`; this resolves
   `resources/reference-resources/<resource_id>/resource.yaml` and requires the
@@ -236,10 +235,9 @@ def verify_indexed_subsets_for_releases(
             f"Release(s) {names} declare an Indexed Variant Subset, which needs an "
             "opengwasdb runtime providing `build-indexed-subset` "
             "(opengwas/opengwasdb#264, revision 4819a2ee or later). The resolved "
-            f"opengwasdb is {resolved!r}. The repository pin 7b0c42d deliberately "
-            "predates that capability; adopting the newer runtime and its Store "
-            "format 0.2.0 is tracked by stores#197. Put a subset-capable "
-            "`opengwasdb` on PATH and re-run."
+            f"opengwasdb is {resolved!r}. That capability is part of the repository's "
+            "pinned current-format runtime (stores#218); install the tracked lock with "
+            "`pixi install` and re-run rather than substituting an executable on PATH."
         )
 
     for store_id, declarations in declarations_by_store:
