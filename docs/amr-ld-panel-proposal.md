@@ -70,7 +70,8 @@ The primary description is Byrska-Bishop et al., *Cell* 185, 3426–3440 (2022):
 **3,202 samples**, **602 complete parent–child trios**, **2,504 original
 unrelated + 698 additional related samples**, re-sequenced to ~30× and aligned
 to **GRCh38**
-([Cell article](https://www.cell.com/cell/fulltext/S0092-8674(22)00593-2),
+([PubMed 36055201](https://pubmed.ncbi.nlm.nih.gov/36055201/),
+DOI [10.1016/j.cell.2022.08.004](https://doi.org/10.1016/j.cell.2022.08.004);
 [IGSR 30× collection](https://www.internationalgenome.org/data-portal/data-collection/30x-high-coverage)).
 Filtering the related subset is advised for analyses that assume independence;
 the extra depth improves variant discovery, not sample independence. A panel
@@ -80,10 +81,14 @@ built from all 3,202 would include 698 non-independent individuals.
 
 The registry already acquires this joint GRCh38 genome-wide callset
 ([`acquire_hgdp1kgp.py`](../resources/scripts/ld-panel/acquire_hgdp1kgp.py),
-gnomAD v3.1.2). gnomAD describes the subset as **~4,094 samples (929 HGDP +
-3,165 1kGP)** genome-wide on GRCh38, with a recommended relatedness filter of
-pairwise kinship **> 0.05** pruned by a maximal independent set
-([gnomAD downloads](https://gnomad.broadinstitute.org/downloads)).
+gnomAD v3.1.2). gnomAD's v3.1.2 release describes the subset as **4,094 samples
+(929 HGDP + 3,165 1kGP)** genome-wide on GRCh38
+([gnomAD v3.1.2 release](https://gnomad.broadinstitute.org/news/2021-10-22-gnomad-v3-1-2-minor-release/),
+[gnomAD downloads](https://gnomad.broadinstitute.org/downloads#v3-hgdp-1kg)).
+The pairwise-kinship **> 0.05** / maximal-independent-set prune used here is a
+**proposed conservative choice for this pilot**, not asserted as a verified
+gnomAD threshold; confirm it against the first-party relatedness guidance
+before a build.
 
 Measured directly from the host's cached
 `/data/opengwasdb/reference/hgdp1kgp-hg38/source/cohort_populations.tsv`
@@ -116,7 +121,8 @@ The HGDP American continent is represented by five indigenous populations —
 Pima, Maya, Karitiana, Surui and Colombian — with small, relatedness-heavy
 samples (the HGDP-CEPH panel has ~25 each before removing duplicate/relative
 pairs; e.g. Karitiana/Surui are strongly bottlenecked and homozygous)
-([HGDP resource](https://www.hagsc.org/hgdp/), [Cann et al. 2002](https://www.nature.com/articles/nature02029)).
+([HGDP resource](https://www.hagsc.org/hgdp/),
+[Cann et al. 2002, PubMed 11954565](https://pubmed.ncbi.nlm.nih.gov/11954565/)).
 1kGP AMR (CLM/MXL/PEL/PUR) are modern **admixed** populations with tripartite
 Native-American/European/West-African ancestry. They are not interchangeable:
 the HGDP groups are baseline indigenous references; the 1kGP groups are
@@ -320,8 +326,8 @@ build is authorised by writing it.
 - IGSR Phase 3 collection (2,504 unrelated, 26 populations):
   <https://www.internationalgenome.org/data-portal/data-collection/phase-3>
 - **Byrska-Bishop et al. 2022**, *Cell* 185, 3426–3440 (3,202 = 2,504 unrelated +
-  698 related; 602 trios; GRCh38):
-  <https://www.cell.com/cell/fulltext/S0092-8674(22)00593-2>
+  698 related; 602 trios; GRCh38); DOI 10.1016/j.cell.2022.08.004, PMID 36055201,
+  PMC9439720: <https://pubmed.ncbi.nlm.nih.gov/36055201/>
 - IGSR 30× high-coverage GRCh38 collection:
   <https://www.internationalgenome.org/data-portal/data-collection/30x-high-coverage>
 - IGSR population pages (CLM/MXL/PEL/PUR):
@@ -330,10 +336,13 @@ build is authorised by writing it.
   <https://www.internationalgenome.org/data-portal/population/PEL>,
   <https://www.internationalgenome.org/data-portal/population/PUR>
 - IGSR FAQ (relatedness/pedigrees): <https://www.internationalgenome.org/faq/>
-- gnomAD downloads (HGDP+1kGP v3.1.2, GRCh38, relatedness filtering):
-  <https://gnomad.broadinstitute.org/downloads>
+- gnomAD v3.1.2 release (HGDP+1kGP subset, 4,094 = 929 + 3,165, GRCh38):
+  <https://gnomad.broadinstitute.org/news/2021-10-22-gnomad-v3-1-2-minor-release/>
+  and downloads: <https://gnomad.broadinstitute.org/downloads#v3-hgdp-1kg>
 - HGDP-CEPH resource: <https://www.hagsc.org/hgdp/>
-- Cann et al. 2002, HGDP cell-line panel: <https://www.nature.com/articles/nature02029>
+- Cann et al. 2002, "A human genome diversity cell line panel", *Science*
+  296(5566):261–262; DOI 10.1126/science.296.5566.261b, PMID 11954565:
+  <https://pubmed.ncbi.nlm.nih.gov/11954565/>
 - Owner AMR-reference request (epic comment):
   <https://github.com/opengwas/opengwasdb-stores/issues/232#issuecomment-6133854434>
 - Core LD-panel contract: `docs/adr/0031-ld-panels-store-eigendecompositions.md`
