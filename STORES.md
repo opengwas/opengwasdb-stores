@@ -4,20 +4,20 @@ Generated master list of Store Releases in this registry.
 
 > Generated from Release Bundles in `stores/`. Do not edit by hand; regenerate with `pixi run index`.
 
-| Store ID | Label | Layout | Completion | Status | Format | Analyses | Variants | Associations | Validated |
+| Store ID | Label | Layout | Completion | Status | Format | Analyses (admitted) | Excluded | Variants | Associations | Validated |
 |:---|:---|:---|:---|:---|:---|:---|---:|---:|---:|:---|
-| `OGS-00001` | pilot-10 | ragged | observed_only | built | 0.1.0 | 10 | 86,376 | 86,373 | passed |
-| `OGS-00002` | pilot-10-completed | ragged | reference_completed | validated | 0.1.0 | 10 | 207,764 | 207,761 | passed |
-| `OGS-00003` | r13-pilot-20 | dense | observed_only | built | 0.1.0 | 10 | 21,230,615 | 212,306,150 | passed |
-| `OGS-00004` | eur-hybrid-pilot-10 | hybrid | observed_only | built | - | 10 | - | - | passed_with_warnings |
-| `OGS-00005` | eur-hybrid-quant-pilot-10 | hybrid | observed_only | validated | - | 10 | 14,763,864 | - | passed_with_warnings |
-| `OGS-00006` | 2023-chen-full-european | ragged | observed_only | built | - | 1,400 | - | - | passed_with_warnings |
-| `OGS-00007` | 2018-sun-pilot-10 | ragged | observed_only | built | - | 10 | - | - | passed |
-| `OGS-00008` | ukb-b-pilot-10 | dense | observed_only | candidate | - | 10 | - | - | - |
-| `OGS-00009` | ukb-b-full-observed | dense | observed_only | candidate | - | 2,024 | - | - | - |
-| `OGS-00010` | ukb-b-full-completed | dense | reference_completed | candidate | - | 2,024 | - | - | - |
-| `OGS-00011` | eur-hybrid-full | hybrid | observed_only | accepted | - | 4,783 | - | - | passed_with_warnings |
-| `OGS-00016` | r13-full | dense | observed_only | accepted | - | 2,754 | - | - | passed |
+| `OGS-00001` | pilot-10 | ragged | observed_only | built | 0.1.0 | 10 | 0 | 86,376 | 86,373 | passed |
+| `OGS-00002` | pilot-10-completed | ragged | reference_completed | validated | 0.1.0 | 10 | 0 | 207,764 | 207,761 | passed |
+| `OGS-00003` | r13-pilot-20 | dense | observed_only | built | 0.1.0 | 10 | 0 | 21,230,615 | 212,306,150 | passed |
+| `OGS-00004` | eur-hybrid-pilot-10 | hybrid | observed_only | built | - | 9 | 1 | - | - | passed_with_warnings |
+| `OGS-00005` | eur-hybrid-quant-pilot-10 | hybrid | observed_only | validated | - | 10 | 0 | 14,763,864 | - | passed_with_warnings |
+| `OGS-00006` | 2023-chen-full-european | ragged | observed_only | built | - | 1,400 | 0 | - | - | passed_with_warnings |
+| `OGS-00007` | 2018-sun-pilot-10 | ragged | observed_only | built | - | 10 | 0 | - | - | passed |
+| `OGS-00008` | ukb-b-pilot-10 | dense | observed_only | candidate | - | 10 | 0 | - | - | - |
+| `OGS-00009` | ukb-b-full-observed | dense | observed_only | candidate | - | 2,024 | 0 | - | - | - |
+| `OGS-00010` | ukb-b-full-completed | dense | reference_completed | candidate | - | 2,024 | 0 | - | - | - |
+| `OGS-00011` | eur-hybrid-full | hybrid | observed_only | accepted | - | 3,169 | 1,614 | - | - | passed_with_warnings |
+| `OGS-00016` | r13-full | dense | observed_only | accepted | - | 2,754 | 0 | - | - | passed |
 
 ## Derived membership summaries
 

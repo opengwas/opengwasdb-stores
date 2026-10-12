@@ -1,0 +1,187 @@
+# Historical host-side evidence for the Store Release readiness view (#217).
+#
+# Membership (intended/admitted/excluded) is derived from each committed
+# Release Bundle's `analyses.tsv` and is NOT recorded here. This ledger records
+# only the facts the registry cannot re-derive: what the published artifact on
+# the named host holds, which host execution records exist, the documented
+# #199 committed-vs-published mismatches, and the historical membership
+# baseline for OGS-00011. Errata are recorded as history; nothing here triggers
+# a rebuild, a validate run, or an identity change.
+#
+# Schema (per `releases/<store-id>` entry):
+#   built_analyses:       int | null   Analyses in the published artifact
+#   built_baseline_ref:   git ref      committed bundle whose admitted set equals
+#                                      the published artifact (for an explicit
+#                                      membership ID-set difference)
+#   baseline_note:        str          what the baseline represents
+#   incomplete_membership: bool        published artifact is known incomplete
+#   host_validation:      str          host-side Store validation provenance
+#   host_registration:    str          host-side registration provenance
+#   host_evidence_ref:    str          branch/ref carrying uncommitted evidence
+#   published_format:     str          format_version the artifact declares
+#   hm3_present:          bool         optional HM3 Indexed Variant Subset present
+#   warnings:             [str]        warnings beyond the committed record
+#   errata:               [str]        recorded corrections/asymmetries
+#   blockers:             [str]        unresolved items preventing readiness
+recorded_at: '2026-10-12'
+artifact_root: /data/opengwasdb/stores
+notes: >-
+  Read-only reconciliation of the 12 registered Release Bundles against the
+  historical 11 October 2026 host inspection. No build, conversion, repair or
+  Store validation was rerun. A successful historical validate/register on the
+  host is evidence about a past run, not a claim that current HEAD revalidated
+  the artifact.
+
+releases:
+  OGS-00001:
+    built_analyses: 10
+    published_format: '0.1.0'
+    host_validation: >-
+      published Store built/validated 2026-09-18; committed Validation Record
+      describes the 2026-09-16 build (opengwasdb@a9e8bc8)
+    host_registration: 'host records/register.json from 2026-09-18'
+    warnings:
+      - '#134: 70 blank required Analysis values tolerated (BESD metadata exemption)'
+    errata:
+      - >-
+        #199: the committed Validation Record describes the 16 Sep build, not
+        the published 18 Sep Store. Preserved as history; a forced re-register
+        needs its own gate.
+
+  OGS-00002:
+    built_analyses: 10
+    published_format: '0.1.0'
+    host_validation: >-
+      published Store reference-completed and validated 2026-09-18; committed
+      record describes the 2026-09-15 build (opengwasdb@a9e8bc8)
+    host_registration: 'host records/complete.json, validate.json, register.json from 2026-09-18'
+    warnings:
+      - '#134: 70 blank required Analysis values tolerated (BESD metadata exemption)'
+    errata:
+      - >-
+        #199: the committed Validation Record describes an older build than the
+        published Store. Preserved as history.
+
+  OGS-00003:
+    built_analyses: 10
+    published_format: '0.1.0'
+    host_validation: >-
+      published Store built/validated 2026-09-18; committed record describes the
+      2026-09-16 build
+    host_registration: 'host records/build.json, validate.json, register.json from 2026-09-18'
+    hm3_present: false
+    errata:
+      - >-
+        #199: committed record predates the published Store, and
+        `release.yaml` still describes a 20-Analysis order while the bundle
+        holds 10 admitted Analyses. Membership is the bundle's 10.
+
+  OGS-00004:
+    built_analyses: 9
+    published_format: '0.1.0'
+    host_validation: 'published Store built/validated 2026-09-18'
+    host_registration: 'host records/build.json, validate.json, register.json from 2026-09-18'
+    hm3_present: false
+    warnings:
+      - >-
+        10 manifest rows, 1 excluded (GCST003566 EAF reported against the other
+        allele, opengwasdb#115): admitted membership is 9, not 10.
+
+  OGS-00005:
+    built_analyses: 10
+    published_format: '0.1.0'
+    host_validation: 'published Store rebuilt and re-registered 2026-10-08/09 through the supported force/archive workflow'
+    host_registration: 'host records from the 2026-10-08/09 re-registration'
+    hm3_present: false
+    warnings:
+      - >-
+        GCST003898 stores EAF whose orientation is unverified (only 120
+        variants overlap the reference, fewer than 500); a known
+        source-coordinate provenance difference remains.
+
+  OGS-00006:
+    built_analyses: 1400
+    published_format: '0.1.0'
+    host_validation: 'published Store built/validated 2026-09-18'
+    host_registration: 'host records/build.json, validate.json, register.json from 2026-09-18'
+    warnings:
+      - 'bundle carries a scientific association-count warning; production-sized Ragged qualification asset'
+
+  OGS-00007:
+    built_analyses: 10
+    published_format: '0.1.0'
+    host_validation: 'published Store built/validated 2026-09-18'
+    host_registration: 'host records/build.json, validate.json, register.json from 2026-09-18'
+
+  OGS-00008:
+    built_analyses: 10
+    published_format: '0.1.0'
+    host_validation: 'published Store built/validated 2026-09-18'
+    host_registration: 'host records/register.json from 2026-09-18'
+    hm3_present: false
+    errata:
+      - >-
+        Release Status is `candidate` and no committed Validation Record
+        exists, although the host holds a built/validated/registered Store.
+
+  OGS-00009:
+    built_analyses: 2024
+    incomplete_membership: true
+    published_format: '0.1.0'
+    host_validation: 'published Store built 2026-09-19, validated/registered 2026-09-20 (9,847,701 variants; build 5.92 h, validate 1.30 h)'
+    host_registration: 'host records/register.json from 2026-09-20'
+    host_evidence_ref: 'origin/feat/ogs-00009-build-evidence@bf4446d'
+    hm3_present: false
+    blockers:
+      - >-
+        The 2,024-Analysis artifact is explicitly incomplete; approximately 500
+        previously missing source Analyses are being restored (#219). Freeze the
+        exact verified membership after copying; do not assume the final total.
+
+  OGS-00010:
+    built_analyses: 2024
+    published_format: '0.1.0'
+    host_validation: 'published Store reference-completed/validated/registered 2026-09-20 (13,549,988 variants; completion 8.80 h, validate 1.85 h)'
+    host_registration: 'host records/register.json from 2026-09-20'
+    hm3_present: false
+    lineage_note: 'reference-completed against the HGDP+1kGP hg38 EUR panel'
+    errata:
+      - >-
+        OGS-00010 derives from the incomplete OGS-00009. It is a valid
+        historical artifact but is not a valid completed descendant of the
+        restored membership.
+    blockers:
+      - 'requires a compatible complete observed parent (#219/#222)'
+
+  OGS-00011:
+    built_analyses: 3317
+    built_baseline_ref: 26fb1ec
+    baseline_note: >-
+      The old published 3,317-Analysis Store (built/validated 2026-09-30,
+      11.72 h build, 1.63 h validate) predates the #203 composition change. The
+      current accepted bundle admits 3,169; the explicit delta is the 148
+      not_maf_filtered Analyses routed to #204 (zero additions).
+    published_format: '0.1.0'
+    host_validation: 'the previous 3,317-Analysis artifact was built 2026-09-30 and validated (1.63 h); the current 3,169-member bundle is not built'
+    host_registration: 'host records/register.json from the 2026-09-30 previous-bundle run'
+    hm3_present: false
+    blockers:
+      - 'the current 3,169 admitted composition is not built (#225)'
+
+  OGS-00016:
+    built_analyses: 2754
+    published_format: '0.1.0'
+    host_validation: >-
+      full observed Store built/validated/registered 2026-09-30 (21,230,615
+      variants; build 12.35 h, validate 3.54 h)
+    host_registration: 'host records/register.json from 2026-09-30'
+    host_evidence_ref: 'fix/ogs-00016-build-tmpdir@c871b61'
+    hm3_present: false
+    errata:
+      - >-
+        The full build/validation evidence exists on a local branch
+        (fix/ogs-00016-build-tmpdir@c871b61) that is not reachable from any
+        origin ref and is not merged into dev; the committed Validation Record
+        remains acquisition/metadata evidence.
+    blockers:
+      - 'Reference-Completed descendant required (#223)'

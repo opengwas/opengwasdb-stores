@@ -49,6 +49,8 @@ COLUMNS: tuple[str, ...] = (
     "build_command",
     "format_version",
     "n_analyses",
+    "n_intended",
+    "n_excluded",
     "n_variants",
     "n_associations",
     "store_bytes",
@@ -131,10 +133,15 @@ def render_stores_row(
     format_version = obs.get("format_version")
     format_version_str = str(format_version) if format_version else ""
 
-    # Analysis count describes bundle membership, so it is derived from the
-    # table rather than copied from build-time observations. Issue #135's
+    # Membership counts describe bundle membership, so they are derived from
+    # the table rather than copied from build-time observations. Issue #135's
     # observed-only contract still applies to every actual Store measurement.
+    # n_analyses is the admitted (buildable) membership; n_intended and
+    # n_excluded keep the excluded rows visible instead of counting them as
+    # built Analyses (issue #217).
     n_analyses_str = str(membership_summary["n_analyses"])
+    n_intended_str = str(membership_summary["n_intended"])
+    n_excluded_str = str(membership_summary["n_excluded"])
 
     n_variants = obs.get("n_variants")
     n_variants_str = str(n_variants) if n_variants != "" and n_variants is not None else ""
@@ -169,6 +176,8 @@ def render_stores_row(
         "build_command": build_command,
         "format_version": format_version_str,
         "n_analyses": n_analyses_str,
+        "n_intended": n_intended_str,
+        "n_excluded": n_excluded_str,
         "n_variants": n_variants_str,
         "n_associations": n_associations_str,
         "store_bytes": store_bytes_str,
@@ -241,7 +250,7 @@ def render_stores_md(
         "",
         "> Generated from Release Bundles in `stores/`. Do not edit by hand; regenerate with `pixi run index`.",
         "",
-        "| Store ID | Label | Layout | Completion | Status | Format | Analyses | Variants | Associations | Validated |",
+        "| Store ID | Label | Layout | Completion | Status | Format | Analyses (admitted) | Excluded | Variants | Associations | Validated |",
         "|:---|:---|:---|:---|:---|:---|:---|---:|---:|---:|:---|",
     ]
 
@@ -253,11 +262,12 @@ def render_stores_md(
         st = row["status"] or "-"
         fmt = row["format_version"] or "-"
         n_ana = _format_cell(row["n_analyses"])
+        n_exc = _format_cell(row["n_excluded"])
         n_var = _format_cell(row["n_variants"])
         n_assoc = _format_cell(row["n_associations"])
         val_st = row["validate_status"] or "-"
 
-        lines.append(f"| {sid} | {lbl} | {lay} | {comp} | {st} | {fmt} | {n_ana} | {n_var} | {n_assoc} | {val_st} |")
+        lines.append(f"| {sid} | {lbl} | {lay} | {comp} | {st} | {fmt} | {n_ana} | {n_exc} | {n_var} | {n_assoc} | {val_st} |")
 
     lines.extend([
         "",

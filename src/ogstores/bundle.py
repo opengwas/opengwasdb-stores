@@ -22,6 +22,7 @@ from urllib.parse import urlsplit, urlunsplit
 import yaml
 from opengwasdb.model import analyses as opengwasdb_analyses
 
+from ogstores.manifest import EXCLUDE_COLUMN, classify_exclusion
 from ogstores.paths import is_valid_store_id
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
@@ -422,15 +423,62 @@ def _collapse_url(table: opengwasdb_analyses.AnalysesTable, column: str) -> str:
     return urlunsplit((first.scheme, first.netloc, common_path or "/", "", ""))
 
 
+def partition_membership(
+    table: opengwasdb_analyses.AnalysesTable,
+) -> tuple[list[Mapping[str, str]], list[Mapping[str, str]]]:
+    """Split ``analyses.tsv`` rows into (admitted, excluded) using one strict parse.
+
+    ``exclude_from_build`` is the registry-only admission column (ADR 0025).
+    This is the same classifier the build-manifest materialiser uses, so a
+    review view cannot count a row as admitted that the builder would refuse.
+    """
+    admitted: list[Mapping[str, str]] = []
+    excluded: list[Mapping[str, str]] = []
+    for row_index, row in enumerate(table.rows):
+        analysis_id = (row.get("analysis_id") or "").strip()
+        if classify_exclusion(row.get(EXCLUDE_COLUMN), row_index, analysis_id):
+            excluded.append(row)
+        else:
+            admitted.append(row)
+    return admitted, excluded
+
+
+def membership_ids(bundle: Bundle) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return ``(admitted analysis_ids, excluded analysis_ids)`` from ``analyses.tsv``.
+
+    Reads only the bundle's membership table, never a Store or Release
+    Artifact (ADR 0023): the registry owns intended and admitted membership;
+    what was actually built is a separate evidence channel.
+    """
+    table = opengwasdb_analyses.read_analyses(bundle.analyses_path)
+    admitted, excluded = partition_membership(table)
+    admitted_ids = tuple((row.get("analysis_id") or "").strip() for row in admitted)
+    excluded_ids = tuple((row.get("analysis_id") or "").strip() for row in excluded)
+    return admitted_ids, excluded_ids
+
+
 def summarise(bundle: Bundle) -> dict[str, str | int]:
     """Derive a Store Release summary solely from its Analysis membership.
 
     The function reads ``analyses.tsv`` and no Store or Release Artifact. It
     preserves absence as ``NA`` and raw constant values verbatim; it never
     substitutes metadata from ``release.yaml`` or a Build Recipe.
+
+    Membership counts are separated rather than collapsed: ``n_intended`` is
+    every manifest row, ``n_admitted`` the rows that pass the
+    ``exclude_from_build`` admission column, and ``n_excluded`` the rest.
+    ``n_analyses`` is the admitted count -- the Store's membership -- so a
+    derived view never presents an excluded manifest row as a built Analysis
+    (issue #217).
     """
     table = opengwasdb_analyses.read_analyses(bundle.analyses_path)
-    summary: dict[str, str | int] = {"n_analyses": len(table.rows)}
+    admitted, excluded = partition_membership(table)
+    summary: dict[str, str | int] = {
+        "n_intended": len(table.rows),
+        "n_admitted": len(admitted),
+        "n_excluded": len(excluded),
+        "n_analyses": len(admitted),
+    }
     for column in _IDENTIFIER_SUMMARY_COLUMNS:
         summary[column] = _collapse_identifier(table, column)
     summary["sample_size"] = _collapse_quantity(table, "sample_size")
@@ -1165,5 +1213,8 @@ __all__ = [
     "check",
     "is_legal_status_transition",
     "load",
+    "membership_ids",
+    "partition_membership",
+    "summarise",
     "validate_status_transition",
 ]
