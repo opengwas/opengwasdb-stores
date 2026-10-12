@@ -188,7 +188,8 @@ Suggested merge order (minimises conflicts on `run_all_tests.py` and
   EUR calibration vs production UKB EUR; both absent on this host).
 - **Core (for #222)**: `assign-ancestry` GRCh37→GRCh38 liftover wiring; one-pass
   `resolve-analyses` cannot stream GWAS-VCF (core #207). No registry-side copy of
-  association processing.
+  association processing. Filed: opengwas/opengwasdb#277 (liftover wiring) +
+  scoping comment on opengwas/opengwasdb#207.
 
 ## Runtime and ancestry-resolution checkpoint
 
