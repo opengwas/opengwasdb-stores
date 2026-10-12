@@ -13,7 +13,10 @@
 # satisfy both until a canonical `EUR` folder exists at the declared root. The
 # owner-approved path is a later, non-destructive `EUR -> ukb` alias (or an
 # isolated reference root with that alias); this file only records the intended
-# declaration.
+# declaration. Status: the isolated work-root alias
+# `/data/opengwasdb/work/epic232/219/reference-root/EUR` already exists (created
+# for read-only qualification); what is pending is the production
+# alias/declaration ACTIVATION, not link creation.
 resource_id: ukb-hg38-eur-ld
 label: UK Biobank hg38 EUR LD reference panel (49,766 UKB EUR; eigendecomposition)
 kind: ld_panel
@@ -44,6 +47,9 @@ notes: >
   `<start>-<end>.ldeig.npz` + `.afreq` (and optional `.unphased.vcor1.gz`); the
   representative block `1/101384499-103762931` has 9,633 variants with
   `values` (9633,) and `vectors` (9633, 250) in the `.npz`, matching the TSV.
-  GRCh38 is qualified by a bounded spot-check (841 of 9,633 panel ALIDs match the
-  maintained HapMap3 GRCh38 ALID list exactly on position and allele pair) and by
-  the `ld_reference_panel_hg38` source path in the block logs.
+  GRCh38 is supported by *spot evidence* (841 of 9,633 panel ALIDs in one block
+  match the maintained HapMap3 GRCh38 ALID list exactly on position and allele
+  pair), not proof for the whole panel, and by the `ld_reference_panel_hg38`
+  source path in the block logs. NPZ/TSV agreement was dimensional only
+  (`values` (9633,), `vectors` (9633, 250), TSV 9633 rows) — not an ordinal /
+  SNP-id / allele identity qualification.

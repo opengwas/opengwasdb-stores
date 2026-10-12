@@ -1,7 +1,10 @@
 # Restored UKB successors: identity, completion-panel and qualification plan (#219)
 
-Owner decision cited:
-<https://github.com/opengwas/opengwasdb-stores/issues/219#issuecomment-6132878514>.
+Owner decisions cited:
+<https://github.com/opengwas/opengwasdb-stores/issues/219#issuecomment-6132878514>
+(the 2,514 replacement + production UKB EUR panel path) and
+<https://github.com/opengwas/opengwasdb-stores/issues/219#issuecomment-6133853820>
+(successor identity / replacement lineage / bundle-retention clarification).
 The restored 2,514-Analysis target is accepted as the replacement for the
 incomplete `OGS-00009`/`OGS-00010` pair; the successor identities are
 **`OGS-00030`** (observed) and **`OGS-00031`** (completed). Historical **Store
@@ -21,6 +24,7 @@ preserved on `ticket/219-restored-ukb`.
 ## Identity and replacement lineage
 
 Machine-readable codification: `resources/generators/ukb-b/successor-identity.yaml`.
+Lineage source (owner, durable): issue comment 6133853820.
 
 | Historical (preserved) | Successor | Relation |
 |---|---|---|
@@ -60,7 +64,10 @@ the declared reference root (owner/infra), after which
 `--ld-panel /data/opengwasdb/reference/ld --ancestry EUR` resolves both axes with
 no change to `assigned_ancestry` or to core. The isolated work root above provides
 the same resolution for qualification today without mutating the physical panel,
-old Stores, mirror or production registry. No such alias is created by this plan.
+old Stores, mirror or production registry. To be precise about "pending": the
+isolated `reference-root/EUR` symlink **already exists** (created for
+qualification); what remains pending is the **production alias/declaration
+activation** and the resource-declaration review, not the link creation itself.
 
 Exact future completion flags (once the alias and the release gate exist):
 
@@ -84,13 +91,18 @@ decision).
 - **Representative block** `1/101384499-103762931`: TSV header `CHR SNP OA EA EAF BP`,
   9,633 variants; core `load_block()` reports `n_ld_snps = 9633` and `eaf` length
   9,633; `.ldeig.npz` holds `values` shape `(9633,)` and `vectors` shape
-  `(9633, 250)`, dtype float64 — **npz/TSV identity consistent**.
+  `(9633, 250)`, dtype float64. **Dimension agreement only** — this is *not* an
+  ordinal, SNP-id or allele-level identity qualification, and the core
+  `load_block()` succeeding is a partial dimension-contract success, not a
+  biology PASS.
 - **Samples/assembly.** The block `.log` shows PLINK on
   `.../ld_reference_panel_hg38/EUR/<chr>/<block>` with **49,766** samples.
-  **GRCh38 qualification:** 841 of the block's 9,633 canonical ALIDs match the
-  maintained HapMap3 GRCh38 ALID list exactly on position **and** allele pair
-  (an hg19 panel would not match hg38 positions/alleles), corroborating the
-  `ld_reference_panel_hg38` source path.
+  **GRCh38 spot evidence:** 841 of the block's 9,633 canonical ALIDs match the
+  maintained HapMap3 GRCh38 ALID list exactly on position **and** allele pair.
+  This is *spot evidence toward* GRCh38 corroborating the
+  `ld_reference_panel_hg38` source path; it is **not** proof for the whole panel
+  and does **not** support a categorical claim that an hg19 panel could never
+  match.
 - **Key flags.** `--ld-panel` root, `--ancestry EUR`, `--min-cor 0.7`,
   `--thresh 0.9`, `--release-id`, `--n-workers`; core consumes `.ldeig.npz`
   (eigendecomposition), not the co-located `.ldeig.rds`.
@@ -98,7 +110,9 @@ decision).
 ## Remaining verification gaps (retained, not waived)
 
 1. No active in-repo Reference Resource declaration for this panel; the
-   `proposed-ld-resource.yaml` needs review, plus the `EUR -> ukb` alias.
+   `proposed-ld-resource.yaml` needs review. The isolated `reference-root/EUR`
+   symlink already exists; what is pending is the production alias/declaration
+   **activation**, not link creation.
 2. Assembly qualification is a bounded spot-check plus source-path evidence, not
    a whole-panel coordinate audit.
 3. Per-block integrity (`.npz`/`.tsv`/`.afreq` across all 1,357 blocks) is not
@@ -114,8 +128,12 @@ decision).
 ## Non-actions
 
 No mutation of the physical panel, `OGS-00009`/`OGS-00010` Stores, the source
-mirror or the production registry. No `EUR` alias created. No candidate
-regeneration, no Store construction, no build, no heavy LD scan, no ancestry
-re-run. No bundle deletion: old bundle definitions may be retired only when
-successor activation is genuinely ready, and minimal artifact lineage / evidence
-/ Git history is retained regardless.
+mirror or the production registry. No production alias/declaration activated
+(the isolated work-root `reference-root/EUR -> …/ld/ukb` link exists, for
+qualification only). No new full-panel reads until parent review and a
+qualification budget; at most one panel reader, shared with the single MVP
+converter reader. No candidate regeneration, no Store construction, no build, no
+heavy LD scan, no ancestry re-run. No bundle deletion: old bundle definitions
+may be retired only when successor activation is genuinely ready, active
+bundles are not retired while `OGS-00030` is unbuilt and `OGS-00031` is absent,
+and minimal artifact lineage / evidence / Git history is retained regardless.

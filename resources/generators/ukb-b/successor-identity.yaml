@@ -1,10 +1,10 @@
 # Successor identity and replacement lineage for the restored full ukb-b release (#219).
 #
-# Owner decision recorded at
-# https://github.com/opengwas/opengwasdb-stores/issues/219#issuecomment-6132878514:
-# the restored 2,514-Analysis target replaces the incomplete historical pair, and
-# successors OGS-00030 (observed) / OGS-00031 (completed) are the accepted
-# reserved identities.
+# Owner decisions recorded at
+# https://github.com/opengwas/opengwasdb-stores/issues/219#issuecomment-6132878514
+#   (restored 2,514-Analysis replacement + production UKB EUR panel path) and
+# https://github.com/opengwas/opengwasdb-stores/issues/219#issuecomment-6133853820
+#   (successor identity / replacement lineage / bundle-retention clarification).
 #
 # This file codifies identity and lineage ONLY. It implies no Store Release
 # acceptance and no production build, and it does not construct or store
