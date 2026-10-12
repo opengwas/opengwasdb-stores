@@ -14,9 +14,9 @@ refresh it (CONTRIBUTING).
   shapes where a per-Store anchor is configured;
 - `opengwasdb_hm3_release_benchmark.md` — the rendered report.
 
-The tracked pin predates Indexed Variant Subsets (stores#197 owns the format
-bump), so the report is run under an explicit opengwasdb checkout, whose git
-revision and package fingerprint are recorded in the artifact:
+The repository's tracked runtime now provides Indexed Variant Subsets
+(stores#218), but the report is still run under an explicit opengwasdb checkout
+so its git revision and package fingerprint are recorded in the artifact:
 
 ```bash
 pixi run -e dev python <stores>/resources/scripts/release-benchmark-report.py \

@@ -81,3 +81,41 @@ pixi run Rscript resources/scripts/download-opengwas-vcfs.R \
 pixi run python resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/annotate.py \
   --release-dir=families/ukb-b/releases/dense-observed-vcf-c128-resolved
 ```
+
+## Restored full membership (#219, current bundle shape)
+
+The legacy R driver above writes a family-shaped bundle. The restored full
+release is instead frozen and emitted through the current Release Bundle shape
+by two pure-Python tools:
+
+- `inventory.py` reconciles the **declared** intended selection
+  (`families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv`, whose
+  `inclusion_reason` cites the OpenGWAS IGD `data/ukb-b/manifest.tsv`) against
+  the local VCF mirror and the old built baseline, then freezes a checksummed
+  `resources/inventories/<snapshot>.{tsv,meta.yaml}`. It never treats a glob as
+  intent, refuses to freeze a partial copy, and hashes with at most two reader
+  threads using a resumable receipt.
+- `generate_candidate.py` emits `<out-dir>/{release.yaml,build.yaml,analyses.tsv,
+  summary.yaml,validation.yaml}` from that frozen inventory plus the recorded
+  resolution, and only publishes after `bundle.check()` passes. The restored
+  UKB candidate is emitted to a staging directory, not `stores/`, until the
+  release gate and human acceptance open (epic #232).
+
+```sh
+python3 resources/generators/ukb-b/inventory.py reconcile \
+  --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b \
+  --built-baseline stores/OGS-00009/analyses.tsv
+
+python3 resources/generators/ukb-b/inventory.py freeze \
+  --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b \
+  --snapshot-id ukb-b-restored-2026-10-11 \
+  --upstream-batch-evidence resources/inventories/ukb-b-restored-2026-10-11.upstream-batches.json
+
+python3 resources/generators/ukb-b/generate_candidate.py OGS-00017
+```
+
+The intended membership is anchored to the upstream batch count from the
+unsecured `GET https://api.opengwas.io/api/batches`, saved as evidence beside
+the inventory. Live `POST /api/gwasinfo` resolution needs a valid `OPENGWAS_JWT`;
+when it is unavailable the emitter consumes the recorded resolution output
+(snapshot `opengwas-api-r2026-08-10`) and says so in `validation.yaml`.

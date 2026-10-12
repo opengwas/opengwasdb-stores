@@ -139,8 +139,14 @@ def _write_text_atomically(text: str, dest_path: Path) -> None:
     _fsync_dir(dest_path.parent)
 
 
-def _classify_exclusion(raw: str | None, row_index: int, analysis_id: str) -> bool:
-    """Return True if `raw` marks the row excluded, False if it is kept, else raise."""
+def classify_exclusion(raw: str | None, row_index: int, analysis_id: str) -> bool:
+    """Return True if `raw` marks the row excluded, False if it is kept, else raise.
+
+    Public so both the build-manifest materialiser and the membership
+    summaries (``bundle.summarise`` / readiness) share one strict reading of
+    ``exclude_from_build``. A second, laxer parse here would let a malformed
+    value be counted as admitted in a review view while the build refuses it.
+    """
     normalized = (raw or "").strip().lower()
     if normalized in ("", _FALSE):
         return False
@@ -212,7 +218,7 @@ def materialise_build_manifest(
 
     for row_index, row in enumerate(rows):
         analysis_id = (row.get(ANALYSIS_ID_COLUMN) or "").strip()
-        if _classify_exclusion(row.get(EXCLUDE_COLUMN), row_index, analysis_id):
+        if classify_exclusion(row.get(EXCLUDE_COLUMN), row_index, analysis_id):
             dropped.append(
                 DroppedAnalysis(
                     analysis_id=analysis_id,
@@ -275,5 +281,6 @@ __all__ = [
     "MalformedRowError",
     "ManifestError",
     "MissingManifestColumnError",
+    "classify_exclusion",
     "materialise_build_manifest",
 ]

@@ -1,0 +1,68 @@
+# Candidate configuration for the restored full ukb-b observed release (#219).
+#
+# The restored release is a NEW immutable identity: its membership is the frozen
+# ukb-b-restored-2026-10-11 Source Inventory (2,514 Analyses) rather than the
+# 2,024-Analysis incomplete OGS-00009 baseline, which is preserved untouched.
+store_family_id: ukb-b
+source_collection_id: opengwas-gwas-vcf
+access_posture: public
+# The Source Inventory freezes membership and file identity; the provider JSON
+# sidecars in the source mirror supply the Analytical Metadata the live OpenGWAS
+# API would have (its token expired 2026-08-21).
+source_snapshot_id: ukb-b-restored-2026-10-11
+resolution_snapshot_id: ukb-b-provider-json-2026-10-11
+inventory: resources/inventories/ukb-b-restored-2026-10-11.tsv
+resolution: resources/inventories/ukb-b-provider-resolution-2026-10-11.tsv
+declared: families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv
+label: ukb-b-full-observed-restored
+description: >
+  Restored full dense observed-only Store Release containing all 2,514 ukb-b
+  GWAS-VCF Analyses declared in the OpenGWAS IGD collection and verified present
+  in /data/opengwasdb/raw/gwas-vcf/ukb-b. Succeeds the incomplete 2,024-Analysis
+  OGS-00009 baseline, which remains registered as a historical asset.
+notes: >
+  Membership is the frozen Source Inventory ukb-b-restored-2026-10-11: 2,514
+  Analyses, each with a recorded sha256, size and mtime. The 2,024-Analysis
+  OGS-00009/OGS-00010 pair is preserved untouched as the incomplete baseline;
+  this release adds the 490 previously missing Analyses. Analytical Metadata is
+  resolved from each Analysis's provider JSON sidecar (exact-ID checked, batch
+  checked, sha256-bound); that resolution agrees with the recorded
+  opengwas-api-r2026-08-10 resolution on every one of the 2,511 rows it covered
+  and supplies the three rows it had left unresolved. Ancestry is the provider's
+  own population label (source_fallback), not an AF-based assignment; the ukb-b
+  VCFs do carry FORMAT/AF, so the historical source_trusted_no_af value is not
+  reproduced.
+build_options:
+  source-reader-capability: opengwasdb.gwas-vcf
+  source-assembly: hg19
+  n-workers: 32
+post:
+  top_hits: true
+  overview: true
+# Mirrors OGS-00009's maintained hm3 Indexed Variant Subset (epic #214). The
+# format-0.2.0 runtime that provides build-indexed-subset is adopted by #218.
+indexed_subsets:
+  - name: hm3
+    resource_id: hapmap3-hg38
+    variant_list: /data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt
+    reference_assembly: GRCh38
+    checksum: 4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398
+defaults:
+  license: UK Biobank terms of access
+  consortium: MRC-IEU
+  first_author: Ben Elsworth
+  analysis_group_id: ukb-b
+  source_genome_build: GRCh37
+  # The batch is a documented single-ancestry European collection and the
+  # parent baseline records European/EUR for the 2,024 built rows. This is a
+  # source-ancestry fallback, NOT an AF-based assignment: the ukb-b VCFs carry
+  # a FORMAT AF field, so source_trusted_no_af (the parent's legacy value) is
+  # factually wrong here, and af_assigned must not be claimed until
+  # `opengwasdb resolve-analyses` actually runs (#222).
+  source_ancestry_label: European
+  assigned_ancestry: EUR
+  ancestry_assignment_method: source_fallback
+# Planned successor identity/lineage (#219 plans; #222 resolves and builds).
+# The orchestrator reserved OGS-00030/OGS-00031 for the restored UKB candidate
+# proposal (epic #232 execution record); OGS-00017/00018 stay unallocated.
+planned_completed_store_id: OGS-00031

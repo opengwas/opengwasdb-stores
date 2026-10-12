@@ -7,6 +7,7 @@ Test suite for `ogstores.index` (Issue #118), governed by [ADR 0022](../../docs/
 1. **Canonical Columns in `stores.tsv`**:
    - Release and command fields remain derived from bundle YAML and `plan()`.
    - `n_analyses` plus the descriptive summary fields are derived from `analyses.tsv`.
+   - `n_analyses` is admitted membership; `n_manifest` and `n_excluded` keep the excluded manifest rows visible rather than counting them as built Analyses (issue #217).
    - Store measurements remain observed values from `validation.yaml`.
 
 2. **Derived `build_command`**:

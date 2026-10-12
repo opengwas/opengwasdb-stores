@@ -112,7 +112,7 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
 
     def test_canonical_columns_present_in_order(self) -> None:
         """stores.tsv contains exactly the canonical columns in defined order."""
-        self.assertEqual(len(COLUMNS), 25)
+        self.assertEqual(len(COLUMNS), 27)
         expected = (
             "store_id",
             "label",
@@ -127,6 +127,8 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
             "build_command",
             "format_version",
             "n_analyses",
+            "n_manifest",
+            "n_excluded",
             "n_variants",
             "n_associations",
             "store_bytes",
@@ -253,6 +255,38 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         self.assertEqual(row_cand["store_bytes"], "")
         self.assertEqual(row_cand["build_elapsed_s"], "")
         self.assertEqual(row_cand["validate_status"], "")
+
+    def test_excluded_rows_are_not_counted_as_build_membership(self) -> None:
+        """Issue #217: excluded manifest rows stay visible, never counted as Analyses."""
+        b = create_mock_bundle(self.stores_dir, "OGS-00016", label="excluded-rows")
+        (b.root / "analyses.tsv").write_text(
+            "analysis_id\tsource_file\texclude_from_build\n"
+            "keep\tf1\tfalse\n"
+            "drop\tf2\ttrue\n",
+            encoding="utf-8",
+        )
+        b = bundle.load("OGS-00016", registry_root=self.stores_dir)
+        row = render_stores_row(b)
+        self.assertEqual(row["n_manifest"], "2")
+        self.assertEqual(row["n_analyses"], "1")
+        self.assertEqual(row["n_excluded"], "1")
+        md = render_stores_md([b], [row])
+        self.assertIn("Analyses (admitted)", md)
+        # The admitted and excluded counts are separate cells.
+        self.assertIn("| 1 | 1 |", md)
+
+    def test_stores_md_table_rows_have_matching_column_counts(self) -> None:
+        """Issue #217: the new Excluded column must not desynchronise the table."""
+        b1 = create_mock_bundle(self.stores_dir, "OGS-00017", label="wide-1")
+        b2 = create_mock_bundle(self.stores_dir, "OGS-00018", label="wide-2")
+        rows = [render_stores_row(b) for b in (b1, b2)]
+        md = render_stores_md([b1, b2], rows)
+        main_section = md.split("\n## ")[0]
+        main_rows = [line for line in main_section.splitlines() if line.startswith("|")]
+        counts = {line.count("|") for line in main_rows}
+        self.assertEqual(len(counts), 1, f"inconsistent STORES.md columns: {counts}")
+        header = next(line for line in main_rows if line.startswith("| Store ID"))
+        self.assertIn("Excluded", header)
 
     def test_observed_columns_ignore_legacy_top_level_values(self) -> None:
         """Issue #135: observed columns come only from the register-written `observed` block.

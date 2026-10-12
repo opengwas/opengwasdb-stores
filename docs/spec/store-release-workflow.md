@@ -218,7 +218,8 @@ The one thing Phase A writes is the **derived build manifest** under the artifac
 ## `src/ogstores/` — the modules
 
 The package is shared by both phases. Its module surfaces are `bundle.py`,
-`plan.py`, `paths.py`, `manifest.py`, `run.py`, `index.py`, `register.py` and `release.py`;
+`plan.py`, `paths.py`, `manifest.py`, `run.py`, `index.py`, `register.py`,
+`resources.py`, `runtime.py`, `release.py` and `readiness.py`;
 `_pdeath_supervisor.py` is an internal helper `run.py` uses to contain a
 detached build's process group (ADR 0026).
 
@@ -272,15 +273,22 @@ stats a source path, and never inspects any Release Artifact. The
 `stores/`, and CI runs that gate explicitly so a newly committed bundle cannot
 bypass the contract.
 
-`summarise` reads only the loaded bundle's `analyses.tsv` and derives Analysis
-count, first author, publication PMID, tissue, context, assigned ancestry,
-sample size, and download source. Constants remain verbatim, varying
-identifiers become `mixed (n)`, varying quantities become `min-max`, and
-varying URLs become their common host/path prefix. A missing column, an empty
-table, or any empty value renders as `NA`; zero is not absence. The index rule
-writes the result to `summary.yaml` in every bundle and publishes the same
-values in the master list. CI runs the rule and rejects any resulting dirty
-tree.
+`summarise` reads only the loaded bundle's `analyses.tsv` and derives admission
+counts (manifest, admitted, excluded) plus first author, publication PMID,
+tissue, context, assigned ancestry, sample size, and download source. Constants
+remain verbatim, varying identifiers become `mixed (n)`, varying quantities
+become `min-max`, and varying URLs become their common host/path prefix. A
+missing column, an empty table, or any empty value renders as `NA`; zero is not
+absence.
+
+Admission is explicit (issue #217): `n_manifest` is every manifest row,
+`n_admitted` the rows whose `exclude_from_build` is not `true`, and
+`n_excluded` the rest, all parsed with the same strict classifier the build
+manifest uses (`manifest.classify_exclusion`). `n_analyses` is the admitted
+count -- a Store's membership -- so a derived view never presents an excluded
+manifest row as a built Analysis. The index rule writes the result to
+`summary.yaml` in every bundle and publishes the same values in the master
+list. CI runs the rule and rejects any resulting dirty tree.
 
 The summary does not fill a missing `source_url` from
 `release.yaml:source_snapshot.besd_prefix`: `908797f` made that prefix frozen
@@ -380,6 +388,19 @@ options, and around one Snakemake run it does four things: it completes
 pending publications, refuses unsafe runs, snapshots what a forced run may
 replace, and settles the run. See Safety.
 
+### `resources.py` and `runtime.py`
+
+The run-time counterparts to the pure planner. `resources.py` verifies a
+declared Indexed Variant Subset's maintained variant list against its
+`resource_id` declaration. `runtime.py` (stores#218) is the pre-write runtime
+guard: it proves the resolved `opengwasdb` is the tracked pin (from the
+executable's own install metadata, failing closed on an unprovable identity),
+provides every subcommand the *scheduled steps* name, and can complete each
+parent a scheduled `complete` job consumes -- where a same-run `build`/`complete`
+of that parent makes the stale on-disk artifact irrelevant. Both are called by
+the entry point before the snapshot and by the Snakefile's `onstart` for a
+direct `snakemake` run. See [the release runtime](../runtime.md).
+
 ## Safety
 
 **Tracked outputs are record files, not store directories.** Snakemake handles directory outputs poorly, and a half-written store must never satisfy a rule.
@@ -475,12 +496,13 @@ executed argv, inputs, outputs, stdout/stderr, timing, success and the
 `opengwasdb` revision used are all captured; `register` requires the record and
 compares executed against planned argv like any other Step.
 
-**Runtime prerequisite, with the pin held.** The capability first ships in
-opengwas/opengwasdb `4819a2ee` (opengwas/opengwasdb#264), a descendant of the
-format-0.2.0 builders. The repository pin (`7b0c42d`) deliberately predates it,
-and adopting format 0.2.0 catalogue-wide is the separate migration tracked by
-stores#197. Before a run that declares a subset, `ogstores.release` (and the
-Snakefile `onstart` hook, for a direct `snakemake` run) therefore:
+**Runtime prerequisite.** The capability first shipped in opengwas/opengwasdb
+`4819a2ee` (opengwas/opengwasdb#264), a descendant of the format-0.2.0 builders.
+The repository's tracked current-format runtime now provides it (stores#218; see
+[the release runtime](../runtime.md)), so a subset-declaring release and every
+other supported release run on the same pinned executable. Before a run that
+declares a subset, `ogstores.release` (and the Snakefile `onstart` hook, for a
+direct `snakemake` run) still:
 
 1. probes the resolved `opengwasdb` for `build-indexed-subset` and refuses with
 the required capability when it is absent;
@@ -489,12 +511,13 @@ the required capability when it is absent;
 `variant_list` against the maintained sha256, byte size and row count.
 
 Both refusals happen before the snapshot or any build work. `plan()` never reads
-a resource. A run with no declaration is never gated on the runtime version, so
-every existing recipe plans and runs unchanged. A subset-declaring release must
-run the whole workflow on the capability runtime -- `validate` and `overview`
-must audit and report the namespace -- so it is format 0.2.0 and its Validation
-Record names that runtime's commit, not the tracked pin. This is opt-in per
-release: no existing 0.1.0 Store is touched.
+a resource. Separately, `ogstores.runtime.verify_runtime_for_releases` refuses a
+run whose resolved runtime is not the tracked pin, is missing any subcommand a
+scheduled plan names, or would complete a parent Store that is not format
+0.2.0. A subset-declaring release is format 0.2.0 and its Validation Record
+names the runtime commit that ran, which is the tracked pin for every supported
+run. This is opt-in per release in the sense that no Store is converted or
+rebuilt by declaring or not declaring a subset.
 
 **Registry migration (stores#211, epic #214).** Every existing registered
 Release Bundle with a Dense Component now declares the default `hm3` subset:
@@ -607,13 +630,47 @@ The only thing deliberately excluded is anything whose answer changes without a 
 ```text
 derived   store_id  label  layout  completion_state  status  derived_from
           store_uri  created_at  opengwasdb_rev  generator_command  build_command
-          n_analyses  first_author  publication_pmid  tissue  context
-          assigned_ancestry  sample_size  source_url
+          n_analyses  n_manifest  n_excluded  first_author  publication_pmid
+          tissue  context  assigned_ancestry  sample_size  source_url
 observed  format_version  n_variants  n_associations  store_bytes
           build_elapsed_s  validate_status
 ```
 
+`n_analyses` is admitted membership; `n_manifest` and `n_excluded` keep the
+excluded manifest rows visible (issue #217).
+
 `store_uri` is a pure function of the identifier (`<artifact-root>/<store-id>/store.opengwasdb`, ADRs 0022 and 0030). The one-time migration-note fallback that previously preferred a legacy family-first path is removed (issue #137), so the published location is where a Store must live, resolved from deployment configuration, never a stale note.
+
+### Readiness reconciliation (issue #217)
+
+`readiness.py` (driven by `resources/scripts/release_readiness.py`) renders a
+reconciliation view that separates manifest, admitted, excluded and intended
+bundle membership from what was actually published, and keeps each kind of
+evidence on its own channel: Release Status, source acquisition, intended
+membership, observed build, built membership, Reference Completion, the
+required format-0.2.0 `by_variant` index, the optional HM3 Indexed Variant
+Subset, Store validation, registration, format/runtime, lineage and warnings.
+`missing` and `unknown` are not passes, and a candidate-generation record is
+reported as a gap in Store validation rather than as a clean verdict.
+
+The manifest count is a *selection*, not intended membership: an authoritative
+Source Inventory is reported separately and stays `unknown` where none is
+recorded (issue #217). Built Analysis IDs are read only through the supported
+core API, `read_analyses(open_store(path).analyses_path)`, which keeps Store
+opening and parsing in OpenGWASDB; the registry never constructs
+`analyses.tsv`, joins a filename, or touches a storage array. A built-ID
+reconciliation and a committed-bundle baseline difference are reported as
+separate sections, so a count is never treated as ID equivalence and a
+committed baseline is never presented as proof of what is on disk. The
+supported `opengwasdb info --format json` manifest metadata is a third,
+separate channel.
+
+`--info` refreshes the manifest-metadata channel and `--built` performs the
+built-ID read; both are read-only and neither runs a build or a Store
+validation. Historical host-side facts that cannot be re-derived from git,
+including the committed-versus-published provenance mismatches and the
+prospective reference-declaration gaps, live in `docs/readiness-evidence.yaml`,
+rendered to `docs/store-release-readiness.md`.
 
 Two commands per store matter, and they are different kinds of thing. The **generator command log** (`inventory.tsv` + config to bundle) is recorded by the generator into `release.yaml` as `generator.commands`. The **build command** (bundle to store) is *derived by `plan()`*, the same function the workflow renders its rules from. A hand-maintained list would be wrong within a month.
 
@@ -708,6 +765,37 @@ The upstream prerequisites on `opengwasdb` `dev` (merged in PR #178 / epic openg
 | [opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176) | Closed on `dev` | Phase B — `estimate-phenotype-sd` CLI over canonical manifests |
 
 All layouts (Dense, Hybrid, Ragged SSF, and BESD) are unblocked on `opengwasdb@dev`. The active pin in `pixi.toml` ([opengwasdb-stores#106](https://github.com/opengwas/opengwasdb-stores/issues/106)) brings these capabilities into the workspace environment.
+
+### The pinned current-format runtime (stores#218)
+
+Since stores#218 the active pin is the immutable core revision
+`4e922566d7fa4c13a11be3637069da63e48be28c` (core `dev`, opengwas/opengwasdb PR
+#276, repinned from the initial #218 pin `1be2a15` when core #254 merged). It
+carries the format-0.2.0 builders, the required Ragged/Overflow `by_variant/`
+index, Indexed Variant Subset support, the shared HM3 benchmark seam and the
+bounded Dense-validation memory work. `pixi.lock` resolves it with Python 3.12,
+`zarr>=3.4,<4` and `numcodecs>=0.17`; [the release runtime](../runtime.md)
+records the full identity and what upgrading it does not do.
+
+Two consequences are contract, not incidental:
+
+- **Reference Completion needs a format-0.2.0 observed parent.** A 0.1.0 parent
+  is readable but not completable by a 0.2.0 builder (opengwas/opengwasdb ADR
+  0038 §4). The runtime guard refuses the run before any write when a
+  *scheduled* `complete` job would consume a 0.1.0 parent, and directs the
+  operator to [the release runtime](../runtime.md) for the supported conversion
+  or rebuild order. A same-run `build`/`complete` of the parent is a fresh
+  0.2.0 Store and is not gated; a missing parent that is not scheduled to be
+  produced is refused. Every completed-release build ticket must supply a
+  compatible parent, or convert/rebuild one first. Bumping the runtime does not
+  convert or requalify a published Store.
+- **Inner chunks name the format's shape, and must tile the decided shard.**
+  `--chunk-variants` / `--chunk-analyses` name the inner chunk; their defaults
+  are `[1000, 64]`, and the shard `[100000, 1024]` is fixed and not exposed. On
+  an axis at least as long as the shard, the inner chunk must divide it, so a
+  wrapper must not pass `--chunk-analyses 1000` for a release with 1,024 or more
+  Analyses; omit it and take the default. No committed Build Recipe passes an
+  inner-chunk option.
 
 ## Phase B — what produces a bundle
 
