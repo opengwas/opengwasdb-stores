@@ -19,8 +19,8 @@ unrelated untracked documentation/model files are preserved.
 |---|---|---|---|
 | #217 readiness | [#234](https://github.com/opengwas/opengwasdb-stores/pull/234) | `7336e37` | conflict resolved against current `dev`; fresh review and CI pending |
 | #218 runtime | [#237](https://github.com/opengwas/opengwasdb-stores/pull/237) | `af6fc75` | merged as `3f18ccb`; core pin `4e92256` |
-| #219 UKB inventory/candidate tooling | [#236](https://github.com/opengwas/opengwasdb-stores/pull/236) | original `d4aa31c` | ancestry-evidence false-pass correction under review; candidate unaccepted |
-| #220 MVP acquisition tooling | [#235](https://github.com/opengwas/opengwasdb-stores/pull/235) | `cbac5b9` | code re-review pending; scientific gate HOLD |
+| #219 UKB inventory/candidate tooling | [#236](https://github.com/opengwas/opengwasdb-stores/pull/236) | `40ac43b` (fix `d4192a6`) | correction reviewed, integrated with current `dev`; fresh CI pending; candidate unaccepted |
+| #220 MVP acquisition tooling | [#235](https://github.com/opengwas/opengwasdb-stores/pull/235) | `cbac5b9` | merged as `d0b55e7` after fresh Standards/Spec GO and 27/27 tests; scientific gate HOLD |
 
 #234's only manual conflict was the workflow specification's module list. The
 resolution preserves `resources.py`, `runtime.py`, `release.py` and
@@ -30,9 +30,13 @@ Spec reviews cover the remaining implementation PRs against the refreshed
 baseline; exact final heads govern merging, not stale verdicts.
 
 #236 re-review found that `bool(ancestry_records)` could mark ancestry `passed`
-even when supplied records were partial or non-AF assignments. A narrow
-fixture-tested correction is required before merging. No staged candidate or
-frozen source receipt is regenerated as a side effect.
+even when supplied records were partial or non-AF assignments. The correction
+at `d4192a6` requires full admitted AF-assigned coverage, retains `not_run` with
+warnings for partial/fallback/unassigned records, rejects out-of-inventory IDs
+and records ancestry-file SHA/path/counts. Independent Spec GO; orchestrator
+re-ran 46/46 UKB tests. Final integration `40ac43b` includes current runtime and
+MVP tooling. No staged candidate or frozen source receipt was regenerated: the
+candidate's original generator hash remains accurate historical provenance.
 
 #219 and #220 remain open for their outstanding scientific/owner gates; merging
 the tooling checkpoints must not auto-close unresolved acquisition or acceptance
@@ -127,8 +131,9 @@ versus published `'0.1.0'` discrepancy on local evidence branch
 - Durable evidence lives under `/data/opengwasdb/work/epic232/219/` and committed
   `resources/inventories/ukb-b-*`. No historical OGS-00009/00010 artifact changed.
 - Original hermetic checks: 38 UKB tests and bundle-check 12/12; staged candidate
-  check had zero errors/tolerated gaps. Subsequent evidence-gate fixes need a new
-  exact-head verdict.
+  check had zero errors/tolerated gaps. The ancestry-evidence correction adds
+  eight hermetic regressions (46/46 total); its exact-head verdict is separate
+  from the original staged emission.
 
 The ten-Analysis trial measured ancestry at ~26.6 minutes and SD at ~1.9 minutes
 (two workers, BLAS one). All ancestry outputs were residual-gated `Unassigned`:
