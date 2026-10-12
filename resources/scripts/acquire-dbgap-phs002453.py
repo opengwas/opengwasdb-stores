@@ -645,7 +645,10 @@ def read_discrepancies(path: Path) -> list[KeyDiscrepancy]:
             elif raw_decision is not None:
                 owner_decision = " ".join(required_text(raw_decision).split())
             if disposition == "resolved":
-                missing = sorted(name for name, value in decision_fields.items() if not value)
+                missing = sorted(
+                    name for name in ("authority", "recorded", "citation")
+                    if not decision_fields.get(name)
+                )
                 if not owner_decision or missing:
                     raise AcquisitionError(
                         f"{where}: a resolved record needs an owner_decision with "

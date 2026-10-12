@@ -905,6 +905,29 @@ class DiscrepancyLedgerTests(unittest.TestCase):
             with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "owner_decision"):
                 ACQUIRE.read_discrepancies(path)
 
+    def test_scalar_or_incomplete_resolved_provenance_fails(self) -> None:
+        import yaml
+
+        for decision in ("approved", {"quote": "approved"}):
+            with self.subTest(decision=decision), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "ledger.yaml"
+                path.write_text(
+                    yaml.safe_dump({
+                        "version": 1,
+                        "records": [{
+                            "member": "m",
+                            "analysis_id": "GCST1",
+                            "disposition": "resolved",
+                            "owner_decision": decision,
+                            "dbgap": {"ancestry": "EUR", "sample_size": 1},
+                            "candidate": {"sample_size": 2},
+                        }],
+                    }),
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "owner_decision"):
+                    ACQUIRE.read_discrepancies(path)
+
     def test_resolved_requires_an_owner_decision(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "ledger.yaml"
