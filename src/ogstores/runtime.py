@@ -53,7 +53,10 @@ from ogstores.plan import plan
 #: `pixi.toml` and `pixi.lock`; the pixi dependency is the executable form of
 #: it. Never edit this without `pixi lock` and the tests in
 #: `tests/runtime/test_runtime_guard.py`.
-PINNED_OPENGWASDB_REVISION: str = "1be2a156649e4d444f31f9b4107c3f47a046f855"
+#:
+#: Repinned from `1be2a15` (PR #275) to `4e922566` (PR #276) with core #254's
+#: bounded Dense-validation memory work; the Store format stays 0.2.0.
+PINNED_OPENGWASDB_REVISION: str = "4e922566d7fa4c13a11be3637069da63e48be28c"
 OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
 
 #: The Store format the pinned builders write and the only format Reference

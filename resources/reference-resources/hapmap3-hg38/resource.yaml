@@ -82,7 +82,7 @@ notes: >
 
   Consumers need an opengwasdb runtime that provides `build-indexed-subset`
   (opengwas/opengwasdb#264-#271). The repository's tracked current-format
-  runtime (stores#218; `opengwasdb 0.3.0`, revision `1be2a15`) provides it, so
+  runtime (stores#218; `opengwasdb 0.3.0`, revision `4e92256`) provides it, so
   the supported release entry point needs no `PATH` overlay. The entry point
   still probes for the command and refuses loudly if the runtime does not
   provide it. See [docs/runtime.md](../../../docs/runtime.md).

@@ -186,10 +186,14 @@ threadpoolctl = ">=3.0"
 # executable does not provide the command. A release with no declaration is
 # never gated on the runtime version.
 #
-# Bumped for #218 (pinned current-format runtime, coordinating #197): this pins
-# the core `dev` merge commit `1be2a15` (opengwas/opengwasdb PR #275), which is
-# the first immutable revision that carries every capability the supported
-# release entry point now requires together:
+# Bumped for #218 (pinned current-format runtime, coordinating #197): the
+# initial #218 pin was core `dev` merge commit `1be2a15` (opengwas/opengwasdb
+# PR #275), the first immutable revision carrying every capability the
+# supported release entry point requires together. The pin was then
+# re-coordinated to `4e922566` (opengwas/opengwasdb PR #276) once core #254's
+# bounded Dense-validation memory work merged to `dev`, so the same capability
+# set is now paired with the validation memory bound the build tickets need.
+# The capabilities are unchanged by the repin:
 #
 #   - format-0.2.0 builders (opengwasdb#247, `5910e29`): Zarr v3 with the
 #     sharding codec, Dense inner chunk [1000, 64] and shard [100000, 1024];
@@ -199,31 +203,25 @@ threadpoolctl = ">=3.0"
 #     optional enhancement;
 #   - Indexed Variant Subset support, including Dense, completed-Dense and
 #     Hybrid Dense components (opengwasdb#264/#269/#271, first at `4819a2ee`);
-#   - the shared HM3 benchmark seam (opengwasdb#272).
+#   - the shared HM3 benchmark seam (opengwasdb#272);
+#   - bounded Dense validation memory (opengwasdb#254/#276).
 #
-# Because these capabilities now ship in the tracked pin, the ordinary
+# Because these capabilities ship in the tracked pin, the ordinary
 # `pixi run release` invocation resolves a capable runtime from this
 # environment with no ad-hoc `PATH` overlay (the HM3 proof's temporary
 # `--opengwasdb-checkout` / PATH substitution is retired for supported runs).
-# The release entry point still probes every required subcommand and refuses a
-# missing capability, and refuses a Reference Completion whose existing parent
-# Store is not format 0.2.0, before any artifact is written.
+# The release entry point still proves the resolved revision against this pin,
+# probes every subcommand the scheduled steps need, and refuses a Reference
+# Completion whose existing parent Store is not format 0.2.0, before any
+# artifact is written.
 #
 # This bump changes what a *new* build is: a Store built from here is format
-# 0.2.0, so Reference Completion of an existing 0.1.0 parent is refused and
-# names the converter (`scripts/convert_store_to_0_2_0.py`). Upgrading the
-# runtime does not convert or requalify any published Store; each build ticket
-# must supply a compatible observed parent (or convert first) before
-# completion. See docs/adr/0034-indexed-variant-subsets-in-release-planning.md
-# and docs/spec/store-release-workflow.md.
-#
-# COORDINATION (#218 / core #254): core #254's bounded Dense-validation memory
-# work is implemented separately and was not on `dev` at the time of this pin.
-# Once it lands, this pin needs a coordinated repin before full production
-# validators are scheduled; until then the pinned runtime is capability-complete
-# but its validation memory bound is the one #254 is fixing. Do not install an
-# uncommitted #254 checkout as the chosen runtime.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "1be2a156649e4d444f31f9b4107c3f47a046f855" }
+# 0.2.0, so Reference Completion of an existing 0.1.0 parent is refused. The
+# supported order is the core-owned conversion or rebuild procedure in
+# docs/runtime.md. Upgrading the runtime does not convert or requalify any
+# published Store; each build ticket must supply a compatible observed parent
+# (or convert/rebuild first) before completion.
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "4e922566d7fa4c13a11be3637069da63e48be28c" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"

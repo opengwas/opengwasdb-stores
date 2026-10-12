@@ -95,7 +95,8 @@ This has two honest consequences:
 ## Amendment (stores#218): the pin is now the current-format runtime
 
 stores#218 adopted the runtime portion of stores#197: the tracked pin is now
-`1be2a156649e4d444f31f9b4107c3f47a046f855` (core `dev`), which carries the
+`4e922566d7fa4c13a11be3637069da63e48be28c` (core `dev`, repinned from the initial
+#218 pin `1be2a15` when core #254 merged). It carries the
 format-0.2.0 builders, the required Ragged/Overflow `by_variant/` index, the
 Indexed Variant Subset capability and the shared HM3 benchmark seam. The
 decision above that the subset capability is an opt-in *run-time* prerequisite

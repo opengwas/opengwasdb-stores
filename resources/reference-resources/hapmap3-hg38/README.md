@@ -121,6 +121,6 @@ builder counts and records; it does not change this list.
 Consuming this resource needs an `opengwasdb` runtime that provides
 `build-indexed-subset` (opengwas/opengwasdb#264–#271). The repository's tracked
 current-format runtime now provides it (stores#218; `opengwasdb 0.3.0`,
-revision `1be2a15`), so the supported release entry point needs no `PATH`
+revision `4e92256`), so the supported release entry point needs no `PATH`
 overlay. The entry point still probes for the command and refuses loudly when
 the runtime does not provide it; see [docs/runtime.md](../../../docs/runtime.md).

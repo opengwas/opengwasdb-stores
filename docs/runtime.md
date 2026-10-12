@@ -9,8 +9,8 @@ provides, and what upgrading it does **not** do.
 | Fact | Value |
 |---|---|
 | Repository | `https://github.com/opengwas/opengwasdb` |
-| Revision | `1be2a156649e4d444f31f9b4107c3f47a046f855` (core `dev`) |
-| Core merge | opengwas/opengwasdb PR #275 |
+| Revision | `4e922566d7fa4c13a11be3637069da63e48be28c` (core `dev`) |
+| Core merge | opengwas/opengwasdb PR #276 (bounded Dense validation, core #254); first pinned at PR #275 (`1be2a15`) |
 | Package version | `0.3.0` |
 | Writers' Store `format_version` | `0.2.0` |
 | Python floor | 3.12 |
@@ -141,7 +141,9 @@ Consequences a build ticket must handle explicitly:
 ## Coordination with core #254
 
 Core opengwas/opengwasdb#254 (bounded Dense-validation memory) was not on `dev`
-when this pin was taken. The pinned runtime is capability-complete; its Dense
-validation memory bound is the one #254 is fixing. Once #254 lands, this pin
-needs a coordinated repin **before** full production validators are scheduled.
-Do not install an uncommitted #254 checkout as the chosen runtime.
+when this pin was first taken (`1be2a15`). It has since merged (PR #276) and this
+pin was re-coordinated to `4e922566`, which carries the same format and
+capability set plus the reduced validation memory bound (full-run peak RSS on
+OGS-00009 33.7 → 2.35 GiB, OGS-00010 36.5 → 3.01 GiB, validate clean). The
+earlier prohibition stands: do not install an uncommitted core checkout as the
+chosen runtime, and treat any future repin as a deliberate coordinated change.
