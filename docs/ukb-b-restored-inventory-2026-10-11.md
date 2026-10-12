@@ -148,8 +148,9 @@ host's `/local-scratch` paths.
    (`opengwasdb/build/resolve.py` requires a `MetricsReader`; `GwasVcfReader` is
    not one) explains it structurally, so it is not runtime-version-specific.
    **This must not be read as "all AF-based ancestry/SD is impossible".** The
-   committed core exposes separate commands that DO read GWAS-VCF — see the
-   measured section below. Evidence:
+   committed core exposes separate commands that DO read GWAS-VCF — but the
+   ancestry command as invoked is assembly-incompatible for ukb-b (GRCh37 source
+   vs GRCh38 reference, no liftover); see the measured section below. Evidence:
    `/data/opengwasdb/work/epic232/219/resolution/probe-report.json`.
 3. **The declared EUR reference-AF resource is absent on this host.**
    `ukb-hg38-eur-af` (`/data/opengwasdb/reference/ukb-hg38`) and
@@ -169,23 +170,35 @@ bounded ten-Analysis trial through the immutable #218 runtime measured:
 
 | Command | Result | Cost (10 Analyses, 2 workers, BLAS 1) |
 |---|---|---|
-| `assign-ancestry` | Read all 10 (`af_overlap` 29,825–45,484; `eaf_orientation = passed`, r 0.83–0.88; dominant `EUR` 0.876–0.928) but **every one gated `Unassigned` with `gate_reason = residual`** — the NNLS residual exceeds `--residual-max 0.06` | 26 m 34 s wall, ~50 m CPU, 8.2 GB peak RSS, ~1.4 GB read |
-| `estimate-phenotype-sd` (`--af-source source`, method `estimated_from_source_maf`) | Produced `original_sd` per Analysis (0.078–0.978, dispersion 0.0001–0.004) | 1 m 52 s wall, 1.2 GB peak RSS, ~25 MB read (bounded evidence sample, not EOF) |
+| `assign-ancestry` | Read all 10 (`af_overlap` 29,825–45,484 of 5,810,530 reference sites; `eaf_orientation = passed`, r 0.83–0.88; dominant `EUR` 0.876–0.928) but every one gated `Unassigned` with `gate_reason = residual`. **Not interpretable — see assembly mismatch below.** | 26 m 34 s wall (< 30 min), ~50 m CPU, 8.2 GB peak RSS, ~1.4 GB read |
+| `estimate-phenotype-sd` (`--af-source source`, method `estimated_from_source_maf`) | Produced `original_sd` per Analysis (0.078–0.978, dispersion 0.0001–0.004) | 1 m 52 s wall (< 30 min), 1.2 GB peak RSS, ~25 MB read (bounded evidence sample, not EOF) |
 
-The existing API route therefore **works for VCF** (no new core capability is
-proven necessary), but the **residual gate needs an owner decision** for ukb-b:
-same gate values as the c128 config reject a homogeneous EUR cohort whose
-dominant super-population is nevertheless clearly EUR. The gate is a registry /
-calibration decision and is **not loosened here**. `estimate-phenotype-sd`
-refused `declared_standardised` by design (it computes
-`estimated_from_beta_distribution` / `estimated_from_reference_maf` /
-`estimated_from_source_maf`; the tier is the caller's decision), so the trial
-requested `estimated_from_source_maf`. Linear projection at 2 workers for the
-full 2,514: **≈57 h `assign-ancestry` + ≈8 h `estimate-phenotype-sd`** — a
-material #222 budget item, not a capability gap. Evidence:
-`/data/opengwasdb/work/epic232/219/resolution/ancestry-sd-trial.json`. Ancestry
-in the staged candidate remains `source_fallback` (an AF assignment was not
-admitted for any of the ten under the declared gates).
+**Assembly / liftover convention — the decisive check.** The ukb-b VCFs are
+**GRCh37/hg19** (`##contig=<ID=1,…,assembly=GRCh37>`), the ancestry reference is
+**GRCh38/hg38** (`ref_freqs.hg38.tsv.gz`, 5,810,530 sites). The `assign-ancestry`
+CLI exposes **no `--liftover`/`--chain` option**, `annotate_catalogue` calls
+`assign_from_source(...)` with no liftover, and `GwasVcfReader.liftover` defaults
+to `None`, so `extract_at_sites` built a `-R` regions file from the **hg38**
+reference ALIDs and queried the **hg19** VCF at those coordinates. Source and
+reference coordinates were therefore never aligned, and the ~0.5–0.8 % overlap
+(29.8k–45.5k / 5.81 M) is consistent with coincidental allele matches. The
+`gate_reason=residual` and `eaf_orientation=passed` values are **artifacts of the
+assembly mismatch, not a gate/calibration finding**, and are not used to change
+the candidate. The core library does document the correct path —
+`assign_from_source(..., liftover=load_liftover(chain_file=…))`, the chain file
+is present at `/data/opengwasdb/reference/liftover/hg19ToHg38.over.chain.gz`, and
+when set the reader does a full unrestricted scan lifting each row — but the CLI
+does not wire it. So the **existing route is VCF-capable in principle yet
+assembly-incompatible as invoked**, and the fix is liftover wiring (a small core
+CLI change) or a registry-side pre-lift, **not** loosening a threshold. The SD
+estimate is unaffected: `--af-source source` is assembly-independent and used a
+bounded evidence sample. Linear projection at 2 workers for the full 2,514:
+**≈57 h `assign-ancestry` + ≈8 h `estimate-phenotype-sd`** (and a liftover run
+would be a full scan, so likely more for ancestry) — a material #222 budget item.
+Ancestry in the staged candidate stays `source_fallback`; no AF assignment was
+admitted. Evidence: `resources/inventories/ukb-b-ancestry-sd-trial-2026-10-11.json`
+(with manifest/reference/chain sha256 identities) and the work-dir copy at
+`/data/opengwasdb/work/epic232/219/resolution/ancestry-sd-trial.json`.
 
 ## Checks run
 
@@ -203,8 +216,9 @@ admitted for any of the ten under the declared gates).
   and exact-ID receipt; core manifest verified against the committed git blob.
 - Ten-Analysis pilots: `resolve-analyses` 10/10 `controlled_failure` on both
   runtimes; `assign-ancestry` read all 10 but gated all 10 `Unassigned`
-  (`gate_reason=residual`); `estimate-phenotype-sd` produced 10 SD estimates.
-  Measured costs and projections in
+  (`gate_reason=residual`) — **invalidated by the GRCh37-source / GRCh38-reference
+  liftover gap**, not a calibration result; `estimate-phenotype-sd` produced 10
+  SD estimates. Measured costs and projections in
   `/data/opengwasdb/work/epic232/219/resolution/ancestry-sd-trial.json`.
 - `python3 resources/scripts/run_all_tests.py --only python` — 41/44 suites
   pass. `qc-panel-concordance`, `workflow` and `release-faults` fail identically
