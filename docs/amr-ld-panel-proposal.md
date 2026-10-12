@@ -41,8 +41,11 @@ sample sources and recommending a calibration design.
 
 ### 2.1 1kGP Admixed American (Phase 3)
 
-IGSR's Phase 3 collection is **2,504 unrelated samples from 26 populations**.
-The four AMR populations and their official Phase 3 counts
+The authority for Phase 3 sample counts is the official IGSR sample panel
+[`integrated_call_samples_v3.20130502.ALL.panel`](https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call_samples_v3.20130502.ALL.panel)
+(55,156 bytes; **SHA-256 `b4023dc6ee2d62ee89c8d4d347db4d348e65518d66d346574cdae7a4bbd76858`**),
+not a search summary. Verified from that file: **2,504 samples total**, of which
+**347 are AMR**. The four AMR populations and their Phase 3 counts:
 
 | Population | Phase 3 samples | Region |
 |---|---:|---|
@@ -53,19 +56,23 @@ The four AMR populations and their official Phase 3 counts
 | **Total** | **347** | |
 
 The **347 total is verified, not assumed**, and it **includes related
-individuals**: Phase 3 trios were retained for phasing even though the panel was
-intended for allele-frequency work ([IGSR Phase 3](https://www.internationalgenome.org/data-portal/data-collection/phase-3),
+individuals**: Phase 3 trios were retained for phasing. Note also that the
+Phase 3 VCFs are GRCh37; they would require a liftover, so they are cited for
+counts only and are not the proposed genotype source
+([IGSR Phase 3](https://www.internationalgenome.org/data-portal/data-collection/phase-3),
 [IGSR FAQ](https://www.internationalgenome.org/faq/)).
 
 ### 2.2 1kGP 30× high-coverage GRCh38
 
-The NYGC high-coverage re-sequencing aligned to **GRCh38** contains **3,202
-samples = 2,504 unrelated + 698 related, completing 602 parent–child trios**
-([IGSR 30× collection](https://www.internationalgenome.org/data-portal/data-collection/30x-high-coverage)).
-IGSR advises filtering the related subset for analyses that assume independence,
-and provides pedigree files to do so. The extra depth improves variant discovery,
-not the independence of the sample set; a panel built from all 3,202 would
-include ~698 non-independent individuals.
+The primary description is Byrska-Bishop et al., *Cell* 185, 3426–3440 (2022):
+**3,202 samples**, **602 complete parent–child trios**, **2,504 original
+unrelated + 698 additional related samples**, re-sequenced to ~30× and aligned
+to **GRCh38**
+([Cell article](https://www.cell.com/cell/fulltext/S0092-8674(22)00593-2),
+[IGSR 30× collection](https://www.internationalgenome.org/data-portal/data-collection/30x-high-coverage)).
+Filtering the related subset is advised for analyses that assume independence;
+the extra depth improves variant discovery, not sample independence. A panel
+built from all 3,202 would include 698 non-independent individuals.
 
 ### 2.3 gnomAD v3.1.2 HGDP + 1kGP subset (already cached)
 
@@ -89,6 +96,14 @@ Measured directly from the host's cached
   note says 3,165 + 929. **This discrepancy must be reconciled before any build**
   (a v3.1.2 vs later-subset mismatch is the likely cause); it is flagged rather
   than smoothed over.
+- **Sample-ID availability is verified, not assumed.** Every one of the 490
+  cached AMR sample IDs is present in the joint per-chromosome VCFs (header read
+  only): CLM 132, MXL 97, PEL 122, PUR 139; 487 pass `high_quality`. All 347
+  Phase 3 AMR IDs are present too; the extra 143 are the high-coverage related
+  additions. Availability still does not settle relatedness per sample, which
+  must be read from the joint callset's own pedigree/QC metadata.
+- **Native GRCh38, not a Phase 3 lift-over.** The joint callset is gnomAD v3.1.2
+  GRCh38 genome-wide; no liftover is required, unlike the GRCh37 Phase 3 VCFs.
 
 ### 2.4 HGDP American populations are not a substitute for admixed 1kGP AMR
 
@@ -139,10 +154,14 @@ Rationale:
   would add depth but also 698 related samples and several hundred GB of
   redundant data — no new information about AMR LD that the existing callset does
   not already carry for the same individuals.
-- **n ≈ 487 is within the existing non-EUR regime.** The production AFR/EAS/SAS
-  panels use 804/817/783 samples; 487 is smaller but not a different order of
-  magnitude, so an AMR panel is a legitimate calibration artifact whose quality
-  must be measured against the EUR control (ADR 0020, ADR 0031).
+- **n ≈ 487 is within the existing non-EUR regime, but the floor is not.** The
+  production AFR/EAS/SAS panels use 804/817/783 samples; 487 is smaller but not a
+  different order of magnitude, so an AMR panel is a legitimate calibration
+  artifact whose quality must be measured against the EUR control (ADR 0020,
+  ADR 0031). However, MAC ≥ 50 at that n implies MAF ≥ ~5–7%, so the
+  variant-inclusion floor must be chosen by the sensitivity pilot (§6), not
+  inherited. Relatedness pruning may also reduce the retained n below 487;
+  record the actual number.
 - **Separate resource declaration.** A new
   `hgdp1kgp-hg38-amr-calibration/` resource mirrors
   `hgdp1kgp-hg38-eur-calibration/` (status `available`, explicitly
@@ -171,17 +190,26 @@ be able to mistake this for the EUR panel. Boundary choice is labelled
 
 | Concern | Proposal |
 |---|---|
-| Assembly / identifiers | GRCh38; canonical ALID `chr:pos:A1:A2`, matching `construct_block.canonical_alid` (ADR 0020/0031) |
-| Variant inclusion | MAC ≥ 50, unchanged; a frequency floor would be unestimable at n ≈ 487 |
+| Assembly / identifiers | Native GRCh38 joint callset; canonical ALID `chr:pos:A1:A2`, matching `construct_block.canonical_alid` (ADR 0020/0031) |
+| Variant inclusion | **Do not blindly copy MAC ≥ 50.** At n = 347 diploid (694 chromosomes) MAC ≥ 50 implies MAF ≥ **7.20%**; at n = 487 it is MAF ≥ 5.13%. Propose a **MAC/MAF sensitivity pilot** over candidate floors (e.g. MAC 20/30/50) and adopt no lower cutoff without calibration evidence |
 | Missingness | mean-impute (existing `construct_block`), invariant/all-missing variants dropped |
 | Orientation | canonical EA = min(allele) with the existing reverse-code rule |
-| Relatedness | use gnomAD v3.1.2 kinship > 0.05 / maximal-independent-set pruning, and record the retained count; 1kGP high-coverage's 698 related samples are **not** added |
-| Sample inventory | 1kGP only, per-population counts recorded (CLM/MXL/PEL/PUR); HGDP American excluded from the primary panel by default; a `membership.json` per panel |
+| Relatedness | read the joint callset's own pedigree/QC, use gnomAD v3.1.2 kinship > 0.05 / maximal-independent-set pruning, and record the retained count; the 698 high-coverage related samples are **not** added |
+| Sample inventory | 1kGP only, per-population counts recorded (CLM/MXL/PEL/PUR); all 490 cached AMR IDs verified present in the joint VCFs, 487 high_quality; HGDP American excluded from the primary panel by default; a `membership.json` per panel |
 | Assembly check | reuse `verify_vcf` (GRCh38 header) and `verify_index`; no liftover |
 | Provenance | every block's `.provenance.json` (n individuals, input/retained variants, MAC, cumvar, components, achieved variance) |
 
+**MAC/MAF is the sharpest open methodological question.** The existing
+AFR/EAS/SAS panels use MAC ≥ 50 because MAC tracks estimation precision at
+n ≈ 800 while MAF would not (ADR 0020). At AMR's much smaller n the same MAC
+floor becomes a 5–7% MAF filter, which could exclude exactly the lower-frequency
+variants completion needs. The pilot must therefore compare floors rather than
+inherit one, and must state the chosen floor's MAF-equivalent and retained
+variant counts per block. No lowered cutoff is adopted by this proposal.
+
 The sample-metadata TSV is CRLF-terminated; any consumer must normalise line
-endings before comparing `high_quality` (found while measuring §2.3).
+endings before comparing `high_quality` (found while measuring §2.3), and must
+not infer relatedness from the `high_quality` flag alone.
 
 ## 7. Resource and eigendecomposition contract
 
@@ -200,7 +228,8 @@ The panel must satisfy the existing core public contract, not invent a new one:
 - **`resource.yaml`:** `kind: ld_panel`, `ancestry: [AMR]`, `genome_build: GRCh38`,
   `variant_id_convention: "chr:pos:a1:a2"`, `ld.block_file`, `ld.representation`,
   `ld.components_retained: variance_driven`, `ld.components_cumvar_target: 0.99`,
-  `source.n_individuals.AMR`, `source.variant_inclusion: MAC >= 50`,
+  `source.n_individuals.AMR`, `source.variant_inclusion` (the calibrated
+  MAC/MAF floor, with its MAF-equivalent recorded),
   `source.population_map` (calibration policy), `source.generator`, and an
   explicit description that the block boundaries are reused from the EUR
   production layout and the panel is **calibration, not production**.
@@ -226,8 +255,9 @@ The panel must satisfy the existing core public contract, not invent a new one:
    silently standing in for AMR.
 4. **Representation trade-offs to report.** 1kGP-only vs 1kGP+HGDP (separate vs
    pooled); EUR-boundary vs AFR-boundary sensitivity; per-population versus
-   pooled AMR estimates; and the effect of relatedness pruning on n and on
-   block conditioning.
+   pooled AMR estimates; **MAC/MAF-floor sensitivity** (MAC 20/30/50 with the
+   MAF-equivalent and retained-variant counts); and the effect of relatedness
+   pruning on n and on block conditioning.
 5. **Budget.** Measure in the pilot (wall time, peak RSS, scratch per block, job
    count) and record it with the evidence. **Do not infer the budget from core
    #254**, which is a validation-memory workstream, not an LD-panel measurement.
@@ -257,12 +287,28 @@ The panel must satisfy the existing core public contract, not invent a new one:
 5. **Acceptability:** whether `n ≈ 487` AMR samples is sufficient for a
    production panel at all, or AMR completion remains calibration/observed-only
    pending a larger cohort.
+6. **Variant floor:** the MAC/MAF floor adopted after the sensitivity pilot (no
+   lowered cutoff without calibration), and whether a floor that implies a high
+   MAF is acceptable for AMR completion.
+
+## Owner request and review
+
+This proposal answers the owner's AMR reference question recorded on the epic:
+<https://github.com/opengwas/opengwasdb-stores/issues/232#issuecomment-6133854434>.
+It is submitted for independent review before any owner approval, and no panel
+build is authorised by writing it.
 
 ## Citations
 
+- **Primary Phase 3 sample panel (source of the 347 counts):**
+  <https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call_samples_v3.20130502.ALL.panel>
+  (55,156 bytes; SHA-256 `b4023dc6ee2d62ee89c8d4d347db4d348e65518d66d346574cdae7a4bbd76858`).
 - IGSR Phase 3 collection (2,504 unrelated, 26 populations):
   <https://www.internationalgenome.org/data-portal/data-collection/phase-3>
-- IGSR 30× high-coverage GRCh38 collection (3,202 = 2,504 + 698 related; 602 trios):
+- **Byrska-Bishop et al. 2022**, *Cell* 185, 3426–3440 (3,202 = 2,504 unrelated +
+  698 related; 602 trios; GRCh38):
+  <https://www.cell.com/cell/fulltext/S0092-8674(22)00593-2>
+- IGSR 30× high-coverage GRCh38 collection:
   <https://www.internationalgenome.org/data-portal/data-collection/30x-high-coverage>
 - IGSR population pages (CLM/MXL/PEL/PUR):
   <https://www.internationalgenome.org/data-portal/population/CLM>,
@@ -274,6 +320,8 @@ The panel must satisfy the existing core public contract, not invent a new one:
   <https://gnomad.broadinstitute.org/downloads>
 - HGDP-CEPH resource: <https://www.hagsc.org/hgdp/>
 - Cann et al. 2002, HGDP cell-line panel: <https://www.nature.com/articles/nature02029>
+- Owner AMR-reference request (epic comment):
+  <https://github.com/opengwas/opengwasdb-stores/issues/232#issuecomment-6133854434>
 - Core LD-panel contract: `docs/adr/0031-ld-panels-store-eigendecompositions.md`
   in opengwas/opengwasdb.
 - Registry decisions: ADR 0020 (non-EUR panels), ADR 0028 (ancestry-matched
