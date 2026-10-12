@@ -226,12 +226,13 @@ Subsequent checkpoints must record actual commits, reviewed scope, commands,
 evidence locations, unresolved owner decisions and PR URLs. Missing completion
 or correctness gates prevent a blanket ingestion-readiness claim.
 
-## Core #254 coordination (in flight)
+## Core #254 — landed (awaiting merge)
 
-The operator's `feature/254-bounded-dense-validation` is implementation-green
-(2,327 tests; byte-bounded Dense validation bands) with final full-run RSS
-measurements still running (~2-4 h) and two OGS-00009/OGS-00010 validation runs
-taking ~2 cores on this host. The stores side holds all heavy work during those
-runs. Our runtime pin stays immutable `1be2a15`; the coordinated repin happens
-after the #254 PR lands on core `dev`, and only then do full production
-validators resume under the new bounds.
+Core #254 is complete: PR #276 (`feature/254-bounded-dense-validation` → `dev`)
+is mergeable. Measured full-run peak RSS dropped 33.7→2.35 GiB (OGS-00009) and
+36.5→3.01 GiB (OGS-00010), both validating clean, with wall time also reduced
+(88→71 and 135→109 min). No heavy runs remain on the host.
+
+The stores runtime pin remains immutable `1be2a15` (#218). The coordinated
+repin is a follow-up that begins only after #276 merges to core `dev` and the
+merge SHA is known; full production validators stay paused until then.
