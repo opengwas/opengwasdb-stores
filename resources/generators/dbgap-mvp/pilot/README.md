@@ -28,13 +28,17 @@ verification, guard counts and resource actuals.
 ## What each module owns
 
 - `selection.py` — metadata-only build of the reviewed 15 rows and the resolver
-  manifest. Effect scale comes **only** from explicit owner/source provenance
-  (`--effect-provenance`, columns `stored_effect_scale`, `original_effect_scale`,
-  `effect_scale_provenance`); study design and label regexes are deliberately
-  ignored, and a row without provenance is `unknown`/pending and is **excluded
-  from the resolver manifest** because the public reader defaults a blank
-  `stored_effect_scale` to `sd`. META is canonicalised to the empty
-  super-population; the core's inferred ancestry is not rewritten.
+  manifest. Effect scale comes from an explicit effect-provenance row
+  (`--effect-provenance`: `stored_effect_scale`, `original_effect_scale`,
+  `original_sd_method`, `effect_scale_provenance`) or, absent that, the dbGaP
+  member's own authoritative `dbgap_trait_type` plus the exact
+  `inv-norm transformed` phrase: `binary` -> `log_or`/`binary_trait` (no SD),
+  `quantitative` + `inv-norm transformed` -> `sd`/`declared_standardised`
+  (SD = 1). A resolved row always emits a non-empty `original_sd_method`
+  (the core would otherwise default it to `estimated_from_source_maf`);
+  anything unknown stays pending and is excluded from the resolver manifest.
+  META is canonicalised to the empty super-population; the core's inferred
+  ancestry is not rewritten.
 - `wrapper.py` — fresh-root preflight (refuses reuse, symlink ancestors,
   `stores/` components and protected roots before any `mkdir`); limit validation
   (finite, positive, within 1800 s / 4096 MB / 2 workers) before any write; the
