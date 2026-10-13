@@ -10,20 +10,19 @@
 # Inventory is frozen; membership, Analytical Metadata and every reference are
 # pending owner acceptance and qualification.
 #
-# Identity allocation is a provisional draft, NOT owner-approved ordering:
+# Identity allocation is owner-authorised (2026-10-13):
 #   observed single-ancestry   OGS-00012 EUR, OGS-00013 AFR, OGS-00014 AMR, OGS-00015 EAS
-#   META observed-only         OGS-00017
+#   META observed-only         OGS-00016
 #   lineage-linked completed   OGS-00018 EUR, OGS-00019 AFR, OGS-00020 AMR, OGS-00021 EAS
-#   FinnGen                    kept at OGS-00016 (not renumbered here)
+#   FinnGen                    OGS-00017 (migrated from OGS-00016)
 #
-# #221 authorises renumbering FinnGen; the open item is the ordering choice and
-# the ADR 0022 / public migration of an existing identity, not permission. The
-# recommended draft avoids the artifact-path collision that reusing OGS-00016
-# would create; the alternative is recorded as an unresolved plan exception in
-# the ticket README and must be decided before activation.
+# The owner decision "reorder the IDs" (2026-10-13) placed META ahead of
+# FinnGen. FinnGen's bundle was migrated OGS-00016 -> OGS-00017 under ADR
+# 0022's owner-authorized-renumbering amendment; its membership, recipe and
+# association/index artifacts are unchanged.
 
-id_allocation_status: provisional-draft
-owner_ordering_approved: false
+id_allocation_status: owner-authorized-2026-10-13
+owner_ordering_approved: true
 publication_pmid: '39024449'
 access_posture: public
 layout: dense
@@ -140,7 +139,7 @@ stores:
       activation: pending
       suggested_ld_panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
   META:
-    observed_store_id: OGS-00017
+    observed_store_id: OGS-00016
     completed_store_id: null
     candidate_store_key: dense__pmid-39024449__Multi-ancestry
     label: mvp-phs002453-meta-observed-only
@@ -162,11 +161,13 @@ stores:
       activation: blocked
       suggested_ld_panel: null
 
-# FinnGen is not renumbered by this draft. If the owner later approves moving
-# META ahead of FinnGen, record old -> new here and amend ADR 0022 explicitly.
+# FinnGen was renumbered OGS-00016 -> OGS-00017 by the owner-authorized
+# reordering (2026-10-13). Its artifact relocation is an operational step.
 finngen:
-  current_store_id: OGS-00016
-  renumbered_to: null
+  current_store_id: OGS-00017
+  previous_store_id: OGS-00016
+  renumbered_to: OGS-00017
   note: >-
-    Ordering is an unresolved plan exception. #221 authorises renumbering; the
-    open work is the ADR amendment and public identity/artifact migration.
+    Owner-authorized renumbering: the existing OGS-00016 bundle moved to
+    OGS-00017 so META can take OGS-00016. Membership and recipe are unchanged;
+    see the release.yaml migration block and the migration evidence doc.

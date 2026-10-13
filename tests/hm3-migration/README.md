@@ -21,7 +21,7 @@ indexed_subsets:
 ```
 
 The eight in-scope bundles are `OGS-00003`, `OGS-00004`, `OGS-00005`,
-`OGS-00008`, `OGS-00009`, `OGS-00010`, `OGS-00011` and `OGS-00016`. The four
+`OGS-00008`, `OGS-00009`, `OGS-00010`, `OGS-00011` and `OGS-00017`. The four
 Ragged-only bundles (`OGS-00001`, `OGS-00002`, `OGS-00006`, `OGS-00007`) are
 byte-for-byte untouched: a Ragged Store has no Dense Component to index.
 

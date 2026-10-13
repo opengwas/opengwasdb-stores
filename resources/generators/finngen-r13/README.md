@@ -77,7 +77,7 @@ pixi run bundle-check
 pixi run index
 ```
 
-The full release (`r13-full`, planned as `OGS-00016`) emits 2,754 Analyses in
+The full release (`r13-full`, planned as `OGS-00017`) emits 2,754 Analyses in
 `status: candidate`. Acceptance is a separate human review; nothing here accepts
 the bundle or invokes Phase A. The `build:` block in `config-full.yaml` carries
 the observed-only dense recipe (`build-dense-vcf`, 32 workers) that Phase A will
