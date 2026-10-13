@@ -145,12 +145,49 @@ exercise these cases across all writers; they were RED before the correction.
 Fresh exact-checkpoint review and coordinator probes are required before any
 new live metadata-only refresh. Reviewer GO is never execution authorization.
 
+## Parent-authorized metadata qualification — 2026-10-13
+
+Following both independent exact-code GO verdicts and passing parent safety
+probes, the coordinator separately authorized and directly executed code
+`baf141c8061a8d7f63c369b7b0ff499747e3dabc`. Fresh output:
+`/data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/`.
+
+- Two refresh passes exited 0: 6022 sidecars and manifest rows, 4656 canonicalised,
+  1364 unchanged and two new-conversion rows; 6020 inherited/two derived SHA256
+  records. The four legacy-group counts remain 1368/241/3360/1053; META still
+  requires #221's exact partition.
+- Parent independently checked every output's canonical trait/N, source identity,
+  expected data/metadata paths, data `stat` size, metadata byte size, historical
+  versus new SHA provenance and binding to the correct read-only data link.
+- All 6032 snapshotted input **metadata** files remained byte/size/mtime-identical.
+  Output regular metadata and link-target text were byte-identical on the second
+  pass; no `.partial` remained. Snapshot SHA256:
+  `1f14b88c2c383d8bac97215a8807503ef600fed2d2a019067e9962777438310f`.
+- The parent Python audit guard rejected association/compressed/genotype opens
+  and writes/mutations outside the fresh output root. Zero forbidden attempts
+  occurred; **zero association-body opens or legacy data rehashes**. Snapshots
+  recorded symlink targets, never their data contents.
+- Wall time 57.45s, peak RSS 139480KiB, two-CPU affinity and BLAS=1. Run interval:
+  2026-10-13T12:39:14.164553Z–12:40:10.636102Z.
+- A first wrapper setup attempt stopped before invoking `refresh`: the generated
+  candidate TSV is untracked and absent from git archives. Its empty directory
+  is preserved; the successful retry snapshotted the actual named candidate TSV.
+
+Machine receipt:
+[`dbgap-phs002453-metadata-refresh-2026-10-13.json`](../resources/inventories/dbgap-phs002453-metadata-refresh-2026-10-13.json).
+The runner, input metadata snapshot, execution log and resource log are preserved
+under the fresh output root and identified by metadata hashes in that receipt.
+[Coordinator run record](https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6145793629).
+Independent actual-output metadata audit is pending. This is technical metadata
+qualification, **not** release/scientific acceptance or mirror promotion; the
+prior unapproved directories remain unaccepted.
+
 ## Remaining gates
 
-- Qualify the current tool and explicitly authorize a fresh isolated metadata
-  run, using metadata-only snapshots which never follow association-data links.
-- Independently inspect and accept its actual manifests/sidecars/inherited versus
-  new identities; do not promote them to the mirror without separate permission.
+- Complete independent actual-output metadata review and qualify the code/receipt
+  feature PR through CI before integration.
+- Accept/freeze the appropriate acquisition evidence explicitly; do not promote
+  isolated outputs to the historical mirror without separate permission.
 - Advance #221 candidate bundles in parallel, with pending human acceptance and
   no fabricated built/registered status. Separate META exactly; META remains
   observed-only. AMR reference absence gates completion execution, not candidate

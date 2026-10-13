@@ -1,0 +1,89 @@
+{
+  "acceptance": "technical metadata evidence only; not scientific/release acceptance",
+  "actions": {
+    "canonicalised": 4656,
+    "new-conversion": 2,
+    "unchanged": 1364
+  },
+  "argv": [
+    "--out",
+    "/data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z",
+    "refresh",
+    "--candidates",
+    "/home/gh13047/repo/opengwasdb-stores/resources/data/derived/store-candidates-analyses.tsv",
+    "--mapping",
+    "/data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv",
+    "--source-sidecars",
+    "/data/opengwasdb/raw/dbgap-phs002453/gwas-ssf",
+    "--source-manifest-dir",
+    "/data/opengwasdb/raw/dbgap-phs002453/manifests",
+    "--new-sidecars",
+    "/data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/gwas-ssf",
+    "--new-manifest-dir",
+    "/data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/manifests"
+  ],
+  "association_opens": 0,
+  "association_opens_blocked": [],
+  "blas_threads": 1,
+  "code_sha": "baf141c8061a8d7f63c369b7b0ff499747e3dabc",
+  "cpu_affinity": [
+    0,
+    1
+  ],
+  "end_utc": "2026-10-13T12:40:10.636102+00:00",
+  "evidence_files": {
+    "input-metadata-before.json": {
+      "path": "/data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/input-metadata-before.json",
+      "sha256": "fdac561dc826ab9215d682248f48909eb790574a947ce35fcb77918d6fc61168"
+    },
+    "parent-audit-runner.py": {
+      "path": "/data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/parent-audit-runner.py",
+      "sha256": "e893951c965efabcdacf703827bfd738159c9e9d17d92ea0068ad1b7edd6e743"
+    },
+    "parent-execution.log": {
+      "path": "/data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/parent-execution.log",
+      "sha256": "d9357a66c0476efed60dbbff86a9561b3359a18ae40fd8999b013e95f7a030f6"
+    },
+    "parent-resource-usage.log": {
+      "path": "/data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/parent-resource-usage.log",
+      "sha256": "70ffdd38cc49379385e601a16bc9a617c1e22a2dbec42de38dce2b25a63415aa"
+    },
+    "parent-run-summary.json": {
+      "path": "/data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/parent-run-summary.json",
+      "sha256": "21e755d323625f9a86de382fe70c771e39cb1c01aca147e03c3fa8b26c5d109b"
+    }
+  },
+  "guard_open_counts": {
+    "metadata_or_code_read": 48292,
+    "write": 12055
+  },
+  "independent_output_audit": "pending",
+  "legacy_association_hashes_revalidated": false,
+  "legacy_source_digest_provenance": "inherited historical SHA256 and MD5, not revalidated by this run",
+  "manifest_counts": {
+    "dense-pmid-39024449-African-download-manifest.tsv": 1368,
+    "dense-pmid-39024449-East-Asian-download-manifest.tsv": 241,
+    "dense-pmid-39024449-European-download-manifest.tsv": 3360,
+    "dense-pmid-39024449-Hispanic-or-Latin-American-download-manifest.tsv": 1053
+  },
+  "membership": 6022,
+  "metadata_idempotent": true,
+  "metadata_snapshot_scope": "regular sidecars + four manifests + receipt content and data symlink target text; excludes execution/audit auxiliary files",
+  "output_metadata_content_sha256": "1f14b88c2c383d8bac97215a8807503ef600fed2d2a019067e9962777438310f",
+  "peak_rss_kib": 139480,
+  "promotion": false,
+  "receipt_kind": "parent-authorized-isolated-metadata-refresh",
+  "refresh_exit_codes": [
+    0,
+    0
+  ],
+  "sha256_provenance": {
+    "derived": 2,
+    "inherited": 6020
+  },
+  "source_metadata_files_snapshotted": 6032,
+  "source_metadata_unchanged": true,
+  "start_utc": "2026-10-13T12:39:14.164553+00:00",
+  "store_operations": false,
+  "wall_seconds": 57.45
+}
