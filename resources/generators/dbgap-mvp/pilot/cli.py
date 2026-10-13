@@ -247,6 +247,11 @@ def _run(args: argparse.Namespace) -> int:
         "log": str(guard_log),
         "enforce_reads": True,
     }
+    # The allowlist can exceed the per-string exec environment limit for large
+    # scopes (e.g. 1,669 EUR bodies), so it is written to a file and only the
+    # config path is passed via the environment.
+    guard_config_path = out_root / "guard" / "guard-config.json"
+    _write(guard_config_path, json.dumps(guard_config, sort_keys=True), out_root)
 
     argv = wrapper.build_resolver_argv(
         resolver_executable=resolver, manifest_path=manifest_path, records_dir=records_dir, limits=limits
@@ -257,7 +262,7 @@ def _run(args: argparse.Namespace) -> int:
         stdout_path=out_root / "receipt" / "resolver.stdout.log",
         stderr_path=out_root / "receipt" / "resolver.stderr.log",
         extra_env={
-            "OPENGWASDB_PILOT_GUARD": json.dumps(guard_config),
+            "OPENGWASDB_PILOT_GUARD_CONFIG": str(guard_config_path),
             "PYTHONPATH": str(guard_dir) + os.pathsep + os.environ.get("PYTHONPATH", ""),
         },
     )
