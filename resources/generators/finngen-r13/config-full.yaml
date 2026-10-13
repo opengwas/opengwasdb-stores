@@ -64,7 +64,7 @@ output:
   # stores/<store_id>/ in the current bundle contract by --mode=emit-registry;
   # the legacy families/ release dir is kept as the acquisition work root that
   # acquire.py fills with checksums and sidecars.
-  store_id: OGS-00016
+  store_id: OGS-00017
   registry_root: stores
   release_dir: families/finngen-r13/releases/r13-full
   artifact_root: /data/opengwasdb

@@ -55,7 +55,7 @@ FIXTURE_STORES = {
     "AFR": ("OGS-00013", "OGS-00019", "AFR", "African", "pending", "/fixture/ld"),
     "AMR": ("OGS-00014", "OGS-00020", "AMR", "Hispanic or Latin American", "hold", None),
     "EAS": ("OGS-00015", "OGS-00021", "EAS", "East Asian", "pending", "/fixture/ld"),
-    "META": ("OGS-00017", None, None, "META", "not_applicable", None),
+    "META": ("OGS-00016", None, None, "META", "not_applicable", None),
 }
 
 PLANNED_MANIFEST = {
@@ -267,7 +267,7 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
         "generator_commands": ["generate_candidate.py"],
         "partition_expected": EXPECTED,
         "stores": stores,
-        "finngen": {"current_store_id": "OGS-00016", "renumbered_to": None},
+        "finngen": {"current_store_id": "OGS-00017", "previous_store_id": "OGS-00016", "renumbered_to": "OGS-00017"},
     }
     config_path = tmp / "config.yaml"
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -361,11 +361,11 @@ class TestCandidateEmission(unittest.TestCase):
         self.assertEqual(sorted(result["checked"]), sorted(result["emitted"].values()))
 
         # META is observed-only: no parent and no completion recipe.
-        meta_release = yaml.safe_load((self.out / "OGS-00017" / "release.yaml").read_text())
+        meta_release = yaml.safe_load((self.out / "OGS-00016" / "release.yaml").read_text())
         self.assertEqual(meta_release["status"], "candidate")
         self.assertIsNone(meta_release["derived_from"])
         self.assertNotIn("accepted_at", meta_release)
-        meta_build = yaml.safe_load((self.out / "OGS-00017" / "build.yaml").read_text())
+        meta_build = yaml.safe_load((self.out / "OGS-00016" / "build.yaml").read_text())
         self.assertEqual(meta_build["completion_state"], "observed_only")
         self.assertNotIn("complete", meta_build)
 
@@ -604,7 +604,7 @@ class TestCandidateEmission(unittest.TestCase):
             if row["analysis_id"] == "GCST_meta1":
                 row["assigned_ancestry"] = "Multi-ancestry"
         self._emit_mutated(rows)
-        with (self.out / "OGS-00017" / "analyses.tsv").open(newline="", encoding="utf-8") as handle:
+        with (self.out / "OGS-00016" / "analyses.tsv").open(newline="", encoding="utf-8") as handle:
             table = {row["analysis_id"]: row for row in csv.DictReader(handle, delimiter="\t")}
         self.assertEqual(table["GCST_meta1"]["assigned_ancestry"], "")
 

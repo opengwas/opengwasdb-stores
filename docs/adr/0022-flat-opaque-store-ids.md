@@ -26,3 +26,33 @@ Existing published releases are renamed rather than preserved. This is a one-tim
 **Amended by [0028](0028-store-family-tier-retired.md).** Store Family is no longer a field on a Store Release; the tier is retired entirely.
 
 **Amended by [0030](0030-artifact-path-is-the-identifier-migration-retired.md).** The one-time migration note recorded in each bundle is retired (issue #137): the published artifact path is now the pure function `<artifact-root>/<store-id>/` with no migration fallback, and the physical relocation of existing artifacts is tracked by a separate follow-up issue.
+
+---
+
+**Amended 2026-10-13 (owner-authorized renumbering).** An identifier is still
+never *silently* reassigned, reused or re-derived. However, an **explicit,
+owner-authorized renumbering** is permitted when it is recorded end to end:
+
+- a durable owner decision naming the ordering;
+- an old→new mapping in the bundle's `migration` block plus a notes erratum;
+- a matching physical directory rename (`git mv`), with the `store_id` updated;
+- association/index artifacts left byte-identical, and an evidence record.
+
+The first case moved FinnGen from `OGS-00016` to `OGS-00017` so the MVP META
+observed-only Store could take `OGS-00016` ahead of it (owner decision
+2026-10-13, "reorder the IDs"); see
+[`docs/ogs-00016-to-ogs-00017-migration.md`](../../ogs-00016-to-ogs-00017-migration.md).
+The `migration` block is provenance for the renumbering only; `store_uri`
+remains a pure function of the identifier (ADR 0030).
+
+Rejected alternatives:
+
+- **Silent reassignment, or a directory rename alone.** Rejected: the
+  identifier is a join key across the registry, the artifact root and core-owned
+  provenance; a rename without the recorded mapping, erratum and evidence is the
+  silent rewrite this ADR forbids.
+- **Reusing `OGS-00016` for META without moving FinnGen.** Rejected: it would
+  collide with the existing artifact path and leave two releases claiming one
+  identifier.
+- **A permanent `migration` tier the indexer prefers.** Rejected: `store_uri`
+  stays identifier-derived; the block is never a path source.

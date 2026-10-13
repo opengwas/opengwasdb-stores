@@ -59,7 +59,7 @@ EXPECTED_IN_SCOPE = (
     "OGS-00009",
     "OGS-00010",
     "OGS-00011",
-    "OGS-00016",
+    "OGS-00017",
 )
 EXPECTED_RAGGED = ("OGS-00001", "OGS-00002", "OGS-00006", "OGS-00007")
 
@@ -151,7 +151,7 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
         },
         "post": {"top_hits": False, "overview": True},
     },
-    "OGS-00016": {
+    "OGS-00017": {
         "phase": "build",
         "command": "build-dense-vcf",
         "options": {

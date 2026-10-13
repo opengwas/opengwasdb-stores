@@ -1,8 +1,19 @@
-store_id: OGS-00016
+store_id: OGS-00017
 label: r13-full
 access_posture: public
 status: accepted
 derived_from: ~
+migration:
+  previous_store_id: OGS-00016
+  reason: >-
+    Owner-authorized renumbering (2026-10-13) to place the MVP META
+    observed-only Store at OGS-00016, ahead of FinnGen. This bundle's
+    analytical membership, recipe and built association/index artifacts are
+    unchanged; only the identifier and directory were migrated.
+  owner_authorization: >-
+    Owner decision recorded 2026-10-13 ("reorder the IDs"); see ADR 0022's
+    owner-authorized-renumbering amendment and
+    docs/ogs-00016-to-ogs-00017-migration.md.
 created_at: '2026-09-28T13:03:04Z'
 accepted_at: '2026-09-28T13:10:00Z'
 source_snapshot_id: finngen-r13-manifest-2026-05-12
@@ -25,3 +36,12 @@ description: |
   Full FinnGen R13 release: every endpoint in the frozen public summary-statistics manifest (2,754 endpoints -- three inverse-rank-normalised quantitative endpoints plus every case-control endpoint), selected in the manifest's own order. Production-scale sibling of the 20-Analysis r13-pilot-20 trial (OGS-00003); the pilot assessment is the onboarding evidence, and this release carries no analysis cap.
 notes: |
   Selection is the whole frozen provider manifest, so the release membership is exactly what FinnGen publishes and the pinned manifest checksum makes the Analysis order reproducible. Every endpoint must still be honestly classified by the metadata resolver (a quantitative endpoint with num_cases=N, or a case-control endpoint with positive case and control counts); an endpoint the resolver cannot classify fails the emit rather than being dropped.
+
+  Release Erratum (2026-10-13, owner-authorized renumbering): this release was
+  migrated from OGS-00016 to OGS-00017 so the MVP META observed-only Store can
+  take OGS-00016 ahead of FinnGen. The Release Manifest and Build Recipe are
+  unchanged, no association/index byte was rewritten, and the prior identifier
+  remains discoverable through the `migration` block, this erratum and git
+  history. The published artifact under the artifact root must be relocated to
+  `<artifact-root>/OGS-00017/` as a separate operational step; the registry
+  publishes where it should live (ADR 0022).

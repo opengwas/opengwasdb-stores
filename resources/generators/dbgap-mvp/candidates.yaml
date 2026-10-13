@@ -1,5 +1,5 @@
 status: provisional-draft
-owner_ordering_approved: false
+owner_ordering_approved: true
 publication_pmid: '39024449'
 source_snapshot_id: dbgap-phs002453-candidate-pending
 intended_bound_total: 6022
@@ -56,10 +56,12 @@ source_hashes:
   mapping_table: /data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv
   mapping_sha256: 96fa3a7b1b3ef3e3229ef5418a1d60e16b6528977b692164698e4bc40ac69b08
 finngen:
-  current_store_id: OGS-00016
-  renumbered_to: null
-  note: 'Ordering is an unresolved plan exception. #221 authorises renumbering; the
-    open work is the ADR amendment and public identity/artifact migration.'
+  current_store_id: OGS-00017
+  previous_store_id: OGS-00016
+  renumbered_to: OGS-00017
+  note: 'Owner-authorized renumbering: the existing OGS-00016 bundle moved to OGS-00017
+    so META can take OGS-00016. Membership and recipe are unchanged; see the release.yaml
+    migration block and the migration evidence doc.'
 stores:
   EUR:
     observed:
@@ -219,7 +221,7 @@ stores:
       in_stores: false
   META:
     observed:
-      store_id: OGS-00017
+      store_id: OGS-00016
       role: observed
       label: mvp-phs002453-meta-observed-only
       status: candidate-definition

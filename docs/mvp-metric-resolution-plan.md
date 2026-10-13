@@ -196,15 +196,17 @@ a failed worker cannot leave a partial record in the committed set.
   as a diagnostic, never a whole-source qualification.
 - A full 6,022 run is a separate parent decision with a fresh measured budget.
 
-## 11. Identity ordering and migration seam (unchanged, not activated)
+## 11. Identity ordering and migration seam (owner-authorised)
 
-Provisional draft only: observed OGS-00012 EUR / 00013 AFR / 00014 AMR /
-00015 EAS, META observed-only OGS-00017, completed definitions
-OGS-00018/19/20/21; FinnGen stays **OGS-00016**. Placing META ahead of FinnGen
-would reuse `OGS-00016`, colliding with the existing artifact path and
-reassigning an identifier ADR 0022 says is never reassigned; that needs an
-explicit ADR 0022 amendment and an old→new migration note. **No renumbering is
-performed or requested here.**
+The 2026-10-13 owner decision ("reorder the IDs") fixed the allocation:
+observed OGS-00012 EUR / 00013 AFR / 00014 AMR / 00015 EAS, META observed-only
+**OGS-00016**, completed definitions OGS-00018/19/20/21, and FinnGen
+**OGS-00017**. FinnGen was migrated OGS-00016 -> OGS-00017 (membership, recipe
+and association/index artifacts unchanged; directory, `store_id` and a
+`migration`/erratum note only) under ADR 0022's owner-authorized-renumbering
+amendment; the old identifier stays discoverable through the migration block,
+erratum and git history. The published artifact under the artifact root must be
+relocated to `<artifact-root>/OGS-00017/` as a separate operational step.
 
 ## 12. Handoff
 

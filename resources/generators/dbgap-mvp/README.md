@@ -33,9 +33,9 @@ The legacy European bucket is 3,360 = 1,669 EUR + 1,691 META. The buckets are
 disjoint, their union is the whole intended membership, and any drift fails
 loudly (`partition.validate_partition`).
 
-## Identity allocation — provisional draft
+## Identity allocation — owner-authorised (2026-10-13)
 
-`config-candidate.yaml` proposes, but does **not** claim owner approval for:
+The owner reordered the identifiers ("reorder the IDs"):
 
 | Store | Observed | Completed definition |
 |---|---|---|
@@ -43,13 +43,14 @@ loudly (`partition.validate_partition`).
 | AFR | OGS-00013 | OGS-00019 |
 | AMR | OGS-00014 | OGS-00020 |
 | EAS | OGS-00015 | OGS-00021 |
-| META (observed-only) | OGS-00017 | none |
+| META (observed-only) | OGS-00016 | none |
 
-FinnGen is kept at **OGS-00016**. #221 already authorises renumbering FinnGen;
-the open item is the ordering choice and the ADR 0022 / public migration of an
-existing identity, which is recorded as an unresolved plan exception rather
-than treated as a missing permission. The recommended draft avoids the
-artifact-path collision that reusing `OGS-00016` for META would create.
+FinnGen was migrated **OGS-00016 -> OGS-00017** so META can take OGS-00016 ahead
+of it. The FinnGen bundle (`stores/OGS-00017/`) keeps its membership, recipe
+and association/index artifacts unchanged; only the identifier, directory and a
+`migration`/erratum note changed. See
+[`docs/ogs-00016-to-ogs-00017-migration.md`](../../../docs/ogs-00016-to-ogs-00017-migration.md)
+and ADR 0022's owner-authorized-renumbering amendment.
 
 The intended membership/recipe definitions are tracked in
 [`candidates.yaml`](candidates.yaml) (generated from the config). They are
