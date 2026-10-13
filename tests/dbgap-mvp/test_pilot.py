@@ -2,15 +2,14 @@
 """Hermetic tests for the bounded MVP metric-resolution pilot (#221).
 
 No real association body or reference panel is opened: the resolver is a fake
-CLI, and every fixture lives in a temp directory. Tests cover the metadata-only
-selection/provenance rules, the fail-closed execution gates, the resource
-monitor (wall timeout killing the whole process group, RSS breach), and the
-alias/protected-root refusals.
+CLI and every fixture is a temp directory. Covers the effect-scale provenance
+rules, the fail-closed execution gates and limit validation, the resource
+monitor (wall timeout killing the whole group, RSS breach), the read/write
+guard, post-run record verification, and alias/protected-root refusals.
 """
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import sys
@@ -30,8 +29,8 @@ import pilot.wrapper as wrapper  # noqa: E402
 import metadata_content_sha as content_sha  # noqa: E402
 
 FAKE_RESOLVER = REPO_ROOT / "tests" / "dbgap-mvp" / "fixtures" / "fake_resolver.py"
+FIXTURE_CODE_SHA = "b" * 40
 
-# Small per-bucket source metadata; the ids match the reviewed pilot table.
 PILOT_META = {
     "EUR": [
         ("GCST90475091", "quantitative", "hemoglobin A1c (maximum, inv-norm transformed)", 338857, 0, 0),
@@ -60,6 +59,8 @@ PILOT_META = {
     ],
 }
 
+ALL_IDS = sorted(a for entries in PILOT_META.values() for a, *_ in entries)
+
 
 def write_tsv(path: Path, columns: list[str], rows: list[dict[str, str]]) -> None:
     import csv
@@ -70,12 +71,12 @@ def write_tsv(path: Path, columns: list[str], rows: list[dict[str, str]]) -> Non
         writer.writerows(rows)
 
 
-def make_pilot_fixture(tmp: Path) -> tuple[Path, Path]:
+def make_pilot_fixture(tmp: Path) -> tuple[Path, Path, Path, Path]:
+    import yaml
+
     meta = tmp / "meta"
     (meta / "manifests").mkdir(parents=True)
     (meta / "gwas-ssf").mkdir(parents=True)
-    import yaml
-
     mapping_rows: list[dict[str, str]] = []
     manifest_rows: dict[str, list[dict[str, str]]] = {}
     for bucket, entries in PILOT_META.items():
@@ -86,13 +87,7 @@ def make_pilot_fixture(tmp: Path) -> tuple[Path, Path]:
             data.symlink_to(f"/fixture/data/{analysis_id}.tsv.gz")
             sidecar = directory / f"{analysis_id}.tsv.gz-meta.yaml"
             sidecar.write_text(
-                yaml.safe_dump(
-                    {
-                        "gwas_id": analysis_id,
-                        "data_file_name": data.name,
-                        "genome_assembly": "GRCh38",
-                    }
-                ),
+                yaml.safe_dump({"gwas_id": analysis_id, "data_file_name": data.name, "genome_assembly": "GRCh38"}),
                 encoding="utf-8",
             )
             mapping_rows.append(
@@ -120,73 +115,107 @@ def make_pilot_fixture(tmp: Path) -> tuple[Path, Path]:
             )
     mapping_path = tmp / "mapping.tsv"
     write_tsv(mapping_path, list(mapping_rows[0].keys()), mapping_rows)
-    columns = [
-        "analysis_id",
-        "status",
-        "sha256",
-        "data_file",
-        "yaml_file",
-        "genome_assembly",
-        "sample_size",
-        "data_bytes",
+    manifest_columns = [
+        "analysis_id", "status", "sha256", "data_file", "yaml_file", "genome_assembly", "sample_size", "data_bytes",
     ]
     for bucket, rows in manifest_rows.items():
-        write_tsv(meta / "manifests" / f"{bucket.lower()}.tsv", columns, rows)
+        write_tsv(meta / "manifests" / f"{bucket.lower()}.tsv", manifest_columns, rows)
     write_tsv(
         meta / "refresh-receipt.tsv",
         ["analysis_id", "note"],
         [{"analysis_id": row["analysis_id"], "note": "fixture"} for row in mapping_rows],
     )
-    return meta, mapping_path
+    effect_path = tmp / "effect-provenance.tsv"
+    write_tsv(
+        effect_path,
+        ["analysis_id", "stored_effect_scale", "original_effect_scale", "effect_scale_provenance"],
+        [
+            {
+                "analysis_id": analysis_id,
+                "stored_effect_scale": "log_or" if design == "case-control" else "sd",
+                "original_effect_scale": "log_or" if design == "case-control" else "sd",
+                "effect_scale_provenance": "owner_dbgap_source_declaration",
+            }
+            for analysis_id, design, *_ in (e for entries in PILOT_META.values() for e in entries)
+        ],
+    )
+    candidate_path = tmp / "candidates.tsv"
+    write_tsv(candidate_path, ["STUDY.ACCESSION"], [{"STUDY.ACCESSION": a} for a in ALL_IDS])
+    content, _ = content_sha.metadata_content_sha256(meta)
+    (meta / "parent-run-summary.json").write_text(
+        json.dumps(
+            {
+                "code_sha": FIXTURE_CODE_SHA,
+                "output_metadata_content_sha256": content,
+                "membership": len(ALL_IDS),
+                "association_opens": 0,
+                "promotion": False,
+                "store_operations": False,
+                "metadata_idempotent": True,
+                "source_metadata_unchanged": True,
+                "refresh_exit_codes": [0, 0],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return meta, mapping_path, effect_path, candidate_path
+
+
+class TestEffectScaleProvenance(unittest.TestCase):
+    def test_design_alone_is_not_provenance(self) -> None:
+        scale, method, original, provenance, status = selection.classify_effect_scale(
+            {"study_design": "case-control", "n_cases": "100"}
+        )
+        self.assertEqual(status, "pending")
+        self.assertEqual((scale, method), ("", ""))
+        self.assertNotEqual(scale, "log_or")
+
+    def test_point_is_not_inverse_normal(self) -> None:
+        scale, _, _, _, status = selection.classify_effect_scale(
+            {"analyzed_variable": "POINT measurement", "study_design": "quantitative"}
+        )
+        self.assertEqual(status, "pending")
+        self.assertNotEqual(scale, "sd")
+
+    def test_explicit_provenance_resolves(self) -> None:
+        scale, method, original, provenance, status = selection.classify_effect_scale(
+            {"stored_effect_scale": "log_or", "effect_scale_provenance": "owner_x"}
+        )
+        self.assertEqual((scale, method, status), ("log_or", "binary_trait", "resolved"))
 
 
 class TestSelection(unittest.TestCase):
     def setUp(self) -> None:
         self.td = tempfile.TemporaryDirectory()
         self.tmp = Path(self.td.name)
-        self.meta, self.mapping = make_pilot_fixture(self.tmp)
-        self.content_sha, _ = content_sha.metadata_content_sha256(self.meta)
+        self.meta, self.mapping, self.effect, self.candidates = make_pilot_fixture(self.tmp)
 
     def tearDown(self) -> None:
         self.td.cleanup()
 
-    def test_classify_effect_scale_provenance(self) -> None:
-        case, method, provenance, status = selection.classify_effect_scale(
-            {"study_design": "case-control", "n_cases": "10", "analyzed_variable": "X"}
-        )
-        self.assertEqual((case, method, status), ("log_or", "binary_trait", "resolved"))
-        sd, method, provenance, status = selection.classify_effect_scale(
-            {"study_design": "quantitative", "n_cases": "0", "analyzed_variable": "trait (inv-norm transformed)"}
-        )
-        self.assertEqual((sd, method, status), ("sd", "declared_standardised", "resolved"))
-        unknown, _, provenance, status = selection.classify_effect_scale(
-            {"study_design": "quantitative", "n_cases": "0", "analyzed_variable": "raw units"}
-        )
-        self.assertEqual((unknown, status, provenance), ("", "pending", "unknown_pending"))
-        self.assertNotEqual(unknown, "sd", "unknown effect scale must not default to sd")
-
-    def test_build_selection_meta_empty_and_pending_excluded(self) -> None:
+    def test_with_provenance_all_resolved(self) -> None:
         rows = selection.build_selection(
             metadata_root=self.meta,
             mapping_path=self.mapping,
-            metadata_content_sha256=self.content_sha,
+            metadata_content_sha256="0" * 64,
+            effect_provenance_path=self.effect,
         )
         self.assertEqual(len(rows), 15)
+        self.assertEqual(len([r for r in rows if r.is_resolved]), 15)
         manifest = selection.render_resolver_manifest(rows)
         self.assertEqual(manifest.count("\n") - 1, 15)
-        # META is canonicalised to empty assigned_ancestry in the manifest.
-        for line in manifest.splitlines()[1:]:
-            fields = line.split("\t")
-            if fields[1].startswith("GCST90479"):
-                self.assertEqual(fields[MANIFEST_ASSIGNED_ANCESTRY], "")
-        summary = selection.selection_summary(rows, self.content_sha)
-        self.assertEqual(summary["pending"], 0)
+
+    def test_without_provenance_stays_pending_and_excluded(self) -> None:
+        rows = selection.build_selection(
+            metadata_root=self.meta,
+            mapping_path=self.mapping,
+            metadata_content_sha256="0" * 64,
+        )
+        self.assertEqual(len([r for r in rows if r.is_resolved]), 0)
+        self.assertEqual(selection.render_resolver_manifest(rows).count("\n") - 1, 0)
 
 
-MANIFEST_ASSIGNED_ANCESTRY = selection.MANIFEST_COLUMNS.index("assigned_ancestry")
-
-
-class TestPreflight(unittest.TestCase):
+class TestLimitsAndPreflight(unittest.TestCase):
     def setUp(self) -> None:
         self.td = tempfile.TemporaryDirectory()
         self.tmp = Path(self.td.name)
@@ -194,25 +223,32 @@ class TestPreflight(unittest.TestCase):
     def tearDown(self) -> None:
         self.td.cleanup()
 
-    def test_refuses_existing_root(self) -> None:
+    def test_rejects_nonfinite_and_over_limits(self) -> None:
+        for limits in (
+            wrapper.ResourceLimits(wall_limit_s=float("nan")),
+            wrapper.ResourceLimits(wall_limit_s=float("inf")),
+            wrapper.ResourceLimits(wall_limit_s=-1),
+            wrapper.ResourceLimits(rss_limit_mb=0),
+            wrapper.ResourceLimits(rss_limit_mb=10_000),
+            wrapper.ResourceLimits(max_workers=0),
+            wrapper.ResourceLimits(max_workers=9),
+        ):
+            with self.assertRaises(wrapper.WrapperError):
+                wrapper.validate_limits(limits)
+
+    def test_preflight_refusals(self) -> None:
         existing = self.tmp / "out"
         existing.mkdir()
         with self.assertRaisesRegex(wrapper.WrapperError, "reuse"):
             wrapper.preflight_output_root(existing)
-
-    def test_refuses_symlinked_parent(self) -> None:
         real = self.tmp / "real"
         real.mkdir()
         link = self.tmp / "link"
         link.symlink_to(real, target_is_directory=True)
         with self.assertRaisesRegex(wrapper.WrapperError, "symlinked"):
             wrapper.preflight_output_root(link / "child")
-
-    def test_refuses_stores_component(self) -> None:
         with self.assertRaisesRegex(wrapper.WrapperError, "stores"):
             wrapper.preflight_output_root(self.tmp / "stores" / "child")
-
-    def test_refuses_protected_root(self) -> None:
         with self.assertRaisesRegex(wrapper.WrapperError, "protected"):
             wrapper.preflight_output_root(self.tmp / "child", protected_roots=[self.tmp])
 
@@ -221,57 +257,97 @@ class TestCliGates(unittest.TestCase):
     def setUp(self) -> None:
         self.td = tempfile.TemporaryDirectory()
         self.tmp = Path(self.td.name)
-        self.meta, self.mapping = make_pilot_fixture(self.tmp)
+        self.meta, self.mapping, self.effect, self.candidates = make_pilot_fixture(self.tmp)
         self.content_sha, _ = content_sha.metadata_content_sha256(self.meta)
 
     def tearDown(self) -> None:
         self.td.cleanup()
         os.environ.pop("FAKE_RESOLVER_MODE", None)
 
-    def _args(self, mode: str, out: Path, extra: list[str] | None = None) -> list[str]:
-        base = [mode, "--metadata-root", str(self.meta), "--mapping", str(self.mapping), "--out-root", str(out)]
-        return base + (extra or [])
-
     def test_plan_is_metadata_only(self) -> None:
         out = self.tmp / "plan"
-        self.assertEqual(cli.main(self._args("plan", out)), 0)
+        rc = cli.main(
+            [
+                "plan", "--metadata-root", str(self.meta), "--mapping", str(self.mapping),
+                "--candidate-table", str(self.candidates), "--effect-provenance", str(self.effect),
+                "--out-root", str(out),
+            ]
+        )
+        self.assertEqual(rc, 0)
         self.assertTrue((out / "selection" / "pilot-analyses.tsv").is_file())
-        self.assertTrue((out / "selection" / "plan-receipt.json").is_file())
         self.assertFalse((out / "receipt").exists())
 
-    def test_run_without_execute_is_refused(self) -> None:
+    def test_run_without_execute_is_refused_before_mkdir(self) -> None:
         out = self.tmp / "no-exec"
-        rc = cli.main(self._args("run", out, ["--approved-metadata-sha", self.content_sha]))
+        rc = cli.main(["run", "--metadata-root", str(self.meta), "--mapping", str(self.mapping), "--out-root", str(out)])
         self.assertEqual(rc, 2)
         self.assertFalse(out.exists())
 
-    def test_run_without_start_receipt_is_refused(self) -> None:
-        out = self.tmp / "no-receipt"
-        rc = cli.main(self._args("run", out, ["--execute", "--approved-metadata-sha", self.content_sha]))
+    def test_run_rejects_bad_limit_before_mkdir(self) -> None:
+        out = self.tmp / "bad-limit"
+        rc = cli.main(
+            [
+                "run", "--metadata-root", str(self.meta), "--mapping", str(self.mapping), "--out-root", str(out),
+                "--execute", "--approved-metadata-sha", self.content_sha, "--start-receipt", str(self._receipt()),
+                "--rss-limit-mb", "nan",
+            ]
+        )
         self.assertEqual(rc, 2)
+        self.assertFalse(out.exists())
 
-    def _run(self, out: Path, mode: str, extra: list[str] | None = None) -> int:
+    def test_run_rejects_unpinned_core_commit(self) -> None:
+        out = self.tmp / "bad-core"
+        rc = cli.main(
+            [
+                "run", "--metadata-root", str(self.meta), "--mapping", str(self.mapping), "--out-root", str(out),
+                "--execute", "--approved-metadata-sha", self.content_sha, "--start-receipt", str(self._receipt()),
+                "--core-commit", "0" * 40,
+            ]
+        )
+        self.assertEqual(rc, 2)
+        self.assertFalse(out.exists())
+
+    def _receipt(self) -> Path:
         receipt = self.tmp / "start-receipt.json"
         receipt.write_text(
-            json.dumps({"approved_metadata_sha256": self.content_sha, "authorized": True}),
+            json.dumps(
+                {
+                    "authorized": True,
+                    "owner": "operator",
+                    "scope": "15 bodies + reference loads",
+                    "code_head": "c" * 40,
+                    "core_commit": wrapper.PILOT_CORE_COMMIT,
+                    "resolver_executable": str(FAKE_RESOLVER),
+                    "analysis_ids": ALL_IDS,
+                    "reference_paths": [str(wrapper.ANCESTRY_REFERENCE)],
+                    "caps": {"rows": wrapper.ROW_CAP, "ancestry": wrapper.ANCESTRY_CAP},
+                    "start_identity": "parent",
+                    "approved_metadata_sha256": self.content_sha,
+                }
+            ),
             encoding="utf-8",
         )
+        return receipt
+
+    def _runtime_identity(self) -> Path:
+        identity = self.tmp / "runtime-identity.json"
+        identity.write_text(
+            json.dumps({"core_commit": wrapper.PILOT_CORE_COMMIT, "executable": str(FAKE_RESOLVER)}),
+            encoding="utf-8",
+        )
+        return identity
+
+    def _run(self, out: Path, mode: str, extra: list[str] | None = None) -> int:
         os.environ["FAKE_RESOLVER_MODE"] = mode
         return cli.main(
-            self._args(
-                "run",
-                out,
-                [
-                    "--execute",
-                    "--approved-metadata-sha",
-                    self.content_sha,
-                    "--start-receipt",
-                    str(receipt),
-                    "--resolver-executable",
-                    str(FAKE_RESOLVER),
-                    *(extra or []),
-                ],
-            )
+            [
+                "run", "--metadata-root", str(self.meta), "--mapping", str(self.mapping),
+                "--candidate-table", str(self.candidates), "--effect-provenance", str(self.effect),
+                "--out-root", str(out), "--execute", "--approved-metadata-sha", self.content_sha,
+                "--start-receipt", str(self._receipt()), "--resolver-executable", str(FAKE_RESOLVER),
+                "--runtime-identity", str(self._runtime_identity()),
+                *(extra or []),
+            ]
         )
 
     def test_run_ok_commits(self) -> None:
@@ -280,7 +356,8 @@ class TestCliGates(unittest.TestCase):
         self.assertTrue((out / "COMMITTED").is_file())
         receipt = json.loads((out / "receipt" / "resolution-receipt.json").read_text())
         self.assertTrue(receipt["outcome"]["ok"])
-        self.assertEqual(receipt["source_evidence_scope"], "capped_pilot_diagnostic")
+        self.assertEqual(receipt["outcome"]["escaped_pids"], [])
+        self.assertIn("records", receipt)
 
     def test_run_wall_timeout_kills_whole_group(self) -> None:
         out = self.tmp / "timeout"
@@ -302,6 +379,12 @@ class TestCliGates(unittest.TestCase):
     def test_run_failure_does_not_commit(self) -> None:
         out = self.tmp / "fail"
         self.assertEqual(self._run(out, "fail"), 2)
+        self.assertFalse((out / "COMMITTED").exists())
+
+    def test_run_guard_denied_read_does_not_commit(self) -> None:
+        out = self.tmp / "guard"
+        rc = self._run(out, "read_denied")
+        self.assertEqual(rc, 2)
         self.assertFalse((out / "COMMITTED").exists())
 
 

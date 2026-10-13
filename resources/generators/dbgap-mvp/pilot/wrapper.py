@@ -1,20 +1,27 @@
 """Bounded, process-tree-accounted runner for the MVP metric-resolution pilot.
 
-`plan` is metadata-only and the default; `run` requires an explicit `--execute`,
-the approved immutable metadata SHA and a parent start receipt. The wrapper
-starts its resource monitor *before* the resolver (so the ancestry-reference
-load is covered), pins CPU/BLAS, enforces a whole-pool wall timeout and an
-aggregate process-tree RSS ceiling, and kills the entire process group --
-including grandchildren -- on breach, re-checking that no descendant escaped.
+Hardened against process escape and pipe suspension:
 
-The core owns its own JSON writes; the registry uses exclusive
-containment-checked writes only for its selection and receipt files.
+* the wrapper becomes a **child subreaper** (``prctl``) so orphaned descendants
+  reparent to it; if that is unavailable the run fails closed rather than
+  claiming success;
+* the child is held at a **startup barrier** until the resource monitor is
+  running, so the resolver cannot load the reference before accounting starts;
+* child stdio goes to files, never a pipe, so a detached grandchild holding the
+  pipe cannot suspend the bounded wait;
+* after the root exits, the whole session group and any reparented children are
+  killed and reaped; an outcome is ``ok`` only when nothing escaped.
+
+The core owns its own JSON writes. The registry uses exclusive,
+containment-checked writes only for its own selection and receipt files.
 """
 
 from __future__ import annotations
 
+import ctypes
 import importlib.util
 import json
+import math
 import os
 import signal
 import subprocess
@@ -41,15 +48,15 @@ def _load(name: str, filename: str):
 safe_write = _load("ogstores_safe_write", "safe_write.py")
 metadata_content = _load("ogstores_metadata_content_sha", "metadata_content_sha.py")
 
-#: Reference/panel paths the pilot is authorised to have the public reader load.
 ANCESTRY_REFERENCE = Path("/data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz")
 ANCESTRY_GROUPS = Path("/data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv")
 QC_PANEL = REPO_ROOT / "resources" / "reference-resources" / "qc-panel-hg38" / "qc_panel.tsv"
 REFERENCE_VERSION = "ukb-ancestry-mixture-hg38"
 
-#: Proposed resource limits (the wrapper implements them for the pilot).
-WALL_LIMIT_S = 1800.0
-RSS_LIMIT_MB = 4096.0
+PILOT_CORE_COMMIT = "4e922566d7fa4c13a11be3637069da63e48be28c"
+
+WALL_LIMIT_MAX_S = 1800.0
+RSS_LIMIT_MAX_MB = 4096.0
 MAX_WORKERS = 2
 CPU_SET = (0, 1, 2, 3)
 ROW_CAP = 200000
@@ -57,29 +64,84 @@ ANCESTRY_CAP = 50000
 EVIDENCE_SAMPLE = 20000
 POLL_INTERVAL_S = 0.2
 
+_PR_SET_CHILD_SUBREAPER = 36
+
 
 class WrapperError(ValueError):
     """The pilot cannot proceed under the reviewed constraints."""
 
 
+def _set_subreaper() -> None:
+    libc = ctypes.CDLL("libc.so.6", use_errno=True)
+    if libc.prctl(_PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0:
+        errno = ctypes.get_errno()
+        raise WrapperError(f"prctl(PR_SET_CHILD_SUBREAPER) failed: errno {errno}")
+
+
+def allowed_cpus() -> frozenset[int]:
+    try:
+        return frozenset(os.sched_getaffinity(0))
+    except (AttributeError, OSError) as exc:  # pragma: no cover - platform
+        raise WrapperError(f"cannot determine allowed CPU affinity: {exc}") from exc
+
+
 @dataclass(frozen=True)
 class ResourceLimits:
-    wall_limit_s: float = WALL_LIMIT_S
-    rss_limit_mb: float = RSS_LIMIT_MB
+    wall_limit_s: float = WALL_LIMIT_MAX_S
+    rss_limit_mb: float = RSS_LIMIT_MAX_MB
     max_workers: int = MAX_WORKERS
     cpu_set: tuple[int, ...] = CPU_SET
 
 
-@dataclass
+def validate_limits(limits: ResourceLimits) -> tuple[int, ...]:
+    """Reject NaN/∞/non-positive/over-authorized limits; return the CPU set."""
+    for name, value, maximum in (
+        ("wall_limit_s", limits.wall_limit_s, WALL_LIMIT_MAX_S),
+        ("rss_limit_mb", limits.rss_limit_mb, RSS_LIMIT_MAX_MB),
+    ):
+        if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
+            raise WrapperError(f"{name} must be a finite number")
+        if value <= 0:
+            raise WrapperError(f"{name} must be positive")
+        if value > maximum:
+            raise WrapperError(f"{name}={value} exceeds the authorized maximum {maximum}")
+    if not isinstance(limits.max_workers, int) or isinstance(limits.max_workers, bool):
+        raise WrapperError("max_workers must be an integer")
+    if limits.max_workers < 1 or limits.max_workers > MAX_WORKERS:
+        raise WrapperError(f"max_workers must be in [1, {MAX_WORKERS}]")
+    allowed = allowed_cpus()
+    requested = set(limits.cpu_set)
+    usable = requested & allowed
+    if not usable:
+        raise WrapperError(
+            f"requested CPU set {sorted(requested)} has no intersection with allowed {sorted(allowed)}"
+        )
+    if len(usable) > 4:
+        raise WrapperError("at most 4 CPUs may be pinned")
+    return tuple(sorted(usable))
+
+
 class RunOutcome:
-    returncode: int
-    wall_s: float
-    peak_rss_mb: float
-    timed_out: bool = False
-    rss_breached: bool = False
-    escaped_pids: tuple[int, ...] = ()
-    stdout_tail: str = ""
-    stderr_tail: str = ""
+    def __init__(
+        self,
+        *,
+        returncode: int,
+        wall_s: float,
+        peak_rss_mb: float,
+        timed_out: bool,
+        rss_breached: bool,
+        escaped_pids: Sequence[int],
+        stdout_path: Path,
+        stderr_path: Path,
+    ) -> None:
+        self.returncode = returncode
+        self.wall_s = wall_s
+        self.peak_rss_mb = peak_rss_mb
+        self.timed_out = timed_out
+        self.rss_breached = rss_breached
+        self.escaped_pids = tuple(sorted(escaped_pids))
+        self.stdout_path = stdout_path
+        self.stderr_path = stderr_path
 
     @property
     def ok(self) -> bool:
@@ -89,6 +151,19 @@ class RunOutcome:
             and not self.rss_breached
             and not self.escaped_pids
         )
+
+    def as_dict(self) -> dict:
+        return {
+            "ok": self.ok,
+            "returncode": self.returncode,
+            "wall_s": self.wall_s,
+            "peak_rss_mb": self.peak_rss_mb,
+            "timed_out": self.timed_out,
+            "rss_breached": self.rss_breached,
+            "escaped_pids": list(self.escaped_pids),
+            "stdout_path": str(self.stdout_path),
+            "stderr_path": str(self.stderr_path),
+        }
 
 
 def assert_protected(path: Path, protected_roots: Sequence[Path]) -> None:
@@ -105,7 +180,6 @@ def preflight_output_root(
     protected_roots: Sequence[Path | str] = (),
     registry_roots: Sequence[Path | str] = (),
 ) -> Path:
-    """Create a fresh output root, refusing aliases, protected roots and stores/."""
     path = Path(out_dir)
     resolved = path.resolve()
     if path.exists() or path.is_symlink():
@@ -120,7 +194,63 @@ def preflight_output_root(
     return resolved
 
 
-def _pgid_members(pgid: int) -> set[int]:
+def _proc_stat(pid: int) -> tuple[int, int] | None:
+    """Return ``(ppid, starttime)`` for a live pid, or None."""
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+        fields = stat.rsplit(")", 1)[1].split()
+        return int(fields[1]), int(fields[19])
+    except (OSError, IndexError, ValueError):
+        return None
+
+
+def _procs_by_ppid() -> dict[int, list[int]]:
+    mapping: dict[int, list[int]] = {}
+    proc = Path("/proc")
+    if not proc.is_dir():
+        return mapping
+    for entry in proc.iterdir():
+        if not entry.name.isdigit():
+            continue
+        parsed = _proc_stat(int(entry.name))
+        if parsed is None or _proc_state(int(entry.name)) == "Z":
+            continue
+        mapping.setdefault(parsed[0], []).append(int(entry.name))
+    return mapping
+
+
+def descendants_of(pid: int) -> set[int]:
+    by_ppid = _procs_by_ppid()
+    members = {pid}
+    frontier = [pid]
+    while frontier:
+        current = frontier.pop()
+        for child in by_ppid.get(current, []):
+            if child not in members:
+                members.add(child)
+                frontier.append(child)
+    return members
+
+
+def _proc_state(pid: int) -> str:
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+        return stat.rsplit(")", 1)[1].split()[0]
+    except (OSError, IndexError):
+        return ""
+
+
+def _reap_orphans() -> None:
+    while True:
+        try:
+            pid, _ = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            return
+        if pid == 0:
+            return
+
+
+def descendants_of_group(pgid: int) -> set[int]:
     members: set[int] = set()
     proc = Path("/proc")
     if not proc.is_dir():
@@ -129,55 +259,22 @@ def _pgid_members(pgid: int) -> set[int]:
         if not entry.name.isdigit():
             continue
         try:
-            stat = (entry / "stat").read_text(encoding="utf-8")
-        except OSError:
-            continue
-        # pid (comm) state ppid pgrp ...
-        try:
-            fields = stat.rsplit(")", 1)[1].split()
-            pgrp = int(fields[2])
-        except (IndexError, ValueError):
-            continue
-        if pgrp == pgid:
-            members.add(int(entry.name))
-    return members
-
-
-def _tree_members(roots: set[int]) -> set[int]:
-    """All descendants of ``roots`` (one pass over /proc)."""
-    parents: dict[int, int] = {}
-    proc = Path("/proc")
-    if not proc.is_dir():
-        return set(roots)
-    for entry in proc.iterdir():
-        if not entry.name.isdigit():
-            continue
-        try:
-            stat = (entry / "stat").read_text(encoding="utf-8")
-            fields = stat.rsplit(")", 1)[1].split()
-            parents[int(entry.name)] = int(fields[1])
+            fields = entry.joinpath("stat").read_text(encoding="utf-8").rsplit(")", 1)[1].split()
+            if int(fields[2]) == pgid and fields[0] != "Z":
+                members.add(int(entry.name))
         except (OSError, IndexError, ValueError):
             continue
-    members = set(roots)
-    changed = True
-    while changed:
-        changed = False
-        for pid, ppid in parents.items():
-            if pid not in members and ppid in members:
-                members.add(pid)
-                changed = True
     return members
 
 
 def process_tree_rss_mb(pgid: int) -> float:
-    """Aggregate RSS of the process group's tree, in MB.
-
-    Summing ``VmRSS`` double-counts shared pages, so the value is a conservative
-    over-estimate (documented in the receipt). It is a ceiling, not an exact
-    resident measurement.
-    """
+    """Aggregate RSS over the process group and any reparented descendants."""
+    pids = set(descendants_of_group(pgid))
+    for pid in list(pids):
+        pids |= descendants_of(pid)
+    pids |= {pid for pid in _procs_by_ppid().get(os.getpid(), [])}
     total_kb = 0.0
-    for pid in _tree_members(_pgid_members(pgid)):
+    for pid in pids:
         try:
             status = Path(f"/proc/{pid}/status").read_text(encoding="utf-8")
         except OSError:
@@ -190,8 +287,6 @@ def process_tree_rss_mb(pgid: int) -> float:
 
 
 class ResourceMonitor:
-    """Poll a process group's aggregate RSS until stopped or breached."""
-
     def __init__(self, pgid: int, limit_mb: float, interval_s: float = POLL_INTERVAL_S) -> None:
         self.pgid = pgid
         self.limit_mb = limit_mb
@@ -206,7 +301,7 @@ class ResourceMonitor:
 
     def stop(self) -> None:
         self._stop.set()
-        self._thread.join(timeout=2.0)
+        self._thread.join(timeout=3.0)
 
     def _run(self) -> None:
         while not self._stop.is_set():
@@ -218,24 +313,34 @@ class ResourceMonitor:
             self._stop.wait(self.interval_s)
 
 
-def _preexec(cpu_set: Sequence[int]):
-    def _apply() -> None:
-        try:
-            os.sched_setaffinity(0, set(cpu_set))
-        except (AttributeError, OSError):
-            pass
-
-    return _apply
+_LAUNCHER = (
+    "import os,sys\n"
+    "fd=int(sys.argv[1]); argv=sys.argv[2:]\n"
+    "try:\n"
+    "    os.sched_setaffinity(0, {cpus})\n"
+    "except (AttributeError, OSError) as exc:\n"
+    "    os.write(2, ('affinity error: %s\\n' % exc).encode()); os._exit(1)\n"
+    "if os.read(fd, 1) != b'1': os._exit(1)\n"
+    "os.execvp(argv[0], argv)\n"
+)
 
 
 def run_bounded(
     argv: Sequence[str],
     *,
     limits: ResourceLimits,
-    env: Mapping[str, str] | None = None,
+    stdout_path: Path,
+    stderr_path: Path,
+    extra_env: Mapping[str, str] | None = None,
 ) -> RunOutcome:
-    """Run ``argv`` in its own session under the wall/RSS/CPU bounds."""
+    """Run ``argv`` in a subreaper-managed session under wall/RSS/CPU bounds."""
+    cpu_set = validate_limits(limits)
+    _set_subreaper()
+
     child_env = dict(os.environ)
+    if extra_env:
+        child_env.update(extra_env)
+    # BLAS/OpenMP pinned last: a caller cannot override them.
     child_env.update(
         {
             "OMP_NUM_THREADS": "1",
@@ -245,74 +350,95 @@ def run_bounded(
             "VECLIB_MAXIMUM_THREADS": "1",
         }
     )
-    if env:
-        child_env.update(env)
-    start = time.monotonic()
-    process = subprocess.Popen(
-        list(argv),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        env=child_env,
-        start_new_session=True,
-        preexec_fn=_preexec(limits.cpu_set),
+
+    barrier_r, barrier_w = os.pipe()
+    launcher = (
+        sys.executable,
+        "-c",
+        _LAUNCHER.format(cpus=set(cpu_set)),
+        str(barrier_r),
+        *argv,
     )
-    pgid = os.getpgid(process.pid)
-    monitor = ResourceMonitor(pgid, limits.rss_limit_mb)
-    # The monitor starts before the child can load the reference panel.
-    monitor.start()
-    timed_out = False
-    stdout = stderr = ""
-    try:
-        while True:
-            try:
-                stdout, stderr = process.communicate(timeout=POLL_INTERVAL_S)
-                break
-            except subprocess.TimeoutExpired:
-                if time.monotonic() - start > limits.wall_limit_s:
-                    timed_out = True
-                if timed_out or monitor.breached:
-                    _terminate_group(pgid)
-                    stdout, stderr = process.communicate()
+    stdout_path.parent.mkdir(parents=True, exist_ok=True)
+    start = time.monotonic()
+    with stdout_path.open("wb") as out, stderr_path.open("wb") as err:
+        process = subprocess.Popen(
+            list(launcher),
+            stdin=subprocess.DEVNULL,
+            stdout=out,
+            stderr=err,
+            env=child_env,
+            start_new_session=True,
+            pass_fds=(barrier_r,),
+        )
+        pid = process.pid
+        pgid = os.getpgid(pid)
+        monitor = ResourceMonitor(pgid, limits.rss_limit_mb)
+        # The monitor is running before the launcher releases the resolver past
+        # the barrier, so no reference load happens before accounting starts.
+        monitor.start()
+        os.close(barrier_r)
+        os.write(barrier_w, b"1")
+        os.close(barrier_w)
+
+        timed_out = False
+        try:
+            while True:
+                try:
+                    returncode = process.wait(timeout=POLL_INTERVAL_S)
                     break
-    finally:
-        monitor.stop()
-    if monitor.breached:
-        _terminate_group(pgid)
-    escaped = _terminate_group(pgid)
+                except subprocess.TimeoutExpired:
+                    if time.monotonic() - start > limits.wall_limit_s:
+                        timed_out = True
+                    if timed_out or monitor.breached:
+                        _terminate_all(pgid)
+                        returncode = process.wait()
+                        break
+        finally:
+            monitor.stop()
+    escaped = _terminate_all(pgid)
     wall = time.monotonic() - start
     return RunOutcome(
-        returncode=process.returncode if process.returncode is not None else -1,
+        returncode=returncode,
         wall_s=wall,
         peak_rss_mb=monitor.peak_mb,
         timed_out=timed_out,
         rss_breached=monitor.breached,
-        escaped_pids=tuple(sorted(escaped)),
-        stdout_tail=(stdout or "")[-2000:],
-        stderr_tail=(stderr or "")[-2000:],
+        escaped_pids=escaped,
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
     )
 
 
-def _terminate_group(pgid: int, grace_s: float = 3.0) -> set[int]:
-    """Kill the whole group and its descendants; return any that escaped."""
-    for sig in (signal.SIGTERM, signal.SIGKILL):
-        try:
-            os.killpg(pgid, sig)
-        except ProcessLookupError:
-            break
-        deadline = time.monotonic() + grace_s
-        while time.monotonic() < deadline:
-            if not _tree_members(_pgid_members(pgid)):
-                return set()
-            time.sleep(0.1)
-    remaining = _tree_members(_pgid_members(pgid))
-    for pid in sorted(remaining):
-        try:
-            os.kill(pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-    time.sleep(0.2)
-    return _tree_members(_pgid_members(pgid))
+def _terminate_all(pgid: int, grace_s: float = 3.0) -> set[int]:
+    """Kill the group and any reparented descendants; return survivors.
+
+    The wrapper is a child subreaper, so an orphaned grandchild reparents to it
+    instead of escaping to init; the loop kills that child too. SIGKILL is used
+    directly because the run is already being stopped (wall timeout or RSS
+    breach).
+    """
+    me = os.getpid()
+    deadline = time.monotonic() + grace_s
+    while True:
+        _reap_orphans()
+        targets = descendants_of_group(pgid) | {
+            pid for pid in _procs_by_ppid().get(me, []) if pid != 0
+        }
+        if not targets:
+            return set()
+        for pid in sorted(targets):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        if time.monotonic() > deadline:
+            time.sleep(0.5)
+            _reap_orphans()
+            return descendants_of_group(pgid) | {
+                pid for pid in _procs_by_ppid().get(me, []) if pid != 0
+            }
+        time.sleep(0.1)
 
 
 def build_resolver_argv(
@@ -362,15 +488,6 @@ def build_resolver_argv(
     ]
 
 
-def _atomic_json(path: Path, data: Mapping, root: Path, *, overwrite: bool = False) -> None:
-    try:
-        safe_write.atomic_write_text(
-            path, json.dumps(data, indent=2, sort_keys=True) + "\n", root, overwrite=overwrite
-        )
-    except safe_write.SafeWriteError as exc:
-        raise WrapperError(str(exc)) from exc
-
-
 __all__ = [
     "ANCESTRY_CAP",
     "ANCESTRY_GROUPS",
@@ -378,18 +495,21 @@ __all__ = [
     "CPU_SET",
     "EVIDENCE_SAMPLE",
     "MAX_WORKERS",
+    "PILOT_CORE_COMMIT",
     "QC_PANEL",
     "REFERENCE_VERSION",
     "ROW_CAP",
-    "RSS_LIMIT_MB",
     "ResourceLimits",
     "ResourceMonitor",
     "RunOutcome",
-    "WALL_LIMIT_S",
     "WrapperError",
+    "allowed_cpus",
     "assert_protected",
     "build_resolver_argv",
+    "descendants_of",
+    "descendants_of_group",
     "preflight_output_root",
     "process_tree_rss_mb",
     "run_bounded",
+    "validate_limits",
 ]

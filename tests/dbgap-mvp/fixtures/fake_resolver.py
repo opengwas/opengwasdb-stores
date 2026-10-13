@@ -44,6 +44,11 @@ def main() -> int:
             blocks.append(block)
             time.sleep(0.05)
 
+    if mode == "read_denied":
+        with open("/data/opengwasdb/raw/not-allowed/secret.tsv.gz", "rb") as handle:
+            handle.read(1)
+        return 0
+
     os.makedirs(records, exist_ok=True)
     with open(manifest, newline="", encoding="utf-8") as handle:
         ids = [row["analysis_id"] for row in csv.DictReader(handle, delimiter="\t")]

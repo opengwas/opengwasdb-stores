@@ -92,6 +92,7 @@ class SelectionRow:
     manifest: Mapping[str, str]
     sidecar: Mapping[str, object]
     stored_effect_scale: str
+    original_effect_scale: str
     original_sd_method: str
     effect_scale_provenance: str
     effect_scale_status: str
@@ -122,34 +123,23 @@ def index_by_analysis_id(rows: Sequence[Mapping[str, str]], what: str) -> dict[s
     return indexed
 
 
-def classify_effect_scale(mapping_row: Mapping[str, str]) -> tuple[str, str, str, str]:
-    """Return ``(stored_effect_scale, original_sd_method, provenance, status)``.
+def classify_effect_scale(provenance: Mapping[str, str]) -> tuple[str, str, str, str, str]:
+    """Return ``(stored_effect_scale, original_sd_method, original_effect_scale,
+    provenance, status)`` from **explicit** owner/source provenance only.
 
-    ``resolved`` means the metadata carries real provenance; ``pending`` means
-    the row must be kept out of the resolver manifest (a blank scale would be
-    defaulted to ``sd`` by the public reader).
+    Study design and label regexes are deliberately *not* used: a case-control
+    flag is not an effect model, and "INT" inside "POINT" is not an
+    inverse-normal declaration. Without a declared ``stored_effect_scale`` plus a
+    named provenance source the row is ``pending`` and is kept out of the
+    resolver manifest (a blank scale would be defaulted to ``sd`` by the core).
     """
-    design = (mapping_row.get("study_design") or "").strip().lower()
-    variable = (mapping_row.get("analyzed_variable") or "").strip()
-    n_cases = (mapping_row.get("n_cases") or "").strip()
-    case_control = design == "case-control" or bool(n_cases and n_cases not in ("0", "0.0"))
-    if case_control:
-        return (
-            "log_or",
-            "binary_trait",
-            "dbgap_study_design_case_control",
-            "resolved",
-        )
-    if design == "quantitative":
-        if _INV_NORM_RE.search(variable):
-            return (
-                "sd",
-                "declared_standardised",
-                "dbgap_analyzed_variable_inverse_normal",
-                "resolved",
-            )
-        return ("", "", "unknown_pending", "pending")
-    return ("", "", "unknown_pending", "pending")
+    declared = (provenance.get("stored_effect_scale") or provenance.get("effect_scale") or "").strip().lower()
+    original = (provenance.get("original_effect_scale") or "").strip().lower()
+    source = (provenance.get("effect_scale_provenance") or "").strip()
+    if declared in ("sd", "log_or", "log_hazard") and source:
+        method = "binary_trait" if declared in ("log_or", "log_hazard") else ""
+        return declared, method, original, source, "resolved"
+    return "", "", "", source or "unknown_pending", "pending"
 
 
 def _load_metadata_root_manifests(metadata_root: Path) -> dict[str, dict[str, str]]:
@@ -169,11 +159,17 @@ def build_selection(
     mapping_path: Path | str,
     metadata_content_sha256: str,
     candidate_table_path: Path | str | None = None,
+    effect_provenance_path: Path | str | None = None,
 ) -> list[SelectionRow]:
     """Build the reviewed 15-row selection with per-row binding evidence."""
     root = Path(metadata_root)
     mapping_by_id = index_by_analysis_id(read_tsv(mapping_path), "mapping")
     manifest_by_id = _load_metadata_root_manifests(root)
+    effect_by_id: dict[str, dict[str, str]] = {}
+    if effect_provenance_path is not None:
+        effect_by_id = index_by_analysis_id(
+            read_tsv(effect_provenance_path), "effect provenance"
+        )
     candidates: dict[str, dict[str, str]] = {}
     if candidate_table_path is not None:
         table_path = Path(candidate_table_path)
@@ -206,7 +202,9 @@ def build_selection(
             sidecar = yaml.safe_load(sidecar_path.read_text(encoding="utf-8")) or {}
             if str(sidecar.get("gwas_id") or "").strip() != analysis_id:
                 raise SelectionError(f"pilot {analysis_id!r} sidecar gwas_id mismatch")
-            scale, method, provenance, status = classify_effect_scale(mapping_row)
+            scale, method, original, provenance, status = classify_effect_scale(
+                effect_by_id.get(analysis_id, {})
+            )
             rows.append(
                 SelectionRow(
                     analysis_id=analysis_id,
@@ -215,6 +213,7 @@ def build_selection(
                     manifest=manifest_row,
                     sidecar=sidecar,
                     stored_effect_scale=scale,
+                    original_effect_scale=original,
                     original_sd_method=method,
                     effect_scale_provenance=provenance,
                     effect_scale_status=status,
@@ -279,7 +278,7 @@ def render_resolver_manifest(rows: Sequence[SelectionRow]) -> str:
                 "source_file": manifest.get("data_file", ""),
                 "source_reader_capability": READER_CAPABILITY,
                 "stored_effect_scale": row.stored_effect_scale,
-                "original_effect_scale": row.stored_effect_scale,
+                "original_effect_scale": row.original_effect_scale,
                 "effect_scale_provenance": row.effect_scale_provenance,
                 "effect_scale_status": row.effect_scale_status,
                 "original_sd_method": row.original_sd_method,

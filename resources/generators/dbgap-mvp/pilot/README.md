@@ -15,34 +15,47 @@ This code is **not** a live-pilot instruction. `run` refuses to execute without
 python3 resources/generators/dbgap-mvp/pilot/cli.py plan \
   --metadata-root /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z \
   --mapping /data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv \
+  --effect-provenance <owner/source effect-scale provenance.tsv> \
   --out-root /data/opengwasdb/work/epic232/221/metric-pilot-staging
-
-# Bounded execution (parent-authorised only).
-python3 resources/generators/dbgap-mvp/pilot/cli.py run \
-  --metadata-root ... --mapping ... \
-  --out-root /data/opengwasdb/work/epic232/221/metric-pilot-<runtime-utc> \
-  --approved-metadata-sha 1f14b88c2c383d8bac97215a8807503ef600fed2d2a019067e9962777438310f \
-  --start-receipt /path/to/parent-start-receipt.json \
-  --execute
 ```
+
+`run` additionally needs `--execute`, `--approved-metadata-sha`, `--start-receipt`
+and the pinned `--core-commit 4e922566...`; the parent start receipt binds owner,
+scope, code head, core commit, executable, the 15 ids, reference paths, caps and
+start identity. A `resolution-receipt.json` records the outcome, records
+verification, guard counts and resource actuals.
 
 ## What each module owns
 
 - `selection.py` — metadata-only build of the reviewed 15 rows and the resolver
-  manifest. Effect scale comes from real provenance (`study_design` case-control
-  → `log_or`/`binary_trait`; inverse-normal-transformed quantitative →
-  `sd`/`declared_standardised`); anything else is `unknown`/pending and is
-  **excluded from the resolver manifest** because the public reader defaults a
-  blank `stored_effect_scale` to `sd`. META is canonicalised to the empty
+  manifest. Effect scale comes **only** from explicit owner/source provenance
+  (`--effect-provenance`, columns `stored_effect_scale`, `original_effect_scale`,
+  `effect_scale_provenance`); study design and label regexes are deliberately
+  ignored, and a row without provenance is `unknown`/pending and is **excluded
+  from the resolver manifest** because the public reader defaults a blank
+  `stored_effect_scale` to `sd`. META is canonicalised to the empty
   super-population; the core's inferred ancestry is not rewritten.
 - `wrapper.py` — fresh-root preflight (refuses reuse, symlink ancestors,
-  `stores/` components and protected roots before any `mkdir`), the resource
-  monitor (started before the resolver can load the reference), and the bounded
-  runner. CPU affinity and BLAS/OpenMP=1 are set on the child; the whole process
-  group is killed on wall-timeout or RSS breach, then re-checked so no
-  grandchild escapes.
-- `cli.py` — the DRY PLAN default and the fail-closed `run` gates. Every
-  resolver argument is assembled here; arbitrary commands cannot be run.
+  `stores/` components and protected roots before any `mkdir`); limit validation
+  (finite, positive, within 1800 s / 4096 MB / 2 workers) before any write; the
+  wrapper becomes a **child subreaper** and holds the resolver at a **startup
+  barrier** until the monitor is running, so nothing loads before accounting;
+  stdio goes to files (never a pipe, so a detached grandchild cannot suspend the
+  wait); on wall-timeout/RSS breach the whole session group and any reparented
+  descendants are SIGKILLed and reaped, and an outcome is `ok` only when nothing
+  escaped. CPU affinity uses the process's **actual allowed** set and a failure
+  is fatal; BLAS/OpenMP=1 is pinned after any caller env.
+- `guard/sitecustomize.py` — a read/write audit hook injected via `PYTHONPATH`
+  (no env install): library/interpreter reads, the allowlisted reference panels
+  and 15 source bodies, and writes only inside the fresh root are allowed; any
+  other source/data read or out-of-root mutation raises and is counted.
+- `cli.py` — DRY PLAN default; `run` requires `--execute`, the approved
+  immutable metadata SHA, a fully-bound parent start receipt (owner, scope, code
+  head, core commit, executable, ids, references, caps, start identity) and the
+  pinned core commit `4e922566`. It verifies the frozen receipt/content sha,
+  runs the resolver once, then requires every selected record + `index.json`
+  with a known status, an unchanged metadata content-hash and zero guard
+  denials before writing `COMMITTED`.
 
 ## Resource accounting
 
