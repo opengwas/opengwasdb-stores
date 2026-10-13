@@ -108,6 +108,16 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
             )
             sidecar_by_id[analysis_id] = sidecar
 
+    (meta / "input-metadata-before.json").write_text(
+        json.dumps(
+            {
+                str(path): {"sha256": gen.sha256_file(path), "size": path.stat().st_size}
+                for path in sidecar_by_id.values()
+            }
+        ),
+        encoding="utf-8",
+    )
+
     mapping_path = tmp / "mapping.tsv"
     write_tsv(
         mapping_path,
@@ -601,6 +611,7 @@ class TestCandidateEmission(unittest.TestCase):
             yaml.safe_dump({"gwas_id": "eur1", "data_file_name": "eur1.tsv.gz"}),
             encoding="utf-8",
         )
+        self._refresh_source_snapshot(sidecar)
         with self.assertRaisesRegex(gen.CandidateError, "no genome_assembly"):
             self._emit_mutated(gen.read_tsv(self.resolution))
 
@@ -616,8 +627,40 @@ class TestCandidateEmission(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        self._refresh_source_snapshot(sidecar)
         with self.assertRaisesRegex(gen.CandidateError, "assembly disagreement"):
             self._emit_mutated(gen.read_tsv(self.resolution))
+
+    def test_tampered_source_fingerprint_fails(self) -> None:
+        sidecar = self.tmp / "meta" / "gwas-ssf" / "eur1.tsv.gz-meta.yaml"
+        sidecar.write_text(
+            yaml.safe_dump(
+                {
+                    "gwas_id": "eur1",
+                    "data_file_name": "eur1.tsv.gz",
+                    "genome_assembly": "GRCh38",
+                    "note": "tampered after the frozen snapshot",
+                }
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(gen.CandidateError, "fingerprint mismatch"):
+            self._emit_mutated(gen.read_tsv(self.resolution))
+
+    def test_missing_source_snapshot_fails(self) -> None:
+        (self.tmp / "meta" / "input-metadata-before.json").unlink()
+        with self.assertRaisesRegex(gen.CandidateError, "snapshot"):
+            self._emit_mutated(gen.read_tsv(self.resolution))
+
+    def _refresh_source_snapshot(self, *paths: Path) -> None:
+        snapshot_path = self.tmp / "meta" / "input-metadata-before.json"
+        snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        for path in paths:
+            snapshot[str(path)] = {
+                "sha256": gen.sha256_file(path),
+                "size": path.stat().st_size,
+            }
+        snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
 
     def test_missing_receipt_field_fails(self) -> None:
         receipt = self.tmp / "meta" / "parent-run-summary.json"

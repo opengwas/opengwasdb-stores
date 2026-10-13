@@ -445,6 +445,52 @@ def metadata_fingerprint(
     return {"files": files, "aggregate_sha256": digest.hexdigest()}
 
 
+def source_snapshot_summary(config: Mapping) -> dict | None:
+    """Record the immutable source-metadata fingerprint snapshot, if present."""
+    snapshot_path = _metadata_root(config) / "input-metadata-before.json"
+    if not snapshot_path.is_file():
+        return None
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    if not isinstance(snapshot, dict):
+        raise CandidateError("input-metadata-before.json is not a mapping")
+    return {
+        "snapshot": str(snapshot_path),
+        "snapshot_sha256": sha256_file(snapshot_path),
+        "total_files": len(snapshot),
+    }
+
+
+def verify_source_fingerprints(config: Mapping) -> dict:
+    """Re-hash every source metadata file against the immutable before-snapshot.
+
+    The refresh records ``input-metadata-before.json`` (path -> sha256/size)
+    over the regular source metadata. Verifying all entries binds an emit to
+    that frozen snapshot rather than to a mutated current tree carrying a
+    copied receipt label.
+    """
+    summary = source_snapshot_summary(config)
+    if summary is None:
+        raise CandidateError(
+            "source metadata fingerprint snapshot input-metadata-before.json not found"
+        )
+    snapshot = json.loads(Path(summary["snapshot"]).read_text(encoding="utf-8"))
+    if not snapshot:
+        raise CandidateError("input-metadata-before.json has no entries")
+    for path_str, record in snapshot.items():
+        path = Path(path_str)
+        if not path.is_file():
+            raise CandidateError(f"source metadata file missing: {path}")
+        digest = (record or {}).get("sha256")
+        if not digest:
+            raise CandidateError(f"source metadata snapshot entry has no sha256: {path}")
+        if sha256_file(path) != digest:
+            raise CandidateError(f"source metadata fingerprint mismatch: {path}")
+        size = (record or {}).get("size")
+        if size is not None and path.stat().st_size != int(size):
+            raise CandidateError(f"source metadata size mismatch: {path}")
+    return {**summary, "verified_files": len(snapshot)}
+
+
 def metadata_hashes(config: Mapping, mapping_path: Path | str | None = None) -> dict:
     """Actual hashes of the regular metadata inputs (never an association file)."""
     metadata = config.get("metadata") or {}
@@ -464,6 +510,7 @@ def metadata_hashes(config: Mapping, mapping_path: Path | str | None = None) -> 
             filename: sha256_file(root / "manifests" / filename) for filename in manifests
         },
         "metadata_fingerprint": metadata_fingerprint(config, mapping_path),
+        "source_snapshot": source_snapshot_summary(config),
     }
     if mapping_path is not None:
         result["mapping_table"] = str(mapping_path)
@@ -1007,6 +1054,7 @@ def run_emit(
     )
     candidates_sha = sha256_file(candidates_path)
     fingerprint = metadata_fingerprint(config, mapping_path)
+    source_proof = verify_source_fingerprints(config)
     if expected_metadata_fingerprint and (
         expected_metadata_fingerprint != fingerprint["aggregate_sha256"]
     ):
@@ -1053,6 +1101,9 @@ def run_emit(
             "metadata_receipt_sha256": receipt_sha,
             "metadata_fingerprint_sha256": fingerprint["aggregate_sha256"],
             "metadata_content_sha256_status": "declared_receipt_label_not_recomputed",
+            "source_metadata_snapshot": source_proof["snapshot"],
+            "source_metadata_snapshot_sha256": source_proof["snapshot_sha256"],
+            "source_metadata_verified_files": source_proof["verified_files"],
             "resolution_table": str(resolution_path),
             "resolution_sha256": resolution_sha,
             "planned_manifest": planned,

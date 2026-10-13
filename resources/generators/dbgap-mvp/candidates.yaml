@@ -47,6 +47,10 @@ source_hashes:
         sha256: 96fa3a7b1b3ef3e3229ef5418a1d60e16b6528977b692164698e4bc40ac69b08
         size: 2247492
     aggregate_sha256: 664640feefd4c490d83ef67217d8c60c3c158fbf40beacec22999427b8f1a290
+  source_snapshot:
+    snapshot: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/input-metadata-before.json
+    snapshot_sha256: fdac561dc826ab9215d682248f48909eb790574a947ce35fcb77918d6fc61168
+    total_files: 6032
   mapping_table: /data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv
   mapping_sha256: 96fa3a7b1b3ef3e3229ef5418a1d60e16b6528977b692164698e4bc40ac69b08
 finngen:
