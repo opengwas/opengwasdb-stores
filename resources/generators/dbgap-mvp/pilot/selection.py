@@ -28,6 +28,42 @@ PILOT_IDS: Mapping[str, tuple[str, ...]] = {
     "META": ("GCST90479500", "GCST90479501", "GCST90479527"),
 }
 
+#: The supervised ancestry buckets a scope may name.
+KNOWN_BUCKETS: tuple[str, ...] = ("EUR", "AFR", "AMR", "EAS", "META")
+
+
+def resolve_scope(
+    scope: str, mapping_by_id: Mapping[str, Mapping[str, str]]
+) -> list[tuple[str, str]]:
+    """Return ``[(analysis_id, bucket), ...]`` for a scope.
+
+    ``pilot`` is the reviewed 15; ``bucket:<X>`` every mapping row in bucket X;
+    ``all`` every mapping row. Ordering is deterministic (pilot order, then
+    analysis_id) so a scope's manifest is reproducible.
+    """
+    if scope == "pilot":
+        return [(analysis_id, bucket) for bucket, ids in PILOT_IDS.items() for analysis_id in ids]
+    if scope == "all":
+        return sorted(
+            ((analysis_id, (row.get("ancestry") or "").strip()) for analysis_id, row in mapping_by_id.items())
+        )
+    if scope.startswith("bucket:"):
+        bucket = scope.split(":", 1)[1]
+        if bucket not in KNOWN_BUCKETS:
+            raise SelectionError(
+                f"unknown scope bucket {bucket!r}; expected one of {KNOWN_BUCKETS}"
+            )
+        return sorted(
+            (
+                (analysis_id, (row.get("ancestry") or "").strip())
+                for analysis_id, row in mapping_by_id.items()
+                if (row.get("ancestry") or "").strip() == bucket
+            )
+        )
+    raise SelectionError(
+        f"unknown scope {scope!r}; expected 'pilot', 'bucket:<X>' or 'all'"
+    )
+
 MANIFEST_COLUMNS: tuple[str, ...] = (
     "analysis_index",
     "analysis_id",
@@ -158,7 +194,9 @@ def classify_effect_scale(
     variable = (mapping_row.get("analyzed_variable") or "").strip().lower()
     if trait_type == "binary":
         return "log_or", "binary_trait", "log_or", "dbgap_trait_type_binary", "resolved"
-    if trait_type == "quantitative" and "inv-norm transformed" in variable:
+    if trait_type == "quantitative" and (
+        "inv-norm transformed" in variable or "inv-normal transformed" in variable
+    ):
         return (
             "sd",
             "declared_standardised",
@@ -187,8 +225,14 @@ def build_selection(
     metadata_content_sha256: str,
     candidate_table_path: Path | str | None = None,
     effect_provenance_path: Path | str | None = None,
+    scope: str = "pilot",
 ) -> list[SelectionRow]:
-    """Build the reviewed 15-row selection with per-row binding evidence."""
+    """Build a scope's selection with per-row binding evidence.
+
+    ``scope`` is ``pilot`` (the reviewed 15), ``bucket:<X>`` or ``all``. Every
+    row is bound the same strict way; a row without resolved effect provenance
+    stays pending and is kept out of the resolver manifest.
+    """
     root = Path(metadata_root)
     mapping_by_id = index_by_analysis_id(read_tsv(mapping_path), "mapping")
     manifest_by_id = _load_metadata_root_manifests(root)
@@ -197,57 +241,57 @@ def build_selection(
         effect_by_id = index_by_analysis_id(
             read_tsv(effect_provenance_path), "effect provenance"
         )
+    scoped = resolve_scope(scope, mapping_by_id)
+    scope_ids = {analysis_id for analysis_id, _ in scoped}
     candidates: dict[str, dict[str, str]] = {}
     if candidate_table_path is not None:
         table_path = Path(candidate_table_path)
         if not table_path.is_file():
             raise SelectionError(f"candidate table not found: {table_path}")
-        wanted = {analysis_id for ids in PILOT_IDS.values() for analysis_id in ids}
         for row in read_tsv(table_path):
-            if (row.get("STUDY.ACCESSION") or "").strip() in wanted:
+            if (row.get("STUDY.ACCESSION") or "").strip() in scope_ids:
                 candidates[row["STUDY.ACCESSION"].strip()] = row
 
     rows: list[SelectionRow] = []
-    for bucket, ids in PILOT_IDS.items():
-        for analysis_id in ids:
-            if analysis_id not in mapping_by_id:
-                raise SelectionError(f"pilot {analysis_id!r} is not in the mapping")
-            mapping_row = mapping_by_id[analysis_id]
-            if (mapping_row.get("ancestry") or "").strip() != bucket:
-                raise SelectionError(
-                    f"pilot {analysis_id!r} mapping ancestry "
-                    f"{(mapping_row.get('ancestry') or '')!r} != bucket {bucket!r}"
-                )
-            manifest_row = manifest_by_id.get(analysis_id)
-            if manifest_row is None:
-                raise SelectionError(f"pilot {analysis_id!r} has no store-manifest row")
-            sidecar_path = Path((manifest_row.get("yaml_file") or "").strip())
-            if not sidecar_path.is_file():
-                raise SelectionError(f"pilot {analysis_id!r} sidecar missing: {sidecar_path}")
-            import yaml
+    for analysis_id, bucket in scoped:
+        if analysis_id not in mapping_by_id:
+            raise SelectionError(f"scope {analysis_id!r} is not in the mapping")
+        mapping_row = mapping_by_id[analysis_id]
+        if (mapping_row.get("ancestry") or "").strip() != bucket:
+            raise SelectionError(
+                f"scope {analysis_id!r} mapping ancestry "
+                f"{(mapping_row.get('ancestry') or '')!r} != bucket {bucket!r}"
+            )
+        manifest_row = manifest_by_id.get(analysis_id)
+        if manifest_row is None:
+            raise SelectionError(f"scope {analysis_id!r} has no store-manifest row")
+        sidecar_path = Path((manifest_row.get("yaml_file") or "").strip())
+        if not sidecar_path.is_file():
+            raise SelectionError(f"scope {analysis_id!r} sidecar missing: {sidecar_path}")
+        import yaml
 
-            sidecar = yaml.safe_load(sidecar_path.read_text(encoding="utf-8")) or {}
-            if str(sidecar.get("gwas_id") or "").strip() != analysis_id:
-                raise SelectionError(f"pilot {analysis_id!r} sidecar gwas_id mismatch")
-            scale, method, original, provenance, status = classify_effect_scale(
-                mapping_row, effect_by_id.get(analysis_id, {})
+        sidecar = yaml.safe_load(sidecar_path.read_text(encoding="utf-8")) or {}
+        if str(sidecar.get("gwas_id") or "").strip() != analysis_id:
+            raise SelectionError(f"scope {analysis_id!r} sidecar gwas_id mismatch")
+        scale, method, original, provenance, status = classify_effect_scale(
+            mapping_row, effect_by_id.get(analysis_id, {})
+        )
+        rows.append(
+            SelectionRow(
+                analysis_id=analysis_id,
+                bucket=bucket,
+                mapping=mapping_row,
+                manifest=manifest_row,
+                sidecar=sidecar,
+                stored_effect_scale=scale,
+                original_effect_scale=original,
+                original_sd_method=method,
+                effect_scale_provenance=provenance,
+                effect_scale_status=status,
             )
-            rows.append(
-                SelectionRow(
-                    analysis_id=analysis_id,
-                    bucket=bucket,
-                    mapping=mapping_row,
-                    manifest=manifest_row,
-                    sidecar=sidecar,
-                    stored_effect_scale=scale,
-                    original_effect_scale=original,
-                    original_sd_method=method,
-                    effect_scale_provenance=provenance,
-                    effect_scale_status=status,
-                )
-            )
-            if candidate_table_path is not None and analysis_id not in candidates:
-                raise SelectionError(f"pilot {analysis_id!r} is not in the candidate table")
+        )
+        if candidate_table_path is not None and analysis_id not in candidates:
+            raise SelectionError(f"scope {analysis_id!r} is not in the candidate table")
     return rows
 
 
@@ -348,7 +392,8 @@ def selection_summary(rows: Sequence[SelectionRow], metadata_content_sha256: str
         "pending": len(rows) - len(resolved),
         "buckets": {
             bucket: [row.analysis_id for row in rows if row.bucket == bucket]
-            for bucket in PILOT_IDS
+            for bucket in KNOWN_BUCKETS
+            if any(row.bucket == bucket for row in rows)
         },
         "metadata_content_sha256": metadata_content_sha256,
         "pending_rows": pending_rows(rows),
@@ -357,6 +402,7 @@ def selection_summary(rows: Sequence[SelectionRow], metadata_content_sha256: str
 
 __all__ = [
     "EVIDENCE_COLUMNS",
+    "KNOWN_BUCKETS",
     "MANIFEST_COLUMNS",
     "PILOT_IDS",
     "READER_CAPABILITY",
@@ -369,5 +415,6 @@ __all__ = [
     "read_tsv",
     "render_evidence_tsv",
     "render_resolver_manifest",
+    "resolve_scope",
     "selection_summary",
 ]

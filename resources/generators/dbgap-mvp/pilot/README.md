@@ -21,9 +21,17 @@ python3 resources/generators/dbgap-mvp/pilot/cli.py plan \
 
 `run` additionally needs `--execute`, `--approved-metadata-sha`, `--start-receipt`
 and the pinned `--core-commit 4e922566...`; the parent start receipt binds owner,
-scope, code head, core commit, executable, the 15 ids, reference paths, caps and
+scope, code head, core commit, executable, the ids, reference paths, caps and
 start identity. A `resolution-receipt.json` records the outcome, records
 verification, guard counts and resource actuals.
+
+`--scope` selects the row set: `pilot` (the reviewed 15, default),
+`bucket:<EUR|AFR|AMR|EAS|META>` (every admitted mapping row in that bucket) or
+`all` (6,022). The resolver manifest contains only rows with resolved effect
+provenance; pending/unknown rows are excluded and counted in the receipt. The
+guard read allowlist is built from exactly the selected, resolved source files.
+Resource caps are unchanged (2 workers, ≤4 CPU, 200000 rows, 50000 ancestry
+sites, 20000 evidence).
 
 ## What each module owns
 
