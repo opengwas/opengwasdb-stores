@@ -284,7 +284,7 @@ class TestLimitsAndPreflight(unittest.TestCase):
             wrapper.ResourceLimits(wall_limit_s=float("inf")),
             wrapper.ResourceLimits(wall_limit_s=-1),
             wrapper.ResourceLimits(rss_limit_mb=0),
-            wrapper.ResourceLimits(rss_limit_mb=20_000),
+            wrapper.ResourceLimits(rss_limit_mb=70_000),
             wrapper.ResourceLimits(max_workers=0),
             wrapper.ResourceLimits(max_workers=9),
         ):

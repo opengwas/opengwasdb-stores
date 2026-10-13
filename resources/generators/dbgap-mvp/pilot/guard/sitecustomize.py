@@ -21,6 +21,7 @@ from __future__ import annotations
 import atexit
 import json
 import os
+import site
 import sys
 
 _CONFIG = json.loads(os.environ.get("OPENGWASDB_PILOT_GUARD", "{}"))
@@ -40,9 +41,14 @@ def _under_root(path: str) -> bool:
 def _is_library(path: str) -> bool:
     if path.endswith(_LIBRARY_SUFFIXES):
         return True
+    try:
+        site_prefixes = tuple(site.getsitepackages()) + (site.getusersitepackages(),)
+    except Exception:  # pragma: no cover - non-standard interpreters
+        site_prefixes = ()
     prefixes = (
         sys.prefix,
         sys.base_prefix,
+        *site_prefixes,
         "/usr/lib",
         "/usr/share",
         "/usr/local/lib",
