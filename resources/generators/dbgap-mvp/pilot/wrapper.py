@@ -374,9 +374,11 @@ def run_bounded(
         pid = process.pid
         pgid = os.getpgid(pid)
         monitor = ResourceMonitor(pgid, limits.rss_limit_mb)
-        # The monitor is running before the launcher releases the resolver past
-        # the barrier, so no reference load happens before accounting starts.
+        tracker = ProcessTracker(pgid)
+        # Both accounting threads are running before the launcher releases the
+        # resolver past the barrier, so no reference load happens unaccounted.
         monitor.start()
+        tracker.start()
         os.close(barrier_r)
         os.write(barrier_w, b"1")
         os.close(barrier_w)
@@ -396,7 +398,9 @@ def run_bounded(
                         break
         finally:
             monitor.stop()
-    escaped = _terminate_all(pgid)
+    escaped = set(_terminate_all(pgid))
+    tracker.stop()
+    escaped |= tracker.survivors()
     wall = time.monotonic() - start
     return RunOutcome(
         returncode=returncode,
@@ -408,6 +412,58 @@ def run_bounded(
         stdout_path=stdout_path,
         stderr_path=stderr_path,
     )
+
+
+def _proc_starttime(pid: int) -> int | None:
+    parsed = _proc_stat(pid)
+    return parsed[1] if parsed else None
+
+
+class ProcessTracker:
+    """Persist (pid, starttime) for observed descendants during a run.
+
+    PPID membership alone loses a descendant after its parent dies and it
+    reparents; recording the starttime lets a survivor be identified by
+    identity even if the pid was reused.
+    """
+
+    def __init__(self, pgid: int, interval_s: float = POLL_INTERVAL_S) -> None:
+        self.pgid = pgid
+        self.interval_s = interval_s
+        self.seen: dict[int, int] = {}
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=3.0)
+
+    def _snapshot(self) -> None:
+        me = os.getpid()
+        pids = descendants_of_group(self.pgid) | {
+            pid for pid in _procs_by_ppid().get(me, []) if pid != 0
+        }
+        for pid in pids:
+            start = _proc_starttime(pid)
+            if start is not None:
+                self.seen[pid] = start
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            self._snapshot()
+            self._stop.wait(self.interval_s)
+
+    def survivors(self) -> set[int]:
+        self._snapshot()
+        alive: set[int] = set()
+        for pid, start in self.seen.items():
+            current = _proc_starttime(pid)
+            if current is not None and current == start and _proc_state(pid) != "Z":
+                alive.add(pid)
+        return alive
 
 
 def _terminate_all(pgid: int, grace_s: float = 3.0) -> set[int]:
@@ -499,6 +555,7 @@ __all__ = [
     "QC_PANEL",
     "REFERENCE_VERSION",
     "ROW_CAP",
+    "ProcessTracker",
     "ResourceLimits",
     "ResourceMonitor",
     "RunOutcome",

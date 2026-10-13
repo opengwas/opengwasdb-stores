@@ -358,6 +358,31 @@ class TestCliGates(unittest.TestCase):
         self.assertTrue(receipt["outcome"]["ok"])
         self.assertEqual(receipt["outcome"]["escaped_pids"], [])
         self.assertIn("records", receipt)
+        self.assertEqual(receipt["summary"]["pending"], 0)
+        self.assertEqual(len(receipt["records"]["statuses"]), 15)
+
+    def test_run_accounts_pending_rows_and_excludes_their_records(self) -> None:
+        # Provenance for one META row is withheld: it stays pending, is excluded
+        # from the resolver manifest, and no core record is faked for it.
+        rows = [line for line in self.effect.read_text(encoding="utf-8").splitlines() if "GCST90479501" not in line]
+        truncated = self.tmp / "effect-provenance-truncated.tsv"
+        truncated.write_text("\n".join(rows) + "\n", encoding="utf-8")
+        out = self.tmp / "pending"
+        os.environ["FAKE_RESOLVER_MODE"] = "ok"
+        rc = cli.main(
+            [
+                "run", "--metadata-root", str(self.meta), "--mapping", str(self.mapping),
+                "--candidate-table", str(self.candidates), "--effect-provenance", str(truncated),
+                "--out-root", str(out), "--execute", "--approved-metadata-sha", self.content_sha,
+                "--start-receipt", str(self._receipt()), "--resolver-executable", str(FAKE_RESOLVER),
+                "--runtime-identity", str(self._runtime_identity()),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        receipt = json.loads((out / "receipt" / "resolution-receipt.json").read_text())
+        self.assertEqual(receipt["summary"]["pending"], 1)
+        self.assertEqual(receipt["summary"]["pending_rows"][0]["analysis_id"], "GCST90479501")
+        self.assertFalse((out / "records" / "GCST90479501.json").exists())
 
     def test_run_wall_timeout_kills_whole_group(self) -> None:
         out = self.tmp / "timeout"
@@ -380,6 +405,28 @@ class TestCliGates(unittest.TestCase):
         out = self.tmp / "fail"
         self.assertEqual(self._run(out, "fail"), 2)
         self.assertFalse((out / "COMMITTED").exists())
+
+    def test_run_detached_child_is_contained(self) -> None:
+        out = self.tmp / "detach"
+        pid_file = self.tmp / "child.pid"
+        os.environ["FAKE_CHILD_PID_FILE"] = str(pid_file)
+        os.environ.pop("FAKE_RESOLVER_MODE", None)
+        rc = cli.main(
+            [
+                "run", "--metadata-root", str(self.meta), "--mapping", str(self.mapping),
+                "--candidate-table", str(self.candidates), "--effect-provenance", str(self.effect),
+                "--out-root", str(out), "--execute", "--approved-metadata-sha", self.content_sha,
+                "--start-receipt", str(self._receipt()), "--resolver-executable", str(FAKE_RESOLVER),
+                "--runtime-identity", str(self._runtime_identity()), "--wall-limit-s", "1",
+            ]
+        )
+        os.environ.pop("FAKE_CHILD_PID_FILE", None)
+        self.assertIn(rc, (0, 2))
+        receipt = json.loads((out / "receipt" / "resolution-receipt.json").read_text())
+        self.assertEqual(receipt["outcome"]["escaped_pids"], [])
+        if pid_file.is_file():
+            child_pid = int(pid_file.read_text().strip())
+            self.assertFalse(Path(f"/proc/{child_pid}").exists())
 
     def test_run_guard_denied_read_does_not_commit(self) -> None:
         out = self.tmp / "guard"

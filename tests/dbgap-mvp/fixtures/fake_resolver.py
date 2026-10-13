@@ -49,6 +49,19 @@ def main() -> int:
             handle.read(1)
         return 0
 
+    if mode == "detach":
+        child = os.fork()
+        if child == 0:
+            os.setsid()
+            pid_file = os.environ.get("FAKE_CHILD_PID_FILE")
+            if pid_file:
+                with open(pid_file, "w", encoding="utf-8") as handle:
+                    handle.write(str(os.getpid()))
+            time.sleep(600)
+            os._exit(0)
+        time.sleep(1.0)
+        return 0
+
     os.makedirs(records, exist_ok=True)
     with open(manifest, newline="", encoding="utf-8") as handle:
         ids = [row["analysis_id"] for row in csv.DictReader(handle, delimiter="\t")]
