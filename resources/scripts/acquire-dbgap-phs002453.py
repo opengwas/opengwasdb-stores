@@ -64,6 +64,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TextIO
 
 import yaml
 
@@ -316,6 +317,39 @@ def write_tsv(path: Path, columns: tuple[str, ...], rows: list[dict[str, str]]) 
         writer.writeheader()
         for row in rows:
             writer.writerow({name: row.get(name, "") for name in columns})
+    os.replace(partial, path)
+
+
+def open_refresh_partial(path: Path, out_root: Path) -> tuple[Path, TextIO]:
+    """Create a fresh metadata temp, never truncate an existing inode or alias.
+
+    Containment alone cannot detect hardlinks or symlinks to another output row.
+    Exclusive creation also refuses stale regular temps and aliases introduced
+    after validation. Completed reruns remain valid because replace consumes the
+    temp. Existing temps are preserved for inspection, not blindly deleted.
+    """
+    partial = path.with_name(path.name + ".partial")
+    for target in (path, partial):
+        ensure_write_within(target, out_root)
+        if target.is_symlink():
+            raise AcquisitionError(f"refusing metadata symlink: {target}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        handle = partial.open("x", newline="", encoding="utf-8")
+    except FileExistsError as exc:
+        raise AcquisitionError(f"refusing existing metadata temporary file: {partial}") from exc
+    return partial, handle
+
+
+def write_tsv_guarded(
+    path: Path, columns: tuple[str, ...], rows: list[dict[str, str]], out_root: Path
+) -> None:
+    """Atomically write refresh metadata using an isolated, exclusive temp."""
+    partial, handle = open_refresh_partial(path, out_root)
+    with handle:
+        writer = csv.DictWriter(handle, fieldnames=list(columns), delimiter="\t", lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
     os.replace(partial, path)
 
 
@@ -1457,6 +1491,437 @@ def command_manifest(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# refresh (metadata-only canonicalisation + manifest merge)
+# ---------------------------------------------------------------------------
+
+#: Per-accession receipt for a metadata refresh.  ``data_file_md5sum`` is the
+#: identity carried forward from the existing sidecar, never re-validated here.
+REFRESH_RECEIPT_COLUMNS: tuple[str, ...] = (
+    "analysis_id", "member", "store_key", "action", "changed_fields",
+    "data_file_md5sum", "data_file_name", "sha256_provenance", "source_sidecar", "note",
+)
+
+#: Strict digest shapes; a malformed value is an error, never silently accepted.
+_SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
+_MD5_HEX = re.compile(r"^[0-9a-f]{32}$")
+
+
+def validate_digest(value: str, kind: str, where: str) -> str:
+    pattern = _SHA256_HEX if kind == "sha256" else _MD5_HEX
+    value = (value or "").strip().lower()
+    if not pattern.match(value):
+        raise AcquisitionError(f"{where}: invalid {kind} digest {value!r}")
+    return value
+
+
+def ensure_isolated(out: Path, source: Path, label: str) -> None:
+    """Refuse an output root that overlaps a read-only source root."""
+    out_r, src_r = out.resolve(), source.resolve()
+    if out_r == src_r or out_r in src_r.parents or src_r in out_r.parents:
+        raise AcquisitionError(f"--out {out_r} must not overlap {label} {src_r}")
+
+
+def resolved_within(child: Path, root: Path) -> bool:
+    """True when ``child`` resolves to a path inside ``root`` (symlink-safe)."""
+    try:
+        child.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def ensure_write_within(target: Path, out_root: Path, *, follow_final: bool = True) -> None:
+    """Every write target/temp must resolve inside the isolated root.
+
+    Checks the deepest existing ancestor so a symlinked parent cannot redirect a
+    write into a read-only source tree.  ``follow_final=False`` is for a data
+    symlink we create on purpose: its *parent* must be inside the root, but its
+    target is the read-only source and may be outside.
+    """
+    out_r = out_root.resolve()
+    if follow_final:
+        resolved = target.resolve()
+    else:
+        resolved = target.parent.resolve() / target.name
+    if not (resolved == out_r or out_r in resolved.parents):
+        raise AcquisitionError(f"write target {target} escapes the isolated root {out_r}")
+
+
+def validate_sidecar_binding(
+    document: dict[str, object], row: dict[str, str], accession: str, where: str
+) -> None:
+    """The sidecar's source/data bindings must agree with the mapping row."""
+    source = document.get("source")
+    if not isinstance(source, dict):
+        raise AcquisitionError(f"{where}: sidecar has no source provenance")
+    if source.get("member") != row["member"]:
+        raise AcquisitionError(
+            f"{where}: source.member {source.get('member')!r} != mapping member {row['member']!r}"
+        )
+    if source.get("tar") != row["tar"]:
+        raise AcquisitionError(f"{where}: source.tar {source.get('tar')!r} != mapping tar {row['tar']!r}")
+    validate_digest(str(source.get("tar_md5", "")), "md5", f"{where} source.tar_md5")
+    if document.get("data_file_name") != f"{accession}.tsv.gz":
+        raise AcquisitionError(
+            f"{where}: data_file_name {document.get('data_file_name')!r} != {accession}.tsv.gz"
+        )
+
+
+def canonical_manifest_row(
+    inherited: dict[str, str], row: dict[str, str], candidate: Candidate,
+    *, data_file: str, yaml_file: str,
+) -> dict[str, str]:
+    """A canonical manifest row: regenerated metadata fields + inherited data identity.
+
+    Canonical metadata (``trait``, ``sample_size``, ``study_design``, ``data_url``)
+    is regenerated from the mapping/candidate so no stale Catalog field survives.
+    Data identity (``status``, sizes, ``sha256``, assembly, ...) is inherited from
+    ``inherited``; it is provenance carried forward, not a current validation.
+    """
+    result = {name: "" for name in MANIFEST_COLUMNS}
+    result.update({
+        "analysis_id": candidate.analysis_id,
+        "publication_pmid": PUBMED_ID,
+        "trait": row.get("analyzed_variable") or candidate.trait,
+        "study_design": candidate.study_design,
+        "sample_size": row.get("sample_size") or str(candidate.sample_size),
+        "data_url": f"{DBGAP_BASE}/{row['tar']}" if row.get("tar") else "",
+        "harmonised_status": inherited.get("harmonised_status", ""),
+    })
+    for name in ("status", "data_bytes", "yaml_bytes", "sha256", "genome_assembly",
+                 "file_type", "is_harmonised", "seconds", "error"):
+        result[name] = inherited.get(name, "")
+    result["data_file"] = data_file
+    result["yaml_file"] = yaml_file
+    digest = str(result.get("sha256", "")).strip()
+    if result["status"] == "ok":
+        # A ready row must carry a valid sha256; an empty/malformed digest is a
+        # non-ready row, never a silent success.
+        if not digest or not _SHA256_HEX.match(digest.lower()):
+            result["status"] = "error"
+            result["error"] = "ready row has no valid sha256"
+        else:
+            result["sha256"] = digest.lower()
+    elif not str(result.get("error", "")).strip():
+        result["error"] = "non-ready row without an error message"
+    return result
+
+
+def read_sidecar_document(path: Path) -> dict[str, object]:
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(document, dict):
+        raise AcquisitionError(f"{path}: sidecar is not a YAML mapping")
+    return document
+
+
+def load_sidecar_index(root: Path) -> dict[str, Path]:
+    """``accession -> sidecar path`` under ``<root>/<bucket>/<GCST>/``."""
+    index: dict[str, Path] = {}
+    for path in sorted(root.glob("*/GCST*/GCST*.tsv.gz-meta.yaml")):
+        accession = path.name[: -len(".tsv.gz-meta.yaml")]
+        if accession in index:
+            raise AcquisitionError(
+                f"duplicate sidecar for {accession}: {index[accession]} and {path}"
+            )
+        index[accession] = path
+    return index
+
+
+def canonical_sidecar(
+    existing: dict[str, object], row: dict[str, str], candidate: Candidate, *, source_sidecar: str
+) -> tuple[dict[str, object], list[str]]:
+    """Return ``(document, changed_fields)`` for a metadata-only canonical refresh.
+
+    The data identity (``data_file_md5sum``, ``data_file_name``, ``source``) is
+    carried forward from the existing sidecar and never recomputed; a
+    ``metadata_refresh`` block records that provenance.  The canonical values
+    follow the owner decision (#220): dbGaP is authoritative and the Catalog
+    counterpart is retained under ``catalog_metadata`` only where it differs.
+    """
+    document = dict(existing)
+    changed: list[str] = []
+    canonical_trait = row.get("analyzed_variable") or candidate.trait
+    samples: dict[str, object] = {
+        "sample_ancestry_category": [candidate.yaml_ancestry],
+        "sample_size": int(row["sample_size"]),
+    }
+    if candidate.study_design == "case-control":
+        samples["case_control_study"] = True
+    if document.get("trait_description") != [canonical_trait]:
+        changed.append("trait_description")
+    document["trait_description"] = [canonical_trait]
+    if document.get("samples") != [samples]:
+        changed.append("samples")
+    document["samples"] = [samples]
+    catalog = catalog_provenance(row, candidate)
+    if catalog:
+        if document.get("catalog_metadata") != catalog:
+            changed.append("catalog_metadata")
+        document["catalog_metadata"] = catalog
+    elif "catalog_metadata" in document:
+        changed.append("catalog_metadata")
+        del document["catalog_metadata"]
+    carried = document.get("data_file_md5sum")
+    if not isinstance(carried, str) or not carried.strip():
+        raise AcquisitionError(f"{source_sidecar}: existing sidecar has no data_file_md5sum")
+    document["metadata_refresh"] = {"reused_data_md5sum": True, "source_sidecar": source_sidecar}
+    return document, changed
+
+
+def merge_manifest_rows(
+    existing_rows: list[dict[str, str]],
+    canonical: dict[str, dict[str, str]],
+    refreshed: dict[str, dict[str, str]],
+) -> list[dict[str, str]]:
+    """Replace refreshed accessions and canonicalise the trait/size of the rest.
+
+    Preserved rows keep every other column byte-for-byte (including their
+    recorded ``sha256``/``data_bytes``, treated as carried-forward provenance);
+    refreshed rows come from the isolated new conversion manifest.  An accession
+    absent from the existing manifest, or a manifest row outside the canonical
+    set, fails loudly rather than fabricating an ``ok`` row.
+    """
+    existing_ids = [row["analysis_id"] for row in existing_rows]
+    if len(existing_ids) != len(set(existing_ids)):
+        raise AcquisitionError("existing manifest has duplicate analysis_id rows")
+    unknown = sorted(set(refreshed) - set(existing_ids))
+    if unknown:
+        raise AcquisitionError(
+            f"refreshed accession(s) absent from the existing manifest: {', '.join(unknown)}"
+        )
+    outside = sorted(set(existing_ids) - set(canonical))
+    if outside:
+        raise AcquisitionError(
+            f"existing manifest row(s) outside the candidate store set: {', '.join(outside[:10])}"
+        )
+    missing = sorted(set(canonical) - set(existing_ids))
+    if missing:
+        raise AcquisitionError(
+            f"candidate store accession(s) absent from the existing manifest: {', '.join(missing[:10])}"
+        )
+    merged: list[dict[str, str]] = []
+    for row in existing_rows:
+        accession = row["analysis_id"]
+        canonical_row = canonical.get(accession, {})
+        new = dict(row)
+        if canonical_row:
+            for field in ("trait", "sample_size", "study_design", "data_url"):
+                if field in canonical_row:
+                    new[field] = canonical_row[field]
+        if accession in refreshed:
+            new = dict(refreshed[accession])
+        merged.append(new)
+    return merged
+
+
+def command_refresh(args: argparse.Namespace) -> int:
+    out = Path(args.out)
+    mapping_path = Path(args.mapping) if args.mapping else out / "mapping.tsv"
+    rows = read_tsv(mapping_path)
+    if not rows:
+        raise SystemExit(f"refresh: mapping is empty: {mapping_path}")
+    source_sidecar_root = Path(args.source_sidecars)
+    source_manifest_dir = Path(args.source_manifest_dir)
+    new_sidecar_root = Path(args.new_sidecars) if args.new_sidecars else None
+    raw_new_manifest_dir = Path(args.new_manifest_dir) if args.new_manifest_dir else None
+    ensure_isolated(out, source_sidecar_root, "--source-sidecars")
+    ensure_isolated(out, source_manifest_dir, "--source-manifest-dir")
+    if new_sidecar_root is not None:
+        ensure_isolated(out, new_sidecar_root, "--new-sidecars")
+    if raw_new_manifest_dir is not None:
+        ensure_isolated(out, raw_new_manifest_dir, "--new-manifest-dir")
+    manifest_dir = Path(args.manifest_dir) if args.manifest_dir else out / "manifests"
+    if not resolved_within(manifest_dir, out):
+        raise AcquisitionError(f"--manifest-dir {manifest_dir} must resolve inside --out {out}")
+    candidates = read_candidates(Path(args.candidates))
+    by_accession: dict[str, Candidate] = {}
+    for candidate in candidates:
+        if candidate.analysis_id in by_accession:
+            raise AcquisitionError(f"duplicate candidate accession {candidate.analysis_id}")
+        by_accession[candidate.analysis_id] = candidate
+    mapping_by_id: dict[str, dict[str, str]] = {}
+    seen_members: set[str] = set()
+    for row in rows:
+        accession = row["analysis_id"]
+        if accession in mapping_by_id:
+            raise AcquisitionError(f"duplicate mapping analysis_id {accession}")
+        member = row["member"]
+        if not member or not member.endswith(".txt.gz") or not member.startswith("MVP_R4.1000G_AGR."):
+            raise AcquisitionError(f"{accession}: unexpected member binding {member!r}")
+        if member in seen_members:
+            raise AcquisitionError(f"duplicate mapping member {member}")
+        seen_members.add(member)
+        if not row.get("tar"):
+            raise AcquisitionError(f"{accession}: mapping has no source tar")
+        if accession not in by_accession:
+            raise AcquisitionError(f"{accession}: not present in the candidate table")
+        candidate = by_accession[accession]
+        if row.get("candidate_store_key") and row["candidate_store_key"] != candidate.store_key:
+            raise AcquisitionError(
+                f"{accession}: store_key binding mismatch "
+                f"({row['candidate_store_key']} vs {candidate.store_key})"
+            )
+        mapping_by_id[accession] = row
+
+    if set(mapping_by_id) != set(by_accession):
+        missing = sorted(set(by_accession) - set(mapping_by_id))
+        extra = sorted(set(mapping_by_id) - set(by_accession))
+        raise AcquisitionError(
+            f"mapping/candidate membership mismatch: missing={missing[:10]} extra={extra[:10]}"
+        )
+
+    source_sidecars = load_sidecar_index(source_sidecar_root) if source_sidecar_root.is_dir() else {}
+    new_sidecars = load_sidecar_index(new_sidecar_root) if new_sidecar_root and new_sidecar_root.is_dir() else {}
+    new_manifests: dict[str, dict[str, str]] = {}
+    if raw_new_manifest_dir and raw_new_manifest_dir.is_dir():
+        for path in sorted(raw_new_manifest_dir.glob("*-download-manifest.tsv")):
+            for manifest_row in read_tsv(path):
+                if manifest_row["analysis_id"] in new_manifests:
+                    raise AcquisitionError(
+                        f"duplicate new manifest analysis_id {manifest_row['analysis_id']}"
+                    )
+                new_manifests[manifest_row["analysis_id"]] = manifest_row
+    unknown = sorted(set(new_manifests) - set(by_accession))
+    if unknown:
+        raise AcquisitionError(f"new manifest row(s) not in the candidate set: {', '.join(unknown[:10])}")
+    if set(new_manifests) != set(new_sidecars):
+        raise AcquisitionError(
+            "new sidecar/manifest sets differ: "
+            f"sidecars_only={sorted(set(new_sidecars) - set(new_manifests))[:10]} "
+            f"manifests_only={sorted(set(new_manifests) - set(new_sidecars))[:10]}"
+        )
+    for accession, new_row in new_manifests.items():
+        if new_row["status"] != "ok":
+            raise AcquisitionError(f"{accession}: new manifest row is not ok (status={new_row['status']!r})")
+        validate_digest(new_row["sha256"], "sha256", f"{accession} new manifest sha256")
+        expected_data = new_sidecar_root / bucket_of(accession) / accession / f"{accession}.tsv.gz"
+        expected_yaml = new_sidecar_root / bucket_of(accession) / accession / f"{accession}.tsv.gz-meta.yaml"
+        if Path(new_row["data_file"]).resolve() != expected_data.resolve():
+            raise AcquisitionError(f"{accession}: new manifest data_file does not bind the new source data path")
+        if Path(new_row["yaml_file"]).resolve() != expected_yaml.resolve():
+            raise AcquisitionError(f"{accession}: new manifest yaml_file does not bind the new sidecar path")
+
+    out_sidecars = out / "gwas-ssf"
+    receipt: list[dict[str, str]] = []
+    for accession in sorted(mapping_by_id):
+        row = mapping_by_id[accession]
+        candidate = by_accession[accession]
+        if accession in new_sidecars:
+            document = read_sidecar_document(new_sidecars[accession])
+            if document.get("gwas_id") != accession:
+                raise AcquisitionError(f"{new_sidecars[accession]}: gwas_id != {accession}")
+            validate_sidecar_binding(document, row, accession, str(new_sidecars[accession]))
+            action, changed, source, provenance = "new-conversion", ["all"], str(new_sidecars[accession]), "derived"
+            source_data = new_sidecar_root / bucket_of(accession) / accession / f"{accession}.tsv.gz"
+        else:
+            path = source_sidecars.get(accession)
+            if path is None:
+                raise AcquisitionError(
+                    f"{accession}: no existing sidecar under {args.source_sidecars} (refusing to fabricate one)"
+                )
+            existing = read_sidecar_document(path)
+            if existing.get("gwas_id") != accession:
+                raise AcquisitionError(f"{path}: gwas_id != {accession}")
+            validate_sidecar_binding(existing, row, accession, str(path))
+            document, changed = canonical_sidecar(existing, row, candidate, source_sidecar=str(path))
+            action, source, provenance = ("canonicalised" if changed else "unchanged"), str(path), "inherited"
+            source_data = source_sidecar_root / bucket_of(accession) / accession / f"{accession}.tsv.gz"
+        validate_digest(str(document.get("data_file_md5sum", "")), "md5", f"{accession} sidecar")
+        directory = out_sidecars / bucket_of(accession) / accession
+        target = directory / f"{accession}.tsv.gz-meta.yaml"
+        link = directory / f"{accession}.tsv.gz"
+        ensure_write_within(directory, out)
+        ensure_write_within(link, out, follow_final=False)
+        directory.mkdir(parents=True, exist_ok=True)
+        partial, handle = open_refresh_partial(target, out)
+        with handle:
+            handle.write(yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100))
+        os.replace(partial, target)
+        if link.is_symlink():
+            if link.resolve() != source_data.resolve():
+                raise AcquisitionError(f"{link}: existing symlink points elsewhere")
+        elif link.exists():
+            raise AcquisitionError(f"{link}: refusing to replace a non-symlink file")
+        elif source_data.exists():
+            os.symlink(source_data.resolve(), link)
+        receipt.append({
+            "analysis_id": accession,
+            "member": row["member"],
+            "store_key": candidate.store_key,
+            "action": action,
+            "changed_fields": ",".join(changed),
+            "data_file_md5sum": str(document.get("data_file_md5sum", "")),
+            "data_file_name": str(document.get("data_file_name", "")),
+            "sha256_provenance": provenance,
+            "source_sidecar": source,
+            "note": "data identity carried forward" if provenance == "inherited" else "new conversion",
+        })
+    write_tsv_guarded(out / "refresh-receipt.tsv", REFRESH_RECEIPT_COLUMNS, receipt, out)
+
+    manifest_dir = Path(args.manifest_dir) if args.manifest_dir else out / "manifests"
+    by_store: dict[str, list[str]] = {}
+    for accession, candidate in by_accession.items():
+        if accession in mapping_by_id:
+            by_store.setdefault(candidate.store_key, []).append(accession)
+    failures = 0
+    merged_total = 0
+    for store_key, accessions in sorted(by_store.items()):
+        slug = store_key.replace("__", "-")
+        existing_path = source_manifest_dir / f"{slug}-download-manifest.tsv"
+        if not existing_path.is_file():
+            raise AcquisitionError(f"missing existing manifest: {existing_path}")
+        existing_rows = read_tsv(existing_path)
+        existing_by_id: dict[str, dict[str, str]] = {}
+        for existing_row in existing_rows:
+            if existing_row["analysis_id"] in existing_by_id:
+                raise AcquisitionError(f"{existing_path}: duplicate analysis_id {existing_row['analysis_id']}")
+            existing_by_id[existing_row["analysis_id"]] = existing_row
+        if set(existing_by_id) != set(accessions):
+            raise AcquisitionError(f"{slug}: existing manifest rows do not match the candidate store set")
+        merged: list[dict[str, str]] = []
+        for existing_row in existing_rows:
+            accession = existing_row["analysis_id"]
+            candidate = by_accession[accession]
+            mapping_row = mapping_by_id[accession]
+            inherited = dict(new_manifests.get(accession, existing_row))
+            directory = out_sidecars / bucket_of(accession) / accession
+            data_path = directory / f"{accession}.tsv.gz"
+            yaml_path = directory / f"{accession}.tsv.gz-meta.yaml"
+            if accession not in new_sidecars:
+                expected_source = source_sidecar_root / bucket_of(accession) / accession / f"{accession}.tsv.gz"
+                if Path(existing_row["data_file"]).resolve() != expected_source.resolve():
+                    raise AcquisitionError(
+                        f"{accession}: existing manifest data_file does not bind the source data path"
+                    )
+            if not data_path.exists():
+                # Metadata preview may report a non-ready row; the full manifest
+                # must not claim readiness for absent data.
+                inherited["status"] = "error"
+                inherited["error"] = f"data file missing: {data_path}"
+            else:
+                actual_bytes = data_path.stat().st_size
+                recorded = inherited.get("data_bytes", "")
+                if recorded and recorded != str(actual_bytes):
+                    inherited["status"] = "error"
+                    inherited["error"] = f"data size mismatch: manifest {recorded} != actual {actual_bytes}"
+                else:
+                    inherited["data_bytes"] = str(actual_bytes)
+            canonical_row = canonical_manifest_row(
+                inherited, mapping_row, candidate, data_file=str(data_path), yaml_file=str(yaml_path)
+            )
+            canonical_row["yaml_bytes"] = str(yaml_path.stat().st_size)
+            if canonical_row["status"] != "ok" and not args.preview:
+                failures += 1
+            merged.append(canonical_row)
+        manifest_path = manifest_dir / f"{slug}-download-manifest.tsv"
+        write_tsv_guarded(manifest_path, MANIFEST_COLUMNS, merged, out)
+        merged_total += len(merged)
+        print(f"refresh: {store_key}: {len(merged)} rows -> {manifest_path}")
+    print(f"refresh: {len(receipt)} sidecar(s), {merged_total} manifest row(s), preview={bool(args.preview)}")
+    return 1 if failures else 0
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -1502,6 +1967,23 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     manifest.add_argument("--limit", type=int)
     manifest.add_argument("--allow-partial", action="store_true")
     manifest.set_defaults(func=command_manifest)
+
+    refresh = subparsers.add_parser(
+        "refresh",
+        help="metadata-only canonical sidecar refresh + manifest merge (no association reads)",
+    )
+    refresh.add_argument("--candidates", default=DEFAULT_CANDIDATES)
+    refresh.add_argument("--mapping", help="mapping TSV (default: <out>/mapping.tsv)")
+    refresh.add_argument("--source-sidecars", required=True, help="existing gwas-ssf root (read-only, metadata only)")
+    refresh.add_argument("--source-manifest-dir", required=True, help="existing manifest directory (read-only)")
+    refresh.add_argument("--new-sidecars", default="", help="newly converted gwas-ssf root (the retry outputs)")
+    refresh.add_argument("--new-manifest-dir", default="", help="newly converted manifest directory")
+    refresh.add_argument("--manifest-dir", help="default: <out>/manifests")
+    refresh.add_argument(
+        "--preview", action="store_true",
+        help="metadata preview: absent data is reported non-ready instead of failing the run",
+    )
+    refresh.set_defaults(func=command_refresh)
 
     args = parser.parse_args(argv)
     if getattr(args, "jobs", 1) < 1:

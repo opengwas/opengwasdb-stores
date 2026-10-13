@@ -26,6 +26,7 @@ import csv
 import gzip
 import hashlib
 import importlib.util
+import os
 import subprocess
 import sys
 import tarfile
@@ -1130,6 +1131,547 @@ class CanonicalMetadataTests(unittest.TestCase):
         self.assertEqual(document["catalog_metadata"]["sample_size"], 577873)
         self.assertEqual(document["catalog_metadata"]["n_cases"], 50122)
         self.assertEqual(document["catalog_metadata"]["n_controls"], 527751)
+
+
+class RefreshTests(unittest.TestCase):
+    """Metadata-only canonical refresh: data identity carried forward, never re-read."""
+
+    @staticmethod
+    def candidate() -> "ACQUIRE.Candidate":
+        return ACQUIRE.Candidate(
+            analysis_id="GCST90480207",
+            trait="Raynaud's syndrome (PheCode 443.1)",
+            ancestry="European",
+            ancestry_fraction=0.703775743113106,
+            store_key="dense__pmid-39024449__European",
+            study_design="case-control",
+            n_cases=2581,
+            n_controls=569155,
+            sample_size=571736,
+        )
+
+    @staticmethod
+    def mapping_row() -> dict[str, str]:
+        return {
+            "analysis_id": "GCST90480207", "member": "m", "analyzed_variable": "Raynauds syndrome",
+            "sample_size": "571736", "n_cases": "2581", "n_controls": "569155",
+        }
+
+    @staticmethod
+    def existing_sidecar() -> dict[str, object]:
+        return {
+            "gwas_id": "GCST90480207",
+            "trait_description": ["Raynaud's syndrome (PheCode 443.1)"],
+            "genome_assembly": "GRCh38",
+            "samples": [{"sample_ancestry_category": ["Multi-ancestry"], "sample_size": 571736,
+                         "case_control_study": True}],
+            "data_file_name": "GCST90480207.tsv.gz",
+            "data_file_md5sum": "9976e21f2978972df32cd9460d61ad31",
+            "is_harmonised": False,
+            "source": {"repository": "dbGaP", "member": "m"},
+        }
+
+    def test_canonical_sidecar_reuses_data_identity_and_retains_catalog(self) -> None:
+        document, changed = ACQUIRE.canonical_sidecar(
+            self.existing_sidecar(), self.mapping_row(), self.candidate(), source_sidecar="mirror/x.yaml"
+        )
+        self.assertEqual(document["trait_description"], ["Raynauds syndrome"])
+        self.assertEqual(
+            document["catalog_metadata"]["trait_description"], ["Raynaud's syndrome (PheCode 443.1)"]
+        )
+        # data identity carried forward, not recomputed
+        self.assertEqual(document["data_file_md5sum"], "9976e21f2978972df32cd9460d61ad31")
+        self.assertEqual(document["data_file_name"], "GCST90480207.tsv.gz")
+        self.assertEqual(document["source"], {"repository": "dbGaP", "member": "m"})
+        self.assertIs(document["metadata_refresh"]["reused_data_md5sum"], True)
+        self.assertEqual(document["metadata_refresh"]["source_sidecar"], "mirror/x.yaml")
+        self.assertIn("trait_description", changed)
+        self.assertIn("catalog_metadata", changed)
+
+    def test_canonical_sidecar_requires_existing_data_identity(self) -> None:
+        existing = self.existing_sidecar()
+        del existing["data_file_md5sum"]
+        with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "data_file_md5sum"):
+            ACQUIRE.canonical_sidecar(existing, self.mapping_row(), self.candidate(), source_sidecar="x")
+
+    def test_canonical_sidecar_matching_catalog_removes_stale_block(self) -> None:
+        candidate = ACQUIRE.Candidate(
+            analysis_id="GCST90475097", trait="T", ancestry="European", ancestry_fraction=1,
+            store_key="s", study_design="quantitative", n_cases=0, n_controls=0, sample_size=100,
+        )
+        row = {"analysis_id": "GCST90475097", "member": "m", "analyzed_variable": "T",
+               "sample_size": "100", "n_cases": "0", "n_controls": "0"}
+        existing = self.existing_sidecar()
+        existing["gwas_id"] = "GCST90475097"
+        existing["trait_description"] = ["T"]
+        existing["catalog_metadata"] = {"stale": True}
+        document, _ = ACQUIRE.canonical_sidecar(existing, row, candidate, source_sidecar="x")
+        self.assertNotIn("catalog_metadata", document)
+        self.assertEqual(document["data_file_md5sum"], "9976e21f2978972df32cd9460d61ad31")
+
+    def test_merge_manifest_replaces_only_refreshed_and_preserves_columns(self) -> None:
+        existing = [
+            {"analysis_id": "A", "trait": "oldA", "sample_size": "1", "status": "ok", "sha256": "shaA", "data_file": "/mirror/A"},
+            {"analysis_id": "B", "trait": "oldB", "sample_size": "2", "status": "error", "sha256": "", "data_file": "/mirror/B"},
+        ]
+        canonical = {"A": {"trait": "newA", "sample_size": "10"}, "B": {"trait": "newB", "sample_size": "20"}}
+        refreshed = {"B": {"analysis_id": "B", "trait": "newB", "sample_size": "20", "status": "ok",
+                            "sha256": "shaB", "data_file": "/iso/B"}}
+        merged = ACQUIRE.merge_manifest_rows(existing, canonical, refreshed)
+        self.assertEqual(merged[0]["trait"], "newA")
+        self.assertEqual(merged[0]["status"], "ok")
+        self.assertEqual(merged[0]["sha256"], "shaA")  # carried forward
+        self.assertEqual(merged[0]["data_file"], "/mirror/A")
+        self.assertEqual(merged[1]["status"], "ok")
+        self.assertEqual(merged[1]["sha256"], "shaB")
+        self.assertEqual(merged[1]["data_file"], "/iso/B")
+
+    def test_merge_manifest_refreshed_absent_fails(self) -> None:
+        existing = [{"analysis_id": "A", "trait": "x", "sample_size": "1"}]
+        with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "absent from the existing manifest"):
+            ACQUIRE.merge_manifest_rows(existing, {"A": {"trait": "y", "sample_size": "2"}},
+                                        {"Z": {"analysis_id": "Z"}})
+
+    def test_merge_manifest_outside_canonical_set_fails(self) -> None:
+        existing = [{"analysis_id": "A", "trait": "x", "sample_size": "1"},
+                    {"analysis_id": "Z", "trait": "x", "sample_size": "1"}]
+        with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "outside the candidate store set"):
+            ACQUIRE.merge_manifest_rows(existing, {"A": {"trait": "y", "sample_size": "2"}}, {})
+
+    def test_load_sidecar_index_rejects_duplicates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for bucket in ("GCST90000001-GCST90001000", "GCST90001001-GCST90002000"):
+                path = root / bucket / "GCST90000001" / "GCST90000001.tsv.gz-meta.yaml"
+                path.parent.mkdir(parents=True)
+                path.write_text("gwas_id: GCST90000001\n", encoding="utf-8")
+            with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "duplicate sidecar"):
+                ACQUIRE.load_sidecar_index(root)
+
+    def test_validate_digest_and_isolation_gates(self) -> None:
+        self.assertEqual(ACQUIRE.validate_digest("A" * 64, "sha256", "x"), "a" * 64)
+        with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "invalid sha256"):
+            ACQUIRE.validate_digest("short", "sha256", "x")
+        with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "invalid md5"):
+            ACQUIRE.validate_digest("z" * 32, "md5", "x")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "out").mkdir()
+            (root / "src").mkdir()
+            ACQUIRE.ensure_isolated(root / "out", root / "src", "src")
+            with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "must not overlap"):
+                ACQUIRE.ensure_isolated(root / "src" / "nested", root / "src", "src")
+
+    def test_canonical_manifest_row_regenerates_metadata_keeps_identity(self) -> None:
+        inherited = {"status": "ok", "data_bytes": "10", "yaml_bytes": "2", "sha256": "a" * 64,
+                     "genome_assembly": "GRCh38", "file_type": "GWAS-SSF v1.0", "is_harmonised": "false"}
+        row = {"analysis_id": "GCST1", "member": "m", "tar": "T",
+               "analyzed_variable": "dbgap label", "sample_size": "123", "n_cases": "1", "n_controls": "2"}
+        candidate = ACQUIRE.Candidate(
+            analysis_id="GCST1", trait="catalog label", ancestry="European", ancestry_fraction=1,
+            store_key="s", study_design="case-control", n_cases=1, n_controls=2, sample_size=999,
+        )
+        out = ACQUIRE.canonical_manifest_row(
+            inherited, row, candidate, data_file="/iso/GCST1.tsv.gz", yaml_file="/iso/GCST1.tsv.gz-meta.yaml"
+        )
+        self.assertEqual(out["trait"], "dbgap label")
+        self.assertEqual(out["sample_size"], "123")
+        self.assertEqual(out["study_design"], "case-control")
+        self.assertEqual(out["data_url"], ACQUIRE.DBGAP_BASE + "/T")
+        self.assertEqual(out["sha256"], "a" * 64)  # inherited, not re-derived
+        self.assertEqual(out["data_file"], "/iso/GCST1.tsv.gz")
+        malformed = ACQUIRE.canonical_manifest_row(
+            {**inherited, "sha256": "bad"}, row, candidate, data_file="d", yaml_file="y"
+        )
+        self.assertEqual(malformed["status"], "error")
+        self.assertIn("sha256", malformed["error"])
+
+    def test_canonical_sidecar_keeps_meta_mixture_ancestry(self) -> None:
+        document, _ = ACQUIRE.canonical_sidecar(
+            self.existing_sidecar(), self.mapping_row(), self.candidate(), source_sidecar="x"
+        )
+        self.assertEqual(document["samples"][0]["sample_ancestry_category"], ["Multi-ancestry"])
+
+    def test_missing_data_preview_succeeds_full_fails(self) -> None:
+        import yaml
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            iso = root / "iso"
+            accession = "GCST90475097"
+            store = STORE_KEY
+            sidecar = root / "mirror" / "gwas-ssf" / ACQUIRE.bucket_of(accession) / accession / f"{accession}.tsv.gz-meta.yaml"
+            sidecar.parent.mkdir(parents=True)
+            sidecar.write_text(yaml.safe_dump({
+                "gwas_id": accession, "trait_description": ["old"],
+                "samples": [{"sample_ancestry_category": ["European"], "sample_size": 100}],
+                "data_file_name": f"{accession}.tsv.gz", "data_file_md5sum": "b" * 32,
+                "source": {"repository": "dbGaP", "tar": "T",
+                           "member": "MVP_R4.1000G_AGR.A1C_Min_INT.EUR.GIA.dbGaP.txt.gz",
+                           "tar_md5": "c" * 32},
+            }), encoding="utf-8")
+            manifest_dir = root / "mirror" / "manifests"
+            manifest_dir.mkdir(parents=True)
+            base_row = {name: "" for name in ACQUIRE.MANIFEST_COLUMNS}
+            base_row.update({
+                "analysis_id": accession, "status": "ok", "sha256": "a" * 64, "data_bytes": "10",
+                "data_file": str(sidecar.parent / f"{accession}.tsv.gz"), "yaml_file": str(sidecar),
+                "genome_assembly": "GRCh38", "file_type": "GWAS-SSF v1.0", "is_harmonised": "false",
+                "trait": "old", "sample_size": "100",
+            })
+            (manifest_dir / "dense-pmid-39024449-European-download-manifest.tsv").write_text(
+                "\t".join(ACQUIRE.MANIFEST_COLUMNS) + "\n"
+                + "\t".join(base_row[name] for name in ACQUIRE.MANIFEST_COLUMNS) + "\n",
+                encoding="utf-8",
+            )
+            write_candidates(root / "candidates.tsv", [
+                {**CANDIDATES[0], "STUDY.ACCESSION": accession, "store_key": store,
+                 "DISEASE.TRAIT": "catalog label", "sample_size": "999"}
+            ])
+            mapping_row = {
+                "analysis_id": accession, "member": "MVP_R4.1000G_AGR.A1C_Min_INT.EUR.GIA.dbGaP.txt.gz",
+                "tar": "T", "ancestry": "EUR", "study_design": "quantitative",
+                "dbgap_trait_type": "quantitative", "sample_size": "100", "n_cases": "0", "n_controls": "0",
+                "dbgap_trait_code": "A1C_Min_INT", "analyzed_variable": "dbgap label",
+                "candidate_trait": "catalog label", "candidate_store_key": store,
+                "match_basis": "unique-key", "trait_check": "exact",
+            }
+            mapping_path = root / "mapping.tsv"
+            with mapping_path.open("w", newline="", encoding="utf-8") as handle:
+                writer = csv.DictWriter(handle, fieldnames=list(ACQUIRE.MAPPING_COLUMNS), delimiter="\t", lineterminator="\n")
+                writer.writeheader()
+                writer.writerow(mapping_row)
+            base = [sys.executable, str(SCRIPT), "--out", str(iso), "refresh",
+                    "--candidates", str(root / "candidates.tsv"), "--mapping", str(mapping_path),
+                    "--source-sidecars", str(root / "mirror" / "gwas-ssf"),
+                    "--source-manifest-dir", str(manifest_dir)]
+            preview = subprocess.run(base + ["--preview"], capture_output=True, text=True, check=False)
+            self.assertEqual(preview.returncode, 0, preview.stderr + preview.stdout)
+            full = subprocess.run(base, capture_output=True, text=True, check=False)
+            self.assertEqual(full.returncode, 1, full.stderr + full.stdout)
+            merged_path = iso / "manifests" / "dense-pmid-39024449-European-download-manifest.tsv"
+            with merged_path.open(newline="", encoding="utf-8") as handle:
+                merged = list(csv.DictReader(handle, delimiter="\t"))
+            self.assertEqual(merged[0]["status"], "error")
+            self.assertEqual(merged[0]["trait"], "dbgap label")  # canonical even when non-ready
+            self.assertFalse(list((iso / "gwas-ssf").glob("*/*/*.tsv.gz")))
+
+    def _refresh_fixture(self, root: Path, *, status: str = "ok", data_present: bool = False) -> dict[str, object]:
+        import yaml
+
+        accession = "GCST90475097"
+        store = STORE_KEY
+        sidecar = root / "mirror" / "gwas-ssf" / ACQUIRE.bucket_of(accession) / accession / f"{accession}.tsv.gz-meta.yaml"
+        sidecar.parent.mkdir(parents=True)
+        if data_present:
+            (sidecar.parent / f"{accession}.tsv.gz").write_bytes(b"x" * 10)
+        sidecar.write_text(yaml.safe_dump({
+            "gwas_id": accession, "trait_description": ["old"],
+            "samples": [{"sample_ancestry_category": ["European"], "sample_size": 100}],
+            "data_file_name": f"{accession}.tsv.gz", "data_file_md5sum": "b" * 32,
+            "source": {"repository": "dbGaP", "tar": "T",
+                       "member": "MVP_R4.1000G_AGR.A1C_Min_INT.EUR.GIA.dbGaP.txt.gz",
+                       "tar_md5": "c" * 32},
+        }), encoding="utf-8")
+        manifest_dir = root / "mirror" / "manifests"
+        manifest_dir.mkdir(parents=True)
+        base_row = {name: "" for name in ACQUIRE.MANIFEST_COLUMNS}
+        base_row.update({"analysis_id": accession, "status": status, "sha256": "a" * 64,
+                         "data_bytes": "10" if data_present else "",
+                         "data_file": str(sidecar.parent / f"{accession}.tsv.gz"), "yaml_file": str(sidecar),
+                         "genome_assembly": "GRCh38", "file_type": "GWAS-SSF v1.0",
+                         "is_harmonised": "false", "trait": "old", "sample_size": "100"})
+        manifest_path = manifest_dir / "dense-pmid-39024449-European-download-manifest.tsv"
+        manifest_path.write_text(
+            "\t".join(ACQUIRE.MANIFEST_COLUMNS) + "\n"
+            + "\t".join(base_row[name] for name in ACQUIRE.MANIFEST_COLUMNS) + "\n",
+            encoding="utf-8",
+        )
+        write_candidates(root / "candidates.tsv", [
+            {**CANDIDATES[0], "STUDY.ACCESSION": accession, "store_key": store,
+             "DISEASE.TRAIT": "catalog label", "sample_size": "999"}
+        ])
+        mapping_row = {
+            "analysis_id": accession, "member": "MVP_R4.1000G_AGR.A1C_Min_INT.EUR.GIA.dbGaP.txt.gz",
+            "tar": "T", "ancestry": "EUR", "study_design": "quantitative",
+            "dbgap_trait_type": "quantitative", "sample_size": "100", "n_cases": "0", "n_controls": "0",
+            "dbgap_trait_code": "A1C_Min_INT", "analyzed_variable": "dbgap label",
+            "candidate_trait": "catalog label", "candidate_store_key": store,
+            "match_basis": "unique-key", "trait_check": "exact",
+        }
+        mapping_path = root / "mapping.tsv"
+        with mapping_path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(ACQUIRE.MAPPING_COLUMNS), delimiter="\t", lineterminator="\n")
+            writer.writeheader()
+            writer.writerow(mapping_row)
+        return {"root": root, "iso": root / "iso", "source_sidecars": root / "mirror" / "gwas-ssf",
+                "manifest_dir": manifest_dir, "manifest_path": manifest_path, "candidates": root / "candidates.tsv",
+                "mapping": mapping_path, "sidecar": sidecar, "accession": accession}
+
+    def _refresh_cli(self, fx: dict[str, object]) -> list[str]:
+        return [sys.executable, str(SCRIPT), "--out", str(fx["iso"]), "refresh",
+                "--candidates", str(fx["candidates"]), "--mapping", str(fx["mapping"]),
+                "--source-sidecars", str(fx["source_sidecars"]),
+                "--source-manifest-dir", str(fx["manifest_dir"])]
+
+    def test_manifest_dir_outside_out_is_rejected_before_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp))
+            before = Path(fx["manifest_path"]).read_bytes()
+            result = subprocess.run(
+                self._refresh_cli(fx) + ["--manifest-dir", str(fx["manifest_dir"])],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+            self.assertIn("--manifest-dir", result.stderr)
+            self.assertEqual(Path(fx["manifest_path"]).read_bytes(), before)
+
+    def test_symlinked_bucket_escape_is_rejected_and_source_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp), data_present=True)
+            iso = Path(fx["iso"])
+            iso.mkdir(parents=True, exist_ok=True)
+            (iso / "gwas-ssf").symlink_to(fx["source_sidecars"])
+            sidecar_before = Path(fx["sidecar"]).read_bytes()
+            data_before = (Path(fx["sidecar"]).parent / "GCST90475097.tsv.gz").read_bytes()
+            result = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+            self.assertIn("escapes", result.stderr)
+            self.assertEqual(Path(fx["sidecar"]).read_bytes(), sidecar_before)
+            self.assertEqual((Path(fx["sidecar"]).parent / "GCST90475097.tsv.gz").read_bytes(), data_before)
+
+    def test_membership_mismatch_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp))
+            rows = [dict(row) for row in CANDIDATES]
+            rows.append({**CANDIDATES[0], "STUDY.ACCESSION": "GCST90475098", "DISEASE.TRAIT": "other"})
+            write_candidates(Path(fx["candidates"]), rows)
+            result = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+            self.assertIn("membership mismatch", result.stderr)
+
+    def test_new_sidecar_manifest_pairing_mismatch_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp))
+            new_root = Path(tmp) / "retry" / "gwas-ssf"
+            sidecar = new_root / ACQUIRE.bucket_of("GCST90475097") / "GCST90475097" / "GCST90475097.tsv.gz-meta.yaml"
+            sidecar.parent.mkdir(parents=True)
+            sidecar.write_text("gwas_id: GCST90475097\n", encoding="utf-8")
+            (Path(tmp) / "retry" / "manifests").mkdir(parents=True)
+            result = subprocess.run(
+                self._refresh_cli(fx) + ["--new-sidecars", str(new_root),
+                                         "--new-manifest-dir", str(Path(tmp) / "retry" / "manifests")],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+            self.assertIn("sets differ", result.stderr)
+
+    def test_source_snapshot_unchanged_after_preview(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp))
+            sidecar_before = Path(fx["sidecar"]).read_bytes()
+            manifest_before = Path(fx["manifest_path"]).read_bytes()
+            result = subprocess.run(self._refresh_cli(fx) + ["--preview"], capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertEqual(Path(fx["sidecar"]).read_bytes(), sidecar_before)
+            self.assertEqual(Path(fx["manifest_path"]).read_bytes(), manifest_before)
+
+    def test_full_mode_fails_on_inherited_error_row_with_data_present(self) -> None:
+        # Parent microprobe: an inherited error row whose data exists must still
+        # make the full manifest non-zero; preview may report it non-ready.
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp), status="error", data_present=True)
+            full = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
+            self.assertEqual(full.returncode, 1, full.stderr + full.stdout)
+            merged_path = Path(fx["iso"]) / "manifests" / "dense-pmid-39024449-European-download-manifest.tsv"
+            with merged_path.open(newline="", encoding="utf-8") as handle:
+                merged = list(csv.DictReader(handle, delimiter="\t"))
+            self.assertEqual(merged[0]["status"], "error")
+            preview = subprocess.run(self._refresh_cli(fx) + ["--preview"], capture_output=True, text=True, check=False)
+            self.assertEqual(preview.returncode, 0, preview.stderr + preview.stdout)
+
+    def test_full_mode_requires_valid_sha_for_ok_row(self) -> None:
+        # B: status=ok with an empty sha256 must not pass full mode.
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp), data_present=True)
+            with Path(fx["manifest_path"]).open(newline="", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle, delimiter="\t"))
+            rows[0]["sha256"] = ""
+            ACQUIRE.write_tsv(Path(fx["manifest_path"]), ACQUIRE.MANIFEST_COLUMNS, rows)
+            full = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
+            self.assertEqual(full.returncode, 1, full.stderr + full.stdout)
+            merged_path = Path(fx["iso"]) / "manifests" / "dense-pmid-39024449-European-download-manifest.tsv"
+            with merged_path.open(newline="", encoding="utf-8") as handle:
+                merged = list(csv.DictReader(handle, delimiter="\t"))
+            self.assertEqual(merged[0]["status"], "error")
+            preview = subprocess.run(self._refresh_cli(fx) + ["--preview"], capture_output=True, text=True, check=False)
+            self.assertEqual(preview.returncode, 0, preview.stderr + preview.stdout)
+
+    def test_symlinked_tsv_partial_is_rejected(self) -> None:
+        # C: the receipt/manifest `.partial` temp must not follow a symlink into
+        # a read-only source tree.
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp), data_present=True)
+            iso = Path(fx["iso"])
+            iso.mkdir(parents=True, exist_ok=True)
+            victim = Path(tmp) / "victim.txt"
+            victim.write_text("original", encoding="utf-8")
+            (iso / "refresh-receipt.tsv.partial").symlink_to(victim)
+            result = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+            self.assertIn("escapes", result.stderr)
+            self.assertEqual(victim.read_text(encoding="utf-8"), "original")
+
+    def test_guarded_tsv_refuses_internal_temp_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            victim = out / "other-row-meta.yaml"
+            victim.write_text("original: immutable\n", encoding="utf-8")
+            target = out / "refresh-receipt.tsv"
+            target.with_name(target.name + ".partial").symlink_to(victim)
+            before = victim.read_bytes()
+            with self.assertRaises(ACQUIRE.AcquisitionError):
+                ACQUIRE.write_tsv_guarded(target, ("field",), [{"field": "changed"}], out)
+            self.assertEqual(victim.read_bytes(), before)
+            self.assertFalse(target.exists())
+
+    def test_guarded_tsv_refuses_hardlinked_temp(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            out = root / "iso"
+            out.mkdir()
+            victim = root / "source-meta.yaml"
+            victim.write_text("original: immutable\n", encoding="utf-8")
+            target = out / "refresh-receipt.tsv"
+            os.link(victim, target.with_name(target.name + ".partial"))
+            before = victim.read_bytes()
+            with self.assertRaises(ACQUIRE.AcquisitionError):
+                ACQUIRE.write_tsv_guarded(target, ("field",), [{"field": "changed"}], out)
+            self.assertEqual(victim.read_bytes(), before)
+            self.assertFalse(target.exists())
+
+    def test_refresh_refuses_all_metadata_temp_aliases(self) -> None:
+        for kind in ("sidecar", "receipt", "manifest"):
+            for alias in ("internal_symlink", "source_hardlink", "stale_regular"):
+                with self.subTest(kind=kind, alias=alias), tempfile.TemporaryDirectory() as tmp:
+                    fx = self._refresh_fixture(Path(tmp), data_present=True)
+                    iso = Path(fx["iso"])
+                    targets = {
+                        "sidecar": iso / "gwas-ssf" / ACQUIRE.bucket_of(str(fx["accession"]))
+                        / str(fx["accession"]) / Path(fx["sidecar"]).name,
+                        "receipt": iso / "refresh-receipt.tsv",
+                        "manifest": iso / "manifests" / Path(fx["manifest_path"]).name,
+                    }
+                    target = targets[kind]
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    partial = target.with_name(target.name + ".partial")
+                    source_before = Path(fx["sidecar"]).read_bytes()
+                    if alias == "source_hardlink":
+                        victim = Path(fx["sidecar"])
+                        os.link(victim, partial)
+                    elif alias == "internal_symlink":
+                        victim = iso / "other-row-meta.yaml"
+                        victim.write_text("original: immutable\n", encoding="utf-8")
+                        partial.symlink_to(victim)
+                    else:
+                        victim = partial
+                        partial.write_text("original: stale\n", encoding="utf-8")
+                    before = victim.read_bytes()
+                    result = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
+                    self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+                    self.assertEqual(victim.read_bytes(), before)
+                    self.assertEqual(Path(fx["sidecar"]).read_bytes(), source_before)
+                    self.assertFalse(target.exists())
+
+    def test_refresh_refuses_final_metadata_symlinks(self) -> None:
+        for kind in ("sidecar", "receipt", "manifest"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as tmp:
+                fx = self._refresh_fixture(Path(tmp), data_present=True)
+                iso = Path(fx["iso"])
+                targets = {
+                    "sidecar": iso / "gwas-ssf" / ACQUIRE.bucket_of(str(fx["accession"]))
+                    / str(fx["accession"]) / Path(fx["sidecar"]).name,
+                    "receipt": iso / "refresh-receipt.tsv",
+                    "manifest": iso / "manifests" / Path(fx["manifest_path"]).name,
+                }
+                target = targets[kind]
+                target.parent.mkdir(parents=True, exist_ok=True)
+                victim = iso / "other-row-meta.yaml"
+                victim.write_text("original: immutable\n", encoding="utf-8")
+                target.symlink_to(victim)
+                before = victim.read_bytes()
+                result = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
+                self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+                self.assertEqual(victim.read_bytes(), before)
+                self.assertTrue(target.is_symlink())
+
+    def test_new_sidecar_binding_is_validated(self) -> None:
+        # D: a newly converted sidecar's source binding must match the mapping.
+        import yaml
+
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp), data_present=True)
+            accession = "GCST90475097"
+            new_dir = Path(tmp) / "retry" / "gwas-ssf" / ACQUIRE.bucket_of(accession) / accession
+            new_dir.mkdir(parents=True)
+            (new_dir / f"{accession}.tsv.gz").write_bytes(b"x" * 10)
+            (new_dir / f"{accession}.tsv.gz-meta.yaml").write_text(yaml.safe_dump({
+                "gwas_id": accession, "trait_description": ["new"],
+                "samples": [{"sample_ancestry_category": ["European"], "sample_size": 100}],
+                "data_file_name": f"{accession}.tsv.gz", "data_file_md5sum": "b" * 32,
+                "source": {"repository": "dbGaP", "tar": "T", "member": "WRONG.txt.gz", "tar_md5": "c" * 32},
+            }), encoding="utf-8")
+            new_manifest_dir = Path(tmp) / "retry" / "manifests"
+            new_manifest_dir.mkdir(parents=True)
+            row = {name: "" for name in ACQUIRE.MANIFEST_COLUMNS}
+            row.update({"analysis_id": accession, "status": "ok", "sha256": "a" * 64, "data_bytes": "10",
+                        "data_file": str(new_dir / f"{accession}.tsv.gz"),
+                        "yaml_file": str(new_dir / f"{accession}.tsv.gz-meta.yaml"),
+                        "genome_assembly": "GRCh38", "file_type": "GWAS-SSF v1.0",
+                        "is_harmonised": "false", "trait": "new", "sample_size": "100"})
+            ACQUIRE.write_tsv(new_manifest_dir / "dense-pmid-39024449-European-download-manifest.tsv",
+                              ACQUIRE.MANIFEST_COLUMNS, [row])
+            result = subprocess.run(
+                self._refresh_cli(fx) + ["--new-sidecars", str(Path(tmp) / "retry" / "gwas-ssf"),
+                                         "--new-manifest-dir", str(new_manifest_dir)],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+            self.assertIn("source.member", result.stderr)
+
+    def test_end_to_end_two_runs_identical(self) -> None:
+        # A: a second run with the same --out must succeed and be byte-identical.
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp), data_present=True)
+
+            def snapshot() -> str:
+                lines = []
+                for path in sorted(Path(fx["iso"]).rglob("*")):
+                    if path.is_symlink():
+                        lines.append(f"{path}->{path.readlink()}")
+                    elif path.is_file():
+                        lines.append(f"{path}:{hashlib.md5(path.read_bytes()).hexdigest()}")
+                return "\n".join(lines)
+
+            first = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
+            self.assertEqual(first.returncode, 0, first.stderr + first.stdout)
+            before = snapshot()
+            second = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
+            self.assertEqual(second.returncode, 0, second.stderr + second.stdout)
+            self.assertEqual(snapshot(), before)
+
+    def test_manifest_dir_equals_source_manifest_dir_is_rejected(self) -> None:
+        # Parent microprobe: --manifest-dir pointing at the read-only source must
+        # be refused before it overwrites the source manifest.
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._refresh_fixture(Path(tmp), data_present=True)
+            before = Path(fx["manifest_path"]).read_bytes()
+            result = subprocess.run(
+                self._refresh_cli(fx) + ["--manifest-dir", str(fx["manifest_dir"])],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+            self.assertEqual(Path(fx["manifest_path"]).read_bytes(), before)
 
 
 class ConverterEdgeCaseTests(unittest.TestCase):
