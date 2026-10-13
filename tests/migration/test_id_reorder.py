@@ -93,6 +93,21 @@ class TestIdReorder(unittest.TestCase):
         text = doc.read_text(encoding="utf-8")
         self.assertIn("5a3ac4e159ecf33437cd848fef44deb78d0a8dd11ab19ba0ab818065001fd1c0", text)
 
+    def test_bundle_test_registered_list_uses_new_id(self) -> None:
+        text = (REPO_ROOT / "tests" / "bundle" / "test_bundle.py").read_text(encoding="utf-8")
+        self.assertIn("[*range(1, 12), 17]", text)
+        self.assertNotIn("[*range(1, 12), 16]", text)
+
+    def test_bundle_golden_keys_use_new_id(self) -> None:
+        golden = yaml.safe_load(
+            (REPO_ROOT / "tests" / "bundle" / "golden" / "summaries.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertIn("OGS-00017", golden)
+        self.assertNotIn("OGS-00016", golden)
+        self.assertEqual(golden["OGS-00017"]["n_manifest"], 2754)
+
 
 if __name__ == "__main__":
     unittest.main()
