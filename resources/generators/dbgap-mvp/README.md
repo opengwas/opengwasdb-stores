@@ -56,6 +56,23 @@ The intended membership/recipe definitions are tracked in
 **not** Release Bundles and are **not** in `stores/`; every entry records
 `in_stores: false` and `acceptance: pending`.
 
+## Planned metadata and provenance
+
+`config-candidate.yaml: metadata` records the current metadata-only evidence
+root (parent refresh `baf141c`, code sha + metadata content sha256, membership
+6,022, `association_opens: 0`, acceptance = technical metadata evidence only,
+not scientific/release acceptance) and the actual primary candidate table
+`resources/data/derived/store-candidates-analyses.tsv`.
+
+`plan` and `definitions` read the four regular store manifests under that root
+and cross-check them against the mapping partition: the combined European
+manifest must equal EUR + META (1,669 + 1,691 = 3,360), African 1,368,
+Hispanic-or-Latin-American 1,053, East-Asian 241. Every store records its
+`planned_manifest` and `planned_manifest_members`. Trait/SD resolution is
+recorded as `resolution: pending`; no numerical source metric is invented from a
+sidecar, and `actual_completion` is `not_claimed` (a bundle definition is not a
+completion result).
+
 ## Policy invariants
 
 - **References are never promoted by declaration.** `config-candidate.yaml`

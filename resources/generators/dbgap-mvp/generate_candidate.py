@@ -101,6 +101,57 @@ def read_tsv(path: Path | str) -> list[dict[str, str]]:
     return rows
 
 
+def read_planned_manifests(config: Mapping) -> dict[str, int]:
+    """Count the planned acquisition-manifest rows from the metadata root.
+
+    Reads the four regular store manifests only (membership/file-path metadata);
+    it never opens an association file. Returns ``{filename: rows}``.
+    """
+    metadata = config.get("metadata") or {}
+    root = metadata.get("root")
+    if not root:
+        raise CandidateError("config has no metadata.root to read planned manifests from")
+    manifest_dir = Path(root) / "manifests"
+    counts: dict[str, int] = {}
+    for store in config["stores"].values():
+        filename = store.get("planned_manifest")
+        if not filename or filename in counts:
+            continue
+        path = manifest_dir / filename
+        if not path.is_file():
+            raise CandidateError(f"planned manifest not found: {path}")
+        with path.open(newline="", encoding="utf-8") as handle:
+            reader = csv.reader(handle, delimiter="\t")
+            next(reader, None)
+            counts[filename] = sum(1 for _ in reader)
+    return counts
+
+
+def validate_planned_manifests(
+    config: Mapping, partition: Mapping[str, Sequence[str]], counts: Mapping[str, int]
+) -> None:
+    """Cross-check manifest membership against the mapping partition.
+
+    EUR and META share the combined legacy European manifest; the individual
+    buckets each have their own. A manifest whose row count disagrees with the
+    intended membership fails loudly.
+    """
+    shared: dict[str, list[str]] = {}
+    for ancestry, store in config["stores"].items():
+        filename = store.get("planned_manifest")
+        if filename:
+            shared.setdefault(filename, []).append(ancestry)
+    for filename, buckets in shared.items():
+        if filename not in counts:
+            continue
+        expected = sum(len(partition[bucket]) for bucket in buckets)
+        if counts[filename] != expected:
+            raise CandidateError(
+                f"planned manifest {filename} has {counts[filename]} rows; "
+                f"expected {expected} for {buckets}"
+            )
+
+
 def load_config(path: Path | str) -> dict:
     config_path = Path(path)
     if not config_path.is_file():
@@ -297,8 +348,16 @@ def _reference_ld_panel(config: Mapping, ancestry: str) -> str | None:
     return reference.get("ld_panel") or None
 
 
-def run_plan(config: Mapping, mapping_path: Path | str, out_dir: Path) -> dict:
+def run_plan(
+    config: Mapping,
+    mapping_path: Path | str,
+    out_dir: Path,
+    manifest_counts: Mapping[str, int] | None = None,
+) -> dict:
     _, partition = build_partition(config, mapping_path)
+    manifest_counts = manifest_counts or {}
+    if manifest_counts:
+        validate_planned_manifests(config, partition, manifest_counts)
     out_dir.mkdir(parents=True, exist_ok=True)
     _atomic_write(
         out_dir / "partition.tsv", partition_module.render_partition_tsv(partition)
@@ -306,11 +365,14 @@ def run_plan(config: Mapping, mapping_path: Path | str, out_dir: Path) -> dict:
     plan = {
         "publication_pmid": config.get("publication_pmid"),
         "source_snapshot_id": config.get("source_snapshot_id"),
+        "metadata": config.get("metadata"),
+        "planned_manifest_counts": dict(manifest_counts),
         "total": sum(len(partition[ancestry]) for ancestry in partition_module.ANCESTRY_ORDER),
         "legacy_european_bucket": partition_module.legacy_european_count(partition),
         "stores": {},
     }
     for ancestry, store in config["stores"].items():
+        planned = store.get("planned_manifest")
         plan["stores"][ancestry] = {
             "candidate_store_key": store.get("candidate_store_key"),
             "observed_store_id": store.get("observed_store_id"),
@@ -320,6 +382,9 @@ def run_plan(config: Mapping, mapping_path: Path | str, out_dir: Path) -> dict:
             "completion_reference_status": (
                 (store.get("completion_reference") or {}).get("qualification")
             ),
+            "planned_manifest": planned,
+            "planned_manifest_members": manifest_counts.get(planned) if planned else None,
+            "resolution": "pending",
         }
     _atomic_write(out_dir / "candidate-plan.yaml", yaml.safe_dump(plan, sort_keys=False))
     return plan
@@ -330,20 +395,25 @@ def _suggested_ld_panel(config: Mapping, ancestry: str) -> str | None:
     return reference.get("suggested_ld_panel") or None
 
 
-def render_candidate_definitions(config: Mapping) -> dict:
+def render_candidate_definitions(
+    config: Mapping, manifest_counts: Mapping[str, int] | None = None
+) -> dict:
     """The reviewed intended-membership/recipe definitions, tracked (not built)."""
+    manifest_counts = manifest_counts or {}
     definitions: dict = {
         "status": "provisional-draft",
         "owner_ordering_approved": bool(config.get("owner_ordering_approved")),
         "publication_pmid": config.get("publication_pmid"),
         "source_snapshot_id": config.get("source_snapshot_id"),
         "intended_bound_total": config.get("intended_bound_total"),
+        "metadata": config.get("metadata"),
         "finngen": config.get("finngen"),
         "stores": {},
     }
     for ancestry, store in config["stores"].items():
         observed_id = store["observed_store_id"]
         reference = store.get("completion_reference") or {}
+        planned = store.get("planned_manifest")
         observed = {
             "store_id": observed_id,
             "role": "observed",
@@ -354,6 +424,10 @@ def render_candidate_definitions(config: Mapping) -> dict:
             "intended_members": store.get("intended_members"),
             "assigned_ancestry": store.get("assigned_ancestry"),
             "observed_only": bool(store.get("observed_only")),
+            "planned_manifest": planned,
+            "planned_manifest_members": manifest_counts.get(planned) if planned else None,
+            "resolution": "pending",
+            "actual_completion": "not_claimed",
             "recipe": {"command": "build-dense-vcf"},
             "in_stores": False,
         }
@@ -369,6 +443,8 @@ def render_candidate_definitions(config: Mapping) -> dict:
                 "acceptance": "pending",
                 "human_acceptance": "pending",
                 "blocked": reference.get("activation") != "active",
+                "resolution": "pending",
+                "actual_completion": "not_claimed",
                 "recipe": {
                     "command": "complete-dense",
                     "ancestry": store.get("assigned_ancestry"),
@@ -386,9 +462,16 @@ def render_candidate_definitions(config: Mapping) -> dict:
     return definitions
 
 
-def write_candidate_definitions(config: Mapping, out_dir: Path) -> Path:
+def write_candidate_definitions(
+    config: Mapping, out_dir: Path, manifest_counts: Mapping[str, int] | None = None
+) -> Path:
     path = out_dir / "candidates.yaml"
-    _atomic_write(path, yaml.safe_dump(render_candidate_definitions(config), sort_keys=False))
+    _atomic_write(
+        path,
+        yaml.safe_dump(
+            render_candidate_definitions(config, manifest_counts), sort_keys=False
+        ),
+    )
     return path
 
 
@@ -584,16 +667,20 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     config = load_config(args.config)
     created_at = args.created_at or datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    manifest_counts: dict[str, int] = {}
+    metadata = config.get("metadata") or {}
+    if metadata.get("root") and Path(metadata["root"]).is_dir():
+        manifest_counts = read_planned_manifests(config)
 
     if args.mode == "definitions":
-        path = write_candidate_definitions(config, args.out_dir)
+        path = write_candidate_definitions(config, args.out_dir, manifest_counts)
         print(json.dumps({"definitions": str(path)}, indent=2))
         return 0
 
     if args.mapping is None:
         raise CandidateError(f"{args.mode} mode requires --mapping")
     if args.mode == "plan":
-        plan = run_plan(config, args.mapping, args.out_dir)
+        plan = run_plan(config, args.mapping, args.out_dir, manifest_counts)
         print(json.dumps(plan, indent=2))
         return 0
 

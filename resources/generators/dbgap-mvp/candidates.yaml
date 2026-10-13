@@ -3,6 +3,15 @@ owner_ordering_approved: false
 publication_pmid: '39024449'
 source_snapshot_id: dbgap-phs002453-candidate-pending
 intended_bound_total: 6022
+metadata:
+  root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z
+  code_sha: baf141c8061a8d7f63c369b7b0ff499747e3dabc
+  output_metadata_content_sha256: 1f14b88c2c383d8bac97215a8807503ef600fed2d2a019067e9962777438310f
+  membership: 6022
+  association_opens: 0
+  acceptance: technical metadata evidence only; not scientific/release acceptance
+  candidates_table: resources/data/derived/store-candidates-analyses.tsv
+  mapping: /data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv
 finngen:
   current_store_id: OGS-00016
   renumbered_to: null
@@ -20,6 +29,10 @@ stores:
       intended_members: 1669
       assigned_ancestry: EUR
       observed_only: false
+      planned_manifest: dense-pmid-39024449-European-download-manifest.tsv
+      planned_manifest_members: 3360
+      resolution: pending
+      actual_completion: not_claimed
       recipe:
         command: build-dense-vcf
       in_stores: false
@@ -32,6 +45,8 @@ stores:
       acceptance: pending
       human_acceptance: pending
       blocked: true
+      resolution: pending
+      actual_completion: not_claimed
       recipe:
         command: complete-dense
         ancestry: EUR
@@ -53,6 +68,10 @@ stores:
       intended_members: 1368
       assigned_ancestry: AFR
       observed_only: false
+      planned_manifest: dense-pmid-39024449-African-download-manifest.tsv
+      planned_manifest_members: 1368
+      resolution: pending
+      actual_completion: not_claimed
       recipe:
         command: build-dense-vcf
       in_stores: false
@@ -65,6 +84,8 @@ stores:
       acceptance: pending
       human_acceptance: pending
       blocked: true
+      resolution: pending
+      actual_completion: not_claimed
       recipe:
         command: complete-dense
         ancestry: AFR
@@ -86,6 +107,10 @@ stores:
       intended_members: 1053
       assigned_ancestry: AMR
       observed_only: false
+      planned_manifest: dense-pmid-39024449-Hispanic-or-Latin-American-download-manifest.tsv
+      planned_manifest_members: 1053
+      resolution: pending
+      actual_completion: not_claimed
       recipe:
         command: build-dense-vcf
       in_stores: false
@@ -98,6 +123,8 @@ stores:
       acceptance: pending
       human_acceptance: pending
       blocked: true
+      resolution: pending
+      actual_completion: not_claimed
       recipe:
         command: complete-dense
         ancestry: AMR
@@ -119,6 +146,10 @@ stores:
       intended_members: 241
       assigned_ancestry: EAS
       observed_only: false
+      planned_manifest: dense-pmid-39024449-East-Asian-download-manifest.tsv
+      planned_manifest_members: 241
+      resolution: pending
+      actual_completion: not_claimed
       recipe:
         command: build-dense-vcf
       in_stores: false
@@ -131,6 +162,8 @@ stores:
       acceptance: pending
       human_acceptance: pending
       blocked: true
+      resolution: pending
+      actual_completion: not_claimed
       recipe:
         command: complete-dense
         ancestry: EAS
@@ -152,6 +185,10 @@ stores:
       intended_members: 1691
       assigned_ancestry: null
       observed_only: true
+      planned_manifest: dense-pmid-39024449-European-download-manifest.tsv
+      planned_manifest_members: 3360
+      resolution: pending
+      actual_completion: not_claimed
       recipe:
         command: build-dense-vcf
       in_stores: false

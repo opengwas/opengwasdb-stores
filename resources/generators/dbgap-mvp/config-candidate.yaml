@@ -36,6 +36,21 @@ source_repository: dbGaP phs002453 (GIA)
 source_reader_capability: opengwasdb.gwas-ssf
 source_assembly: GRCh38
 intended_bound_total: 6022
+
+# Current metadata-only evidence root (parent refresh, 2026-10-13). The four
+# store manifests and the regular sidecars beneath it are the planned
+# file-path/membership source. No association data was opened, nothing was
+# promoted, and no Source Inventory is frozen: `acceptance` is technical
+# metadata evidence only, not scientific or release acceptance.
+metadata:
+  root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z
+  code_sha: baf141c8061a8d7f63c369b7b0ff499747e3dabc
+  output_metadata_content_sha256: 1f14b88c2c383d8bac97215a8807503ef600fed2d2a019067e9962777438310f
+  membership: 6022
+  association_opens: 0
+  acceptance: technical metadata evidence only; not scientific/release acceptance
+  candidates_table: resources/data/derived/store-candidates-analyses.tsv
+  mapping: /data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv
 generator_commands:
   - python3 resources/scripts/acquire-dbgap-phs002453.py map --candidates resources/data/derived/store-candidates-analyses.tsv
   - python3 resources/generators/dbgap-mvp/generate_candidate.py
@@ -56,6 +71,10 @@ stores:
     assigned_ancestry: EUR
     source_ancestry_label: European
     intended_members: 1669
+    # The European manifest still carries the legacy combined bucket; EUR and
+    # META are distinguished by the mapping ancestry, not by this file.
+    planned_manifest: dense-pmid-39024449-European-download-manifest.tsv
+    resolution: pending
     completion_reference:
       resource_id: gpm-hg38-eur-ld
       ancestry: EUR
@@ -74,6 +93,8 @@ stores:
     assigned_ancestry: AFR
     source_ancestry_label: African
     intended_members: 1368
+    planned_manifest: dense-pmid-39024449-African-download-manifest.tsv
+    resolution: pending
     completion_reference:
       resource_id: hgdp1kgp-hg38-ld
       ancestry: AFR
@@ -89,6 +110,8 @@ stores:
     assigned_ancestry: AMR
     source_ancestry_label: Hispanic or Latin American
     intended_members: 1053
+    planned_manifest: dense-pmid-39024449-Hispanic-or-Latin-American-download-manifest.tsv
+    resolution: pending
     completion_reference:
       # No declared AMR LD Reference Resource exists. An AMR pilot (#241) is
       # approved but not qualified. The completed child stays a pending,
@@ -107,6 +130,8 @@ stores:
     assigned_ancestry: EAS
     source_ancestry_label: East Asian
     intended_members: 241
+    planned_manifest: dense-pmid-39024449-East-Asian-download-manifest.tsv
+    resolution: pending
     completion_reference:
       resource_id: hgdp1kgp-hg38-ld
       ancestry: EAS
@@ -122,6 +147,9 @@ stores:
     assigned_ancestry: null
     source_ancestry_label: META
     intended_members: 1691
+    # META shares the combined European manifest with EUR.
+    planned_manifest: dense-pmid-39024449-European-download-manifest.tsv
+    resolution: pending
     # Explicit policy: cross-ancestry membership is observed-only and must not
     # be eligible for automatic Reference Completion, even though an EUR panel
     # exists. This is enforced by the emitter, not just documented.

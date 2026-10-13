@@ -16,12 +16,15 @@ Test suite for `resources/generators/dbgap-mvp` (issue #221).
 4. **Acceptance stays pending**: every candidate is `status: candidate`, has no
    `accepted_at`, and carries a `validation.yaml` whose `human_acceptance` is
    `pending` and whose warnings say it is not verified.
-5. **Tracked definitions**: `write_candidate_definitions` records the intended
-   membership/recipe with `in_stores: false`, `owner_ordering_approved: false`
-   and pending acceptance.
-6. **Fail closed**: a missing or extra resolution row, and an attempted
+5. **Planned metadata cross-check**: the four store manifests under the
+   configured metadata root are read (metadata only) and their counts must match
+   the mapping partition (combined European = EUR + META); a drift raises.
+6. **Tracked definitions**: `write_candidate_definitions` records the intended
+   membership/recipe with `in_stores: false`, `owner_ordering_approved: false`,
+   planned manifest paths, and pending acceptance and resolution.
+7. **Fail closed**: a missing or extra resolution row, and an attempted
    overwrite of an existing bundle, raise rather than emit.
-7. Every emitted bundle passes `bundle.check()` (run inside the emitter).
+8. Every emitted bundle passes `bundle.check()` (run inside the emitter).
 
 ## Running the suite
 

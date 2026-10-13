@@ -57,6 +57,14 @@ FIXTURE_STORES = {
     "META": ("OGS-00017", None, None, "META", "not_applicable", None),
 }
 
+PLANNED_MANIFEST = {
+    "EUR": "european.tsv",
+    "AFR": "african.tsv",
+    "AMR": "amr.tsv",
+    "EAS": "eas.tsv",
+    "META": "european.tsv",
+}
+
 
 def write_tsv(path: Path, columns: list[str], rows: list[dict[str, str]]) -> None:
     with path.open("w", newline="", encoding="utf-8") as handle:
@@ -118,6 +126,7 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
             "source_ancestry_label": label_ancestry,
             "observed_only": ancestry == "META",
             "intended_members": len(MEMBERS[ancestry]),
+            "planned_manifest": PLANNED_MANIFEST[ancestry],
             "completion_reference": {
                 "resource_id": "fixture-ld" if suggested else None,
                 "ancestry": assigned,
@@ -131,6 +140,7 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
         "id_allocation_status": "provisional-draft",
         "owner_ordering_approved": False,
         "intended_bound_total": 15,
+        "metadata": {"root": str(tmp / "meta")},
         "publication_pmid": "39024449",
         "access_posture": "public",
         "layout": "dense",
@@ -144,6 +154,22 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
     }
     config_path = tmp / "config.yaml"
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+
+    # Fixture planned manifests: the combined European manifest carries EUR+META.
+    manifest_dir = tmp / "meta" / "manifests"
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    manifest_counts = {
+        "european.tsv": len(MEMBERS["EUR"]) + len(MEMBERS["META"]),
+        "african.tsv": len(MEMBERS["AFR"]),
+        "amr.tsv": len(MEMBERS["AMR"]),
+        "eas.tsv": len(MEMBERS["EAS"]),
+    }
+    for name, count in manifest_counts.items():
+        write_tsv(
+            manifest_dir / name,
+            ["analysis_id"],
+            [{"analysis_id": f"{name}-{index}"} for index in range(count)],
+        )
     return mapping_path, resolution_path, config_path
 
 
@@ -266,6 +292,21 @@ class TestCandidateEmission(unittest.TestCase):
         self.assertEqual(definition["human_acceptance"], "pending")
         self.assertTrue(definition["blocked"])
         self.assertFalse((self.out / "OGS-00020").exists())
+
+    def test_planned_manifest_membership_crosscheck(self) -> None:
+        counts = gen.read_planned_manifests(self.config)
+        self.assertEqual(counts["european.tsv"], 9)
+        self.assertEqual(counts["african.tsv"], 3)
+        _, grouped = gen.build_partition(self.config, self.mapping)
+        gen.validate_planned_manifests(self.config, grouped, counts)
+        with self.assertRaisesRegex(gen.CandidateError, "expected 9"):
+            gen.validate_planned_manifests(
+                self.config, grouped, {**counts, "european.tsv": 8}
+            )
+        plan = gen.run_plan(self.config, self.mapping, self.out, counts)
+        self.assertEqual(plan["stores"]["EUR"]["planned_manifest_members"], 9)
+        self.assertEqual(plan["stores"]["EUR"]["resolution"], "pending")
+        self.assertEqual(plan["metadata"]["root"], str(self.tmp / "meta"))
 
     def test_candidate_definitions_are_tracked_and_pending(self) -> None:
         path = gen.write_candidate_definitions(self.config, self.out)
