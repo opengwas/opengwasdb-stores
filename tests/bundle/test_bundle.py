@@ -863,6 +863,79 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertTrue(any("illegal status transition" in error for error in errors))
 
+    def test_store_release_build_builds_accepted_built_and_validated_bundles_only(self) -> None:
+        """Acceptance is a check, not a convention (#247).
+
+        `built` and `validated` stay buildable so that a re-run, or a forced
+        replacement, of a release still goes through.
+        """
+        buildable = {
+            "accepted": True,
+            "built": True,
+            "validated": True,
+            "candidate": False,
+            "superseded": False,
+            "withdrawn": False,
+        }
+        self.assertEqual(set(buildable), bundle.VALID_STATUSES, "every Release Status needs a verdict")
+        for status, expected in buildable.items():
+            with self.subTest(status=status):
+                made = self.make_bundle(store_id="OGS-00105", status=status)
+                record_check()
+                self.assertEqual(bundle.is_buildable(made), expected)
+                refusal = bundle.build_refusal(made)
+                if expected:
+                    self.assertIsNone(refusal)
+                else:
+                    self.assertIn("OGS-00105", refusal)
+                    self.assertIn(f"Release Status '{status}'", refusal)
+
+    def test_a_candidate_refusal_says_how_to_accept_it(self) -> None:
+        made = self.make_bundle(store_id="OGS-00106", status="candidate")
+        refusal = bundle.build_refusal(made)
+        record_check()
+        self.assertIn("status: accepted", refusal)
+        self.assertIn("accepted_at", refusal)
+        self.assertIn(str(made.root / "release.yaml"), refusal)
+
+    def test_a_retired_release_is_never_accepted_again(self) -> None:
+        """`superseded` and `withdrawn` cannot return to `accepted`, so no acceptance is offered."""
+        for status in ("superseded", "withdrawn"):
+            with self.subTest(status=status):
+                refusal = bundle.build_refusal(self.make_bundle(store_id="OGS-00107", status=status))
+                record_check()
+                self.assertIn("never returns to 'accepted'", refusal)
+                self.assertNotIn("status: accepted", refusal)
+
+    def test_a_bundle_without_a_valid_release_status_is_not_buildable(self) -> None:
+        made = self.make_bundle(store_id="OGS-00108")
+        for release in ({k: v for k, v in made.release.items() if k != "status"}, {**made.release, "status": "ready"}):
+            with self.subTest(status=release.get("status")):
+                unknown = replace(made, release=release)
+                record_check()
+                self.assertFalse(bundle.is_buildable(unknown))
+                self.assertIn("no valid Release Status", bundle.build_refusal(unknown))
+
+    def test_partition_and_refuse_unbuildable_name_every_refused_bundle(self) -> None:
+        accepted = self.make_bundle(store_id="OGS-00109", status="accepted")
+        candidate = self.make_bundle(store_id="OGS-00110", status="candidate")
+        withdrawn = self.make_bundle(store_id="OGS-00111", status="withdrawn")
+
+        buildable, refusals = bundle.partition_buildable([accepted, candidate, withdrawn])
+        record_check()
+        self.assertEqual([b.store_id for b in buildable], ["OGS-00109"])
+        self.assertEqual(refusals, [bundle.build_refusal(candidate), bundle.build_refusal(withdrawn)])
+
+        bundle.refuse_unbuildable([accepted])
+        with self.assertRaises(bundle.NotBuildableError) as raised:
+            bundle.refuse_unbuildable([accepted, candidate, withdrawn])
+        record_check()
+        message = str(raised.exception)
+        self.assertNotIn("OGS-00109", message)
+        self.assertIn(bundle.build_refusal(candidate), message)
+        self.assertIn(bundle.build_refusal(withdrawn), message)
+        self.assertIn("Nothing was written", message)
+
     def test_validated_release_needs_a_passing_validation_record(self) -> None:
         """`validated` comes only from a passed or passed_with_warnings record (#195)."""
         for record_status, gives_validated in (

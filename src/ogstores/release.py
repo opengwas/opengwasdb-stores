@@ -4,6 +4,12 @@
     pixi run release OGS-00005 --config force=1     replace a published release
     pixi run release-dry OGS-00005                  plan only; writes nothing
 
+It first refuses a named release whose Release Status the Release Bundle
+contract does not let it build (`bundle.build_refusal`), before any lock is
+taken. `all` means only the releases the contract lets through, and each one
+left out is listed with the reason. An unbuilt parent the plan schedules is
+refused the same way at preflight (#247).
+
 It wraps one `snakemake --snakefile workflow/Snakefile` run with the guard no
 Snakemake option can switch off:
 
@@ -56,7 +62,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-from ogstores import paths, register, resources, run, runtime
+from ogstores import bundle, paths, register, resources, run, runtime
 
 SNAKEFILE: Path = paths.REPO_ROOT / "workflow" / "Snakefile"
 
@@ -249,6 +255,28 @@ def registered_ids(registry_root: Path) -> list[str]:
         d.name for d in registry_root.iterdir()
         if d.is_dir() and paths.is_valid_store_id(d.name) and (d / "release.yaml").is_file()
     )
+
+
+def _bundles(registry_root: Path, store_ids: Iterable[str]) -> list[bundle.Bundle]:
+    return [bundle.load(store_id, registry_root=registry_root) for store_id in sorted(set(store_ids))]
+
+
+def resolve_targets(inv: Invocation, registry_root: Path) -> tuple[list[str], list[str]]:
+    """Resolve an invocation's targets to release ids, refusing any it may not build (#247).
+
+    A named, registered release the contract does not let through is refused
+    with `bundle.NotBuildableError`. An unregistered id is left to the
+    Snakefile, which names the registered ones. `all` (or no target) means
+    every registered release the contract lets through. Returns those ids and
+    the refusal of each release `all` left out, so the operator sees it.
+    """
+    named = [t for t in inv.targets if t != "all"]
+    registered = registered_ids(registry_root)
+    bundle.refuse_unbuildable(_bundles(registry_root, (t for t in named if t in registered)))
+    if named and "all" not in inv.targets:
+        return named, []
+    buildable, left_out = bundle.partition_buildable(_bundles(registry_root, registered))
+    return [b.store_id for b in buildable], left_out
 
 
 def _cleanup_metadata(inv: Invocation, files: Iterable[Path]) -> None:
@@ -594,6 +622,14 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
         return result.returncode
     scheduled = scheduled_releases(result.stdout + result.stderr)
     jobs = scheduled_jobs(result.stdout + result.stderr)
+    try:
+        _, left_out = resolve_targets(inv, registry_root)
+        bundle.refuse_unbuildable(_bundles(registry_root, (store_id for _, store_id in scheduled)))
+    except bundle.NotBuildableError as exc:
+        print(f"release-dry: the real run would refuse:\n{exc}")
+        return result.returncode
+    for refusal in left_out:
+        print(f"release-dry: left out of `all`: {refusal}")
     busy = {}
     for _, store_id in scheduled:
         holder = lock_holder(store_id, root)
@@ -642,6 +678,7 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
 
 
 GUARD_ERRORS: tuple[type[BaseException], ...] = (
+    bundle.NotBuildableError,
     ReleaseInProgressError,
     run.StoreExistsError,
     run.ForceSnapshotPendingError,
@@ -656,8 +693,11 @@ GUARD_ERRORS: tuple[type[BaseException], ...] = (
 
 def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: ReleaseLocks) -> int:
     """Recovery, preflight, snapshot, the run and settlement, with `locks` taken as needed."""
-    targets = [t for t in inv.targets if t != "all"]
-    requested = targets if targets and "all" not in inv.targets else registered_ids(registry_root)
+    # A named release the contract does not let this workflow build is
+    # refused before any lock is taken or anything is written (#247).
+    requested, left_out = resolve_targets(inv, registry_root)
+    for refusal in left_out:
+        print(f"release: left out of `all`: {refusal}")
     for store_id in sorted(requested):
         locks.acquire(store_id)
     for message in recover_releases(inv, registry_root, root, locks):
@@ -678,6 +718,9 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     if not scheduled:
         print("release: nothing to be done; every requested release is up to date")
         return 0
+    # The unbuilt parent a named child schedules is checked here, once the
+    # plan shows it, before the snapshot or any build work (#247).
+    bundle.refuse_unbuildable(_bundles(registry_root, (store_id for _, store_id in scheduled)))
     for _, store_id in scheduled:
         locks.acquire(store_id)
 
@@ -795,6 +838,7 @@ __all__ = [
     "recover_releases",
     "registered_ids",
     "release_outputs",
+    "resolve_targets",
     "resolve_snapshot",
     "scheduled_jobs",
     "scheduled_releases",

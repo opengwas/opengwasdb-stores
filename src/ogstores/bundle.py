@@ -52,6 +52,13 @@ LEGAL_STATUS_TRANSITIONS: dict[str, frozenset[str]] = {
     "withdrawn": frozenset({"withdrawn"}),
 }
 
+# The Release Statuses the release workflow may build (#247). `accepted` is the
+# human-frozen input the build rests on; `built` and `validated` keep a re-run,
+# or a `--config force=1` replacement, working. A `candidate` has not been
+# accepted, and `superseded` and `withdrawn` are retired. This set is the one
+# statement of the rule: callers ask the functions below.
+BUILDABLE_STATUSES: frozenset[str] = frozenset({"accepted", "built", "validated"})
+
 # Release-level identity and provenance required by the current bundle contract.
 # The identity file trims to identity, lineage, status, creation time, source
 # snapshot identity, prose, and the generation command log (issue #136).
@@ -299,6 +306,62 @@ class Bundle:
     def validation_path(self) -> Path | None:
         path = self.root / "validation.yaml"
         return path if path.is_file() else None
+
+
+class NotBuildableError(ValueError):
+    """The release workflow was asked to build a bundle its Release Status does not allow (#247)."""
+
+
+def is_buildable(bundle: Bundle) -> bool:
+    """Return whether the release workflow may build this bundle (`BUILDABLE_STATUSES`)."""
+    return bundle.status in BUILDABLE_STATUSES
+
+
+def build_refusal(bundle: Bundle) -> str | None:
+    """Why the release workflow must not build this bundle, or None when it may."""
+    if is_buildable(bundle):
+        return None
+    status = bundle.status
+    if status not in VALID_STATUSES:
+        return (
+            f"{bundle.store_id} has no valid Release Status ({status!r}); "
+            "`pixi run bundle-check` names the problem."
+        )
+    if "accepted" in LEGAL_STATUS_TRANSITIONS[status]:
+        return (
+            f"{bundle.store_id} has Release Status {status!r}. To accept it, review it, "
+            f"then set `status: accepted` and `accepted_at` in {bundle.root / 'release.yaml'}, "
+            "check it with `pixi run bundle-check`, and commit the change."
+        )
+    return (
+        f"{bundle.store_id} has Release Status {status!r}, which never returns to 'accepted'; "
+        "a replacement is a new Store Release."
+    )
+
+
+def partition_buildable(bundles: Iterable[Bundle]) -> tuple[list[Bundle], list[str]]:
+    """Split bundles into those the release workflow may build and a refusal for each other one."""
+    buildable: list[Bundle] = []
+    refusals: list[str] = []
+    for b in bundles:
+        refusal = build_refusal(b)
+        if refusal is None:
+            buildable.append(b)
+        else:
+            refusals.append(refusal)
+    return buildable, refusals
+
+
+def refuse_unbuildable(bundles: Iterable[Bundle]) -> None:
+    """Raise `NotBuildableError` naming every bundle the release workflow must not build."""
+    _, refusals = partition_buildable(bundles)
+    if refusals:
+        listed = "\n".join(f"  {refusal}" for refusal in refusals)
+        raise NotBuildableError(
+            "Refusing to run: only a bundle with Release Status "
+            f"{', '.join(sorted(BUILDABLE_STATUSES))} is built (#247):\n{listed}\n"
+            "Nothing was written."
+        )
 
 
 @dataclass(frozen=True)
@@ -1207,6 +1270,7 @@ def check(
 
 
 __all__ = [
+    "BUILDABLE_STATUSES",
     "BUILD_REQUIRED_KEYS",
     "Bundle",
     "CheckResult",
@@ -1215,17 +1279,22 @@ __all__ = [
     "LEGACY_BLANK_ANALYSIS_RELEASES",
     "LEGAL_STATUS_TRANSITIONS",
     "MAF_THRESHOLD_COLUMN",
+    "NotBuildableError",
     "PHASE_B_REQUIRED_COLUMNS",
     "RELEASE_REQUIRED_KEYS",
     "SUPERPOPULATIONS",
     "ToleratedGap",
     "VALIDATED_RECORD_STATUSES",
     "VALID_STATUSES",
+    "build_refusal",
     "check",
+    "is_buildable",
     "is_legal_status_transition",
     "load",
     "membership_ids",
+    "partition_buildable",
     "partition_membership",
+    "refuse_unbuildable",
     "summarise",
     "validate_status_transition",
 ]

@@ -56,6 +56,13 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
 8. **Operator config reaches Snakemake (#195)**:
    - `pixi run release <ID> --config key=value` and `release-dry` pass the override to Snakemake's config rather than as a target. Each task's `pixi.toml` cmd is run with the operator's words appended, as Pixi does, and the dry run must plan under the configured artifact root.
 
+10. **Only buildable bundles are built (#247)**:
+   - Every fixture bundle is `accepted` unless a test says otherwise.
+   - Running Snakemake directly on a candidate is refused at `onstart`, naming its Release Status and how to accept it, with nothing written under the artifact root.
+   - Snakemake's `all` target expands to buildable bundles only.
+   - Through the entry point, a named candidate is refused before any lock is taken or anything is written, and the candidate parent an accepted child would schedule is refused before any build work. An unregistered id still gets the "Unknown Store Release ID" guidance.
+   - `pixi run release-dry all` lists each left-out bundle with its refusal, and a dry run of a named candidate says the real run would refuse.
+
 ## Running the suite
 
 ```sh

@@ -133,7 +133,7 @@ class RuntimeGuardTestCase(unittest.TestCase):
         release: dict = {
             "store_id": store_id,
             "label": store_id,
-            "status": "candidate",
+            "status": "accepted",
             "created_at": "2026-01-01T00:00:00Z",
             "derived_from": derived_from,
             "description": "fixture",

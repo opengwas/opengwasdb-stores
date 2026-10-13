@@ -120,8 +120,13 @@ def create_dense_fixture_store(
     post_validate: bool = True,
     variant_reference_output: str | None = None,
     variant_reference_options: dict | None = None,
+    status: str = "accepted",
 ) -> Path:
-    """Create a complete fixture Release Bundle under stores_dir/<store_id>."""
+    """Create a complete fixture Release Bundle under stores_dir/<store_id>.
+
+    It is `accepted` unless `status` says otherwise: the release workflow
+    refuses a candidate (#247).
+    """
     store_dir = stores_dir / store_id
     store_dir.mkdir(parents=True, exist_ok=True)
 
@@ -134,7 +139,7 @@ def create_dense_fixture_store(
     release_yaml = {
         "store_id": store_id,
         "label": f"fixture-dense-{store_id}",
-        "status": "candidate",
+        "status": status,
         "source_collection_id": "test-collection",
         "association_coverage": "full_gwas",
         "derived_from": None,
@@ -950,7 +955,7 @@ class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):
         rel_yaml = {
             "store_id": child_id,
             "label": "child-release",
-            "status": "candidate",
+            "status": "accepted",
             "source_collection_id": "test-collection",
             "association_coverage": "full_gwas",
             "derived_from": parent_id,
@@ -1011,7 +1016,7 @@ class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):
         rel_yaml = {
             "store_id": child_id,
             "label": "completed-child",
-            "status": "candidate",
+            "status": "accepted",
             "source_collection_id": "test-collection",
             "association_coverage": "full_gwas",
             "derived_from": parent_id,
@@ -1179,6 +1184,117 @@ class TestPixiReleaseTaskPassthrough(unittest.TestCase):
                     paths.records_dir(store_id, root=self.artifact_root).exists(),
                     f"{task} wrote records during a dry run",
                 )
+
+
+class TestReleaseWorkflowRefusesUnbuildableBundles(unittest.TestCase):
+    """The release workflow schedules only bundles whose Release Status allows a build (#247).
+
+    None of these runs builds a Store: each is refused, or is a dry run.
+    """
+
+    ACCEPTED = "OGS-00071"
+    CANDIDATE = "OGS-00072"
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.td = Path(self.temp_dir.name)
+        self.stores_dir = self.td / "stores"
+        self.stores_dir.mkdir()
+        self.artifact_root = self.td / "artifacts"
+        self.artifact_root.mkdir()
+        create_dense_fixture_store(self.stores_dir, store_id=self.ACCEPTED, artifact_root=self.artifact_root)
+        create_dense_fixture_store(
+            self.stores_dir, store_id=self.CANDIDATE, artifact_root=self.artifact_root, status="candidate"
+        )
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def written(self) -> list[Path]:
+        return sorted(self.artifact_root.rglob("*"))
+
+    def test_direct_snakemake_refuses_a_candidate_at_onstart(self) -> None:
+        res = run_snakemake([self.CANDIDATE], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+
+        self.assertNotEqual(res.returncode, 0, res.stdout + res.stderr)
+        output = res.stdout + res.stderr
+        self.assertIn(f"{self.CANDIDATE} has Release Status 'candidate'", output)
+        self.assertIn("status: accepted", output)
+        self.assertEqual(self.written(), [], "a refused run wrote under the artifact root")
+
+    def test_direct_snakemake_all_expands_to_buildable_bundles_only(self) -> None:
+        res = run_snakemake(["all"], registry_root=self.stores_dir, artifact_root=self.artifact_root, dry_run=True)
+
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertIn(self.ACCEPTED, res.stdout)
+        self.assertNotIn(self.CANDIDATE, res.stdout)
+
+    def test_the_entry_point_refuses_a_named_candidate_before_anything_is_written(self) -> None:
+        res = run_release([self.CANDIDATE], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+
+        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        self.assertIn(f"{self.CANDIDATE} has Release Status 'candidate'", res.stderr)
+        self.assertIn("status: accepted", res.stderr)
+        self.assertEqual(self.written(), [], "a refused run wrote under the artifact root")
+
+    def test_the_entry_point_still_reports_an_unregistered_id_as_unknown(self) -> None:
+        """An id with no bundle has no Release Status to refuse; the registry's guidance stands."""
+        res = run_release(["OGS-00042"], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+
+        self.assertNotEqual(res.returncode, 0, res.stdout + res.stderr)
+        output = res.stdout + res.stderr
+        self.assertIn("Unknown Store Release ID 'OGS-00042'", output)
+        self.assertNotIn("Release Status", output)
+
+    def test_the_entry_point_refuses_the_candidate_parent_an_accepted_child_would_build(self) -> None:
+        """Naming an accepted child schedules its unbuilt parent, so the parent's status is checked too."""
+        child = "OGS-00073"
+        child_dir = self.stores_dir / child
+        child_dir.mkdir()
+        import yaml
+        (child_dir / "release.yaml").write_text(yaml.safe_dump({
+            "store_id": child,
+            "label": "completed-child",
+            "status": "accepted",
+            "derived_from": self.CANDIDATE,
+            "created_at": "2026-08-18T16:00:00Z",
+            "description": "Completed child of a candidate",
+            "source_snapshot_id": "test-snapshot",
+            "generator": {"command": "test-gen"},
+        }), encoding="utf-8")
+        (child_dir / "build.yaml").write_text(yaml.safe_dump({
+            "store_id": child,
+            "layout": "dense",
+            "completion_state": "reference_completed",
+            "complete": {"command": "complete-dense", "options": {"ld-panel": "/fake/ld/panel", "ancestry": "EUR"}},
+            "post": {"top_hits": False, "rho": False, "overview": True, "validate": True},
+        }), encoding="utf-8")
+        (child_dir / "analyses.tsv").write_text("analysis_id\tsource_file\n", encoding="utf-8")
+
+        res = run_release([child], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+
+        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        self.assertIn(f"{self.CANDIDATE} has Release Status 'candidate'", res.stderr)
+        self.assertNotIn(f"{child} has Release Status", res.stderr)
+        # The run's lock files are its only trace: no record, manifest or Store.
+        self.assertEqual([p for p in self.written() if p.is_file() and ".release-locks" not in p.parts], [])
+
+    def test_the_dry_run_of_all_reports_left_out_bundles_and_why(self) -> None:
+        res = run_release(["all", "--dry-run"], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self.assertIn(f"wildcards: root={self.artifact_root}, store_id={self.ACCEPTED}", res.stdout)
+        self.assertNotIn(f"store_id={self.CANDIDATE}", res.stdout)
+        self.assertIn(f"release-dry: left out of `all`: {self.CANDIDATE} has Release Status 'candidate'", res.stdout)
+        self.assertNotIn(f"left out of `all`: {self.ACCEPTED}", res.stdout)
+        self.assertEqual(self.written(), [])
+
+    def test_the_dry_run_of_a_named_candidate_says_the_real_run_would_refuse(self) -> None:
+        res = run_release([self.CANDIDATE, "--dry-run"], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self.assertIn("release-dry: the real run would refuse", res.stdout)
+        self.assertIn(f"{self.CANDIDATE} has Release Status 'candidate'", res.stdout)
 
 
 class TestWorkflowOperatorInterface(unittest.TestCase):
