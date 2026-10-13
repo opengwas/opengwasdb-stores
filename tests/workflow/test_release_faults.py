@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""A whole-stack crash at every boundary of a forced release, through the entry point (#195).
+"""A whole-stack crash of a forced release at each kind of boundary, through the entry point (#195).
 
-For each boundary a release crosses, a forced `workflow/release.py` run is
-killed there. The kill is SIGKILL to its whole process group: the entry point,
-Snakemake and the register job die together, as they would on a host crash, and
-no hook, `finally` or settlement runs. The next run through the same supported
-entry point must then recover:
+At each boundary below, a forced `workflow/release.py` run is killed. The kill
+is SIGKILL to its whole process group: the entry point, Snakemake and the
+register job die together, as they would on a host crash, and no hook,
+`finally` or settlement runs. The next run through the same supported entry
+point must then recover:
 
 - after the publication marker exists (every boundary from `marker-written` on,
   `marker-removed` included), the next run finishes the publication, clears
@@ -17,6 +17,14 @@ entry point must then recover:
   through the entry point (`--resolve-snapshot delete` before any job ran,
   `restore` after) and clears Snakemake's stale lock, a forced run replaces the
   release.
+
+Every entry-point boundary is crashed here. The register job's boundaries are
+crashed here by kind, because each costs a whole release: the register suite
+(tests/register) already kills the publication transaction at every one of them
+and completes it, in seconds. What this suite adds is Snakemake's view of the
+killed job, and that differs between them only in whether the publication
+marker exists and whether the job's output, `records/register.json`, has been
+written. One boundary of each kind is crashed here.
 
 Each boundary has its own directories, so Snakemake's metadata for one cannot
 make another look up to date.
@@ -55,17 +63,20 @@ from test_workflow import (  # noqa: E402
 
 STORE_ID = "OGS-00099"
 
-# Every boundary a forced release crosses, in the order it crosses them.
+# One register-job boundary of each kind Snakemake can see; the register suite
+# crashes the transaction at all of them.
+REGISTER_JOB_KINDS: dict[str, str] = {
+    "publication-started": "no marker yet",
+    "store-published": "marker, register.json not yet written",
+    "register-record-written": "marker and register.json",
+}
+
+# The boundaries crashed here, in the order a forced release crosses them:
+# every entry-point boundary, and the register job's by kind.
 BOUNDARIES: tuple[str, ...] = (
     "snapshots-taken",
     "publication-started",
-    "marker-written",
-    "store-set-aside",
     "store-published",
-    "old-store-archived",
-    "old-records-archived",
-    "old-record-archived",
-    "record-written",
     "register-record-written",
     "before-settle",
     "metadata-cleaned",
@@ -78,32 +89,43 @@ def records_of(records_dir: Path) -> dict[str, tuple[int, bytes]]:
     return {p.name: (p.stat().st_mtime_ns, p.read_bytes()) for p in sorted(records_dir.iterdir())}
 
 
+_TEMPLATE_DIR: tempfile.TemporaryDirectory | None = None
+
+
+def setUpModule() -> None:
+    """Publish the fixture release once, through the entry point, as every case's starting point.
+
+    Once for the module, not per class: a publication is a whole release.
+    """
+    global _TEMPLATE_DIR
+    _TEMPLATE_DIR = tempfile.TemporaryDirectory()
+    root = Path(_TEMPLATE_DIR.name)
+    stores, artifacts = root / "stores", root / "artifacts"
+    stores.mkdir()
+    artifacts.mkdir()
+    create_dense_fixture_store(
+        stores,
+        store_id=STORE_ID,
+        artifact_root=artifacts,
+        post_top_hits=False,
+        post_overview=False,
+    )
+    PublishedReleaseFixture.template_stores = stores
+    PublishedReleaseFixture.template_artifacts = artifacts
+    PublishedReleaseFixture.first = run_release([STORE_ID], registry_root=stores, artifact_root=artifacts)
+
+
+def tearDownModule() -> None:
+    if _TEMPLATE_DIR is not None:
+        _TEMPLATE_DIR.cleanup()
+
+
 class PublishedReleaseFixture(unittest.TestCase):
-    """One release published through the entry point, copied fresh for each case."""
+    """One release published through the entry point (`setUpModule`), copied fresh for each case."""
 
-    @classmethod
-    def setUpClass(cls) -> None:
-        """Publish the fixture release once, through the entry point, as every case's starting point."""
-        cls._tmp = tempfile.TemporaryDirectory()
-        root = Path(cls._tmp.name)
-        cls.template_stores = root / "stores"
-        cls.template_artifacts = root / "artifacts"
-        cls.template_stores.mkdir()
-        cls.template_artifacts.mkdir()
-        create_dense_fixture_store(
-            cls.template_stores,
-            store_id=STORE_ID,
-            artifact_root=cls.template_artifacts,
-            post_top_hits=False,
-            post_overview=False,
-        )
-        cls.first = run_release(
-            [STORE_ID], registry_root=cls.template_stores, artifact_root=cls.template_artifacts
-        )
-
-    @classmethod
-    def tearDownClass(cls) -> None:
-        cls._tmp.cleanup()
+    template_stores: Path
+    template_artifacts: Path
+    first: subprocess.CompletedProcess[str]
 
     def assert_first_publication(self) -> None:
         self.assertEqual(self.first.returncode, 0, self.first.stdout + self.first.stderr)
@@ -165,12 +187,24 @@ class TestEveryBoundaryThroughTheEntryPoint(PublishedReleaseFixture):
     def test_the_first_publication_went_through_the_entry_point(self) -> None:
         self.assert_first_publication()
 
-    def test_every_boundary_in_the_code_is_crashed_here(self) -> None:
-        """A boundary added to the code without a case here fails this test."""
-        self.assertEqual(
-            set(BOUNDARIES),
-            set(release.ENTRY_POINT_BOUNDARIES) | set(register.PUBLICATION_BOUNDARIES),
+    def test_every_entry_point_boundary_and_each_kind_of_register_boundary_is_crashed_here(self) -> None:
+        """An entry-point boundary added without a case here, or a stale name, fails this test.
+
+        A register-job boundary added to the code is crashed by the register
+        suite, which iterates `register.PUBLICATION_BOUNDARIES`. The kinds
+        crashed here must still sit either side of the marker and of the
+        register record being written.
+        """
+        self.assertLessEqual(set(release.ENTRY_POINT_BOUNDARIES), set(BOUNDARIES))
+        self.assertLessEqual(
+            set(BOUNDARIES), set(release.ENTRY_POINT_BOUNDARIES) | set(register.PUBLICATION_BOUNDARIES)
         )
+        self.assertLessEqual(set(REGISTER_JOB_KINDS), set(BOUNDARIES))
+        order = register.PUBLICATION_BOUNDARIES.index
+        self.assertLess(order("publication-started"), order("marker-written"))
+        self.assertLess(order("marker-written"), order("store-published"))
+        self.assertLess(order("store-published"), order("register-record-written"))
+        self.assertLess(order("register-record-written"), order("marker-removed"))
 
     def check_boundary(self, boundary: str) -> None:
         stores, artifacts = self.published_copy()
@@ -328,7 +362,7 @@ class TestLiveAndInterruptedRuns(PublishedReleaseFixture):
         self.assertIn(f"a run of {STORE_ID} is in progress (pid {os.getpid()},", dry.stdout)
         self.assertNotIn("completes the interrupted publication", dry.stdout)
 
-    def check_interrupt(self, deliver: str, signum: int) -> None:
+    def check_interrupt(self, deliver: str, signum: int, *, force_again: bool = False) -> None:
         stores, artifacts = self.published_copy()
         store_p = paths.store_path(STORE_ID, root=artifacts)
         records = paths.records_dir(STORE_ID, root=artifacts)
@@ -368,6 +402,8 @@ class TestLiveAndInterruptedRuns(PublishedReleaseFixture):
         self.assertIn("already published", res.stderr)
         self.assertNotIn("IncompleteFilesException", res.stdout + res.stderr)
         self.assertNotIn("stopped before it began to publish", res.stderr)
+        if not force_again:
+            return
         forced = run_release([STORE_ID], registry_root=stores, artifact_root=artifacts, config={"force": "1"})
         self.assertEqual(forced.returncode, 0, forced.stdout + forced.stderr)
         self.assert_replaced(stores, artifacts, old_manifest, old_records, old_validation)
@@ -381,8 +417,12 @@ class TestLiveAndInterruptedRuns(PublishedReleaseFixture):
         self.check_interrupt("pid", signal.SIGTERM)
 
     def test_sigterm_to_every_process_mid_build_restores_the_records(self) -> None:
-        """SIGTERM to the entry point and Snakemake's session (a scheduler limit) mid-build: exit 143."""
-        self.check_interrupt("all", signal.SIGTERM)
+        """SIGTERM to the entry point and Snakemake's session (a scheduler limit) mid-build: exit 143.
+
+        This delivery reaches Snakemake itself, so it is the one that also proves
+        a forced run then replaces the release: each forced run is a whole release.
+        """
+        self.check_interrupt("all", signal.SIGTERM, force_again=True)
 
 
 def _case(boundary: str):
