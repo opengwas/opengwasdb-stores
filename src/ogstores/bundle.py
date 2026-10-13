@@ -16,14 +16,21 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit, urlunsplit
 
 import yaml
-from opengwasdb.model import analyses as opengwasdb_analyses
 
 from ogstores.manifest import EXCLUDE_COLUMN, classify_exclusion
 from ogstores.paths import is_valid_store_id
+
+# `opengwasdb.model` is imported inside the functions that read analyses.tsv,
+# not here. Every process that imports `ogstores` imports this module: the
+# release entry point, each Snakemake parse of the release workflow, the
+# parent-death supervisor. Importing opengwasdb's model costs each of them
+# about 1.5s, and the release path never reads an analyses table.
+if TYPE_CHECKING:
+    from opengwasdb.model import analyses as opengwasdb_analyses
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
@@ -450,6 +457,7 @@ def membership_ids(bundle: Bundle) -> tuple[tuple[str, ...], tuple[str, ...]]:
     Artifact (ADR 0023): the registry owns intended and admitted membership;
     what was actually built is a separate evidence channel.
     """
+    from opengwasdb.model import analyses as opengwasdb_analyses
     table = opengwasdb_analyses.read_analyses(bundle.analyses_path)
     admitted, excluded = partition_membership(table)
     admitted_ids = tuple((row.get("analysis_id") or "").strip() for row in admitted)
@@ -472,6 +480,7 @@ def summarise(bundle: Bundle) -> dict[str, str | int]:
     (issue #217). ``n_manifest`` is a *selection* count, not the intended Source
     Inventory size, and is named separately from ``n_admitted`` for that reason.
     """
+    from opengwasdb.model import analyses as opengwasdb_analyses
     table = opengwasdb_analyses.read_analyses(bundle.analyses_path)
     admitted, excluded = partition_membership(table)
     summary: dict[str, str | int] = {
@@ -923,6 +932,7 @@ def _check_validation(bundle: Bundle) -> list[str]:
 
 
 def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
+    from opengwasdb.model import analyses as opengwasdb_analyses
     errors: list[str] = []
     tolerated: list[ToleratedGap] = []
     try:
