@@ -24,7 +24,18 @@ import os
 import site
 import sys
 
-_CONFIG = json.loads(os.environ.get("OPENGWASDB_PILOT_GUARD", "{}"))
+def _load_config() -> dict:
+    env_config = os.environ.get("OPENGWASDB_PILOT_GUARD")
+    if env_config:
+        return json.loads(env_config)
+    config_path = os.environ.get("OPENGWASDB_PILOT_GUARD_CONFIG")
+    if config_path:
+        with open(config_path, encoding="utf-8") as handle:
+            return json.load(handle)
+    return {}
+
+
+_CONFIG = _load_config()
 _ALLOW_READ = {os.path.realpath(p) for p in _CONFIG.get("allow_read", [])}
 _ROOT = os.path.realpath(_CONFIG["allow_write_root"]) if _CONFIG.get("allow_write_root") else None
 _LOG = _CONFIG.get("log")
