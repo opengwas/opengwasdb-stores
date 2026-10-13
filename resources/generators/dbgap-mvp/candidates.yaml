@@ -12,6 +12,17 @@ metadata:
   acceptance: technical metadata evidence only; not scientific/release acceptance
   candidates_table: resources/data/derived/store-candidates-analyses.tsv
   mapping: /data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv
+source_hashes:
+  metadata_receipt: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/parent-run-summary.json
+  metadata_receipt_sha256: 21e755d323625f9a86de382fe70c771e39cb1c01aca147e03c3fa8b26c5d109b
+  candidates_table: resources/data/derived/store-candidates-analyses.tsv
+  candidates_table_path: /home/gh13047/repo/opengwasdb-stores/resources/data/derived/store-candidates-analyses.tsv
+  candidates_sha256: aef4dbe2515be177797f60a2c567a5e6b2d02557efb64abf4156889db085c4e7
+  planned_manifests:
+    dense-pmid-39024449-European-download-manifest.tsv: baf5f0724288f4fc48afc9669667191d251761efbe6bbf74c0076d1d4622d355
+    dense-pmid-39024449-African-download-manifest.tsv: 0685ef83a9925acb1e95e57162ba4fc106c113e0e9d32bfe65bb27a60049f482
+    dense-pmid-39024449-Hispanic-or-Latin-American-download-manifest.tsv: 0b34dd6dd79c937f366f115e2a8a46760abb1e8d83d9a3fe5174ced4720bce4c
+    dense-pmid-39024449-East-Asian-download-manifest.tsv: 938abffdbfb10656234ec74fab54aaddb33f716114129139abb1c6c22499937e
 finngen:
   current_store_id: OGS-00016
   renumbered_to: null
@@ -55,7 +66,7 @@ stores:
         declared_status: available
         qualification: pending
         activation: pending
-        suggested_ld_panel: /local-scratch/projects/genotype-phenotype-map/data/ld_reference_panel_hg38
+        suggested_ld_panel: /data/opengwasdb/reference/ld
       in_stores: false
   AFR:
     observed:

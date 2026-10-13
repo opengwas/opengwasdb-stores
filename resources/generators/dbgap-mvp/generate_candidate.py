@@ -35,6 +35,7 @@ import argparse
 import csv
 import importlib.util
 import json
+import math
 import os
 import sys
 from datetime import datetime, timezone
@@ -57,6 +58,15 @@ assert _spec and _spec.loader
 partition_module = importlib.util.module_from_spec(_spec)
 sys.modules["dbgap_mvp_partition"] = partition_module
 _spec.loader.exec_module(partition_module)
+
+# Shared containment-checked, exclusive-temp writer (parent BAF pattern).
+_safe_spec = importlib.util.spec_from_file_location(
+    "ogstores_safe_write", REPO_ROOT / "resources" / "generators" / "lib" / "safe_write.py"
+)
+assert _safe_spec and _safe_spec.loader
+safe_write = importlib.util.module_from_spec(_safe_spec)
+sys.modules["ogstores_safe_write"] = safe_write
+_safe_spec.loader.exec_module(safe_write)
 
 from ogstores import bundle as bundle_module  # noqa: E402
 
@@ -142,10 +152,27 @@ def assert_not_registry_store_root(out_dir: Path | str) -> None:
             )
 
 
+def _finite_positive(value: object, where: str) -> None:
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError) as exc:
+        raise CandidateError(f"{where} is not numeric: {value!r}") from exc
+    if not math.isfinite(number) or number <= 0:
+        raise CandidateError(f"{where} must be finite and positive: {value!r}")
+
+
 def validate_resolution_row(
-    row: Mapping[str, str], ancestry: str, assigned_ancestry: str | None
+    row: Mapping[str, str],
+    ancestry: str,
+    assigned_ancestry: str | None,
+    manifest_row: Mapping[str, str] | None = None,
 ) -> None:
-    """Per-row gates before any emit: non-empty required values and ancestry match."""
+    """Per-row gates before any emit.
+
+    Non-empty required values, exact source-ID binding, the manifest's own
+    data-file path, the named sidecar's genome assembly, finite positive
+    sample size/SD, and ancestry match. Nothing is defaulted.
+    """
     analysis_id = row.get("analysis_id", "")
     for column in REQUIRED_RESOLUTION_COLUMNS:
         # META is the cross-ancestry bucket: it has no single assigned ancestry
@@ -157,13 +184,37 @@ def validate_resolution_row(
                 f"resolution row {analysis_id!r} has a blank required column {column!r}"
             )
     declared = (row.get("assigned_ancestry") or "").strip()
-    # META is the cross-ancestry bucket and legitimately has no single assigned
-    # ancestry; every other bucket must bind its own ancestry exactly.
     if ancestry != "META" and declared != (assigned_ancestry or ""):
         raise CandidateError(
             f"resolution row {analysis_id!r} assigned_ancestry {declared!r} does "
             f"not match the {ancestry} bucket"
         )
+    if (row.get("source_analysis_id") or "").strip() != analysis_id:
+        raise CandidateError(
+            f"resolution row {analysis_id!r} source_analysis_id "
+            f"{(row.get('source_analysis_id') or '')!r} != analysis_id"
+        )
+    if manifest_row is not None:
+        data_file = (manifest_row.get("data_file") or "").strip()
+        if (row.get("source_file") or "").strip() != data_file:
+            raise CandidateError(
+                f"resolution row {analysis_id!r} source_file "
+                f"{(row.get('source_file') or '')!r} != manifest data_file {data_file!r}"
+            )
+        yaml_file = (manifest_row.get("yaml_file") or "").strip()
+        if yaml_file:
+            sidecar = yaml.safe_load(Path(yaml_file).read_text(encoding="utf-8")) or {}
+            sidecar_assembly = str(sidecar.get("genome_assembly") or "").strip()
+            if sidecar_assembly and (row.get("source_genome_build") or "").strip() != sidecar_assembly:
+                raise CandidateError(
+                    f"resolution row {analysis_id!r} source_genome_build "
+                    f"{(row.get('source_genome_build') or '')!r} != sidecar genome_assembly "
+                    f"{sidecar_assembly!r}"
+                )
+    _finite_positive(row.get("sample_size"), f"resolution row {analysis_id!r} sample_size")
+    for column in ("original_sd", "phenotype_sd"):
+        if column in row and (row.get(column) or "").strip():
+            _finite_positive(row[column], f"resolution row {analysis_id!r} {column}")
 
 
 def read_planned_manifests(config: Mapping) -> dict[str, int]:
@@ -215,6 +266,164 @@ def validate_planned_manifests(
                 f"planned manifest {filename} has {counts[filename]} rows; "
                 f"expected {expected} for {buckets}"
             )
+
+
+def _metadata_root(config: Mapping) -> Path:
+    root = (config.get("metadata") or {}).get("root")
+    if not root:
+        raise CandidateError("config has no metadata.root")
+    return Path(root)
+
+
+def _resolve_metadata_path(config: Mapping, value: str | None) -> Path | None:
+    """Resolve a named metadata input to an existing regular file, if possible.
+
+    Relative names are tried against this checkout and the primary checkout (the
+    gitignored candidate table lives only in the primary). Returns None rather
+    than guessing when the file is absent.
+    """
+    if not value:
+        return None
+    candidate = Path(value)
+    bases = [Path("/")]
+    if not candidate.is_absolute():
+        bases = [REPO_ROOT, Path("/home/gh13047/repo/opengwasdb-stores")]
+    for base in bases:
+        resolved = candidate if candidate.is_absolute() else base / candidate
+        if resolved.is_file():
+            return resolved
+    return None
+
+
+def metadata_hashes(config: Mapping, mapping_path: Path | str | None = None) -> dict:
+    """Actual hashes of the regular metadata inputs (never an association file)."""
+    metadata = config.get("metadata") or {}
+    root = _metadata_root(config)
+    receipt_path = root / "parent-run-summary.json"
+    result: dict = {
+        "metadata_receipt": str(receipt_path),
+        "metadata_receipt_sha256": sha256_file(receipt_path),
+    }
+    candidates_path = _resolve_metadata_path(config, metadata.get("candidates_table"))
+    result["candidates_table"] = metadata.get("candidates_table")
+    result["candidates_table_path"] = str(candidates_path) if candidates_path else None
+    result["candidates_sha256"] = sha256_file(candidates_path) if candidates_path else None
+    if mapping_path is not None:
+        result["mapping_table"] = str(mapping_path)
+        result["mapping_sha256"] = sha256_file(mapping_path)
+    manifests = read_manifest_rows(config)
+    result["planned_manifests"] = {
+        filename: sha256_file(root / "manifests" / filename) for filename in manifests
+    }
+    return result
+
+
+def verify_metadata_snapshot(config: Mapping) -> dict:
+    """Verify the configured snapshot against the actual metadata receipt.
+
+    The config is not trusted: its code sha, metadata content sha and membership
+    must match the parent receipt, and the receipt must record no promotion and
+    zero association opens.
+    """
+    metadata = config.get("metadata") or {}
+    receipt_path = _metadata_root(config) / "parent-run-summary.json"
+    if not receipt_path.is_file():
+        raise CandidateError(f"metadata receipt not found: {receipt_path}")
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    if receipt.get("promotion") not in (False, 0, None):
+        raise CandidateError("metadata receipt records a promotion; refusing to proceed")
+    if int(receipt.get("association_opens", -1)) != 0:
+        raise CandidateError("metadata receipt records association opens; refusing")
+    for key in ("code_sha", "output_metadata_content_sha256", "membership"):
+        configured = metadata.get(key)
+        actual = receipt.get(key)
+        if configured is not None and str(configured) != str(actual):
+            raise CandidateError(
+                f"config metadata.{key}={configured!r} != receipt {actual!r}"
+            )
+    return receipt
+
+
+def read_manifest_rows(config: Mapping) -> dict[str, dict[str, dict[str, str]]]:
+    """Read the four store manifests and index each by analysis_id (metadata)."""
+    manifest_dir = _metadata_root(config) / "manifests"
+    files: dict[str, dict[str, dict[str, str]]] = {}
+    for store in config["stores"].values():
+        filename = store.get("planned_manifest")
+        if not filename or filename in files:
+            continue
+        path = manifest_dir / filename
+        if not path.is_file():
+            raise CandidateError(f"planned manifest not found: {path}")
+        indexed: dict[str, dict[str, str]] = {}
+        for row in read_tsv(path):
+            analysis_id = (row.get("analysis_id") or "").strip()
+            if not analysis_id:
+                raise CandidateError(f"manifest {filename} has a blank analysis_id")
+            if analysis_id in indexed:
+                raise CandidateError(
+                    f"manifest {filename} has duplicate analysis_id {analysis_id!r}"
+                )
+            indexed[analysis_id] = row
+        files[filename] = indexed
+    return files
+
+
+def validate_manifest_membership(
+    config: Mapping,
+    partition: Mapping[str, Sequence[str]],
+    manifests: Mapping[str, Mapping[str, Mapping[str, str]]],
+) -> None:
+    """Exact manifest ID sets, disjoint, and matching the partition.
+
+    A same-count set with a swapped or missing ID must fail; counts alone are
+    not membership proof. Each row also needs an ``ok`` status, a 64-hex sha256
+    and a non-empty data file and genome assembly.
+    """
+    expected: dict[str, set[str]] = {}
+    for ancestry, store in config["stores"].items():
+        filename = store.get("planned_manifest")
+        if filename:
+            expected.setdefault(filename, set()).update(partition[ancestry])
+    union: set[str] = set()
+    for filename, rows in manifests.items():
+        ids = set(rows)
+        if filename in expected and ids != expected[filename]:
+            missing = expected[filename] - ids
+            extra = ids - expected[filename]
+            raise CandidateError(
+                f"manifest {filename} ID set does not match the partition "
+                f"(missing {len(missing)}, extra {len(extra)})"
+            )
+        overlap = union & ids
+        if overlap:
+            raise CandidateError(
+                f"manifests overlap on {len(overlap)} analysis_id(s)"
+            )
+        union |= ids
+        for analysis_id, row in rows.items():
+            if (row.get("status") or "").strip() != "ok":
+                raise CandidateError(
+                    f"manifest row {analysis_id!r} status is not 'ok'"
+                )
+            digest = (row.get("sha256") or "").strip().lower()
+            if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+                raise CandidateError(
+                    f"manifest row {analysis_id!r} has an invalid sha256 digest"
+                )
+            if not (row.get("data_file") or "").strip():
+                raise CandidateError(f"manifest row {analysis_id!r} has no data_file")
+            if not (row.get("genome_assembly") or "").strip():
+                raise CandidateError(
+                    f"manifest row {analysis_id!r} has no genome_assembly"
+                )
+    all_intended = {
+        analysis_id for ancestry in partition for analysis_id in partition[ancestry]
+    }
+    if union != all_intended:
+        raise CandidateError(
+            f"manifest union has {len(union)} IDs; partition has {len(all_intended)}"
+        )
 
 
 def load_config(path: Path | str) -> dict:
@@ -359,13 +568,14 @@ def render_analyses_tsv(rows: Sequence[Mapping[str, str]], columns: Sequence[str
         record["analysis_index"] = str(index)
         writer.writerow(record)
     return output.getvalue()
-
-
-def _atomic_write(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_text(text, encoding="utf-8")
-    os.replace(temporary, path)
+def _atomic_write(
+    path: Path, text: str, root: Path, *, overwrite: bool = False
+) -> None:
+    """Write through the shared containment-checked, exclusive-temp helper."""
+    try:
+        safe_write.atomic_write_text(path, text, root, overwrite=overwrite)
+    except safe_write.SafeWriteError as exc:
+        raise CandidateError(str(exc)) from exc
 
 
 def emit_bundle(
@@ -381,11 +591,11 @@ def emit_bundle(
         raise CandidateError(f"refusing to write through a symlinked bundle path: {bundle_dir}")
     if bundle_dir.exists():
         raise CandidateError(f"refusing to overwrite existing bundle: {bundle_dir}")
-    _atomic_write(bundle_dir / "release.yaml", yaml.safe_dump(dict(release), sort_keys=False))
-    _atomic_write(bundle_dir / "build.yaml", yaml.safe_dump(dict(build), sort_keys=False))
-    _atomic_write(bundle_dir / "validation.yaml", yaml.safe_dump(dict(validation), sort_keys=False))
+    _atomic_write(bundle_dir / "release.yaml", yaml.safe_dump(dict(release), sort_keys=False), out_dir)
+    _atomic_write(bundle_dir / "build.yaml", yaml.safe_dump(dict(build), sort_keys=False), out_dir)
+    _atomic_write(bundle_dir / "validation.yaml", yaml.safe_dump(dict(validation), sort_keys=False), out_dir)
     if analyses_text is not None:
-        _atomic_write(bundle_dir / "analyses.tsv", analyses_text)
+        _atomic_write(bundle_dir / "analyses.tsv", analyses_text, out_dir)
     return bundle_dir
 
 
@@ -428,14 +638,22 @@ def run_plan(
     manifest_counts = manifest_counts or {}
     if manifest_counts:
         validate_planned_manifests(config, partition, manifest_counts)
+    verify_metadata_snapshot(config)
+    manifests = read_manifest_rows(config)
+    validate_manifest_membership(config, partition, manifests)
+    assert_not_registry_store_root(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     _atomic_write(
-        out_dir / "partition.tsv", partition_module.render_partition_tsv(partition)
+        out_dir / "partition.tsv",
+        partition_module.render_partition_tsv(partition),
+        out_dir,
+        overwrite=True,
     )
     plan = {
         "publication_pmid": config.get("publication_pmid"),
         "source_snapshot_id": config.get("source_snapshot_id"),
         "metadata": config.get("metadata"),
+        "source_hashes": metadata_hashes(config, mapping_path),
         "planned_manifest_counts": dict(manifest_counts),
         "total": sum(len(partition[ancestry]) for ancestry in partition_module.ANCESTRY_ORDER),
         "legacy_european_bucket": partition_module.legacy_european_count(partition),
@@ -456,7 +674,12 @@ def run_plan(
             "planned_manifest_members": manifest_counts.get(planned) if planned else None,
             "resolution": "pending",
         }
-    _atomic_write(out_dir / "candidate-plan.yaml", yaml.safe_dump(plan, sort_keys=False))
+    _atomic_write(
+        out_dir / "candidate-plan.yaml",
+        yaml.safe_dump(plan, sort_keys=False),
+        out_dir,
+        overwrite=True,
+    )
     return plan
 
 
@@ -466,7 +689,9 @@ def _suggested_ld_panel(config: Mapping, ancestry: str) -> str | None:
 
 
 def render_candidate_definitions(
-    config: Mapping, manifest_counts: Mapping[str, int] | None = None
+    config: Mapping,
+    manifest_counts: Mapping[str, int] | None = None,
+    source_hashes: Mapping | None = None,
 ) -> dict:
     """The reviewed intended-membership/recipe definitions, tracked (not built)."""
     manifest_counts = manifest_counts or {}
@@ -477,6 +702,7 @@ def render_candidate_definitions(
         "source_snapshot_id": config.get("source_snapshot_id"),
         "intended_bound_total": config.get("intended_bound_total"),
         "metadata": config.get("metadata"),
+        "source_hashes": dict(source_hashes or {}),
         "finngen": config.get("finngen"),
         "stores": {},
     }
@@ -535,12 +761,17 @@ def render_candidate_definitions(
 def write_candidate_definitions(
     config: Mapping, out_dir: Path, manifest_counts: Mapping[str, int] | None = None
 ) -> Path:
+    assert_not_registry_store_root(out_dir)
+    source_hashes = metadata_hashes(config)
     path = out_dir / "candidates.yaml"
     _atomic_write(
         path,
         yaml.safe_dump(
-            render_candidate_definitions(config, manifest_counts), sort_keys=False
+            render_candidate_definitions(config, manifest_counts, source_hashes),
+            sort_keys=False,
         ),
+        out_dir,
+        overwrite=True,
     )
     return path
 
@@ -577,13 +808,30 @@ def run_emit(
             f"resolution table has {len(extra)} row(s) outside the intended membership"
         )
 
+    verify_metadata_snapshot(config)
+    manifests = read_manifest_rows(config)
+    validate_manifest_membership(config, partition, manifests)
+    manifest_index = {
+        analysis_id: row for rows in manifests.values() for analysis_id, row in rows.items()
+    }
+
+    assert_not_registry_store_root(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     emitted: dict[str, str] = {}
     checked: list[str] = []
     manifest_counts = manifest_counts or {}
-    assert_not_registry_store_root(out_dir)
-    resolution_sha = sha256_file(resolution_path)
     metadata = config.get("metadata") or {}
+    metadata_root = _metadata_root(config)
+    resolution_sha = sha256_file(resolution_path)
+    mapping_sha = sha256_file(mapping_path)
+    receipt_path = metadata_root / "parent-run-summary.json"
+    receipt_sha = sha256_file(receipt_path)
+    manifest_sha = {
+        filename: sha256_file(metadata_root / "manifests" / filename)
+        for filename in manifests
+    }
+    candidates_path = _resolve_metadata_path(config, metadata.get("candidates_table"))
+    candidates_sha = sha256_file(candidates_path) if candidates_path else None
     for ancestry, store in config["stores"].items():
         members = partition[ancestry]
         member_rows = []
@@ -593,7 +841,9 @@ def run_emit(
                     f"no resolution row for intended {ancestry} analysis {analysis_id!r}"
                 )
             row = resolution_by_id[analysis_id]
-            validate_resolution_row(row, ancestry, store.get("assigned_ancestry"))
+            validate_resolution_row(
+                row, ancestry, store.get("assigned_ancestry"), manifest_index.get(analysis_id)
+            )
             member_rows.append(row)
         analyses_text = render_analyses_tsv(member_rows, columns)
 
@@ -606,11 +856,17 @@ def run_emit(
             "association_opens": metadata.get("association_opens"),
             "acceptance": metadata.get("acceptance"),
             "candidates_table": metadata.get("candidates_table"),
+            "candidates_table_path": str(candidates_path) if candidates_path else None,
+            "candidates_sha256": candidates_sha,
             "mapping_table": metadata.get("mapping"),
+            "mapping_sha256": mapping_sha,
+            "metadata_receipt": str(receipt_path),
+            "metadata_receipt_sha256": receipt_sha,
             "resolution_table": str(resolution_path),
             "resolution_sha256": resolution_sha,
             "planned_manifest": planned,
             "planned_manifest_members": manifest_counts.get(planned) if planned else None,
+            "planned_manifest_sha256": manifest_sha.get(planned) if planned else None,
             "source_metadata_only": True,
         }
 
@@ -681,6 +937,7 @@ def run_emit(
                 },
                 sort_keys=False,
             ),
+            out_dir,
         )
         if suggested is None:
             # No suggested panel: the definition above is the honest artifact; do
@@ -742,8 +999,15 @@ def run_emit(
             },
             sort_keys=False,
         ),
+        out_dir,
+        overwrite=True,
     )
-    _atomic_write(out_dir / "partition.tsv", partition_module.render_partition_tsv(partition))
+    _atomic_write(
+        out_dir / "partition.tsv",
+        partition_module.render_partition_tsv(partition),
+        out_dir,
+        overwrite=True,
+    )
     return {"emitted": emitted, "checked": checked}
 
 

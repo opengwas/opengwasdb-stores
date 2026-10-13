@@ -81,10 +81,10 @@ stores:
       declared_status: available
       qualification: pending
       activation: pending
-      # The declared resource location. Known stale / not active for this host
-      # (#239 production EUR alias not active); whole-panel qualification is
-      # pending. Retained only as a truthful suggested path.
-      suggested_ld_panel: /local-scratch/projects/genotype-phenotype-map/data/ld_reference_panel_hg38
+      # PROPOSED canonical EUR location; the actual alias is NOT active and the
+      # whole-panel qualification/activation is pending (#239). Retained only as
+      # a truthful suggested path, never as a qualified reference.
+      suggested_ld_panel: /data/opengwasdb/reference/ld
   AFR:
     observed_store_id: OGS-00013
     completed_store_id: OGS-00019

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import csv
 import importlib.util
+import json
 import sys
 import tempfile
 import unittest
@@ -65,6 +66,18 @@ PLANNED_MANIFEST = {
     "META": "european.tsv",
 }
 
+MANIFEST_COLUMNS = [
+    "analysis_id",
+    "status",
+    "sha256",
+    "data_file",
+    "yaml_file",
+    "genome_assembly",
+]
+
+FIXTURE_CODE_SHA = "f" * 40
+FIXTURE_METADATA_SHA = "e" * 64
+
 
 def write_tsv(path: Path, columns: list[str], rows: list[dict[str, str]]) -> None:
     with path.open("w", newline="", encoding="utf-8") as handle:
@@ -74,13 +87,30 @@ def write_tsv(path: Path, columns: list[str], rows: list[dict[str, str]]) -> Non
 
 
 def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
-    mapping_rows = [
-        {"analysis_id": analysis_id, "ancestry": ancestry}
-        for ancestry, ids in MEMBERS.items()
-        for analysis_id in ids
-    ]
+    meta = tmp / "meta"
+    (meta / "gwas-ssf").mkdir(parents=True, exist_ok=True)
+    (meta / "manifests").mkdir(parents=True, exist_ok=True)
+
+    # Sidecars carry the named genome assembly the resolution must match.
+    sidecar_by_id: dict[str, Path] = {}
+    for ids in MEMBERS.values():
+        for analysis_id in ids:
+            sidecar = meta / "gwas-ssf" / f"{analysis_id}.tsv.gz-meta.yaml"
+            sidecar.write_text(
+                yaml.safe_dump({"genome_assembly": "GRCh38"}), encoding="utf-8"
+            )
+            sidecar_by_id[analysis_id] = sidecar
+
     mapping_path = tmp / "mapping.tsv"
-    write_tsv(mapping_path, ["analysis_id", "ancestry"], mapping_rows)
+    write_tsv(
+        mapping_path,
+        ["analysis_id", "ancestry"],
+        [
+            {"analysis_id": analysis_id, "ancestry": ancestry}
+            for ancestry, ids in MEMBERS.items()
+            for analysis_id in ids
+        ],
+    )
 
     resolution_rows = []
     for ancestry, ids in MEMBERS.items():
@@ -148,7 +178,16 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
         "id_allocation_status": "provisional-draft",
         "owner_ordering_approved": False,
         "intended_bound_total": 15,
-        "metadata": {"root": str(tmp / "meta")},
+        "metadata": {
+            "root": str(meta),
+            "code_sha": FIXTURE_CODE_SHA,
+            "output_metadata_content_sha256": FIXTURE_METADATA_SHA,
+            "membership": 15,
+            "association_opens": 0,
+            "acceptance": "technical metadata evidence only",
+            "candidates_table": str(meta / "candidates.tsv"),
+            "mapping": str(mapping_path),
+        },
         "publication_pmid": "39024449",
         "access_posture": "public",
         "layout": "dense",
@@ -163,21 +202,49 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
     config_path = tmp / "config.yaml"
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
 
-    # Fixture planned manifests: the combined European manifest carries EUR+META.
-    manifest_dir = tmp / "meta" / "manifests"
-    manifest_dir.mkdir(parents=True, exist_ok=True)
-    manifest_counts = {
-        "european.tsv": len(MEMBERS["EUR"]) + len(MEMBERS["META"]),
-        "african.tsv": len(MEMBERS["AFR"]),
-        "amr.tsv": len(MEMBERS["AMR"]),
-        "eas.tsv": len(MEMBERS["EAS"]),
+    # Fixture planned manifests with real member IDs: the combined European
+    # manifest carries EUR+META, and each row binds a data file, a named sidecar
+    # and a status/digest.
+    manifest_groups = {
+        "european.tsv": MEMBERS["EUR"] + MEMBERS["META"],
+        "african.tsv": MEMBERS["AFR"],
+        "amr.tsv": MEMBERS["AMR"],
+        "eas.tsv": MEMBERS["EAS"],
     }
-    for name, count in manifest_counts.items():
-        write_tsv(
-            manifest_dir / name,
-            ["analysis_id"],
-            [{"analysis_id": f"{name}-{index}"} for index in range(count)],
-        )
+    manifest_counts: dict[str, int] = {}
+    for name, ids in manifest_groups.items():
+        rows = [
+            {
+                "analysis_id": analysis_id,
+                "status": "ok",
+                "sha256": "a" * 64,
+                "data_file": f"/fixture/{analysis_id}.tsv.gz",
+                "yaml_file": str(sidecar_by_id[analysis_id]),
+                "genome_assembly": "GRCh38",
+            }
+            for analysis_id in ids
+        ]
+        write_tsv(meta / "manifests" / name, MANIFEST_COLUMNS, rows)
+        manifest_counts[name] = len(ids)
+
+    write_tsv(
+        meta / "candidates.tsv",
+        ["analysis_id"],
+        [{"analysis_id": analysis_id} for ids in MEMBERS.values() for analysis_id in ids],
+    )
+    (meta / "parent-run-summary.json").write_text(
+        json.dumps(
+            {
+                "code_sha": FIXTURE_CODE_SHA,
+                "output_metadata_content_sha256": FIXTURE_METADATA_SHA,
+                "membership": 15,
+                "association_opens": 0,
+                "promotion": False,
+                "manifest_counts": manifest_counts,
+            }
+        ),
+        encoding="utf-8",
+    )
     return mapping_path, resolution_path, config_path
 
 
@@ -414,6 +481,75 @@ class TestCandidateEmission(unittest.TestCase):
                 created_at="2026-10-13T00:00:00+00:00",
             )
 
+    def test_wrong_source_analysis_id_fails(self) -> None:
+        rows = gen.read_tsv(self.resolution)
+        for row in rows:
+            if row["analysis_id"] == "eur1":
+                row["source_analysis_id"] = "other"
+        with self.assertRaisesRegex(gen.CandidateError, "source_analysis_id"):
+            self._emit_mutated(rows)
+
+    def test_wrong_source_file_fails(self) -> None:
+        rows = gen.read_tsv(self.resolution)
+        for row in rows:
+            if row["analysis_id"] == "eur1":
+                row["source_file"] = "/wrong/path.tsv.gz"
+        with self.assertRaisesRegex(gen.CandidateError, "!= manifest data_file"):
+            self._emit_mutated(rows)
+
+    def test_wrong_source_genome_build_fails(self) -> None:
+        rows = gen.read_tsv(self.resolution)
+        for row in rows:
+            if row["analysis_id"] == "eur1":
+                row["source_genome_build"] = "GRCh37"
+        with self.assertRaisesRegex(gen.CandidateError, "genome_assembly"):
+            self._emit_mutated(rows)
+
+    def test_nonfinite_sample_size_fails(self) -> None:
+        rows = gen.read_tsv(self.resolution)
+        for row in rows:
+            if row["analysis_id"] == "eur1":
+                row["sample_size"] = "NaN"
+        with self.assertRaisesRegex(gen.CandidateError, "finite and positive"):
+            self._emit_mutated(rows)
+
+    def test_same_count_swapped_manifest_id_fails(self) -> None:
+        manifest = self.tmp / "meta" / "manifests" / "european.tsv"
+        rows = gen.read_tsv(manifest)
+        for row in rows:
+            if row["analysis_id"] == "eur1":
+                row["analysis_id"] = "not-a-member"
+        write_tsv(manifest, list(rows[0].keys()), rows)
+        with self.assertRaisesRegex(gen.CandidateError, "ID set does not match"):
+            gen.run_plan(
+                self.config,
+                self.mapping,
+                self.out,
+                gen.read_planned_manifests(self.config),
+            )
+
+    def test_forged_config_digest_fails(self) -> None:
+        config = gen.load_config(self.config_path)
+        config["metadata"]["code_sha"] = "0" * 40
+        with self.assertRaisesRegex(gen.CandidateError, "!= receipt"):
+            gen.run_plan(
+                config,
+                self.mapping,
+                self.out,
+                gen.read_planned_manifests(config),
+            )
+
+    def _emit_mutated(self, rows: list[dict[str, str]]):
+        path = self.tmp / "mutated-resolution.tsv"
+        write_tsv(path, list(rows[0].keys()), rows)
+        return gen.run_emit(
+            self.config,
+            self.mapping,
+            path,
+            self.out,
+            created_at="2026-10-13T00:00:00+00:00",
+        )
+
     def test_emit_refuses_to_overwrite(self) -> None:
         gen.run_emit(
             self.config, self.mapping, self.resolution, self.out, created_at="2026-10-13T00:00:00+00:00"
@@ -426,6 +562,43 @@ class TestCandidateEmission(unittest.TestCase):
                 self.out,
                 created_at="2026-10-13T00:00:00+00:00",
             )
+
+
+class TestSafeWrite(unittest.TestCase):
+    """The shared safe-write helper refuses aliases and out-of-root targets."""
+
+    def setUp(self) -> None:
+        self.td = tempfile.TemporaryDirectory()
+        self.tmp = Path(self.td.name)
+        self.root = self.tmp / "out"
+        self.root.mkdir()
+
+    def tearDown(self) -> None:
+        self.td.cleanup()
+
+    def test_refuses_stale_temp(self) -> None:
+        target = self.root / "x.yaml"
+        (self.root / "x.yaml.partial").write_text("stale")
+        with self.assertRaisesRegex(gen.safe_write.SafeWriteError, "existing temporary"):
+            gen.safe_write.atomic_write_text(target, "data", self.root, overwrite=True)
+
+    def test_refuses_symlinked_final(self) -> None:
+        other = self.tmp / "other"
+        other.write_text("x")
+        target = self.root / "x.yaml"
+        target.symlink_to(other)
+        with self.assertRaisesRegex(gen.safe_write.SafeWriteError, "symlinked final"):
+            gen.safe_write.atomic_write_text(target, "data", self.root, overwrite=True)
+
+    def test_refuses_existing_final_without_overwrite(self) -> None:
+        target = self.root / "x.yaml"
+        target.write_text("old")
+        with self.assertRaisesRegex(gen.safe_write.SafeWriteError, "refusing to overwrite"):
+            gen.safe_write.atomic_write_text(target, "new", self.root, overwrite=False)
+
+    def test_refuses_target_outside_root(self) -> None:
+        with self.assertRaisesRegex(gen.safe_write.SafeWriteError, "escapes"):
+            gen.safe_write.ensure_write_within(self.tmp / "escape.yaml", self.root)
 
 
 if __name__ == "__main__":

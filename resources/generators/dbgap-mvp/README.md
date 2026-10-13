@@ -65,13 +65,24 @@ not scientific/release acceptance) and the actual primary candidate table
 `resources/data/derived/store-candidates-analyses.tsv`.
 
 `plan` and `definitions` read the four regular store manifests under that root
-and cross-check them against the mapping partition: the combined European
-manifest must equal EUR + META (1,669 + 1,691 = 3,360), African 1,368,
-Hispanic-or-Latin-American 1,053, East-Asian 241. Every store records its
-`planned_manifest` and `planned_manifest_members`. Trait/SD resolution is
+and validate the **exact** ID sets (not just row counts) against the mapping
+partition: the combined European manifest must equal EUR + META
+(1,669 + 1,691 = 3,360), African 1,368, Hispanic-or-Latin-American 1,053,
+East-Asian 241; the sets must be disjoint and every row must carry `status: ok`,
+a 64-hex `sha256`, a data file and a genome assembly. The configured snapshot is
+verified against the actual `parent-run-summary.json` receipt (code sha,
+metadata content sha, membership, zero association opens, no promotion) rather
+than trusted. Every store records its `planned_manifest` and
+`planned_manifest_members`, and the tracked definitions carry the actual
+sha256 of the receipt, candidate table and each manifest. Trait/SD resolution is
 recorded as `resolution: pending`; no numerical source metric is invented from a
-sidecar, and `actual_completion` is `not_claimed` (a bundle definition is not a
-completion result).
+sidecar, and `actual_completion` is `not_claimed`.
+
+All writes go through the shared
+[`safe_write`](../lib/safe_write.py) helper: the target and its `.partial` temp
+must resolve inside the isolated output root, temps use exclusive `open("x")`,
+and a symlinked or existing final is refused. The emitter also refuses the
+registry `stores/` tree outright.
 
 ## Policy invariants
 
