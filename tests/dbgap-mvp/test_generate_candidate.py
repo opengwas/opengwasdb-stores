@@ -42,11 +42,11 @@ partition = gen.partition_module
 
 # Fixture membership: small, but the shape mirrors the real buckets.
 MEMBERS = {
-    "EUR": ["eur1", "eur2", "eur3", "eur4", "eur5"],
-    "AFR": ["afr1", "afr2", "afr3"],
-    "AMR": ["amr1", "amr2"],
-    "EAS": ["eas1"],
-    "META": ["meta1", "meta2", "meta3", "meta4"],
+    "EUR": ["GCST_eur1", "GCST_eur2", "GCST_eur3", "GCST_eur4", "GCST_eur5"],
+    "AFR": ["GCST_afr1", "GCST_afr2", "GCST_afr3"],
+    "AMR": ["GCST_amr1", "GCST_amr2"],
+    "EAS": ["GCST_eas1"],
+    "META": ["GCST_meta1", "GCST_meta2", "GCST_meta3", "GCST_meta4"],
 }
 EXPECTED = {bucket: len(ids) for bucket, ids in MEMBERS.items()}
 
@@ -88,25 +88,34 @@ def write_tsv(path: Path, columns: list[str], rows: list[dict[str, str]]) -> Non
 
 def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
     meta = tmp / "meta"
-    (meta / "gwas-ssf").mkdir(parents=True, exist_ok=True)
     (meta / "manifests").mkdir(parents=True, exist_ok=True)
+    (meta / "gwas-ssf").mkdir(parents=True, exist_ok=True)
 
-    # Sidecars carry the named genome assembly the resolution must match.
+    # Mirror the parent layout: gwas-ssf/<bucket>/GCST*/{data symlink, meta yaml}.
     sidecar_by_id: dict[str, Path] = {}
-    for ids in MEMBERS.values():
+    data_by_id: dict[str, Path] = {}
+    index = 0
+    for ancestry, ids in MEMBERS.items():
+        bucket = f"bucket-{ancestry}"
         for analysis_id in ids:
-            sidecar = meta / "gwas-ssf" / f"{analysis_id}.tsv.gz-meta.yaml"
+            index += 1
+            directory = meta / "gwas-ssf" / bucket / analysis_id
+            directory.mkdir(parents=True, exist_ok=True)
+            data = directory / f"{analysis_id}.tsv.gz"
+            data.symlink_to(f"/fixture/data/GCST{index}.tsv.gz")
+            sidecar = directory / f"{analysis_id}.tsv.gz-meta.yaml"
             sidecar.write_text(
                 yaml.safe_dump(
                     {
                         "gwas_id": analysis_id,
-                        "data_file_name": f"{analysis_id}.tsv.gz",
+                        "data_file_name": data.name,
                         "genome_assembly": "GRCh38",
                     }
                 ),
                 encoding="utf-8",
             )
             sidecar_by_id[analysis_id] = sidecar
+            data_by_id[analysis_id] = data
 
     (meta / "input-metadata-before.json").write_text(
         json.dumps(
@@ -143,7 +152,7 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
                     "sample_size": "1000",
                     "original_effect_scale": "sd",
                     "original_sd_method": "source_provided",
-                    "source_file": f"/fixture/{analysis_id}.tsv.gz",
+                    "source_file": str(data_by_id[analysis_id]),
                     "source_genome_build": "GRCh38",
                     "source_label": f"{ancestry} trait",
                     "source_analysis_id": analysis_id,
@@ -191,6 +200,50 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
                 "suggested_ld_panel": suggested,
             },
         }
+
+    # Fixture planned manifests with real member IDs: the combined European
+    # manifest carries EUR+META, and each row binds a data file, a named sidecar
+    # and a status/digest.
+    manifest_groups = {
+        "european.tsv": MEMBERS["EUR"] + MEMBERS["META"],
+        "african.tsv": MEMBERS["AFR"],
+        "amr.tsv": MEMBERS["AMR"],
+        "eas.tsv": MEMBERS["EAS"],
+    }
+    manifest_counts: dict[str, int] = {}
+    manifest_columns = MANIFEST_COLUMNS + ["sample_size"]
+    for name, ids in manifest_groups.items():
+        rows = [
+            {
+                "analysis_id": analysis_id,
+                "status": "ok",
+                "sha256": "a" * 64,
+                "data_file": str(data_by_id[analysis_id]),
+                "yaml_file": str(sidecar_by_id[analysis_id]),
+                "genome_assembly": "GRCh38",
+                "sample_size": "1000",
+            }
+            for analysis_id in ids
+        ]
+        write_tsv(meta / "manifests" / name, manifest_columns, rows)
+        manifest_counts[name] = len(ids)
+
+    write_tsv(
+        meta / "candidates.tsv",
+        ["analysis_id"],
+        [{"analysis_id": analysis_id} for ids in MEMBERS.values() for analysis_id in ids],
+    )
+    write_tsv(
+        meta / "refresh-receipt.tsv",
+        ["analysis_id", "note"],
+        [
+            {"analysis_id": analysis_id, "note": "fixture"}
+            for ids in MEMBERS.values()
+            for analysis_id in ids
+        ],
+    )
+
+    content_sha, _ = gen.metadata_content.metadata_content_sha256(meta)
     config = {
         "id_allocation_status": "provisional-draft",
         "owner_ordering_approved": False,
@@ -198,7 +251,7 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
         "metadata": {
             "root": str(meta),
             "code_sha": FIXTURE_CODE_SHA,
-            "output_metadata_content_sha256": FIXTURE_METADATA_SHA,
+            "output_metadata_content_sha256": content_sha,
             "membership": 15,
             "association_opens": 0,
             "acceptance": "technical metadata evidence only",
@@ -218,42 +271,11 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
     }
     config_path = tmp / "config.yaml"
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
-
-    # Fixture planned manifests with real member IDs: the combined European
-    # manifest carries EUR+META, and each row binds a data file, a named sidecar
-    # and a status/digest.
-    manifest_groups = {
-        "european.tsv": MEMBERS["EUR"] + MEMBERS["META"],
-        "african.tsv": MEMBERS["AFR"],
-        "amr.tsv": MEMBERS["AMR"],
-        "eas.tsv": MEMBERS["EAS"],
-    }
-    manifest_counts: dict[str, int] = {}
-    for name, ids in manifest_groups.items():
-        rows = [
-            {
-                "analysis_id": analysis_id,
-                "status": "ok",
-                "sha256": "a" * 64,
-                "data_file": f"/fixture/{analysis_id}.tsv.gz",
-                "yaml_file": str(sidecar_by_id[analysis_id]),
-                "genome_assembly": "GRCh38",
-            }
-            for analysis_id in ids
-        ]
-        write_tsv(meta / "manifests" / name, MANIFEST_COLUMNS, rows)
-        manifest_counts[name] = len(ids)
-
-    write_tsv(
-        meta / "candidates.tsv",
-        ["analysis_id"],
-        [{"analysis_id": analysis_id} for ids in MEMBERS.values() for analysis_id in ids],
-    )
     (meta / "parent-run-summary.json").write_text(
         json.dumps(
             {
                 "code_sha": FIXTURE_CODE_SHA,
-                "output_metadata_content_sha256": FIXTURE_METADATA_SHA,
+                "output_metadata_content_sha256": content_sha,
                 "membership": 15,
                 "association_opens": 0,
                 "promotion": False,
@@ -305,7 +327,14 @@ class TestCandidateEmission(unittest.TestCase):
         self.tmp = Path(self.td.name)
         self.mapping, self.resolution, self.config_path = make_fixture(self.tmp)
         self.config = gen.load_config(self.config_path)
+        self.meta = self.tmp / "meta"
         self.out = self.tmp / "out"
+
+    def _sidecar(self, analysis_id: str) -> Path:
+        return next((self.meta / "gwas-ssf").glob(f"*/{analysis_id}/{analysis_id}.tsv.gz-meta.yaml"))
+
+    def _data(self, analysis_id: str) -> Path:
+        return next((self.meta / "gwas-ssf").glob(f"*/{analysis_id}/{analysis_id}.tsv.gz"))
 
     def tearDown(self) -> None:
         self.td.cleanup()
@@ -441,7 +470,7 @@ class TestCandidateEmission(unittest.TestCase):
     def test_blank_source_binding_fails(self) -> None:
         rows = gen.read_tsv(self.resolution)
         for row in rows:
-            if row["analysis_id"] == "eur1":
+            if row["analysis_id"] == "GCST_eur1":
                 row["source_file"] = ""
         bad = self.tmp / "bad.tsv"
         write_tsv(bad, list(rows[0].keys()), rows)
@@ -453,7 +482,7 @@ class TestCandidateEmission(unittest.TestCase):
     def test_cross_ancestry_resolution_fails(self) -> None:
         rows = gen.read_tsv(self.resolution)
         for row in rows:
-            if row["analysis_id"] == "afr1":
+            if row["analysis_id"] == "GCST_afr1":
                 row["assigned_ancestry"] = "EUR"
         bad = self.tmp / "cross.tsv"
         write_tsv(bad, list(rows[0].keys()), rows)
@@ -475,7 +504,7 @@ class TestCandidateEmission(unittest.TestCase):
             gen.assert_not_registry_store_root(link)
 
     def test_missing_resolution_member_fails_closed(self) -> None:
-        rows = [row for row in gen.read_tsv(self.resolution) if row["analysis_id"] != "eur3"]
+        rows = [row for row in gen.read_tsv(self.resolution) if row["analysis_id"] != "GCST_eur3"]
         truncated = self.tmp / "truncated.tsv"
         write_tsv(truncated, list(rows[0].keys()), rows)
         with self.assertRaisesRegex(gen.CandidateError, "no resolution row"):
@@ -505,7 +534,7 @@ class TestCandidateEmission(unittest.TestCase):
     def test_wrong_source_analysis_id_fails(self) -> None:
         rows = gen.read_tsv(self.resolution)
         for row in rows:
-            if row["analysis_id"] == "eur1":
+            if row["analysis_id"] == "GCST_eur1":
                 row["source_analysis_id"] = "other"
         with self.assertRaisesRegex(gen.CandidateError, "source_analysis_id"):
             self._emit_mutated(rows)
@@ -513,7 +542,7 @@ class TestCandidateEmission(unittest.TestCase):
     def test_wrong_source_file_fails(self) -> None:
         rows = gen.read_tsv(self.resolution)
         for row in rows:
-            if row["analysis_id"] == "eur1":
+            if row["analysis_id"] == "GCST_eur1":
                 row["source_file"] = "/wrong/path.tsv.gz"
         with self.assertRaisesRegex(gen.CandidateError, "!= manifest data_file"):
             self._emit_mutated(rows)
@@ -521,7 +550,7 @@ class TestCandidateEmission(unittest.TestCase):
     def test_wrong_source_genome_build_fails(self) -> None:
         rows = gen.read_tsv(self.resolution)
         for row in rows:
-            if row["analysis_id"] == "eur1":
+            if row["analysis_id"] == "GCST_eur1":
                 row["source_genome_build"] = "GRCh37"
         with self.assertRaisesRegex(gen.CandidateError, "genome_assembly"):
             self._emit_mutated(rows)
@@ -529,7 +558,7 @@ class TestCandidateEmission(unittest.TestCase):
     def test_nonfinite_sample_size_fails(self) -> None:
         rows = gen.read_tsv(self.resolution)
         for row in rows:
-            if row["analysis_id"] == "eur1":
+            if row["analysis_id"] == "GCST_eur1":
                 row["sample_size"] = "NaN"
         with self.assertRaisesRegex(gen.CandidateError, "positive integer"):
             self._emit_mutated(rows)
@@ -538,9 +567,10 @@ class TestCandidateEmission(unittest.TestCase):
         manifest = self.tmp / "meta" / "manifests" / "european.tsv"
         rows = gen.read_tsv(manifest)
         for row in rows:
-            if row["analysis_id"] == "eur1":
+            if row["analysis_id"] == "GCST_eur1":
                 row["analysis_id"] = "not-a-member"
         write_tsv(manifest, list(rows[0].keys()), rows)
+        self._refresh_proof(manifest)
         with self.assertRaisesRegex(gen.CandidateError, "ID set does not match"):
             gen.run_plan(
                 self.config,
@@ -563,7 +593,7 @@ class TestCandidateEmission(unittest.TestCase):
     def test_meta_row_with_single_ancestry_label_fails(self) -> None:
         rows = gen.read_tsv(self.resolution)
         for row in rows:
-            if row["analysis_id"] == "meta1":
+            if row["analysis_id"] == "GCST_meta1":
                 row["assigned_ancestry"] = "EUR"
         with self.assertRaisesRegex(gen.CandidateError, "unambiguous empty/META"):
             self._emit_mutated(rows)
@@ -571,17 +601,17 @@ class TestCandidateEmission(unittest.TestCase):
     def test_meta_multi_ancestry_alias_is_normalised_empty(self) -> None:
         rows = gen.read_tsv(self.resolution)
         for row in rows:
-            if row["analysis_id"] == "meta1":
+            if row["analysis_id"] == "GCST_meta1":
                 row["assigned_ancestry"] = "Multi-ancestry"
         self._emit_mutated(rows)
         with (self.out / "OGS-00017" / "analyses.tsv").open(newline="", encoding="utf-8") as handle:
             table = {row["analysis_id"]: row for row in csv.DictReader(handle, delimiter="\t")}
-        self.assertEqual(table["meta1"]["assigned_ancestry"], "")
+        self.assertEqual(table["GCST_meta1"]["assigned_ancestry"], "")
 
     def test_non_integer_sample_size_fails(self) -> None:
         rows = gen.read_tsv(self.resolution)
         for row in rows:
-            if row["analysis_id"] == "eur1":
+            if row["analysis_id"] == "GCST_eur1":
                 row["sample_size"] = "1000.5"
         with self.assertRaisesRegex(gen.CandidateError, "positive integer"):
             self._emit_mutated(rows)
@@ -606,54 +636,69 @@ class TestCandidateEmission(unittest.TestCase):
         self.assertEqual(len(document["source_hashes"]["mapping_sha256"]), 64)
 
     def test_missing_sidecar_genome_assembly_fails(self) -> None:
-        sidecar = self.tmp / "meta" / "gwas-ssf" / "eur1.tsv.gz-meta.yaml"
+        sidecar = self._sidecar("GCST_eur1")
         sidecar.write_text(
-            yaml.safe_dump({"gwas_id": "eur1", "data_file_name": "eur1.tsv.gz"}),
+            yaml.safe_dump({"gwas_id": "GCST_eur1", "data_file_name": "GCST_eur1.tsv.gz"}),
             encoding="utf-8",
         )
-        self._refresh_source_snapshot(sidecar)
+        self._refresh_proof(sidecar)
         with self.assertRaisesRegex(gen.CandidateError, "no genome_assembly"):
             self._emit_mutated(gen.read_tsv(self.resolution))
 
     def test_tampered_sidecar_genome_fails(self) -> None:
-        sidecar = self.tmp / "meta" / "gwas-ssf" / "eur1.tsv.gz-meta.yaml"
+        sidecar = self._sidecar("GCST_eur1")
         sidecar.write_text(
             yaml.safe_dump(
                 {
-                    "gwas_id": "eur1",
-                    "data_file_name": "eur1.tsv.gz",
+                    "gwas_id": "GCST_eur1",
+                    "data_file_name": "GCST_eur1.tsv.gz",
                     "genome_assembly": "GRCh37",
                 }
             ),
             encoding="utf-8",
         )
-        self._refresh_source_snapshot(sidecar)
+        self._refresh_proof(sidecar)
         with self.assertRaisesRegex(gen.CandidateError, "assembly disagreement"):
             self._emit_mutated(gen.read_tsv(self.resolution))
 
     def test_tampered_source_fingerprint_fails(self) -> None:
-        sidecar = self.tmp / "meta" / "gwas-ssf" / "eur1.tsv.gz-meta.yaml"
+        sidecar = self._sidecar("GCST_eur1")
         sidecar.write_text(
             yaml.safe_dump(
                 {
-                    "gwas_id": "eur1",
-                    "data_file_name": "eur1.tsv.gz",
+                    "gwas_id": "GCST_eur1",
+                    "data_file_name": "GCST_eur1.tsv.gz",
                     "genome_assembly": "GRCh38",
                     "note": "tampered after the frozen snapshot",
                 }
             ),
             encoding="utf-8",
         )
-        with self.assertRaisesRegex(gen.CandidateError, "fingerprint mismatch"):
+        with self.assertRaisesRegex(gen.CandidateError, "content sha"):
+            self._emit_mutated(gen.read_tsv(self.resolution))
+
+    def test_tampered_manifest_same_ids_fails(self) -> None:
+        manifest = self.meta / "manifests" / "european.tsv"
+        rows = gen.read_tsv(manifest)
+        rows[0]["sha256"] = "b" * 64
+        write_tsv(manifest, list(rows[0].keys()), rows)
+        with self.assertRaisesRegex(gen.CandidateError, "content sha"):
+            self._emit_mutated(gen.read_tsv(self.resolution))
+
+    def test_tampered_data_link_target_fails(self) -> None:
+        data = self._data("GCST_eur1")
+        data.unlink()
+        data.symlink_to("/fixture/data/tampered.tsv.gz")
+        with self.assertRaisesRegex(gen.CandidateError, "content sha"):
             self._emit_mutated(gen.read_tsv(self.resolution))
 
     def test_missing_source_snapshot_fails(self) -> None:
-        (self.tmp / "meta" / "input-metadata-before.json").unlink()
+        (self.meta / "input-metadata-before.json").unlink()
         with self.assertRaisesRegex(gen.CandidateError, "snapshot"):
             self._emit_mutated(gen.read_tsv(self.resolution))
 
-    def _refresh_source_snapshot(self, *paths: Path) -> None:
-        snapshot_path = self.tmp / "meta" / "input-metadata-before.json"
+    def _refresh_proof(self, *paths: Path) -> None:
+        snapshot_path = self.meta / "input-metadata-before.json"
         snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
         for path in paths:
             snapshot[str(path)] = {
@@ -661,6 +706,12 @@ class TestCandidateEmission(unittest.TestCase):
                 "size": path.stat().st_size,
             }
         snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+        content_sha, _ = gen.metadata_content.metadata_content_sha256(self.meta)
+        receipt = self.meta / "parent-run-summary.json"
+        document = json.loads(receipt.read_text(encoding="utf-8"))
+        document["output_metadata_content_sha256"] = content_sha
+        receipt.write_text(json.dumps(document), encoding="utf-8")
+        self.config["metadata"]["output_metadata_content_sha256"] = content_sha
 
     def test_missing_receipt_field_fails(self) -> None:
         receipt = self.tmp / "meta" / "parent-run-summary.json"

@@ -71,17 +71,19 @@ partition: the combined European manifest must equal EUR + META
 East-Asian 241; the sets must be disjoint and every row must carry `status: ok`,
 a 64-hex `sha256`, a data file and a genome assembly. The configured snapshot is verified against the actual
 `parent-run-summary.json` receipt, and **every required receipt field must be
-present and coherent** (code sha, metadata content sha, membership, promotion
-false, store_operations false, association_opens 0, metadata_idempotent true,
-source_metadata_unchanged true, all-zero exit codes) — a missing field is a
-failure, not a skip. Because the parent content-hash algorithm is not
-reproducible here, the content sha is recorded as a *declared receipt label*
-(`metadata_content_sha256_status: declared_receipt_label_not_recomputed`) and an
-independent, reproducible `metadata_fingerprint` (per-file sha256 over the
-receipt, manifests, candidate and mapping tables) is recorded and can be pinned
-with `emit --expected-metadata-fingerprint`. Missing candidate/mapping files
-fail rather than record a null hash, and the emitted `source_snapshot` records
-the actual mapping path it hashed. Trait/SD resolution is
+present with its exact type** (code sha, metadata content sha, membership,
+promotion false, store_operations false, association_opens int 0,
+metadata_idempotent true, source_metadata_unchanged true, all-zero integer exit
+codes) — a missing field is a failure, not a skip. The parent's own content-hash
+algorithm is reproduced by the shared
+[`metadata_content_sha`](../lib/metadata_content_sha.py) helper over the frozen
+`gwas-ssf/*/GCST*/*` + `manifests/*.tsv` + `refresh-receipt.tsv` tree (symlinks
+recorded by target, regular files by sha256+size, data bodies never opened); the
+recomputed value must equal the config value and the receipt value before any
+emit, and the tracked definitions record it (`computed_content_sha256`) over
+12,049 entries. An independent per-file `metadata_fingerprint` is kept as an
+extra audit, and `emit --expected-metadata-fingerprint` can pin it; neither
+replaces the frozen content-sha binding. Trait/SD resolution is
 recorded as `resolution: pending`; no numerical source metric is invented from a
 sidecar, and `actual_completion` is `not_claimed`.
 

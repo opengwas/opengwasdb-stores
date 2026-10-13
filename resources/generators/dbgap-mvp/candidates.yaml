@@ -51,6 +51,8 @@ source_hashes:
     snapshot: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/input-metadata-before.json
     snapshot_sha256: fdac561dc826ab9215d682248f48909eb790574a947ce35fcb77918d6fc61168
     total_files: 6032
+  computed_content_sha256: 1f14b88c2c383d8bac97215a8807503ef600fed2d2a019067e9962777438310f
+  computed_content_entries: 12049
   mapping_table: /data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv
   mapping_sha256: 96fa3a7b1b3ef3e3229ef5418a1d60e16b6528977b692164698e4bc40ac69b08
 finngen:

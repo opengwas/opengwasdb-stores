@@ -38,6 +38,7 @@ import importlib.util
 import json
 import math
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -69,7 +70,18 @@ safe_write = importlib.util.module_from_spec(_safe_spec)
 sys.modules["ogstores_safe_write"] = safe_write
 _safe_spec.loader.exec_module(safe_write)
 
+# The parent's exact metadata content-hash algorithm.
+_content_spec = importlib.util.spec_from_file_location(
+    "ogstores_metadata_content_sha",
+    REPO_ROOT / "resources" / "generators" / "lib" / "metadata_content_sha.py",
+)
+assert _content_spec and _content_spec.loader
+metadata_content = importlib.util.module_from_spec(_content_spec)
+sys.modules["ogstores_metadata_content_sha"] = metadata_content
+_content_spec.loader.exec_module(metadata_content)
+
 from ogstores import bundle as bundle_module  # noqa: E402
+from opengwasdb.model.analyses import SampleSizeKind  # noqa: E402
 
 DEFAULT_CONFIG = "resources/generators/dbgap-mvp/config-candidate.yaml"
 
@@ -138,6 +150,15 @@ DEFAULT_REGISTRY_ROOTS: tuple[Path, ...] = (
 META_ANCESTRY_ALIASES: frozenset[str] = frozenset(
     {"", "META", "MULTI-ANCESTRY", "MULTIANCESTRY", "MIXED"}
 )
+
+#: Sample-size semantics come from the public core enum, never invented here.
+INTEGER_SAMPLE_SIZE_KINDS: frozenset[str] = frozenset(
+    {SampleSizeKind.TOTAL.value, SampleSizeKind.CASE_CONTROL.value}
+)
+NON_INTEGER_SAMPLE_SIZE_KINDS: frozenset[str] = frozenset(
+    {SampleSizeKind.EFFECTIVE.value, SampleSizeKind.VARIANT_LEVEL.value}
+)
+KNOWN_SAMPLE_SIZE_KINDS: frozenset[str] = frozenset(kind.value for kind in SampleSizeKind)
 
 
 def _normalised_ancestry(value: str | None) -> str:
@@ -292,7 +313,7 @@ def validate_resolution_row(
     # case/control count is an integer (and matches the approved N); an
     # effective/variant-level size may be a non-integer and the effective size
     # must document its derivation.
-    if kind in ("total", "case_control"):
+    if kind in INTEGER_SAMPLE_SIZE_KINDS:
         _positive_integer(row.get("sample_size"), f"resolution row {analysis_id!r} sample_size")
         if approved_n:
             try:
@@ -306,7 +327,7 @@ def validate_resolution_row(
                     f"resolution row {analysis_id!r} sample_size {row['sample_size']!r} "
                     f"!= approved N {approved_n!r}"
                 )
-    elif kind in ("effective", "variant_level"):
+    elif kind in NON_INTEGER_SAMPLE_SIZE_KINDS:
         _finite_positive(row.get("sample_size"), f"resolution row {analysis_id!r} sample_size")
         if kind == "effective" and not (row.get("sample_size_method") or "").strip():
             raise CandidateError(
@@ -315,7 +336,8 @@ def validate_resolution_row(
             )
     else:
         raise CandidateError(
-            f"resolution row {analysis_id!r} has unsupported sample_size_kind {kind!r}"
+            f"resolution row {analysis_id!r} has unsupported sample_size_kind "
+            f"{kind!r}; expected one of {sorted(KNOWN_SAMPLE_SIZE_KINDS)}"
         )
     for column in ("original_sd", "phenotype_sd"):
         if column in row and (row.get(column) or "").strip():
@@ -500,6 +522,7 @@ def metadata_hashes(config: Mapping, mapping_path: Path | str | None = None) -> 
         config, metadata.get("candidates_table"), "candidates_table"
     )
     manifests = read_manifest_rows(config)
+    computed_content, content_entries = metadata_content.metadata_content_sha256(root)
     result: dict = {
         "metadata_receipt": str(receipt_path),
         "metadata_receipt_sha256": sha256_file(receipt_path),
@@ -511,6 +534,8 @@ def metadata_hashes(config: Mapping, mapping_path: Path | str | None = None) -> 
         },
         "metadata_fingerprint": metadata_fingerprint(config, mapping_path),
         "source_snapshot": source_snapshot_summary(config),
+        "computed_content_sha256": computed_content,
+        "computed_content_entries": content_entries,
     }
     if mapping_path is not None:
         result["mapping_table"] = str(mapping_path)
@@ -521,11 +546,14 @@ def metadata_hashes(config: Mapping, mapping_path: Path | str | None = None) -> 
 def verify_metadata_snapshot(config: Mapping) -> dict:
     """Verify the configured snapshot against the actual metadata receipt.
 
-    Every required receipt field must be present and coherent: the config is
-    not trusted, and a missing or vacuous field is a failure, not a skip.
+    Every required receipt field must be present with its exact type, the
+    declared content sha must be valid, and the parent's own content-hash
+    algorithm must reproduce it from the frozen metadata tree. A missing or
+    vacuous field is a failure, not a skip.
     """
     metadata = config.get("metadata") or {}
-    receipt_path = _metadata_root(config) / "parent-run-summary.json"
+    root = _metadata_root(config)
+    receipt_path = root / "parent-run-summary.json"
     if not receipt_path.is_file():
         raise CandidateError(f"metadata receipt not found: {receipt_path}")
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
@@ -536,21 +564,56 @@ def verify_metadata_snapshot(config: Mapping) -> dict:
             raise CandidateError(
                 f"config metadata.{key}={metadata[key]!r} != receipt {receipt.get(key)!r}"
             )
+    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", str(metadata["code_sha"])):
+        raise CandidateError("metadata.code_sha is not a valid hex sha")
+    declared = str(metadata["output_metadata_content_sha256"])
+    if not re.fullmatch(r"[0-9a-f]{64}", declared):
+        raise CandidateError(
+            "metadata.output_metadata_content_sha256 is not a valid 64-hex sha"
+        )
+    # Strict booleans/ints: no int()/bool scalar coercion.
     if receipt.get("promotion") is not False:
-        raise CandidateError("metadata receipt must record promotion: false")
+        raise CandidateError("metadata receipt must record promotion as the boolean false")
     if receipt.get("store_operations") is not False:
-        raise CandidateError("metadata receipt must record store_operations: false")
-    if int(receipt.get("association_opens", -1)) != 0:
-        raise CandidateError("metadata receipt must record association_opens: 0")
+        raise CandidateError(
+            "metadata receipt must record store_operations as the boolean false"
+        )
+    association_opens = receipt.get("association_opens")
+    if isinstance(association_opens, bool) or association_opens != 0:
+        raise CandidateError(
+            "metadata receipt must record association_opens as the integer 0"
+        )
     if receipt.get("metadata_idempotent") is not True:
-        raise CandidateError("metadata receipt must record metadata_idempotent: true")
+        raise CandidateError(
+            "metadata receipt must record metadata_idempotent as the boolean true"
+        )
     if receipt.get("source_metadata_unchanged") is not True:
         raise CandidateError(
-            "metadata receipt must record source_metadata_unchanged: true"
+            "metadata receipt must record source_metadata_unchanged as the boolean true"
         )
     exit_codes = receipt.get("refresh_exit_codes")
-    if not isinstance(exit_codes, list) or not exit_codes or any(code != 0 for code in exit_codes):
-        raise CandidateError("metadata receipt must record all-zero refresh_exit_codes")
+    if (
+        not isinstance(exit_codes, list)
+        or not exit_codes
+        or any(
+            isinstance(code, bool) or not isinstance(code, int) or code != 0
+            for code in exit_codes
+        )
+    ):
+        raise CandidateError(
+            "metadata receipt must record all-zero integer refresh_exit_codes"
+        )
+    if str(receipt.get("output_metadata_content_sha256")) != declared:
+        raise CandidateError(
+            "metadata receipt content sha != config metadata content sha"
+        )
+    # Reproduce the parent's exact content hash over the frozen metadata tree.
+    actual_sha, entries = metadata_content.metadata_content_sha256(root)
+    if actual_sha != declared:
+        raise CandidateError(
+            f"recomputed metadata content sha {actual_sha} != declared {declared} "
+            f"over {entries} entries"
+        )
     return receipt
 
 
@@ -1100,7 +1163,7 @@ def run_emit(
             "metadata_receipt": str(receipt_path),
             "metadata_receipt_sha256": receipt_sha,
             "metadata_fingerprint_sha256": fingerprint["aggregate_sha256"],
-            "metadata_content_sha256_status": "declared_receipt_label_not_recomputed",
+            "metadata_content_sha256_status": "recomputed_matches_receipt",
             "source_metadata_snapshot": source_proof["snapshot"],
             "source_metadata_snapshot_sha256": source_proof["snapshot_sha256"],
             "source_metadata_verified_files": source_proof["verified_files"],
