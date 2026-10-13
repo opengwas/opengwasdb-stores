@@ -1,0 +1,238 @@
+status: provisional-draft
+owner_ordering_approved: false
+publication_pmid: '39024449'
+source_snapshot_id: dbgap-phs002453-candidate-pending
+intended_bound_total: 6022
+metadata:
+  root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z
+  code_sha: baf141c8061a8d7f63c369b7b0ff499747e3dabc
+  output_metadata_content_sha256: 1f14b88c2c383d8bac97215a8807503ef600fed2d2a019067e9962777438310f
+  membership: 6022
+  association_opens: 0
+  acceptance: technical metadata evidence only; not scientific/release acceptance
+  candidates_table: resources/data/derived/store-candidates-analyses.tsv
+  mapping: /data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv
+source_hashes:
+  metadata_receipt: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/parent-run-summary.json
+  metadata_receipt_sha256: 21e755d323625f9a86de382fe70c771e39cb1c01aca147e03c3fa8b26c5d109b
+  candidates_table: resources/data/derived/store-candidates-analyses.tsv
+  candidates_table_path: /home/gh13047/repo/opengwasdb-stores/resources/data/derived/store-candidates-analyses.tsv
+  candidates_sha256: aef4dbe2515be177797f60a2c567a5e6b2d02557efb64abf4156889db085c4e7
+  planned_manifests:
+    dense-pmid-39024449-European-download-manifest.tsv: baf5f0724288f4fc48afc9669667191d251761efbe6bbf74c0076d1d4622d355
+    dense-pmid-39024449-African-download-manifest.tsv: 0685ef83a9925acb1e95e57162ba4fc106c113e0e9d32bfe65bb27a60049f482
+    dense-pmid-39024449-Hispanic-or-Latin-American-download-manifest.tsv: 0b34dd6dd79c937f366f115e2a8a46760abb1e8d83d9a3fe5174ced4720bce4c
+    dense-pmid-39024449-East-Asian-download-manifest.tsv: 938abffdbfb10656234ec74fab54aaddb33f716114129139abb1c6c22499937e
+  metadata_fingerprint:
+    files:
+      /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/parent-run-summary.json:
+        sha256: 21e755d323625f9a86de382fe70c771e39cb1c01aca147e03c3fa8b26c5d109b
+        size: 1925
+      ? /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/manifests/dense-pmid-39024449-European-download-manifest.tsv
+      : sha256: baf5f0724288f4fc48afc9669667191d251761efbe6bbf74c0076d1d4622d355
+        size: 2178814
+      ? /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/manifests/dense-pmid-39024449-African-download-manifest.tsv
+      : sha256: 0685ef83a9925acb1e95e57162ba4fc106c113e0e9d32bfe65bb27a60049f482
+        size: 887903
+      ? /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/manifests/dense-pmid-39024449-Hispanic-or-Latin-American-download-manifest.tsv
+      : sha256: 0b34dd6dd79c937f366f115e2a8a46760abb1e8d83d9a3fe5174ced4720bce4c
+        size: 681672
+      ? /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/manifests/dense-pmid-39024449-East-Asian-download-manifest.tsv
+      : sha256: 938abffdbfb10656234ec74fab54aaddb33f716114129139abb1c6c22499937e
+        size: 155962
+      /home/gh13047/repo/opengwasdb-stores/resources/data/derived/store-candidates-analyses.tsv:
+        sha256: aef4dbe2515be177797f60a2c567a5e6b2d02557efb64abf4156889db085c4e7
+        size: 63106034
+      /data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv:
+        sha256: 96fa3a7b1b3ef3e3229ef5418a1d60e16b6528977b692164698e4bc40ac69b08
+        size: 2247492
+    aggregate_sha256: 664640feefd4c490d83ef67217d8c60c3c158fbf40beacec22999427b8f1a290
+  source_snapshot:
+    snapshot: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/input-metadata-before.json
+    snapshot_sha256: fdac561dc826ab9215d682248f48909eb790574a947ce35fcb77918d6fc61168
+    total_files: 6032
+  computed_content_sha256: 1f14b88c2c383d8bac97215a8807503ef600fed2d2a019067e9962777438310f
+  computed_content_entries: 12049
+  mapping_table: /data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv
+  mapping_sha256: 96fa3a7b1b3ef3e3229ef5418a1d60e16b6528977b692164698e4bc40ac69b08
+finngen:
+  current_store_id: OGS-00016
+  renumbered_to: null
+  note: 'Ordering is an unresolved plan exception. #221 authorises renumbering; the
+    open work is the ADR amendment and public identity/artifact migration.'
+stores:
+  EUR:
+    observed:
+      store_id: OGS-00012
+      role: observed
+      label: mvp-phs002453-eur
+      status: candidate-definition
+      acceptance: pending
+      candidate_store_key: dense__pmid-39024449__European
+      intended_members: 1669
+      assigned_ancestry: EUR
+      observed_only: false
+      planned_manifest: dense-pmid-39024449-European-download-manifest.tsv
+      planned_manifest_members: 3360
+      resolution: pending
+      actual_completion: not_claimed
+      recipe:
+        command: build-dense-vcf
+      in_stores: false
+    completed:
+      store_id: OGS-00018
+      role: completed-definition
+      label: mvp-phs002453-eur-completed
+      derived_from: OGS-00012
+      status: pending
+      acceptance: pending
+      human_acceptance: pending
+      blocked: true
+      resolution: pending
+      actual_completion: not_claimed
+      recipe:
+        command: complete-dense
+        ancestry: EUR
+      reference:
+        resource_id: gpm-hg38-eur-ld
+        declared_status: available
+        qualification: pending
+        activation: pending
+        suggested_ld_panel: /data/opengwasdb/reference/ld
+      in_stores: false
+  AFR:
+    observed:
+      store_id: OGS-00013
+      role: observed
+      label: mvp-phs002453-afr
+      status: candidate-definition
+      acceptance: pending
+      candidate_store_key: dense__pmid-39024449__African
+      intended_members: 1368
+      assigned_ancestry: AFR
+      observed_only: false
+      planned_manifest: dense-pmid-39024449-African-download-manifest.tsv
+      planned_manifest_members: 1368
+      resolution: pending
+      actual_completion: not_claimed
+      recipe:
+        command: build-dense-vcf
+      in_stores: false
+    completed:
+      store_id: OGS-00019
+      role: completed-definition
+      label: mvp-phs002453-afr-completed
+      derived_from: OGS-00013
+      status: pending
+      acceptance: pending
+      human_acceptance: pending
+      blocked: true
+      resolution: pending
+      actual_completion: not_claimed
+      recipe:
+        command: complete-dense
+        ancestry: AFR
+      reference:
+        resource_id: hgdp1kgp-hg38-ld
+        declared_status: available
+        qualification: pending
+        activation: pending
+        suggested_ld_panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+      in_stores: false
+  AMR:
+    observed:
+      store_id: OGS-00014
+      role: observed
+      label: mvp-phs002453-amr
+      status: candidate-definition
+      acceptance: pending
+      candidate_store_key: dense__pmid-39024449__Hispanic-or-Latin-American
+      intended_members: 1053
+      assigned_ancestry: AMR
+      observed_only: false
+      planned_manifest: dense-pmid-39024449-Hispanic-or-Latin-American-download-manifest.tsv
+      planned_manifest_members: 1053
+      resolution: pending
+      actual_completion: not_claimed
+      recipe:
+        command: build-dense-vcf
+      in_stores: false
+    completed:
+      store_id: OGS-00020
+      role: completed-definition
+      label: mvp-phs002453-amr-completed
+      derived_from: OGS-00014
+      status: pending
+      acceptance: pending
+      human_acceptance: pending
+      blocked: true
+      resolution: pending
+      actual_completion: not_claimed
+      recipe:
+        command: complete-dense
+        ancestry: AMR
+      reference:
+        resource_id: null
+        declared_status: absent
+        qualification: hold
+        activation: blocked
+        suggested_ld_panel: null
+      in_stores: false
+  EAS:
+    observed:
+      store_id: OGS-00015
+      role: observed
+      label: mvp-phs002453-eas
+      status: candidate-definition
+      acceptance: pending
+      candidate_store_key: dense__pmid-39024449__East-Asian
+      intended_members: 241
+      assigned_ancestry: EAS
+      observed_only: false
+      planned_manifest: dense-pmid-39024449-East-Asian-download-manifest.tsv
+      planned_manifest_members: 241
+      resolution: pending
+      actual_completion: not_claimed
+      recipe:
+        command: build-dense-vcf
+      in_stores: false
+    completed:
+      store_id: OGS-00021
+      role: completed-definition
+      label: mvp-phs002453-eas-completed
+      derived_from: OGS-00015
+      status: pending
+      acceptance: pending
+      human_acceptance: pending
+      blocked: true
+      resolution: pending
+      actual_completion: not_claimed
+      recipe:
+        command: complete-dense
+        ancestry: EAS
+      reference:
+        resource_id: hgdp1kgp-hg38-ld
+        declared_status: available
+        qualification: pending
+        activation: pending
+        suggested_ld_panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+      in_stores: false
+  META:
+    observed:
+      store_id: OGS-00017
+      role: observed
+      label: mvp-phs002453-meta-observed-only
+      status: candidate-definition
+      acceptance: pending
+      candidate_store_key: dense__pmid-39024449__Multi-ancestry
+      intended_members: 1691
+      assigned_ancestry: null
+      observed_only: true
+      planned_manifest: dense-pmid-39024449-European-download-manifest.tsv
+      planned_manifest_members: 3360
+      resolution: pending
+      actual_completion: not_claimed
+      recipe:
+        command: build-dense-vcf
+      in_stores: false
+    completed: null
