@@ -69,12 +69,19 @@ and validate the **exact** ID sets (not just row counts) against the mapping
 partition: the combined European manifest must equal EUR + META
 (1,669 + 1,691 = 3,360), African 1,368, Hispanic-or-Latin-American 1,053,
 East-Asian 241; the sets must be disjoint and every row must carry `status: ok`,
-a 64-hex `sha256`, a data file and a genome assembly. The configured snapshot is
-verified against the actual `parent-run-summary.json` receipt (code sha,
-metadata content sha, membership, zero association opens, no promotion) rather
-than trusted. Every store records its `planned_manifest` and
-`planned_manifest_members`, and the tracked definitions carry the actual
-sha256 of the receipt, candidate table and each manifest. Trait/SD resolution is
+a 64-hex `sha256`, a data file and a genome assembly. The configured snapshot is verified against the actual
+`parent-run-summary.json` receipt, and **every required receipt field must be
+present and coherent** (code sha, metadata content sha, membership, promotion
+false, store_operations false, association_opens 0, metadata_idempotent true,
+source_metadata_unchanged true, all-zero exit codes) — a missing field is a
+failure, not a skip. Because the parent content-hash algorithm is not
+reproducible here, the content sha is recorded as a *declared receipt label*
+(`metadata_content_sha256_status: declared_receipt_label_not_recomputed`) and an
+independent, reproducible `metadata_fingerprint` (per-file sha256 over the
+receipt, manifests, candidate and mapping tables) is recorded and can be pinned
+with `emit --expected-metadata-fingerprint`. Missing candidate/mapping files
+fail rather than record a null hash, and the emitted `source_snapshot` records
+the actual mapping path it hashed. Trait/SD resolution is
 recorded as `resolution: pending`; no numerical source metric is invented from a
 sidecar, and `actual_completion` is `not_claimed`.
 
@@ -109,9 +116,12 @@ registry `stores/` tree outright.
   Each row's `assigned_ancestry` must match its bucket, except META, whose value
   must be unambiguously empty or a META/multi-ancestry alias (`Multi-ancestry`
   is normalised to empty in the emitted table) and never a single-ancestry
-  label. Sample size must be a positive integer and any SD finite positive;
-  `source_genome_build` is checked against the actual manifest and sidecar
-  assembly, not the config alone.
+  label. The metadata sidecar must exist and carry a matching `gwas_id`, a
+  `data_file_name` matching the manifest data file, and a `genome_assembly` that
+  agrees with the manifest and the source build. `sample_size_kind` follows the
+  core contract: `total`/`case_control` require a positive integer matching the
+  approved manifest N, `effective` requires a finite positive value with a
+  documented `sample_size_method`, and any SD is finite positive.
 - **Never emit under the registry `stores/` tree.** A candidate passes
   `bundle.check()`, and the Phase A Snakefile targets every valid bundle under
   `stores/`, so an unbuilt candidate written there would become buildable. Every

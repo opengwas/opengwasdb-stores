@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import importlib.util
 import json
 import math
@@ -233,33 +234,89 @@ def validate_resolution_row(
             f"resolution row {analysis_id!r} source_analysis_id "
             f"{(row.get('source_analysis_id') or '')!r} != analysis_id"
         )
+    kind = (row.get("sample_size_kind") or "").strip()
+    approved_n = ""
     if manifest_row is not None:
         data_file = (manifest_row.get("data_file") or "").strip()
+        if not data_file:
+            raise CandidateError(f"manifest row {analysis_id!r} has no data_file")
         if (row.get("source_file") or "").strip() != data_file:
             raise CandidateError(
                 f"resolution row {analysis_id!r} source_file "
                 f"{(row.get('source_file') or '')!r} != manifest data_file {data_file!r}"
             )
-        # Validate the assembly against the ACTUAL manifest metadata and, when
-        # present, the named sidecar; the config is never the sole source.
         manifest_assembly = (manifest_row.get("genome_assembly") or "").strip()
-        if manifest_assembly and (row.get("source_genome_build") or "").strip() != manifest_assembly:
+        if not manifest_assembly:
+            raise CandidateError(f"manifest row {analysis_id!r} has no genome_assembly")
+        if (row.get("source_genome_build") or "").strip() != manifest_assembly:
             raise CandidateError(
                 f"resolution row {analysis_id!r} source_genome_build "
                 f"{(row.get('source_genome_build') or '')!r} != manifest genome_assembly "
                 f"{manifest_assembly!r}"
             )
         yaml_file = (manifest_row.get("yaml_file") or "").strip()
-        if yaml_file:
-            sidecar = yaml.safe_load(Path(yaml_file).read_text(encoding="utf-8")) or {}
-            sidecar_assembly = str(sidecar.get("genome_assembly") or "").strip()
-            if sidecar_assembly and (row.get("source_genome_build") or "").strip() != sidecar_assembly:
+        if not yaml_file:
+            raise CandidateError(
+                f"manifest row {analysis_id!r} has no metadata sidecar (yaml_file)"
+            )
+        sidecar_path = Path(yaml_file)
+        if not sidecar_path.is_file():
+            raise CandidateError(f"sidecar not found for {analysis_id!r}: {sidecar_path}")
+        sidecar = yaml.safe_load(sidecar_path.read_text(encoding="utf-8"))
+        if not isinstance(sidecar, Mapping):
+            raise CandidateError(f"sidecar {sidecar_path} is not a YAML mapping")
+        sidecar_gwas = str(sidecar.get("gwas_id") or "").strip()
+        if sidecar_gwas != analysis_id:
+            raise CandidateError(
+                f"sidecar {sidecar_path} gwas_id {sidecar_gwas!r} != {analysis_id!r}"
+            )
+        sidecar_file = str(sidecar.get("data_file_name") or "").strip()
+        if sidecar_file != Path(data_file).name:
+            raise CandidateError(
+                f"sidecar {sidecar_path} data_file_name {sidecar_file!r} != "
+                f"{Path(data_file).name!r}"
+            )
+        sidecar_assembly = str(sidecar.get("genome_assembly") or "").strip()
+        if not sidecar_assembly:
+            raise CandidateError(f"sidecar {sidecar_path} has no genome_assembly")
+        if sidecar_assembly != manifest_assembly or (
+            row.get("source_genome_build") or ""
+        ).strip() != sidecar_assembly:
+            raise CandidateError(
+                f"resolution row {analysis_id!r} genome assembly disagreement: source "
+                f"{(row.get('source_genome_build') or '')!r}, manifest "
+                f"{manifest_assembly!r}, sidecar {sidecar_assembly!r}"
+            )
+        approved_n = (manifest_row.get("sample_size") or "").strip()
+    # sample_size_kind semantics follow the public core contract: a raw total or
+    # case/control count is an integer (and matches the approved N); an
+    # effective/variant-level size may be a non-integer and the effective size
+    # must document its derivation.
+    if kind in ("total", "case_control"):
+        _positive_integer(row.get("sample_size"), f"resolution row {analysis_id!r} sample_size")
+        if approved_n:
+            try:
+                matches = int(float(row["sample_size"])) == int(float(approved_n))
+            except (TypeError, ValueError) as exc:
                 raise CandidateError(
-                    f"resolution row {analysis_id!r} source_genome_build "
-                    f"{(row.get('source_genome_build') or '')!r} != sidecar genome_assembly "
-                    f"{sidecar_assembly!r}"
+                    f"resolution row {analysis_id!r} has a non-numeric sample size"
+                ) from exc
+            if not matches:
+                raise CandidateError(
+                    f"resolution row {analysis_id!r} sample_size {row['sample_size']!r} "
+                    f"!= approved N {approved_n!r}"
                 )
-    _positive_integer(row.get("sample_size"), f"resolution row {analysis_id!r} sample_size")
+    elif kind in ("effective", "variant_level"):
+        _finite_positive(row.get("sample_size"), f"resolution row {analysis_id!r} sample_size")
+        if kind == "effective" and not (row.get("sample_size_method") or "").strip():
+            raise CandidateError(
+                f"resolution row {analysis_id!r} effective sample size requires a "
+                "documented sample_size_method"
+            )
+    else:
+        raise CandidateError(
+            f"resolution row {analysis_id!r} has unsupported sample_size_kind {kind!r}"
+        )
     for column in ("original_sd", "phenotype_sd"):
         if column in row and (row.get(column) or "").strip():
             _finite_positive(row[column], f"resolution row {analysis_id!r} {column}")
@@ -343,52 +400,110 @@ def _resolve_metadata_path(config: Mapping, value: str | None) -> Path | None:
     return None
 
 
+def _require_metadata_file(
+    config: Mapping, value: str | None, what: str
+) -> Path:
+    path = _resolve_metadata_path(config, value)
+    if path is None:
+        raise CandidateError(f"configured {what} file not found: {value!r}")
+    return path
+
+
+def metadata_fingerprint(
+    config: Mapping, mapping_path: Path | str | None = None
+) -> dict:
+    """Immutable per-file fingerprints of the regular metadata inputs.
+
+    An independent, reproducible binding over the receipt, the manifests, the
+    candidate table and the mapping table (regular metadata only, never an
+    association file), so an emit can verify the metadata it reads is the set it
+    planned against rather than hashing whatever is on disk after the fact.
+    """
+    metadata = config.get("metadata") or {}
+    root = _metadata_root(config)
+    files: dict[str, dict[str, object]] = {}
+
+    def add(path: Path | str) -> None:
+        candidate = Path(path)
+        if not candidate.is_file():
+            raise CandidateError(f"metadata file missing: {candidate}")
+        files[str(candidate)] = {
+            "sha256": sha256_file(candidate),
+            "size": candidate.stat().st_size,
+        }
+
+    add(root / "parent-run-summary.json")
+    for filename in read_manifest_rows(config):
+        add(root / "manifests" / filename)
+    add(_require_metadata_file(config, metadata.get("candidates_table"), "candidates_table"))
+    if mapping_path is not None:
+        add(mapping_path)
+    digest = hashlib.sha256()
+    for key in sorted(files):
+        digest.update(key.encode("utf-8"))
+        digest.update(str(files[key]["sha256"]).encode("utf-8"))
+    return {"files": files, "aggregate_sha256": digest.hexdigest()}
+
+
 def metadata_hashes(config: Mapping, mapping_path: Path | str | None = None) -> dict:
     """Actual hashes of the regular metadata inputs (never an association file)."""
     metadata = config.get("metadata") or {}
     root = _metadata_root(config)
     receipt_path = root / "parent-run-summary.json"
+    candidates_path = _require_metadata_file(
+        config, metadata.get("candidates_table"), "candidates_table"
+    )
+    manifests = read_manifest_rows(config)
     result: dict = {
         "metadata_receipt": str(receipt_path),
         "metadata_receipt_sha256": sha256_file(receipt_path),
+        "candidates_table": metadata.get("candidates_table"),
+        "candidates_table_path": str(candidates_path),
+        "candidates_sha256": sha256_file(candidates_path),
+        "planned_manifests": {
+            filename: sha256_file(root / "manifests" / filename) for filename in manifests
+        },
+        "metadata_fingerprint": metadata_fingerprint(config, mapping_path),
     }
-    candidates_path = _resolve_metadata_path(config, metadata.get("candidates_table"))
-    result["candidates_table"] = metadata.get("candidates_table")
-    result["candidates_table_path"] = str(candidates_path) if candidates_path else None
-    result["candidates_sha256"] = sha256_file(candidates_path) if candidates_path else None
     if mapping_path is not None:
         result["mapping_table"] = str(mapping_path)
         result["mapping_sha256"] = sha256_file(mapping_path)
-    manifests = read_manifest_rows(config)
-    result["planned_manifests"] = {
-        filename: sha256_file(root / "manifests" / filename) for filename in manifests
-    }
     return result
 
 
 def verify_metadata_snapshot(config: Mapping) -> dict:
     """Verify the configured snapshot against the actual metadata receipt.
 
-    The config is not trusted: its code sha, metadata content sha and membership
-    must match the parent receipt, and the receipt must record no promotion and
-    zero association opens.
+    Every required receipt field must be present and coherent: the config is
+    not trusted, and a missing or vacuous field is a failure, not a skip.
     """
     metadata = config.get("metadata") or {}
     receipt_path = _metadata_root(config) / "parent-run-summary.json"
     if not receipt_path.is_file():
         raise CandidateError(f"metadata receipt not found: {receipt_path}")
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-    if receipt.get("promotion") not in (False, 0, None):
-        raise CandidateError("metadata receipt records a promotion; refusing to proceed")
-    if int(receipt.get("association_opens", -1)) != 0:
-        raise CandidateError("metadata receipt records association opens; refusing")
     for key in ("code_sha", "output_metadata_content_sha256", "membership"):
-        configured = metadata.get(key)
-        actual = receipt.get(key)
-        if configured is not None and str(configured) != str(actual):
+        if metadata.get(key) in (None, ""):
+            raise CandidateError(f"config metadata.{key} is required")
+        if str(metadata[key]) != str(receipt.get(key)):
             raise CandidateError(
-                f"config metadata.{key}={configured!r} != receipt {actual!r}"
+                f"config metadata.{key}={metadata[key]!r} != receipt {receipt.get(key)!r}"
             )
+    if receipt.get("promotion") is not False:
+        raise CandidateError("metadata receipt must record promotion: false")
+    if receipt.get("store_operations") is not False:
+        raise CandidateError("metadata receipt must record store_operations: false")
+    if int(receipt.get("association_opens", -1)) != 0:
+        raise CandidateError("metadata receipt must record association_opens: 0")
+    if receipt.get("metadata_idempotent") is not True:
+        raise CandidateError("metadata receipt must record metadata_idempotent: true")
+    if receipt.get("source_metadata_unchanged") is not True:
+        raise CandidateError(
+            "metadata receipt must record source_metadata_unchanged: true"
+        )
+    exit_codes = receipt.get("refresh_exit_codes")
+    if not isinstance(exit_codes, list) or not exit_codes or any(code != 0 for code in exit_codes):
+        raise CandidateError("metadata receipt must record all-zero refresh_exit_codes")
     return receipt
 
 
@@ -840,6 +955,7 @@ def run_emit(
     check: bool = True,
     manifest_counts: Mapping[str, int] | None = None,
     registry_roots: Sequence[Path | str] = (),
+    expected_metadata_fingerprint: str | None = None,
 ) -> dict:
     _, partition = build_partition(config, mapping_path)
     resolution_rows = read_tsv(resolution_path)
@@ -886,8 +1002,18 @@ def run_emit(
         filename: sha256_file(metadata_root / "manifests" / filename)
         for filename in manifests
     }
-    candidates_path = _resolve_metadata_path(config, metadata.get("candidates_table"))
-    candidates_sha = sha256_file(candidates_path) if candidates_path else None
+    candidates_path = _require_metadata_file(
+        config, metadata.get("candidates_table"), "candidates_table"
+    )
+    candidates_sha = sha256_file(candidates_path)
+    fingerprint = metadata_fingerprint(config, mapping_path)
+    if expected_metadata_fingerprint and (
+        expected_metadata_fingerprint != fingerprint["aggregate_sha256"]
+    ):
+        raise CandidateError(
+            "metadata fingerprint does not match the planned value: "
+            f"{fingerprint['aggregate_sha256']} != {expected_metadata_fingerprint}"
+        )
     for ancestry, store in config["stores"].items():
         members = partition[ancestry]
         member_rows = []
@@ -918,12 +1044,15 @@ def run_emit(
             "association_opens": metadata.get("association_opens"),
             "acceptance": metadata.get("acceptance"),
             "candidates_table": metadata.get("candidates_table"),
-            "candidates_table_path": str(candidates_path) if candidates_path else None,
+            "candidates_table_path": str(candidates_path),
             "candidates_sha256": candidates_sha,
-            "mapping_table": metadata.get("mapping"),
+            "mapping_table": str(mapping_path),
+            "configured_mapping_table": metadata.get("mapping"),
             "mapping_sha256": mapping_sha,
             "metadata_receipt": str(receipt_path),
             "metadata_receipt_sha256": receipt_sha,
+            "metadata_fingerprint_sha256": fingerprint["aggregate_sha256"],
+            "metadata_content_sha256_status": "declared_receipt_label_not_recomputed",
             "resolution_table": str(resolution_path),
             "resolution_sha256": resolution_sha,
             "planned_manifest": planned,
@@ -1087,6 +1216,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--no-check", action="store_true", help="skip bundle.check()")
     parser.add_argument(
+        "--expected-metadata-fingerprint",
+        default=None,
+        help="refuse emit unless the metadata fingerprint matches this value",
+    )
+    parser.add_argument(
         "--registry-root",
         action="append",
         default=[],
@@ -1135,6 +1269,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         check=not args.no_check,
         manifest_counts=manifest_counts,
         registry_roots=registry_roots,
+        expected_metadata_fingerprint=args.expected_metadata_fingerprint,
     )
     print(json.dumps(result, indent=2))
     return 0

@@ -97,7 +97,14 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
         for analysis_id in ids:
             sidecar = meta / "gwas-ssf" / f"{analysis_id}.tsv.gz-meta.yaml"
             sidecar.write_text(
-                yaml.safe_dump({"genome_assembly": "GRCh38"}), encoding="utf-8"
+                yaml.safe_dump(
+                    {
+                        "gwas_id": analysis_id,
+                        "data_file_name": f"{analysis_id}.tsv.gz",
+                        "genome_assembly": "GRCh38",
+                    }
+                ),
+                encoding="utf-8",
             )
             sidecar_by_id[analysis_id] = sidecar
 
@@ -240,6 +247,10 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
                 "membership": 15,
                 "association_opens": 0,
                 "promotion": False,
+                "store_operations": False,
+                "metadata_idempotent": True,
+                "source_metadata_unchanged": True,
+                "refresh_exit_codes": [0, 0],
                 "manifest_counts": manifest_counts,
             }
         ),
@@ -583,6 +594,54 @@ class TestCandidateEmission(unittest.TestCase):
         )
         document = yaml.safe_load(path.read_text(encoding="utf-8"))
         self.assertEqual(len(document["source_hashes"]["mapping_sha256"]), 64)
+
+    def test_missing_sidecar_genome_assembly_fails(self) -> None:
+        sidecar = self.tmp / "meta" / "gwas-ssf" / "eur1.tsv.gz-meta.yaml"
+        sidecar.write_text(
+            yaml.safe_dump({"gwas_id": "eur1", "data_file_name": "eur1.tsv.gz"}),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(gen.CandidateError, "no genome_assembly"):
+            self._emit_mutated(gen.read_tsv(self.resolution))
+
+    def test_tampered_sidecar_genome_fails(self) -> None:
+        sidecar = self.tmp / "meta" / "gwas-ssf" / "eur1.tsv.gz-meta.yaml"
+        sidecar.write_text(
+            yaml.safe_dump(
+                {
+                    "gwas_id": "eur1",
+                    "data_file_name": "eur1.tsv.gz",
+                    "genome_assembly": "GRCh37",
+                }
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(gen.CandidateError, "assembly disagreement"):
+            self._emit_mutated(gen.read_tsv(self.resolution))
+
+    def test_missing_receipt_field_fails(self) -> None:
+        receipt = self.tmp / "meta" / "parent-run-summary.json"
+        document = json.loads(receipt.read_text(encoding="utf-8"))
+        del document["metadata_idempotent"]
+        receipt.write_text(json.dumps(document), encoding="utf-8")
+        with self.assertRaisesRegex(gen.CandidateError, "metadata_idempotent"):
+            gen.verify_metadata_snapshot(self.config)
+
+    def test_missing_candidates_file_fails(self) -> None:
+        (self.tmp / "meta" / "candidates.tsv").unlink()
+        with self.assertRaisesRegex(gen.CandidateError, "candidates_table file not found"):
+            gen.metadata_hashes(self.config, self.mapping)
+
+    def test_expected_fingerprint_mismatch_fails(self) -> None:
+        with self.assertRaisesRegex(gen.CandidateError, "fingerprint does not match"):
+            gen.run_emit(
+                self.config,
+                self.mapping,
+                self.resolution,
+                self.out,
+                created_at="2026-10-13T00:00:00+00:00",
+                expected_metadata_fingerprint="0" * 64,
+            )
 
     def _emit_mutated(self, rows: list[dict[str, str]]):
         path = self.tmp / "mutated-resolution.tsv"
