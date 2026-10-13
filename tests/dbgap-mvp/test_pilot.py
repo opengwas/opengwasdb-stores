@@ -99,6 +99,7 @@ def make_pilot_fixture(tmp: Path) -> tuple[Path, Path, Path, Path]:
                     "n_cases": str(cases),
                     "n_controls": str(controls),
                     "analyzed_variable": variable,
+                    "dbgap_trait_type": "binary" if design == "case-control" else "quantitative",
                 }
             )
             manifest_rows.setdefault(bucket, []).append(
@@ -128,12 +129,13 @@ def make_pilot_fixture(tmp: Path) -> tuple[Path, Path, Path, Path]:
     effect_path = tmp / "effect-provenance.tsv"
     write_tsv(
         effect_path,
-        ["analysis_id", "stored_effect_scale", "original_effect_scale", "effect_scale_provenance"],
+        ["analysis_id", "stored_effect_scale", "original_effect_scale", "original_sd_method", "effect_scale_provenance"],
         [
             {
                 "analysis_id": analysis_id,
                 "stored_effect_scale": "log_or" if design == "case-control" else "sd",
                 "original_effect_scale": "log_or" if design == "case-control" else "sd",
+                "original_sd_method": "binary_trait" if design == "case-control" else "declared_standardised",
                 "effect_scale_provenance": "owner_dbgap_source_declaration",
             }
             for analysis_id, design, *_ in (e for entries in PILOT_META.values() for e in entries)
@@ -164,7 +166,7 @@ def make_pilot_fixture(tmp: Path) -> tuple[Path, Path, Path, Path]:
 class TestEffectScaleProvenance(unittest.TestCase):
     def test_design_alone_is_not_provenance(self) -> None:
         scale, method, original, provenance, status = selection.classify_effect_scale(
-            {"study_design": "case-control", "n_cases": "100"}
+            {"study_design": "case-control", "n_cases": "100"}, {}
         )
         self.assertEqual(status, "pending")
         self.assertEqual((scale, method), ("", ""))
@@ -172,14 +174,41 @@ class TestEffectScaleProvenance(unittest.TestCase):
 
     def test_point_is_not_inverse_normal(self) -> None:
         scale, _, _, _, status = selection.classify_effect_scale(
-            {"analyzed_variable": "POINT measurement", "study_design": "quantitative"}
+            {"dbgap_trait_type": "quantitative", "analyzed_variable": "POINT measurement"}, {}
         )
         self.assertEqual(status, "pending")
         self.assertNotEqual(scale, "sd")
 
+    def test_authoritative_dbgap_inv_norm_resolves_declared_standardised(self) -> None:
+        scale, method, original, provenance, status = selection.classify_effect_scale(
+            {"dbgap_trait_type": "quantitative", "analyzed_variable": "trait (inv-norm transformed)"}, {}
+        )
+        self.assertEqual((scale, method, original, status), ("sd", "declared_standardised", "sd", "resolved"))
+        self.assertEqual(provenance, "dbgap_analyzed_variable_inv_norm_transformed")
+        self.assertNotEqual(method, "", "a resolved sd row must not emit an empty original_sd_method")
+
+    def test_authoritative_dbgap_binary_resolves_no_sd(self) -> None:
+        scale, method, original, provenance, status = selection.classify_effect_scale(
+            {"dbgap_trait_type": "binary", "analyzed_variable": "Breast Cancer"}, {}
+        )
+        self.assertEqual((scale, method, original, status), ("log_or", "binary_trait", "log_or", "resolved"))
+        self.assertEqual(provenance, "dbgap_trait_type_binary")
+
+    def test_explicit_original_sd_method_passthrough(self) -> None:
+        scale, method, original, provenance, status = selection.classify_effect_scale(
+            {},
+            {
+                "stored_effect_scale": "sd",
+                "original_effect_scale": "sd",
+                "original_sd_method": "source_provided",
+                "effect_scale_provenance": "owner_x",
+            },
+        )
+        self.assertEqual((scale, method, original, status), ("sd", "source_provided", "sd", "resolved"))
+
     def test_explicit_provenance_resolves(self) -> None:
         scale, method, original, provenance, status = selection.classify_effect_scale(
-            {"stored_effect_scale": "log_or", "effect_scale_provenance": "owner_x"}
+            {}, {"stored_effect_scale": "log_or", "effect_scale_provenance": "owner_x"}
         )
         self.assertEqual((scale, method, status), ("log_or", "binary_trait", "resolved"))
 
@@ -204,15 +233,41 @@ class TestSelection(unittest.TestCase):
         self.assertEqual(len([r for r in rows if r.is_resolved]), 15)
         manifest = selection.render_resolver_manifest(rows)
         self.assertEqual(manifest.count("\n") - 1, 15)
+        header = manifest.splitlines()[0].split("\t")
+        sd_index = header.index("original_sd_method")
+        for line in manifest.splitlines()[1:]:
+            self.assertNotEqual(line.split("\t")[sd_index], "", "empty original_sd_method emitted")
 
-    def test_without_provenance_stays_pending_and_excluded(self) -> None:
+    def test_authoritative_dbgap_resolves_without_effect_file(self) -> None:
         rows = selection.build_selection(
             metadata_root=self.meta,
             mapping_path=self.mapping,
             metadata_content_sha256="0" * 64,
         )
-        self.assertEqual(len([r for r in rows if r.is_resolved]), 0)
-        self.assertEqual(selection.render_resolver_manifest(rows).count("\n") - 1, 0)
+        self.assertEqual(len([r for r in rows if r.is_resolved]), 15)
+        self.assertEqual(selection.render_resolver_manifest(rows).count("\n") - 1, 15)
+
+    def test_unknown_provenance_stays_pending_and_excluded(self) -> None:
+        import csv as _csv
+
+        mapping_path = self.tmp / "unknown-mapping.tsv"
+        with self.mapping.open(newline="", encoding="utf-8") as handle:
+            reader = _csv.DictReader(handle, delimiter="\t")
+            rows = list(reader)
+            fields = list(reader.fieldnames or [])
+        for row in rows:
+            if row["analysis_id"] == "GCST90479501":
+                row["dbgap_trait_type"] = ""
+                row["analyzed_variable"] = "raw units"
+        write_tsv(mapping_path, fields, rows)
+        selected = selection.build_selection(
+            metadata_root=self.meta,
+            mapping_path=mapping_path,
+            metadata_content_sha256="0" * 64,
+        )
+        pending = [r for r in selected if not r.is_resolved]
+        self.assertEqual([r.analysis_id for r in pending], ["GCST90479501"])
+        self.assertEqual(selection.render_resolver_manifest(selected).count("\n") - 1, 14)
 
 
 class TestLimitsAndPreflight(unittest.TestCase):
@@ -362,17 +417,26 @@ class TestCliGates(unittest.TestCase):
         self.assertEqual(len(receipt["records"]["statuses"]), 15)
 
     def test_run_accounts_pending_rows_and_excludes_their_records(self) -> None:
-        # Provenance for one META row is withheld: it stays pending, is excluded
-        # from the resolver manifest, and no core record is faked for it.
-        rows = [line for line in self.effect.read_text(encoding="utf-8").splitlines() if "GCST90479501" not in line]
-        truncated = self.tmp / "effect-provenance-truncated.tsv"
-        truncated.write_text("\n".join(rows) + "\n", encoding="utf-8")
+        # One META row has no authoritative effect provenance: it stays pending,
+        # is excluded from the resolver manifest, and no core record is faked.
+        import csv as _csv
+
+        with self.mapping.open(newline="", encoding="utf-8") as handle:
+            reader = _csv.DictReader(handle, delimiter="\t")
+            rows = list(reader)
+            fields = list(reader.fieldnames or [])
+        for row in rows:
+            if row["analysis_id"] == "GCST90479501":
+                row["dbgap_trait_type"] = ""
+                row["analyzed_variable"] = "raw units"
+        mapping_path = self.tmp / "pending-mapping.tsv"
+        write_tsv(mapping_path, fields, rows)
         out = self.tmp / "pending"
         os.environ["FAKE_RESOLVER_MODE"] = "ok"
         rc = cli.main(
             [
-                "run", "--metadata-root", str(self.meta), "--mapping", str(self.mapping),
-                "--candidate-table", str(self.candidates), "--effect-provenance", str(truncated),
+                "run", "--metadata-root", str(self.meta), "--mapping", str(mapping_path),
+                "--candidate-table", str(self.candidates),
                 "--out-root", str(out), "--execute", "--approved-metadata-sha", self.content_sha,
                 "--start-receipt", str(self._receipt()), "--resolver-executable", str(FAKE_RESOLVER),
                 "--runtime-identity", str(self._runtime_identity()),

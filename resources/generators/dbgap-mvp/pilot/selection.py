@@ -123,22 +123,49 @@ def index_by_analysis_id(rows: Sequence[Mapping[str, str]], what: str) -> dict[s
     return indexed
 
 
-def classify_effect_scale(provenance: Mapping[str, str]) -> tuple[str, str, str, str, str]:
+def classify_effect_scale(
+    mapping_row: Mapping[str, str], provenance: Mapping[str, str]
+) -> tuple[str, str, str, str, str]:
     """Return ``(stored_effect_scale, original_sd_method, original_effect_scale,
-    provenance, status)`` from **explicit** owner/source provenance only.
+    provenance, status)``.
 
-    Study design and label regexes are deliberately *not* used: a case-control
-    flag is not an effect model, and "INT" inside "POINT" is not an
-    inverse-normal declaration. Without a declared ``stored_effect_scale`` plus a
-    named provenance source the row is ``pending`` and is kept out of the
-    resolver manifest (a blank scale would be defaulted to ``sd`` by the core).
+    Two authoritative sources, in order:
+
+    1. an explicit effect-provenance row may pass ``original_sd_method``
+       through verbatim (with its declared scales);
+    2. the dbGaP member's own ``dbgap_trait_type`` plus the exact
+       ``inv-norm transformed`` phrase in ``analyzed_variable``:
+       ``binary`` -> ``log_or``/``binary_trait`` (no SD), and
+       ``quantitative`` + ``inv-norm transformed`` -> ``sd``/``declared_standardised``
+       (SD = 1).
+
+    Everything else is ``pending`` and is kept out of the resolver manifest.
+    Study-design flags and loose label regexes are still never used as an
+    effect model, and an empty ``original_sd_method`` is never emitted for a
+    resolved row (the core would default it to ``estimated_from_source_maf``).
     """
     declared = (provenance.get("stored_effect_scale") or provenance.get("effect_scale") or "").strip().lower()
+    explicit_method = (provenance.get("original_sd_method") or "").strip().lower()
     original = (provenance.get("original_effect_scale") or "").strip().lower()
     source = (provenance.get("effect_scale_provenance") or "").strip()
-    if declared in ("sd", "log_or", "log_hazard") and source:
-        method = "binary_trait" if declared in ("log_or", "log_hazard") else ""
-        return declared, method, original, source, "resolved"
+    if declared in ("sd", "log_or", "log_hazard"):
+        method = explicit_method or ("binary_trait" if declared in ("log_or", "log_hazard") else "declared_standardised")
+        if method not in ("binary_trait", "declared_standardised", "source_provided", "estimated_from_source_maf", "estimated_from_reference_maf", "estimated_from_beta_distribution", "unavailable"):
+            raise SelectionError(f"invalid original_sd_method {method!r} in effect provenance")
+        return declared, method, original or declared, source or "explicit_effect_provenance", "resolved"
+
+    trait_type = (mapping_row.get("dbgap_trait_type") or "").strip().lower()
+    variable = (mapping_row.get("analyzed_variable") or "").strip().lower()
+    if trait_type == "binary":
+        return "log_or", "binary_trait", "log_or", "dbgap_trait_type_binary", "resolved"
+    if trait_type == "quantitative" and "inv-norm transformed" in variable:
+        return (
+            "sd",
+            "declared_standardised",
+            "sd",
+            "dbgap_analyzed_variable_inv_norm_transformed",
+            "resolved",
+        )
     return "", "", "", source or "unknown_pending", "pending"
 
 
@@ -203,7 +230,7 @@ def build_selection(
             if str(sidecar.get("gwas_id") or "").strip() != analysis_id:
                 raise SelectionError(f"pilot {analysis_id!r} sidecar gwas_id mismatch")
             scale, method, original, provenance, status = classify_effect_scale(
-                effect_by_id.get(analysis_id, {})
+                mapping_row, effect_by_id.get(analysis_id, {})
             )
             rows.append(
                 SelectionRow(
