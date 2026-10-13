@@ -166,9 +166,8 @@ def _verify_start_receipt(receipt: dict, args: argparse.Namespace, resolver: str
         raise wrapper.WrapperError("start receipt is not an explicit authorisation")
     if str(receipt["core_commit"]) != args.core_commit:
         raise wrapper.WrapperError("start receipt core_commit does not match --core-commit")
-    expected_ids = sorted(a for ids in selection.PILOT_IDS.values() for a in ids)
-    if sorted(receipt["analysis_ids"]) != expected_ids:
-        raise wrapper.WrapperError("start receipt analysis_ids do not match the reviewed 15")
+    if not receipt.get("analysis_ids"):
+        raise wrapper.WrapperError("start receipt analysis_ids must be non-empty")
     if str(receipt["resolver_executable"]) != resolver:
         raise wrapper.WrapperError("start receipt resolver_executable does not match the verified runtime")
 
@@ -211,6 +210,14 @@ def _run(args: argparse.Namespace) -> int:
         raise wrapper.WrapperError("start receipt metadata sha does not match --approved-metadata-sha")
 
     rows, content_sha, root = _build(args)
+    # Bind the receipt to the exact scope membership actually selected, so the
+    # resolver cannot be pointed at an unapproved analysis set.
+    expected = sorted(row.analysis_id for row in rows)
+    if sorted(start.get("analysis_ids") or []) != expected:
+        raise wrapper.WrapperError(
+            f"start receipt analysis_ids ({len(start.get('analysis_ids') or [])}) "
+            f"do not match the selected {args.scope or 'pilot'} scope ({len(expected)})"
+        )
     out_root = wrapper.preflight_output_root(
         args.out_root,
         protected_roots=[root, *(args.protected_root or [])],
