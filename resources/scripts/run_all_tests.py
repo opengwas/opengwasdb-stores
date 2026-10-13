@@ -7,12 +7,16 @@ having individual test scripts search for a sibling `../opengwasdb/.venv`.
   pixi run test              # every suite
   pixi run test-python       # only the Python suites
   pixi run test-r            # only the R suites
+  pixi run test --suite workflow       # named suites only (repeatable)
+  pixi run test --skip-exclusive       # all but the suites that run alone
+  pixi run test --list-exclusive       # those suites, as JSON, for CI's matrix
 
 Suites are data-only, network-free, and safe to run in CI; they are distinct
 from the data-intensive LD-panel acquisition/materialization tasks.
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -84,7 +88,11 @@ SUITES: list[tuple[str, str, list[str]]] = [
     ("ukb-b-provider-metadata", "python", ["tests/ukb-b/test_ukb_provider_metadata.py"]),
     ("validation-record", "python", ["tests/validation-record/test_validation_record.py"]),
     ("workflow", "python", ["tests/workflow/test_workflow.py"]),
-    ("release-faults", "python", ["tests/workflow/test_release_faults.py"]),
+    # One suite in two halves, so CI can give each a runner of its own.
+    ("release-faults/boundaries", "python",
+     ["tests/workflow/test_release_faults.py", "-k", "TestEveryBoundaryThroughTheEntryPoint"]),
+    ("release-faults/interrupts", "python",
+     ["tests/workflow/test_release_faults.py", "-k", "TestLiveAndInterruptedRuns"]),
 ]
 
 
@@ -100,8 +108,13 @@ SUITES: list[tuple[str, str, list[str]]] = [
 #
 # `release-faults` (#195) runs alone too, and after `workflow`, never beside it:
 # it SIGKILLs whole Snakemake runs and then runs `snakemake --unlock`, which
-# clears every lock in the shared `.snakemake/` directory.
-THREADED_SUITES: frozenset[str] = frozenset({"workflow", "release-faults"})
+# clears every lock in the shared `.snakemake/` directory. Any Snakemake run
+# also removes that whole directory of locks when it exits. CI gives each of
+# these suites a runner, and so a checkout and `.snakemake/`, of its own
+# (`--list-exclusive`).
+THREADED_SUITES: frozenset[str] = frozenset(
+    {"workflow", "release-faults/boundaries", "release-faults/interrupts"}
+)
 
 # Rough per-suite cost in seconds, used only to schedule the long suites first
 # so they overlap with the short ones instead of starting last and running alone.
@@ -158,8 +171,15 @@ def run_suite(label: str, kind: str, script: list[str]) -> tuple[bool, float, st
     return result.returncode == 0, elapsed, result.stdout + result.stderr
 
 
+USAGE: str = (
+    "[--only python|r] [--suite LABEL]... [--skip-exclusive] [--list-exclusive] [--jobs N]"
+)
+
+
 def main() -> int:
     only: str | None = None
+    named: list[str] = []
+    skip_exclusive = False
     jobs: int = DEFAULT_JOBS
 
     args = sys.argv[1:]
@@ -167,15 +187,31 @@ def main() -> int:
         flag = args.pop(0)
         if flag == "--only" and args:
             only = args.pop(0)
+        elif flag == "--suite" and args:
+            named.append(args.pop(0))
+        elif flag == "--skip-exclusive":
+            skip_exclusive = True
+        elif flag == "--list-exclusive":
+            print(json.dumps([label for label, _, _ in SUITES if label in THREADED_SUITES]))
+            return 0
         elif flag == "--jobs" and args:
             jobs = max(1, int(args.pop(0)))
         else:
-            print(f"usage: {sys.argv[0]} [--only python|r] [--jobs N]", file=sys.stderr)
+            print(f"usage: {sys.argv[0]} {USAGE}", file=sys.stderr)
             return 2
 
-    suites = [s for s in SUITES if only is None or s[1] == only]
+    unknown = sorted(set(named) - {label for label, _, _ in SUITES})
+    if unknown:
+        print(f"no such suite: {', '.join(unknown)}", file=sys.stderr)
+        return 2
+    suites = [
+        s for s in SUITES
+        if (only is None or s[1] == only)
+        and (not named or s[0] in named)
+        and not (skip_exclusive and s[0] in THREADED_SUITES)
+    ]
     if not suites:
-        print(f"no suites match --only {only}", file=sys.stderr)
+        print("no suites match the selection", file=sys.stderr)
         return 2
 
     # Suites are independent processes over their own fixtures, so they run

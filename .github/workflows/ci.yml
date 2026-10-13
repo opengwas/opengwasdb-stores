@@ -6,6 +6,21 @@ on:
   pull_request:
 
 jobs:
+  # The suites that build Stores through the whole release stack each get a
+  # runner of their own, in parallel with everything else. One runner would run
+  # them one after another: they share the checkout's `.snakemake/`, which any
+  # Snakemake run clears of locks when it exits. The list lives in
+  # run_all_tests.py, so a new such suite cannot be left out of CI.
+  plan:
+    name: list the suites that run alone
+    runs-on: ubuntu-latest
+    outputs:
+      exclusive: ${{ steps.list.outputs.exclusive }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        run: echo "exclusive=$(python3 resources/scripts/run_all_tests.py --list-exclusive)" >> "$GITHUB_OUTPUT"
+
   test:
     name: pixi test + docs smoke test
     runs-on: ubuntu-latest
@@ -24,8 +39,8 @@ jobs:
       - name: Report resolved tool/package versions
         run: pixi run --environment dev env-check
 
-      - name: Run all lightweight test suites
-        run: pixi run --environment dev test
+      - name: Run the lightweight test suites, except those that run alone
+        run: pixi run --environment dev test --skip-exclusive
 
       - name: Check every Release Bundle
         run: pixi run --environment dev bundle-check
@@ -44,3 +59,22 @@ jobs:
 
       - name: Documentation smoke test
         run: pixi run --environment dev docs-smoke
+
+  exclusive:
+    name: ${{ matrix.suite }}
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ${{ fromJSON(needs.plan.outputs.exclusive) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: prefix-dev/setup-pixi@v0.10.1
+        with:
+          environments: dev
+          locked: true
+
+      - name: Run ${{ matrix.suite }}
+        run: pixi run --environment dev test --suite "${{ matrix.suite }}"
