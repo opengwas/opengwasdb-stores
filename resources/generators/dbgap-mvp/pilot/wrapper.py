@@ -56,7 +56,7 @@ REFERENCE_VERSION = "ukb-ancestry-mixture-hg38"
 PILOT_CORE_COMMIT = "4e922566d7fa4c13a11be3637069da63e48be28c"
 
 WALL_LIMIT_MAX_S = 1800.0
-RSS_LIMIT_MAX_MB = 4096.0
+RSS_LIMIT_MAX_MB = 16384.0
 MAX_WORKERS = 2
 CPU_SET = (0, 1, 2, 3)
 ROW_CAP = 200000
@@ -97,7 +97,7 @@ def validate_limits(limits: ResourceLimits) -> tuple[int, ...]:
     """Reject NaN/∞/non-positive/over-authorized limits; return the CPU set."""
     for name, value, maximum in (
         ("wall_limit_s", limits.wall_limit_s, WALL_LIMIT_MAX_S),
-        ("rss_limit_mb", limits.rss_limit_mb, RSS_LIMIT_MAX_MB),
+        ("rss_limit_mb", limits.rss_limit_mb, RSS_LIMIT_MAX_MB),  # 16 GiB: the ancestry reference decompresses to ~1.35 GiB and is fork-shared across the parent and workers, so an aggregate (shared-page-double-counted) ceiling must be several times larger.
     ):
         if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
             raise WrapperError(f"{name} must be a finite number")
