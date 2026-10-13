@@ -50,11 +50,11 @@ MEMBERS = {
 EXPECTED = {bucket: len(ids) for bucket, ids in MEMBERS.items()}
 
 FIXTURE_STORES = {
-    "EUR": ("OGS-00012", "OGS-00018", "EUR", "European", "qualified"),
-    "AFR": ("OGS-00013", "OGS-00019", "AFR", "African", "qualified"),
-    "AMR": ("OGS-00014", "OGS-00020", "AMR", "Hispanic or Latin American", "hold"),
-    "EAS": ("OGS-00015", "OGS-00021", "EAS", "East Asian", "qualified"),
-    "META": ("OGS-00017", None, None, "META", "not_applicable"),
+    "EUR": ("OGS-00012", "OGS-00018", "EUR", "European", "pending", "/fixture/ld"),
+    "AFR": ("OGS-00013", "OGS-00019", "AFR", "African", "pending", "/fixture/ld"),
+    "AMR": ("OGS-00014", "OGS-00020", "AMR", "Hispanic or Latin American", "hold", None),
+    "EAS": ("OGS-00015", "OGS-00021", "EAS", "East Asian", "pending", "/fixture/ld"),
+    "META": ("OGS-00017", None, None, "META", "not_applicable", None),
 }
 
 
@@ -108,7 +108,7 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
     )
 
     stores = {}
-    for ancestry, (observed, completed, assigned, label_ancestry, reference_status) in FIXTURE_STORES.items():
+    for ancestry, (observed, completed, assigned, label_ancestry, qualification, suggested) in FIXTURE_STORES.items():
         stores[ancestry] = {
             "observed_store_id": observed,
             "completed_store_id": completed,
@@ -117,14 +117,20 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
             "assigned_ancestry": assigned,
             "source_ancestry_label": label_ancestry,
             "observed_only": ancestry == "META",
+            "intended_members": len(MEMBERS[ancestry]),
             "completion_reference": {
-                "resource_id": "fixture-ld" if reference_status == "qualified" else None,
+                "resource_id": "fixture-ld" if suggested else None,
                 "ancestry": assigned,
-                "status": reference_status,
-                "ld_panel": "/fixture/ld" if reference_status == "qualified" else None,
+                "declared_status": "available" if suggested else "absent",
+                "qualification": qualification,
+                "activation": "pending" if qualification == "pending" else "blocked",
+                "suggested_ld_panel": suggested,
             },
         }
     config = {
+        "id_allocation_status": "provisional-draft",
+        "owner_ordering_approved": False,
+        "intended_bound_total": 15,
         "publication_pmid": "39024449",
         "access_posture": "public",
         "layout": "dense",
@@ -212,18 +218,66 @@ class TestCandidateEmission(unittest.TestCase):
         self.assertEqual(meta_build["completion_state"], "observed_only")
         self.assertNotIn("complete", meta_build)
 
-        # EUR completed child is lineage-linked and carries the qualified panel.
+        # EUR completed definition is lineage-linked and carries the suggested
+        # panel, but its reference stays pending/blocked (never promoted).
         eur_child_release = yaml.safe_load((self.out / "OGS-00018" / "release.yaml").read_text())
         self.assertEqual(eur_child_release["derived_from"], "OGS-00012")
+        self.assertEqual(eur_child_release["status"], "candidate")
         eur_child_build = yaml.safe_load((self.out / "OGS-00018" / "build.yaml").read_text())
         self.assertEqual(eur_child_build["completion_state"], "reference_completed")
         self.assertIn("complete", eur_child_build)
+        self.assertEqual(
+            eur_child_build["complete"]["options"]["ld-panel"], "/fixture/ld"
+        )
 
-        # AMR has no qualified reference: a plan, not a bundle.
+        # AMR has no suggested reference: a pending definition, not a bundle.
         self.assertFalse((self.out / "OGS-00020").exists())
         amr_plan = yaml.safe_load((self.out / "OGS-00020.completion-plan.yaml").read_text())
-        self.assertEqual(amr_plan["status"], "hold")
+        self.assertEqual(amr_plan["status"], "pending")
+        self.assertTrue(amr_plan["blocked"])
+        self.assertEqual(amr_plan["human_acceptance"], "pending")
+        self.assertEqual(amr_plan["reference"]["qualification"], "hold")
         self.assertIsNone(amr_plan["reference"]["resource_id"])
+
+    def test_available_reference_does_not_promote_qualification(self) -> None:
+        """A declared `available` reference is not a qualification or science pass."""
+        gen.run_emit(
+            self.config, self.mapping, self.resolution, self.out, created_at="2026-10-13T00:00:00+00:00"
+        )
+        validation = yaml.safe_load((self.out / "OGS-00018" / "validation.yaml").read_text())
+        reference = validation["acceptance"]["completion_reference"]
+        self.assertEqual(reference["declared_status"], "available")
+        self.assertEqual(reference["qualification"], "pending")
+        self.assertEqual(reference["activation"], "pending")
+        self.assertTrue(reference["blocked"])
+        # Nothing in the emitted tree may claim the reference is qualified.
+        text = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in sorted(self.out.rglob("*"))
+            if path.is_file()
+        )
+        self.assertNotIn("qualified", text.replace("not qualified", ""))
+
+    def test_missing_reference_still_emits_pending_definition(self) -> None:
+        gen.run_emit(
+            self.config, self.mapping, self.resolution, self.out, created_at="2026-10-13T00:00:00+00:00"
+        )
+        definition = yaml.safe_load((self.out / "OGS-00020.completion-plan.yaml").read_text())
+        self.assertEqual(definition["human_acceptance"], "pending")
+        self.assertTrue(definition["blocked"])
+        self.assertFalse((self.out / "OGS-00020").exists())
+
+    def test_candidate_definitions_are_tracked_and_pending(self) -> None:
+        path = gen.write_candidate_definitions(self.config, self.out)
+        definitions = yaml.safe_load(path.read_text())
+        self.assertEqual(definitions["status"], "provisional-draft")
+        self.assertFalse(definitions["owner_ordering_approved"])
+        for bucket in definitions["stores"].values():
+            self.assertFalse(bucket["observed"]["in_stores"])
+            self.assertEqual(bucket["observed"]["acceptance"], "pending")
+            if bucket["completed"] is not None:
+                self.assertEqual(bucket["completed"]["human_acceptance"], "pending")
+                self.assertTrue(bucket["completed"]["blocked"])
 
     def test_acceptance_is_pending_and_not_verified(self) -> None:
         gen.run_emit(

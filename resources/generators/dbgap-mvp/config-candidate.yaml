@@ -1,23 +1,29 @@
 # Candidate configuration for the separate MVP ancestry and META Release
 # Bundles (#221), from the dbGaP phs002453 acquisition of PMID 39024449.
 #
-# This file plans *unbuilt, acceptance-pending candidates*. It never accepts,
-# registers, builds, completes or publishes anything, and it never rewrites an
-# existing Store or identity. The human acceptance step stays pending until the
-# owner freezes the Source Inventory and approves the membership.
+# This file is a PROVISIONAL DRAFT. It plans *unbuilt, acceptance-pending
+# candidates*. It never accepts, registers, builds, completes or publishes
+# anything, and it never rewrites an existing Store or identity.
 #
-# Identity allocation (recommended, no reuse or reassignment of an existing id):
+# Terminology: the 6,022 rows below are the INTENDED BOUND membership from the
+# accepted dbGaP mapping. The acquisition is NOT accepted and no Source
+# Inventory is frozen; membership, Analytical Metadata and every reference are
+# pending owner acceptance and qualification.
+#
+# Identity allocation is a provisional draft, NOT owner-approved ordering:
 #   observed single-ancestry   OGS-00012 EUR, OGS-00013 AFR, OGS-00014 AMR, OGS-00015 EAS
 #   META observed-only         OGS-00017
 #   lineage-linked completed   OGS-00018 EUR, OGS-00019 AFR, OGS-00020 AMR, OGS-00021 EAS
-#   FinnGen                    stays OGS-00016 (not renumbered in this plan)
+#   FinnGen                    kept at OGS-00016 (not renumbered here)
 #
-# The epic's preferred ordering (META ahead of FinnGen) would require reusing
-# OGS-00016 for META, which collides with the existing FinnGen artifact path and
-# reassigns an `OGS-` identifier that ADR 0022 says is never reassigned. It is
-# therefore left to an explicit owner decision and an ADR amendment, and is not
-# applied here. See the ticket README.
+# #221 authorises renumbering FinnGen; the open item is the ordering choice and
+# the ADR 0022 / public migration of an existing identity, not permission. The
+# recommended draft avoids the artifact-path collision that reusing OGS-00016
+# would create; the alternative is recorded as an unresolved plan exception in
+# the ticket README and must be decided before activation.
 
+id_allocation_status: provisional-draft
+owner_ordering_approved: false
 publication_pmid: '39024449'
 access_posture: public
 layout: dense
@@ -29,13 +35,18 @@ source_snapshot_id: dbgap-phs002453-candidate-pending
 source_repository: dbGaP phs002453 (GIA)
 source_reader_capability: opengwasdb.gwas-ssf
 source_assembly: GRCh38
+intended_bound_total: 6022
 generator_commands:
   - python3 resources/scripts/acquire-dbgap-phs002453.py map --candidates resources/data/derived/store-candidates-analyses.tsv
   - python3 resources/generators/dbgap-mvp/generate_candidate.py
 
-# One entry per intended Store. `completion_reference` is the only thing that
-# may authorise a lineage-linked completed child; `status: hold` keeps the child
-# as a recorded plan and emits no completed bundle.
+# One entry per intended Store.
+#
+# `completion_reference` records the DECLARED reference only. A declaration of
+# `status: available` is not a qualification or a science PASS: `qualification`
+# and `activation` are separate, and are `pending`/`blocked` for every reference
+# here. The emitter never promotes a reference to qualified from this file, and
+# a missing suggested panel does not prevent a pending completed definition.
 stores:
   EUR:
     observed_store_id: OGS-00012
@@ -44,11 +55,17 @@ stores:
     label: mvp-phs002453-eur
     assigned_ancestry: EUR
     source_ancestry_label: European
+    intended_members: 1669
     completion_reference:
       resource_id: gpm-hg38-eur-ld
       ancestry: EUR
-      status: qualified
-      ld_panel: /local-scratch/projects/genotype-phenotype-map/data/ld_reference_panel_hg38
+      declared_status: available
+      qualification: pending
+      activation: pending
+      # The declared resource location. Known stale / not active for this host
+      # (#239 production EUR alias not active); whole-panel qualification is
+      # pending. Retained only as a truthful suggested path.
+      suggested_ld_panel: /local-scratch/projects/genotype-phenotype-map/data/ld_reference_panel_hg38
   AFR:
     observed_store_id: OGS-00013
     completed_store_id: OGS-00019
@@ -56,11 +73,14 @@ stores:
     label: mvp-phs002453-afr
     assigned_ancestry: AFR
     source_ancestry_label: African
+    intended_members: 1368
     completion_reference:
       resource_id: hgdp1kgp-hg38-ld
       ancestry: AFR
-      status: qualified
-      ld_panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+      declared_status: available
+      qualification: pending
+      activation: pending
+      suggested_ld_panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
   AMR:
     observed_store_id: OGS-00014
     completed_store_id: OGS-00020
@@ -68,14 +88,17 @@ stores:
     label: mvp-phs002453-amr
     assigned_ancestry: AMR
     source_ancestry_label: Hispanic or Latin American
+    intended_members: 1053
     completion_reference:
-      # No declared AMR LD Reference Resource exists yet (epic #232 / research
-      # proposal in docs/amr-ld-panel-proposal.md). The completed child is a
-      # recorded plan only; it must not be emitted as a buildable bundle.
+      # No declared AMR LD Reference Resource exists. An AMR pilot (#241) is
+      # approved but not qualified. The completed child stays a pending,
+      # blocked definition and must not be executed.
       resource_id: null
       ancestry: AMR
-      status: hold
-      ld_panel: null
+      declared_status: absent
+      qualification: hold
+      activation: blocked
+      suggested_ld_panel: null
   EAS:
     observed_store_id: OGS-00015
     completed_store_id: OGS-00021
@@ -83,11 +106,14 @@ stores:
     label: mvp-phs002453-eas
     assigned_ancestry: EAS
     source_ancestry_label: East Asian
+    intended_members: 241
     completion_reference:
       resource_id: hgdp1kgp-hg38-ld
       ancestry: EAS
-      status: qualified
-      ld_panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+      declared_status: available
+      qualification: pending
+      activation: pending
+      suggested_ld_panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
   META:
     observed_store_id: OGS-00017
     completed_store_id: null
@@ -95,6 +121,7 @@ stores:
     label: mvp-phs002453-meta-observed-only
     assigned_ancestry: null
     source_ancestry_label: META
+    intended_members: 1691
     # Explicit policy: cross-ancestry membership is observed-only and must not
     # be eligible for automatic Reference Completion, even though an EUR panel
     # exists. This is enforced by the emitter, not just documented.
@@ -102,11 +129,16 @@ stores:
     completion_reference:
       resource_id: null
       ancestry: null
-      status: not_applicable
-      ld_panel: null
+      declared_status: absent
+      qualification: not_applicable
+      activation: blocked
+      suggested_ld_panel: null
 
-# FinnGen is not renumbered by this plan. If the owner later approves moving
+# FinnGen is not renumbered by this draft. If the owner later approves moving
 # META ahead of FinnGen, record old -> new here and amend ADR 0022 explicitly.
 finngen:
   current_store_id: OGS-00016
   renumbered_to: null
+  note: >-
+    Ordering is an unresolved plan exception. #221 authorises renumbering; the
+    open work is the ADR amendment and public identity/artifact migration.

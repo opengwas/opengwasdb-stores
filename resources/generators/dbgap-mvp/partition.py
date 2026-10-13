@@ -31,7 +31,7 @@ MVP_PMID: str = "39024449"
 ANCESTRY_ORDER: tuple[str, ...] = ("EUR", "AFR", "AMR", "EAS", "META")
 
 #: The metadata-verified partition this ticket must reproduce. These are the
-#: accepted immutable counts from the dbGaP mapping plus the candidate table;
+#: intended bound counts from the dbGaP mapping (metadata-verified, not acquisition-accepted) plus the candidate table;
 #: `validate_partition` refuses any drift rather than silently accepting a new
 #: membership.
 EXPECTED_COUNTS: Mapping[str, int] = {
@@ -57,7 +57,7 @@ LEGACY_EUROPEAN_STORE_KEY: str = "dense__pmid-39024449__European"
 
 
 class PartitionError(ValueError):
-    """The metadata cannot be partitioned into the accepted disjoint sets."""
+    """The metadata cannot be partitioned into the intended disjoint sets."""
 
 
 def read_mapping(path: Path | str) -> list[dict[str, str]]:
@@ -115,7 +115,7 @@ def validate_partition(
     partition: Mapping[str, Sequence[str]],
     expected: Mapping[str, int] = EXPECTED_COUNTS,
 ) -> None:
-    """Fail if the partition drifts from the accepted counts or is not disjoint."""
+    """Fail if the partition drifts from the intended bound counts or is not disjoint."""
     missing = set(expected) - set(partition)
     if missing:
         raise PartitionError(f"partition is missing bucket(s): {sorted(missing)}")
@@ -132,7 +132,7 @@ def validate_partition(
     total = len(all_ids)
     expected_total = sum(expected.values())
     if total != expected_total:
-        raise PartitionError(f"partition total {total} != accepted total {expected_total}")
+        raise PartitionError(f"partition total {total} != intended bound total {expected_total}")
 
 
 def legacy_european_count(partition: Mapping[str, Sequence[str]]) -> int:

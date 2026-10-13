@@ -1,0 +1,158 @@
+status: provisional-draft
+owner_ordering_approved: false
+publication_pmid: '39024449'
+source_snapshot_id: dbgap-phs002453-candidate-pending
+intended_bound_total: 6022
+finngen:
+  current_store_id: OGS-00016
+  renumbered_to: null
+  note: 'Ordering is an unresolved plan exception. #221 authorises renumbering; the
+    open work is the ADR amendment and public identity/artifact migration.'
+stores:
+  EUR:
+    observed:
+      store_id: OGS-00012
+      role: observed
+      label: mvp-phs002453-eur
+      status: candidate-definition
+      acceptance: pending
+      candidate_store_key: dense__pmid-39024449__European
+      intended_members: 1669
+      assigned_ancestry: EUR
+      observed_only: false
+      recipe:
+        command: build-dense-vcf
+      in_stores: false
+    completed:
+      store_id: OGS-00018
+      role: completed-definition
+      label: mvp-phs002453-eur-completed
+      derived_from: OGS-00012
+      status: pending
+      acceptance: pending
+      human_acceptance: pending
+      blocked: true
+      recipe:
+        command: complete-dense
+        ancestry: EUR
+      reference:
+        resource_id: gpm-hg38-eur-ld
+        declared_status: available
+        qualification: pending
+        activation: pending
+        suggested_ld_panel: /local-scratch/projects/genotype-phenotype-map/data/ld_reference_panel_hg38
+      in_stores: false
+  AFR:
+    observed:
+      store_id: OGS-00013
+      role: observed
+      label: mvp-phs002453-afr
+      status: candidate-definition
+      acceptance: pending
+      candidate_store_key: dense__pmid-39024449__African
+      intended_members: 1368
+      assigned_ancestry: AFR
+      observed_only: false
+      recipe:
+        command: build-dense-vcf
+      in_stores: false
+    completed:
+      store_id: OGS-00019
+      role: completed-definition
+      label: mvp-phs002453-afr-completed
+      derived_from: OGS-00013
+      status: pending
+      acceptance: pending
+      human_acceptance: pending
+      blocked: true
+      recipe:
+        command: complete-dense
+        ancestry: AFR
+      reference:
+        resource_id: hgdp1kgp-hg38-ld
+        declared_status: available
+        qualification: pending
+        activation: pending
+        suggested_ld_panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+      in_stores: false
+  AMR:
+    observed:
+      store_id: OGS-00014
+      role: observed
+      label: mvp-phs002453-amr
+      status: candidate-definition
+      acceptance: pending
+      candidate_store_key: dense__pmid-39024449__Hispanic-or-Latin-American
+      intended_members: 1053
+      assigned_ancestry: AMR
+      observed_only: false
+      recipe:
+        command: build-dense-vcf
+      in_stores: false
+    completed:
+      store_id: OGS-00020
+      role: completed-definition
+      label: mvp-phs002453-amr-completed
+      derived_from: OGS-00014
+      status: pending
+      acceptance: pending
+      human_acceptance: pending
+      blocked: true
+      recipe:
+        command: complete-dense
+        ancestry: AMR
+      reference:
+        resource_id: null
+        declared_status: absent
+        qualification: hold
+        activation: blocked
+        suggested_ld_panel: null
+      in_stores: false
+  EAS:
+    observed:
+      store_id: OGS-00015
+      role: observed
+      label: mvp-phs002453-eas
+      status: candidate-definition
+      acceptance: pending
+      candidate_store_key: dense__pmid-39024449__East-Asian
+      intended_members: 241
+      assigned_ancestry: EAS
+      observed_only: false
+      recipe:
+        command: build-dense-vcf
+      in_stores: false
+    completed:
+      store_id: OGS-00021
+      role: completed-definition
+      label: mvp-phs002453-eas-completed
+      derived_from: OGS-00015
+      status: pending
+      acceptance: pending
+      human_acceptance: pending
+      blocked: true
+      recipe:
+        command: complete-dense
+        ancestry: EAS
+      reference:
+        resource_id: hgdp1kgp-hg38-ld
+        declared_status: available
+        qualification: pending
+        activation: pending
+        suggested_ld_panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+      in_stores: false
+  META:
+    observed:
+      store_id: OGS-00017
+      role: observed
+      label: mvp-phs002453-meta-observed-only
+      status: candidate-definition
+      acceptance: pending
+      candidate_store_key: dense__pmid-39024449__Multi-ancestry
+      intended_members: 1691
+      assigned_ancestry: null
+      observed_only: true
+      recipe:
+        command: build-dense-vcf
+      in_stores: false
+    completed: null

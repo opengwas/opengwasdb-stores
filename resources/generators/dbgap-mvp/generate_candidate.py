@@ -9,7 +9,7 @@ Store. It is deliberately conservative.
   ``validation.yaml`` ``acceptance`` block whose human-acceptance field stays
   ``pending``. Nothing here accepts, registers, builds, completes or publishes a
   Store, and no existing bundle is overwritten.
-* The ancestry partition is validated against the accepted immutable counts and
+* The ancestry partition is validated against the intended bound counts and
   must be disjoint; a missing or drifted membership fails loudly.
 * META is emitted observed-only: no ``derived_from`` and no completion block,
   regardless of the fact that an EUR panel exists.
@@ -173,15 +173,12 @@ def render_build_yaml(
         "post": {"top_hits": True, "overview": True},
     }
     if completion:
-        if not ld_panel:
-            raise CandidateError(
-                f"completed Store {store_id} has no resolved ld-panel path; refusing "
-                "to emit a completion bundle from an unqualified reference"
-            )
-        build["complete"] = {
-            "command": "complete-dense",
-            "options": {"ld-panel": ld_panel, "ancestry": ancestry},
-        }
+        options: dict = {}
+        if ancestry:
+            options["ancestry"] = ancestry
+        if ld_panel:
+            options["ld-panel"] = ld_panel
+        build["complete"] = {"command": "complete-dense", "options": options}
     else:
         build["build"] = {
             "command": "build-dense-vcf",
@@ -193,21 +190,35 @@ def render_build_yaml(
     return build
 
 
-def render_validation_yaml(*, store_id: str, partition_total: int) -> dict:
+def render_validation_yaml(
+    *,
+    store_id: str,
+    partition_total: int,
+    completion_reference: Mapping | None = None,
+) -> dict:
     """A candidate Validation Record with human acceptance explicitly pending."""
+    acceptance: dict = {
+        "status": "pending",
+        "human_acceptance": "pending",
+        "membership_accepted": False,
+        "note": (
+            "Phase B candidate only. Membership is not accepted; no Store was "
+            "built or validated. Do not relabel this evidence as verified."
+        ),
+        "partition_total": partition_total,
+    }
+    if completion_reference is not None:
+        acceptance["completion_reference"] = {
+            "resource_id": completion_reference.get("resource_id"),
+            "declared_status": completion_reference.get("declared_status"),
+            "qualification": completion_reference.get("qualification"),
+            "activation": completion_reference.get("activation"),
+            "blocked": completion_reference.get("activation") != "active",
+        }
     return {
         "status": "not_run",
         "validator": {"name": "resources/generators/dbgap-mvp/generate_candidate.py"},
-        "acceptance": {
-            "status": "pending",
-            "human_acceptance": "pending",
-            "membership_accepted": False,
-            "note": (
-                "Phase B candidate only. Membership is not accepted; no Store was "
-                "built or validated. Do not relabel this evidence as verified."
-            ),
-            "partition_total": partition_total,
-        },
+        "acceptance": acceptance,
         "warnings": [
             "Candidate: membership, Analytical Metadata and the Source Inventory are "
             "not yet frozen or accepted.",
@@ -272,7 +283,7 @@ def build_partition(config: Mapping, mapping_path: Path | str):
     rows = partition_module.read_mapping(mapping_path)
     partition = partition_module.partition_mapping(rows)
     # Production config omits `partition_expected` and therefore validates
-    # against the accepted immutable counts. A test fixture may supply its own
+    # against the intended bound counts. A test fixture may supply its own
     # expected counts, but it cannot silently relax the real ones.
     expected = config.get("partition_expected") or partition_module.EXPECTED_COUNTS
     partition_module.validate_partition(partition, expected=expected)
@@ -307,11 +318,78 @@ def run_plan(config: Mapping, mapping_path: Path | str, out_dir: Path) -> dict:
             "members": len(partition[ancestry]),
             "observed_only": bool(store.get("observed_only")),
             "completion_reference_status": (
-                (store.get("completion_reference") or {}).get("status")
+                (store.get("completion_reference") or {}).get("qualification")
             ),
         }
     _atomic_write(out_dir / "candidate-plan.yaml", yaml.safe_dump(plan, sort_keys=False))
     return plan
+
+
+def _suggested_ld_panel(config: Mapping, ancestry: str) -> str | None:
+    reference = (config["stores"][ancestry] or {}).get("completion_reference") or {}
+    return reference.get("suggested_ld_panel") or None
+
+
+def render_candidate_definitions(config: Mapping) -> dict:
+    """The reviewed intended-membership/recipe definitions, tracked (not built)."""
+    definitions: dict = {
+        "status": "provisional-draft",
+        "owner_ordering_approved": bool(config.get("owner_ordering_approved")),
+        "publication_pmid": config.get("publication_pmid"),
+        "source_snapshot_id": config.get("source_snapshot_id"),
+        "intended_bound_total": config.get("intended_bound_total"),
+        "finngen": config.get("finngen"),
+        "stores": {},
+    }
+    for ancestry, store in config["stores"].items():
+        observed_id = store["observed_store_id"]
+        reference = store.get("completion_reference") or {}
+        observed = {
+            "store_id": observed_id,
+            "role": "observed",
+            "label": store.get("label"),
+            "status": "candidate-definition",
+            "acceptance": "pending",
+            "candidate_store_key": store.get("candidate_store_key"),
+            "intended_members": store.get("intended_members"),
+            "assigned_ancestry": store.get("assigned_ancestry"),
+            "observed_only": bool(store.get("observed_only")),
+            "recipe": {"command": "build-dense-vcf"},
+            "in_stores": False,
+        }
+        completed_id = store.get("completed_store_id")
+        completed = None
+        if completed_id:
+            completed = {
+                "store_id": completed_id,
+                "role": "completed-definition",
+                "label": f"{store.get('label')}-completed",
+                "derived_from": observed_id,
+                "status": "pending",
+                "acceptance": "pending",
+                "human_acceptance": "pending",
+                "blocked": reference.get("activation") != "active",
+                "recipe": {
+                    "command": "complete-dense",
+                    "ancestry": store.get("assigned_ancestry"),
+                },
+                "reference": {
+                    "resource_id": reference.get("resource_id"),
+                    "declared_status": reference.get("declared_status"),
+                    "qualification": reference.get("qualification"),
+                    "activation": reference.get("activation"),
+                    "suggested_ld_panel": reference.get("suggested_ld_panel"),
+                },
+                "in_stores": False,
+            }
+        definitions["stores"][ancestry] = {"observed": observed, "completed": completed}
+    return definitions
+
+
+def write_candidate_definitions(config: Mapping, out_dir: Path) -> Path:
+    path = out_dir / "candidates.yaml"
+    _atomic_write(path, yaml.safe_dump(render_candidate_definitions(config), sort_keys=False))
+    return path
 
 
 def run_emit(
@@ -362,7 +440,7 @@ def run_emit(
         observed_id = store["observed_store_id"]
         observed_only = bool(store.get("observed_only"))
         notes = (
-            f"Ancestry bucket {ancestry}; {len(members)} admitted Analyses. "
+            f"Ancestry bucket {ancestry}; {len(members)} intended Analyses. "
             f"candidate_store_key {store.get('candidate_store_key')}. "
             + (
                 "Cross-ancestry META is observed-only by policy: no derived_from "
@@ -399,27 +477,35 @@ def run_emit(
         completed_id = store.get("completed_store_id")
         if observed_only or not completed_id:
             continue
-        ld_panel = _reference_ld_panel(config, ancestry)
-        if ld_panel is None:
-            # Reference not qualified: record a plan, do not emit a bundle.
-            _atomic_write(
-                out_dir / f"{completed_id}.completion-plan.yaml",
-                yaml.safe_dump(
-                    {
-                        "store_id": completed_id,
-                        "derived_from": observed_id,
-                        "completion_state": "reference_completed",
-                        "candidate_store_key": store.get("candidate_store_key"),
-                        "reference": store.get("completion_reference"),
-                        "status": "hold",
-                        "note": (
-                            "No qualified completion reference; the completed child is "
-                            "a recorded plan only and must not be executed or registered."
-                        ),
-                    },
-                    sort_keys=False,
-                ),
-            )
+        reference = store.get("completion_reference") or {}
+        suggested = _suggested_ld_panel(config, ancestry)
+        # Always record the pending, blocked completion DEFINITION so the intended
+        # lineage and recipe are reviewable. Qualification is never inferred from
+        # a declared resource or a config label.
+        _atomic_write(
+            out_dir / f"{completed_id}.completion-plan.yaml",
+            yaml.safe_dump(
+                {
+                    "store_id": completed_id,
+                    "derived_from": observed_id,
+                    "completion_state": "reference_completed",
+                    "candidate_store_key": store.get("candidate_store_key"),
+                    "reference": reference,
+                    "status": "pending",
+                    "blocked": reference.get("activation") != "active",
+                    "human_acceptance": "pending",
+                    "note": (
+                        "Completion definition only. The reference is not qualified or "
+                        "activated and the completed Store is not accepted, built or "
+                        "registered. Do not execute or promote."
+                    ),
+                },
+                sort_keys=False,
+            ),
+        )
+        if suggested is None:
+            # No suggested panel: the definition above is the honest artifact; do
+            # not fabricate a buildable recipe with a missing path.
             continue
         emit_bundle(
             out_dir,
@@ -432,9 +518,10 @@ def run_emit(
                 derived_from=observed_id,
                 completion_state="reference-completed",
                 notes=(
-                    f"Lineage-linked completed candidate for {observed_id} "
-                    f"({ancestry}); reference {(store.get('completion_reference') or {}).get('resource_id')}. "
-                    "Unbuilt, acceptance-pending; unqualified references never reach here."
+                    f"Lineage-linked completed definition for {observed_id} ({ancestry}); "
+                    f"declared reference {reference.get('resource_id')}, qualification "
+                    f"{reference.get('qualification')!r}, activation {reference.get('activation')!r}. "
+                    "Unbuilt, acceptance-pending; not qualified or approved for execution."
                 ),
             ),
             render_build_yaml(
@@ -442,9 +529,13 @@ def run_emit(
                 config=config,
                 ancestry=store.get("assigned_ancestry"),
                 completion=True,
-                ld_panel=ld_panel,
+                ld_panel=suggested,
             ),
-            render_validation_yaml(store_id=completed_id, partition_total=len(intended)),
+            render_validation_yaml(
+                store_id=completed_id,
+                partition_total=len(intended),
+                completion_reference=reference,
+            ),
             analyses_text,
         )
         emitted[f"{ancestry}-completed"] = completed_id
@@ -478,9 +569,9 @@ def run_emit(
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("plan", "emit"))
+    parser.add_argument("mode", choices=("plan", "emit", "definitions"))
     parser.add_argument("--config", type=Path, default=REPO_ROOT / DEFAULT_CONFIG)
-    parser.add_argument("--mapping", type=Path, required=True)
+    parser.add_argument("--mapping", type=Path, default=None)
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--resolution", type=Path, default=None)
     parser.add_argument(
@@ -494,6 +585,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     config = load_config(args.config)
     created_at = args.created_at or datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
+    if args.mode == "definitions":
+        path = write_candidate_definitions(config, args.out_dir)
+        print(json.dumps({"definitions": str(path)}, indent=2))
+        return 0
+
+    if args.mapping is None:
+        raise CandidateError(f"{args.mode} mode requires --mapping")
     if args.mode == "plan":
         plan = run_plan(config, args.mapping, args.out_dir)
         print(json.dumps(plan, indent=2))

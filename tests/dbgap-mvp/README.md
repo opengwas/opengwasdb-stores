@@ -9,15 +9,19 @@ Test suite for `resources/generators/dbgap-mvp` (issue #221).
    EUR + META, and an unknown ancestry or a count drift fails loudly.
 2. **META is observed-only**: its emitted bundle has no `derived_from` and no
    `complete` recipe even though an EUR panel exists.
-3. **Completion is reference-gated**: a qualified reference emits a
-   lineage-linked completed child; a `hold` reference emits a recorded plan and
-   no buildable bundle.
+3. **Completion is reference-gated honestly**: a qualified reference is never
+   inferred from a `declared_status`, so every completed child is emitted as a
+   pending, blocked definition; a missing suggested panel still produces a
+   pending definition (no fabricated recipe).
 4. **Acceptance stays pending**: every candidate is `status: candidate`, has no
    `accepted_at`, and carries a `validation.yaml` whose `human_acceptance` is
    `pending` and whose warnings say it is not verified.
-5. **Fail closed**: a missing or extra resolution row, and an attempted
+5. **Tracked definitions**: `write_candidate_definitions` records the intended
+   membership/recipe with `in_stores: false`, `owner_ordering_approved: false`
+   and pending acceptance.
+6. **Fail closed**: a missing or extra resolution row, and an attempted
    overwrite of an existing bundle, raise rather than emit.
-6. Every emitted bundle passes `bundle.check()` (run inside the emitter).
+7. Every emitted bundle passes `bundle.check()` (run inside the emitter).
 
 ## Running the suite
 
