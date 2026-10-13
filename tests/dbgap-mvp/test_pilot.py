@@ -270,6 +270,93 @@ class TestSelection(unittest.TestCase):
         self.assertEqual(selection.render_resolver_manifest(selected).count("\n") - 1, 14)
 
 
+    def test_scope_bucket_and_all_resolve_only_selected(self) -> None:
+        eas = selection.build_selection(
+            metadata_root=self.meta,
+            mapping_path=self.mapping,
+            metadata_content_sha256="0" * 64,
+            scope="bucket:EAS",
+        )
+        self.assertEqual(len(eas), 3)
+        self.assertTrue(all(row.bucket == "EAS" for row in eas))
+        self.assertEqual(selection.render_resolver_manifest(eas).count("\n") - 1, 3)
+        data_files = {row.manifest["data_file"] for row in eas if row.is_resolved}
+        self.assertEqual(len(data_files), 3)
+        self.assertTrue(all("bucket-EAS" in path for path in data_files), data_files)
+
+        every = selection.build_selection(
+            metadata_root=self.meta,
+            mapping_path=self.mapping,
+            metadata_content_sha256="0" * 64,
+            scope="all",
+        )
+        self.assertEqual(len(every), 15)
+        self.assertEqual(selection.render_resolver_manifest(every).count("\n") - 1, 15)
+
+    def test_scope_pending_excluded_and_counted(self) -> None:
+        import csv as _csv
+
+        with self.mapping.open(newline="", encoding="utf-8") as handle:
+            reader = _csv.DictReader(handle, delimiter="\t")
+            rows = list(reader)
+            fields = list(reader.fieldnames or [])
+        for row in rows:
+            if row["analysis_id"] == "GCST90475203":
+                row["dbgap_trait_type"] = ""
+                row["analyzed_variable"] = "raw units"
+        modified = self.tmp / "scope-pending.tsv"
+        write_tsv(modified, fields, rows)
+        eas = selection.build_selection(
+            metadata_root=self.meta,
+            mapping_path=modified,
+            metadata_content_sha256="0" * 64,
+            scope="bucket:EAS",
+        )
+        self.assertEqual(len(eas), 3)
+        self.assertEqual(len([r for r in eas if r.is_resolved]), 2)
+        self.assertEqual(selection.render_resolver_manifest(eas).count("\n") - 1, 2)
+        summary = selection.selection_summary(eas, "0" * 64)
+        self.assertEqual(summary["pending"], 1)
+        self.assertEqual(summary["pending_rows"][0]["analysis_id"], "GCST90475203")
+        with self.assertRaisesRegex(selection.SelectionError, "unknown scope"):
+            selection.build_selection(
+                metadata_root=self.meta,
+                mapping_path=self.mapping,
+                metadata_content_sha256="0" * 64,
+                scope="bucket:OCEANIA",
+            )
+
+
+REAL_METADATA = Path("/data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z")
+REAL_MAPPING = Path("/data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv")
+
+
+@unittest.skipUnless(
+    REAL_METADATA.is_dir() and REAL_MAPPING.is_file(),
+    "real MVP metadata root/mapping not present",
+)
+class TestRealScopeCounts(unittest.TestCase):
+    def test_bucket_eas_is_241_and_all_is_6022(self) -> None:
+        eas = selection.build_selection(
+            metadata_root=REAL_METADATA,
+            mapping_path=REAL_MAPPING,
+            metadata_content_sha256="0" * 64,
+            scope="bucket:EAS",
+        )
+        self.assertEqual(len(eas), 241)
+        self.assertEqual(len([r for r in eas if r.is_resolved]), 241)
+        self.assertEqual(selection.render_resolver_manifest(eas).count("\n") - 1, 241)
+        every = selection.build_selection(
+            metadata_root=REAL_METADATA,
+            mapping_path=REAL_MAPPING,
+            metadata_content_sha256="0" * 64,
+            scope="all",
+        )
+        self.assertEqual(len(every), 6022)
+        self.assertEqual(len([r for r in every if r.is_resolved]), 6022)
+        self.assertEqual(selection.render_resolver_manifest(every).count("\n") - 1, 6022)
+
+
 class TestLimitsAndPreflight(unittest.TestCase):
     def setUp(self) -> None:
         self.td = tempfile.TemporaryDirectory()

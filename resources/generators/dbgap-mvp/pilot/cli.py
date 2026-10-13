@@ -110,6 +110,7 @@ def _build(args: argparse.Namespace):
         metadata_content_sha256=content_sha,
         candidate_table_path=args.candidate_table,
         effect_provenance_path=args.effect_provenance,
+        scope=args.scope,
     )
     return rows, content_sha, root
 
@@ -296,6 +297,11 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--mapping", type=Path, default=DEFAULT_MAPPING)
         p.add_argument("--candidate-table", type=Path, default=DEFAULT_CANDIDATE_TABLE)
         p.add_argument("--effect-provenance", type=Path, default=None)
+        p.add_argument(
+            "--scope",
+            default="pilot",
+            help="resolution scope: pilot | bucket:<EUR|AFR|AMR|EAS|META> | all",
+        )
         p.add_argument("--out-root", type=Path, required=True)
         p.add_argument("--approved-metadata-sha", default=None)
         p.add_argument("--protected-root", type=Path, action="append", default=[])
