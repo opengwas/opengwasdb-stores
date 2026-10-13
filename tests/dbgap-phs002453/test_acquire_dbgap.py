@@ -26,6 +26,7 @@ import csv
 import gzip
 import hashlib
 import importlib.util
+import os
 import subprocess
 import sys
 import tarfile
@@ -1520,6 +1521,89 @@ class RefreshTests(unittest.TestCase):
             self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
             self.assertIn("escapes", result.stderr)
             self.assertEqual(victim.read_text(encoding="utf-8"), "original")
+
+    def test_guarded_tsv_refuses_internal_temp_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            victim = out / "other-row-meta.yaml"
+            victim.write_text("original: immutable\n", encoding="utf-8")
+            target = out / "refresh-receipt.tsv"
+            target.with_name(target.name + ".partial").symlink_to(victim)
+            before = victim.read_bytes()
+            with self.assertRaises(ACQUIRE.AcquisitionError):
+                ACQUIRE.write_tsv_guarded(target, ("field",), [{"field": "changed"}], out)
+            self.assertEqual(victim.read_bytes(), before)
+            self.assertFalse(target.exists())
+
+    def test_guarded_tsv_refuses_hardlinked_temp(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            out = root / "iso"
+            out.mkdir()
+            victim = root / "source-meta.yaml"
+            victim.write_text("original: immutable\n", encoding="utf-8")
+            target = out / "refresh-receipt.tsv"
+            os.link(victim, target.with_name(target.name + ".partial"))
+            before = victim.read_bytes()
+            with self.assertRaises(ACQUIRE.AcquisitionError):
+                ACQUIRE.write_tsv_guarded(target, ("field",), [{"field": "changed"}], out)
+            self.assertEqual(victim.read_bytes(), before)
+            self.assertFalse(target.exists())
+
+    def test_refresh_refuses_all_metadata_temp_aliases(self) -> None:
+        for kind in ("sidecar", "receipt", "manifest"):
+            for alias in ("internal_symlink", "source_hardlink", "stale_regular"):
+                with self.subTest(kind=kind, alias=alias), tempfile.TemporaryDirectory() as tmp:
+                    fx = self._refresh_fixture(Path(tmp), data_present=True)
+                    iso = Path(fx["iso"])
+                    targets = {
+                        "sidecar": iso / "gwas-ssf" / ACQUIRE.bucket_of(str(fx["accession"]))
+                        / str(fx["accession"]) / Path(fx["sidecar"]).name,
+                        "receipt": iso / "refresh-receipt.tsv",
+                        "manifest": iso / "manifests" / Path(fx["manifest_path"]).name,
+                    }
+                    target = targets[kind]
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    partial = target.with_name(target.name + ".partial")
+                    source_before = Path(fx["sidecar"]).read_bytes()
+                    if alias == "source_hardlink":
+                        victim = Path(fx["sidecar"])
+                        os.link(victim, partial)
+                    elif alias == "internal_symlink":
+                        victim = iso / "other-row-meta.yaml"
+                        victim.write_text("original: immutable\n", encoding="utf-8")
+                        partial.symlink_to(victim)
+                    else:
+                        victim = partial
+                        partial.write_text("original: stale\n", encoding="utf-8")
+                    before = victim.read_bytes()
+                    result = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
+                    self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+                    self.assertEqual(victim.read_bytes(), before)
+                    self.assertEqual(Path(fx["sidecar"]).read_bytes(), source_before)
+                    self.assertFalse(target.exists())
+
+    def test_refresh_refuses_final_metadata_symlinks(self) -> None:
+        for kind in ("sidecar", "receipt", "manifest"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as tmp:
+                fx = self._refresh_fixture(Path(tmp), data_present=True)
+                iso = Path(fx["iso"])
+                targets = {
+                    "sidecar": iso / "gwas-ssf" / ACQUIRE.bucket_of(str(fx["accession"]))
+                    / str(fx["accession"]) / Path(fx["sidecar"]).name,
+                    "receipt": iso / "refresh-receipt.tsv",
+                    "manifest": iso / "manifests" / Path(fx["manifest_path"]).name,
+                }
+                target = targets[kind]
+                target.parent.mkdir(parents=True, exist_ok=True)
+                victim = iso / "other-row-meta.yaml"
+                victim.write_text("original: immutable\n", encoding="utf-8")
+                target.symlink_to(victim)
+                before = victim.read_bytes()
+                result = subprocess.run(self._refresh_cli(fx), capture_output=True, text=True, check=False)
+                self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+                self.assertEqual(victim.read_bytes(), before)
+                self.assertTrue(target.is_symlink())
 
     def test_new_sidecar_binding_is_validated(self) -> None:
         # D: a newly converted sidecar's source binding must match the mapping.

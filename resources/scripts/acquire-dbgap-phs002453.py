@@ -64,6 +64,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TextIO
 
 import yaml
 
@@ -319,15 +320,37 @@ def write_tsv(path: Path, columns: tuple[str, ...], rows: list[dict[str, str]]) 
     os.replace(partial, path)
 
 
+def open_refresh_partial(path: Path, out_root: Path) -> tuple[Path, TextIO]:
+    """Create a fresh metadata temp, never truncate an existing inode or alias.
+
+    Containment alone cannot detect hardlinks or symlinks to another output row.
+    Exclusive creation also refuses stale regular temps and aliases introduced
+    after validation. Completed reruns remain valid because replace consumes the
+    temp. Existing temps are preserved for inspection, not blindly deleted.
+    """
+    partial = path.with_name(path.name + ".partial")
+    for target in (path, partial):
+        ensure_write_within(target, out_root)
+        if target.is_symlink():
+            raise AcquisitionError(f"refusing metadata symlink: {target}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        handle = partial.open("x", newline="", encoding="utf-8")
+    except FileExistsError as exc:
+        raise AcquisitionError(f"refusing existing metadata temporary file: {partial}") from exc
+    return partial, handle
+
+
 def write_tsv_guarded(
     path: Path, columns: tuple[str, ...], rows: list[dict[str, str]], out_root: Path
 ) -> None:
-    """Refresh-specific TSV writer: the final path AND its ``.partial`` temp must
-    resolve inside the isolated root, so a symlinked temp cannot redirect the
-    write into a read-only source tree."""
-    for target in (path, path.with_name(path.name + ".partial")):
-        ensure_write_within(target, out_root)
-    write_tsv(path, columns, rows)
+    """Atomically write refresh metadata using an isolated, exclusive temp."""
+    partial, handle = open_refresh_partial(path, out_root)
+    with handle:
+        writer = csv.DictWriter(handle, fieldnames=list(columns), delimiter="\t", lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+    os.replace(partial, path)
 
 
 def read_tsv(path: Path) -> list[dict[str, str]]:
@@ -1806,15 +1829,13 @@ def command_refresh(args: argparse.Namespace) -> int:
         validate_digest(str(document.get("data_file_md5sum", "")), "md5", f"{accession} sidecar")
         directory = out_sidecars / bucket_of(accession) / accession
         target = directory / f"{accession}.tsv.gz-meta.yaml"
-        partial = target.with_name(target.name + ".partial")
         link = directory / f"{accession}.tsv.gz"
-        for write_target in (directory, target, partial):
-            ensure_write_within(write_target, out)
+        ensure_write_within(directory, out)
         ensure_write_within(link, out, follow_final=False)
         directory.mkdir(parents=True, exist_ok=True)
-        partial.write_text(
-            yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100), encoding="utf-8"
-        )
+        partial, handle = open_refresh_partial(target, out)
+        with handle:
+            handle.write(yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100))
         os.replace(partial, target)
         if link.is_symlink():
             if link.resolve() != source_data.resolve():

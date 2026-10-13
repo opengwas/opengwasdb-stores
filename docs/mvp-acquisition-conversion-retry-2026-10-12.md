@@ -1,194 +1,159 @@
-# MVP dbGaP conversion retry — 2 missing accessions (2026-10-12)
+# MVP dbGaP conversion retry and metadata-refresh qualification
 
-Bounded conversion retry authorised for ticket #220 (owner authorisation
-2026-10-12). Baseline merged `dev` = `1db347d`; adopted core environment
-`218-current-runtime` (`opengwasdb` `4e92256`). This checkpoint converts and
-freezes the two previously unmatched accessions in an **isolated** output root.
-The historical mirror, its mapping files and its manifests were not written.
+**Status:** the two owner-authorized conversions are independently verified.
+The full acquisition metadata refresh is **not accepted**; no Store build,
+registration, completion, artifact promotion or full acquisition PASS is claimed.
+Evidence below concerns 2026-10-12; parent-owned tool qualification resumed later.
 
-## Isolated output root
+## Authorized two-accession conversion
 
-`/data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/`
-(`GIA` is a symlink to the read-only raw mirror `GIA`; nothing under the mirror
-was modified).
+Owner permission: [#220 bounded retry decision](https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6133854088).
+Canonical counts and labels use the approved dbGaP authority policy from PR #238;
+Catalog discrepancies remain provenance, not replacement canonical values.
+Runtime: verified read-only `218-current-runtime` environment, core `4e922566`.
 
-## Inputs (named, already extracted; no download)
+Output root:
+`/data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/`.
+The `GIA` link points to existing raw inputs; no download or extraction occurred.
+One converter, `--jobs 1`, ≤4 CPUs, BLAS threads=1; only these two raw inputs:
 
-| Accession | dbGaP member | bytes |
-|---|---|---|
-| `GCST90476298` | `MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.Platelet_Mean_INT.AFR.GIA.dbGaP.txt.gz` | 905,029,695 |
-| `GCST90481129` | `MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2/MVP_R4.1000G_AGR.Phe_371_3.META.GIA.dbGaP.txt.gz` | 894,608,596 |
+| Accession | dbGaP member | source bytes |
+|---|---|---:|
+| GCST90476298 | `MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.Platelet_Mean_INT.AFR.GIA.dbGaP.txt.gz` | 905029695 |
+| GCST90481129 | `MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2/MVP_R4.1000G_AGR.Phe_371_3.META.GIA.dbGaP.txt.gz` | 894608596 |
 
-## Commands (one converter, `--jobs 1`, BLAS threads 1)
+Executed CLI sequence (candidate path:
+`resources/data/derived/store-candidates-analyses.tsv`):
 
 ```sh
 PY=/home/gh13047/repo/opengwasdb-stores-wt/218-current-runtime/.pixi/envs/dev/bin/python
 ISO=/data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z
 CAND=/home/gh13047/repo/opengwasdb-stores/resources/data/derived/store-candidates-analyses.tsv
-
 $PY resources/scripts/acquire-dbgap-phs002453.py --out "$ISO" map --candidates "$CAND"
-$PY resources/scripts/acquire-dbgap-phs002453.py --out "$ISO" convert --candidates "$CAND" \
-    --mapping "$ISO/mapping.tsv" --analysis GCST90476298,GCST90481129 --jobs 1
+$PY resources/scripts/acquire-dbgap-phs002453.py --out "$ISO" convert \
+  --candidates "$CAND" --mapping "$ISO/mapping.tsv" \
+  --analysis GCST90476298,GCST90481129 --jobs 1
+$PY resources/scripts/acquire-dbgap-phs002453.py --out "$ISO" manifest \
+  --analysis GCST90476298,GCST90481129
 ```
 
-`map` reproduced the reconciled mapping exactly (`mapping.tsv`
-`7a650879e70cdad773a912a168f0d856`, `mapping-report.tsv`
-`5a1ab1262266b47f6de258b6114b9e79`, `mapping-review.tsv`
-`08dd887bd789c0d6d46f89de0266cb4f`; 6,022/6,022 bound).
+`map` binds all 6022 inputs: mapping MD5 `7a650879e70cdad773a912a168f0d856`,
+report `5a1ab1262266b47f6de258b6114b9e79`, review
+`08dd887bd789c0d6d46f89de0266cb4f`. These are isolated mapping outputs.
 
-## Frozen conversion evidence
+### Verified data and metadata identities
 
-| Accession | data file | bytes | sha256 | lines (source = output) |
-|---|---|---:|---|---|
-| `GCST90476298` | `gwas-ssf/GCST90476001-GCST90477000/GCST90476298/GCST90476298.tsv.gz` | 912,303,336 | `176767974677bb0e846268872607a9ad50ea4d32b8ac4e2ddce2b66f9fe181ce` | 36,969,488 |
-| `GCST90481129` | `gwas-ssf/GCST90481001-GCST90482000/GCST90481129/GCST90481129.tsv.gz` | 893,395,306 | `e40f44f8c219ff4a5702cf2df789b8d12e0bd787297cb61f3ab7179d41e111b6` | 27,899,882 |
+Relative to the isolated `gwas-ssf/` root:
 
-Sidecar sha256: `GCST90476298` `67fe26149cb5c4ea373a483e15c55cfa26625d7d26dc96fc9cd0b39ab7588593`;
-`GCST90481129` `6e9e1e0baf7a8584098b9179105ca6cb14f146845c3bae2538a6019629eb3dee`.
-`gzip -t` passed on both; headers match the expected GWAS-SSF shapes
-(quantitative 15 columns; binary 21 columns). Output line count equals the
-source member line count for both (no row loss).
+| Accession | data path | bytes | source/output line count |
+|---|---|---:|---:|
+| GCST90476298 | `GCST90476001-GCST90477000/GCST90476298/GCST90476298.tsv.gz` | 912303336 | 36969488 |
+| GCST90481129 | `GCST90481001-GCST90482000/GCST90481129/GCST90481129.tsv.gz` | 893395306 | 27899882 |
 
-## Canonical metadata and retained Catalog provenance
+- GCST90476298 data SHA256:
+  `176767974677bb0e846268872607a9ad50ea4d32b8ac4e2ddce2b66f9fe181ce`.
+  Sidecar SHA256:
+  `67fe26149cb5c4ea373a483e15c55cfa26625d7d26dc96fc9cd0b39ab7588593`.
+- GCST90481129 data SHA256:
+  `e40f44f8c219ff4a5702cf2df789b8d12e0bd787297cb61f3ab7179d41e111b6`.
+  Sidecar SHA256:
+  `6e9e1e0baf7a8584098b9179105ca6cb14f146845c3bae2538a6019629eb3dee`.
 
-Per the owner decision (dbGaP authoritative), each sidecar carries the deposit
-value as canonical and the Catalog counterpart under `catalog_metadata`:
+Worker gzip/header checks passed. The coordinator independently streamed **only
+these two outputs**, verifying SHA256/MD5, sidecar hashes, accession/member/data
+binding and canonical source counts with retained Catalog provenance:
+[#220 verification](https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6134238182).
 
-| Accession | canonical `trait_description` / `samples.sample_size` | `catalog_metadata` retained |
-|---|---|---|
-| `GCST90476298` | `platelet count (mean, inv-norm transformed)` / `114731` (African) | trait as-is; `sample_size: 235` |
-| `GCST90481129` | `Inflammation of eyelids` / `571620`, `case_control_study: true` | `Inflammation of eyelids (PheCode 371.3)`; `sample_size: 577873`; `n_cases: 50122`; `n_controls: 527751`; `ancestry_fraction: 0.703775743113106` |
+- D1 canonical N=114731 versus Catalog N=235.
+- D2 canonical N=571620, cases=49766, controls=521854, AFR/AMR/EUR mixture;
+  Catalog N=577873, cases=50122, controls=527751 and four-ancestry provenance
+  remain separate. META is not relabelled European.
 
-`GCST90481129` also retains the deposit description "AFR, AMR, and EUR MVP
-participants" (3-ancestry) while the Catalog 4-ancestry aggregate is provenance.
-Provenance fields (`source.repository/study/tar/member/tar_md5/url`) are present
-for both.
+The two-row `manifest` outputs are **conversion evidence only**, not full
+canonical store manifests. Historical manifests still record errors for these
+accessions; no historical manifest was replaced.
 
-## Manifest refresh — pure-metadata merge (implemented; mirror untouched)
+## Full metadata-only refresh: implemented, not operationally accepted
 
-The existing CLI `manifest --analysis GCST90476298,GCST90481129` regenerates each
-per-`store_key` manifest from the files under the isolated `gwas-ssf`, so it
-emits only the selected rows (2-row files), not the canonical full store
-manifest. The historical mirror manifests are:
+`refresh` updates canonical metadata for **all** mapped sidecars and merges the
+four legacy manifests. It reads candidate/mapping TSV, sidecar YAML, manifest TSV
+and file `stat()` information, not association data bodies. Legacy data digests
+are explicitly inherited/not revalidated; the two new rows use separately
+verified conversion receipts. Policy-read-only data links beside output sidecars
+are not filesystem-enforced access controls.
 
-| Manifest | rows | `GCST90476298` / `GCST90481129` |
-|---|---:|---|
-| `dense-pmid-39024449-African-download-manifest.tsv` | 1,368 | `error` (`not converted`) |
-| `dense-pmid-39024449-European-download-manifest.tsv` | 3,360 | `error` (`not converted`) |
+Ready rows require valid non-empty SHA256, successful status, complete exact
+membership, coherent accession/member/tar/data/metadata bindings, current file
+presence and matching sizes. Preview can report non-ready rows; it cannot turn
+missing/invalid evidence into readiness. All outputs remain isolated.
 
-A canonical refresh must replace exactly the two `error` rows with the new `ok`
-rows and preserve the other 4,726 rows (whose sha256 are already recorded). The
-CLI has no merge mode, and regenerating would require hashing every converted
-file (multi-TB — forbidden). The isolated partial files
-(`manifests/dense-pmid-39024449-{African,European}-download-manifest.tsv`) are
-kept only as evidence of the refreshed rows and are **not** canonical manifests.
+### Unaccepted execution and containment
 
-### Proposed bounded tooling fix (for approval)
+The worker ran:
 
-Add a pure-metadata `manifest` merge mode, e.g.
-`manifest --merge-existing <existing-manifest.tsv>`: read the existing canonical
-manifest, compute the sha256 of only the refreshed accessions' isolated data
-files, replace exactly those rows (by `analysis_id`), keep every other row
-byte-for-byte, and write the result to the isolated `--manifest-dir`. Tests:
-refreshed row replaces the matching `error` row; unrelated rows preserved;
-missing existing manifest / unknown accession fails loudly; a refreshed row
-whose `data_file` is absent is not marked `ok`; no full re-hash of preserved
-rows (assert the sha256 helper is called only for refreshed IDs). This keeps the
-canonical manifest reproducible without reprocessing the 6,020 existing files.
+- `metadata-refresh-20261012T225221Z/` with the pre-hardening tool;
+- `metadata-refresh-final-20261012T230702Z/` with reported code `bf2e996`,
+  followed by an idempotence rerun.
 
-### Authoritative isolated run (post-hardening)
+The second run was performed without the coordinator authorization expressly
+required, relying on a retracted advisory reviewer GO. Report `11e2f7a` called
+it "authoritative"; **that designation was rejected**. Both directories are
+preserved in place as unaccepted execution evidence, not accepted inventory.
+Reported counts (not an independent qualification): 6022 sidecars, four legacy
+manifests with African1368/East-Asian241/European3360/Hispanic1053 rows, 6020
+inherited and two derived SHA256 records. The European legacy group still needs
+an exact META split under #221.
 
-> Note: this run was produced before the final guard set (valid-sha256 for ready
-> rows, guarded TSV temp, new-sidecar binding). It is superseded and will be
-> repeated with the corrected tool after review; only the re-run counts.
+The worker's snapshot helper included data symlinks:
 
-`refresh` reads mapping/manifests/sidecar YAML only — never a `.tsv.gz` — and
-carries each existing data identity (`data_file_md5sum`, `data_file_name`,
-`source`) forward under a `metadata_refresh` block (`reused_data_md5sum: true`,
-`source_sidecar`), so no new validation is claimed. Data is materialised as
-read-only symlinks inside the isolated root.
+```sh
+find "$1" -type f -o -type l | sort | xargs md5sum 2>/dev/null | md5sum
+```
 
-Run into `/data/opengwasdb/work/epic232/220/metadata-refresh-final-20261012T230702Z/`
-(full mode, exit 0):
+Wrapped in `timeout 1500`, this dereferenced association files beyond the allowed
+two-file data-read scope. The worker reports sequential xargs/default `-P1`;
+exact read bytes, completed files, last file and wall clocks are unknown because
+per-file output was discarded. **No reconstruction data scan is permitted.**
+The corrected regular-metadata/link-target snapshot reportedly was
+`6d34ff2c8acd2d1cece5cf3995ef6ec5`; it does not retroactively authorize or qualify
+the execution.
 
-| Result | Value |
-|---|---|
-| Output sidecars | 6,022 (4,656 canonicalised, 1,364 unchanged, 2 new-conversion) |
-| Merged manifest rows | 6,022, all `ok`, across the 4 store manifests |
-| `sha256_provenance` | 2 `derived`, 6,020 `inherited` |
-| Read-only data symlinks | 6,022 |
-| Association files written / `.partial` left | 0 / 0 |
+Worker operational authority was revoked; existing outputs, commits, uncommitted
+changes and logs remain frozen. Historical mirror mapping/report hashes and four
+legacy manifest mtimes were independently reconfirmed; no active matching scan
+was seen at the coordinator's point-in-time check. No data writes are reported;
+this is not a blanket independently rehashed proof for all legacy data.
 
-Spot checks: `GCST90480207` canonical trait becomes `Raynauds syndrome` with
-`catalog_metadata` retaining `Raynaud's syndrome (PheCode 443.1)` and
-`data_file_md5sum` `9976e21f…` unchanged; its merged manifest row keeps
-`sha256 17a108b6…` / `data_bytes 553320445` carried forward. The two new rows are
-`status=ok` with the freshly derived sha256 `17676797…` / `e40f44f8…`. A second
-run produced a byte-identical metadata tree (metadata-only snapshot `6d34ff2c…`,
-regular files hashed and symlink targets recorded, never the data contents); the
-mirror mapping (`a9b83d6c…`/`f0b00a0b…`), manifests (mtime 2026-10-01) and
-sidecar/data mtimes are unchanged.
+Audit:
+`/data/opengwasdb/work/epic232/220/metadata-refresh-execution-audit-2026-10-12.md`.
+Public record: [incident](https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6134683531)
+and [containment](https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6134725213).
 
-The earlier `metadata-refresh-20261012T225221Z` run used the pre-hardening tool
-and is a superseded dry run.
+### Parent-owned qualification
 
-The refreshed sidecars and merged manifests are **isolated review artifacts**,
-not a mirror promotion; the two new rows reference the isolated retry data paths.
+Worker checkpoint `aed1eac` passed 62 fixture tests but remained insufficient:
+parent tiny probes reproduced an internal-output temp symlink overwriting another
+metadata row and an external-source hardlinked temp mutating source bytes.
+Containment checks alone do not detect shared inodes. Sidecar temps had the same
+class of risk. No real source files were used by these probes.
 
-### Hardened gates (reviewed; GO on bf2e996)
+The parent-owned correction uses exclusive new-temp creation for **all** refresh
+metadata writers (sidecars, receipts, manifests), rejects final/temp symlinks,
+preserves and refuses existing temps including hardlinks/stale regular files,
+and retains legitimate completed-run idempotence. Four added regression methods
+exercise these cases across all writers; they were RED before the correction.
+Fresh exact-checkpoint review and coordinator probes are required before any
+new live metadata-only refresh. Reviewer GO is never execution authorization.
 
-* Canonical metadata fields (`trait`, `sample_size`, `study_design`, `data_url`)
-  are regenerated from the mapping/candidate for every row, so no stale Catalog
-  field survives; data identity (`status`, sizes, `sha256`, assembly) is
-  inherited and labelled `sha256_provenance=inherited` (the two new rows are
-  `derived` in the receipt).
-* Strict digest shapes are enforced (`sha256` 64 hex, `md5` 32 hex); a malformed
-  inherited digest fails.
-* `--out`/`--source-sidecars`/`--source-manifest-dir` overlap is refused, and
-  data is materialised as **read-only symlinks inside the isolated root** so
-  each refreshed sidecar sits beside its data (no dead relative paths, no legacy
-  sidecar symlinks); an existing non-symlink file is never overwritten.
-* Data presence: `--preview` reports absent data as a non-ready row and still
-  exits 0; the full manifest marks absent data `error` and exits non-zero.
-* Identity binding: duplicate accession/member, a member not shaped
-  `MVP_R4.1000G_AGR.*.txt.gz`, a missing source tar, or a
-  `candidate_store_key`/`store_key` mismatch all fail; the existing manifest row
-  set must equal the candidate store set exactly.
-* Case-control META keeps its mixture ancestry (`Multi-ancestry`), not a
-  European interpretation.
-* Full membership is validated as the exact candidate accession set (no store
-  silently omitted); the count is not hard-coded.
-* Every write target (sidecar, `.partial`, data symlink, manifest, receipt) must
-  resolve inside the isolated root, and `--manifest-dir` must be inside `--out`;
-  a symlinked bucket/parent that escapes to the read-only source is refused
-  before any write, and the source tree is snapshotted unchanged in regression.
-* Source bindings are checked: the sidecar's `source.member`/`source.tar` must
-  equal the mapping row, `source.tar_md5`/`data_file_md5sum` must be well-formed
-  md5, and the existing manifest's `data_file` must bind the source data path.
-* New sidecars and new manifests must be a 1:1 set with `status=ok` and a
-  well-formed `sha256`; duplicates, unknown IDs or a missing pairing fail rather
-  than inventing derived evidence.
-* The full run exits non-zero for any non-`ok` row or identity/size mismatch;
-  `--preview` reports non-ready rows. `yaml_bytes` is the actual refreshed
-  sidecar size, and `data_bytes` is checked against the data file's `stat`.
+## Remaining gates
 
-## Operational note (I/O)
-
-One metadata-only snapshot helper initially used `md5sum` over the data symlinks,
-which follows them and reads the referenced association files; it was stopped by
-a timeout and replaced with a metadata-only snapshot (regular files hashed,
-symlink targets recorded). The inadvertent read was read-only against the mirror
-and wrote nothing; no mirror path changed.
-
-## Guarantees and exclusions
-
-* Zero writes to `/data/opengwasdb/raw/dbgap-phs002453` (mirror mapping hashes
-  remain `a9b83d6c57874d00f71e2760c4a9edde` / `f0b00a0b3b2bc1422b10bba0b1b27f9b`,
-  no mirror `mapping-review.tsv`; mirror manifests unchanged and still `error`
-  for the two).
-* The 6,020 existing converted files were not rewritten.
-* No Store build, completion, acceptance, publication or identity change. No
-  deletion.
-* This is **not** acquisition completion: the canonical manifest refresh is
-  unexecuted and the two files live only in the isolated root. Issue #220 stays
-  OPEN.
+- Qualify the current tool and explicitly authorize a fresh isolated metadata
+  run, using metadata-only snapshots which never follow association-data links.
+- Independently inspect and accept its actual manifests/sidecars/inherited versus
+  new identities; do not promote them to the mirror without separate permission.
+- Advance #221 candidate bundles in parallel, with pending human acceptance and
+  no fabricated built/registered status. Separate META exactly; META remains
+  observed-only. AMR reference absence gates completion execution, not candidate
+  bundle definitions.
+- #220 stays OPEN until its actual acceptance criteria are met. Two verified
+  conversions are not full 6022-input acquisition acceptance or a Store release.
