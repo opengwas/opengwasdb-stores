@@ -18,6 +18,8 @@ source_hashes:
   candidates_table: resources/data/derived/store-candidates-analyses.tsv
   candidates_table_path: /home/gh13047/repo/opengwasdb-stores/resources/data/derived/store-candidates-analyses.tsv
   candidates_sha256: aef4dbe2515be177797f60a2c567a5e6b2d02557efb64abf4156889db085c4e7
+  mapping_table: /data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv
+  mapping_sha256: 96fa3a7b1b3ef3e3229ef5418a1d60e16b6528977b692164698e4bc40ac69b08
   planned_manifests:
     dense-pmid-39024449-European-download-manifest.tsv: baf5f0724288f4fc48afc9669667191d251761efbe6bbf74c0076d1d4622d355
     dense-pmid-39024449-African-download-manifest.tsv: 0685ef83a9925acb1e95e57162ba4fc106c113e0e9d32bfe65bb27a60049f482

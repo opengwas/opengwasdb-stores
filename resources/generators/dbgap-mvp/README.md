@@ -106,12 +106,18 @@ registry `stores/` tree outright.
   non-empty `source_file`, `source_genome_build`, `source_label` and
   `source_analysis_id` (plus the Analysis metadata columns). No default source
   build, sample size or SD is invented; a blank required value fails the emit.
-  Each row's `assigned_ancestry` must match its bucket (META is the only bucket
-  without a single ancestry).
+  Each row's `assigned_ancestry` must match its bucket, except META, whose value
+  must be unambiguously empty or a META/multi-ancestry alias (`Multi-ancestry`
+  is normalised to empty in the emitted table) and never a single-ancestry
+  label. Sample size must be a positive integer and any SD finite positive;
+  `source_genome_build` is checked against the actual manifest and sidecar
+  assembly, not the config alone.
 - **Never emit under the registry `stores/` tree.** A candidate passes
   `bundle.check()`, and the Phase A Snakefile targets every valid bundle under
-  `stores/`, so an unbuilt candidate written there would become buildable. The
-  emitter refuses the registry Store root and any symlinked output path.
+  `stores/`, so an unbuilt candidate written there would become buildable. Every
+  mode refuses this checkout's and the canonical `stores/` root, any
+  `--registry-root`, any path component named `stores`, and any symlinked
+  ancestor, before any `mkdir` or write.
 - **Provenance on every bundle.** `release.yaml: source_snapshot` records the
   metadata root, code sha, metadata content sha256, candidate/mapping paths and
   the resolution table's own sha256 (regular metadata only; no association

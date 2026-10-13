@@ -129,26 +129,47 @@ def sha256_file(path: Path | str) -> str:
     return digest.hexdigest()
 
 
-def assert_not_registry_store_root(out_dir: Path | str) -> None:
-    """Refuse to emit anywhere under the registry's active ``stores/`` tree.
+DEFAULT_REGISTRY_ROOTS: tuple[Path, ...] = (
+    REPO_ROOT / "stores",
+    Path("/home/gh13047/repo/opengwasdb-stores/stores"),
+)
+
+META_ANCESTRY_ALIASES: frozenset[str] = frozenset(
+    {"", "META", "MULTI-ANCESTRY", "MULTIANCESTRY", "MIXED"}
+)
+
+
+def _normalised_ancestry(value: str | None) -> str:
+    return (value or "").strip().upper().replace("_", "-").replace(" ", "-")
+
+
+def assert_not_registry_store_root(
+    out_dir: Path | str, registry_roots: Sequence[Path | str] = ()
+) -> None:
+    """Refuse to emit into a registry ``stores/`` tree from any checkout.
 
     A candidate passes ``bundle.check()``, and the Phase A Snakefile targets
     every valid bundle under ``stores/``; writing there would make an unbuilt,
-    acceptance-pending candidate buildable. It is not allowed.
+    acceptance-pending candidate buildable. Rejects this checkout's root, the
+    canonical/primary root, any caller-supplied ``--registry-root``, any path
+    component literally named ``stores``, and any symlinked ancestor.
     """
     path = Path(out_dir)
-    registry_root = (REPO_ROOT / "stores").resolve()
+    roots = [Path(root).resolve() for root in (*DEFAULT_REGISTRY_ROOTS, *registry_roots)]
     resolved = path.resolve()
-    if resolved == registry_root or registry_root in resolved.parents:
-        raise CandidateError(
-            f"refusing to emit under the registry Store root {registry_root}: {path}"
-        )
-    if path.is_symlink():
-        raise CandidateError(f"refusing to emit into a symlinked output directory: {path}")
-    for parent in (path, path.parent):
-        if parent.is_symlink():
+    for root in roots:
+        if resolved == root or root in resolved.parents:
             raise CandidateError(
-                f"refusing to emit under a symlinked output parent: {parent}"
+                f"refusing to emit under the registry Store root {root}: {path}"
+            )
+    if "stores" in resolved.parts:
+        raise CandidateError(
+            f"refusing to emit under a path component named 'stores': {path}"
+        )
+    for ancestor in (path, *path.parents):
+        if ancestor.is_symlink():
+            raise CandidateError(
+                f"refusing to emit under a symlinked output path: {ancestor}"
             )
 
 
@@ -161,6 +182,15 @@ def _finite_positive(value: object, where: str) -> None:
         raise CandidateError(f"{where} must be finite and positive: {value!r}")
 
 
+def _positive_integer(value: object, where: str) -> None:
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError) as exc:
+        raise CandidateError(f"{where} is not numeric: {value!r}") from exc
+    if not math.isfinite(number) or number <= 0 or not number.is_integer():
+        raise CandidateError(f"{where} must be a positive integer: {value!r}")
+
+
 def validate_resolution_row(
     row: Mapping[str, str],
     ancestry: str,
@@ -170,8 +200,8 @@ def validate_resolution_row(
     """Per-row gates before any emit.
 
     Non-empty required values, exact source-ID binding, the manifest's own
-    data-file path, the named sidecar's genome assembly, finite positive
-    sample size/SD, and ancestry match. Nothing is defaulted.
+    data-file path and genome assembly, the named sidecar's genome assembly,
+    finite positive sample size/SD, and an unambiguous ancestry.
     """
     analysis_id = row.get("analysis_id", "")
     for column in REQUIRED_RESOLUTION_COLUMNS:
@@ -184,7 +214,16 @@ def validate_resolution_row(
                 f"resolution row {analysis_id!r} has a blank required column {column!r}"
             )
     declared = (row.get("assigned_ancestry") or "").strip()
-    if ancestry != "META" and declared != (assigned_ancestry or ""):
+    if ancestry == "META":
+        # META must be unambiguously empty or a META/multi-ancestry alias; a
+        # single-ancestry label such as EUR or AFR on a META row is a
+        # cross-ancestry leak, not a normal value.
+        if _normalised_ancestry(declared) not in META_ANCESTRY_ALIASES:
+            raise CandidateError(
+                f"resolution row {analysis_id!r} assigned_ancestry {declared!r} is "
+                "not an unambiguous empty/META value"
+            )
+    elif declared != (assigned_ancestry or ""):
         raise CandidateError(
             f"resolution row {analysis_id!r} assigned_ancestry {declared!r} does "
             f"not match the {ancestry} bucket"
@@ -201,6 +240,15 @@ def validate_resolution_row(
                 f"resolution row {analysis_id!r} source_file "
                 f"{(row.get('source_file') or '')!r} != manifest data_file {data_file!r}"
             )
+        # Validate the assembly against the ACTUAL manifest metadata and, when
+        # present, the named sidecar; the config is never the sole source.
+        manifest_assembly = (manifest_row.get("genome_assembly") or "").strip()
+        if manifest_assembly and (row.get("source_genome_build") or "").strip() != manifest_assembly:
+            raise CandidateError(
+                f"resolution row {analysis_id!r} source_genome_build "
+                f"{(row.get('source_genome_build') or '')!r} != manifest genome_assembly "
+                f"{manifest_assembly!r}"
+            )
         yaml_file = (manifest_row.get("yaml_file") or "").strip()
         if yaml_file:
             sidecar = yaml.safe_load(Path(yaml_file).read_text(encoding="utf-8")) or {}
@@ -211,7 +259,7 @@ def validate_resolution_row(
                     f"{(row.get('source_genome_build') or '')!r} != sidecar genome_assembly "
                     f"{sidecar_assembly!r}"
                 )
-    _finite_positive(row.get("sample_size"), f"resolution row {analysis_id!r} sample_size")
+    _positive_integer(row.get("sample_size"), f"resolution row {analysis_id!r} sample_size")
     for column in ("original_sd", "phenotype_sd"):
         if column in row and (row.get(column) or "").strip():
             _finite_positive(row[column], f"resolution row {analysis_id!r} {column}")
@@ -589,8 +637,10 @@ def emit_bundle(
     bundle_dir = out_dir / store_id
     if bundle_dir.is_symlink():
         raise CandidateError(f"refusing to write through a symlinked bundle path: {bundle_dir}")
-    if bundle_dir.exists():
-        raise CandidateError(f"refusing to overwrite existing bundle: {bundle_dir}")
+    try:
+        bundle_dir.mkdir(parents=True, exist_ok=False)
+    except FileExistsError as exc:
+        raise CandidateError(f"refusing to overwrite existing bundle: {bundle_dir}") from exc
     _atomic_write(bundle_dir / "release.yaml", yaml.safe_dump(dict(release), sort_keys=False), out_dir)
     _atomic_write(bundle_dir / "build.yaml", yaml.safe_dump(dict(build), sort_keys=False), out_dir)
     _atomic_write(bundle_dir / "validation.yaml", yaml.safe_dump(dict(validation), sort_keys=False), out_dir)
@@ -633,6 +683,7 @@ def run_plan(
     mapping_path: Path | str,
     out_dir: Path,
     manifest_counts: Mapping[str, int] | None = None,
+    registry_roots: Sequence[Path | str] = (),
 ) -> dict:
     _, partition = build_partition(config, mapping_path)
     manifest_counts = manifest_counts or {}
@@ -641,7 +692,7 @@ def run_plan(
     verify_metadata_snapshot(config)
     manifests = read_manifest_rows(config)
     validate_manifest_membership(config, partition, manifests)
-    assert_not_registry_store_root(out_dir)
+    assert_not_registry_store_root(out_dir, registry_roots)
     out_dir.mkdir(parents=True, exist_ok=True)
     _atomic_write(
         out_dir / "partition.tsv",
@@ -759,10 +810,14 @@ def render_candidate_definitions(
 
 
 def write_candidate_definitions(
-    config: Mapping, out_dir: Path, manifest_counts: Mapping[str, int] | None = None
+    config: Mapping,
+    out_dir: Path,
+    manifest_counts: Mapping[str, int] | None = None,
+    mapping_path: Path | str | None = None,
+    registry_roots: Sequence[Path | str] = (),
 ) -> Path:
-    assert_not_registry_store_root(out_dir)
-    source_hashes = metadata_hashes(config)
+    assert_not_registry_store_root(out_dir, registry_roots)
+    source_hashes = metadata_hashes(config, mapping_path)
     path = out_dir / "candidates.yaml"
     _atomic_write(
         path,
@@ -784,6 +839,7 @@ def run_emit(
     created_at: str,
     check: bool = True,
     manifest_counts: Mapping[str, int] | None = None,
+    registry_roots: Sequence[Path | str] = (),
 ) -> dict:
     _, partition = build_partition(config, mapping_path)
     resolution_rows = read_tsv(resolution_path)
@@ -815,7 +871,7 @@ def run_emit(
         analysis_id: row for rows in manifests.values() for analysis_id, row in rows.items()
     }
 
-    assert_not_registry_store_root(out_dir)
+    assert_not_registry_store_root(out_dir, registry_roots)
     out_dir.mkdir(parents=True, exist_ok=True)
     emitted: dict[str, str] = {}
     checked: list[str] = []
@@ -844,6 +900,12 @@ def run_emit(
             validate_resolution_row(
                 row, ancestry, store.get("assigned_ancestry"), manifest_index.get(analysis_id)
             )
+            if ancestry == "META":
+                # Emit the empty super-population for cross-ancestry rows: the
+                # core contract rejects a non-super-population value, and a
+                # single-ancestry label would misdescribe META.
+                row = dict(row)
+                row["assigned_ancestry"] = ""
             member_rows.append(row)
         analyses_text = render_analyses_tsv(member_rows, columns)
 
@@ -1024,24 +1086,41 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="ISO timestamp for emitted release.yaml files (defaults to now)",
     )
     parser.add_argument("--no-check", action="store_true", help="skip bundle.check()")
+    parser.add_argument(
+        "--registry-root",
+        action="append",
+        default=[],
+        type=Path,
+        help="additional registry stores/ root to refuse as an output (repeatable)",
+    )
     args = parser.parse_args(argv)
 
     config = load_config(args.config)
     created_at = args.created_at or datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    registry_roots = tuple(args.registry_root or ())
     manifest_counts: dict[str, int] = {}
     metadata = config.get("metadata") or {}
     if metadata.get("root") and Path(metadata["root"]).is_dir():
         manifest_counts = read_planned_manifests(config)
 
+    mapping_for_hash = args.mapping or _resolve_metadata_path(config, metadata.get("mapping"))
     if args.mode == "definitions":
-        path = write_candidate_definitions(config, args.out_dir, manifest_counts)
+        path = write_candidate_definitions(
+            config,
+            args.out_dir,
+            manifest_counts,
+            mapping_path=mapping_for_hash,
+            registry_roots=registry_roots,
+        )
         print(json.dumps({"definitions": str(path)}, indent=2))
         return 0
 
     if args.mapping is None:
         raise CandidateError(f"{args.mode} mode requires --mapping")
     if args.mode == "plan":
-        plan = run_plan(config, args.mapping, args.out_dir, manifest_counts)
+        plan = run_plan(
+            config, args.mapping, args.out_dir, manifest_counts, registry_roots
+        )
         print(json.dumps(plan, indent=2))
         return 0
 
@@ -1055,6 +1134,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         created_at=created_at,
         check=not args.no_check,
         manifest_counts=manifest_counts,
+        registry_roots=registry_roots,
     )
     print(json.dumps(result, indent=2))
     return 0

@@ -510,7 +510,7 @@ class TestCandidateEmission(unittest.TestCase):
         for row in rows:
             if row["analysis_id"] == "eur1":
                 row["sample_size"] = "NaN"
-        with self.assertRaisesRegex(gen.CandidateError, "finite and positive"):
+        with self.assertRaisesRegex(gen.CandidateError, "positive integer"):
             self._emit_mutated(rows)
 
     def test_same_count_swapped_manifest_id_fails(self) -> None:
@@ -538,6 +538,51 @@ class TestCandidateEmission(unittest.TestCase):
                 self.out,
                 gen.read_planned_manifests(config),
             )
+
+    def test_meta_row_with_single_ancestry_label_fails(self) -> None:
+        rows = gen.read_tsv(self.resolution)
+        for row in rows:
+            if row["analysis_id"] == "meta1":
+                row["assigned_ancestry"] = "EUR"
+        with self.assertRaisesRegex(gen.CandidateError, "unambiguous empty/META"):
+            self._emit_mutated(rows)
+
+    def test_meta_multi_ancestry_alias_is_normalised_empty(self) -> None:
+        rows = gen.read_tsv(self.resolution)
+        for row in rows:
+            if row["analysis_id"] == "meta1":
+                row["assigned_ancestry"] = "Multi-ancestry"
+        self._emit_mutated(rows)
+        with (self.out / "OGS-00017" / "analyses.tsv").open(newline="", encoding="utf-8") as handle:
+            table = {row["analysis_id"]: row for row in csv.DictReader(handle, delimiter="\t")}
+        self.assertEqual(table["meta1"]["assigned_ancestry"], "")
+
+    def test_non_integer_sample_size_fails(self) -> None:
+        rows = gen.read_tsv(self.resolution)
+        for row in rows:
+            if row["analysis_id"] == "eur1":
+                row["sample_size"] = "1000.5"
+        with self.assertRaisesRegex(gen.CandidateError, "positive integer"):
+            self._emit_mutated(rows)
+
+    def test_extra_registry_root_is_refused(self) -> None:
+        custom = self.tmp / "custom-registry"
+        (custom / "stores").mkdir(parents=True)
+        with self.assertRaisesRegex(gen.CandidateError, "registry Store root"):
+            gen.assert_not_registry_store_root(
+                custom / "stores" / "OGS-00099", [custom / "stores"]
+            )
+
+    def test_stores_path_component_is_refused(self) -> None:
+        with self.assertRaisesRegex(gen.CandidateError, "path component named 'stores'"):
+            gen.assert_not_registry_store_root(self.tmp / "stores" / "nested")
+
+    def test_definitions_include_mapping_hash(self) -> None:
+        path = gen.write_candidate_definitions(
+            self.config, self.out, mapping_path=self.mapping
+        )
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        self.assertEqual(len(document["source_hashes"]["mapping_sha256"]), 64)
 
     def _emit_mutated(self, rows: list[dict[str, str]]):
         path = self.tmp / "mutated-resolution.tsv"
