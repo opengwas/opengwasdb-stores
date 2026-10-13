@@ -22,9 +22,14 @@ Test suite for `resources/generators/dbgap-mvp` (issue #221).
 6. **Tracked definitions**: `write_candidate_definitions` records the intended
    membership/recipe with `in_stores: false`, `owner_ordering_approved: false`,
    planned manifest paths, and pending acceptance and resolution.
-7. **Fail closed**: a missing or extra resolution row, and an attempted
-   overwrite of an existing bundle, raise rather than emit.
-8. Every emitted bundle passes `bundle.check()` (run inside the emitter).
+7. **Fail closed**: a missing or extra resolution row, a blank required
+   source-binding value, a cross-ancestry row, an attempted overwrite, a
+   symlinked output path, or an output under the registry `stores/` tree all
+   raise rather than emit.
+8. **Provenance**: every emitted `release.yaml` carries a `source_snapshot` with
+   the metadata root/code/hash provenance and the resolution table's sha256
+   (regular metadata only).
+9. Every emitted bundle passes `bundle.check()` (run inside the emitter).
 
 ## Running the suite
 

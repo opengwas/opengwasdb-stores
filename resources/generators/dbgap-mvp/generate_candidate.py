@@ -74,6 +74,13 @@ REQUIRED_RESOLUTION_COLUMNS: tuple[str, ...] = (
     "sample_size",
     "original_effect_scale",
     "original_sd_method",
+    # Dataset-source binding: the real source file path, genome build and
+    # source label/ID must be present on every row. The emitter never invents a
+    # default source build or sample-size/SD value.
+    "source_file",
+    "source_genome_build",
+    "source_label",
+    "source_analysis_id",
 )
 
 
@@ -99,6 +106,64 @@ def read_tsv(path: Path | str) -> list[dict[str, str]]:
     if not rows:
         raise CandidateError(f"TSV has no data rows: {tsv_path}")
     return rows
+
+
+def sha256_file(path: Path | str) -> str:
+    """Hash a regular metadata file (never an association file)."""
+    import hashlib
+
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def assert_not_registry_store_root(out_dir: Path | str) -> None:
+    """Refuse to emit anywhere under the registry's active ``stores/`` tree.
+
+    A candidate passes ``bundle.check()``, and the Phase A Snakefile targets
+    every valid bundle under ``stores/``; writing there would make an unbuilt,
+    acceptance-pending candidate buildable. It is not allowed.
+    """
+    path = Path(out_dir)
+    registry_root = (REPO_ROOT / "stores").resolve()
+    resolved = path.resolve()
+    if resolved == registry_root or registry_root in resolved.parents:
+        raise CandidateError(
+            f"refusing to emit under the registry Store root {registry_root}: {path}"
+        )
+    if path.is_symlink():
+        raise CandidateError(f"refusing to emit into a symlinked output directory: {path}")
+    for parent in (path, path.parent):
+        if parent.is_symlink():
+            raise CandidateError(
+                f"refusing to emit under a symlinked output parent: {parent}"
+            )
+
+
+def validate_resolution_row(
+    row: Mapping[str, str], ancestry: str, assigned_ancestry: str | None
+) -> None:
+    """Per-row gates before any emit: non-empty required values and ancestry match."""
+    analysis_id = row.get("analysis_id", "")
+    for column in REQUIRED_RESOLUTION_COLUMNS:
+        # META is the cross-ancestry bucket: it has no single assigned ancestry
+        # by design, but every other required value must be non-empty.
+        if column == "assigned_ancestry" and ancestry == "META":
+            continue
+        if not (row.get(column) or "").strip():
+            raise CandidateError(
+                f"resolution row {analysis_id!r} has a blank required column {column!r}"
+            )
+    declared = (row.get("assigned_ancestry") or "").strip()
+    # META is the cross-ancestry bucket and legitimately has no single assigned
+    # ancestry; every other bucket must bind its own ancestry exactly.
+    if ancestry != "META" and declared != (assigned_ancestry or ""):
+        raise CandidateError(
+            f"resolution row {analysis_id!r} assigned_ancestry {declared!r} does "
+            f"not match the {ancestry} bucket"
+        )
 
 
 def read_planned_manifests(config: Mapping) -> dict[str, int]:
@@ -190,6 +255,7 @@ def render_release_yaml(
     derived_from: str | None,
     completion_state: str,
     notes: str,
+    source_snapshot: Mapping | None = None,
 ) -> dict:
     release: dict = {
         "store_id": store_id,
@@ -206,6 +272,8 @@ def render_release_yaml(
         ),
         "notes": notes,
     }
+    if source_snapshot:
+        release["source_snapshot"] = dict(source_snapshot)
     return release
 
 
@@ -309,6 +377,8 @@ def emit_bundle(
     analyses_text: str | None,
 ) -> Path:
     bundle_dir = out_dir / store_id
+    if bundle_dir.is_symlink():
+        raise CandidateError(f"refusing to write through a symlinked bundle path: {bundle_dir}")
     if bundle_dir.exists():
         raise CandidateError(f"refusing to overwrite existing bundle: {bundle_dir}")
     _atomic_write(bundle_dir / "release.yaml", yaml.safe_dump(dict(release), sort_keys=False))
@@ -482,6 +552,7 @@ def run_emit(
     out_dir: Path,
     created_at: str,
     check: bool = True,
+    manifest_counts: Mapping[str, int] | None = None,
 ) -> dict:
     _, partition = build_partition(config, mapping_path)
     resolution_rows = read_tsv(resolution_path)
@@ -509,6 +580,10 @@ def run_emit(
     out_dir.mkdir(parents=True, exist_ok=True)
     emitted: dict[str, str] = {}
     checked: list[str] = []
+    manifest_counts = manifest_counts or {}
+    assert_not_registry_store_root(out_dir)
+    resolution_sha = sha256_file(resolution_path)
+    metadata = config.get("metadata") or {}
     for ancestry, store in config["stores"].items():
         members = partition[ancestry]
         member_rows = []
@@ -517,8 +592,27 @@ def run_emit(
                 raise CandidateError(
                     f"no resolution row for intended {ancestry} analysis {analysis_id!r}"
                 )
-            member_rows.append(resolution_by_id[analysis_id])
+            row = resolution_by_id[analysis_id]
+            validate_resolution_row(row, ancestry, store.get("assigned_ancestry"))
+            member_rows.append(row)
         analyses_text = render_analyses_tsv(member_rows, columns)
+
+        planned = store.get("planned_manifest")
+        source_snapshot = {
+            "metadata_root": metadata.get("root"),
+            "code_sha": metadata.get("code_sha"),
+            "output_metadata_content_sha256": metadata.get("output_metadata_content_sha256"),
+            "membership": metadata.get("membership"),
+            "association_opens": metadata.get("association_opens"),
+            "acceptance": metadata.get("acceptance"),
+            "candidates_table": metadata.get("candidates_table"),
+            "mapping_table": metadata.get("mapping"),
+            "resolution_table": str(resolution_path),
+            "resolution_sha256": resolution_sha,
+            "planned_manifest": planned,
+            "planned_manifest_members": manifest_counts.get(planned) if planned else None,
+            "source_metadata_only": True,
+        }
 
         observed_id = store["observed_store_id"]
         observed_only = bool(store.get("observed_only"))
@@ -544,6 +638,7 @@ def run_emit(
                 derived_from=None,
                 completion_state="observed-only",
                 notes=notes,
+                source_snapshot=source_snapshot,
             ),
             render_build_yaml(
                 store_id=observed_id,
@@ -577,6 +672,7 @@ def run_emit(
                     "status": "pending",
                     "blocked": reference.get("activation") != "active",
                     "human_acceptance": "pending",
+                    "source_snapshot": source_snapshot,
                     "note": (
                         "Completion definition only. The reference is not qualified or "
                         "activated and the completed Store is not accepted, built or "
@@ -606,6 +702,7 @@ def run_emit(
                     f"{reference.get('qualification')!r}, activation {reference.get('activation')!r}. "
                     "Unbuilt, acceptance-pending; not qualified or approved for execution."
                 ),
+                source_snapshot=source_snapshot,
             ),
             render_build_yaml(
                 store_id=completed_id,
@@ -693,6 +790,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.out_dir,
         created_at=created_at,
         check=not args.no_check,
+        manifest_counts=manifest_counts,
     )
     print(json.dumps(result, indent=2))
     return 0

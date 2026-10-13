@@ -91,6 +91,20 @@ completion result).
   block, even though an EUR panel exists.
 - **Fail closed on membership.** Every intended member must have exactly one
   resolution row and no extra row may be supplied; otherwise nothing is emitted.
+- **Non-empty dataset-source binding.** A resolution row must carry a real
+  non-empty `source_file`, `source_genome_build`, `source_label` and
+  `source_analysis_id` (plus the Analysis metadata columns). No default source
+  build, sample size or SD is invented; a blank required value fails the emit.
+  Each row's `assigned_ancestry` must match its bucket (META is the only bucket
+  without a single ancestry).
+- **Never emit under the registry `stores/` tree.** A candidate passes
+  `bundle.check()`, and the Phase A Snakefile targets every valid bundle under
+  `stores/`, so an unbuilt candidate written there would become buildable. The
+  emitter refuses the registry Store root and any symlinked output path.
+- **Provenance on every bundle.** `release.yaml: source_snapshot` records the
+  metadata root, code sha, metadata content sha256, candidate/mapping paths and
+  the resolution table's own sha256 (regular metadata only; no association
+  hash), plus the planned manifest and its membership count.
 - **No invented Analytical Metadata.** `plan` mode writes only the validated
   partition and a per-Store plan. `emit` mode requires a resolution table and
   refuses to write a bundle without one.

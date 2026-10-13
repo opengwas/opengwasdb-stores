@@ -96,6 +96,10 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
                     "sample_size": "1000",
                     "original_effect_scale": "sd",
                     "original_sd_method": "source_provided",
+                    "source_file": f"/fixture/{analysis_id}.tsv.gz",
+                    "source_genome_build": "GRCh38",
+                    "source_label": f"{ancestry} trait",
+                    "source_analysis_id": analysis_id,
                 }
             )
     resolution_path = tmp / "resolution.tsv"
@@ -111,6 +115,10 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
             "sample_size",
             "original_effect_scale",
             "original_sd_method",
+            "source_file",
+            "source_genome_build",
+            "source_label",
+            "source_analysis_id",
         ],
         resolution_rows,
     )
@@ -329,6 +337,54 @@ class TestCandidateEmission(unittest.TestCase):
         self.assertEqual(validation["acceptance"]["human_acceptance"], "pending")
         self.assertFalse(validation["acceptance"]["membership_accepted"])
         self.assertIn("Candidate", " ".join(validation["warnings"]))
+
+    def test_source_snapshot_records_metadata_provenance(self) -> None:
+        gen.run_emit(
+            self.config, self.mapping, self.resolution, self.out, created_at="2026-10-13T00:00:00+00:00"
+        )
+        release = yaml.safe_load((self.out / "OGS-00012" / "release.yaml").read_text())
+        snapshot = release["source_snapshot"]
+        self.assertTrue(snapshot["source_metadata_only"])
+        self.assertEqual(snapshot["resolution_table"], str(self.resolution))
+        self.assertEqual(len(snapshot["resolution_sha256"]), 64)
+        self.assertEqual(snapshot["planned_manifest"], "european.tsv")
+        self.assertNotIn("association", str(snapshot).lower().replace("association_opens", ""))
+
+    def test_blank_source_binding_fails(self) -> None:
+        rows = gen.read_tsv(self.resolution)
+        for row in rows:
+            if row["analysis_id"] == "eur1":
+                row["source_file"] = ""
+        bad = self.tmp / "bad.tsv"
+        write_tsv(bad, list(rows[0].keys()), rows)
+        with self.assertRaisesRegex(gen.CandidateError, "blank required column 'source_file'"):
+            gen.run_emit(
+                self.config, self.mapping, bad, self.out, created_at="2026-10-13T00:00:00+00:00"
+            )
+
+    def test_cross_ancestry_resolution_fails(self) -> None:
+        rows = gen.read_tsv(self.resolution)
+        for row in rows:
+            if row["analysis_id"] == "afr1":
+                row["assigned_ancestry"] = "EUR"
+        bad = self.tmp / "cross.tsv"
+        write_tsv(bad, list(rows[0].keys()), rows)
+        with self.assertRaisesRegex(gen.CandidateError, "does not match the AFR bucket"):
+            gen.run_emit(
+                self.config, self.mapping, bad, self.out, created_at="2026-10-13T00:00:00+00:00"
+            )
+
+    def test_refuses_registry_store_root(self) -> None:
+        with self.assertRaisesRegex(gen.CandidateError, "registry Store root"):
+            gen.assert_not_registry_store_root(REPO_ROOT / "stores")
+
+    def test_refuses_symlinked_output_parent(self) -> None:
+        real = self.tmp / "real"
+        real.mkdir()
+        link = self.tmp / "link"
+        link.symlink_to(real, target_is_directory=True)
+        with self.assertRaisesRegex(gen.CandidateError, "symlinked output"):
+            gen.assert_not_registry_store_root(link)
 
     def test_missing_resolution_member_fails_closed(self) -> None:
         rows = [row for row in gen.read_tsv(self.resolution) if row["analysis_id"] != "eur3"]
