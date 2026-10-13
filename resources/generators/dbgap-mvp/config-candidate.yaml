@@ -1,0 +1,112 @@
+# Candidate configuration for the separate MVP ancestry and META Release
+# Bundles (#221), from the dbGaP phs002453 acquisition of PMID 39024449.
+#
+# This file plans *unbuilt, acceptance-pending candidates*. It never accepts,
+# registers, builds, completes or publishes anything, and it never rewrites an
+# existing Store or identity. The human acceptance step stays pending until the
+# owner freezes the Source Inventory and approves the membership.
+#
+# Identity allocation (recommended, no reuse or reassignment of an existing id):
+#   observed single-ancestry   OGS-00012 EUR, OGS-00013 AFR, OGS-00014 AMR, OGS-00015 EAS
+#   META observed-only         OGS-00017
+#   lineage-linked completed   OGS-00018 EUR, OGS-00019 AFR, OGS-00020 AMR, OGS-00021 EAS
+#   FinnGen                    stays OGS-00016 (not renumbered in this plan)
+#
+# The epic's preferred ordering (META ahead of FinnGen) would require reusing
+# OGS-00016 for META, which collides with the existing FinnGen artifact path and
+# reassigns an `OGS-` identifier that ADR 0022 says is never reassigned. It is
+# therefore left to an explicit owner decision and an ADR amendment, and is not
+# applied here. See the ticket README.
+
+publication_pmid: '39024449'
+access_posture: public
+layout: dense
+# The Source Inventory is not yet frozen; this placeholder is deliberately
+# obvious so a candidate cannot be mistaken for an accepted, frozen input.
+source_snapshot_id: dbgap-phs002453-candidate-pending
+# dbGaP is the owner-chosen canonical source; the GWAS Catalog rows are
+# provenance only.
+source_repository: dbGaP phs002453 (GIA)
+source_reader_capability: opengwasdb.gwas-ssf
+source_assembly: GRCh38
+generator_commands:
+  - python3 resources/scripts/acquire-dbgap-phs002453.py map --candidates resources/data/derived/store-candidates-analyses.tsv
+  - python3 resources/generators/dbgap-mvp/generate_candidate.py
+
+# One entry per intended Store. `completion_reference` is the only thing that
+# may authorise a lineage-linked completed child; `status: hold` keeps the child
+# as a recorded plan and emits no completed bundle.
+stores:
+  EUR:
+    observed_store_id: OGS-00012
+    completed_store_id: OGS-00018
+    candidate_store_key: dense__pmid-39024449__European
+    label: mvp-phs002453-eur
+    assigned_ancestry: EUR
+    source_ancestry_label: European
+    completion_reference:
+      resource_id: gpm-hg38-eur-ld
+      ancestry: EUR
+      status: qualified
+      ld_panel: /local-scratch/projects/genotype-phenotype-map/data/ld_reference_panel_hg38
+  AFR:
+    observed_store_id: OGS-00013
+    completed_store_id: OGS-00019
+    candidate_store_key: dense__pmid-39024449__African
+    label: mvp-phs002453-afr
+    assigned_ancestry: AFR
+    source_ancestry_label: African
+    completion_reference:
+      resource_id: hgdp1kgp-hg38-ld
+      ancestry: AFR
+      status: qualified
+      ld_panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+  AMR:
+    observed_store_id: OGS-00014
+    completed_store_id: OGS-00020
+    candidate_store_key: dense__pmid-39024449__Hispanic-or-Latin-American
+    label: mvp-phs002453-amr
+    assigned_ancestry: AMR
+    source_ancestry_label: Hispanic or Latin American
+    completion_reference:
+      # No declared AMR LD Reference Resource exists yet (epic #232 / research
+      # proposal in docs/amr-ld-panel-proposal.md). The completed child is a
+      # recorded plan only; it must not be emitted as a buildable bundle.
+      resource_id: null
+      ancestry: AMR
+      status: hold
+      ld_panel: null
+  EAS:
+    observed_store_id: OGS-00015
+    completed_store_id: OGS-00021
+    candidate_store_key: dense__pmid-39024449__East-Asian
+    label: mvp-phs002453-eas
+    assigned_ancestry: EAS
+    source_ancestry_label: East Asian
+    completion_reference:
+      resource_id: hgdp1kgp-hg38-ld
+      ancestry: EAS
+      status: qualified
+      ld_panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+  META:
+    observed_store_id: OGS-00017
+    completed_store_id: null
+    candidate_store_key: dense__pmid-39024449__Multi-ancestry
+    label: mvp-phs002453-meta-observed-only
+    assigned_ancestry: null
+    source_ancestry_label: META
+    # Explicit policy: cross-ancestry membership is observed-only and must not
+    # be eligible for automatic Reference Completion, even though an EUR panel
+    # exists. This is enforced by the emitter, not just documented.
+    observed_only: true
+    completion_reference:
+      resource_id: null
+      ancestry: null
+      status: not_applicable
+      ld_panel: null
+
+# FinnGen is not renumbered by this plan. If the owner later approves moving
+# META ahead of FinnGen, record old -> new here and amend ADR 0022 explicitly.
+finngen:
+  current_store_id: OGS-00016
+  renumbered_to: null
