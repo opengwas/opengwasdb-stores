@@ -41,6 +41,7 @@ from __future__ import annotations
 import json
 import subprocess
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -74,6 +75,13 @@ ScheduledJob = tuple[str, str, str | None]
 
 DEFAULT_PROBE_TIMEOUT_SECONDS: float = 60.0
 
+#: Set by the release entry point for the Snakemake run it starts, to
+#: `RuntimeIdentity.handoff()` of the runtime it has just verified. The
+#: Snakefile's `onstart` check then skips the `--help` probes the entry point
+#: already made, for the same executable at the same revision; it still checks
+#: the pin itself. A direct `snakemake` run has no hand-off and probes them all.
+VERIFIED_RUNTIME_ENV: str = "OGSTORES_VERIFIED_RUNTIME"
+
 _STORE_PRODUCING_STEPS: frozenset[str] = frozenset({"build", "complete"})
 
 
@@ -102,6 +110,8 @@ class RuntimeIdentity:
     version: str
     pinned_revision: str
     format_version: str
+    #: The subcommands this verification found the runtime provides.
+    commands: tuple[str, ...] = ()
 
     def describe(self) -> str:
         """One line an operator can copy into a run note or issue comment."""
@@ -109,6 +119,29 @@ class RuntimeIdentity:
             f"opengwasdb {self.version} revision {self.revision} at {self.executable} "
             f"(pinned {self.pinned_revision}; writes format {self.format_version})"
         )
+
+    def handoff(self) -> str:
+        """The `VERIFIED_RUNTIME_ENV` value that passes this verification to `onstart`."""
+        return json.dumps(
+            {"executable": self.executable, "revision": self.revision, "commands": list(self.commands)}
+        )
+
+
+def _handed_off_commands(handoff: str | None, *, executable: str, revision: str) -> frozenset[str]:
+    """The commands a hand-off verified for this executable at this revision; none otherwise.
+
+    A hand-off for another executable or revision, or one that does not parse,
+    verifies nothing, so every command is probed as if there were none.
+    """
+    if not handoff:
+        return frozenset()
+    try:
+        verified = json.loads(handoff)
+        if verified["executable"] != executable or verified["revision"] != revision:
+            return frozenset()
+        return frozenset(str(command) for command in verified["commands"])
+    except (ValueError, TypeError, KeyError):
+        return frozenset()
 
 
 def _probe_command(executable: str, command: str, timeout: float = DEFAULT_PROBE_TIMEOUT_SECONDS) -> bool:
@@ -125,6 +158,20 @@ def _probe_command(executable: str, command: str, timeout: float = DEFAULT_PROBE
     except (OSError, subprocess.SubprocessError):
         return False
     return result.returncode == 0
+
+
+def _probe_commands(executable: str, commands: Iterable[str], timeout: float) -> frozenset[str]:
+    """The `commands` that `opengwasdb <command> --help` answers, each probed once.
+
+    Each probe starts the runtime's interpreter and imports its CLI, so they run
+    side by side rather than one after another.
+    """
+    distinct = sorted(set(commands))
+    if not distinct:
+        return frozenset()
+    with ThreadPoolExecutor(max_workers=len(distinct)) as pool:
+        answered = pool.map(lambda command: _probe_command(executable, command, timeout=timeout), distinct)
+        return frozenset(command for command, ok in zip(distinct, answered) if ok)
 
 
 def _read_store_format_version(
@@ -267,6 +314,7 @@ def verify_runtime_for_releases(
     registry_root: Path | str,
     executable: str | None = None,
     timeout: float = DEFAULT_PROBE_TIMEOUT_SECONDS,
+    handoff: str | None = None,
 ) -> RuntimeIdentity:
     """Refuse a run whose runtime is missing, unpinned, or cannot complete a parent.
 
@@ -274,6 +322,11 @@ def verify_runtime_for_releases(
     `(artifact_root, store_id, step)`. Every check happens before the entry
     point snapshots anything or a build writes a Store. The returned
     `RuntimeIdentity` is what the run records as its runtime.
+
+    `handoff` is the entry point's `RuntimeIdentity.handoff()`, which the
+    Snakefile's `onstart` check receives through `VERIFIED_RUNTIME_ENV`. Its
+    commands are not probed again when it names this executable at this
+    revision. The pin is checked either way.
     """
     jobs = normalize_scheduled(scheduled)
     resolved = executable if executable is not None else run.get_opengwasdb_executable()
@@ -283,14 +336,6 @@ def verify_runtime_for_releases(
         else run.UNAVAILABLE
     )
     version = run.get_opengwasdb_version(executable=resolved)
-
-    identity = RuntimeIdentity(
-        executable=resolved,
-        revision=revision,
-        version=version,
-        pinned_revision=PINNED_OPENGWASDB_REVISION,
-        format_version=REQUIRED_FORMAT_VERSION,
-    )
 
     if resolved == run.UNAVAILABLE:
         raise RuntimeCapabilityError(
@@ -350,10 +395,22 @@ def verify_runtime_for_releases(
         if INFO_COMMAND not in commands.get(store_id, []):
             commands.setdefault(store_id, []).append(INFO_COMMAND)
 
+    required = {command for store_commands in commands.values() for command in store_commands}
+    handed_off = required & _handed_off_commands(handoff, executable=resolved, revision=revision)
+    provided = handed_off | _probe_commands(resolved, required - handed_off, timeout=timeout)
+    identity = RuntimeIdentity(
+        executable=resolved,
+        revision=revision,
+        version=version,
+        pinned_revision=PINNED_OPENGWASDB_REVISION,
+        format_version=REQUIRED_FORMAT_VERSION,
+        commands=tuple(sorted(provided)),
+    )
+
     missing: dict[str, list[str]] = {}
     for store_id, store_commands in commands.items():
         for command in store_commands:
-            if not _probe_command(resolved, command, timeout=timeout):
+            if command not in provided:
                 missing.setdefault(store_id, []).append(command)
     if missing:
         details = "; ".join(
@@ -407,6 +464,7 @@ __all__ = [
     "RuntimeIdentity",
     "RuntimeRevisionError",
     "ScheduledJob",
+    "VERIFIED_RUNTIME_ENV",
     "commands_for_scheduled_steps",
     "completion_parents_for_release",
     "normalize_scheduled",

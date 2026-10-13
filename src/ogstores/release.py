@@ -533,7 +533,9 @@ def _stop_snakemake(proc: subprocess.Popen, grace: float = 2.0) -> None:
                 pass
 
 
-def _run_snakemake(argv: list[str], lock_fds: tuple[int, ...]) -> tuple[int, int | None]:
+def _run_snakemake(
+    argv: list[str], lock_fds: tuple[int, ...], extra_env: dict[str, str] | None = None
+) -> tuple[int, int | None]:
     """Run Snakemake under the parent-death supervisor; return its exit code and any interrupt.
 
     Snakemake and its jobs get their own session, led by `run.py`'s
@@ -547,7 +549,7 @@ def _run_snakemake(argv: list[str], lock_fds: tuple[int, ...]) -> tuple[int, int
     """
     liveness_read, liveness_write = os.pipe()
     status_read, status_write = os.pipe()
-    env = {**os.environ, run.ENTRY_POINT_PID_ENV: str(os.getpid())}
+    env = {**os.environ, run.ENTRY_POINT_PID_ENV: str(os.getpid()), **(extra_env or {})}
     proc = subprocess.Popen(
         run._supervised_command(argv, liveness_read, status_write),
         cwd=paths.REPO_ROOT,
@@ -704,8 +706,12 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
                 scheduled, forced=run.forced_releases(force, inv.targets), stamp=stamp
             )
             run.fault_boundary("snapshots-taken")
+            # The hand-off spares the Snakefile's `onstart` check from probing
+            # the same runtime's subcommands again; it still checks the pin.
             returncode, interrupted = _run_snakemake(
-                snakemake_argv(inv, dry_run=False, extra_config={"release_run": stamp}), locks.fds()
+                snakemake_argv(inv, dry_run=False, extra_config={"release_run": stamp}),
+                locks.fds(),
+                extra_env={runtime.VERIFIED_RUNTIME_ENV: identity.handoff()},
             )
         except (KeyboardInterrupt, _Interrupted) as exc:
             # Interrupted before Snakemake started: any snapshot this run took is
