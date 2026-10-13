@@ -9,7 +9,9 @@ Covers the contract `ogstores.runtime.verify_runtime_for_releases` adds to
   closed on an unknown or non-exact revision;
 * the version and revision come from the executable that will run, not from
   the ambient interpreter;
-* only the subcommands the *scheduled steps* need are probed;
+* only the subcommands the *scheduled steps* need are probed, each once per
+  run: `onstart` does not re-probe what the entry point handed off for the
+  same executable at the same revision;
 * the completion-parent gate is precise about scheduled work: a same-run
   `build`/`complete` of the parent skips the stale on-disk artifact, a missing
   parent that is not scheduled is refused, and an enhancement-only job (HM3,
@@ -62,12 +64,15 @@ class _FakeRuntime:
         commit: str | None,
         version: str = "0.3.0",
         format_version: str = "0.2.0",
+        probe_log: Path | None = None,
     ):
         self.root = root
         self.bin = root / "bin"
         self.bin.mkdir(parents=True)
         self.executable = self.bin / "opengwasdb"
         supported = "|".join(sorted(commands))
+        # Each call appends its subcommand, so a test can count the probes.
+        log_handler = f'echo "$1" >> "{probe_log}"\n' if probe_log is not None else ""
         info_handler = (
             'if [ "$1" = "info" ]; then\n'
             f'  printf \'{{"format_version": "%s"}}\\n\' "{format_version}"\n'
@@ -78,6 +83,7 @@ class _FakeRuntime:
         )
         self.executable.write_text(
             "#!/bin/sh\n"
+            f"{log_handler}"
             f"{info_handler}"
             f'case "$1" in {supported}) exit 0 ;; *) exit 2 ;; esac\n',
             encoding="utf-8",
@@ -277,6 +283,93 @@ class RuntimeGuardTestCase(unittest.TestCase):
         record_check()
         self.assertEqual(identity.revision, runtime.PINNED_OPENGWASDB_REVISION)
         self.assertIn(runtime.PINNED_OPENGWASDB_REVISION, identity.describe())
+
+    # --- one probe per command per run -----------------------------------
+
+    def _probes(self, log: Path) -> list[str]:
+        """The subcommands probed since the last call, sorted; the log is then cleared."""
+        probed = sorted(log.read_text(encoding="utf-8").split()) if log.exists() else []
+        log.unlink(missing_ok=True)
+        return probed
+
+    def test_each_needed_command_is_probed_once(self) -> None:
+        """Two releases that need the same commands probe each of them once, not once per release."""
+        self._write_bundle("OGS-00090")
+        self._write_bundle("OGS-00091")
+        log = self.tmp / "probes.log"
+        capable = self._runnable("capable", commands={"build-dense-vcf", "validate"}, probe_log=log)
+        identity = runtime.verify_runtime_for_releases(
+            [self._job(sid, step) for sid in ("OGS-00090", "OGS-00091") for step in ("build", "validate")],
+            registry_root=self.registry,
+            executable=str(capable.executable),
+        )
+        record_check()
+        self.assertEqual(self._probes(log), ["build-dense-vcf", "validate"])
+        self.assertEqual(identity.commands, ("build-dense-vcf", "validate"))
+
+    def test_a_hand_off_for_this_runtime_is_not_probed_again(self) -> None:
+        """`onstart` re-probes nothing the entry point probed on the same runtime, only what it adds."""
+        self._write_bundle("OGS-00090")
+        log = self.tmp / "probes.log"
+        capable = self._runnable(
+            "capable", commands={"build-dense-vcf", "build-dense-top-hits", "validate"}, probe_log=log
+        )
+        jobs = [self._job("OGS-00090", "build"), self._job("OGS-00090", "validate")]
+        entry_point = runtime.verify_runtime_for_releases(
+            jobs, registry_root=self.registry, executable=str(capable.executable)
+        )
+        self._probes(log)
+
+        onstart = runtime.verify_runtime_for_releases(
+            jobs,
+            registry_root=self.registry,
+            executable=str(capable.executable),
+            handoff=entry_point.handoff(),
+        )
+        record_check()
+        self.assertEqual(self._probes(log), [])
+        self.assertEqual(onstart.commands, entry_point.commands)
+
+        runtime.verify_runtime_for_releases(
+            [*jobs, self._job("OGS-00090", "top-hits")],
+            registry_root=self.registry,
+            executable=str(capable.executable),
+            handoff=entry_point.handoff(),
+        )
+        record_check()
+        self.assertEqual(self._probes(log), ["build-dense-top-hits"])
+
+    def test_a_hand_off_for_another_runtime_verifies_nothing(self) -> None:
+        """A hand-off naming another executable or revision, or not parsing, leaves every command probed."""
+        self._write_bundle("OGS-00090")
+        jobs = [self._job("OGS-00090", "build"), self._job("OGS-00090", "validate")]
+        capable = self._runnable("capable", commands={"build-dense-vcf", "validate"})
+        handoff = runtime.verify_runtime_for_releases(
+            jobs, registry_root=self.registry, executable=str(capable.executable)
+        ).handoff()
+
+        partial = self._runnable("partial", commands={"build-dense-vcf"})
+        with self.assertRaises(runtime.RuntimeCapabilityError) as ctx:
+            runtime.verify_runtime_for_releases(
+                jobs, registry_root=self.registry, executable=str(partial.executable), handoff=handoff
+            )
+        record_check()
+        self.assertIn("validate", str(ctx.exception))
+
+        log = self.tmp / "probes.log"
+        logged = self._runnable("logged", commands={"build-dense-vcf", "validate"}, probe_log=log)
+        other_revision = json.dumps({
+            "executable": str(logged.executable),
+            "revision": "deadbeef" * 5,
+            "commands": ["build-dense-vcf", "validate"],
+        })
+        for stale in (other_revision, "not json", json.dumps(["a", "list"])):
+            with self.subTest(handoff=stale):
+                runtime.verify_runtime_for_releases(
+                    jobs, registry_root=self.registry, executable=str(logged.executable), handoff=stale
+                )
+                record_check()
+                self.assertEqual(self._probes(log), ["build-dense-vcf", "validate"])
 
     # --- completion-parent format gate -----------------------------------
 

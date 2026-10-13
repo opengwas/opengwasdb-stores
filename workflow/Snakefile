@@ -36,6 +36,7 @@ differed only in which name they looked up. The chain's shape lives in
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -148,10 +149,14 @@ onstart:
     # Defence in depth for a direct `snakemake` run (#218): the resolved
     # runtime must be the tracked pin, provide every capability the scheduled
     # steps name, and be able to complete each parent a scheduled completion
-    # consumes. Refuse before the first job writes a Store.
+    # consumes. Refuse before the first job writes a Store. Under the entry
+    # point, the subcommands it has just probed on this runtime are not probed
+    # again; the pin is checked either way.
     try:
         runtime.verify_runtime_for_releases(
-            scheduled_jobs, registry_root=REGISTRY_ROOT
+            scheduled_jobs,
+            registry_root=REGISTRY_ROOT,
+            handoff=os.environ.get(runtime.VERIFIED_RUNTIME_ENV),
         )
     except runtime.RuntimeGuardError as exc:
         raise WorkflowError(str(exc))

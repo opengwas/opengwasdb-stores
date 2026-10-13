@@ -7,6 +7,7 @@ import builtins
 import csv
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -16,6 +17,7 @@ from typing import Any
 from unittest import mock
 
 import yaml
+from opengwasdb.model import analyses as opengwasdb_analyses
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -232,17 +234,17 @@ class TestBundleContract(unittest.TestCase):
             return f"{prefix.upper()}:{local}" if prefix else uri
 
         release_root = REPO_ROOT / "stores" / "OGS-00007"
-        analyses = ogstores.bundle.opengwasdb_analyses.read_analyses(
+        analyses = opengwasdb_analyses.read_analyses(
             release_root / "analyses.tsv"
         )
-        targets = ogstores.bundle.opengwasdb_analyses.read_analyses(
+        targets = opengwasdb_analyses.read_analyses(
             release_root / "sidecars" / "analysis_targets.tsv"
         )
         targets_by_id = {row["source_analysis_id"]: row for row in targets.rows}
 
         self.assertTrue(
             set(analyses.fieldnames).isdisjoint(
-                ogstores.bundle.opengwasdb_analyses.RETIRED_ANALYSIS_COLUMNS
+                opengwasdb_analyses.RETIRED_ANALYSIS_COLUMNS
             )
         )
         for row in analyses.rows:
@@ -368,7 +370,7 @@ class TestBundleContract(unittest.TestCase):
             build="not a mapping",  # type: ignore[arg-type]
         )
         with mock.patch.object(
-            ogstores.bundle.opengwasdb_analyses,
+            opengwasdb_analyses,
             "validate_analyses",
             side_effect=RuntimeError("validator exploded"),
         ):
@@ -542,7 +544,7 @@ class TestBundleContract(unittest.TestCase):
     def test_retired_analysis_columns_come_from_upstream_and_name_the_release(self) -> None:
         checked = self.make_bundle()
         lines = checked.analyses_path.read_text(encoding="utf-8").splitlines()
-        retired = ogstores.bundle.opengwasdb_analyses.RETIRED_ANALYSIS_COLUMNS
+        retired = opengwasdb_analyses.RETIRED_ANALYSIS_COLUMNS
         retired_header = "\t".join(retired)
         retired_values = "\t".join("retired" for _ in retired)
         checked.analyses_path.write_text(
@@ -562,7 +564,7 @@ class TestBundleContract(unittest.TestCase):
 
         sentinel = "upstream_only_retired"
         with mock.patch.object(
-            ogstores.bundle.opengwasdb_analyses,
+            opengwasdb_analyses,
             "RETIRED_ANALYSIS_COLUMNS",
             (sentinel,),
         ):
@@ -989,9 +991,9 @@ class TestBundleContract(unittest.TestCase):
             ),
         )
         with mock.patch.object(
-            ogstores.bundle.opengwasdb_analyses,
+            opengwasdb_analyses,
             "validate_analyses",
-            wraps=ogstores.bundle.opengwasdb_analyses.validate_analyses,
+            wraps=opengwasdb_analyses.validate_analyses,
         ) as delegated:
             errors = bundle.check(checked, registry_root=self.tmp_dir)
         record_check()
@@ -1334,6 +1336,24 @@ class TestArtifactRootResolution(unittest.TestCase):
         self._write_config("artifact_root: 42\n")
         with self.assertRaises(ValueError):
             paths.artifact_root(env={}, repo_root=self.tmp_dir)
+        record_check()
+
+
+class TestImportCost(unittest.TestCase):
+    """Importing `ogstores` leaves opengwasdb unloaded."""
+
+    def test_the_release_path_does_not_import_opengwasdb(self) -> None:
+        """The entry point, each Snakemake parse and the supervisor import `ogstores`; opengwasdb would cost each ~1.5s."""
+        code = (
+            "import sys; sys.path.insert(0, sys.argv[1]); "
+            "import ogstores, ogstores.release, ogstores._pdeath_supervisor; "
+            "print(sorted(m for m in sys.modules if m.split('.')[0] == 'opengwasdb'))"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", code, str(REPO_ROOT / "src")], capture_output=True, text=True
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "[]")
         record_check()
 
 

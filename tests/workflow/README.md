@@ -42,16 +42,16 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
    - `--resolve-snapshot` misuse (no snapshot, a bad action, `all`, `--dry-run`) is refused without writing.
    - Only the register job killed mid-publication: the same run finishes it.
 
-8. **A whole-stack crash at every boundary (#195; `test_release_faults.py`, its own suite `release-faults`)**:
-   - For each of the 13 boundaries (`release.ENTRY_POINT_BOUNDARIES` plus `register.PUBLICATION_BOUNDARIES`, `marker-removed` included), a forced entry-point run is SIGKILLed with its whole process group.
+8. **A whole-stack crash at each kind of boundary (#195; `test_release_faults.py`, suite `release-faults/boundaries`)**:
+   - At every entry-point boundary (`release.ENTRY_POINT_BOUNDARIES`, `marker-removed` included), and at one register-job boundary of each kind Snakemake can tell apart (`publication-started`: no marker; `store-published`: marker, no `records/register.json`; `register-record-written`: both), a forced entry-point run is SIGKILLed with its whole process group. Each case is a whole release, so the register job's other boundaries are left to `tests/register`, which kills the publication transaction at every one of them.
    - From the marker on, the next run completes the publication, clears Snakemake's incomplete mark and finds nothing to do. Before it, the next run refuses. `--resolve-snapshot delete` (before any job) or `restore` (after), plus Snakemake's `--unlock`, then let a forced run replace the release.
-   - Every case ends with the old Store, records and record archived byte-for-byte, nothing pending, and a further run with nothing to do. A boundary added to the code without a case here fails the suite.
+   - Every case ends with the old Store, records and record archived byte-for-byte, nothing pending, and a further run with nothing to do. An entry-point boundary added to the code without a case here fails the suite.
 
-9. **Live and interrupted runs (#195, review round 3; also in `release-faults`)**:
+9. **Live and interrupted runs (#195, review round 3; `test_release_faults.py`, suite `release-faults/interrupts`)**:
    - A forced run is paused once its build starts. A second run, a forced one, `--resolve-snapshot restore` and `delete` are each refused with "a run of OGS-00099 is in progress (pid <the paused run>)", never the leftover-snapshot message. A dry run reports the holder, the live snapshot is untouched, and the paused run then completes and archives the old release correctly.
    - Recovery from another run never reads or completes a marker under a live run's lock.
    - A dry run during a live run's publication says the run is in progress, not that it will complete an interrupted publication.
-   - Ctrl-C to the foreground group, SIGTERM to the entry point, and SIGTERM to every process of the run, each mid-build, exit 130 or 143. The records are restored byte for byte (bytes and mtimes), with no snapshot, marker or archive left. The next unforced run meets only the ordinary "already published" refusal, with no `IncompleteFilesException` and no leftover message, and a forced run then replaces the release cleanly.
+   - Ctrl-C to the foreground group, SIGTERM to the entry point, and SIGTERM to every process of the run, each mid-build, exit 130 or 143. The records are restored byte for byte (bytes and mtimes), with no snapshot, marker or archive left. The next unforced run meets only the ordinary "already published" refusal, with no `IncompleteFilesException` and no leftover message. After SIGTERM to every process, the delivery that reaches Snakemake itself, a forced run then replaces the release cleanly.
 
 8. **Operator config reaches Snakemake (#195)**:
    - `pixi run release <ID> --config key=value` and `release-dry` pass the override to Snakemake's config rather than as a target. Each task's `pixi.toml` cmd is run with the operator's words appended, as Pixi does, and the dry run must plan under the configured artifact root.
@@ -62,4 +62,9 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
 pixi run -e dev python3 tests/workflow/test_workflow.py
 # or through the repo orchestrator
 pixi run test-python
+pixi run test --suite workflow --suite release-faults/boundaries --suite release-faults/interrupts
 ```
+
+These three suites each build fixture Stores through the whole release stack,
+so they run one at a time, with the machine to themselves. CI runs each on a
+runner of its own.

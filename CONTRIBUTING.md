@@ -275,8 +275,13 @@ pixi run bundle-check
 pixi run test
 pixi run test-python
 pixi run test-r
+pixi run test --suite workflow   # one named suite (repeatable)
 pixi run --environment docs docs-smoke
 ```
+
+`pixi run test --list-exclusive` names the suites that build Stores through the
+whole release stack and so run alone, after the rest. CI gives each of them a
+runner of its own and runs everything else with `--skip-exclusive`.
 
 `bundle.check(bundle, registry_root=...)` is the executable Release Bundle
 contract. It returns a list of every registry-side error it can find (an empty
