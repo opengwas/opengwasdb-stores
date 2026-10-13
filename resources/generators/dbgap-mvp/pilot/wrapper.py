@@ -56,7 +56,7 @@ REFERENCE_VERSION = "ukb-ancestry-mixture-hg38"
 PILOT_CORE_COMMIT = "4e922566d7fa4c13a11be3637069da63e48be28c"
 
 WALL_LIMIT_MAX_S = 1800.0
-RSS_LIMIT_MAX_MB = 16384.0
+RSS_LIMIT_MAX_MB = 65536.0
 MAX_WORKERS = 2
 CPU_SET = (0, 1, 2, 3)
 ROW_CAP = 200000
@@ -513,8 +513,6 @@ def build_resolver_argv(
         str(ANCESTRY_REFERENCE),
         "--ancestry-groups",
         str(ANCESTRY_GROUPS),
-        "--extraction-panel",
-        str(QC_PANEL),
         "--default-source-reader-capability",
         "opengwasdb.gwas-ssf",
         "--maf-floor",
