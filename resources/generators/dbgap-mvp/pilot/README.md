@@ -49,7 +49,7 @@ sites, 20000 evidence).
   ancestry is not rewritten.
 - `wrapper.py` — fresh-root preflight (refuses reuse, symlink ancestors,
   `stores/` components and protected roots before any `mkdir`); limit validation
-  (finite, positive, within 1800 s / 65536 MB / 2 workers) before any write; the
+  (finite, positive, within 7200 s / 65536 MB / 2 workers) before any write; the
   wrapper becomes a **child subreaper** and holds the resolver at a **startup
   barrier** until the monitor is running, so nothing loads before accounting;
   stdio goes to files (never a pipe, so a detached grandchild cannot suspend the
@@ -71,7 +71,7 @@ sites, 20000 evidence).
 
 ## Resource accounting
 
-- Limits: 2 workers, ≤4 CPU, BLAS/OpenMP 1, 1800 s whole-pool wall, 65536 MB
+- Limits: 2 workers, ≤4 CPU, BLAS/OpenMP 1, 7200 s whole-pool wall, 65536 MB
   aggregate process-tree RSS.
 - RSS is the sum of `VmRSS` over the process group tree; shared pages are
   double-counted, so it is a documented **ceiling**, not an exact resident
