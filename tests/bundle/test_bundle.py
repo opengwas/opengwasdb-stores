@@ -24,6 +24,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 
 import ogstores.bundle
 from ogstores import bundle, paths
+from ogstores.plan import plan
 
 n_checks = 0
 
@@ -415,6 +416,59 @@ class TestBundleContract(unittest.TestCase):
         self.assertIn("raw core inference", notes)
         record_check()
         self.assertIn("EUR", notes)
+
+    def test_mvp_nworkers_16_is_execution_only_amendment(self) -> None:
+        # Owner-authorized execution-only amendment: n-workers 16 on the four MVP
+        # observed builds. The accepted input manifest and identity are unchanged
+        # (ADR 0004 material choices untouched; core ADR 0024 makes the worker
+        # count a pure runtime knob).
+        import hashlib
+
+        analyses_sha = {
+            "OGS-00012": "21cb48c43686dbc2b222e2a260ff8fa920d4367790111c3c0ebf3e3386625696",
+            "OGS-00013": "2748ded2d45aceba88519e3d5736ee3c0ebf593373ec90ec5fadafe704d6d6c1",
+            "OGS-00014": "ee22eb1f3a8cca2f0c11f71a5024388ef089fdc20524055751bee92a88f3a89d",
+            "OGS-00016": "d1f40e98d6e28094dc4050628f54fa0532ce5b7087d4edbdf6e9027a068bdccf",
+        }
+        for store_id, digest in analyses_sha.items():
+            build = yaml.safe_load(
+                (REPO_ROOT / "stores" / store_id / "build.yaml").read_text(encoding="utf-8")
+            )
+            record_check()
+            self.assertEqual(build["build"]["options"]["n-workers"], 16, store_id)
+            loaded = bundle.load(store_id, registry_root=REPO_ROOT / "stores")
+            argv = next(step for step in plan(loaded) if step.name == "build").argv
+            record_check()
+            self.assertEqual(argv[argv.index("--n-workers") + 1], "16", store_id)
+            record_check()
+            self.assertEqual(
+                hashlib.sha256(
+                    (REPO_ROOT / "stores" / store_id / "analyses.tsv").read_bytes()
+                ).hexdigest(),
+                digest,
+                store_id,
+            )
+            record_check()
+            self.assertEqual(loaded.status, "accepted", store_id)
+            record_check()
+            self.assertTrue(loaded.release.get("accepted_at"), store_id)
+        # EAS and FinnGen recipes are untouched by the amendment.
+        eas = yaml.safe_load((REPO_ROOT / "stores" / "OGS-00015" / "build.yaml").read_text())
+        record_check()
+        self.assertNotIn("n-workers", eas["build"]["options"])
+        finngen = yaml.safe_load((REPO_ROOT / "stores" / "OGS-00017" / "build.yaml").read_text())
+        record_check()
+        self.assertEqual(finngen["build"]["options"]["n-workers"], 32)
+        # The amendment is recorded and cites the governing ADRs.
+        doc = (REPO_ROOT / "docs" / "ogs-00012-16-nworkers-16-amendment.md").read_text(
+            encoding="utf-8"
+        )
+        record_check()
+        self.assertIn("execution-only", doc.lower())
+        record_check()
+        self.assertIn("adr/0004-store-release-identity.md", doc)
+        record_check()
+        self.assertIn("0024-parallel-dense-vcf-build-disk-spill", doc)
 
     def test_ogs_00007_trait_ontology_is_source_provided_not_a_gene(self) -> None:
         """Issue #141: the Trait columns carry the source EFO term and label.

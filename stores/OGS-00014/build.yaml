@@ -9,6 +9,7 @@ build:
   options:
     source-reader-capability: opengwasdb.gwas-ssf
     source-assembly: GRCh38
+    n-workers: 16
 indexed_subsets:
 - name: hm3
   resource_id: hapmap3-hg38

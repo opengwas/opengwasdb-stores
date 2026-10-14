@@ -162,6 +162,7 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
         "options": {
             "source-reader-capability": "opengwasdb.gwas-ssf",
             "source-assembly": "GRCh38",
+            "n-workers": 16,
         },
         "post": {"top_hits": True, "overview": True},
     },
@@ -171,6 +172,7 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
         "options": {
             "source-reader-capability": "opengwasdb.gwas-ssf",
             "source-assembly": "GRCh38",
+            "n-workers": 16,
         },
         "post": {"top_hits": True, "overview": True},
     },
@@ -180,6 +182,7 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
         "options": {
             "source-reader-capability": "opengwasdb.gwas-ssf",
             "source-assembly": "GRCh38",
+            "n-workers": 16,
         },
         "post": {"top_hits": True, "overview": True},
     },
@@ -198,6 +201,7 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
         "options": {
             "source-reader-capability": "opengwasdb.gwas-ssf",
             "source-assembly": "GRCh38",
+            "n-workers": 16,
         },
         "post": {"top_hits": True, "overview": True},
     },
@@ -270,7 +274,11 @@ class TestRegistryMigration(unittest.TestCase):
             )
 
     def test_only_indexed_subsets_was_added(self) -> None:
-        """The key is the only addition; options, command and post are unchanged."""
+        """The key is the only addition; options, command and post are unchanged.
+
+        Note: OGS-00012/13/14/16 additionally carry the owner-authorized
+        execution-only `n-workers: 16` amendment.
+        """
         for store_id, expected in EXPECTED_UNRELATED.items():
             build = load_build(store_id)
             phase = expected["phase"]
