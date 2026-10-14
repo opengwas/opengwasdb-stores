@@ -100,6 +100,54 @@ All registry writes use `resources/generators/lib/safe_write.py` (containment +
 exclusive temp). The core owns its own JSON writes; no claim is made that they
 use this helper.
 
+## Resolution records → observed emission
+
+A completed resolution run leaves `records/<id>.json` + `index.json` under its
+run root. `pilot/merge_records.py` turns those records plus the metadata-only
+selection evidence into the emitter's canonical resolution table and refuses
+when any admitted Analysis lacks a complete (`status: success`) record:
+
+```
+python3 resources/generators/dbgap-mvp/pilot/merge_records.py \
+  --scope bucket:EAS \
+  --records-dir /data/opengwasdb/work/epic232/221/resolve-eas-<ts>/records \
+  --metadata-root <metadata-refresh-root> \
+  --mapping <mapping.tsv> \
+  --out-dir <staging>
+```
+
+That writes `<staging>/merge/resolution.tsv` and
+`<staging>/merge/merge-receipt.json` and never opens an association body. Add
+`--emit` (with `--config resources/generators/dbgap-mvp/config-candidate.yaml`)
+to drive the observed Store through the audited emitter:
+
+```
+python3 resources/generators/dbgap-mvp/generate_candidate.py emit \
+  --config resources/generators/dbgap-mvp/config-candidate.yaml \
+  --mapping <mapping.tsv> \
+  --resolution <staging>/merge/resolution.tsv \
+  --out-dir <staging>/bundles \
+  --buckets EAS
+```
+
+`--buckets` (repeatable/space-separated) restricts emission to the named
+ancestry buckets so a per-bucket resolution can be emitted on its own; the
+default is every configured Store. The emitter refuses a resolution table that
+is missing any intended member, has an extra row, or fails any per-row gate. An
+unassigned record (empty `assigned_ancestry`) is preserved rather than forced to
+the bucket label; a non-empty cross-ancestry mismatch still fails. The output
+directory must not be a path component named `stores`, so stage under a
+`bundles/` directory and let the parent move the accepted bundle into the
+registry.
+
+The observed Store is emitted `status: accepted` with an `accepted_at` solely so
+the dev release workflow may build it (#247: only `BUILDABLE_STATUSES` are
+built); `run_emit` refuses to finish unless every observed bundle passes
+`bundle.partition_buildable`. That is workflow buildability, **not** scientific
+release acceptance: `validation.yaml:acceptance.human_acceptance` stays
+`pending`. A completion child whose reference is pending/blocked is emitted
+`status: candidate` and is deliberately refused by the workflow.
+
 ## Tests
 
 `tests/dbgap-mvp/test_pilot.py` runs hermetically with a fake resolver and

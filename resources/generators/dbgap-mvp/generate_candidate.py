@@ -5,10 +5,13 @@ This is Phase B tooling: it turns the metadata-only MVP partition into candidate
 Release Bundles for the single-ancestry Stores and the cross-ancestry META
 Store. It is deliberately conservative.
 
-* It emits ``status: candidate`` bundles with no ``accepted_at`` and a
-  ``validation.yaml`` ``acceptance`` block whose human-acceptance field stays
-  ``pending``. Nothing here accepts, registers, builds, completes or publishes a
-  Store, and no existing bundle is overwritten.
+* It emits the observed Store with ``status: accepted`` and an ``accepted_at``
+  so the dev release workflow may build it (#247), and its ``validation.yaml``
+  ``acceptance`` block keeps ``human_acceptance`` ``pending``. That acceptance
+  is workflow-buildability, not scientific release acceptance or publication.
+  A completed child stays ``status: candidate`` while its reference is merely
+  pending/blocked, so the workflow refuses it. Nothing here registers, builds,
+  completes or publishes a Store, and no existing bundle is overwritten.
 * The ancestry partition is validated against the intended bound counts and
   must be disjoint; a missing or drifted membership fails loudly.
 * META is emitted observed-only: no ``derived_from`` and no completion block,
@@ -227,9 +230,10 @@ def validate_resolution_row(
     """
     analysis_id = row.get("analysis_id", "")
     for column in REQUIRED_RESOLUTION_COLUMNS:
-        # META is the cross-ancestry bucket: it has no single assigned ancestry
-        # by design, but every other required value must be non-empty.
-        if column == "assigned_ancestry" and ancestry == "META":
+        # assigned_ancestry is handled below: META is canonically empty and an
+        # explicit unassigned record keeps an empty value rather than being
+        # forced to the bucket label. Every other required value must be present.
+        if column == "assigned_ancestry":
             continue
         if not (row.get(column) or "").strip():
             raise CandidateError(
@@ -245,7 +249,9 @@ def validate_resolution_row(
                 f"resolution row {analysis_id!r} assigned_ancestry {declared!r} is "
                 "not an unambiguous empty/META value"
             )
-    elif declared != (assigned_ancestry or ""):
+    elif declared and declared != (assigned_ancestry or ""):
+        # An explicit unassigned record (empty value) is preserved rather than
+        # forced to the bucket label; a non-empty mismatch still fails.
         raise CandidateError(
             f"resolution row {analysis_id!r} assigned_ancestry {declared!r} does "
             f"not match the {ancestry} bucket"
@@ -738,22 +744,32 @@ def render_release_yaml(
     completion_state: str,
     notes: str,
     source_snapshot: Mapping | None = None,
+    status: str = "candidate",
+    accepted_at: str | None = None,
 ) -> dict:
     release: dict = {
         "store_id": store_id,
         "label": label,
         "access_posture": config.get("access_posture", "public"),
-        "status": "candidate",
+        "status": status,
         "derived_from": derived_from,
         "created_at": created_at,
         "source_snapshot_id": config["source_snapshot_id"],
         "generator": {"commands": list(config.get("generator_commands") or [])},
         "description": (
-            f"MVP PMID {config.get('publication_pmid')} {completion_state} candidate "
-            f"({label}). Unbuilt, acceptance-pending; no Store exists."
+            f"MVP PMID {config.get('publication_pmid')} {completion_state} bundle "
+            f"({label}). Unbuilt; workflow-buildable for dev, scientific acceptance "
+            "pending; no Store exists."
+            if status == "accepted"
+            else (
+                f"MVP PMID {config.get('publication_pmid')} {completion_state} "
+                f"candidate ({label}). Unbuilt, acceptance-pending; no Store exists."
+            )
         ),
         "notes": notes,
     }
+    if accepted_at is not None:
+        release["accepted_at"] = accepted_at
     if source_snapshot:
         release["source_snapshot"] = dict(source_snapshot)
     return release
@@ -1066,8 +1082,18 @@ def run_emit(
     manifest_counts: Mapping[str, int] | None = None,
     registry_roots: Sequence[Path | str] = (),
     expected_metadata_fingerprint: str | None = None,
+    only_buckets: Sequence[str] | None = None,
 ) -> dict:
     _, partition = build_partition(config, mapping_path)
+    stores = dict(config["stores"])
+    if only_buckets is not None:
+        unknown = sorted(set(only_buckets) - set(stores))
+        if unknown:
+            raise CandidateError(
+                f"unknown bucket(s) {unknown}; configured stores are {sorted(stores)}"
+            )
+        wanted = set(only_buckets)
+        stores = {bucket: store for bucket, store in stores.items() if bucket in wanted}
     resolution_rows = read_tsv(resolution_path)
     resolution_by_id = _index_unique(resolution_rows, "resolution table")
     columns = [column for column in resolution_rows[0].keys() if column != "analysis_index"]
@@ -1081,7 +1107,7 @@ def run_emit(
     # may sneak into a bundle.
     intended = {
         analysis_id
-        for ancestry in partition_module.ANCESTRY_ORDER
+        for ancestry in stores
         for analysis_id in partition[ancestry]
     }
     extra = set(resolution_by_id) - intended
@@ -1125,7 +1151,7 @@ def run_emit(
             "metadata fingerprint does not match the planned value: "
             f"{fingerprint['aggregate_sha256']} != {expected_metadata_fingerprint}"
         )
-    for ancestry, store in config["stores"].items():
+    for ancestry, store in stores.items():
         members = partition[ancestry]
         member_rows = []
         for analysis_id in members:
@@ -1186,7 +1212,14 @@ def run_emit(
                 if observed_only
                 else ""
             )
-            + "Unbuilt, acceptance-pending candidate; the human acceptance step is pending."
+            + "Unbuilt candidate; the human scientific-acceptance step is pending."
+            + (
+                " Release Status is 'accepted' ONLY so the dev release workflow may "
+                "build this bundle (#247); it is not scientific release acceptance, "
+                "publication approval or mirror promotion, and no Store exists yet. "
+                "The pending human acceptance is recorded in "
+                "validation.yaml:acceptance.human_acceptance."
+            )
         )
         emit_bundle(
             out_dir,
@@ -1200,6 +1233,8 @@ def run_emit(
                 completion_state="observed-only",
                 notes=notes,
                 source_snapshot=source_snapshot,
+                status="accepted",
+                accepted_at=created_at,
             ),
             render_build_yaml(
                 store_id=observed_id,
@@ -1292,6 +1327,25 @@ def run_emit(
                 )
             checked.append(store_id)
 
+    # #247: the release workflow builds only `BUILDABLE_STATUSES`. Every observed
+    # Store is emitted `accepted` so `partition_buildable` keeps it; the completion
+    # children stay `candidate` while their reference is pending/blocked, so the
+    # workflow must refuse them rather than schedule them silently.
+    observed_bundles = [
+        bundle_module.load(emitted[ancestry], registry_root=out_dir)
+        for ancestry in stores
+        if ancestry in emitted
+    ]
+    bundle_module.refuse_unbuildable(observed_bundles)
+    for key, store_id in emitted.items():
+        if key.endswith("-completed") and bundle_module.is_buildable(
+            bundle_module.load(store_id, registry_root=out_dir)
+        ):
+            raise CandidateError(
+                f"completed definition {store_id} must not be buildable while its "
+                "reference is pending/blocked"
+            )
+
     _atomic_write(
         out_dir / "candidate-plan.yaml",
         yaml.safe_dump(
@@ -1333,6 +1387,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--expected-metadata-fingerprint",
         default=None,
         help="refuse emit unless the metadata fingerprint matches this value",
+    )
+    parser.add_argument(
+        "--buckets",
+        nargs="+",
+        default=None,
+        help="emit only the named ancestry buckets (default: every configured store)",
     )
     parser.add_argument(
         "--registry-root",
@@ -1384,6 +1444,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         manifest_counts=manifest_counts,
         registry_roots=registry_roots,
         expected_metadata_fingerprint=args.expected_metadata_fingerprint,
+        only_buckets=args.buckets,
     )
     print(json.dumps(result, indent=2))
     return 0

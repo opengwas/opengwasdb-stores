@@ -5,8 +5,12 @@ Release Bundles** for the dbGaP `phs002453` acquisition of PMID 39024449
 (Verma et al., VA Million Veteran Program). It is Phase B tooling only.
 
 It never accepts, registers, builds, completes or publishes a Store, and it
-never overwrites an existing bundle. Everything it produces is a
-`status: candidate` definition with human acceptance explicitly **pending**.
+never overwrites an existing bundle. It emits each observed Store as a
+schema-valid `status: accepted` bundle with an `accepted_at`, solely so the dev
+release workflow may build it (#247); that is workflow buildability, **not**
+scientific release acceptance or publication. Human acceptance stays explicitly
+**pending** in `validation.yaml`, and a completed child whose reference is only
+pending/blocked stays `status: candidate` so the workflow refuses it.
 
 **Terminology.** The 6,022 rows below are the **intended bound** membership from
 the accepted dbGaP mapping. The acquisition is **not accepted** and no Source
