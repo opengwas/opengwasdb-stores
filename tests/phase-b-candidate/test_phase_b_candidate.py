@@ -67,7 +67,6 @@ from resources.generators.lib.candidate_workflow import (  # noqa: E402
     analysis_maf_threshold,
     apply_release_policy,
     build_candidate_tables,
-    check_staged_candidate,
     compute_resolution_contract,
     derive_resolver_manifest,
     info_score_emission,
@@ -1397,6 +1396,25 @@ class CandidateWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(index["n_resumed"], 3)
 
+    def test_re_emitting_the_candidate_is_byte_identical_in_every_file(self) -> None:
+        """`--stage emit` over its own candidate rewrites every file byte for byte (#248)."""
+        self.assertEqual(_run_cli(self.fixture).returncode, 0)
+        bundle_dir = self.fixture.registry_root / STORE_ID
+
+        def every_file() -> dict[str, bytes]:
+            return {str(p.relative_to(bundle_dir)): p.read_bytes() for p in sorted(bundle_dir.rglob("*")) if p.is_file()}
+
+        pinned = ("--stage", "emit", "--created-at", "2026-10-14T00:00:00Z")
+        first = _run_cli(self.fixture, *pinned)
+        self.assertEqual(first.returncode, 0, first.stderr)
+        emitted = every_file()
+        second = _run_cli(self.fixture, *pinned)
+        self.assertEqual(second.returncode, 0, second.stderr)
+
+        self.assertIn("release.yaml", emitted)
+        self.assertIn("summary.yaml", emitted)
+        self.assertEqual(every_file(), emitted)
+
     def test_interrupted_run_preserves_prior_candidate(self) -> None:
         first = _run_cli(self.fixture)
         self.assertEqual(first.returncode, 0, first.stderr)
@@ -1411,13 +1429,11 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertEqual(
             (self.fixture.registry_root / STORE_ID / "release.yaml").read_bytes(), release_before
         )
-        self.assertFalse((self.fixture.registry_root / ".staging").exists())
 
     def test_failed_finalisation_does_not_create_a_candidate(self) -> None:
         result = _run_cli(self.fixture, fail_after=1)
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse((self.fixture.registry_root / STORE_ID).exists())
-        self.assertFalse((self.fixture.registry_root / ".staging").exists())
 
     # -- accounting ------------------------------------------------------------
 
@@ -1433,7 +1449,6 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("missing", result.stderr)
         self.assertEqual(_candidate_tables_bytes(self.fixture.registry_root), before)
-        self.assertFalse((self.fixture.registry_root / ".staging").exists())
 
     def test_extra_record_fails_before_replacement(self) -> None:
         self.assertEqual(_run_cli(self.fixture).returncode, 0)
@@ -1478,7 +1493,6 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(expected_message, result.stderr)
         self.assertEqual(_candidate_tables_bytes(self.fixture.registry_root), before)
-        self.assertFalse((self.fixture.registry_root / ".staging").exists())
 
     def test_changed_gate_makes_the_receipt_stale(self) -> None:
         self._resolved_candidate()
@@ -1834,9 +1848,9 @@ class CandidateWorkflowTests(unittest.TestCase):
         overlap = list(csv.DictReader(io.StringIO(tables.reference_overlap_tsv), delimiter="\t"))
         self.assertEqual([row["variant_reference_rate"] for row in overlap], ["1", "0"])
         self.assertEqual([row["rows_scanned"] for row in overlap], ["100", "100"])
-        validation = yaml.safe_load(render_validation_yaml(
+        validation = render_validation_yaml(
             tables=tables, index_summary={}, validated_at="now", validator_name="test"
-        ))
+        )
         self.assertEqual(validation["checks"]["reference_overlap"], "failed")
         self.assertEqual(validation["reference_overlap"]["projected_off_reference_share"], 0.5)
         self.assertEqual(validation["reference_overlap"]["low_overlap_analyses"], ["GCST90000002"])
@@ -1881,9 +1895,9 @@ class CandidateWorkflowTests(unittest.TestCase):
             [row["build_eligible_rows_on_variant_reference"] for row in overlap], ["40", "0"]
         )
         self.assertEqual([row["build_eligible_rate"] for row in overlap], ["0.8", "0"])
-        validation = yaml.safe_load(render_validation_yaml(
+        validation = render_validation_yaml(
             tables=tables, index_summary={}, validated_at="now", validator_name="test"
-        ))
+        )
         summary = validation["reference_overlap"]
         self.assertEqual(summary["projected_off_reference_basis"], "build_eligible_rows")
         self.assertEqual(summary["projected_off_reference_share"], 0.6)
@@ -1909,9 +1923,9 @@ class CandidateWorkflowTests(unittest.TestCase):
         )
         overlap = list(csv.DictReader(io.StringIO(tables.reference_overlap_tsv), delimiter="\t"))
         self.assertEqual([r["build_eligible_rows"] for r in overlap], [""])
-        validation = yaml.safe_load(render_validation_yaml(
+        validation = render_validation_yaml(
             tables=tables, index_summary={}, validated_at="now", validator_name="test"
-        ))
+        )
         summary = validation["reference_overlap"]
         self.assertEqual(summary["projected_off_reference_basis"], "legacy_rows_read")
         self.assertEqual(summary["projected_off_reference_share"], 0.2)
@@ -1988,7 +2002,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertEqual(config.indexed_subsets[0]["name"], "hm3")
         self.assertEqual(config.indexed_subsets[0]["resource_id"], "hapmap3-hg38")
         self.assertIsNone(config.indexed_subsets_opt_out)
-        build = yaml.safe_load(candidate_workflow.render_build_yaml(STORE_ID, config))
+        build = candidate_workflow.render_build_yaml(STORE_ID, config)
         self.assertEqual(build["indexed_subsets"][0]["name"], "hm3")
 
         # A reviewed opt-out is an explicit empty list plus a written reason;
@@ -2002,7 +2016,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             "pilot predates the maintained HapMap3 list",
         )
         self.assertEqual(
-            yaml.safe_load(candidate_workflow.render_build_yaml(STORE_ID, opt_out))[
+            candidate_workflow.render_build_yaml(STORE_ID, opt_out)[
                 "indexed_subsets"
             ],
             [],
@@ -2379,27 +2393,22 @@ class CandidateWorkflowTests(unittest.TestCase):
             config=config,
             index_summary={},
         )
-        validation = yaml.safe_load(
-            render_validation_yaml(
-                tables=tables,
-                index_summary={},
-                validated_at="now",
-                validator_name="test",
-            )
+        validation = render_validation_yaml(
+            tables=tables,
+            index_summary={},
+            validated_at="now",
+            validator_name="test",
         )
         self.assertEqual(validation["store_composition"], dict(tables.store_composition))
-        release = yaml.safe_load(
-            render_release_yaml(
-                store_id=STORE_ID,
-                config=config,
-                tables=tables,
-                commands=["preflight"],
-                created_at="2026-01-01T00:00:00Z",
-                inventory_sha256="a" * 64,
-                preflight_report=Path("preflight.json"),
-                index_summary={},
-                generator_version="test",
-            )
+        release = render_release_yaml(
+            store_id=STORE_ID,
+            config=config,
+            tables=tables,
+            created_at="2026-01-01T00:00:00Z",
+            inventory_sha256="a" * 64,
+            preflight_report=Path("preflight.json"),
+            index_summary={},
+            generator_version="test",
         )
         self.assertIn(
             "Store composition (#203): this shared Store admits only Analyses whose "
@@ -2464,9 +2473,9 @@ class CandidateWorkflowTests(unittest.TestCase):
         overlap = list(csv.DictReader(io.StringIO(tables.reference_overlap_tsv), delimiter="\t"))
         self.assertEqual([row["build_eligible_rows"] for row in overlap], ["50", "0"])
         self.assertEqual([row["exclude_from_build"] for row in overlap], ["", "true"])
-        validation = yaml.safe_load(render_validation_yaml(
+        validation = render_validation_yaml(
             tables=tables, index_summary={}, validated_at="now", validator_name="test"
-        ))
+        )
         self.assertEqual(validation["checks"]["reference_overlap"], "passed")
         self.assertEqual(validation["errors"], [])
 
@@ -2573,14 +2582,6 @@ class CandidateWorkflowTests(unittest.TestCase):
         header = "analysis_id\tstored_effect_scale\tsample_size_kind\tsample_size_scope\tsample_size\toriginal_effect_scale\toriginal_sd_method\tancestry_assignment_method\n"
         blank = "GCST1\tsd\ttotal\tanalysis_level\t\tsd\testimated_from_source_maf\taf_assigned\n"
         self.assertTrue(validate_candidate_analyses(header + blank))
-
-    def test_staged_candidate_check_detects_invalid_bundle(self) -> None:
-        staging_parent = self.fixture.root / "staging"
-        store_dir = staging_parent / STORE_ID
-        store_dir.mkdir(parents=True)
-        (store_dir / "release.yaml").write_text("store_id: OGS-99001\n", encoding="utf-8")
-        errors = check_staged_candidate(STORE_ID, staging_parent)
-        self.assertTrue(errors)
 
     # -- snakemake wiring ------------------------------------------------------
 

@@ -49,6 +49,7 @@ SUITES: list[tuple[str, str, list[str]]] = [
     ("dbgap-mvp-pilot", "python", ["tests/dbgap-mvp/test_pilot.py"]),
     ("dbgap-mvp-emit-wire", "python", ["tests/dbgap-mvp/test_merge_records.py"]),
     ("effect-scale-validation (R)", "r", ["tests/effect-scale-validation/run_tests.R"]),
+    ("emit", "python", ["tests/emit/test_emit.py"]),
     ("eqtlgen-besd-ragged", "python", ["tests/eqtlgen-besd-ragged/test_subset_besd.py"]),
     ("hapmap3-resource", "python", ["tests/hapmap3-resource/test_hapmap3_resource.py"]),
     ("hm3-migration", "python", ["tests/hm3-migration/test_hm3_migration.py"]),

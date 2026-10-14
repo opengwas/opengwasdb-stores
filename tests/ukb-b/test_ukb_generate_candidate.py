@@ -4,8 +4,8 @@
 Fixture-scale and network-free. They pin the contracts the ticket names:
 exact membership reconciliation, identity (path/size/sha256) taken from the
 frozen inventory rather than the resolution table, preserved meaningful
-exclusions, refusal to emit a schema-invalid or duplicate bundle, and refusal
-to overwrite an existing bundle.
+exclusions, and refusal to emit a schema-invalid or duplicate bundle. How the
+bundle lands in the registry is the shared emitter's, tested in tests/emit.
 
 Run from the repository root:
 
@@ -35,6 +35,10 @@ def _load(name: str, path: Path):
     spec.loader.exec_module(module)
     return module
 
+
+import yaml  # noqa: E402
+
+from ogstores import bundle  # noqa: E402
 
 ukb_inventory = _load("ukb_inventory_test", REPO_ROOT / "resources" / "generators" / "ukb-b" / "inventory.py")
 candidate = _load("ukb_generate_candidate_test", REPO_ROOT / "resources" / "generators" / "ukb-b" / "generate_candidate.py")
@@ -211,46 +215,51 @@ class UkbCandidateTest(unittest.TestCase):
         with self.assertRaises(candidate.CandidateError):
             candidate.validate_membership(rows, self.inventory)
 
-    def test_emit_produces_a_bundle_that_passes_bundle_check(self) -> None:
-        rows, warnings = self._build()
-        config = base_config()
-        release = candidate.render_release_yaml(
-            store_id="OGS-99001",
-            config=config,
-            inventory_path=self.root / "inventory.tsv",
-            inventory_sha256="ab" * 32,
-            resolution_path=self.root / "resolution.tsv",
-            resolution_sha256="cd" * 32,
-            n_rows=len(rows),
-            n_buildable=len(rows),
-            command="fixture",
-            generator_version="sha256:" + "ef" * 32,
-            created_at="2026-10-12T00:00:00Z",
+    def _write_inputs(self) -> Path:
+        """The frozen inventory, resolution, declared selection and config, as main() reads them."""
+        inventory_p = self.root / "inventory.tsv"
+        write_tsv(inventory_p, INVENTORY_COLUMNS, self.inventory)
+        resolution = [resolution_row(i) for i in self.ids]
+        resolution_p = self.root / "resolution.tsv"
+        write_tsv(resolution_p, list(resolution[0]), resolution)
+        declared = list(self.declared.values())
+        declared_p = self.root / "declared.tsv"
+        write_tsv(declared_p, list(declared[0]), declared)
+        config_p = self.root / "config.yaml"
+        config_p.write_text(
+            yaml.safe_dump(
+                {**base_config(), "inventory": str(inventory_p), "resolution": str(resolution_p), "declared": str(declared_p)}
+            ),
+            encoding="utf-8",
         )
-        build = candidate.render_build_yaml("OGS-99001", config)
-        validation = candidate.render_validation_yaml(
-            n_rows=len(rows), n_buildable=len(rows), warnings=warnings, ancestry_checked=False, generated_at="2026-10-12T00:00:00Z"
-        )
-        out = self.root / "registry" / "OGS-99001"
-        candidate.emit(
-            store_id="OGS-99001", out_dir=out, release=release, build=build, analyses_rows=rows, validation=validation
-        )
-        for name in ("release.yaml", "build.yaml", "analyses.tsv", "validation.yaml", "summary.yaml"):
-            self.assertTrue((out / name).is_file(), name)
-        # Refuses to overwrite an existing bundle.
-        with self.assertRaises(candidate.CandidateError):
-            candidate.emit(
-                store_id="OGS-99001", out_dir=out, release=release, build=build, analyses_rows=rows, validation=validation
-            )
+        return config_p
 
-    def test_emit_skips_shared_schema_for_excluded_rows(self) -> None:
+    def test_main_emits_the_candidate_and_re_emits_over_it(self) -> None:
+        config_p = self._write_inputs()
+        registry = self.root / "stores"
+        argv = ["OGS-99001", "--config", str(config_p), "--registry-root", str(registry), "--created-at", "2026-10-12T00:00:00Z"]
+
+        self.assertEqual(candidate.main(argv), 0)
+        loaded = bundle.load("OGS-99001", registry_root=registry)
+        self.assertEqual(list(bundle.check(loaded, registry_root=registry)), [])
+        self.assertEqual(loaded.status, "candidate")
+        self.assertEqual(
+            loaded.release["generator"]["commands"],
+            ["python3 resources/generators/ukb-b/generate_candidate.py " + " ".join(argv)],
+        )
+
+        # A candidate is re-emitted in place, not refused (#248).
+        self.assertEqual(candidate.main(argv), 0)
+        self.assertEqual(bundle.load("OGS-99001", registry_root=registry).status, "candidate")
+
+    def test_shared_schema_skips_excluded_rows(self) -> None:
         resolution = {i: resolution_row(i) for i in self.ids}
         resolution["ukb-b-2"] = resolution_row("ukb-b-2", excluded=True)
         rows, _ = self._build(resolution=resolution)
         # an excluded row may legitimately carry blank required metadata
         excluded = next(r for r in rows if r["analysis_id"] == "ukb-b-2")
         excluded["stored_effect_scale"] = ""
-        candidate._validate_shared_schema(self.root, rows)
+        candidate._validate_shared_schema(rows)
 
     def _af(self, analysis_id: str) -> dict[str, str]:
         return {"analysis_id": analysis_id, "assigned_ancestry": "EUR", "ancestry_assignment_method": "af_assigned"}
@@ -316,7 +325,6 @@ class UkbCandidateTest(unittest.TestCase):
             resolution_sha256="cd" * 32,
             n_rows=3,
             n_buildable=3,
-            command="fixture",
             generator_version="sha256:" + "ef" * 32,
             created_at="2026-10-12T00:00:00Z",
             ancestry_records_identity=identity,
@@ -331,7 +339,6 @@ class UkbCandidateTest(unittest.TestCase):
             resolution_sha256="cd" * 32,
             n_rows=3,
             n_buildable=3,
-            command="fixture",
             generator_version="sha256:" + "ef" * 32,
             created_at="2026-10-12T00:00:00Z",
         )

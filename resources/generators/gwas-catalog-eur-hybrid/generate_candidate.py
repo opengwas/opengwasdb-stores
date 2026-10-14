@@ -15,7 +15,7 @@ Stages, in order (``--stage``, default ``all``):
     prepare     derive the canonical resolver manifest from the frozen exact paths
     resolve     invoke `opengwasdb resolve-analyses` (owns the pool and checkpoints)
     verify      account every resolver record; fail on missing/stale/duplicate/extra
-    emit        apply release policy, render the bundle, bundle.check(), publish atomically
+    emit        apply release policy, render the bundle, emit it (resources/generators/lib/emit.py)
 
 The per-stage form exists so coarse dependency wiring can drive the same code; the
 operator normally runs ``all``. The registry owns membership, method tiers,
@@ -43,20 +43,15 @@ for extra in (str(REPO_ROOT), str(REPO_ROOT / "src")):
 from resources.generators.lib.candidate_workflow import (  # noqa: E402
     DEFAULT_RESOLVER_BIN,
     RECEIPT_FILENAME,
-    STAGING_DIRNAME,
     CandidateConfiguration,
     CandidateError,
-    CandidateFiles,
     account_records,
     apply_release_policy,
     build_candidate_tables,
     build_resolution_receipt,
-    check_staged_candidate,
-    cleanup_staging,
     derive_resolver_manifest,
     load_candidate_configuration,
     now_utc,
-    publish_candidate,
     read_candidate_metadata,
     read_resolution_receipt,
     render_build_yaml,
@@ -67,11 +62,11 @@ from resources.generators.lib.candidate_workflow import (  # noqa: E402
     run_resolver,
     sha256_file,
     sha256_text,
-    stage_candidate,
     validate_candidate_analyses,
     verify_records,
     write_resolution_receipt,
 )
+from resources.generators.lib.emit import CandidateBundle, EmitError, emit  # noqa: E402
 from resources.generators.lib.source_inventory import (  # noqa: E402
     InventoryError,
     PreflightConfigError,
@@ -314,12 +309,12 @@ def stage_emit(
         sha256_file(pipeline.receipt_path) if pipeline.receipt_path.is_file() else None
     )
 
-    files = CandidateFiles(
-        release_yaml=render_release_yaml(
+    candidate = CandidateBundle(
+        store_id=pipeline.store_id,
+        release=render_release_yaml(
             store_id=pipeline.store_id,
             config=pipeline.config,
             tables=tables,
-            commands=commands,
             created_at=created_at,
             inventory_sha256=inventory_sha256,
             preflight_report=pipeline.preflight_report_path,
@@ -328,41 +323,26 @@ def stage_emit(
             resolver_receipt_path=pipeline.receipt_path,
             resolver_receipt_sha256=receipt_sha256,
         ),
-        build_yaml=render_build_yaml(pipeline.store_id, pipeline.config),
+        build=render_build_yaml(pipeline.store_id, pipeline.config),
         analyses_tsv=tables.analyses_tsv,
-        validation_yaml=render_validation_yaml(
+        commands=commands,
+        validation=render_validation_yaml(
             tables=tables,
             index_summary=index,
             validated_at=created_at,
             validator_name="resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py",
         ),
-        source_readiness_tsv=tables.source_readiness_tsv,
-        ancestry_tsv=tables.ancestry_tsv,
-        sd_estimation_tsv=tables.sd_estimation_tsv,
-        exclusions_tsv=tables.exclusions_tsv,
-        reference_overlap_tsv=tables.reference_overlap_tsv,
+        sidecars={
+            "source_readiness.tsv": tables.source_readiness_tsv,
+            "ancestry.tsv": tables.ancestry_tsv,
+            "sd_estimation.tsv": tables.sd_estimation_tsv,
+            "exclusions.tsv": tables.exclusions_tsv,
+            "reference_overlap.tsv": tables.reference_overlap_tsv,
+        },
     )
-
-    staging_store_dir = pipeline.registry_root / STAGING_DIRNAME / pipeline.store_id
-    if staging_store_dir.exists():
-        import shutil
-
-        shutil.rmtree(staging_store_dir)
-    stage_candidate(staging_store_dir, files)
-
-    check_errors = check_staged_candidate(
-        pipeline.store_id, pipeline.registry_root / STAGING_DIRNAME
-    )
-    if check_errors:
-        raise CandidateError(
-            "staged candidate failed bundle.check(); refusing publication:\n  - "
-            + "\n  - ".join(check_errors)
-        )
-
-    published = publish_candidate(pipeline.registry_root, pipeline.store_id, staging_store_dir)
-    cleanup_staging(pipeline.registry_root)
+    emitted = emit(candidate, pipeline.registry_root)
     print(
-        f"Candidate {pipeline.store_id} published to {published} "
+        f"Candidate {pipeline.store_id} emitted to {emitted} "
         f"({tables.included_rows} included, {tables.excluded_rows} excluded)"
     )
     if tables.exclusion_counts:
@@ -374,7 +354,7 @@ def stage_emit(
         print("  review:")
         for warning in tables.warnings:
             print(f"    - {warning}")
-    return published
+    return emitted
 
 
 def run(pipeline: Pipeline) -> Path | None:
@@ -429,13 +409,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     try:
         run(pipeline)
-    except (CandidateError, InventoryError, PreflightConfigError) as exc:
-        cleanup_staging(pipeline.registry_root)
+    except (CandidateError, EmitError, InventoryError, PreflightConfigError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
-    except Exception as exc:  # Never leave a staging tree behind on an unexpected failure.
-        cleanup_staging(pipeline.registry_root)
-        raise
     return 0
 
 

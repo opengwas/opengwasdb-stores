@@ -20,8 +20,9 @@ What it owns, and what it deliberately does not:
 - Ancestry is a batch-level source fallback by default (see config-candidate.yaml);
   if `--ancestry-records` is supplied (e.g. from `opengwasdb resolve-analyses`),
   its per-Analysis values are used instead and the ancestry check is marked run.
-- It never builds, completes, accepts, validates or publishes a Store, and it
-  never overwrites an existing bundle.
+- It never builds, completes, accepts, validates or publishes a Store. The
+  shared emitter (`resources/generators/lib/emit.py`) lands the bundle, and it
+  replaces only an earlier candidate (#248).
 
 Usage:
 
@@ -37,8 +38,6 @@ import csv
 import hashlib
 import importlib.util
 import json
-import os
-import shutil
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -61,9 +60,8 @@ ukb_inventory = importlib.util.module_from_spec(_spec)
 sys.modules["ukb_inventory"] = ukb_inventory
 _spec.loader.exec_module(ukb_inventory)
 
-from ogstores import bundle as bundle_module  # noqa: E402
-from ogstores import index as index_module  # noqa: E402
 from ogstores.paths import is_valid_store_id  # noqa: E402
+from resources.generators.lib.emit import CandidateBundle, emit  # noqa: E402
 
 DEFAULT_CONFIG = "resources/generators/ukb-b/config-candidate.yaml"
 
@@ -142,13 +140,6 @@ def _read_tsv(path: Path) -> list[dict[str, str]]:
     if not rows:
         raise CandidateError(f"TSV has no rows: {path}")
     return rows
-
-
-def _atomic_write(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_text(text, encoding="utf-8")
-    os.replace(temporary, path)
 
 
 def sha256_file(path: Path) -> str:
@@ -422,7 +413,6 @@ def render_release_yaml(
     resolution_sha256: str,
     n_rows: int,
     n_buildable: int,
-    command: str,
     generator_version: str,
     created_at: str,
     ancestry_records_identity: Mapping[str, object] | None = None,
@@ -452,7 +442,6 @@ def render_release_yaml(
         "generator": {
             "name": "resources/generators/ukb-b/generate_candidate.py",
             "version": generator_version,
-            "commands": [command],
         },
         "description": str(config.get("description", "")).strip(),
         "notes": str(config.get("notes", "")).strip(),
@@ -505,11 +494,11 @@ def render_validation_yaml(
 
 
 # ---------------------------------------------------------------------------
-# Validation and publish
+# Validation
 # ---------------------------------------------------------------------------
 
 
-def _validate_shared_schema(staged: Path, rows: Sequence[Mapping[str, str]]) -> None:
+def _validate_shared_schema(rows: Sequence[Mapping[str, str]]) -> None:
     """Run OpenGWASDB's shared `analyses.tsv` schema over the buildable rows."""
     from opengwasdb.model.analyses import read_analyses, validate_analyses
 
@@ -525,49 +514,6 @@ def _validate_shared_schema(staged: Path, rows: Sequence[Mapping[str, str]]) -> 
         )
 
 
-def _check_staged_bundle(staged: Path) -> None:
-    registry_root = staged.parent
-    loaded = bundle_module.load(staged.name, registry_root=registry_root)
-    result = bundle_module.check(loaded, registry_root=registry_root)
-    if result:
-        raise CandidateError("staged bundle failed bundle.check():\n" + "\n".join(f" - {e}" for e in result))
-
-
-def emit(
-    *,
-    store_id: str,
-    out_dir: Path,
-    release: Mapping,
-    build: Mapping,
-    analyses_rows: Sequence[Mapping[str, str]],
-    validation: Mapping,
-) -> Path:
-    """Stage, validate and atomically publish the candidate bundle."""
-    if out_dir.exists():
-        raise CandidateError(f"refusing to overwrite an existing bundle: {out_dir}")
-    # bundle.load() derives the store_id from the directory name, so stage inside
-    # a throwaway registry root that contains a correctly named directory.
-    staging_root = out_dir.parent / f".{store_id}.staging"
-    staging = staging_root / store_id
-    if staging_root.exists():
-        shutil.rmtree(staging_root)
-    staging.mkdir(parents=True)
-    try:
-        _atomic_write(staging / "release.yaml", yaml.safe_dump(dict(release), sort_keys=False, allow_unicode=True))
-        _atomic_write(staging / "build.yaml", yaml.safe_dump(dict(build), sort_keys=False, allow_unicode=True))
-        _atomic_write(staging / "analyses.tsv", render_analyses_tsv(analyses_rows))
-        _atomic_write(staging / "validation.yaml", yaml.safe_dump(dict(validation), sort_keys=False, allow_unicode=True))
-        _check_staged_bundle(staging)
-        index_module.write_bundle_summary(bundle_module.load(store_id, registry_root=staging_root))
-        # Publish last: a crash before this leaves nothing registered.
-        out_dir.parent.mkdir(parents=True, exist_ok=True)
-        os.replace(staging, out_dir)
-    finally:
-        if staging_root.exists():
-            shutil.rmtree(staging_root, ignore_errors=True)
-    return out_dir
-
-
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -581,15 +527,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--resolution", help="override config resolution table")
     parser.add_argument("--declared", help="override config declared selection")
     parser.add_argument("--ancestry-records", help="per-Analysis assigned ancestry from opengwasdb resolve-analyses")
-    parser.add_argument("--registry-root", default="stores")
-    parser.add_argument("--out-dir", help="write the bundle here instead of <registry-root>/<store_id>")
+    parser.add_argument("--registry-root", default="stores", help="emit into <registry-root>/<store_id>")
     parser.add_argument("--repo-root", default=str(REPO_ROOT))
     parser.add_argument("--created-at")
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = parse_args(argv)
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+    args = parse_args(raw_argv)
     repo_root = Path(args.repo_root)
     if not is_valid_store_id(args.store_id):
         raise SystemExit(f"invalid Store Release id: {args.store_id!r}")
@@ -618,7 +564,7 @@ def main(argv: list[str] | None = None) -> int:
 
     n_buildable = sum(1 for row in rows if row["exclude_from_build"] != "true")
     created_at = args.created_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    command = "python3 resources/generators/ukb-b/generate_candidate.py " + " ".join(sys.argv[1:])
+    command = "python3 resources/generators/ukb-b/generate_candidate.py " + " ".join(raw_argv)
     generator_version = "sha256:" + hashlib.sha256((REPO_ROOT / "resources/generators/ukb-b/generate_candidate.py").read_bytes()).hexdigest()
 
     # `checks.ancestry` is `passed` only when EVERY admitted Analysis has a valid
@@ -648,7 +594,6 @@ def main(argv: list[str] | None = None) -> int:
         resolution_sha256=sha256_file(resolution_path),
         n_rows=len(rows),
         n_buildable=n_buildable,
-        command=command,
         generator_version=generator_version,
         created_at=created_at,
         ancestry_records_identity=ancestry_identity,
@@ -663,19 +608,21 @@ def main(argv: list[str] | None = None) -> int:
         reports=ancestry_reports,
     )
 
-    out_dir = Path(args.out_dir) if args.out_dir else _resolve(repo_root, args.registry_root) / args.store_id
-    _validate_shared_schema(out_dir, rows)
-    published = emit(
-        store_id=args.store_id,
-        out_dir=out_dir,
-        release=release,
-        build=build,
-        analyses_rows=rows,
-        validation=validation,
+    _validate_shared_schema(rows)
+    emitted = emit(
+        CandidateBundle(
+            store_id=args.store_id,
+            release=release,
+            build=build,
+            analyses_tsv=render_analyses_tsv(rows),
+            commands=[command],
+            validation=validation,
+        ),
+        _resolve(repo_root, args.registry_root),
     )
     print(
         f"Emitted candidate {args.store_id}: {len(rows)} Analyses "
-        f"({n_buildable} buildable, {len(rows) - n_buildable} excluded) to {published}"
+        f"({n_buildable} buildable, {len(rows) - n_buildable} excluded) to {emitted}"
     )
     if warnings:
         for warning in warnings:

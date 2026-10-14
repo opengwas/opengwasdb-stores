@@ -108,9 +108,10 @@ The Phase B candidate workflow turns the frozen Source Inventory into a
 **candidate** Release Bundle (`stores/OGS-xxxxx/`, `status: candidate`). It runs
 preflight, derives the canonical resolver manifest, invokes
 `opengwasdb resolve-analyses`, accounts every resolver record, applies the
-registry's membership/exclusion policy, validates the staged bundle and renames
-it into place atomically. It never builds, validates or accepts a Store, and it
-never invokes Phase A.
+registry's membership/exclusion policy, and emits the bundle through the shared
+emitter (`resources/generators/lib/emit.py`), which checks it against the
+Release Bundle contract and replaces only an earlier candidate. It never
+builds, validates or accepts a Store, and it never invokes Phase A.
 
 ```sh
 # Preflight + resolve + verify + finalise in one resumable run:
@@ -137,7 +138,7 @@ work root (also how `workflow/generate.smk` wires the coarse DAG):
 | `prepare` | The canonical resolver manifest from the frozen exact `data_file` paths and the per-design method tiers. |
 | `resolve` | Invokes `opengwasdb resolve-analyses`; writes records, `index.json`, `resolve.log`, and the `resolution_receipt.json` that binds the run to its contract. |
 | `verify` | Accounts every record and requires the current contract and every record digest to match the successful resolution receipt; refuses a missing, stale, duplicate, extra, or incompatible-schema record. |
-| `emit` | Applies release policy, checks the pinned schema and `bundle.check()`, and atomically publishes `stores/OGS-xxxxx/`. |
+| `emit` | Applies release policy, checks the pinned schema, and emits `stores/OGS-xxxxx/` through the shared emitter, which runs `bundle.check()`. |
 | `all` | Default: every stage in order. |
 
 Useful options: `--registry-root` (default `stores/`), `--work-root` (default
@@ -412,9 +413,9 @@ registers or builds it. A human reviewer should:
 
 A generated candidate is a reviewed git change like any other: commit
 `stores/OGS-xxxxx/`, regenerate the master list (`pixi run index`) so
-`stores.tsv`/`STORES.md` include it, and open a pull request. `index` also writes
-the bundle's generated `summary.yaml`, so `bundle-check` and the CI clean-tree
-gate stay green.
+`stores.tsv`/`STORES.md` include it, and open a pull request. The emitter has
+already written the bundle's generated `summary.yaml`; `index` rewrites it
+identically, so `bundle-check` and the CI clean-tree gate stay green.
 
 `config-full.yaml`'s `build` block declares the reader capability and assembly
 but no `variant-reference`/`reference-panel`: the full release's Dense-Component

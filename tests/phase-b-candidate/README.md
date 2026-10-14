@@ -38,14 +38,15 @@ alignment or SD — those stay OpenGWASDB's and are exercised upstream.
    the contract and every record digest; changing a gate, the ancestry reference
    or fine-group map content, the resolver revision, or forging an
    internally-consistent record with a recomputed self-digest all make
-   `verify`/`emit` fail, preserve a prior candidate and leave no staging tree.
+   `verify`/`emit` fail and preserve a prior candidate.
    A missing receipt is rejected too. (`--cores` and `--resume` deliberately do
    not change the contract.)
 7. **Resume reuses unchanged records** and reproduces byte-identical tables and
    sidecars.
 8. **Interruption is safe** — a killed resolver or a failed finalisation leaves a
-   prior candidate byte-identical and creates no partial one, and leaves no
-   staging tree behind.
+   prior candidate byte-identical and creates no partial one. How the bundle is
+   staged and swapped into `stores/` is the shared emitter's, tested in
+   `tests/emit` (#248).
 9. **Byte equivalence across worker counts** — 1 worker and many workers produce
    identical `analyses.tsv` and sidecars.
 10. **The contract holds** — the emitted `analyses.tsv` passes the pinned

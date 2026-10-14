@@ -1,0 +1,366 @@
+#!/usr/bin/env python3
+"""Tests for the one candidate emitter every Manifest Generator uses (#248).
+
+The emitter is the only code that writes a candidate Release Bundle into the
+Store Registry (ADR 0035's *Emit*). Tested at its two interfaces: `emit()`,
+which the Python generators call, and its command line, which the R generators
+call with a directory of rendered files.
+
+Verifies:
+- A new candidate lands in `stores/<id>/` with `status: candidate`, the
+  generator commands it was given, its sidecars and a generated
+  `summary.yaml`, and passes the Release Bundle contract.
+- Re-emitting over an existing candidate replaces it whole, and the same
+  input gives byte-identical files.
+- Emitting over a bundle whose Release Status is past `candidate` is refused,
+  and the registry is left byte-for-byte as it was.
+- A candidate that fails the contract is refused, and a prior candidate
+  survives untouched.
+- Lineage resolves against the real registry, not the staging area.
+- Nothing is left in the staging area after success or refusal.
+"""
+
+from __future__ import annotations
+
+import fcntl
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+import yaml
+
+REPO_ROOT: Path = Path(__file__).resolve().parents[2]
+for _extra in (str(REPO_ROOT), str(REPO_ROOT / "src")):
+    if _extra not in sys.path:
+        sys.path.insert(0, _extra)
+
+from ogstores import bundle  # noqa: E402
+from resources.generators.lib import emit as emitter  # noqa: E402
+
+STORE_ID = "OGS-00090"
+COMMANDS = ("python3 fixtures/generate.py OGS-00090", "opengwasdb resolve-analyses fixture")
+
+ANALYSES_TSV = (
+    "analysis_id\tstored_effect_scale\tsample_size_kind\tsample_size_scope\tsample_size\t"
+    "original_effect_scale\toriginal_sd_method\tassigned_ancestry\tancestry_assignment_method\t"
+    "checksum\tchecksum_algorithm\tsource_file\n"
+    "FIXTURE_1\tsd\ttotal\tanalysis_level\t1000\tsd\tdeclared_standardised\tEUR\taf_assigned\t"
+    f"{'a' * 64}\tsha256\t/data/source/fixture.tsv\n"
+)
+
+
+#: What the fixture candidate emits to.
+BUNDLE_FILES = ["analyses.tsv", "build.yaml", "release.yaml", "sidecars/selection.tsv", "summary.yaml", "validation.yaml"]
+
+
+def candidate(store_id: str = STORE_ID, **changes) -> emitter.CandidateBundle:
+    """A small candidate that passes the Release Bundle contract."""
+    fields = {
+        "store_id": store_id,
+        "release": {
+            "store_id": store_id,
+            "label": "fixture",
+            "status": "candidate",
+            "derived_from": None,
+            "created_at": "2026-10-14T00:00:00Z",
+            "source_snapshot_id": "fixture-snapshot-v1",
+            "generator": {"version": "sha256:" + "b" * 64},
+            "description": "Fixture candidate Release Bundle",
+        },
+        "build": {
+            "store_id": store_id,
+            "layout": "dense",
+            "completion_state": "observed_only",
+            "build": {"command": "build-dense-vcf", "options": {}},
+            "post": {"top_hits": False, "rho": False, "overview": True, "validate": True},
+        },
+        "analyses_tsv": ANALYSES_TSV,
+        "validation": {"status": "passed", "checks": {"schema": "passed"}},
+        "sidecars": {"selection.tsv": "analysis_id\tselected\nFIXTURE_1\ttrue\n"},
+        "commands": COMMANDS,
+    }
+    fields.update(changes)
+    return emitter.CandidateBundle(**fields)
+
+
+def tree(root: Path) -> dict[str, bytes]:
+    """Every file under `root`, by relative path."""
+    return {str(p.relative_to(root)): p.read_bytes() for p in sorted(root.rglob("*")) if p.is_file()}
+
+
+class EmitTestCase(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.registry = Path(self._tmp.name) / "stores"
+        self.registry.mkdir()
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def release_yaml(self, store_id: str = STORE_ID) -> dict:
+        return yaml.safe_load((self.registry / store_id / "release.yaml").read_text(encoding="utf-8"))
+
+    def assert_nothing_staged(self) -> None:
+        """No staged or stashed bundle is left; only the per-id lock files stay."""
+        staging = self.registry / emitter.STAGING_DIRNAME
+        left = sorted(p.name for p in staging.iterdir() if not p.name.endswith(".lock")) if staging.exists() else []
+        self.assertEqual(left, [], "the staging area was left with a bundle in it")
+
+
+class TestEmitNewCandidate(EmitTestCase):
+    def test_a_new_candidate_lands_complete_with_status_and_commands(self) -> None:
+        emitted = emitter.emit(candidate(), self.registry)
+
+        self.assertEqual(emitted, self.registry / STORE_ID)
+        self.assertEqual(
+            sorted(tree(emitted)),
+            BUNDLE_FILES,
+        )
+        release = self.release_yaml()
+        self.assertEqual(release["status"], "candidate")
+        self.assertEqual(release["generator"]["commands"], list(COMMANDS))
+        self.assertEqual((emitted / "analyses.tsv").read_text(encoding="utf-8"), ANALYSES_TSV)
+        loaded = bundle.load(STORE_ID, registry_root=self.registry)
+        self.assertEqual(list(bundle.check(loaded, registry_root=self.registry)), [])
+        self.assert_nothing_staged()
+
+
+class TestLineage(EmitTestCase):
+    def child(self, parent: str) -> emitter.CandidateBundle:
+        base = candidate(store_id="OGS-00092")
+        return candidate(
+            store_id="OGS-00092",
+            release={**base.release, "derived_from": parent},
+            build={
+                **base.build,
+                "completion_state": "reference_completed",
+                "complete": {"command": "complete-dense", "options": {"ld-panel": "/ld", "ancestry": "EUR"}},
+            },
+        )
+
+    def test_a_child_resolves_its_parent_in_the_real_registry(self) -> None:
+        emitter.emit(candidate(store_id="OGS-00091"), self.registry)
+
+        emitter.emit(self.child("OGS-00091"), self.registry)
+
+        self.assertEqual(self.release_yaml("OGS-00092")["derived_from"], "OGS-00091")
+
+    def test_a_child_of_an_unregistered_parent_is_refused(self) -> None:
+        with self.assertRaises(emitter.EmitError) as raised:
+            emitter.emit(self.child("OGS-00093"), self.registry)
+
+        self.assertIn("OGS-00093", str(raised.exception))
+        self.assertFalse((self.registry / "OGS-00092").exists())
+
+
+class TestInterruptedSwap(EmitTestCase):
+    def test_a_candidate_stashed_by_an_interrupted_swap_is_put_back_first(self) -> None:
+        """A swap killed between its two moves leaves `stores/<id>` missing and the old candidate stashed."""
+        emitter.emit(candidate(), self.registry)
+        stash = self.registry / emitter.STAGING_DIRNAME / f"{STORE_ID}.previous"
+        os.replace(self.registry / STORE_ID, stash)
+        stashed = tree(stash)
+
+        with self.assertRaises(emitter.EmitError):
+            emitter.emit(candidate(build={"store_id": STORE_ID, "layout": "dense"}), self.registry)
+
+        self.assertEqual(tree(self.registry / STORE_ID), stashed)
+        self.assert_nothing_staged()
+
+
+class TestReEmit(EmitTestCase):
+    def test_re_emitting_over_a_candidate_replaces_it_whole(self) -> None:
+        emitter.emit(candidate(sidecars={"selection.tsv": "old\n", "dropped.tsv": "old\n"}), self.registry)
+        revised = candidate(sidecars={"selection.tsv": "new\n"}, commands=("python3 fixtures/generate.py --again",))
+
+        emitter.emit(revised, self.registry)
+
+        self.assertEqual(
+            sorted(tree(self.registry / STORE_ID)),
+            BUNDLE_FILES,
+        )
+        self.assertEqual((self.registry / STORE_ID / "sidecars" / "selection.tsv").read_text(), "new\n")
+        self.assertEqual(self.release_yaml()["generator"]["commands"], ["python3 fixtures/generate.py --again"])
+        self.assert_nothing_staged()
+
+    def test_a_filesystem_that_cannot_exchange_directories_still_replaces_whole(self) -> None:
+        emitter.emit(candidate(sidecars={"dropped.tsv": "old\n"}), self.registry)
+
+        with mock.patch.object(emitter, "_exchange", return_value=False):
+            emitter.emit(candidate(), self.registry)
+
+        self.assertEqual(
+            sorted(tree(self.registry / STORE_ID)),
+            BUNDLE_FILES,
+        )
+        self.assert_nothing_staged()
+
+    def test_the_same_candidate_re_emits_byte_identically(self) -> None:
+        emitter.emit(candidate(), self.registry)
+        first = tree(self.registry)
+
+        emitter.emit(candidate(), self.registry)
+
+        self.assertEqual(tree(self.registry), first)
+
+
+class TestEmitRefusals(EmitTestCase):
+    def test_emitting_over_a_bundle_past_candidate_is_refused(self) -> None:
+        for status in sorted(bundle.VALID_STATUSES - {"candidate"}):
+            with self.subTest(status=status):
+                emitter.emit(candidate(), self.registry)
+                release_p = self.registry / STORE_ID / "release.yaml"
+                release_p.write_text(release_p.read_text().replace("status: candidate", f"status: {status}"))
+                before = tree(self.registry)
+
+                with self.assertRaises(emitter.EmitError) as raised:
+                    emitter.emit(candidate(), self.registry)
+
+                self.assertIn(f"Release Status {status!r}", str(raised.exception))
+                self.assertEqual(tree(self.registry), before)
+                self.assert_nothing_staged()
+                release_p.write_text(release_p.read_text().replace(f"status: {status}", "status: candidate"))
+
+    def test_inputs_that_could_escape_the_bundle_or_drop_provenance_are_refused(self) -> None:
+        cases = {
+            "invalid store id": candidate(store_id="../OGS-00090"),
+            "sidecar outside sidecars/": candidate(sidecars={"../release.yaml": "x"}),
+            "nested sidecar name": candidate(sidecars={"deep/x.tsv": "x"}),
+            "no generator commands": candidate(commands=()),
+            "blank generator command": candidate(commands=("",)),
+            "a renderer's other status": candidate(release={**candidate().release, "status": "accepted"}),
+            "a renderer's other commands": candidate(
+                release={**candidate().release, "generator": {"commands": ["something else"]}}
+            ),
+        }
+        for name, bad in cases.items():
+            with self.subTest(name):
+                with self.assertRaises(emitter.EmitError):
+                    emitter.emit(bad, self.registry)
+                self.assertEqual(tree(self.registry), {})
+
+    def test_a_concurrent_emit_of_the_same_id_is_refused(self) -> None:
+        emitter.emit(candidate(), self.registry)
+        before = tree(self.registry)
+        lock_p = self.registry / emitter.STAGING_DIRNAME / f"{STORE_ID}.lock"
+        fd = os.open(lock_p, os.O_RDWR | os.O_CREAT)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with self.assertRaises(emitter.EmitError) as raised:
+                emitter.emit(candidate(sidecars={"other.tsv": "x\n"}), self.registry)
+        finally:
+            os.close(fd)
+
+        self.assertIn("in progress", str(raised.exception))
+        self.assertEqual(tree(self.registry), before)
+
+    def test_a_directory_that_is_not_a_bundle_is_never_replaced(self) -> None:
+        stray = self.registry / STORE_ID
+        stray.mkdir()
+        (stray / "notes.txt").write_text("not a bundle\n")
+
+        with self.assertRaises(emitter.EmitError):
+            emitter.emit(candidate(), self.registry)
+
+        self.assertEqual(tree(stray), {"notes.txt": b"not a bundle\n"})
+        self.assert_nothing_staged()
+
+    def test_a_candidate_failing_the_contract_is_refused_and_the_prior_one_kept(self) -> None:
+        emitter.emit(candidate(), self.registry)
+        before = tree(self.registry)
+        broken = candidate(build={"store_id": STORE_ID, "layout": "dense"})
+
+        with self.assertRaises(emitter.EmitError) as raised:
+            emitter.emit(broken, self.registry)
+
+        self.assertIn("completion_state", str(raised.exception))
+        self.assertEqual(tree(self.registry), before)
+        self.assert_nothing_staged()
+
+
+class TestCommandLine(EmitTestCase):
+    """The emitter's command line, which the R generators call with a directory of rendered files."""
+
+    def write_rendered(self, directory: Path, rendered: emitter.CandidateBundle) -> Path:
+        directory.mkdir(parents=True)
+        # Another renderer's YAML style, keys in the same order: the emitter
+        # rewrites the style in its own and keeps the order.
+        def dump(document) -> str:
+            return yaml.safe_dump(dict(document), sort_keys=False, indent=4, default_flow_style=True)
+
+        (directory / "release.yaml").write_text(dump(rendered.release))
+        (directory / "build.yaml").write_text(dump(rendered.build))
+        (directory / "validation.yaml").write_text(dump(rendered.validation))
+        (directory / "analyses.tsv").write_text(rendered.analyses_tsv)
+        (directory / "sidecars").mkdir()
+        for name, text in rendered.sidecars.items():
+            (directory / "sidecars" / name).write_text(text)
+        return directory
+
+    def run_cli(self, *args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(REPO_ROOT / "resources" / "generators" / "lib" / "emit.py"), *args],
+            capture_output=True,
+            text=True,
+        )
+
+    def test_a_rendered_directory_emits_what_emit_would(self) -> None:
+        rendered = self.write_rendered(Path(self._tmp.name) / "rendered", candidate())
+        expected_root = Path(self._tmp.name) / "expected"
+        expected_root.mkdir()
+        emitter.emit(candidate(), expected_root)
+
+        res = self.run_cli(
+            STORE_ID, "--from", str(rendered), "--registry-root", str(self.registry),
+            *(arg for command in COMMANDS for arg in ("--command", command)),
+        )
+
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(tree(self.registry), tree(expected_root))
+
+    def test_a_refusal_exits_non_zero_and_changes_nothing(self) -> None:
+        emitter.emit(candidate(), self.registry)
+        release_p = self.registry / STORE_ID / "release.yaml"
+        release_p.write_text(release_p.read_text().replace("status: candidate", "status: accepted"))
+        before = tree(self.registry)
+        rendered = self.write_rendered(Path(self._tmp.name) / "rendered", candidate())
+
+        res = self.run_cli(STORE_ID, "--from", str(rendered), "--registry-root", str(self.registry), "--command", "x")
+
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("Release Status 'accepted'", res.stderr)
+        self.assertEqual(tree(self.registry), before)
+
+    def test_rendered_entries_of_the_wrong_kind_are_refused(self) -> None:
+        for name, make in (
+            ("sidecars", lambda d: (shutil.rmtree(d / "sidecars"), (d / "sidecars").write_text("x"))),
+            ("validation.yaml", lambda d: ((d / "validation.yaml").unlink(), (d / "validation.yaml").mkdir())),
+        ):
+            with self.subTest(name):
+                rendered = self.write_rendered(Path(self._tmp.name) / f"rendered-{name}", candidate())
+                make(rendered)
+
+                res = self.run_cli(STORE_ID, "--from", str(rendered), "--registry-root", str(self.registry), "--command", "x")
+
+                self.assertNotEqual(res.returncode, 0)
+                self.assertIn(name, res.stderr)
+                self.assertEqual(tree(self.registry), {})
+
+    def test_an_unexpected_file_in_the_rendered_directory_is_refused(self) -> None:
+        rendered = self.write_rendered(Path(self._tmp.name) / "rendered", candidate())
+        (rendered / "filtered.tsv.gz").write_bytes(b"not part of a bundle")
+
+        res = self.run_cli(STORE_ID, "--from", str(rendered), "--registry-root", str(self.registry), "--command", "x")
+
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("filtered.tsv.gz", res.stderr)
+        self.assertEqual(tree(self.registry), {})
+
+
+if __name__ == "__main__":
+    unittest.main()
