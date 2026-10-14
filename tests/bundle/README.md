@@ -34,6 +34,11 @@ Covered by `tests/bundle/test_bundle.py`:
   SeqId. A gene-shaped `trait_ontology_id` and an Ensembl authority name in
   `trait_ontology_label` are rejected.
 - Status-aware validation: `candidate` release without `validation.yaml` and with unresolved rows passes.
+- Buildable statuses (#247): every Release Status has a verdict; only
+  `accepted`, `built` and `validated` are buildable. A candidate's refusal
+  names its status and how to accept it, a superseded or withdrawn release is
+  never offered acceptance, a missing or unknown status is refused, and
+  `partition_buildable`/`refuse_unbuildable` name every refused bundle.
 - Artifact-root separation: `artifacts` is neither required nor allowed in a
   Build Recipe; `paths.artifact_root()` owns deployment placement.
 - `check()` and `load()` open no Store.

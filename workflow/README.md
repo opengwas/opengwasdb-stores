@@ -33,6 +33,10 @@ closed Store envelope excludes `overview.html`.
 
 `pixi run release` and `pixi run release-dry` run `workflow/release.py`, the
 supported entry point (#195). Around one Snakemake run it:
+- refuses a release whose Release Status does not allow a build (only
+  `accepted`, `built` and `validated` are buildable; #247), before
+  anything is written. `all` means every buildable release, and the entry
+  point, `--dry-run` included, lists each one it leaves out and why;
 - completes any publication a crash interrupted;
 - refuses a published release unless it is named with `--config force=1`, and
   refuses a release holding a leftover records snapshot;
@@ -61,7 +65,9 @@ run of `<ID>` is in progress (pid …)". Ctrl-C or SIGTERM stops Snakemake,
 restores the records a forced run had begun to replace, and exits 130 or 143.
 
 Running `snakemake --snakefile workflow/Snakefile` directly bypasses all of
-this except the Snakefile's own `onstart` refusal, which `--no-hooks` disables.
+this except the Snakefile's own `onstart` refusals, which `--no-hooks` disables.
+They refuse an unbuildable bundle as the entry point does, and the
+Snakefile's `all` target expands only to buildable bundles.
 See the specification's Safety section.
 
 ### Production Execution vs. Fixture-Scale Tests

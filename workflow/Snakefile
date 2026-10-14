@@ -1,4 +1,4 @@
-"""Phase A: every accepted Release Bundle in stores/, wired by dependency only.
+"""Phase A: every buildable Release Bundle in stores/, wired by dependency only.
 
     pixi run release OGS-00003             one release, plus any parent it needs
     pixi run release OGS-00003 OGS-00004   several; lineage order is resolved
@@ -123,8 +123,10 @@ onstart:
     # Defence in depth for a direct `snakemake` run. The supported entry point,
     # `pixi run release` (workflow/release.py), refuses, snapshots and settles
     # around Snakemake and cannot be switched off. Here, before the first job,
-    # a run that would rebuild a published release is refused unless it holds
-    # the records snapshot of the entry point's run, `release_run` (#195).
+    # a run that would build a bundle whose Release Status does not allow it is
+    # refused (#247), and so is one that would rebuild a published release
+    # unless it holds the records snapshot of the entry point's run,
+    # `release_run` (#195).
     scheduled = [
         (job.wildcards_dict["root"], job.wildcards_dict["store_id"])
         for job in workflow.dag.needrun_jobs()
@@ -142,6 +144,14 @@ onstart:
         for job in workflow.dag.needrun_jobs()
         if {"root", "store_id"} <= job.wildcards_dict.keys()
     ]
+    # Release Status first: a named candidate, or the unbuilt parent a named
+    # child would schedule, is refused before any other check (#247).
+    try:
+        bundle.refuse_unbuildable(
+            get_bundle(store_id) for store_id in sorted({sid for _, sid in scheduled})
+        )
+    except bundle.NotBuildableError as exc:
+        raise WorkflowError(str(exc))
     run.refuse_rebuilding_published_releases(
         scheduled,
         forced=run.forced_by_transaction(config.get("release_run"), scheduled),
@@ -175,9 +185,15 @@ onstart:
         raise WorkflowError(str(exc))
 
 
+# `all` is every bundle the contract lets this workflow build, not every
+# registered one: any whose Release Status does not allow a build is left out
+# (#247). Named on its own, such a bundle is refused at `onstart`.
+BUILDABLE_STORE_IDS: list[str] = [sid for sid in ALL_STORE_IDS if bundle.is_buildable(get_bundle(sid))]
+
+
 rule all:
     input:
-        [record(sid, "register") for sid in ALL_STORE_IDS]
+        [record(sid, "register") for sid in BUILDABLE_STORE_IDS]
 
 
 rule build_manifest:
