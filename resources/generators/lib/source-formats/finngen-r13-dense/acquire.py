@@ -6,14 +6,12 @@ import argparse
 import csv
 import hashlib
 import os
-import sys
 import urllib.request
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
-from resources.generators.lib.release_yaml import merge_validation_yaml, read_tsv  # noqa: E402
+from resources.generators.lib.release_yaml import merge_validation_yaml, read_tsv
 
 
 def parse_args() -> argparse.Namespace:

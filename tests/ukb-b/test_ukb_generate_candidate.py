@@ -22,9 +22,6 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-for _extra in (str(REPO_ROOT), str(REPO_ROOT / "src")):
-    if _extra not in sys.path:
-        sys.path.insert(0, _extra)
 
 
 def _load(name: str, path: Path):

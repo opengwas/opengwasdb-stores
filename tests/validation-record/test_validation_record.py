@@ -50,14 +50,12 @@ Run from the repository root:
 from __future__ import annotations
 
 import re
-import sys
 import unittest
 from pathlib import Path
 
 import yaml
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from ogstores.register import (
     BUILD_ENVIRONMENT_FIELDS,

@@ -73,7 +73,6 @@ from typing import Any
 from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from ogstores import _pdeath_supervisor, bundle, paths, plan, run
 from ogstores.bundle import Bundle
@@ -751,7 +750,6 @@ while True:
             sys.executable,
             "-c",
             run._SUPERVISOR_BOOTSTRAP,
-            str(REPO_ROOT / "src"),
             str(liveness_read),
             str(status_write),
             sys.executable,
@@ -849,10 +847,8 @@ while True:
         driver = self.root / "orphan_driver.py"
         driver.write_text('''
 import sys
-from pathlib import Path
 
-repo, root, store_id, mock, info = sys.argv[1:6]
-sys.path.insert(0, str(Path(repo) / "src"))
+root, store_id, mock, info = sys.argv[1:5]
 
 from ogstores import paths
 from ogstores.plan import Step
@@ -874,7 +870,7 @@ execute_step(step, store_id=store_id, artifact_root=root, check=False)
         worker: int | None = None
         with open(log_path, "w", encoding="utf-8") as log_file:
             driver_proc = subprocess.Popen(
-                [sys.executable, str(driver), str(REPO_ROOT), str(self.root), self.store_id, str(mock_build), str(info)],
+                [sys.executable, str(driver), str(self.root), self.store_id, str(mock_build), str(info)],
                 stdout=log_file,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -969,7 +965,6 @@ class TestSupervisorGroupGuard(unittest.TestCase):
             sys.executable,
             "-c",
             run._SUPERVISOR_BOOTSTRAP,
-            str(REPO_ROOT / "src"),
             str(liveness_read),
             str(status_write),
             sys.executable,

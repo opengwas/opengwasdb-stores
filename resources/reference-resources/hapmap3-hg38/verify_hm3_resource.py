@@ -37,11 +37,8 @@ import yaml
 # repository pin predates `build-indexed-subset`, so the round-trip is built
 # from `parse_canonical_alid` rather than importing the newer
 # `read_variant_list` (opengwas/opengwasdb#264). stores#209 advances the pin.
-REPO_ROOT = Path(__file__).resolve().parents[3]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
-from opengwasdb.variants.axis import parse_canonical_alid  # noqa: E402
+from opengwasdb.variants.axis import parse_canonical_alid
 
 DEFAULT_RESOURCE = Path(__file__).resolve().parent / "resource.yaml"
 

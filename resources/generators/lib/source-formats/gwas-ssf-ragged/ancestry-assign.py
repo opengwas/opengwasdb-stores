@@ -27,12 +27,10 @@ from __future__ import annotations
 import argparse
 import csv
 import gzip
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
-from resources.generators.lib.ancestry_sidecar import format_sidecar_float  # noqa: E402
-from resources.generators.lib.release_yaml import (  # noqa: E402
+from resources.generators.lib.ancestry_sidecar import format_sidecar_float
+from resources.generators.lib.release_yaml import (
     get,
     merge_validation_yaml,
     read_release_yaml,
@@ -41,9 +39,9 @@ from resources.generators.lib.release_yaml import (  # noqa: E402
     resolve_path,
 )
 
-from opengwasdb.ancestry import Gates, assign_ancestry, load_reference  # noqa: E402
-from opengwasdb.readers import is_palindromic  # noqa: E402
-from opengwasdb.variants.normalise import VariantNormalisationError, orient_to_canonical  # noqa: E402
+from opengwasdb.ancestry import Gates, assign_ancestry, load_reference
+from opengwasdb.readers import is_palindromic
+from opengwasdb.variants.normalise import VariantNormalisationError, orient_to_canonical
 
 # Best-effort mapping from this registry's free-text source ancestry labels
 # (see resources/data/derived/store-candidates-analyses.tsv `ancestry_group`)

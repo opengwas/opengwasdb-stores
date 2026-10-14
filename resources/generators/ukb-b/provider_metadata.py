@@ -41,14 +41,10 @@ import argparse
 import csv
 import hashlib
 import json
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 PROVIDER_BATCH: str = "ukb-b"
 #: Provider JSON outputs columns the resolution record needs. The analysis TSV

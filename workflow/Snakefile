@@ -37,21 +37,11 @@ differed only in which name they looked up. The chain's shape lives in
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
 
 from snakemake.exceptions import WorkflowError
 
-# Ensure src/ is on sys.path when invoked via snakemake CLI
-_CANDIDATE_SRC_DIRS = [
-    Path(workflow.basedir).parent / "src" if hasattr(workflow, "basedir") else None,
-    Path(workflow.snakefile).resolve().parents[1] / "src" if hasattr(workflow, "snakefile") and workflow.snakefile else None,
-    Path.cwd() / "src",
-]
-for _src in _CANDIDATE_SRC_DIRS:
-    if _src is not None and _src.is_dir() and str(_src) not in sys.path:
-        sys.path.insert(0, str(_src))
-
+# `ogstores` is installed editable into the pixi environment (#257).
 from ogstores import bundle, index, manifest, paths, register, resources, run, runtime
 from ogstores.plan import plan
 

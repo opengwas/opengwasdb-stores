@@ -27,8 +27,7 @@ import logging
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
-from resources.generators.lib.release_yaml import (  # noqa: E402
+from resources.generators.lib.release_yaml import (
     get,
     merge_validation_yaml,
     read_release_yaml,
@@ -37,7 +36,7 @@ from resources.generators.lib.release_yaml import (  # noqa: E402
     resolve_path,
 )
 
-from resources.generators.lib.emit import EmitError, emit_working_bundle, work_root  # noqa: E402
+from resources.generators.lib.emit import EmitError, emit_working_bundle, work_root
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from subset_besd import write_besd_subset  # noqa: E402

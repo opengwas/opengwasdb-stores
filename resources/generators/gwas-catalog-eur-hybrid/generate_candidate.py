@@ -36,9 +36,6 @@ from pathlib import Path
 from typing import Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-for extra in (str(REPO_ROOT), str(REPO_ROOT / "src")):
-    if extra not in sys.path:
-        sys.path.insert(0, extra)
 
 from resources.generators.lib.candidate_workflow import (  # noqa: E402
     DEFAULT_RESOLVER_BIN,

@@ -27,48 +27,16 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# (label, kind, command relative to REPO_ROOT)
-SUITES: list[tuple[str, str, list[str]]] = [
-    ("ancestry-assignment", "python", ["tests/ancestry-assignment/run_tests.py"]),
-    ("bundle", "python", ["tests/bundle/test_bundle.py"]),
-    ("curation/gap-scan", "python", ["tests/curation/test_gap_scan.py"]),
-    ("curation/candidates", "python", ["tests/curation/test_candidates.py"]),
-    ("curation/embedding", "python", ["tests/curation/test_embedding.py"]),
-    ("curation/harvest", "python", ["tests/curation/test_harvest.py"]),
-    ("curation/recall", "python", ["tests/curation/test_recall.py"]),
-    ("curation/choice", "python", ["tests/curation/test_choice.py"]),
-    ("curation/promotion", "python", ["tests/curation/test_promotion.py"]),
-    ("curation/jev-chooser", "python", ["tests/curation/test_jev_chooser.py"]),
-    ("curation/validate-chooser", "python", ["tests/curation/test_validate_chooser.py"]),
-    ("curation/ontology", "python", ["tests/curation/test_ontology.py"]),
-    ("curation/e2e-pipeline", "python", ["tests/curation/test_e2e_pipeline.py"]),
-    ("curation/ukb", "python", ["tests/curation/test_ukb.py"]),
-    ("curation/coverage", "python", ["tests/curation/test_coverage.py"]),
-    ("dbgap-phs002453-acquisition", "python", ["tests/dbgap-phs002453/test_acquire_dbgap.py"]),
-    ("dbgap-mvp-candidates", "python", ["tests/dbgap-mvp/test_generate_candidate.py"]),
-    ("dbgap-mvp-pilot", "python", ["tests/dbgap-mvp/test_pilot.py"]),
-    ("dbgap-mvp-emit-wire", "python", ["tests/dbgap-mvp/test_merge_records.py"]),
-    ("dbgap-mvp-proc-accounting", "python", ["tests/dbgap-mvp/test_proc_accounting.py"]),
+Suite = tuple[str, str, list[str]]  # (label, kind, command relative to REPO_ROOT)
+# A Python file run as named halves: file -> [(label, extra arguments)].
+Splits = dict[str, list[tuple[str, list[str]]]]
+
+# R suites are listed: discovery finds only Python ones (#257).
+R_SUITES: list[Suite] = [
     ("effect-scale-validation (R)", "r", ["tests/effect-scale-validation/run_tests.R"]),
-    ("emit", "python", ["tests/emit/test_emit.py"]),
     ("emit-registry (R)", "r", ["tests/emit-registry/run_tests.R"]),
-    ("eqtlgen-besd-ragged", "python", ["tests/eqtlgen-besd-ragged/test_subset_besd.py"]),
-    ("eqtlgen-emit-registry", "python", ["tests/eqtlgen-besd-ragged/test_emit_registry.py"]),
-    ("hapmap3-resource", "python", ["tests/hapmap3-resource/test_hapmap3_resource.py"]),
-    ("hm3-migration", "python", ["tests/hm3-migration/test_hm3_migration.py"]),
-    ("hm3-benchmark-report", "python", ["tests/hm3-benchmark-report/test_release_benchmark_report.py"]),
-    ("indexed-subsets", "python", ["tests/indexed-subsets/test_indexed_subsets.py"]),
-    ("indexed-subsets-generator-defaults", "python", ["tests/indexed-subsets/test_generator_defaults.py"]),
     ("indexed-subsets-generator-defaults (R)", "r", ["tests/indexed-subsets/test_generator_defaults.R"]),
     ("finngen-r13-pilot", "r", ["tests/finngen-r13-pilot/run_tests.R"]),
-    ("finngen-r13-acquisition", "python", ["tests/finngen-r13-pilot/test_acquire.py"]),
-    ("finngen-r13-annotation", "python", ["tests/finngen-r13-pilot/test_annotation.py"]),
-    ("finngen-r13-assessment", "python", ["tests/finngen-r13-pilot/test_assessment.py"]),
-    ("index", "python", ["tests/index/test_index.py"]),
-    ("ld-panel-eigendecomposition", "python", ["tests/ld-panel-eigendecomposition/run_tests.py"]),
-    ("ld-panel-generation", "python", ["tests/ld-panel-generation/run_tests.py"]),
-    ("manifest", "python", ["tests/manifest/test_manifest.py"]),
-    ("migration-id-reorder", "python", ["tests/migration/test_id_reorder.py"]),
     ("metadata-resolvers/gwas-catalog-ssf", "r", ["tests/metadata-resolvers/gwas-catalog-ssf/run_tests.R"]),
     ("metadata-resolvers/finngen-manifest", "r", ["tests/metadata-resolvers/finngen-manifest/run_tests.R"]),
     ("metadata-resolvers/opengwas-api", "r", ["tests/metadata-resolvers/opengwas-api/run_tests.R"]),
@@ -76,30 +44,65 @@ SUITES: list[tuple[str, str, list[str]]] = [
     ("materialise-gwas-ssf-ragged", "r", ["tests/materialise-gwas-ssf-ragged/run_tests.R"]),
     ("no-cis-region-policy", "r", ["tests/no-cis-region-policy/run_tests.R"]),
     ("opengwas-gwas-vcf-dense", "r", ["tests/opengwas-gwas-vcf-dense/run_tests.R"]),
-    ("opengwas-gwas-vcf-dense annotation", "python", ["tests/opengwas-gwas-vcf-dense/test_annotation.py"]),
-    ("phase-b-candidate", "python", ["tests/phase-b-candidate/test_phase_b_candidate.py"]),
-    ("score-declarations", "python", ["tests/phase-b-candidate/test_derive_score_declarations.py"]),
-    ("plan", "python", ["tests/plan/test_plan.py"]),
-    ("readiness", "python", ["tests/readiness/test_readiness.py"]),
-    ("qc-panel-concordance", "python", ["tests/qc-panel-concordance/test_qc_panel_concordance.py"]),
     ("qc-panel-retention", "r", ["tests/qc-panel-retention/run_tests.R"]),
-    ("reconcile-build-yaml", "python", ["tests/reconcile-build-yaml/test_reconcile_build_yaml.py"]),
-    ("register", "python", ["tests/register/test_register.py"]),
-    ("runtime-guard", "python", ["tests/runtime/test_runtime_guard.py"]),
-    ("run", "python", ["tests/run/test_run.py"]),
     ("schema-validation", "r", ["tests/schema-validation/run_tests.R"]),
-    ("source-inventory", "python", ["tests/source-inventory/test_source_inventory.py"]),
-    ("ukb-b-inventory", "python", ["tests/ukb-b/test_ukb_inventory.py"]),
-    ("ukb-b-candidate", "python", ["tests/ukb-b/test_ukb_generate_candidate.py"]),
-    ("ukb-b-provider-metadata", "python", ["tests/ukb-b/test_ukb_provider_metadata.py"]),
-    ("validation-record", "python", ["tests/validation-record/test_validation_record.py"]),
-    ("workflow", "python", ["tests/workflow/test_workflow.py"]),
-    # One suite in two halves, so CI can give each a runner of its own.
-    ("release-faults/boundaries", "python",
-     ["tests/workflow/test_release_faults.py", "-k", "TestEveryBoundaryThroughTheEntryPoint"]),
-    ("release-faults/interrupts", "python",
-     ["tests/workflow/test_release_faults.py", "-k", "TestLiveAndInterruptedRuns"]),
 ]
+
+# A Python suite CI runs as separate halves, each on a runner of its own.
+SPLITS: Splits = {
+    "tests/workflow/test_release_faults.py": [
+        ("release-faults/boundaries", ["-k", "TestEveryBoundaryThroughTheEntryPoint"]),
+        ("release-faults/interrupts", ["-k", "TestLiveAndInterruptedRuns"]),
+    ],
+}
+
+
+def _suite_files(tests_root: Path) -> list[Path]:
+    return sorted(
+        p for p in tests_root.rglob("*.py")
+        if "__pycache__" not in p.parts and (p.name.startswith("test_") or p.name == "run_tests.py")
+    )
+
+
+def discover_suites(tests_root: Path, *, r_suites: list[Suite], splits: Splits) -> list[Suite]:
+    """Every Python suite under `tests_root`, then `r_suites` (#257).
+
+    A Python suite is a `test_*.py` or `run_tests.py`, run as a script. It is
+    named after its directory when that holds no other Python suite, when it
+    is a `run_tests.py`, or when the file is named after the directory
+    (`workflow/test_workflow.py`); otherwise `<directory>/<file>`, without
+    `test_` and with `-` for `_`. A name an R suite already has falls back to
+    the `<directory>/<file>` form. A file in `splits` runs as its named halves
+    instead. Two suites with one name are refused rather than one hiding the
+    other.
+    """
+    files = _suite_files(tests_root)
+    per_dir: dict[Path, int] = {}
+    for path in files:
+        per_dir[path.parent] = per_dir.get(path.parent, 0) + 1
+    r_labels = {label for label, _, _ in r_suites}
+    suites: list[Suite] = []
+    for path in files:
+        command = str(Path(tests_root.name) / path.relative_to(tests_root))
+        if command in splits:
+            suites.extend((label, "python", [command, *extra]) for label, extra in splits[command])
+            continue
+        directory = str(path.parent.relative_to(tests_root))
+        stem = path.stem.removeprefix("test_").replace("_", "-")
+        named_after_directory = (
+            per_dir[path.parent] == 1 or path.name == "run_tests.py" or stem == path.parent.name
+        )
+        label = directory if named_after_directory and directory not in r_labels else f"{directory}/{stem}"
+        suites.append((label, "python", [command]))
+    suites += list(r_suites)
+    labels = [label for label, _, _ in suites]
+    duplicates = sorted({label for label in labels if labels.count(label) > 1})
+    if duplicates:
+        raise ValueError(f"two test suites share a name: {', '.join(duplicates)}")
+    return suites
+
+
+SUITES: list[Suite] = discover_suites(REPO_ROOT / "tests", r_suites=R_SUITES, splits=SPLITS)
 
 
 # Most suites get single-threaded BLAS. A suite that imports numpy, scipy or
@@ -118,9 +121,8 @@ SUITES: list[tuple[str, str, list[str]]] = [
 # also removes that whole directory of locks when it exits. CI gives each of
 # these suites a runner, and so a checkout and `.snakemake/`, of its own
 # (`--list-exclusive`).
-THREADED_SUITES: frozenset[str] = frozenset(
-    {"workflow", "release-faults/boundaries", "release-faults/interrupts"}
-)
+EXCLUSIVE_ORDER: tuple[str, ...] = ("workflow", "release-faults/boundaries", "release-faults/interrupts")
+THREADED_SUITES: frozenset[str] = frozenset(EXCLUSIVE_ORDER)
 
 # Rough per-suite cost in seconds, used only to schedule the long suites first
 # so they overlap with the short ones instead of starting last and running alone.
@@ -136,11 +138,11 @@ SUITE_COST: dict[str, float] = {
     "no-cis-region-policy": 3.5,
     "plan": 2.5,
     "readiness": 3.0,
-    "migration-id-reorder": 1.0,
-    "dbgap-mvp-candidates": 2.0,
-    "dbgap-mvp-pilot": 25.0,
-    "dbgap-mvp-emit-wire": 1.0,
-    "dbgap-mvp-proc-accounting": 1.0,
+    "migration": 1.0,
+    "dbgap-mvp/generate-candidate": 2.0,
+    "dbgap-mvp/pilot": 25.0,
+    "dbgap-mvp/merge-records": 1.0,
+    "dbgap-mvp/proc-accounting": 1.0,
     "opengwas-gwas-vcf-dense": 2.5,
     "finngen-r13-pilot": 2.5,
     "ld-panel-eigendecomposition": 2.0,
@@ -185,6 +187,26 @@ USAGE: str = (
 )
 
 
+def foreign_install() -> str | None:
+    """The reason this environment would test other code than this checkout's, or None (#257).
+
+    `ogstores` installs editable, so it imports from the checkout whose
+    `pixi install` made the environment. This runner under another checkout's
+    environment would test the other checkout's code.
+    """
+    try:
+        import ogstores
+    except ImportError:
+        return "ogstores is not installed in this environment; run `pixi install` in this checkout"
+    installed = Path(ogstores.__file__).resolve().parents[2]
+    if installed == REPO_ROOT:
+        return None
+    return (
+        f"this environment's ogstores is installed from {installed}, not {REPO_ROOT}; "
+        "run `pixi install` in this checkout and use its own environment"
+    )
+
+
 def main() -> int:
     only: str | None = None
     named: list[str] = []
@@ -201,13 +223,18 @@ def main() -> int:
         elif flag == "--skip-exclusive":
             skip_exclusive = True
         elif flag == "--list-exclusive":
-            print(json.dumps([label for label, _, _ in SUITES if label in THREADED_SUITES]))
+            print(json.dumps(list(EXCLUSIVE_ORDER)))
             return 0
         elif flag == "--jobs" and args:
             jobs = max(1, int(args.pop(0)))
         else:
             print(f"usage: {sys.argv[0]} {USAGE}", file=sys.stderr)
             return 2
+
+    foreign = foreign_install()
+    if foreign:
+        print(f"refusing to run: {foreign}", file=sys.stderr)
+        return 2
 
     unknown = sorted(set(named) - {label for label, _, _ in SUITES})
     if unknown:
@@ -232,7 +259,7 @@ def main() -> int:
     # `workflow` alongside seven others took it from 43s to 145s, which is
     # slower than simply giving it the machine to itself.
     shared = [s for s in suites if s[0] not in THREADED_SUITES]
-    exclusive = [s for s in suites if s[0] in THREADED_SUITES]
+    exclusive = sorted((s for s in suites if s[0] in THREADED_SUITES), key=lambda s: EXCLUSIVE_ORDER.index(s[0]))
 
     results: list[tuple[str, bool, float, str]] = []
 

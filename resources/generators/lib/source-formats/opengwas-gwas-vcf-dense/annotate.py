@@ -6,7 +6,6 @@ import argparse
 import csv
 import gzip
 import math
-import sys
 import tempfile
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
@@ -33,9 +32,8 @@ from opengwasdb.readers import (
     write_regions_file,
 )
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
-from resources.generators.lib.ancestry_sidecar import format_sidecar_float  # noqa: E402
-from resources.generators.lib.release_yaml import (  # noqa: E402
+from resources.generators.lib.ancestry_sidecar import format_sidecar_float
+from resources.generators.lib.release_yaml import (
     get,
     merge_validation_yaml,
     read_release_yaml,

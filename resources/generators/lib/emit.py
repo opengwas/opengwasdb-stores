@@ -52,9 +52,6 @@ from typing import Any
 import yaml
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[3]
-for _extra in (str(REPO_ROOT), str(REPO_ROOT / "src")):
-    if _extra not in sys.path:
-        sys.path.insert(0, _extra)
 
 from ogstores import bundle, index, paths  # noqa: E402
 from resources.generators.lib.indexed_subsets import IndexedSubsetConfigError, resolve_indexed_subsets  # noqa: E402

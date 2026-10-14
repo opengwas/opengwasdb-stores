@@ -35,7 +35,6 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "resources" / "scripts"))
-sys.path.insert(0, str(REPO_ROOT / "src"))
 
 import audit_indexed_subsets as audit  # noqa: E402
 from ogstores import bundle  # noqa: E402

@@ -48,9 +48,6 @@ from unittest import mock
 import yaml
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-for extra in (str(REPO_ROOT), str(REPO_ROOT / "src")):
-    if extra not in sys.path:
-        sys.path.insert(0, extra)
 
 import resources.generators.lib.candidate_workflow as candidate_workflow  # noqa: E402
 from ogstores import bundle as bundle_module  # noqa: E402

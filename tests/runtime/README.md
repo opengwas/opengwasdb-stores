@@ -17,8 +17,8 @@ It asserts:
 - required commands come from the plan, not a hardcoded list.
 
 Fixtures are a shell `opengwasdb` stub plus a `direct_url.json`, so the suite
-needs neither a real opengwasdb install nor a Store. It is registered in
-`resources/scripts/run_all_tests.py` and runs under `pixi run test`.
+needs neither a real opengwasdb install nor a Store. `pixi run test` discovers
+and runs it, as suite `runtime`.
 
 The guard is described in [docs/runtime.md](../../docs/runtime.md) and the
 workflow specification's "The pinned current-format runtime (stores#218)".

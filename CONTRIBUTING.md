@@ -100,6 +100,17 @@ Commit or tag anything that turns up. A branch merged into a pushed branch is
 already safe, and a branch that reached a GitHub pull request is safe forever —
 GitHub keeps `refs/pull/<n>/head` after the branch is deleted.
 
+### Each worktree runs its own environment
+
+The repository's Python code (`ogstores`, `curation`, the generator library)
+installs editable into the pixi environments (`pyproject.toml`, #257), and an
+editable install points at the checkout that ran `pixi install`. So run
+`pixi install` in a new worktree and use its own environment there: borrowing
+another checkout's (`pixi run --manifest-path <other>/pixi.toml -e dev python3
+...` from this worktree) imports that checkout's code. The test runner refuses
+to run this checkout's tests under an environment installed from elsewhere, or
+with nothing installed.
+
 ## Repository boundaries
 
 The repository tracks small, reviewable definitions and evidence:
@@ -278,6 +289,17 @@ pixi run test-r
 pixi run test --suite workflow   # one named suite (repeatable)
 pixi run --environment docs docs-smoke
 ```
+
+`pixi run test` finds the Python suites itself (#257): every
+`tests/**/test_*.py` and `tests/**/run_tests.py` is one. It is named after its
+directory when that holds no other Python suite, when it is a `run_tests.py`,
+or when the file is named after the directory; otherwise
+`<directory>/<file>`, without `test_` and with `-` for `_`, which is also the
+fallback when an R suite already has the directory's name. Adding one needs no
+list edit; an R suite is listed in `resources/scripts/run_all_tests.py`.
+Repository code imports from the installed package: nothing inserts the
+repository root or `src/` into `sys.path` or hands them to a subprocess
+through `PYTHONPATH`. `tests/packaging` enforces both rules.
 
 `pixi run test --list-exclusive` names the suites that build Stores through the
 whole release stack and so run alone, after the rest. CI gives each of them a

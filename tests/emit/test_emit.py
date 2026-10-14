@@ -35,9 +35,6 @@ from unittest import mock
 import yaml
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-for _extra in (str(REPO_ROOT), str(REPO_ROOT / "src")):
-    if _extra not in sys.path:
-        sys.path.insert(0, _extra)
 
 from ogstores import bundle  # noqa: E402
 from resources.generators.lib import emit as emitter  # noqa: E402
