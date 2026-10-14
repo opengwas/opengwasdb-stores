@@ -215,7 +215,7 @@ Running them at build time would make Phase A mutate its own input, and the acce
 
 Effect-scale validation is additionally an *acceptance* decision rather than a build step. `finngen-r13/r13-pilot-20` is the worked case: effect-scale validation failed for `HEIGHT_IRN` (implied phenotype SD 0.665 against declared-standardised provenance) while the Store itself built and passed `opengwasdb validate`, and the pilot recorded a NO-GO. A check that can veto a release has to run before thirteen hours are spent, not after.
 
-Phase A keeps a cheap residual role: `bundle.check()` asserts these columns are present and vocabulary-valid, delegating to `opengwasdb.model.analyses`. Asserting presence is registry-side structural validation; recomputing the values is not.
+Phase A keeps a cheap residual role: `bundle.check()` asserts the shared required columns are present through `opengwasdb.model.analyses`, and `assigned_ancestry` is vocabulary-valid wherever it appears. That `assigned_ancestry` is present is Manifest Generation's own rule (`resources/generators/lib/generation_rules.py`, #250), which `bundle-check` runs beside the contract. Asserting presence is structural validation; recomputing the values is not.
 
 The one thing Phase A writes is the **derived build manifest** under the artifact root (`work/analyses.tsv`), which drops `exclude_from_build` audit rows. It is not the bundle's `analyses.tsv` and it writes no column back into the bundle: the accepted input stays byte-identical, and the derived file is a projection of the registry's own selection decision, not a recomputation of Analytical Metadata (ADR 0025).
 
@@ -732,7 +732,7 @@ The verdict is read from `opengwasdb validate --format json`, which the planned 
 The record describes this run and no other. `register` replaces the bundle's previous `validation.yaml`; it never merges with it. The old record's `checks`, `warnings`, `errors` and `reports` describe another run, and republishing them under a new `validated_at` would present them as current (#195).
 
 The one thing kept is the accepted bundle's Phase B acceptance evidence, in a separate `acceptance` block:
-- from a candidate record, its `checks`, `warnings`, `reports`, `reference_overlap` and `store_composition` (#203) verbatim, dated, with the commit it came from;
+- from a candidate record, every block it holds verbatim, dated, with the commit it came from, except the fields describing the generator's own run (`status`, `validated_at`, `validator`, `build_environment`, `observed`, `errors`). `register` names no generator's evidence, so a new kind is carried unchanged (#250);
 - from a previous `register`-written record, its `acceptance` block as it stands.
 
 Nothing in the block feeds `status`, `checks.store`, `warnings` or `errors`. The candidate record's commit comes from `register.committed_revision()`, which the Snakefile calls before `register_release`; `register_release` itself spawns no subprocess.
@@ -745,7 +745,8 @@ The record's top-level `status` is the release-level verdict, and the generated 
 
 The checks cover the things this repository is responsible for:
 
-1. **Every Release Bundle satisfies `bundle.check()`.** The CI gate discovers
+1. **Every Release Bundle satisfies `bundle.check()`** and Manifest Generation's
+   own rules (#250). The CI gate discovers
    bundles dynamically, reports all errors per bundle, and accesses no Store or
    Release Artifact. Retired Analysis columns are fixture-tested against the
    pinned upstream list rather than a registry-owned copy.
@@ -998,7 +999,8 @@ Analysis schema is run over the included rows, and the bundle is then emitted
 through the shared emitter, `resources/generators/lib/emit.py` (#248). The
 emitter stages it under `stores/.staging/<id>/` (hidden, so
 `bundle-check`/`index` cannot see a half-written candidate), runs
-`bundle.check()` against the real registry, writes `summary.yaml`, and only
+`bundle.check()` against the real registry and Manifest Generation's own rules
+(#250), writes `summary.yaml`, and only
 then swaps it into `stores/<id>/` in one step (`renameat2(RENAME_EXCHANGE)`,
 falling back to a move with restore). It replaces only an earlier candidate: a
 bundle with any later Release Status is refused, and needs a new Store Release

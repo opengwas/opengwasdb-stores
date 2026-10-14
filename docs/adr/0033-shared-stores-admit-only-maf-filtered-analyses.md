@@ -94,6 +94,11 @@ included Analysis with no applied MAF floor is excluded as not_maf_filtered."
 candidate record's `store_composition` block into the `acceptance` block by name,
 alongside `checks`, `warnings`, `reports` and `reference_overlap`.
 
+**Amended by issue #250.** `register` no longer names the block: it carries
+every block of a candidate record except the fields describing the generator's
+own run, so `store_composition` reaches the `acceptance` block without
+`register` knowing it exists.
+
 ## Rejected alternatives
 
 **Key the rule on EAF presence** (the issue's original wording). It would admit

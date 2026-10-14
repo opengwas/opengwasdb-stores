@@ -6,7 +6,8 @@ that is absent, a bad checksum, a `derived_from` that does not resolve, an
 illegal status transition -- and that it delegates the `analyses.tsv` contract
 to `opengwasdb.model.analyses` rather than reimplementing it.
 
-Also that Phase B's columns are asserted present and vocabulary-valid, and
+Also that `assigned_ancestry` is vocabulary-valid wherever it appears (that it
+is present is a Manifest Generation rule, `tests/generation-rules`), and
 that every Analysis column retired by the pinned upstream model is rejected,
 naming both the column and Store Release without copying the upstream list into
 this repository. `check()` accumulates all errors without raising and never
@@ -35,6 +36,11 @@ Covered by `tests/bundle/test_bundle.py`:
   SeqId. A gene-shaped `trait_ontology_id` and an Ensembl authority name in
   `trait_ontology_label` are rejected.
 - Status-aware validation: `candidate` release without `validation.yaml` and with unresolved rows passes.
+  Any release Store Release Build will not build may leave required values
+  blank, disclosed as a tolerated gap cited `not buildable` (#250).
+- Manifest Generation's rules are not the contract's: a bundle missing
+  `assigned_ancestry`, or with an incoherent INFO or out-of-range MAF request
+  on an excluded row, passes `check()` (#250).
 - Buildable statuses (#247): every Release Status has a verdict; only
   `accepted`, `built` and `validated` are buildable. A candidate's refusal
   names its status and how to accept it, a superseded or withdrawn release is

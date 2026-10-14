@@ -64,6 +64,9 @@ alignment or SD — those stay OpenGWASDB's and are exercised upstream.
     `store_composition` block records what the gate saw; and toggling the rule
     changes no resolver manifest or resolution receipt, so the rule stays
     outside the resolution contract.
+13. **One vocabulary** — the workflow takes the super-population codes from
+    the contract (`ogstores.bundle`) and the imputation score kinds from
+    Manifest Generation's rules (`generation_rules`), never its own copy (#250).
 
 ## Running the suite
 

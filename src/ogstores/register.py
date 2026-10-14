@@ -313,42 +313,54 @@ def committed_revision(path: Path | str) -> str | None:
     return revision if log.returncode == 0 and run.is_exact_commit_hash(revision) else None
 
 
+# What a candidate record says about the generator's own run rather than about
+# the bundle it accepted. The new record states each of these for this run, so
+# a candidate's copy is not acceptance evidence; its `validated_at` dates the
+# block as `recorded_at` instead.
+_CANDIDATE_RUN_FIELDS: frozenset[str] = frozenset(
+    {"status", "validated_at", "validator", "build_environment", "observed", "errors"}
+)
+
+
 def acceptance_evidence(
     previous: Mapping[str, Any] | None, *, commit: str | None = None
 ) -> dict[str, Any] | None:
-    """The Phase B acceptance evidence a new Validation Record keeps, apart from its findings.
+    """The acceptance evidence a new Validation Record keeps, apart from its findings.
 
     A candidate record, one a Manifest Generator wrote rather than `register`,
-    gives its `checks`, `warnings`, `reports`, `reference_overlap` and
-    `store_composition` verbatim, dated by its own `validated_at` and tied to
-    `commit`, the commit it came from (#195). A
-    `register`-written record passes on the `acceptance` block it already
-    carries, because the accepted bundle it describes has not changed. A
-    `register`-shape record without one (the records #135 migrated) mixes
-    Phase B evidence with an earlier build's findings, so nothing is extracted
-    from it.
+    gives every block it holds verbatim, its `checks`, `warnings` and `reports`
+    and whatever evidence its generator records, except the fields that describe
+    the generator's own run (`_CANDIDATE_RUN_FIELDS`). The block is dated by the
+    candidate's own `validated_at` and tied to `commit`, the commit it came from
+    (#195). `register` names no generator's evidence, so a new kind is carried
+    without changing it (#250). A `register`-written record passes on the
+    `acceptance` block it already carries, because the accepted bundle it
+    describes has not changed. A `register`-shape record without one (the
+    records #135 migrated) mixes Phase B evidence with an earlier build's
+    findings, so nothing is extracted from it.
 
     The block never feeds the record's `status`, `checks.store`, `warnings`
-    or `errors`.
+    or `errors`. A candidate block named `recorded_at` or `commit` is refused
+    rather than allowed to overwrite the dating.
     """
     if not isinstance(previous, Mapping):
         return None
     validator = previous.get("validator")
     written_by = validator.get("name") if isinstance(validator, Mapping) else None
     if written_by != VALIDATOR_NAME:
-        return {
-            "recorded_at": previous.get("validated_at"),
-            "commit": commit,
-            "checks": copy.deepcopy(previous.get("checks")),
-            "warnings": copy.deepcopy(previous.get("warnings")),
-            "reports": copy.deepcopy(previous.get("reports")),
-            # OGS-00011's generator records its reference-overlap evidence as a
-            # top-level block; it is named here, not swept up as "everything else".
-            "reference_overlap": copy.deepcopy(previous.get("reference_overlap")),
-            # The shared-Store MAF-filtered admission summary (#203) is another
-            # named top-level block, never swept up as "everything else".
-            "store_composition": copy.deepcopy(previous.get("store_composition")),
+        evidence = {
+            key: copy.deepcopy(value)
+            for key, value in previous.items()
+            if key not in _CANDIDATE_RUN_FIELDS
         }
+        dating = {"recorded_at": previous.get("validated_at"), "commit": commit}
+        clash = sorted(dating.keys() & evidence.keys())
+        if clash:
+            raise RegisterError(
+                f"candidate validation.yaml has block(s) named {', '.join(clash)}, which "
+                "the acceptance block uses to date the evidence and name its commit"
+            )
+        return {**dating, **evidence}
     carried = previous.get("acceptance")
     return copy.deepcopy(dict(carried)) if isinstance(carried, Mapping) else None
 

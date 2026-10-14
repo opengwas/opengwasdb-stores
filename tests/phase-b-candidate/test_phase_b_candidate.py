@@ -2621,5 +2621,17 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertIn("store_id", missing.stderr + missing.stdout)
 
 
+class SharedVocabularyTests(unittest.TestCase):
+    """The workflow uses the contract's and Manifest Generation's vocabulary, not its own copy (#250)."""
+
+    def test_super_population_codes_come_from_the_contract(self) -> None:
+        self.assertIs(candidate_workflow.SUPERPOPULATIONS, bundle_module.SUPERPOPULATIONS)
+
+    def test_info_score_vocabulary_comes_from_the_generation_rules(self) -> None:
+        from resources.generators.lib import generation_rules
+
+        self.assertIs(candidate_workflow.INFO_SCORE_KINDS, generation_rules.INFO_SCORE_KINDS)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

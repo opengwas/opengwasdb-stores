@@ -624,6 +624,29 @@ class TestRegisterKeepsPhaseBAcceptanceApart(unittest.TestCase):
         self.assertEqual(written["status"], "passed", "Phase B's passed_with_warnings must not feed the verdict")
         self.assertNotIn("reports", written)
 
+    def test_any_kind_of_generator_evidence_survives_registration(self) -> None:
+        """`register` names no generator block: a new kind of evidence is carried as it is (#250)."""
+        novel = {"novel_evidence": {"measured": 3, "notes": ["new kind of check"]}}
+        dbgap_shaped = {
+            "acceptance": {"human_acceptance": "pending", "membership_frozen": True},
+        }
+        generator_run = {"build_environment": {"repo_commit": "0" * 40}}
+        written = self.register_over(
+            "OGS-00061", {**CANDIDATE_RECORD, **novel, **dbgap_shaped, **generator_run}, []
+        )
+
+        self.assertEqual(written["acceptance"]["novel_evidence"], novel["novel_evidence"])
+        self.assertEqual(written["acceptance"]["acceptance"], dbgap_shaped["acceptance"])
+        self.assertNotIn("novel_evidence", written, "generator evidence stays inside the block")
+        for envelope in ("status", "validated_at", "validator", "build_environment", "observed", "errors"):
+            self.assertNotIn(envelope, written["acceptance"])
+
+    def test_a_candidate_block_named_like_the_dating_is_refused(self) -> None:
+        """Carrying it would overwrite the date or commit the block is tied to."""
+        for name in ("recorded_at", "commit"):
+            with self.subTest(name=name), self.assertRaises(register.RegisterError):
+                self.register_over("OGS-00061", {**CANDIDATE_RECORD, name: "from the generator"}, [])
+
     def test_acceptance_never_mixes_with_this_runs_warnings(self) -> None:
         """With validate warnings too, each list holds only its own source's warnings."""
         run_warning = "analysis 'GCST003898' stores EAF whose orientation is unverified"

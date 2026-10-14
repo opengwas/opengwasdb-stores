@@ -98,69 +98,29 @@ class TestBundleContract(unittest.TestCase):
         (root / "analyses.tsv").write_text(analyses, encoding="utf-8")
         return bundle.load(store_id, registry_root=self.tmp_dir)
 
-    def test_optional_info_score_threshold_validates_numeric_or_unavailable(self) -> None:
+    def test_manifest_generation_rules_are_not_the_contracts(self) -> None:
+        """Manifest Generation's rules are its own (#250).
+
+        `resources/generators/lib/generation_rules.py` requires the columns a
+        generator resolves, and checks the INFO and MAF requests on every row;
+        the emitter and `bundle-check` run it beside the contract. The contract
+        checks a request only where the shared Analysis schema does, on the
+        rows that will be built, so an excluded audit row's request, and a
+        missing generation column, are not its business.
+        """
         base = self.make_bundle()
-        self.assertEqual(bundle.check(base, registry_root=self.tmp_dir), [])
-        original = (base.root / "analyses.tsv").read_text()
-        header, row = original.strip().split("\n")
-        triple_header = (
-            "\timputation_score_column\timputation_score_kind"
-            "\timputation_score_provenance"
-        )
-        triple = "\timputation_INFO\timputation_info\tprovider specification: INFO quality"
-        candidate = self.make_bundle(analyses=(
-            header + "\tsource_reader_capability\tinfo_score_threshold" + triple_header + "\n" + row + "\topengwasdb.gwas-ssf\tNaN\t\t\t\n"
-        ))
-        self.assertEqual(bundle.check(candidate, registry_root=self.tmp_dir), [])
-        for value in ("0", "0.6", "1"):
-            candidate = self.make_bundle(analyses=(
-                header + "\tsource_reader_capability\tinfo_score_threshold" + triple_header + "\n"
-                + row + "\topengwasdb.gwas-ssf\t" + value + triple + "\n"
-            ))
-            self.assertEqual(bundle.check(candidate, registry_root=self.tmp_dir), [])
-        for value in ("", "nan", "NA", "inf", "-0.01", "1.01", "missing"):
-            candidate = self.make_bundle(analyses=(
-                header + "\tsource_reader_capability\tinfo_score_threshold" + triple_header + "\n"
-                + row + "\topengwasdb.gwas-ssf\t" + value + triple + "\n"
-            ))
-            with self.subTest(value=value):
-                self.assertTrue(any("info_score_threshold" in error for error in
-                                    bundle.check(candidate, registry_root=self.tmp_dir)))
+        header, row = (base.root / "analyses.tsv").read_text().strip().split("\n")
+        names, values = header.split("\t"), row.split("\t")
+        keep = [i for i, name in enumerate(names) if name != "assigned_ancestry"]
+        info = "\tinfo_score_threshold\timputation_score_column\timputation_score_kind\timputation_score_provenance"
+        header = "\t".join(names[i] for i in keep) + "\tsource_reader_capability\texclude_from_build\tmaf_threshold" + info
+        built = "\t".join(values[i] for i in keep) + "\topengwasdb.gwas-ssf\t\tNaN\tNaN\t\t\t"
+        audit = ("\t".join(values[i] for i in keep).replace("FIXTURE_1", "FIXTURE_2")
+                 + "\topengwasdb.gwas-ssf\ttrue\t0.9\t0.6\t\t\t")
+        breaking = self.make_bundle(store_id="OGS-00096", analyses="\n".join([header, built, audit]) + "\n")
 
-    def test_info_score_threshold_and_declaration_must_be_complete(self) -> None:
-        base = self.make_bundle()
-        original = (base.root / "analyses.tsv").read_text()
-        header, row = original.strip().split("\n")
-        triple_header = (
-            "\timputation_score_column\timputation_score_kind"
-            "\timputation_score_provenance"
-        )
-        full = "\timputation_INFO\timputation_info\tprovider specification: INFO quality"
-
-        def check(threshold: str, declaration: str) -> list[str]:
-            candidate = self.make_bundle(analyses=(
-                header + "\tsource_reader_capability\tinfo_score_threshold" + triple_header + "\n"
-                + row + "\topengwasdb.gwas-ssf\t" + threshold + declaration + "\n"
-            ))
-            return list(bundle.check(candidate, registry_root=self.tmp_dir))
-
-        self.assertEqual(check("0.6", full), [])
-        # A numeric threshold without the complete triple is rejected.
-        for partial in ("\t\t\t", "\timputation_INFO\t\t", "\t\timputation_info\t"):
-            errors = check("0.6", partial)
-            self.assertTrue(
-                any("incomplete imputation score declaration" in error for error in errors),
-                errors,
-            )
-        # A triple without a numeric threshold is rejected.
-        for threshold in ("NaN", ""):
-            errors = check(threshold, full)
-            self.assertTrue(
-                any("no numeric info_score_threshold" in error for error in errors), errors
-            )
-        # A complete triple with an unsupported kind is rejected.
-        errors = check("0.6", "\timputation_INFO\tMAF\tprovider specification: INFO quality")
-        self.assertTrue(any("imputation_score_kind" in error for error in errors), errors)
+        self.assertEqual(bundle.check(breaking, registry_root=self.tmp_dir), [])
+        record_check()
 
     def test_numeric_info_score_threshold_names_its_reader_in_the_row(self) -> None:
         """The pinned OpenGWASDB validator reads the reader from the row alone.
@@ -179,28 +139,6 @@ class TestBundleContract(unittest.TestCase):
         ))
         errors = list(bundle.check(candidate, registry_root=self.tmp_dir))
         self.assertTrue(any("source_reader_capability" in error for error in errors), errors)
-
-    def test_optional_maf_threshold_validates_nan_or_numeric(self) -> None:
-        """A per-Analysis MAF floor is literal NaN or a number in [0, 0.5] (#176)."""
-        base = self.make_bundle()
-        self.assertEqual(bundle.check(base, registry_root=self.tmp_dir), [])
-        header, row = (base.root / "analyses.tsv").read_text().strip().split("\n")
-        header = header + "\t" + bundle.MAF_THRESHOLD_COLUMN
-        for value in ("NaN", "0", "0.005", "0.5"):
-            candidate = self.make_bundle(analyses=header + "\n" + row + "\t" + value + "\n")
-            with self.subTest(value=value):
-                self.assertEqual(
-                    bundle.check(candidate, registry_root=self.tmp_dir), [], value
-                )
-        for value in ("", "nan", "NA", "inf", "-0.01", "0.5001", "missing"):
-            candidate = self.make_bundle(analyses=header + "\n" + row + "\t" + value + "\n")
-            with self.subTest(value=value):
-                self.assertTrue(
-                    any(
-                        "maf_threshold" in error
-                        for error in bundle.check(candidate, registry_root=self.tmp_dir)
-                    )
-                )
 
     def test_ci_population_is_every_registered_bundle_and_each_passes(self) -> None:
         registry = REPO_ROOT / "stores"
@@ -928,8 +866,12 @@ class TestBundleContract(unittest.TestCase):
             self.assertEqual(gap.citation, "#134")
             self.assertEqual(gap.detail, "blank required Analysis values")
 
-    def test_candidate_blank_analysis_exemption_is_reported_on_second_channel(self) -> None:
-        """Candidate releases also surface their tolerated blanks, cited by status not #134."""
+    def test_a_bundle_store_release_build_will_not_build_discloses_its_blanks(self) -> None:
+        """Required values must be present only in a bundle the release workflow builds (#250, #247).
+
+        A candidate, superseded or withdrawn bundle may hold blanks; they are
+        reported on the second channel, never silently dropped.
+        """
         unresolved = (
             "analysis_id\tstored_effect_scale\tsample_size_kind\t"
             "sample_size_scope\tsample_size\toriginal_effect_scale\t"
@@ -937,13 +879,15 @@ class TestBundleContract(unittest.TestCase):
             "ancestry_assignment_method\n"
             "FIXTURE_1\t\t\t\t\t\t\t\t\n"
         )
-        checked = self.make_bundle(status="candidate", analyses=unresolved)
-        result = bundle.check(checked, registry_root=self.tmp_dir)
-        record_check()
-        self.assertEqual(result, [])
-        self.assertEqual(len(result.tolerated), 1, result.tolerated)
-        self.assertEqual(result.tolerated[0].citation, "candidate status")
-        self.assertGreater(result.tolerated[0].count, 0)
+        for status in sorted(bundle.VALID_STATUSES - bundle.BUILDABLE_STATUSES):
+            with self.subTest(status=status):
+                checked = self.make_bundle(status=status, analyses=unresolved)
+                result = bundle.check(checked, registry_root=self.tmp_dir)
+                record_check()
+                self.assertEqual(result, [])
+                self.assertEqual(len(result.tolerated), 1, result.tolerated)
+                self.assertEqual(result.tolerated[0].citation, "not buildable")
+                self.assertGreater(result.tolerated[0].count, 0)
 
     def test_assigned_ancestry_must_use_the_super_population_vocabulary(self) -> None:
         header = (

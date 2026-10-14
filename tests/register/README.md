@@ -31,6 +31,7 @@ Test suite for `ogstores.register` (Issue #117), governed by [ADR 0022](../../do
 
 8. **Phase B acceptance evidence is kept apart (#195)**:
    - A candidate record's `checks`, `warnings`, `reports` and `reference_overlap` appear verbatim under a dated `acceptance` block with the candidate's commit, and never in the run's `status`, `checks`, `warnings` or `errors`.
+   - Any kind of generator evidence survives, without `register` naming it (#250): a made-up block and a dbGaP candidate's own `acceptance` block are carried, and the generator-run fields (`status`, `validated_at`, `validator`, `build_environment`, `observed`, `errors`) are not. A candidate block named `recorded_at` or `commit` is refused.
    - A re-registration passes the block on verbatim; a migrated register-shape record without one gives none.
    - `committed_revision` returns a file's commit only when the file on disk is that commit's.
 

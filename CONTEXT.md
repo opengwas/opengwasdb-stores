@@ -110,7 +110,7 @@ The checks that refuse a run before it reads or writes anything costly, with one
 _Avoid_: preflight run (see Rehearsal Run)
 
 **Emit**:
-Manifest Generation's act of writing a candidate Release Bundle into the Store Registry: staged, checked against the Release Bundle contract, then moved into `stores/<store-id>/` atomically. Only Manifest Generation emits, and it never emits over an accepted bundle.
+Manifest Generation's act of writing a candidate Release Bundle into the Store Registry: staged, checked against the Release Bundle contract and Manifest Generation's own rules, then moved into `stores/<store-id>/` atomically. Only Manifest Generation emits, and it never emits over an accepted bundle.
 _Avoid_: publish (a candidate), finalise (a candidate), register (a candidate)
 
 **Release Artifact**:

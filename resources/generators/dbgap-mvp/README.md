@@ -156,7 +156,7 @@ python3 resources/generators/dbgap-mvp/generate_candidate.py plan \
   --out-dir /data/opengwasdb/work/epic232/221
 
 # Fixture/authorised emit only: requires a resolution table, writes to staging,
-# and runs bundle.check() on every emitted bundle.
+# and runs bundle.check() and Manifest Generation's rules on every emitted bundle.
 python3 resources/generators/dbgap-mvp/generate_candidate.py emit \
   --mapping .../mapping.tsv --resolution /path/to/resolution.tsv \
   --out-dir /data/opengwasdb/work/epic232/221
