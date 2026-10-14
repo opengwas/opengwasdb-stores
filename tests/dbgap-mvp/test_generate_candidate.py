@@ -148,7 +148,7 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
                 {
                     "analysis_id": analysis_id,
                     "assigned_ancestry": ancestry if ancestry != "META" else "",
-                    "ancestry_assignment_method": "unassigned" if ancestry == "META" else "source_fallback",
+                    "ancestry_assignment_method": "unassigned" if ancestry == "META" else "af_assigned",
                     "source_ancestry_label": ancestry,
                     "stored_effect_scale": "sd",
                     "sample_size_kind": "total",
@@ -549,6 +549,41 @@ class TestCandidateEmission(unittest.TestCase):
                 self.config, self.mapping, path, out, created_at="2026-10-13T00:00:00+00:00"
             )
         self.assertFalse(out.exists())
+
+    def _emit_ancestry_pair(
+        self, analysis_id: str, assigned: str, method: str, name: str
+    ) -> None:
+        rows = gen.read_tsv(self.resolution)
+        for row in rows:
+            if row["analysis_id"] == analysis_id:
+                row["assigned_ancestry"] = assigned
+                row["ancestry_assignment_method"] = method
+        path = self.tmp / f"{name}.tsv"
+        write_tsv(path, list(rows[0].keys()), rows)
+        out = self.tmp / f"out-{name}"
+        with self.assertRaisesRegex(gen.CandidateError, "ancestry_assignment_method"):
+            gen.run_emit(
+                self.config, self.mapping, path, out, created_at="2026-10-13T00:00:00+00:00"
+            )
+        self.assertFalse(out.exists())
+
+    def test_meta_canonical_empty_with_af_assigned_fails_before_mkdir(self) -> None:
+        self._emit_ancestry_pair("GCST_meta1", "", "af_assigned", "meta-empty-af")
+
+    def test_amr_empty_with_af_assigned_fails_before_mkdir(self) -> None:
+        self._emit_ancestry_pair("GCST_amr1", "", "af_assigned", "amr-empty-af")
+
+    def test_assigned_amr_with_unassigned_fails_before_mkdir(self) -> None:
+        self._emit_ancestry_pair("GCST_amr1", "AMR", "unassigned", "amr-assigned-unassigned")
+
+    def test_valid_canonical_ancestry_pairs_unchanged(self) -> None:
+        gen.run_emit(
+            self.config,
+            self.mapping,
+            self.resolution,
+            self.out,
+            created_at="2026-10-13T00:00:00+00:00",
+        )
 
     def test_cross_ancestry_resolution_fails(self) -> None:
         rows = gen.read_tsv(self.resolution)

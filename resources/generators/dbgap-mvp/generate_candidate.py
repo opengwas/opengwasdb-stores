@@ -266,6 +266,24 @@ def validate_resolution_row(
             f"resolution row {analysis_id!r} source_ancestry_label {label!r} does "
             f"not match the {ancestry} authority mapping bucket"
         )
+    method = (row.get("ancestry_assignment_method") or "").strip()
+    # The canonical pair must be consistent: the effective published ancestry is
+    # empty for META (a META alias is not a published single-population), else the
+    # declared value. An empty published ancestry must say `unassigned`; a
+    # published MVP AF ancestry must say `af_assigned`. The public enum tolerating
+    # any other pairing is not a semantic pass.
+    published = "" if ancestry == "META" else declared
+    if not published:
+        if method != "unassigned":
+            raise CandidateError(
+                f"resolution row {analysis_id!r} publishes an empty ancestry but "
+                f"ancestry_assignment_method {method!r}; expected 'unassigned'"
+            )
+    elif method != "af_assigned":
+        raise CandidateError(
+            f"resolution row {analysis_id!r} publishes ancestry {published!r} but "
+            f"ancestry_assignment_method {method!r}; expected 'af_assigned'"
+        )
     if (row.get("source_analysis_id") or "").strip() != analysis_id:
         raise CandidateError(
             f"resolution row {analysis_id!r} source_analysis_id "
