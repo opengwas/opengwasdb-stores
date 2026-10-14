@@ -355,8 +355,42 @@ class TestBundleContract(unittest.TestCase):
         self.assertTrue(all(r["assigned_ancestry"] == "AMR" for r in assigned))
         record_check()
         self.assertTrue(
+            all(r["ancestry_assignment_method"] == "af_assigned" for r in assigned)
+        )
+        record_check()
+        self.assertTrue(
             all(r["ancestry_assignment_method"] == "unassigned" for r in unassigned)
         )
+        record_check()
+        self.assertEqual(
+            {r["source_ancestry_label"] for r in rows}, {"AMR"}
+        )
+
+    def test_mvp_source_label_tuples_per_store(self) -> None:
+        # The corrected re-emission binds every row to its authority mapping
+        # source label and the canonical (ancestry, method) tuple.
+        expected = {
+            "OGS-00012": ({"EUR": 1669}, {"EUR/af_assigned": 1669}),
+            "OGS-00013": ({"AFR": 1368}, {"AFR/af_assigned": 1368}),
+            "OGS-00014": ({"AMR": 1053}, {"AMR/af_assigned": 850, "/unassigned": 203}),
+            "OGS-00016": ({"META": 1691}, {"/unassigned": 1691}),
+        }
+        for store_id, (labels, tuples) in expected.items():
+            rows = opengwasdb_analyses.read_analyses(
+                REPO_ROOT / "stores" / store_id / "analyses.tsv"
+            ).rows
+            label_counts: dict[str, int] = {}
+            tuple_counts: dict[str, int] = {}
+            for row in rows:
+                label_counts[row["source_ancestry_label"]] = (
+                    label_counts.get(row["source_ancestry_label"], 0) + 1
+                )
+                key = f"{row['assigned_ancestry']}/{row['ancestry_assignment_method']}"
+                tuple_counts[key] = tuple_counts.get(key, 0) + 1
+            record_check()
+            self.assertEqual(label_counts, labels, store_id)
+            record_check()
+            self.assertEqual(tuple_counts, tuples, store_id)
 
     def test_ogs_00016_meta_is_canonically_empty_with_core_inference(self) -> None:
         rows = opengwasdb_analyses.read_analyses(
@@ -370,11 +404,15 @@ class TestBundleContract(unittest.TestCase):
         )
         record_check()
         self.assertTrue(
-            all(r["ancestry_assignment_method"] == "af_assigned" for r in rows)
+            all(r["ancestry_assignment_method"] == "unassigned" for r in rows)
+        )
+        record_check()
+        self.assertEqual(
+            {r["source_ancestry_label"] for r in rows}, {"META"}
         )
         notes = bundle.load("OGS-00016", registry_root=REPO_ROOT / "stores").release["notes"]
         record_check()
-        self.assertIn("immutable core inference", notes)
+        self.assertIn("raw core inference", notes)
         record_check()
         self.assertIn("EUR", notes)
 

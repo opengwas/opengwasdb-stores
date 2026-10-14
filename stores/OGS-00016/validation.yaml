@@ -6,16 +6,17 @@ acceptance:
   human_acceptance: pending
   membership_accepted: true
   membership_frozen: true
-  frozen_at: '2026-10-14T07:37:46Z'
+  frozen_at: '2026-10-14T08:39:26Z'
   owner_authorization: 'Owner approved the MVP bundle integration and the dev builds (opengwas/opengwasdb-stores#221
     comment 6156153525; #232 comment 6156153173). The parent''s exact 1691-Analysis record binding and
     staged-artifact review qualify this input manifest for authorized dev construction.'
   owner_authorization_date: '2026-10-13'
   source_evidence_scope: capped_pilot_diagnostic
   note: 'The exact 1,691-Analysis META membership is accepted and frozen as the input manifest for owner-authorized
-    dev construction. assigned_ancestry is canonically empty for cross-ancestry META; the immutable core
-    inference (EUR for all 1,691 rows) is preserved in the resolver records and is not published as a
-    single-ancestry label. This is not full-source SCI qualification or publication acceptance: human
+    dev construction. assigned_ancestry is canonically empty and ancestry_assignment_method is unassigned
+    on every row, because the method describes the canonical empty value; the immutable raw core inference
+    (EUR for all 1,691 rows) is preserved in the resolver records bound above and is not published as
+    a single-ancestry label. This is not full-source SCI qualification or publication acceptance: human
     scientific acceptance remains pending and no Store has been built or validated.'
   partition_total: 1691
 warnings:
@@ -24,6 +25,6 @@ warnings:
 - No Store build or validation has run.
 - 'Evidence: the Analytical Metadata is a capped diagnostic (capped_pilot_diagnostic), not whole-source
   SCI qualification.'
-- 'Canonical ancestry: META publishes an empty assigned_ancestry on every row; ancestry_assignment_method
-  records the core source-AF inference (af_assigned).'
+- 'Canonical ancestry: META publishes empty/unassigned on every row with source_ancestry_label META; the
+  raw core EUR inference is preserved in the resolver records, not rewritten.'
 errors: []
