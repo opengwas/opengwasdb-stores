@@ -138,10 +138,26 @@ ancestry buckets so a per-bucket resolution can be emitted on its own; the
 default is every configured Store. The emitter refuses a resolution table that
 is missing any intended member, has an extra row, or fails any per-row gate. An
 unassigned record (empty `assigned_ancestry`) is preserved rather than forced to
-the bucket label; a non-empty cross-ancestry mismatch still fails. The output
+the bucket label; a non-empty cross-ancestry mismatch still fails.
+
+`assigned_ancestry` is the canonical value and `ancestry_assignment_method`
+describes how *that* value was produced (`af_assigned` for a published value,
+`unassigned` for a canonically-empty one), never the raw core inference: META
+publishes an empty `assigned_ancestry` with `ancestry_assignment_method:
+unassigned`, while the core's raw AF inference stays untouched in the resolver
+record/receipt. The `source_ancestry_label` standard column carries the exact
+acquisition-mapping ancestry (the source-declared label), never guessed from the
+core assignment. The output
 directory must not be a path component named `stores`, so stage under a
 `bundles/` directory and let the parent move the accepted bundle into the
 registry.
+
+**Known gap (not retro-fixed).** `source_ancestry_label` was added to the merge
+after the first EAS observed bundle was emitted, so the accepted OGS-00015
+input omits the column. That omission is a known provenance gap bound to the old
+resolver manifest/records snapshot recorded in that bundle's `source_snapshot`;
+it is documented here and deliberately not rewritten in the live accepted input.
+EAS data is otherwise unchanged.
 
 The observed Store is emitted `status: accepted` with an `accepted_at` solely so
 the dev release workflow may build it (#247: only `BUILDABLE_STATUSES` are

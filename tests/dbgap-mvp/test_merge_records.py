@@ -23,6 +23,7 @@ import merge_records  # noqa: E402
 import selection  # noqa: E402
 import test_pilot  # noqa: E402
 from ogstores import bundle as bundle_module  # noqa: E402
+from opengwasdb.model import analyses as opengwasdb_analyses  # noqa: E402
 
 
 def _write_tsv(path: Path, columns: list[str], rows: list[dict[str, str]]) -> None:
@@ -215,6 +216,50 @@ class MergeRecordsTest(unittest.TestCase):
         self.assertEqual(quantitative["sample_size_kind"], "total")
         self.assertEqual(quantitative["original_sd"], "1.25")
 
+    def _selection_rows(self, bucket: str):
+        return selection.build_selection(
+            metadata_root=self.meta,
+            mapping_path=self.mapping,
+            metadata_content_sha256=self.content_sha,
+            candidate_table_path=self.candidates,
+            scope=f"bucket:{bucket}",
+        )
+
+    def test_source_ancestry_label_retained_for_every_bucket(self) -> None:
+        # The standard source_ancestry_label column is the exact acquisition
+        # mapping ancestry, not the core's AF assignment.
+        for bucket in ("EUR", "AFR", "AMR", "EAS", "META"):
+            rows = self._selection_rows(bucket)
+            row = rows[0]
+            record = _record(row.analysis_id, assigned=bucket if bucket != "META" else "EUR")
+            canonical = merge_records.record_resolution_row(record, row)
+            self.assertEqual(canonical["source_ancestry_label"], bucket, bucket)
+            self.assertEqual(canonical["source_ancestry_label"], row.mapping["ancestry"], bucket)
+            self.assertIn("source_ancestry_label", merge_records.RESOLUTION_COLUMNS)
+
+    def test_meta_canonical_pair_and_raw_record_not_mutated(self) -> None:
+        # ancestry_assignment_method describes how the CANONICAL assigned_ancestry
+        # was produced. META publishes an empty canonical value, so its method is
+        # `unassigned`, while the raw core AF inference stays in the record.
+        row = self._selection_rows("META")[0]
+        record = _record(row.analysis_id, assigned="EUR")
+        before = json.dumps(record, sort_keys=True)
+        canonical = merge_records.record_resolution_row(record, row)
+        self.assertEqual(canonical["assigned_ancestry"], "")
+        self.assertEqual(canonical["ancestry_assignment_method"], "unassigned")
+        self.assertEqual(canonical["source_ancestry_label"], "META")
+        # The immutable raw core inference is never rewritten by the merge.
+        self.assertEqual(record["ancestry"]["assigned_ancestry"], "EUR")
+        self.assertEqual(json.dumps(record, sort_keys=True), before)
+
+    def test_amr_unassigned_method_is_unassigned(self) -> None:
+        row = self._selection_rows("AMR")[0]
+        record = _record(row.analysis_id, assigned="")
+        canonical = merge_records.record_resolution_row(record, row)
+        self.assertEqual(canonical["assigned_ancestry"], "")
+        self.assertEqual(canonical["ancestry_assignment_method"], "unassigned")
+        self.assertEqual(canonical["source_ancestry_label"], "AMR")
+
     def test_merge_refuses_missing_record(self) -> None:
         records_dir = self.tmp / "records"
         records = self._eas_records()
@@ -296,6 +341,9 @@ class MergeRecordsTest(unittest.TestCase):
         self.assertEqual(
             {row["ancestry_assignment_method"] for row in rows}, {"af_assigned"}
         )
+        self.assertEqual(
+            {row["source_ancestry_label"] for row in rows}, {"EAS"}
+        )
         release = yaml.safe_load((bundle_dir / "release.yaml").read_text())
         self.assertEqual(release["status"], "accepted")
         self.assertEqual(release["accepted_at"], "2026-01-01T00:00:00+00:00")
@@ -307,6 +355,94 @@ class MergeRecordsTest(unittest.TestCase):
         self.assertEqual(refusals, [])
         self.assertEqual(
             list(bundle_module.check(loaded, registry_root=out_dir / "bundles")), []
+        )
+
+    def _records_for(
+        self, bucket: str, unassigned_ids: set[str] | None = None
+    ) -> list[dict]:
+        unassigned_ids = unassigned_ids or set()
+        manifest_rows = {
+            row["analysis_id"]: row
+            for row in selection.read_tsv(
+                self.meta / "manifests" / f"{bucket.lower()}.tsv"
+            )
+        }
+        records: list[dict] = []
+        for row in self._selection_rows(bucket):
+            manifest = manifest_rows[row.analysis_id]
+            case_control = row.stored_effect_scale == "log_or"
+            records.append(
+                _record(
+                    row.analysis_id,
+                    assigned=""
+                    if row.analysis_id in unassigned_ids
+                    else ("EUR" if bucket == "META" else bucket),
+                    stored_effect_scale=row.stored_effect_scale,
+                    original_sd_method=row.original_sd_method,
+                    sample_size=row.mapping["sample_size"],
+                    sd_estimate=None if case_control else 1.25,
+                    source_file=manifest["data_file"],
+                    source_sha=manifest["sha256"],
+                    source_bytes=int(manifest["data_bytes"]),
+                )
+            )
+        return records
+
+    def test_public_core_read_analyses_roundtrip_preserves_canonical_ancestry(self) -> None:
+        # The public core must not re-derive assigned_ancestry from
+        # source_ancestry_label: META stays canonical-empty/unassigned, and an
+        # unassigned AMR row stays empty/unassigned even though its
+        # source_ancestry_label is AMR.
+        meta_rows = self._selection_rows("META")
+        amr_rows = self._selection_rows("AMR")
+        unassigned_amr = amr_rows[0].analysis_id
+        records_dir = self.tmp / "roundtrip-records"
+        _write_records(
+            records_dir,
+            self._records_for("META") + self._records_for("AMR", {unassigned_amr}),
+        )
+        meta_res = merge_records.merge_records(records_dir, meta_rows)
+        amr_res = merge_records.merge_records(records_dir, amr_rows)
+        out_dir = self.tmp / "roundtrip-out"
+        resolution = out_dir / "merge" / "resolution.tsv"
+        resolution.parent.mkdir(parents=True, exist_ok=True)
+        resolution.write_text(
+            merge_records.render_resolution_tsv(meta_res.rows + amr_res.rows),
+            encoding="utf-8",
+        )
+        generate_candidate.run_emit(
+            generate_candidate.load_config(self.config_path),
+            self.mapping,
+            resolution,
+            out_dir / "bundles",
+            created_at="2026-01-01T00:00:00+00:00",
+            only_buckets=["META", "AMR"],
+        )
+        meta_table = opengwasdb_analyses.read_analyses(
+            out_dir / "bundles" / "OGS-00016" / "analyses.tsv"
+        )
+        self.assertEqual(len(meta_table.rows), 3)
+        for row in meta_table.rows:
+            self.assertEqual(row["assigned_ancestry"], "")
+            self.assertEqual(row["ancestry_assignment_method"], "unassigned")
+            self.assertEqual(row["source_ancestry_label"], "META")
+        amr_table = opengwasdb_analyses.read_analyses(
+            out_dir / "bundles" / "OGS-00014" / "analyses.tsv"
+        )
+        self.assertEqual(len(amr_table.rows), 3)
+        by_id = {row["analysis_id"]: row for row in amr_table.rows}
+        self.assertEqual(by_id[unassigned_amr]["assigned_ancestry"], "")
+        self.assertEqual(
+            by_id[unassigned_amr]["ancestry_assignment_method"], "unassigned"
+        )
+        self.assertEqual(by_id[unassigned_amr]["source_ancestry_label"], "AMR")
+        assigned = [r for r in amr_table.rows if r["analysis_id"] != unassigned_amr]
+        self.assertEqual({r["assigned_ancestry"] for r in assigned}, {"AMR"})
+        self.assertEqual(
+            {r["ancestry_assignment_method"] for r in assigned}, {"af_assigned"}
+        )
+        self.assertEqual(
+            {r["source_ancestry_label"] for r in amr_table.rows}, {"AMR"}
         )
 
     def test_emit_can_select_only_one_bucket(self) -> None:

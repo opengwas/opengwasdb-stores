@@ -33,8 +33,11 @@ class TestIdReorder(unittest.TestCase):
         self.assertIn("Owner-authorized", str(migration.get("reason", "")))
         self.assertIn("OGS-00016", str(release.get("notes", "")))
 
-    def test_old_ogs_00016_is_not_finngen(self) -> None:
-        self.assertFalse((REPO_ROOT / "stores" / "OGS-00016").exists())
+    def test_ogs_00016_is_meta_not_finngen(self) -> None:
+        meta = self.release("OGS-00016")
+        self.assertEqual(meta["store_id"], "OGS-00016")
+        self.assertEqual(meta["label"], "mvp-phs002453-meta-observed-only")
+        self.assertNotEqual(meta["label"], "r13-full")
         for bundle in sorted((REPO_ROOT / "stores").glob("OGS-*")):
             if not bundle.is_dir() or not (bundle / "release.yaml").is_file():
                 continue
@@ -95,7 +98,7 @@ class TestIdReorder(unittest.TestCase):
 
     def test_bundle_test_registered_list_uses_new_id(self) -> None:
         text = (REPO_ROOT / "tests" / "bundle" / "test_bundle.py").read_text(encoding="utf-8")
-        self.assertIn("[*range(1, 12), 15, 17]", text)
+        self.assertIn("[*range(1, 18)]", text)
         self.assertNotIn("[*range(1, 12), 16]", text)
 
     def test_bundle_golden_keys_use_new_id(self) -> None:
@@ -105,8 +108,10 @@ class TestIdReorder(unittest.TestCase):
             )
         )
         self.assertIn("OGS-00017", golden)
-        self.assertNotIn("OGS-00016", golden)
         self.assertEqual(golden["OGS-00017"]["n_manifest"], 2754)
+        # OGS-00016 is now the MVP META observed bundle, never the FinnGen release.
+        self.assertIn("OGS-00016", golden)
+        self.assertEqual(golden["OGS-00016"]["n_manifest"], 1691)
 
 
 if __name__ == "__main__":

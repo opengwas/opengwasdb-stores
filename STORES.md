@@ -17,7 +17,11 @@ Generated master list of Store Releases in this registry.
 | `OGS-00009` | ukb-b-full-observed | dense | observed_only | candidate | - | 2,024 | 0 | - | - | - |
 | `OGS-00010` | ukb-b-full-completed | dense | reference_completed | candidate | - | 2,024 | 0 | - | - | - |
 | `OGS-00011` | eur-hybrid-full | hybrid | observed_only | accepted | - | 3,169 | 1,614 | - | - | passed_with_warnings |
+| `OGS-00012` | mvp-phs002453-eur | dense | observed_only | accepted | - | 1,669 | 0 | - | - | not_run |
+| `OGS-00013` | mvp-phs002453-afr | dense | observed_only | accepted | - | 1,368 | 0 | - | - | not_run |
+| `OGS-00014` | mvp-phs002453-amr | dense | observed_only | accepted | - | 1,053 | 0 | - | - | not_run |
 | `OGS-00015` | mvp-phs002453-eas | dense | observed_only | accepted | - | 241 | 0 | - | - | not_run |
+| `OGS-00016` | mvp-phs002453-meta-observed-only | dense | observed_only | accepted | - | 1,691 | 0 | - | - | not_run |
 | `OGS-00017` | r13-full | dense | observed_only | accepted | - | 2,754 | 0 | - | - | passed |
 
 ## Derived membership summaries
@@ -37,7 +41,11 @@ Every value below is derived from the Release Bundle's `analyses.tsv`; `NA` mean
 | `OGS-00009` | Ben Elsworth | NA | NA | NA | EUR | 10339-463010 | NA |
 | `OGS-00010` | Ben Elsworth | NA | NA | NA | EUR | 10339-463010 | NA |
 | `OGS-00011` | mixed (662) | mixed (758) | NA | NA | NA | 15-2586691 | https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
+| `OGS-00012` | NA | NA | NA | NA | EUR | 5266-451195 | NA |
+| `OGS-00013` | NA | NA | NA | NA | AFR | 3435-121774 | NA |
+| `OGS-00014` | NA | NA | NA | NA | NA | 1454-59807 | NA |
 | `OGS-00015` | NA | NA | NA | NA | EAS | 2291-6665 | NA |
+| `OGS-00016` | NA | NA | NA | NA | NA | 5954-636153 | NA |
 | `OGS-00017` | NA | NA | NA | NA | NA | 68562-500186 | https://storage.googleapis.com/finngen-public-data-r13/summary_stats/ |
 
 ## Tolerated gaps
