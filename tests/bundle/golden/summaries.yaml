@@ -130,6 +130,18 @@ OGS-00011:
   assigned_ancestry: NA
   sample_size: 15-2586691
   source_url: https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
+OGS-00015:
+  n_manifest: 241
+  n_admitted: 241
+  n_excluded: 0
+  n_analyses: 241
+  first_author: NA
+  publication_pmid: NA
+  tissue: NA
+  context: NA
+  assigned_ancestry: EAS
+  sample_size: 2291-6665
+  source_url: NA
 OGS-00017:
   n_manifest: 2754
   n_admitted: 2754

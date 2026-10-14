@@ -3,7 +3,7 @@
 
 Every registered Release Bundle with a Dense Component -- a Dense or Hybrid
 ``layout`` -- must declare the default ``hm3`` Indexed Variant Subset, and every
-Ragged-only bundle must declare none. The eight existing Dense-component
+Ragged-only bundle must declare none. The existing Dense-component
 bundles were migrated in place by stores#211 (epic #214); this audit is the
 executable proof that none was missed. It prints the full in-scope list and
 exits non-zero on the first bundle that is neither migrated nor explicitly

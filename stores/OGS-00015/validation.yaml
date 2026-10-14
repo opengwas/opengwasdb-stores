@@ -1,0 +1,23 @@
+status: not_run
+validator:
+  name: resources/generators/dbgap-mvp/generate_candidate.py
+acceptance:
+  status: pending
+  human_acceptance: pending
+  membership_accepted: false
+  owner_authorization: owner-authorized-2026-10-13 (MVP bundle integration and build for dev construction)
+  source_evidence_scope: capped_pilot_diagnostic
+  note: >-
+    Phase B candidate only. Membership is not accepted; no Store was built or
+    validated. Do not relabel this evidence as verified. The Analytical Metadata
+    comes from an owner-authorized bounded resolution whose source-evidence scope
+    is a capped diagnostic, not whole-source SCI qualification.
+  partition_total: 241
+warnings:
+- 'Candidate: membership, Analytical Metadata and the Source Inventory are not yet
+  frozen or accepted.'
+- No Store build or validation has run.
+- 'Execution: owner-authorized dev construction; the Analytical Metadata is a capped
+  diagnostic (capped_pilot_diagnostic), not whole-source SCI qualification. Scientific
+  acceptance and the human validation step remain pending.'
+errors: []

@@ -202,14 +202,16 @@ class TestBundleContract(unittest.TestCase):
                     )
                 )
 
-    def test_ci_population_is_all_seven_registered_bundles_and_each_passes(self) -> None:
+    def test_ci_population_is_every_registered_bundle_and_each_passes(self) -> None:
         registry = REPO_ROOT / "stores"
         store_ids = sorted(
             path.name
             for path in registry.iterdir()
             if path.is_dir() and paths.is_valid_store_id(path.name)
         )
-        self.assertEqual(store_ids, [f"OGS-{number:05d}" for number in [*range(1, 12), 17]])
+        self.assertEqual(
+            store_ids, [f"OGS-{number:05d}" for number in [*range(1, 12), 15, 17]]
+        )
         for store_id in store_ids:
             errors = bundle.check(
                 bundle.load(store_id, registry_root=registry),
@@ -1284,7 +1286,7 @@ class TestBundleSummary(unittest.TestCase):
         self.assertEqual(summary["first_author"], "mixed (2)")
         self.assertEqual(summary["publication_pmid"], "mixed (2)")
 
-    def test_all_seven_trial_release_summaries_match_regression_golden(self) -> None:
+    def test_registered_bundle_summaries_match_regression_golden(self) -> None:
         expected = yaml.safe_load(
             (REPO_ROOT / "tests" / "bundle" / "golden" / "summaries.yaml").read_text(
                 encoding="utf-8"

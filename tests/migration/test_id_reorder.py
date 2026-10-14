@@ -95,7 +95,7 @@ class TestIdReorder(unittest.TestCase):
 
     def test_bundle_test_registered_list_uses_new_id(self) -> None:
         text = (REPO_ROOT / "tests" / "bundle" / "test_bundle.py").read_text(encoding="utf-8")
-        self.assertIn("[*range(1, 12), 17]", text)
+        self.assertIn("[*range(1, 12), 15, 17]", text)
         self.assertNotIn("[*range(1, 12), 16]", text)
 
     def test_bundle_golden_keys_use_new_id(self) -> None:
