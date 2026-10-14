@@ -210,7 +210,7 @@ class TestBundleContract(unittest.TestCase):
             if path.is_dir() and paths.is_valid_store_id(path.name)
         )
         self.assertEqual(
-            store_ids, [f"OGS-{number:05d}" for number in [*range(1, 12), 15, 17]]
+            store_ids, [f"OGS-{number:05d}" for number in [*range(1, 18)]]
         )
         for store_id in store_ids:
             errors = bundle.check(
@@ -275,6 +275,108 @@ class TestBundleContract(unittest.TestCase):
         self.assertEqual(summary["n_excluded"], 0)
         record_check()
         self.assertFalse((REPO_ROOT / "stores" / "OGS-00021").exists())
+
+    MVP_OBSERVED = {
+        "OGS-00012": ("eur", 1669),
+        "OGS-00013": ("afr", 1368),
+        "OGS-00014": ("amr", 1053),
+        "OGS-00015": ("eas", 241),
+        "OGS-00016": ("meta", 1691),
+    }
+
+    def test_mvp_observed_stores_cover_the_6022_partition_without_exclusions(self) -> None:
+        total = 0
+        for store_id, (_, expected) in self.MVP_OBSERVED.items():
+            summary = bundle.summarise(
+                bundle.load(store_id, registry_root=REPO_ROOT / "stores")
+            )
+            record_check()
+            self.assertEqual(summary["n_manifest"], expected, store_id)
+            record_check()
+            self.assertEqual(summary["n_admitted"], expected, store_id)
+            record_check()
+            self.assertEqual(summary["n_excluded"], 0, store_id)
+            total += summary["n_admitted"]
+        record_check()
+        self.assertEqual(total, 6022)
+        # The MVP completion children are deferred, not registered.
+        for child in ("OGS-00018", "OGS-00019", "OGS-00020", "OGS-00021"):
+            record_check()
+            self.assertFalse((REPO_ROOT / "stores" / child).exists(), child)
+
+    def test_mvp_observed_stores_are_frozen_dev_inputs(self) -> None:
+        for store_id, (slug, _) in self.MVP_OBSERVED.items():
+            loaded = bundle.load(store_id, registry_root=REPO_ROOT / "stores")
+            record_check()
+            self.assertEqual(loaded.status, "accepted", store_id)
+            record_check()
+            self.assertTrue(loaded.release.get("accepted_at"), store_id)
+            record_check()
+            self.assertEqual(
+                loaded.release["source_snapshot_id"],
+                f"dbgap-phs002453-mvp-{slug}-metadata-2026-10-13",
+                store_id,
+            )
+            record_check()
+            self.assertNotIn("ONLY so", loaded.release["notes"], store_id)
+            record_check()
+            self.assertEqual(
+                loaded.release["source_snapshot"]["resolver_source_evidence_scope"],
+                "capped_pilot_diagnostic",
+                store_id,
+            )
+            acceptance = loaded.validation["acceptance"]
+            record_check()
+            self.assertIs(acceptance["membership_accepted"], True, store_id)
+            record_check()
+            self.assertIs(acceptance["membership_frozen"], True, store_id)
+            record_check()
+            self.assertEqual(acceptance["human_acceptance"], "pending", store_id)
+            record_check()
+            self.assertIn("6156153525", acceptance["owner_authorization"], store_id)
+            record_check()
+            self.assertIn("6156153173", acceptance["owner_authorization"], store_id)
+            record_check()
+            self.assertEqual(loaded.validation["status"], "not_run", store_id)
+
+    def test_ogs_00014_preserves_unassigned_amr_analyses(self) -> None:
+        rows = opengwasdb_analyses.read_analyses(
+            REPO_ROOT / "stores" / "OGS-00014" / "analyses.tsv"
+        ).rows
+        record_check()
+        self.assertEqual(len(rows), 1053)
+        assigned = [r for r in rows if (r.get("assigned_ancestry") or "").strip()]
+        unassigned = [r for r in rows if not (r.get("assigned_ancestry") or "").strip()]
+        record_check()
+        self.assertEqual(len(assigned), 850)
+        record_check()
+        self.assertEqual(len(unassigned), 203)
+        record_check()
+        self.assertTrue(all(r["assigned_ancestry"] == "AMR" for r in assigned))
+        record_check()
+        self.assertTrue(
+            all(r["ancestry_assignment_method"] == "unassigned" for r in unassigned)
+        )
+
+    def test_ogs_00016_meta_is_canonically_empty_with_core_inference(self) -> None:
+        rows = opengwasdb_analyses.read_analyses(
+            REPO_ROOT / "stores" / "OGS-00016" / "analyses.tsv"
+        ).rows
+        record_check()
+        self.assertEqual(len(rows), 1691)
+        record_check()
+        self.assertTrue(
+            all(not (r.get("assigned_ancestry") or "").strip() for r in rows)
+        )
+        record_check()
+        self.assertTrue(
+            all(r["ancestry_assignment_method"] == "af_assigned" for r in rows)
+        )
+        notes = bundle.load("OGS-00016", registry_root=REPO_ROOT / "stores").release["notes"]
+        record_check()
+        self.assertIn("immutable core inference", notes)
+        record_check()
+        self.assertIn("EUR", notes)
 
     def test_ogs_00007_trait_ontology_is_source_provided_not_a_gene(self) -> None:
         """Issue #141: the Trait columns carry the source EFO term and label.

@@ -49,8 +49,8 @@ def record_check() -> None:
     n_checks += 1
 
 
-# The nine registered bundles with a Dense Component (stores#211 scope), and
-# the four Ragged-only bundles that must stay untouched.
+# The thirteen registered bundles with a Dense Component (stores#211 scope),
+# and the four Ragged-only bundles that must stay untouched.
 EXPECTED_IN_SCOPE = (
     "OGS-00003",
     "OGS-00004",
@@ -59,7 +59,11 @@ EXPECTED_IN_SCOPE = (
     "OGS-00009",
     "OGS-00010",
     "OGS-00011",
+    "OGS-00012",
+    "OGS-00013",
+    "OGS-00014",
     "OGS-00015",
+    "OGS-00016",
     "OGS-00017",
 )
 EXPECTED_RAGGED = ("OGS-00001", "OGS-00002", "OGS-00006", "OGS-00007")
@@ -152,7 +156,43 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
         },
         "post": {"top_hits": False, "overview": True},
     },
+    "OGS-00012": {
+        "phase": "build",
+        "command": "build-dense-vcf",
+        "options": {
+            "source-reader-capability": "opengwasdb.gwas-ssf",
+            "source-assembly": "GRCh38",
+        },
+        "post": {"top_hits": True, "overview": True},
+    },
+    "OGS-00013": {
+        "phase": "build",
+        "command": "build-dense-vcf",
+        "options": {
+            "source-reader-capability": "opengwasdb.gwas-ssf",
+            "source-assembly": "GRCh38",
+        },
+        "post": {"top_hits": True, "overview": True},
+    },
+    "OGS-00014": {
+        "phase": "build",
+        "command": "build-dense-vcf",
+        "options": {
+            "source-reader-capability": "opengwasdb.gwas-ssf",
+            "source-assembly": "GRCh38",
+        },
+        "post": {"top_hits": True, "overview": True},
+    },
     "OGS-00015": {
+        "phase": "build",
+        "command": "build-dense-vcf",
+        "options": {
+            "source-reader-capability": "opengwasdb.gwas-ssf",
+            "source-assembly": "GRCh38",
+        },
+        "post": {"top_hits": True, "overview": True},
+    },
+    "OGS-00016": {
         "phase": "build",
         "command": "build-dense-vcf",
         "options": {
@@ -189,7 +229,7 @@ def load_build(store_id: str) -> dict[str, Any]:
 
 
 class TestRegistryMigration(unittest.TestCase):
-    """The nine Dense-component bundles and the four Ragged-only bundles."""
+    """The thirteen Dense-component bundles and the four Ragged-only bundles."""
 
     def test_audit_passes_on_the_real_registry(self) -> None:
         report = audit.audit_registry(REPO_ROOT / "stores", REPO_ROOT)
@@ -298,7 +338,7 @@ class TestRegistryMigration(unittest.TestCase):
             record_check()
             self.assertIn(store_id, rendered)
         record_check()
-        self.assertIn("9/9 Dense-component bundles declare hm3", rendered)
+        self.assertIn("13/13 Dense-component bundles declare hm3", rendered)
         record_check()
         self.assertIn("4/4 Ragged-only bundles declare none", rendered)
         record_check()

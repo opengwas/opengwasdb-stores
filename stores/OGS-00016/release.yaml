@@ -1,0 +1,64 @@
+store_id: OGS-00016
+label: mvp-phs002453-meta-observed-only
+access_posture: public
+status: accepted
+derived_from: null
+created_at: '2026-10-14T07:37:46Z'
+source_snapshot_id: dbgap-phs002453-mvp-meta-metadata-2026-10-13
+generator:
+  version: sha256:20b0fce1d2bf65a2c476e7927985de3dda20daa9b40ee0db601bc09d93ac8ed9
+  commands:
+  - python3 resources/scripts/acquire-dbgap-phs002453.py map --candidates resources/data/derived/store-candidates-analyses.tsv
+  - python3 resources/generators/dbgap-mvp/generate_candidate.py
+description: 'MVP PMID 39024449 META observed input bundle (mvp-phs002453-meta-observed-only): the frozen
+  1691-Analysis input manifest accepted for owner-authorized dev construction. Cross-ancestry META is
+  observed-only. No Store has been built; human scientific acceptance is pending.'
+notes: |-
+  Ancestry bucket META; 1691 intended Analyses. candidate_store_key dense__pmid-39024449__Multi-ancestry. The exact 1691-Analysis META membership is accepted and frozen as the input manifest for owner-authorized dev construction. Release Status is 'accepted' because #247 is the registry's fixed-input acceptance gate for a buildable bundle; it is not scientific release acceptance, publication approval or mirror promotion, and no Store has been built or validated yet.
+
+  Owner build authority. Owner approved the MVP bundle integration and the dev builds (opengwas/opengwasdb-stores#221 comment 6156153525; #232 comment 6156153173). The parent's exact 1691-Analysis record binding and staged-artifact review qualify this input manifest for authorized dev construction. (emit config id_allocation_status: owner-authorized-2026-10-13, owner_ordering_approved: true).
+
+  Evidence boundary. The Analytical Metadata comes from an owner-authorized bounded metadata resolution whose source-evidence scope is a capped diagnostic (resolver receipt source_evidence_scope: capped_pilot_diagnostic); 1691/1691 META Analyses resolved with outcome ok, zero escaped pids and an unchanged metadata content hash. A capped run is a diagnostic, never a whole-source SCI qualification. Human scientific acceptance remains pending (validation.yaml:acceptance.human_acceptance) and is not claimed here.
+
+  Canonical ancestry. Cross-ancestry META is observed-only: assigned_ancestry is canonically empty on every row, while ancestry_assignment_method records the core's source-AF inference (af_assigned). The immutable core inference was EUR for all 1691 rows; that raw per-record inference is not published as a single-ancestry label and is preserved in the resolver records bound above.
+
+  Provenance bindings. This bundle is bound to the actual source snapshot named in source_snapshot (metadata refresh root + content sha, mapping table sha, source-metadata fingerprint snapshot, candidate table sha, planned manifest sha, resolution table sha) and to the resolver/emission records (resolution receipt sha, records index sha, merge receipt sha, emission config sha). No scientific release validation, publication approval or mirror promotion is claimed.
+accepted_at: '2026-10-14T07:37:46Z'
+source_snapshot:
+  metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z
+  code_sha: baf141c8061a8d7f63c369b7b0ff499747e3dabc
+  output_metadata_content_sha256: 1f14b88c2c383d8bac97215a8807503ef600fed2d2a019067e9962777438310f
+  membership: 6022
+  association_opens: 0
+  acceptance: technical metadata evidence only; not scientific/release acceptance
+  candidates_table: /home/gh13047/repo/opengwasdb-stores/resources/data/derived/store-candidates-analyses.tsv
+  candidates_table_path: /home/gh13047/repo/opengwasdb-stores/resources/data/derived/store-candidates-analyses.tsv
+  candidates_sha256: aef4dbe2515be177797f60a2c567a5e6b2d02557efb64abf4156889db085c4e7
+  mapping_table: /data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv
+  configured_mapping_table: /data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv
+  mapping_sha256: 96fa3a7b1b3ef3e3229ef5418a1d60e16b6528977b692164698e4bc40ac69b08
+  metadata_receipt: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/parent-run-summary.json
+  metadata_receipt_sha256: 21e755d323625f9a86de382fe70c771e39cb1c01aca147e03c3fa8b26c5d109b
+  metadata_fingerprint_sha256: 664640feefd4c490d83ef67217d8c60c3c158fbf40beacec22999427b8f1a290
+  metadata_content_sha256_status: recomputed_matches_receipt
+  source_metadata_snapshot: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/input-metadata-before.json
+  source_metadata_snapshot_sha256: fdac561dc826ab9215d682248f48909eb790574a947ce35fcb77918d6fc61168
+  source_metadata_verified_files: 6032
+  resolution_table: /data/opengwasdb/work/epic232/221/emit-META-20261014T073720Z/merge/resolution.tsv
+  resolution_sha256: a2f04caf247d40daa3b203a2843835e5382a30a77e563dedc46effe55992b84d
+  planned_manifest: dense-pmid-39024449-European-download-manifest.tsv
+  planned_manifest_members: null
+  planned_manifest_sha256: baf5f0724288f4fc48afc9669667191d251761efbe6bbf74c0076d1d4622d355
+  source_metadata_only: true
+  resolver_run: /data/opengwasdb/work/epic232/221/resolve-META-optimized-20261014T024429Z
+  resolver_receipt: /data/opengwasdb/work/epic232/221/resolve-META-optimized-20261014T024429Z/receipt/resolution-receipt.json
+  resolver_receipt_sha256: 18bea16bbc7957e1aab93f4baaf8ca98845c1bb8117f35a467fdcd000a486305
+  resolver_source_evidence_scope: capped_pilot_diagnostic
+  resolver_opengwasdb_commit: 4e922566d7fa4c13a11be3637069da63e48be28c
+  records_index: /data/opengwasdb/work/epic232/221/resolve-META-optimized-20261014T024429Z/records/index.json
+  records_index_sha256: 80fe3637d02427f1ec425d9cc8fef34f4bf87ac6bf715c04e418711ab7f37090
+  merge_receipt: /data/opengwasdb/work/epic232/221/emit-META-20261014T073720Z/merge/merge-receipt.json
+  merge_receipt_sha256: b430ccca6ead8b3bc033708449b28b449ae6a8fd98cbfd7bb137343652c80790
+  emission_config: /data/opengwasdb/work/epic232/221/emit-META-20261014T073720Z/config.yaml
+  emission_config_sha256: c6b56eab2e96e9a428b5c84893edd7b0c402e78c5bace9d651e67ba7129aa8d3
+  emission_run_root: /data/opengwasdb/work/epic232/221/emit-META-20261014T073720Z
