@@ -18,8 +18,9 @@ without an `artifacts` block, and declaring one is rejected because issue #126
 moved the artifact root to deployment configuration.
 
 Covered by `tests/bundle/test_bundle.py`:
-- Every committed bundle is discovered dynamically; all seven current Trial
-  Store Releases (`OGS-00001`..`OGS-00007`) load and pass `check()`.
+- Every committed bundle is discovered dynamically; every registered Store
+  Release loads and passes `check()` (the original seven Trial releases
+  `OGS-00001`..`OGS-00007`, plus the later accepted and pending bundles).
 - Every registry failure class is asserted: missing keys in `release.yaml`/`build.yaml`/`analyses.tsv`, `store_id`/directory mismatch, malformed ID format, absent declared file/sidecar, bad checksum format, unresolvable/self-referential `derived_from`, illegal status transitions.
 - Delegation of `analyses.tsv` validation to `opengwasdb.model.analyses`.
 - Required Analysis columns are asserted to enforce non-blank values on standard

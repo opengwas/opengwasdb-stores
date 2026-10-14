@@ -20,10 +20,11 @@ indexed_subsets:
     checksum: 4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398
 ```
 
-The eight in-scope bundles are `OGS-00003`, `OGS-00004`, `OGS-00005`,
-`OGS-00008`, `OGS-00009`, `OGS-00010`, `OGS-00011` and `OGS-00017`. The four
-Ragged-only bundles (`OGS-00001`, `OGS-00002`, `OGS-00006`, `OGS-00007`) are
-byte-for-byte untouched: a Ragged Store has no Dense Component to index.
+The nine in-scope bundles are `OGS-00003`, `OGS-00004`, `OGS-00005`,
+`OGS-00008`, `OGS-00009`, `OGS-00010`, `OGS-00011`, `OGS-00015` and
+`OGS-00017`. The four Ragged-only bundles (`OGS-00001`, `OGS-00002`,
+`OGS-00006`, `OGS-00007`) are byte-for-byte untouched: a Ragged Store has no
+Dense Component to index.
 
 The subset is an optional derived artifact (opengwas/opengwasdb ADR 0061). Adding
 it changes no Analysis, Analytical Metadata or Store validity, so it mints no

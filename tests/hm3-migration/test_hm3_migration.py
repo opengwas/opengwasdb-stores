@@ -6,7 +6,7 @@ Executable proof that the migration is complete and inert:
 1. every registered Dense-component Release Bundle (Dense or Hybrid ``layout``)
    declares the default ``hm3`` Indexed Variant Subset, and every Ragged-only
    bundle declares none;
-2. the eight migrated bundles declare the exact maintained HapMap3 GRCh38
+2. the migrated bundles declare the exact maintained HapMap3 GRCh38
    resource (``resource_id``, ``variant_list`` path, assembly and checksum);
 3. no unrelated Build Recipe option or ``post`` value changed, and the
    ``indexed_subsets`` key is the only addition;
@@ -49,7 +49,7 @@ def record_check() -> None:
     n_checks += 1
 
 
-# The eight registered bundles with a Dense Component (stores#211 scope), and
+# The nine registered bundles with a Dense Component (stores#211 scope), and
 # the four Ragged-only bundles that must stay untouched.
 EXPECTED_IN_SCOPE = (
     "OGS-00003",
@@ -59,6 +59,7 @@ EXPECTED_IN_SCOPE = (
     "OGS-00009",
     "OGS-00010",
     "OGS-00011",
+    "OGS-00015",
     "OGS-00017",
 )
 EXPECTED_RAGGED = ("OGS-00001", "OGS-00002", "OGS-00006", "OGS-00007")
@@ -151,6 +152,15 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
         },
         "post": {"top_hits": False, "overview": True},
     },
+    "OGS-00015": {
+        "phase": "build",
+        "command": "build-dense-vcf",
+        "options": {
+            "source-reader-capability": "opengwasdb.gwas-ssf",
+            "source-assembly": "GRCh38",
+        },
+        "post": {"top_hits": True, "overview": True},
+    },
     "OGS-00017": {
         "phase": "build",
         "command": "build-dense-vcf",
@@ -179,7 +189,7 @@ def load_build(store_id: str) -> dict[str, Any]:
 
 
 class TestRegistryMigration(unittest.TestCase):
-    """The eight Dense-component bundles and the four Ragged-only bundles."""
+    """The nine Dense-component bundles and the four Ragged-only bundles."""
 
     def test_audit_passes_on_the_real_registry(self) -> None:
         report = audit.audit_registry(REPO_ROOT / "stores", REPO_ROOT)
@@ -288,7 +298,7 @@ class TestRegistryMigration(unittest.TestCase):
             record_check()
             self.assertIn(store_id, rendered)
         record_check()
-        self.assertIn("8/8 Dense-component bundles declare hm3", rendered)
+        self.assertIn("9/9 Dense-component bundles declare hm3", rendered)
         record_check()
         self.assertIn("4/4 Ragged-only bundles declare none", rendered)
         record_check()

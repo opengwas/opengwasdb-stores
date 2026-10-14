@@ -202,14 +202,16 @@ class TestBundleContract(unittest.TestCase):
                     )
                 )
 
-    def test_ci_population_is_all_seven_registered_bundles_and_each_passes(self) -> None:
+    def test_ci_population_is_every_registered_bundle_and_each_passes(self) -> None:
         registry = REPO_ROOT / "stores"
         store_ids = sorted(
             path.name
             for path in registry.iterdir()
             if path.is_dir() and paths.is_valid_store_id(path.name)
         )
-        self.assertEqual(store_ids, [f"OGS-{number:05d}" for number in [*range(1, 12), 17]])
+        self.assertEqual(
+            store_ids, [f"OGS-{number:05d}" for number in [*range(1, 12), 15, 17]]
+        )
         for store_id in store_ids:
             errors = bundle.check(
                 bundle.load(store_id, registry_root=registry),
@@ -217,6 +219,62 @@ class TestBundleContract(unittest.TestCase):
             )
             record_check()
             self.assertEqual(errors, [], f"{store_id}: {errors}")
+
+    def test_ogs_00015_frozen_dev_input_is_not_scientific_acceptance(self) -> None:
+        """OGS-00015 is the owner-authorized, frozen EAS input manifest.
+
+        #247 `accepted` is the registry's fixed-input acceptance gate, not a
+        flag bypass and not scientific release validation: the exact
+        241-Analysis membership is accepted and frozen for dev construction,
+        while human scientific acceptance stays pending and the Validation
+        Record stays not_run.
+        """
+        loaded = bundle.load("OGS-00015", registry_root=REPO_ROOT / "stores")
+        record_check()
+        self.assertEqual(loaded.status, "accepted")
+        record_check()
+        self.assertTrue(loaded.release.get("accepted_at"))
+        record_check()
+        self.assertEqual(
+            loaded.release["source_snapshot_id"],
+            "dbgap-phs002453-mvp-eas-metadata-2026-10-13",
+        )
+        record_check()
+        self.assertNotIn("candidate-pending", loaded.release["source_snapshot_id"])
+        notes = loaded.release["notes"]
+        record_check()
+        self.assertNotIn("ONLY so", notes)
+        record_check()
+        self.assertIn("owner-authorized", notes)
+        record_check()
+        self.assertIn("accepted and frozen", notes)
+        snapshot = loaded.release["source_snapshot"]
+        record_check()
+        self.assertEqual(
+            snapshot["resolver_source_evidence_scope"], "capped_pilot_diagnostic"
+        )
+        acceptance = loaded.validation["acceptance"]
+        record_check()
+        self.assertIs(acceptance["membership_accepted"], True)
+        record_check()
+        self.assertIs(acceptance["membership_frozen"], True)
+        record_check()
+        self.assertEqual(acceptance["human_acceptance"], "pending")
+        record_check()
+        self.assertIn("6156153525", acceptance["owner_authorization"])
+        record_check()
+        self.assertIn("6156153173", acceptance["owner_authorization"])
+        record_check()
+        self.assertEqual(loaded.validation["status"], "not_run")
+        record_check()
+        summary = bundle.summarise(loaded)
+        self.assertEqual(summary["n_analyses"], 241)
+        record_check()
+        self.assertEqual(summary["n_admitted"], 241)
+        record_check()
+        self.assertEqual(summary["n_excluded"], 0)
+        record_check()
+        self.assertFalse((REPO_ROOT / "stores" / "OGS-00021").exists())
 
     def test_ogs_00007_trait_ontology_is_source_provided_not_a_gene(self) -> None:
         """Issue #141: the Trait columns carry the source EFO term and label.
@@ -1284,7 +1342,7 @@ class TestBundleSummary(unittest.TestCase):
         self.assertEqual(summary["first_author"], "mixed (2)")
         self.assertEqual(summary["publication_pmid"], "mixed (2)")
 
-    def test_all_seven_trial_release_summaries_match_regression_golden(self) -> None:
+    def test_registered_bundle_summaries_match_regression_golden(self) -> None:
         expected = yaml.safe_load(
             (REPO_ROOT / "tests" / "bundle" / "golden" / "summaries.yaml").read_text(
                 encoding="utf-8"
