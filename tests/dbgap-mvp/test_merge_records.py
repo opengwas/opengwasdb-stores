@@ -215,6 +215,50 @@ class MergeRecordsTest(unittest.TestCase):
         self.assertEqual(quantitative["sample_size_kind"], "total")
         self.assertEqual(quantitative["original_sd"], "1.25")
 
+    def _selection_rows(self, bucket: str):
+        return selection.build_selection(
+            metadata_root=self.meta,
+            mapping_path=self.mapping,
+            metadata_content_sha256=self.content_sha,
+            candidate_table_path=self.candidates,
+            scope=f"bucket:{bucket}",
+        )
+
+    def test_source_ancestry_label_retained_for_every_bucket(self) -> None:
+        # The standard source_ancestry_label column is the exact acquisition
+        # mapping ancestry, not the core's AF assignment.
+        for bucket in ("EUR", "AFR", "AMR", "EAS", "META"):
+            rows = self._selection_rows(bucket)
+            row = rows[0]
+            record = _record(row.analysis_id, assigned=bucket if bucket != "META" else "EUR")
+            canonical = merge_records.record_resolution_row(record, row)
+            self.assertEqual(canonical["source_ancestry_label"], bucket, bucket)
+            self.assertEqual(canonical["source_ancestry_label"], row.mapping["ancestry"], bucket)
+            self.assertIn("source_ancestry_label", merge_records.RESOLUTION_COLUMNS)
+
+    def test_meta_canonical_pair_and_raw_record_not_mutated(self) -> None:
+        # ancestry_assignment_method describes how the CANONICAL assigned_ancestry
+        # was produced. META publishes an empty canonical value, so its method is
+        # `unassigned`, while the raw core AF inference stays in the record.
+        row = self._selection_rows("META")[0]
+        record = _record(row.analysis_id, assigned="EUR")
+        before = json.dumps(record, sort_keys=True)
+        canonical = merge_records.record_resolution_row(record, row)
+        self.assertEqual(canonical["assigned_ancestry"], "")
+        self.assertEqual(canonical["ancestry_assignment_method"], "unassigned")
+        self.assertEqual(canonical["source_ancestry_label"], "META")
+        # The immutable raw core inference is never rewritten by the merge.
+        self.assertEqual(record["ancestry"]["assigned_ancestry"], "EUR")
+        self.assertEqual(json.dumps(record, sort_keys=True), before)
+
+    def test_amr_unassigned_method_is_unassigned(self) -> None:
+        row = self._selection_rows("AMR")[0]
+        record = _record(row.analysis_id, assigned="")
+        canonical = merge_records.record_resolution_row(record, row)
+        self.assertEqual(canonical["assigned_ancestry"], "")
+        self.assertEqual(canonical["ancestry_assignment_method"], "unassigned")
+        self.assertEqual(canonical["source_ancestry_label"], "AMR")
+
     def test_merge_refuses_missing_record(self) -> None:
         records_dir = self.tmp / "records"
         records = self._eas_records()
@@ -295,6 +339,9 @@ class MergeRecordsTest(unittest.TestCase):
         self.assertEqual({row["assigned_ancestry"] for row in rows}, {"EAS"})
         self.assertEqual(
             {row["ancestry_assignment_method"] for row in rows}, {"af_assigned"}
+        )
+        self.assertEqual(
+            {row["source_ancestry_label"] for row in rows}, {"EAS"}
         )
         release = yaml.safe_load((bundle_dir / "release.yaml").read_text())
         self.assertEqual(release["status"], "accepted")

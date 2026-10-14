@@ -39,6 +39,7 @@ RESOLUTION_COLUMNS: tuple[str, ...] = (
     "analysis_id",
     "assigned_ancestry",
     "ancestry_assignment_method",
+    "source_ancestry_label",
     "stored_effect_scale",
     "sample_size_kind",
     "sample_size_scope",
@@ -81,7 +82,11 @@ def record_resolution_row(record: Mapping, row: "selection.SelectionRow") -> dic
     # META is canonicalised to the empty super-population; an unassigned record
     # stays empty for every bucket. The value is never forced to the bucket.
     declared = "" if row.bucket == "META" else assigned
-    method = "af_assigned" if assigned else "unassigned"
+    # `ancestry_assignment_method` describes HOW the canonical assigned_ancestry
+    # above was produced, not the raw core inference: a published value came from
+    # source AF (af_assigned); a canonically-empty value is unassigned. The raw
+    # core inference stays in the resolver record and is never rewritten here.
+    method = "af_assigned" if declared else "unassigned"
     stored = str(cfg.get("stored_effect_scale") or row.stored_effect_scale or "").strip()
     sd_method = str(cfg.get("original_sd_method") or row.original_sd_method or "").strip()
     sample_size = cfg.get("sample_size")
@@ -107,6 +112,9 @@ def record_resolution_row(record: Mapping, row: "selection.SelectionRow") -> dic
         "analysis_id": row.analysis_id,
         "assigned_ancestry": declared,
         "ancestry_assignment_method": method,
+        # The source-declared ancestry label, from the exact acquisition mapping
+        # field (never inferred from the core's AF assignment).
+        "source_ancestry_label": row.mapping.get("ancestry", ""),
         "stored_effect_scale": stored,
         "sample_size_kind": kind,
         "sample_size_scope": "analysis_level",
