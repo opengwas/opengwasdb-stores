@@ -4,39 +4,47 @@ access_posture: public
 status: accepted
 derived_from: null
 created_at: '2026-10-14T01:27:47Z'
-source_snapshot_id: dbgap-phs002453-candidate-pending
+source_snapshot_id: dbgap-phs002453-mvp-eas-metadata-2026-10-13
 generator:
   version: sha256:20b0fce1d2bf65a2c476e7927985de3dda20daa9b40ee0db601bc09d93ac8ed9
   commands:
   - python3 resources/scripts/acquire-dbgap-phs002453.py map --candidates resources/data/derived/store-candidates-analyses.tsv
   - python3 resources/generators/dbgap-mvp/generate_candidate.py
-description: MVP PMID 39024449 observed-only bundle (mvp-phs002453-eas). Unbuilt;
-  workflow-buildable for dev, scientific acceptance pending; no Store exists.
+description: >-
+  MVP PMID 39024449 EAS observed input bundle (mvp-phs002453-eas): the frozen
+  241-Analysis input manifest accepted for owner-authorized dev construction. No
+  Store has been built; human scientific acceptance is pending.
 notes: |
   Ancestry bucket EAS; 241 intended Analyses. candidate_store_key
-  dense__pmid-39024449__East-Asian. Unbuilt observed Store; the human
-  scientific-acceptance step is pending. Release Status is 'accepted' ONLY so the
-  dev release workflow may build this bundle (#247); it is not scientific release
-  acceptance, publication approval or mirror promotion, and no Store exists yet.
-  The pending human acceptance is recorded in validation.yaml:acceptance.human_acceptance.
+  dense__pmid-39024449__East-Asian. The exact 241-Analysis EAS membership is
+  accepted and frozen as the input manifest for owner-authorized dev
+  construction. Release Status is 'accepted' because #247 is the registry's
+  fixed-input acceptance gate for a buildable bundle; it is not scientific
+  release acceptance, publication approval or mirror promotion, and no Store has
+  been built or validated yet.
 
-  Execution note (owner-authorized dev construction). The owner authorized the
-  MVP bundle integration and build (emit config id_allocation_status:
-  owner-authorized-2026-10-13, owner_ordering_approved: true). The Analytical
-  Metadata comes from an owner-authorized bounded metadata resolution whose
-  source-evidence scope is a capped diagnostic (resolver receipt
-  source_evidence_scope: capped_pilot_diagnostic): a capped run is a diagnostic,
-  never a whole-source SCI qualification. All 241 EAS Analyses resolved (241
-  success, 0 pending, 0 failed); the resolver outcome was ok with zero escaped
-  pids and the metadata content hash was unchanged across the run.
+  Owner build authority. The owner approved the MVP bundle integration and the
+  dev builds (opengwas/opengwasdb-stores#221 comment 6156153525 and #232 comment
+  6156153173). The parent's exact 241-record binding and staged-artifact review
+  qualify this input manifest for authorized dev construction (emit config
+  id_allocation_status: owner-authorized-2026-10-13, owner_ordering_approved:
+  true).
+
+  Evidence boundary. The Analytical Metadata comes from an owner-authorized
+  bounded metadata resolution whose source-evidence scope is a capped diagnostic
+  (resolver receipt source_evidence_scope: capped_pilot_diagnostic); 241/241 EAS
+  Analyses resolved with outcome ok, zero escaped pids and an unchanged metadata
+  content hash. A capped run is a diagnostic, never a whole-source SCI
+  qualification. Human scientific acceptance remains pending
+  (validation.yaml:acceptance.human_acceptance) and is not claimed here.
 
   Provenance bindings. This bundle is bound to the actual source snapshot named
   in source_snapshot (metadata refresh root + content sha, mapping table sha,
   source-metadata fingerprint snapshot, candidate table sha, planned manifest
   sha, resolution table sha) and to the resolver/emission records (resolution
-  receipt sha, records index sha, merge receipt sha, emission config sha)
-  recorded there. No scientific release acceptance, publication approval or
-  mirror promotion is claimed; human scientific validation remains pending.
+  receipt sha, records index sha, merge receipt sha, emission config sha). No
+  scientific release validation, publication approval or mirror promotion is
+  claimed.
 accepted_at: '2026-10-14T01:27:47Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z
