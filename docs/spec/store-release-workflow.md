@@ -803,7 +803,7 @@ Two consequences are contract, not incidental:
 
 ## Phase B — what produces a bundle
 
-Phase B generation runs as per-source-format Manifest Generator scripts under `resources/generators/`, and each Release Bundle records the commands it ran in `release.yaml:generator.commands`. The GWAS Catalog eur-hybrid family now has an implemented, resumable candidate workflow (`resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py`, issue #153); `workflow/generate.smk` wires its stages as an optional coarse DAG. The four rules below fix that boundary; everything inside it is open.
+Phase B generation runs as per-source-format Manifest Generator scripts under `resources/generators/`, and each Release Bundle records the commands it ran in `release.yaml:generator.commands`. The GWAS Catalog eur-hybrid family now has an implemented, resumable candidate workflow (`resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py`, issue #153); `workflow/generate.smk` wires its stages as an optional coarse DAG. The five rules below fix that boundary; everything inside it is open.
 
 ### Phase A and Phase B are separate workflows
 
@@ -822,7 +822,7 @@ Their outputs also live in different places and are reviewed differently. Phase 
 
 `release.yaml` now holds `generator: {version, commands}` -- an executed command log (a list), because generation calls acquire, select, assign-ancestry, estimate-SD and emit in turn and a single command string is wrong as soon as more than one step runs (issue #136). The previous `generator.name` path and the `--config=families/...` argument pointed at files that no longer exist and were corrected in the same change. That is the per-store script that Phase A does not need, and it is a log rather than a prediction.
 
-### The four fixed rules
+### The five fixed rules
 
 **Phase B is a separate workflow, meeting Phase A at the accepted bundle** — above.
 
@@ -831,6 +831,13 @@ Their outputs also live in different places and are reviewed differently. Phase 
 **A generator's only output is a bundle directory. It never builds a store.** The four copy-pasted `resources/generators/lib/source-formats/*/build-store.py` adapters exist only because nothing else could reach a builder; under ADR 0023 nothing but the workflow may.
 
 **Acquisition is separate from selection.** Acquisition is per Source Collection and is the expensive resumable part. Selection is per Store Release. The Source Collection is a grouping string recorded on the release, not a directory (ADR 0028).
+
+**Every generator emits through one emitter** (#248, ADR 0035). `resources/generators/lib/emit.py` is the only code that writes a candidate into `stores/<id>/`. A Python generator builds a `CandidateBundle` and calls `emit()`. An R generator renders the bundle into a directory and runs `python3 resources/generators/lib/emit.py <id> --from <dir> --command ...`; anything a bundle does not hold is refused. The emitter:
+
+- writes every YAML document in one style, with `status: candidate` and `generator.commands`, and refuses a rendered status or command log that disagrees;
+- stages the bundle under `stores/.staging/<id>/`, checks it against the Release Bundle contract with lineage resolved in the real registry, and writes `summary.yaml`;
+- swaps it into `stores/<id>/` in one step, and only over nothing or an earlier candidate;
+- holds `stores/.staging/<id>.lock` throughout, so two emits of one id never mix.
 
 ```text
 resources/inventories/<id>.tsv discovered upstream analyses, once acquisition
@@ -984,12 +991,17 @@ stores/OGS-00011/
 **Determinism and atomicity.** Aggregation is ordered by the frozen inventory,
 not by completion order or worker count, and every numeric sidecar value is
 formatted through the issue-#143 sub-tolerance formatter, so 1 worker and 64
-workers produce byte-identical tables and sidecars. The bundle is written under
-`stores/.staging/<id>/` (hidden, so `bundle-check`/`index` cannot see a
-half-written candidate), `bundle.check()` and the pinned OpenGWASDB Analysis
-schema are run against it, and only then is it renamed into `stores/<id>/`, with
-any previous candidate restored if the rename fails. A killed resolver or a
-failed finalisation leaves the previous candidate untouched.
+workers produce byte-identical tables and sidecars. The pinned OpenGWASDB
+Analysis schema is run over the included rows, and the bundle is then emitted
+through the shared emitter, `resources/generators/lib/emit.py` (#248). The
+emitter stages it under `stores/.staging/<id>/` (hidden, so
+`bundle-check`/`index` cannot see a half-written candidate), runs
+`bundle.check()` against the real registry, writes `summary.yaml`, and only
+then swaps it into `stores/<id>/` in one step (`renameat2(RENAME_EXCHANGE)`,
+falling back to a move with restore). It replaces only an earlier candidate: a
+bundle with any later Release Status is refused, and needs a new Store Release
+id. A killed resolver, a failed check or a refused emit leaves the previous
+candidate untouched.
 
 The command log in `release.yaml` records the operator invocation and the exact
 `opengwasdb resolve-analyses` argv that ran; the candidate remains `status:

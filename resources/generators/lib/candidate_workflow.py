@@ -22,8 +22,8 @@ things and nothing else:
   non-EUR/unassigned/orientation/SD-unavailable/resolution failures become
   controlled, explained exclusions), and the pinned OpenGWASDB Analysis schema.
 
-Output is a **candidate-only** Release Bundle, assembled deterministically under
-a staging sibling and atomically renamed into place. It never builds, validates
+Output is a **candidate-only** Release Bundle, rendered deterministically and
+emitted through the shared emitter (``emit.py``, #248). It never builds, validates
 or materialises a Store, never redownloads or copies a source body, never
 invokes Phase A, and never infers an accepted status.
 
@@ -43,7 +43,6 @@ import hashlib
 import json
 import math
 import os
-import shutil
 import statistics
 import subprocess
 from dataclasses import dataclass, field, replace
@@ -313,11 +312,6 @@ RECEIPT_FILENAME: str = "resolution_receipt.json"
 SOURCE_LABEL_MAP_RELATIVE_PATH: str = (
     "resources/reference-resources/ukb-ancestry-mixture-hg38/source_label_map.tsv"
 )
-
-#: Staging parent used for the atomic directory swap, kept inside the registry
-#: root so the rename is same-filesystem, and hidden so a half-written candidate
-#: is never discovered by ``bundle-check``/``index`` (which require release.yaml).
-STAGING_DIRNAME: str = ".staging"
 
 #: The upstream resolver this module invokes; overridable only for tests through
 #: ``--resolver`` so production always uses the pinned ``opengwasdb`` CLI.
@@ -2849,8 +2843,8 @@ def _derive_checks(
 # ---------------------------------------------------------------------------
 
 
-def render_build_yaml(store_id: str, config: CandidateConfiguration) -> str:
-    """Render the observed-only Hybrid Build Recipe.
+def render_build_yaml(store_id: str, config: CandidateConfiguration) -> dict[str, Any]:
+    """Render the observed-only Hybrid Build Recipe as the emitter's ``build.yaml`` document.
 
     The recipe is a registry fact plus ``opengwasdb`` flags; it carries no
     artifact root (issue #126) and names a subcommand, never an import path
@@ -2871,7 +2865,7 @@ def render_build_yaml(store_id: str, config: CandidateConfiguration) -> str:
     # no key at all; ``[]`` is a Dense/Hybrid release's reviewed opt-out.
     if config.indexed_subsets is not None:
         document["indexed_subsets"] = [dict(entry) for entry in config.indexed_subsets]
-    return _dump_yaml(document)
+    return document
 
 
 def render_release_yaml(
@@ -2879,7 +2873,6 @@ def render_release_yaml(
     store_id: str,
     config: CandidateConfiguration,
     tables: CandidateTables,
-    commands: Sequence[str],
     created_at: str,
     inventory_sha256: str,
     preflight_report: Path,
@@ -2887,14 +2880,14 @@ def render_release_yaml(
     generator_version: str,
     resolver_receipt_path: Path | None = None,
     resolver_receipt_sha256: str | None = None,
-) -> str:
-    """Render the candidate ``release.yaml`` identity record.
+) -> dict[str, Any]:
+    """Render the candidate ``release.yaml`` identity record as the emitter's document.
 
     Only identity, lineage, status, creation time, source-snapshot identity, the
     executed command log and prose survive (ADR 0029). The evidence the candidate
     binds -- the frozen inventory's checksum, the preflight report, the successful
     resolution receipt, the #152 policy and the executed resolver argv -- is the
-    command log plus prose.
+    command log plus prose. The emitter records the command log (#248).
     """
     notes_lines: list[str] = []
     if config.notes.strip():
@@ -2960,14 +2953,11 @@ def render_release_yaml(
             "resolver_receipt_sha256": resolver_receipt_sha256,
             "resolver_opengwasdb_version": index_summary.get("opengwasdb_version"),
         },
-        "generator": {
-            "version": generator_version,
-            "commands": list(commands),
-        },
+        "generator": {"version": generator_version},
         "description": config.description,
         "notes": notes,
     }
-    return _dump_yaml(document)
+    return document
 
 
 def render_validation_yaml(
@@ -2976,8 +2966,8 @@ def render_validation_yaml(
     index_summary: Mapping[str, Any],
     validated_at: str,
     validator_name: str,
-) -> str:
-    """Render the candidate Validation Record.
+) -> dict[str, Any]:
+    """Render the candidate Validation Record as the emitter's ``validation.yaml`` document.
 
     No Store was built, so every ``observed`` measurement is ``null``: absence is
     recorded, never guessed (issue #135). The checks describe the Phase B
@@ -3022,94 +3012,12 @@ def render_validation_yaml(
         "warnings": list(tables.warnings),
         "errors": list(tables.reference_overlap_errors),
     }
-    return _dump_yaml(document)
+    return document
 
 
 # ---------------------------------------------------------------------------
-# Atomic staging and finalisation
+# Generation checks before emitting
 # ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class CandidateFiles:
-    """The complete in-memory candidate bundle, ready to stage."""
-
-    release_yaml: str
-    build_yaml: str
-    analyses_tsv: str
-    validation_yaml: str
-    source_readiness_tsv: str
-    ancestry_tsv: str
-    sd_estimation_tsv: str
-    exclusions_tsv: str
-    reference_overlap_tsv: str
-
-
-def stage_candidate(staging_store_dir: Path, files: CandidateFiles) -> None:
-    """Write every bundle file under the staging store directory.
-
-    ``release.yaml`` is written last, so a crash mid-write leaves a staging
-    directory that is not a discoverable bundle (``bundle-check``/``index``
-    require ``release.yaml``).
-    """
-    staging_store_dir.mkdir(parents=True, exist_ok=True)
-    sidecars = staging_store_dir / "sidecars"
-    sidecars.mkdir(parents=True, exist_ok=True)
-    (staging_store_dir / "analyses.tsv").write_text(files.analyses_tsv, encoding="utf-8")
-    (sidecars / "source_readiness.tsv").write_text(
-        files.source_readiness_tsv, encoding="utf-8"
-    )
-    (sidecars / "ancestry.tsv").write_text(files.ancestry_tsv, encoding="utf-8")
-    (sidecars / "sd_estimation.tsv").write_text(files.sd_estimation_tsv, encoding="utf-8")
-    (sidecars / "exclusions.tsv").write_text(files.exclusions_tsv, encoding="utf-8")
-    (sidecars / "reference_overlap.tsv").write_text(files.reference_overlap_tsv, encoding="utf-8")
-    (staging_store_dir / "build.yaml").write_text(files.build_yaml, encoding="utf-8")
-    (staging_store_dir / "validation.yaml").write_text(files.validation_yaml, encoding="utf-8")
-    (staging_store_dir / "release.yaml").write_text(files.release_yaml, encoding="utf-8")
-
-
-def publish_candidate(registry_root: Path, store_id: str, staging_store_dir: Path) -> Path:
-    """Atomically swap a verified staged candidate into ``stores/<store_id>``.
-
-    A failed finalisation must not partially replace a prior candidate, so the
-    staged directory is fully written and checked before this is called. The
-    swap moves any existing candidate aside first and restores it if the replace
-    fails, so the registry always holds either the previous candidate or the new
-    one, never a half-written mixture.
-    """
-    final_dir = registry_root / store_id
-    previous_dir = registry_root / STAGING_DIRNAME / f"{store_id}.previous"
-    previous_dir.parent.mkdir(parents=True, exist_ok=True)
-    if previous_dir.exists():
-        shutil.rmtree(previous_dir)
-    moved_previous = False
-    if final_dir.exists():
-        os.replace(final_dir, previous_dir)
-        moved_previous = True
-    try:
-        os.replace(staging_store_dir, final_dir)
-    except OSError:
-        if moved_previous:
-            os.replace(previous_dir, final_dir)
-        raise
-    if moved_previous:
-        shutil.rmtree(previous_dir, ignore_errors=True)
-    return final_dir
-
-
-def cleanup_staging(registry_root: Path) -> None:
-    """Remove a leftover staging tree; never touches a published candidate."""
-    staging = registry_root / STAGING_DIRNAME
-    if staging.exists():
-        shutil.rmtree(staging, ignore_errors=True)
-
-
-def check_staged_candidate(store_id: str, staging_parent: Path) -> list[str]:
-    """Run ``bundle.check()`` against the staged candidate, before publication."""
-    from ogstores import bundle as bundle_module
-
-    loaded = bundle_module.load(store_id, registry_root=staging_parent)
-    return list(bundle_module.check(loaded, registry_root=staging_parent))
 
 
 def validate_candidate_analyses(analyses_tsv: str) -> list[str]:
@@ -3169,12 +3077,6 @@ def _render_tsv(columns: Sequence[str], rows: Iterable[Mapping[str, str]]) -> st
     return "\n".join(lines) + "\n"
 
 
-def _dump_yaml(document: Mapping[str, Any]) -> str:
-    return yaml.safe_dump(
-        document, sort_keys=False, default_flow_style=False, width=100, allow_unicode=True
-    )
-
-
 def _float_or_empty(value: Any) -> str:
     if value is None:
         return ""
@@ -3208,7 +3110,6 @@ __all__ = [
     "USABLE_MAF_STATES",
     "CandidateConfiguration",
     "CandidateError",
-    "CandidateFiles",
     "CandidateMetadata",
     "CandidateTables",
     "EXCLUSION_COLUMNS",
@@ -3229,8 +3130,6 @@ __all__ = [
     "apply_release_policy",
     "build_candidate_tables",
     "build_resolution_receipt",
-    "check_staged_candidate",
-    "cleanup_staging",
     "compute_resolution_contract",
     "derive_resolver_manifest",
     "info_score_emission",
@@ -3238,7 +3137,6 @@ __all__ = [
     "maf_threshold_emission",
     "now_utc",
     "parse_store_composition",
-    "publish_candidate",
     "read_candidate_metadata",
     "read_genotyping_technologies",
     "read_effect_placeholder_exclusions",
@@ -3253,7 +3151,6 @@ __all__ = [
     "run_resolver",
     "sha256_file",
     "sha256_text",
-    "stage_candidate",
     "validate_candidate_analyses",
     "verify_records",
     "write_resolution_receipt",

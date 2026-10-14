@@ -85,3 +85,6 @@ tests/qc-panel-retention/fixtures/output-without-panel/
 
 # Remote tabix indexes bcftools caches into the cwd when streaming a URL.
 gnomad.genomes.*.vcf.bgz.tbi
+
+# The candidate emitter's staging area and per-id lock files (#248).
+stores/.staging/
