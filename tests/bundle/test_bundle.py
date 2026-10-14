@@ -20,7 +20,6 @@ import yaml
 from opengwasdb.model import analyses as opengwasdb_analyses
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "src"))
 
 import ogstores.bundle
 from ogstores import bundle, paths
@@ -1617,13 +1616,11 @@ class TestImportCost(unittest.TestCase):
     def test_the_release_path_does_not_import_opengwasdb(self) -> None:
         """The entry point, each Snakemake parse and the supervisor import `ogstores`; opengwasdb would cost each ~1.5s."""
         code = (
-            "import sys; sys.path.insert(0, sys.argv[1]); "
+            "import sys; "
             "import ogstores, ogstores.release, ogstores._pdeath_supervisor; "
             "print(sorted(m for m in sys.modules if m.split('.')[0] == 'opengwasdb'))"
         )
-        result = subprocess.run(
-            [sys.executable, "-c", code, str(REPO_ROOT / "src")], capture_output=True, text=True
-        )
+        result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), "[]")
         record_check()

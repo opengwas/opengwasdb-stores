@@ -33,10 +33,6 @@ from typing import Any
 
 import yaml
 
-REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-SRC_DIR: Path = REPO_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
 
 from ogstores import bundle, manifest, paths, register, run
 from ogstores.bundle import Bundle
@@ -712,9 +708,8 @@ class TestForcedRegistration(unittest.TestCase):
 
 KILL_REGISTER_SCRIPT = """
 import sys
-sys.path.insert(0, sys.argv[1])
 from ogstores import bundle, register
-stores_root, artifact_root, store_id, force = sys.argv[2:6]
+stores_root, artifact_root, store_id, force = sys.argv[1:5]
 b = bundle.load(store_id, registry_root=stores_root)
 register.register_release(b, registry_root=stores_root, artifact_root=artifact_root, force=force == "1")
 """
@@ -771,7 +766,7 @@ class TestPublicationTransaction(unittest.TestCase):
         env = dict(os.environ)
         env[run.KILL_AT_ENV] = boundary
         return subprocess.run(
-            [sys.executable, "-c", KILL_REGISTER_SCRIPT, str(SRC_DIR), str(stores_root), str(artifact_root), b.store_id, "1" if force else "0"],
+            [sys.executable, "-c", KILL_REGISTER_SCRIPT, str(stores_root), str(artifact_root), b.store_id, "1" if force else "0"],
             env=env,
             capture_output=True,
             text=True,

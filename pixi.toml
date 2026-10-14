@@ -23,6 +23,13 @@ numpy = ">=1.26,<2.5"
 scipy = ">=1.11"
 pyyaml = "*"
 
+[feature.python.pypi-dependencies]
+# This repository's own Python code, installed editable (pyproject.toml, #257),
+# so it imports without sys.path insertions. An editable install points at the
+# checkout it was installed from: a second worktree runs `pixi install` of its
+# own, and run_all_tests.py refuses to test one checkout against another's code.
+ogstores = { path = ".", editable = true }
+
 [feature.store-build.dependencies]
 pandas = ">=2.0"
 scikit-learn = ">=1.3"

@@ -21,11 +21,8 @@ import random
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
-from resources.generators.lib.source_inventory import read_inventory  # noqa: E402
+from resources.generators.lib.source_inventory import read_inventory
 
 AUTOSOMES = {str(i) for i in range(1, 23)}
 

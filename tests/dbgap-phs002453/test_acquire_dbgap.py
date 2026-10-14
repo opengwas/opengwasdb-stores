@@ -37,8 +37,6 @@ from pathlib import Path
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "resources/scripts/acquire-dbgap-phs002453.py"
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 _spec = importlib.util.spec_from_file_location("acquire_dbgap_phs002453", SCRIPT)
 assert _spec and _spec.loader

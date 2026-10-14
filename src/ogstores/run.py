@@ -99,12 +99,12 @@ VALID_STEP_NAMES: frozenset[str] = frozenset({
 UNAVAILABLE: str = "unavailable"
 _HEX_40_OR_64: re.Pattern[str] = re.compile(r"\A(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})\Z")
 
-# Bootstrap for the isolated-group supervisor (ogstores._pdeath_supervisor).
-# argv layout after the code string: <src-dir> <liveness-fd> <exec-status-fd> <command...>.
+# Bootstrap for the isolated-group supervisor (ogstores._pdeath_supervisor),
+# which imports `ogstores` from the environment it is installed in (#257).
+# argv layout after the code string: <liveness-fd> <exec-status-fd> <command...>.
 _SUPERVISOR_BOOTSTRAP: str = (
     "import sys; "
-    "src, liveness_fd, exec_status_fd, *cmd = sys.argv[1:]; "
-    "sys.path.insert(0, src); "
+    "liveness_fd, exec_status_fd, *cmd = sys.argv[1:]; "
     "from ogstores._pdeath_supervisor import main; "
     "raise SystemExit(main(cmd, int(liveness_fd), int(exec_status_fd)))"
 )
@@ -1072,12 +1072,10 @@ def _supervised_command(
     end of a one-shot exec-status pipe, so a failed exec is reported back with
     its errno. See `ogstores._pdeath_supervisor`.
     """
-    src_dir = str(Path(__file__).resolve().parent.parent)
     return [
         sys.executable,
         "-c",
         _SUPERVISOR_BOOTSTRAP,
-        src_dir,
         str(liveness_fd),
         str(exec_status_fd),
         *executed_argv,

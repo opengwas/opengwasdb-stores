@@ -14,7 +14,7 @@ _HERE = Path(__file__).resolve().parent
 _REPO_ROOT = _HERE.parents[1]
 _GEN_DIR = _REPO_ROOT / "resources" / "generators" / "dbgap-mvp"
 _PILOT_DIR = _GEN_DIR / "pilot"
-for path in (_HERE, _PILOT_DIR, str(_GEN_DIR), str(_REPO_ROOT / "src")):
+for path in (_HERE, _PILOT_DIR, str(_GEN_DIR)):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 

@@ -17,7 +17,6 @@ Covers the contracts that keep the readiness view honest:
 from __future__ import annotations
 
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -25,10 +24,6 @@ from typing import Any
 
 import yaml
 
-REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-SRC_DIR: Path = REPO_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
 
 from ogstores import readiness
 from ogstores.readiness import EvidenceState

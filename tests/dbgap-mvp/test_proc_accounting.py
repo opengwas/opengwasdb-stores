@@ -21,9 +21,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PILOT_DIR = REPO_ROOT / "resources" / "generators" / "dbgap-mvp"
-for extra in (str(PILOT_DIR), str(REPO_ROOT / "src")):
-    if extra not in sys.path:
-        sys.path.insert(0, extra)
+if str(PILOT_DIR) not in sys.path:
+    sys.path.insert(0, str(PILOT_DIR))
 
 import pilot.wrapper as wrapper  # noqa: E402
 

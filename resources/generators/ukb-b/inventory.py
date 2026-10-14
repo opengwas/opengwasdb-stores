@@ -47,7 +47,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -58,8 +57,6 @@ from typing import Iterable, Mapping, Sequence
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 #: The Source Collection this inventory belongs to (CONTEXT.md).
 SOURCE_COLLECTION_ID: str = "opengwas-gwas-vcf"

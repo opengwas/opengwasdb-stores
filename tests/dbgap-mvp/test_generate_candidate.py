@@ -30,9 +30,6 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_DIR = REPO_ROOT / "resources" / "generators" / "dbgap-mvp"
-for extra in (str(REPO_ROOT), str(REPO_ROOT / "src")):
-    if extra not in sys.path:
-        sys.path.insert(0, extra)
 
 _spec = importlib.util.spec_from_file_location(
     "dbgap_mvp_generate", SCRIPT_DIR / "generate_candidate.py"

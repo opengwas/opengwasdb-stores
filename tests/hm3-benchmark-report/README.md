@@ -14,8 +14,7 @@ through unchanged:
 5. the first `analysis_id` anchor is located by column name.
 
 The tests use a stub core checkout, so they never open a multi-gigabyte Store.
-They are registered in `resources/scripts/run_all_tests.py` and run under
-`pixi run test`.
+`pixi run test` discovers and runs them.
 
 The real report is generated against an explicit core checkout so its revision
 and fingerprint are recorded; the tracked runtime now provides the capability

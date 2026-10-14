@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
-from resources.generators.lib.release_yaml import (  # noqa: E402
+from resources.generators.lib.release_yaml import (
     merge_validation_yaml,
     read_previous_checks_and_warnings,
     read_tsv,

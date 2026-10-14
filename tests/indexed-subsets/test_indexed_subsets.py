@@ -27,11 +27,9 @@ from pathlib import Path
 
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from ogstores import resources  # noqa: E402
-from ogstores.plan import IndexedSubsetDeclaration  # noqa: E402
+from ogstores import resources
+from ogstores.plan import IndexedSubsetDeclaration
 
 n_checks = 0
 

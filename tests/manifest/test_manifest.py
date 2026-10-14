@@ -24,15 +24,10 @@ from __future__ import annotations
 
 import csv
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-SRC_DIR: Path = REPO_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
 
 import yaml
 

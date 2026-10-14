@@ -17,14 +17,10 @@ from __future__ import annotations
 import contextlib
 import io
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 from curation import choice, coverage, promotion, round as round_mod
 from curation.candidates import CHANNEL_EXACT, CHANNEL_NORMALISED

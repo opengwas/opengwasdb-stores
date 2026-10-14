@@ -13,14 +13,10 @@ The suite is hermetic: tiny inline OBO documents, no network.
 from __future__ import annotations
 
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 from curation.ontology import (
     INDEX_FORMAT_VERSION,

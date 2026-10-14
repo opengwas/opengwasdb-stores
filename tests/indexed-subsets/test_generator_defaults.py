@@ -17,14 +17,10 @@ half and the one-source-of-truth values both must agree on.
 
 from __future__ import annotations
 
-import sys
 import unittest
 from pathlib import Path
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-for extra in (str(REPO_ROOT), str(REPO_ROOT / "src")):
-    if extra not in sys.path:
-        sys.path.insert(0, extra)
 
 from resources.generators.lib.indexed_subsets import (  # noqa: E402
     IndexedSubsetConfigError,

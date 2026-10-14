@@ -1,0 +1,24 @@
+# Package metadata so this repository's Python code installs editable into the
+# pixi environments, and imports without sys.path insertions (#257).
+#
+# Pixi owns the environments and every dependency (pixi.toml); this file only
+# says what to install. Its `dependencies` stay empty so pip never resolves a
+# second copy of what conda already provides.
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ogstores"
+version = "0.1.0"
+description = "OpenGWASDB Store Registry tooling: the Release Bundle contract, Store Release Build, and Manifest Generation"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.setuptools]
+# `ogstores` lives under src/. The curation tooling and the generator library
+# still live at the repository root: `resources.generators.lib` is mapped here
+# only until #249 moves Manifest Generation into a package of its own.
+package-dir = { "ogstores" = "src/ogstores", "curation" = "curation", "resources" = "resources" }
+packages = ["ogstores", "curation", "resources.generators.lib"]

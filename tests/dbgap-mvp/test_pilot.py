@@ -19,7 +19,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PILOT_DIR = REPO_ROOT / "resources" / "generators" / "dbgap-mvp"
-for extra in (str(PILOT_DIR), str(REPO_ROOT / "src"), str(REPO_ROOT / "resources" / "generators" / "lib")):
+for extra in (str(PILOT_DIR), str(REPO_ROOT / "resources" / "generators" / "lib")):
     if extra not in sys.path:
         sys.path.insert(0, extra)
 

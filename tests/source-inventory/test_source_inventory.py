@@ -32,7 +32,6 @@ import gzip
 import hashlib
 import io
 import json
-import sys
 import tempfile
 import unittest
 from dataclasses import dataclass, replace
@@ -41,8 +40,6 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 from resources.generators.lib.source_inventory import (  # noqa: E402
     ACQUISITION_MANIFEST_COLUMNS,

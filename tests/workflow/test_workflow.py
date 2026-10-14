@@ -37,9 +37,6 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-SRC_DIR: Path = REPO_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
 
 from ogstores import bundle, manifest, paths, run
 from ogstores.plan import plan
@@ -228,11 +225,7 @@ def run_snakemake(
         cmd.extend(extra_args)
     cmd.extend(targets)
 
-    env = dict(os.environ)
-    if str(SRC_DIR) not in env.get("PYTHONPATH", ""):
-        env["PYTHONPATH"] = f"{SRC_DIR}:{env.get('PYTHONPATH', '')}"
-
-    return subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True, env=env)
+    return subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
 
 
 RELEASE_ENTRY_POINT: Path = REPO_ROOT / "workflow" / "release.py"
@@ -1161,9 +1154,7 @@ class TestPixiReleaseTaskPassthrough(unittest.TestCase):
 
     def run_task(self, task: str, *operator_args: str) -> subprocess.CompletedProcess[str]:
         argv = shlex.split(self.tasks[task]["cmd"]) + list(operator_args)
-        env = dict(os.environ)
-        env["PYTHONPATH"] = f"{SRC_DIR}:{env.get('PYTHONPATH', '')}"
-        return subprocess.run(argv, cwd=REPO_ROOT, capture_output=True, text=True, env=env)
+        return subprocess.run(argv, cwd=REPO_ROOT, capture_output=True, text=True)
 
     def test_release_tasks_pass_config_after_the_target(self) -> None:
         """Both tasks accept `<ID> --config ...`; the dry run plans under the configured root."""

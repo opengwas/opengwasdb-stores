@@ -8,13 +8,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
-# Add repo root to sys.path
 REPO_ROOT = Path(__file__).resolve().parents[3]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 from resources.generators.lib.concordance_sampling import (
     build_concordance_sample,

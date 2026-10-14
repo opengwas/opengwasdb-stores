@@ -7,15 +7,12 @@ OGS-00016, so a later bundle cannot silently drift back.
 
 from __future__ import annotations
 
-import sys
 import unittest
 from pathlib import Path
 
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT / "src") not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT / "src"))
 
 
 class TestIdReorder(unittest.TestCase):

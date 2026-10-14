@@ -23,7 +23,6 @@ from tempfile import TemporaryDirectory
 import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "resources" / "generators" / "lib" / "source-formats" / "eqtlgen-besd-ragged"))
 
 from subset_besd import write_besd_subset, write_besd_subset_from_analyses  # noqa: E402
