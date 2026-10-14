@@ -30,7 +30,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Iterable, Mapping, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 _LIB = REPO_ROOT / "resources" / "generators" / "lib"
@@ -194,50 +194,120 @@ def preflight_output_root(
     return resolved
 
 
-def _proc_stat(pid: int) -> tuple[int, int] | None:
-    """Return ``(ppid, starttime)`` for a live pid, or None."""
+@dataclass(frozen=True)
+class _ProcEntry:
+    pid: int
+    ppid: int
+    pgid: int
+    state: str
+    starttime: int
+
+
+def _parse_proc_stat(pid: int, text: str) -> _ProcEntry | None:
+    """Parse the fields the accounting needs from one ``/proc/<pid>/stat``."""
     try:
-        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
-        fields = stat.rsplit(")", 1)[1].split()
-        return int(fields[1]), int(fields[19])
-    except (OSError, IndexError, ValueError):
+        fields = text.rsplit(")", 1)[1].split()
+        return _ProcEntry(
+            pid=pid,
+            state=fields[0],
+            ppid=int(fields[1]),
+            pgid=int(fields[2]),
+            starttime=int(fields[19]),
+        )
+    except (IndexError, ValueError):
         return None
 
 
-def _procs_by_ppid() -> dict[int, list[int]]:
-    mapping: dict[int, list[int]] = {}
-    proc = Path("/proc")
-    if not proc.is_dir():
-        return mapping
-    for entry in proc.iterdir():
-        if not entry.name.isdigit():
-            continue
-        parsed = _proc_stat(int(entry.name))
-        if parsed is None or _proc_state(int(entry.name)) == "Z":
-            continue
-        mapping.setdefault(parsed[0], []).append(int(entry.name))
-    return mapping
+class ProcSnapshot:
+    """One host-wide ``/proc`` scan reused for a whole accounting tick.
 
+    The previous accounting walked ``/proc`` once per tracked member (and twice
+    more per member for the ppid map), so a tick cost ``O(host_pids * members)``
+    and starved the resolver. One capture reads each ``/proc/<pid>/stat`` exactly
+    once and indexes children in memory, so group membership, transitive and
+    reparented descendants, starttimes and RSS all come from the same snapshot
+    and the cost is linear in the host process count, independent of the tree
+    size. ``rss_*`` reads ``/proc/<pid>/status`` once per resolved member.
+    """
 
-def descendants_of(pid: int) -> set[int]:
-    by_ppid = _procs_by_ppid()
-    members = {pid}
-    frontier = [pid]
-    while frontier:
-        current = frontier.pop()
-        for child in by_ppid.get(current, []):
-            if child not in members:
+    __slots__ = ("entries", "_children")
+
+    def __init__(self, entries: dict[int, _ProcEntry]) -> None:
+        self.entries = entries
+        children: dict[int, list[int]] = {}
+        for entry in entries.values():
+            children.setdefault(entry.ppid, []).append(entry.pid)
+        self._children = children
+
+    @classmethod
+    def capture(cls) -> "ProcSnapshot":
+        entries: dict[int, _ProcEntry] = {}
+        proc = Path("/proc")
+        if not proc.is_dir():
+            return cls(entries)
+        for entry in proc.iterdir():
+            if not entry.name.isdigit():
+                continue
+            try:
+                text = entry.joinpath("stat").read_text(encoding="utf-8")
+            except OSError:
+                continue
+            parsed = _parse_proc_stat(int(entry.name), text)
+            if parsed is not None:
+                entries[parsed.pid] = parsed
+        return cls(entries)
+
+    def children_of(self, pid: int) -> list[int]:
+        return self._children.get(pid, [])
+
+    def group_members(self, pgid: int) -> set[int]:
+        return {
+            entry.pid
+            for entry in self.entries.values()
+            if entry.pgid == pgid and entry.state != "Z"
+        }
+
+    def descendants(self, roots: Iterable[int]) -> set[int]:
+        """Roots plus every ppid-reachable live descendant, from this snapshot."""
+        members = set(roots)
+        frontier = list(members)
+        while frontier:
+            for child in self._children.get(frontier.pop(), ()):
+                if child in members:
+                    continue
+                entry = self.entries.get(child)
+                if entry is not None and entry.state == "Z":
+                    continue
                 members.add(child)
                 frontier.append(child)
-    return members
+        return members
+
+    def tree_pids(self, pgid: int, self_pid: int) -> set[int]:
+        """The session group plus any live descendant reparented to the subreaper."""
+        roots = self.group_members(pgid) | {
+            pid
+            for pid in self.children_of(self_pid)
+            if self.entries[pid].state != "Z"
+        }
+        return self.descendants(roots)
+
+    def rss_mb(self, pids: Iterable[int]) -> float:
+        total_kb = 0.0
+        for pid in pids:
+            try:
+                status = Path(f"/proc/{pid}/status").read_text(encoding="utf-8")
+            except OSError:
+                continue
+            for line in status.splitlines():
+                if line.startswith("VmRSS:"):
+                    total_kb += float(line.split()[1])
+                    break
+        return total_kb / 1024.0
 
 
-def _proc_state(pid: int) -> str:
-    try:
-        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
-        return stat.rsplit(")", 1)[1].split()[0]
-    except (OSError, IndexError):
-        return ""
+def descendants_of(pid: int, sample: ProcSnapshot | None = None) -> set[int]:
+    snapshot = sample if sample is not None else ProcSnapshot.capture()
+    return snapshot.descendants({pid})
 
 
 def _reap_orphans() -> None:
@@ -250,40 +320,15 @@ def _reap_orphans() -> None:
             return
 
 
-def descendants_of_group(pgid: int) -> set[int]:
-    members: set[int] = set()
-    proc = Path("/proc")
-    if not proc.is_dir():
-        return members
-    for entry in proc.iterdir():
-        if not entry.name.isdigit():
-            continue
-        try:
-            fields = entry.joinpath("stat").read_text(encoding="utf-8").rsplit(")", 1)[1].split()
-            if int(fields[2]) == pgid and fields[0] != "Z":
-                members.add(int(entry.name))
-        except (OSError, IndexError, ValueError):
-            continue
-    return members
+def descendants_of_group(pgid: int, sample: ProcSnapshot | None = None) -> set[int]:
+    snapshot = sample if sample is not None else ProcSnapshot.capture()
+    return snapshot.group_members(pgid)
 
 
 def process_tree_rss_mb(pgid: int) -> float:
     """Aggregate RSS over the process group and any reparented descendants."""
-    pids = set(descendants_of_group(pgid))
-    for pid in list(pids):
-        pids |= descendants_of(pid)
-    pids |= {pid for pid in _procs_by_ppid().get(os.getpid(), [])}
-    total_kb = 0.0
-    for pid in pids:
-        try:
-            status = Path(f"/proc/{pid}/status").read_text(encoding="utf-8")
-        except OSError:
-            continue
-        for line in status.splitlines():
-            if line.startswith("VmRSS:"):
-                total_kb += float(line.split()[1])
-                break
-    return total_kb / 1024.0
+    sample = ProcSnapshot.capture()
+    return sample.rss_mb(sample.tree_pids(pgid, os.getpid()))
 
 
 class ResourceMonitor:
@@ -414,11 +459,6 @@ def run_bounded(
     )
 
 
-def _proc_starttime(pid: int) -> int | None:
-    parsed = _proc_stat(pid)
-    return parsed[1] if parsed else None
-
-
 class ProcessTracker:
     """Persist (pid, starttime) for observed descendants during a run.
 
@@ -441,15 +481,12 @@ class ProcessTracker:
         self._stop.set()
         self._thread.join(timeout=3.0)
 
-    def _snapshot(self) -> None:
-        me = os.getpid()
-        pids = descendants_of_group(self.pgid) | {
-            pid for pid in _procs_by_ppid().get(me, []) if pid != 0
-        }
-        for pid in pids:
-            start = _proc_starttime(pid)
-            if start is not None:
-                self.seen[pid] = start
+    def _snapshot(self, sample: ProcSnapshot | None = None) -> None:
+        snapshot = sample if sample is not None else ProcSnapshot.capture()
+        for pid in snapshot.tree_pids(self.pgid, os.getpid()):
+            entry = snapshot.entries.get(pid)
+            if entry is not None and entry.state != "Z":
+                self.seen[pid] = entry.starttime
 
     def _run(self) -> None:
         while not self._stop.is_set():
@@ -457,11 +494,12 @@ class ProcessTracker:
             self._stop.wait(self.interval_s)
 
     def survivors(self) -> set[int]:
-        self._snapshot()
+        sample = ProcSnapshot.capture()
+        self._snapshot(sample)
         alive: set[int] = set()
         for pid, start in self.seen.items():
-            current = _proc_starttime(pid)
-            if current is not None and current == start and _proc_state(pid) != "Z":
+            entry = sample.entries.get(pid)
+            if entry is not None and entry.starttime == start and entry.state != "Z":
                 alive.add(pid)
         return alive
 
@@ -478,9 +516,7 @@ def _terminate_all(pgid: int, grace_s: float = 3.0) -> set[int]:
     deadline = time.monotonic() + grace_s
     while True:
         _reap_orphans()
-        targets = descendants_of_group(pgid) | {
-            pid for pid in _procs_by_ppid().get(me, []) if pid != 0
-        }
+        targets = ProcSnapshot.capture().tree_pids(pgid, me)
         if not targets:
             return set()
         for pid in sorted(targets):
@@ -491,9 +527,7 @@ def _terminate_all(pgid: int, grace_s: float = 3.0) -> set[int]:
         if time.monotonic() > deadline:
             time.sleep(0.5)
             _reap_orphans()
-            return descendants_of_group(pgid) | {
-                pid for pid in _procs_by_ppid().get(me, []) if pid != 0
-            }
+            return ProcSnapshot.capture().tree_pids(pgid, me)
         time.sleep(0.1)
 
 
