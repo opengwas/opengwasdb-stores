@@ -148,7 +148,8 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
                 {
                     "analysis_id": analysis_id,
                     "assigned_ancestry": ancestry if ancestry != "META" else "",
-                    "ancestry_assignment_method": "source_fallback",
+                    "ancestry_assignment_method": "unassigned" if ancestry == "META" else "source_fallback",
+                    "source_ancestry_label": ancestry,
                     "stored_effect_scale": "sd",
                     "sample_size_kind": "total",
                     "sample_size_scope": "analysis_level",
@@ -168,6 +169,7 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
             "analysis_id",
             "assigned_ancestry",
             "ancestry_assignment_method",
+            "source_ancestry_label",
             "stored_effect_scale",
             "sample_size_kind",
             "sample_size_scope",
@@ -502,6 +504,51 @@ class TestCandidateEmission(unittest.TestCase):
             gen.run_emit(
                 self.config, self.mapping, bad, self.out, created_at="2026-10-13T00:00:00+00:00"
             )
+
+    def test_missing_source_ancestry_label_column_fails_before_mkdir(self) -> None:
+        rows = gen.read_tsv(self.resolution)
+        columns = [c for c in rows[0].keys() if c != "source_ancestry_label"]
+        stripped = [
+            {k: v for k, v in row.items() if k != "source_ancestry_label"} for row in rows
+        ]
+        path = self.tmp / "no-label.tsv"
+        write_tsv(path, columns, stripped)
+        out = self.tmp / "out-missing-label"
+        with self.assertRaisesRegex(gen.CandidateError, "missing required column"):
+            gen.run_emit(
+                self.config, self.mapping, path, out, created_at="2026-10-13T00:00:00+00:00"
+            )
+        self.assertFalse(out.exists())
+
+    def test_blank_source_ancestry_label_fails_before_mkdir(self) -> None:
+        rows = gen.read_tsv(self.resolution)
+        for row in rows:
+            if row["analysis_id"] == "GCST_eur1":
+                row["source_ancestry_label"] = ""
+        path = self.tmp / "blank-label.tsv"
+        write_tsv(path, list(rows[0].keys()), rows)
+        out = self.tmp / "out-blank-label"
+        with self.assertRaisesRegex(
+            gen.CandidateError, "blank required column 'source_ancestry_label'"
+        ):
+            gen.run_emit(
+                self.config, self.mapping, path, out, created_at="2026-10-13T00:00:00+00:00"
+            )
+        self.assertFalse(out.exists())
+
+    def test_mismatched_source_ancestry_label_fails_before_mkdir(self) -> None:
+        rows = gen.read_tsv(self.resolution)
+        for row in rows:
+            if row["analysis_id"] == "GCST_afr1":
+                row["source_ancestry_label"] = "EUR"
+        path = self.tmp / "mismatch-label.tsv"
+        write_tsv(path, list(rows[0].keys()), rows)
+        out = self.tmp / "out-mismatch-label"
+        with self.assertRaisesRegex(gen.CandidateError, "authority mapping bucket"):
+            gen.run_emit(
+                self.config, self.mapping, path, out, created_at="2026-10-13T00:00:00+00:00"
+            )
+        self.assertFalse(out.exists())
 
     def test_cross_ancestry_resolution_fails(self) -> None:
         rows = gen.read_tsv(self.resolution)

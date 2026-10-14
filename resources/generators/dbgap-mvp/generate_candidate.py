@@ -94,6 +94,7 @@ REQUIRED_RESOLUTION_COLUMNS: tuple[str, ...] = (
     "analysis_id",
     "assigned_ancestry",
     "ancestry_assignment_method",
+    "source_ancestry_label",
     "stored_effect_scale",
     "sample_size_kind",
     "sample_size_scope",
@@ -255,6 +256,15 @@ def validate_resolution_row(
         raise CandidateError(
             f"resolution row {analysis_id!r} assigned_ancestry {declared!r} does "
             f"not match the {ancestry} bucket"
+        )
+    label = (row.get("source_ancestry_label") or "").strip()
+    # The source label is the authority mapping bucket for this membership, so it
+    # must match exactly (META included). The public core accepting a mismatch is
+    # not a semantic pass.
+    if label != ancestry:
+        raise CandidateError(
+            f"resolution row {analysis_id!r} source_ancestry_label {label!r} does "
+            f"not match the {ancestry} authority mapping bucket"
         )
     if (row.get("source_analysis_id") or "").strip() != analysis_id:
         raise CandidateError(
@@ -1123,6 +1133,29 @@ def run_emit(
         analysis_id: row for rows in manifests.values() for analysis_id, row in rows.items()
     }
 
+    # Validate every intended row -- including its source-label binding -- before
+    # any output directory exists, so an invalid resolution leaves nothing behind.
+    member_rows_by_ancestry: dict[str, list[dict[str, str]]] = {}
+    for ancestry, store in stores.items():
+        member_rows = []
+        for analysis_id in partition[ancestry]:
+            if analysis_id not in resolution_by_id:
+                raise CandidateError(
+                    f"no resolution row for intended {ancestry} analysis {analysis_id!r}"
+                )
+            row = resolution_by_id[analysis_id]
+            validate_resolution_row(
+                row, ancestry, store.get("assigned_ancestry"), manifest_index.get(analysis_id)
+            )
+            if ancestry == "META":
+                # Emit the empty super-population for cross-ancestry rows: the
+                # core contract rejects a non-super-population value, and a
+                # single-ancestry label would misdescribe META.
+                row = dict(row)
+                row["assigned_ancestry"] = ""
+            member_rows.append(row)
+        member_rows_by_ancestry[ancestry] = member_rows
+
     assert_not_registry_store_root(out_dir, registry_roots)
     out_dir.mkdir(parents=True, exist_ok=True)
     emitted: dict[str, str] = {}
@@ -1152,24 +1185,7 @@ def run_emit(
             f"{fingerprint['aggregate_sha256']} != {expected_metadata_fingerprint}"
         )
     for ancestry, store in stores.items():
-        members = partition[ancestry]
-        member_rows = []
-        for analysis_id in members:
-            if analysis_id not in resolution_by_id:
-                raise CandidateError(
-                    f"no resolution row for intended {ancestry} analysis {analysis_id!r}"
-                )
-            row = resolution_by_id[analysis_id]
-            validate_resolution_row(
-                row, ancestry, store.get("assigned_ancestry"), manifest_index.get(analysis_id)
-            )
-            if ancestry == "META":
-                # Emit the empty super-population for cross-ancestry rows: the
-                # core contract rejects a non-super-population value, and a
-                # single-ancestry label would misdescribe META.
-                row = dict(row)
-                row["assigned_ancestry"] = ""
-            member_rows.append(row)
+        member_rows = member_rows_by_ancestry[ancestry]
         analyses_text = render_analyses_tsv(member_rows, columns)
 
         planned = store.get("planned_manifest")
@@ -1204,7 +1220,7 @@ def run_emit(
         observed_id = store["observed_store_id"]
         observed_only = bool(store.get("observed_only"))
         notes = (
-            f"Ancestry bucket {ancestry}; {len(members)} intended Analyses. "
+            f"Ancestry bucket {ancestry}; {len(member_rows)} intended Analyses. "
             f"candidate_store_key {store.get('candidate_store_key')}. "
             + (
                 "Cross-ancestry META is observed-only by policy: no derived_from "
