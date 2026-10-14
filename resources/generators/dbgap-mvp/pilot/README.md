@@ -56,7 +56,10 @@ sites, 20000 evidence).
   wait); on wall-timeout/RSS breach the whole session group and any reparented
   descendants are SIGKILLed and reaped, and an outcome is `ok` only when nothing
   escaped. CPU affinity uses the process's **actual allowed** set and a failure
-  is fatal; BLAS/OpenMP=1 is pinned after any caller env.
+  is fatal; BLAS/OpenMP=1 is pinned after any caller env. Accounting takes a
+  single host-wide `/proc` snapshot per poll tick (`ProcSnapshot`), reused for
+  group, transitive/reparented-descendant, starttime and RSS membership, so a
+  tick is linear in the host process count rather than `host_pids * members`.
 - `guard/sitecustomize.py` — a read/write audit hook injected via `PYTHONPATH`
   (no env install): library/interpreter reads, the allowlisted reference panels
   and 15 source bodies, and writes only inside the fresh root are allowed; any
@@ -154,4 +157,7 @@ release acceptance: `validation.yaml:acceptance.human_acceptance` stays
 temp-directory fixtures: selection/provenance rules, META empty ancestry, DRY
 PLAN gating, start-receipt/approved-SHA gates, wall-timeout killing the whole
 group, RSS breach, no-commit-on-failure, and alias/protected-root refusals. No
-real source or reference file is opened.
+real source or reference file is opened. `tests/dbgap-mvp/test_proc_accounting.py`
+uses a synthetic `/proc` to count host enumerations and `/proc/<pid>/stat` reads,
+proving one snapshot per tick (linear, not `host_pids * members`) while pinning
+the transitive/reparented RSS and zombie/foreign exclusion invariants.
