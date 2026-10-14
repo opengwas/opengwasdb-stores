@@ -13,9 +13,12 @@ Test suite for `resources/generators/dbgap-mvp` (issue #221).
    inferred from a `declared_status`, so every completed child is emitted as a
    pending, blocked definition; a missing suggested panel still produces a
    pending definition (no fabricated recipe).
-4. **Acceptance stays pending**: every candidate is `status: candidate`, has no
-   `accepted_at`, and carries a `validation.yaml` whose `human_acceptance` is
-   `pending` and whose warnings say it is not verified.
+4. **Acceptance stays pending**: every observed Store is `status: accepted` and
+   has an `accepted_at` only so the dev release workflow may build it (#247),
+   and every bundle carries a `validation.yaml` whose `human_acceptance` is
+   `pending` and whose warnings say it is not verified. A completed child whose
+   reference is pending/blocked stays `status: candidate` and is refused by
+   `partition_buildable`.
 5. **Planned metadata cross-check**: the four store manifests under the
    configured metadata root are read (metadata only) and their counts must match
    the mapping partition (combined European = EUR + META); a drift raises.

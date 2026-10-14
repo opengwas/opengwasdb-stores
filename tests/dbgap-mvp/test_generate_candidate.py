@@ -8,8 +8,11 @@ Covers the ticket-specific contracts with small fixtures:
 2. META is emitted observed-only: no ``derived_from`` and no completion block.
 3. A lineage-linked completed child is emitted only for a qualified reference;
    a ``hold`` reference produces a plan, not a bundle.
-4. Every emitted candidate is ``status: candidate`` with human acceptance
-   explicitly pending and no Store build/validation evidence.
+4. Every emitted observed Store is ``status: accepted`` (dev-buildable, #247)
+   and carries an ``accepted_at``; a completion child stays ``status: candidate``
+   while its reference is pending/blocked. Human acceptance stays explicitly
+   pending in every ``validation.yaml`` and there is no build/validation
+   evidence.
 5. Missing or extra resolution rows fail closed.
 """
 
@@ -346,7 +349,7 @@ class TestCandidateEmission(unittest.TestCase):
         self.assertTrue((self.out / "partition.tsv").is_file())
         self.assertFalse((self.out / "OGS-00012").exists())
 
-    def test_emit_produces_pending_candidates(self) -> None:
+    def test_emit_observed_accepted_but_science_pending(self) -> None:
         result = gen.run_emit(
             self.config,
             self.mapping,
@@ -360,20 +363,41 @@ class TestCandidateEmission(unittest.TestCase):
         )
         self.assertEqual(sorted(result["checked"]), sorted(result["emitted"].values()))
 
-        # META is observed-only: no parent and no completion recipe.
+        # META is observed-only: no parent and no completion recipe. It is
+        # `accepted` only so the dev release workflow may build it (#247).
         meta_release = yaml.safe_load((self.out / "OGS-00016" / "release.yaml").read_text())
-        self.assertEqual(meta_release["status"], "candidate")
+        self.assertEqual(meta_release["status"], "accepted")
+        self.assertEqual(meta_release["accepted_at"], "2026-10-13T00:00:00+00:00")
+        self.assertIn("not scientific release acceptance", meta_release["notes"])
         self.assertIsNone(meta_release["derived_from"])
-        self.assertNotIn("accepted_at", meta_release)
+        # The observed bundle is buildable; the human acceptance stays pending.
+        meta_bundle = gen.bundle_module.load("OGS-00016", registry_root=self.out)
+        self.assertTrue(gen.bundle_module.is_buildable(meta_bundle))
+        meta_validation = yaml.safe_load(
+            (self.out / "OGS-00016" / "validation.yaml").read_text()
+        )
+        self.assertEqual(
+            meta_validation["acceptance"]["human_acceptance"], "pending"
+        )
         meta_build = yaml.safe_load((self.out / "OGS-00016" / "build.yaml").read_text())
         self.assertEqual(meta_build["completion_state"], "observed_only")
         self.assertNotIn("complete", meta_build)
 
         # EUR completed definition is lineage-linked and carries the suggested
-        # panel, but its reference stays pending/blocked (never promoted).
+        # panel, but its reference stays pending/blocked (never promoted) and the
+        # definition is NOT buildable (#247).
         eur_child_release = yaml.safe_load((self.out / "OGS-00018" / "release.yaml").read_text())
         self.assertEqual(eur_child_release["derived_from"], "OGS-00012")
         self.assertEqual(eur_child_release["status"], "candidate")
+        eur_child = gen.bundle_module.load("OGS-00018", registry_root=self.out)
+        self.assertFalse(gen.bundle_module.is_buildable(eur_child))
+        _, refusals = gen.bundle_module.partition_buildable(
+            [
+                gen.bundle_module.load(sid, registry_root=self.out)
+                for sid in result["emitted"].values()
+            ]
+        )
+        self.assertTrue(any("OGS-00018" in refusal for refusal in refusals))
         eur_child_build = yaml.safe_load((self.out / "OGS-00018" / "build.yaml").read_text())
         self.assertEqual(eur_child_build["completion_state"], "reference_completed")
         self.assertIn("complete", eur_child_build)
