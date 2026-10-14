@@ -40,5 +40,5 @@ filter:
   download_timeout_seconds: 60
 
 output:
-  release_dir: tests/no-cis-region-policy/fixtures/output
+  store_id: OGS-99041
   data_dir: tests/no-cis-region-policy/fixtures/output

@@ -9,14 +9,19 @@ one Analysis per probe straight from the `.epi` file. So this script is a
 single pass -- subset, build, validate, report -- rather than the staged
 discover/select/derive/emit/accept pipeline heavier Source Formats need.
 
+The working bundle lives in the work root, `<artifact-root>/<store-id>/generate`;
+`--mode emit-registry` projects the current contract from it and emits it into
+`stores/<store-id>/` through the one emitter (#248).
+
 Run from the repository root:
     python3 resources/generators/lib/source-formats/eqtlgen-besd-ragged/generate.py \
-        --config=resources/generators/eqtlgen-cis-pilot/config-pilot-10.yaml
+        --config=resources/generators/eqtlgen-cis-pilot/config-pilot-10.yaml [--mode=emit-registry]
 """
 from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import logging
 import sys
@@ -31,6 +36,8 @@ from resources.generators.lib.release_yaml import (  # noqa: E402
     require_text,
     resolve_path,
 )
+
+from resources.generators.lib.emit import EmitError, emit_working_bundle, work_root  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from subset_besd import write_besd_subset  # noqa: E402
@@ -88,7 +95,33 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument(
+        "--mode", choices=("build", "emit-registry"), default="build",
+        help="build: subset, build and write the working bundle; emit-registry: emit it as a candidate",
+    )
     return parser.parse_args()
+
+
+GENERATOR = "python3 resources/generators/lib/source-formats/eqtlgen-besd-ragged/generate.py"
+
+
+def emit_registry(cfg: dict, config_arg: str) -> None:
+    """Emit the working bundle in the work root as candidate `output.store_id` (#248)."""
+    version = "sha256:" + hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    try:
+        emitted = emit_working_bundle(
+            cfg,
+            generator_version=version,
+            commands=[f"{GENERATOR} --config={config_arg} --mode=emit-registry"],
+            # build-ragged-besd reads its source from the release's own record.
+            source_snapshot={
+                "besd_prefix": require_text(cfg, "source", "besd_prefix"),
+                "source_genome_build": require_text(cfg, "source", "source_genome_build"),
+            },
+        )
+    except EmitError as exc:
+        raise SystemExit(f"emit-registry refused: {exc}") from None
+    print(f"Emitted candidate {emitted.name} to {emitted}")
 
 
 def main() -> None:
@@ -103,8 +136,11 @@ def main() -> None:
     )
     args = parse_args()
     config_path = Path(args.config).resolve()
-    root = repo_root(config_path.parent)
     cfg = read_release_yaml(config_path)
+    if args.mode == "emit-registry":
+        emit_registry(cfg, args.config)
+        return
+    root = repo_root(config_path.parent)
 
     store_family_id = require_text(cfg, "store_family_id")
     family_release_id = require_text(cfg, "family_release_id")
@@ -115,7 +151,7 @@ def main() -> None:
     if not probe_ids:
         raise SystemExit("config selection.probe_ids is empty")
 
-    release_dir = resolve_path(root, require_text(cfg, "output", "release_dir"))
+    release_dir = work_root(require_text(cfg, "output", "store_id"))
     artifact_root = require_text(cfg, "output", "artifact_root")
     artifact_subdir = require_text(cfg, "output", "artifact_subdir")
     artifact_dir = Path(artifact_root) / artifact_subdir

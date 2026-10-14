@@ -39,6 +39,13 @@ output_valid <- file.path(fixtures_dir, "output-valid")
 output_invalid <- file.path(fixtures_dir, "output-invalid")
 unlink(output_valid, recursive = TRUE)
 unlink(output_invalid, recursive = TRUE)
+# The generator's working bundle lives in the work root,
+# <artifact-root>/<id>/generate (#248).
+artifact_root <- tempfile("schema-validation-artifacts-")
+Sys.setenv(OPENGWASDB_ARTIFACT_ROOT = artifact_root)
+on.exit(unlink(artifact_root, recursive = TRUE), add = TRUE)
+work_valid <- file.path(artifact_root, "OGS-99061", "generate")
+work_invalid <- file.path(artifact_root, "OGS-99062", "generate")
 
 run_emit <- function(config_name) {
   # config-invalid.yaml is expected to exit non-zero -- suppressWarnings()
@@ -57,7 +64,7 @@ valid_run <- run_emit("config-valid.yaml")
 check(valid_run$status == 0L, "config-valid.yaml: expected --mode=emit to succeed, got status %s:\n%s",
       valid_run$status, paste(valid_run$output, collapse = "\n"))
 
-valid_validation <- read_yaml(file.path(output_valid, "validation.yaml"))
+valid_validation <- read_yaml(file.path(work_valid, "validation.yaml"))
 check(identical(valid_validation$checks$schema, "passed"),
       "config-valid.yaml: expected checks.schema=passed, got %s", valid_validation$checks$schema)
 
@@ -69,7 +76,7 @@ check(grepl("log_or", combined_output, fixed = TRUE) && grepl("n_cases", combine
       "config-invalid.yaml: expected the failure message to name the log_or/n_cases violation, got:\n%s",
       combined_output)
 
-invalid_validation <- read_yaml(file.path(output_invalid, "validation.yaml"))
+invalid_validation <- read_yaml(file.path(work_invalid, "validation.yaml"))
 check(identical(invalid_validation$checks$schema, "failed"),
       "config-invalid.yaml: expected checks.schema=failed, got %s", invalid_validation$checks$schema)
 check(length(invalid_validation$errors) > 0,

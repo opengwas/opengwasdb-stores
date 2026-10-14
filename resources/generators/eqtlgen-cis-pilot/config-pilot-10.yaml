@@ -1,5 +1,7 @@
 store_family_id: eqtlgen-cis-pilot
 family_release_id: pilot-10
+label: pilot-10
+access_posture: public
 source_collection_id: eqtlgen-cis
 release_kind: one-off
 association_coverage: cis
@@ -36,6 +38,23 @@ selection:
     - ENSG00000136997
 
 output:
-  release_dir: families/eqtlgen-cis-pilot/releases/pilot-10
+  # Registry Release Bundle id (ADR 0022). The working bundle lives in the work
+  # root, <artifact-root>/OGS-00001/generate; --mode=emit-registry emits it into
+  # stores/OGS-00001/ through the one emitter (#248), which refuses to replace a
+  # bundle that has been accepted or built.
+  store_id: OGS-00001
   artifact_root: /data/opengwasdb
   artifact_subdir: eqtlgen-cis-pilot/releases/pilot-10
+
+# The observed-only Build Recipe the registry bundle carries, as registered in
+# stores/OGS-00001/build.yaml. --mode=emit-registry renders build.yaml from it.
+build:
+  layout: ragged
+  completion_state: observed_only
+  command: build-ragged-besd
+  options:
+    source-build: hg19
+    tissue: whole_blood
+  post:
+    top_hits: false
+    overview: false

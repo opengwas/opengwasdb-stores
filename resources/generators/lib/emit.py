@@ -20,6 +20,17 @@ directory and call the command line:
 
     python3 resources/generators/lib/emit.py OGS-00042 --from <dir> \\
         --command "Rscript ... --mode=emit" [--command ...] [--registry-root stores]
+
+and ask it where their working files go, `<artifact-root>/<id>/generate`,
+resolved as Store Release Build resolves the artifact root:
+
+    python3 resources/generators/lib/emit.py work-root OGS-00042 [--artifact-root <path>]
+
+A legacy generator keeps a family-shaped working bundle there, and `project`
+emits the current contract from it and its config's `build:` block:
+
+    python3 resources/generators/lib/emit.py project --config <cfg.yaml> \\
+        --generator-version sha256:... --command ... [--source-snapshot <yaml>]
 """
 
 from __future__ import annotations
@@ -34,22 +45,28 @@ import sys
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[3]
-if str(REPO_ROOT / "src") not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT / "src"))
+for _extra in (str(REPO_ROOT), str(REPO_ROOT / "src")):
+    if _extra not in sys.path:
+        sys.path.insert(0, _extra)
 
 from ogstores import bundle, index, paths  # noqa: E402
+from resources.generators.lib.indexed_subsets import IndexedSubsetConfigError, resolve_indexed_subsets  # noqa: E402
 
 #: The registry subdirectory candidates are staged under. Hidden, so
 #: `bundle-check` and `index` never see a half-written bundle, and ignored by
 #: git, which keeps the per-id lock files out of the working tree's changes.
 STAGING_DIRNAME: str = ".staging"
 CANDIDATE_STATUS: str = "candidate"
+
+#: What a legacy generator config's `build:` block must state to be projected.
+BUILD_BLOCK_KEYS: tuple[str, ...] = ("layout", "completion_state", "command", "post")
 
 #: The files a bundle directory may hold, for the command line's `--from`.
 RENDERED_FILES: frozenset[str] = frozenset({"release.yaml", "build.yaml", "analyses.tsv", "validation.yaml"})
@@ -151,6 +168,142 @@ def read_rendered(directory: Path | str, store_id: str, commands: Sequence[str])
         validation=document("validation.yaml"),
         sidecars={p.name: p.read_text(encoding="utf-8") for p in sidecars},
     )
+
+
+def project_working_bundle(
+    config: Mapping[str, Any],
+    working_dir: Path | str,
+    *,
+    generator_version: str,
+    commands: Sequence[str],
+    created_at: str | None = None,
+    source_snapshot: Mapping[str, Any] | None = None,
+    repo_root: Path = REPO_ROOT,
+) -> CandidateBundle:
+    """The current-contract candidate a legacy generator's working bundle projects to (#248).
+
+    `analyses.tsv`, the flat `sidecars/` and `validation.yaml` come from the
+    working bundle; `release.yaml` and `build.yaml` come from the config,
+    whose `build:` block is the Build Recipe. Nothing a bundle states is
+    guessed: the config must give the label, access posture and recipe. The
+    working bundle's own family-shaped `release.yaml` and `build.yaml` are not
+    carried over, but the command log its `release.yaml` records is: the
+    candidate records those commands, then `commands`.
+    """
+    working_dir = Path(working_dir)
+    store_id = str((config.get("output") or {}).get("store_id") or "")
+    build_config = config.get("build")
+    missing = [
+        key for key in BUILD_BLOCK_KEYS
+        if not isinstance(build_config, Mapping) or build_config.get(key) in (None, "")
+    ] + [key for key in ("label", "access_posture") if not config.get(key)]
+    if missing:
+        raise EmitError(
+            f"{store_id}: the config must state {', '.join(missing)} "
+            "(a build: block with layout, completion_state, command and post; label; access_posture)"
+        )
+    if not (working_dir / "analyses.tsv").is_file():
+        raise EmitError(f"no working analyses.tsv under {working_dir}; run the generator's emit mode first")
+    created_at = created_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    layout = build_config.get("layout")
+    try:
+        subsets, opt_out = resolve_indexed_subsets(config, str(layout), repo_root)
+    except IndexedSubsetConfigError as exc:
+        raise EmitError(f"{store_id}: {exc}") from exc
+
+    build: dict[str, Any] = {
+        "store_id": store_id,
+        "layout": layout,
+        "completion_state": build_config.get("completion_state"),
+        "build": {"command": build_config["command"], "options": dict(build_config.get("options") or {})},
+        "post": dict(build_config.get("post") or {}),
+    }
+    if subsets is not None:
+        build["indexed_subsets"] = subsets
+    notes = str(config.get("notes") or "")
+    if opt_out:
+        notes += ("\n\n" if notes else "") + (
+            "Indexed Variant Subsets (#210): the default hm3 Indexed Variant Subset is "
+            f"intentionally omitted: {opt_out}"
+        )
+    release: dict[str, Any] = {
+        "store_id": store_id,
+        "label": config["label"],
+        "access_posture": config["access_posture"],
+        "status": CANDIDATE_STATUS,
+        "derived_from": None,
+        "created_at": created_at,
+        "source_snapshot_id": (config.get("source") or {}).get("source_snapshot_id"),
+    }
+    if source_snapshot is not None:
+        release["source_snapshot"] = dict(source_snapshot)
+    release["generator"] = {"version": generator_version}
+    release["description"] = config.get("description")
+    release["notes"] = notes
+
+    validation = None
+    if (working_dir / "validation.yaml").is_file():
+        validation = dict(yaml.safe_load((working_dir / "validation.yaml").read_text(encoding="utf-8")) or {})
+        validation["validated_at"] = created_at
+    sidecar_dir = working_dir / "sidecars"
+    sidecars = (
+        {p.name: p.read_text(encoding="utf-8") for p in sorted(sidecar_dir.iterdir()) if p.is_file()}
+        if sidecar_dir.is_dir() else {}
+    )
+    return CandidateBundle(
+        store_id=store_id,
+        release=release,
+        build=build,
+        analyses_tsv=(working_dir / "analyses.tsv").read_text(encoding="utf-8"),
+        commands=tuple(dict.fromkeys([*_working_command_log(working_dir), *commands])),
+        validation=validation,
+        sidecars=sidecars,
+    )
+
+
+def _working_command_log(working_dir: Path) -> list[str]:
+    """The commands a working bundle's own `release.yaml` records as having produced it."""
+    path = working_dir / "release.yaml"
+    if not path.is_file():
+        return []
+    generator = (yaml.safe_load(path.read_text(encoding="utf-8")) or {}).get("generator") or {}
+    logged = generator.get("commands") or generator.get("command") or []
+    return [str(c) for c in ([logged] if isinstance(logged, str) else logged) if str(c).strip()]
+
+
+def work_root(store_id: str, artifact_root: Path | str | None = None) -> Path:
+    """Where a generator keeps its working files: `<artifact-root>/<id>/generate`."""
+    if not paths.is_valid_store_id(store_id):
+        raise EmitError(f"{store_id!r} is not a Store Release id (OGS-NNNNN)")
+    return paths.generation_dir(store_id, paths.artifact_root(artifact_root))
+
+
+def emit_working_bundle(
+    config: Mapping[str, Any],
+    *,
+    generator_version: str,
+    commands: Sequence[str],
+    source_snapshot: Mapping[str, Any] | None = None,
+    created_at: str | None = None,
+) -> Path:
+    """Project a legacy generator's working bundle from its work root and emit it (#248).
+
+    `config` is the generator's own: `output.store_id` names the release, the
+    `build:` block is its Build Recipe, and `output.registry_root` (relative to
+    the repository, default `stores`) is where it lands.
+    """
+    output = config.get("output") or {}
+    store_id = str(output.get("store_id") or "")
+    candidate = project_working_bundle(
+        config,
+        work_root(store_id),
+        generator_version=generator_version,
+        commands=commands,
+        source_snapshot=source_snapshot,
+        created_at=created_at,
+    )
+    registry_root = Path(output.get("registry_root") or "stores")
+    return emit(candidate, registry_root if registry_root.is_absolute() else REPO_ROOT / registry_root)
 
 
 def _release_document(candidate: CandidateBundle) -> dict[str, Any]:
@@ -304,6 +457,53 @@ def _exchange(a: Path, b: Path) -> bool:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    words = list(sys.argv[1:] if argv is None else argv)
+    if words[:1] == ["work-root"]:
+        return _work_root_main(words[1:])
+    if words[:1] == ["project"]:
+        return _project_main(words[1:])
+    return _emit_main(words)
+
+
+def _project_main(argv: Sequence[str]) -> int:
+    parser = argparse.ArgumentParser(prog="emit.py project", description="emit a legacy generator's working bundle")
+    parser.add_argument("--config", required=True, help="the generator config, with output.store_id and build:")
+    parser.add_argument("--generator-version", required=True)
+    parser.add_argument("--command", dest="commands", action="append", required=True)
+    parser.add_argument("--source-snapshot", help="YAML mapping recorded as release.yaml source_snapshot")
+    parser.add_argument("--created-at", help="pin created_at (UTC, e.g. 2026-10-14T00:00:00Z) for a reproducible emit")
+    args = parser.parse_args(argv)
+    config = yaml.safe_load(Path(args.config).read_text(encoding="utf-8")) or {}
+    snapshot = yaml.safe_load(Path(args.source_snapshot).read_text(encoding="utf-8")) if args.source_snapshot else None
+    try:
+        emitted = emit_working_bundle(
+            config,
+            generator_version=args.generator_version,
+            commands=args.commands,
+            source_snapshot=snapshot,
+            created_at=args.created_at,
+        )
+    except EmitError as exc:
+        print(f"emit: {exc}", file=sys.stderr)
+        return 1
+    print(f"emit: {emitted.name} emitted to {emitted} with Release Status candidate")
+    return 0
+
+
+def _work_root_main(argv: Sequence[str]) -> int:
+    parser = argparse.ArgumentParser(prog="emit.py work-root", description="print a generator's work root")
+    parser.add_argument("store_id")
+    parser.add_argument("--artifact-root", help="overrides OPENGWASDB_ARTIFACT_ROOT and ogstores.yaml")
+    args = parser.parse_args(argv)
+    try:
+        print(work_root(args.store_id, args.artifact_root))
+    except EmitError as exc:
+        print(f"emit: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def _emit_main(argv: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("store_id", help="the candidate's Store Release id, e.g. OGS-00042")
     parser.add_argument("--from", dest="rendered", required=True, help="directory holding the rendered bundle")

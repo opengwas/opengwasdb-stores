@@ -50,7 +50,10 @@ manifest_path <- file.path(tmp, "finngen_R13_manifest.tsv")
 fwrite(manifest, manifest_path, sep = "\t")
 manifest_sha256 <- strsplit(system2("sha256sum", manifest_path, stdout = TRUE), "\\s+")[[1]][1]
 
-release_dir <- file.path(tmp, "release")
+# Each generator keeps its working bundle in <artifact-root>/<id>/generate (#248).
+Sys.setenv(OPENGWASDB_ARTIFACT_ROOT = file.path(tmp, "artifact-root"))
+work_root_for <- function(store_id) file.path(tmp, "artifact-root", store_id, "generate")
+release_dir <- work_root_for("OGS-99003")
 artifact_dir <- file.path(tmp, "artifacts")
 config <- list(
   store_family_id = "finngen-r13",
@@ -71,7 +74,7 @@ config <- list(
   ),
   selection = list(binary_count = 17L),
   output = list(
-    release_dir = release_dir,
+    store_id = "OGS-99003",
     artifact_root = artifact_dir,
     artifact_subdir = "finngen-r13/releases/r13-pilot-20",
     planned_store_uri = file.path(artifact_dir, "store.opengwasdb")
@@ -141,7 +144,7 @@ check(identical(failed_validation$checks$schema, "failed"),
 # The source snapshot is pinned by content, not merely by a mutable URL/path.
 bad_checksum_config <- config
 bad_checksum_config$source$manifest_sha256 <- paste(rep("0", 64), collapse = "")
-bad_checksum_config$output$release_dir <- file.path(tmp, "wrong-checksum-release")
+bad_checksum_config$output$store_id <- "OGS-99004"
 bad_checksum_path <- file.path(tmp, "wrong-checksum-config.yaml")
 writeLines(as.yaml(bad_checksum_config), bad_checksum_path)
 checksum_result <- suppressWarnings(system2(
@@ -161,12 +164,12 @@ check(!is.null(checksum_status) && checksum_status != 0L,
 # Full mode selects every endpoint in the frozen manifest, in manifest order,
 # and records the full-release inclusion reason. The pilot selection above must
 # stay untouched by this branch.
-full_release_dir <- file.path(tmp, "full-release")
+full_release_dir <- work_root_for("OGS-99001")
 full_config <- config
 full_config$family_release_id <- "r13-full"
 full_config$release_kind <- "full"
 full_config$selection <- list(mode = "full")
-full_config$output$release_dir <- full_release_dir
+full_config$output$store_id <- "OGS-99001"
 full_config$output$artifact_subdir <- "finngen-r13/releases/r13-full"
 full_config_path <- file.path(tmp, "full-config.yaml")
 writeLines(as.yaml(full_config), full_config_path)
@@ -229,66 +232,27 @@ registry_status <- attr(registry_result, "status")
 check(is.null(registry_status) || registry_status == 0L,
       "emit-registry failed:\n%s", paste(registry_result, collapse = "\n"))
 bundle_dir <- file.path(registry_root, "OGS-99001")
-check(file.exists(file.path(bundle_dir, "release.yaml")), "registry release.yaml missing")
-check(file.exists(file.path(bundle_dir, "build.yaml")), "registry build.yaml missing")
+# The projection itself (status, recipe, hm3 default, opt-out) is the shared
+# emitter's, tested in tests/emit; here, what is FinnGen's own.
 registry_release <- read_yaml(file.path(bundle_dir, "release.yaml"))
-check(identical(registry_release$store_id, "OGS-99001"), "registry store_id mismatch")
-check(identical(registry_release$status, "candidate"), "registry status should be candidate")
-check(length(registry_release$generator$commands) == 3L,
-      "registry generator.commands should log emit, acquire and emit-registry")
-check(identical(registry_release$generator$commands[[2]],
-                paste("python resources/generators/lib/source-formats/finngen-r13-dense/acquire.py",
-                      paste0("--release-dir=", full_release_dir), "--workers=8")),
-      "registry command log should record the acquire invocation")
-registry_build <- read_yaml(file.path(bundle_dir, "build.yaml"))
-check(identical(registry_build$build$command, "build-dense-vcf"),
-      "registry build command mismatch")
-# Dense releases declare the maintained hm3 Indexed Variant Subset by default
-# (stores #210), read from the one hapmap3-hg38 resource declaration.
-check(identical(registry_build$indexed_subsets[[1]]$name, "hm3"),
-      "registry build.yaml should declare the default hm3 Indexed Variant Subset (#210)")
-check(identical(registry_build$indexed_subsets[[1]]$resource_id, "hapmap3-hg38"),
-      "hm3 declaration should name the maintained resource")
-check(identical(registry_build$indexed_subsets[[1]]$checksum,
-                "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398"),
-      "hm3 declaration checksum should come from the maintained resource")
+check(identical(registry_release$status, "candidate"), "emit-registry should emit a candidate")
+commands <- unlist(registry_release$generator$commands)
+check(length(commands) == 3L, "the command log should be emit, acquire and emit-registry, got:\n%s",
+      paste(commands, collapse = "\n"))
+check(grepl("--mode=emit$", commands[[1]]), "the emit step comes from the working bundle's own log")
+check(identical(commands[[2]], paste(
+        "python resources/generators/lib/source-formats/finngen-r13-dense/acquire.py",
+        '--release-dir="$(python3 resources/generators/lib/emit.py work-root OGS-99001)"',
+        "--workers=8")),
+      "the acquire step is recorded symbolically, never with an artifact root")
+check(identical(registry_release$source_snapshot$manifest_sha256, manifest_sha256),
+      "the source snapshot pins the FinnGen manifest by content")
 check(nrow(fread(file.path(bundle_dir, "analyses.tsv"), sep = "\t")) == nrow(manifest),
       "registry analyses.tsv should carry every manifest row")
 
-# The legacy family-scoped Dense writer declares the same default (#210).
+# The legacy family-scoped Dense writer declares the default hm3 subset (#210).
 legacy_build <- read_yaml(file.path(full_release_dir, "build.yaml"))
 check(identical(legacy_build$indexed_subsets[[1]]$name, "hm3"),
       "legacy dense build.yaml should declare the default hm3 Indexed Variant Subset (#210)")
-
-# Reviewed opt-out (#210): an explicit empty list plus a written reason keeps the
-# release valid, declares the empty list, and records the reason in release.yaml.
-optout_config <- full_config
-optout_config$indexed_subsets <- list()
-optout_config$indexed_subsets_opt_out <- "fixture predates the maintained list"
-optout_registry_root <- file.path(tmp, "registry-optout")
-optout_config$output$registry_root <- optout_registry_root
-optout_config_path <- file.path(tmp, "optout-config.yaml")
-writeLines(as.yaml(optout_config), optout_config_path)
-optout_result <- system2(
-  "Rscript",
-  c(
-    "resources/generators/lib/source-formats/finngen-r13-dense/generate.R",
-    paste0("--config=", optout_config_path),
-    "--mode=emit-registry"
-  ),
-  stdout = TRUE,
-  stderr = TRUE
-)
-optout_status <- attr(optout_result, "status")
-check(is.null(optout_status) || optout_status == 0L,
-      "opt-out emit-registry failed:\n%s", paste(optout_result, collapse = "\n"))
-optout_build <- read_yaml(file.path(optout_registry_root, "OGS-99001", "build.yaml"))
-check(identical(optout_build$indexed_subsets, list()),
-      "opt-out build.yaml should declare the explicit empty list (#210)")
-optout_release <- read_yaml(file.path(optout_registry_root, "OGS-99001", "release.yaml"))
-check(grepl("intentionally omitted", optout_release$notes, fixed = TRUE),
-      "the opt-out reason should be recorded in release.yaml notes (#210)")
-check(grepl("fixture predates the maintained list", optout_release$notes, fixed = TRUE),
-      "the opt-out note should carry the written reason")
 
 cat(sprintf("ALL %d CHECKS PASSED\n", n_checks))

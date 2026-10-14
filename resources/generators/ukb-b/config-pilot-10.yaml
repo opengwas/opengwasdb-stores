@@ -1,5 +1,6 @@
 store_family_id: ukb-b
 family_release_id: dense-observed-vcf-pilot-10
+access_posture: public
 source_collection_id: opengwas-gwas-vcf
 release_kind: one-off
 association_coverage: full_gwas
@@ -8,9 +9,8 @@ description: >
   built end-to-end through OpenGWASDB's real dense builder, as a small,
   current, grounded proof that this Store Family's pipeline (issue #49/#50
   resolution, analysis_label, this session's Trait Ontology Mapping work)
-  actually produces a working store -- distinct from the full 2,514-analysis
-  dense-observed-vcf-c128-resolved release, which stays at status: candidate
-  until someone wants to build the whole batch.
+  actually produces a working store -- distinct from the full ukb-b release,
+  OGS-00009, which generate_candidate.py emits (#219, #222).
 notes: >
   Selected via --only-analysis-id: 7 deterministically chosen buildable IDs
   plus the 3 IDs already used as this generator's own README smoke-test
@@ -65,7 +65,28 @@ effect_scale_validation:
       resource_id: ukb-eur-reference-af-hg38
 
 output:
-  release_dir: families/ukb-b/releases/dense-observed-vcf-pilot-10
+  # Registry Release Bundle id (ADR 0022). The working bundle lives in the work
+  # root, <artifact-root>/OGS-00008/generate; --mode=emit-registry emits it into
+  # stores/OGS-00008/ through the one emitter (#248), which refuses to replace a
+  # bundle that has been accepted or built.
+  store_id: OGS-00008
   artifact_root: /data/opengwasdb
   artifact_subdir: ukb-b/releases/dense-observed-vcf-pilot-10
   planned_store_uri: /data/opengwasdb/wip/dense-observed-vcf-pilot-10-smoketest
+
+# The registered label (stores/OGS-00008/release.yaml).
+label: ukb-b-pilot-10
+
+# The observed-only Build Recipe the registry bundle carries, as registered in
+# stores/OGS-00008/build.yaml. --mode=emit-registry renders build.yaml from it.
+build:
+  layout: dense
+  completion_state: observed_only
+  command: build-dense-vcf
+  options:
+    source-reader-capability: opengwasdb.gwas-vcf
+    source-assembly: hg19
+    n-workers: 10
+  post:
+    top_hits: true
+    overview: true

@@ -32,6 +32,22 @@ Covered by `tests/emit/test_emit.py`:
   name.
 - No staged or stashed bundle is left after any success or refusal. Only the
   per-id lock files stay, and git ignores them.
+- A legacy generator's working bundle projects to the current contract:
+  - the release and build documents come from its config: the default hm3
+    subset on a Dense release, none on Ragged, and an empty list plus the
+    written reason for a reviewed opt-out;
+  - `analyses.tsv`, flat sidecars and `validation.yaml` come from the working
+    bundle;
+  - the working bundle's own command log comes first, followed by the
+    commands given; its family-shaped documents are not carried over.
+
+  Nothing is guessed: a config missing its `build:` block, layout, `post`,
+  label or access posture is refused. At a pinned `created_at`, a re-emit is
+  byte-identical.
+- `emit.py work-root <id>` prints `<artifact-root>/<id>/generate`, honouring
+  `--artifact-root` over `OPENGWASDB_ARTIFACT_ROOT`; an invalid id has none.
+- No generator config names a `families/` path or a `release_dir`, and every
+  legacy config names the Store Release id it emits.
 
 ```sh
 pixi run test --suite emit

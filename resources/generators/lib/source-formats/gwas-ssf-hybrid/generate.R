@@ -320,7 +320,7 @@ emit_bundle <- function(cfg, root) {
   analyses <- manifest_rows(cfg, selected, paths, canonical_table = canonical_table,
                             ancestry_map = ancestry_map)
 
-  release_dir <- path_abs(root, cfg$output$release_dir)
+  release_dir <- cfg$.work_root
   sidecar_dir <- file.path(release_dir, "sidecars")
   dir.create(sidecar_dir, recursive = TRUE, showWarnings = FALSE)
   fwrite(analyses, file.path(release_dir, "analyses.tsv"), sep = "\t", na = "")
@@ -413,7 +413,7 @@ download_one <- function(row, download_dir, timeout_seconds) {
 }
 
 download_release <- function(cfg, root, max_analyses = NA_integer_, only_analysis_id = "") {
-  release_dir <- path_abs(root, cfg$output$release_dir)
+  release_dir <- cfg$.work_root
   analyses_path <- file.path(release_dir, "analyses.tsv")
   if (!file.exists(analyses_path)) emit_bundle(cfg, root)
   analyses <- fread(analyses_path, sep = "\t", na.strings = "", colClasses = list(character = "exclude_from_build"))
@@ -488,7 +488,7 @@ download_release <- function(cfg, root, max_analyses = NA_integer_, only_analysi
 }
 
 validate_emit <- function(cfg, root) {
-  release_dir <- path_abs(root, cfg$output$release_dir)
+  release_dir <- cfg$.work_root
   analyses_path <- file.path(release_dir, "analyses.tsv")
   analyses <- fread(analyses_path, sep = "\t", na.strings = "", colClasses = list(character = "exclude_from_build"))
 
@@ -544,7 +544,7 @@ merge_validation_checks <- function(release_dir, checks, validator_name) {
 }
 
 refresh_build_mode <- function(cfg, root) {
-  release_dir <- path_abs(root, cfg$output$release_dir)
+  release_dir <- cfg$.work_root
   paths <- artifact_paths(cfg, root)
   write_build_yaml(cfg, root, release_dir, paths)
   cat(sprintf("Refreshed build.yaml for %s\n", release_dir))
@@ -598,7 +598,7 @@ thin_for_sd_estimation <- function(full_path, out_path, max_variants = SD_ESTIMA
 # subsample of each full harmonised file (thin_for_sd_estimation() above),
 # not the full file itself.
 effect_scale_stage <- function(cfg, root) {
-  release_dir <- path_abs(root, cfg$output$release_dir)
+  release_dir <- cfg$.work_root
   analyses_path <- file.path(release_dir, "analyses.tsv")
   paths <- artifact_paths(cfg, root)
   analyses <- fread(analyses_path, sep = "\t", na.strings = "", colClasses = list(character = "exclude_from_build"))
@@ -668,8 +668,11 @@ source(path_abs(root, "resources/generators/lib/schema_validate.R"))
 source(path_abs(root, "resources/generators/lib/metadata_resolvers/ontology_contract.R"))
 source(path_abs(root, "resources/generators/lib/metadata_resolvers/canonical_trait_table.R"))
 source(path_abs(root, "resources/generators/lib/indexed_subsets.R"))
+source(path_abs(root, "resources/generators/lib/emit_registry.R"))
 cfg <- read_yaml(path_abs(root, args$config))
 cfg$.config_path <- args$config
+# Resolved once: every mode reads and writes the working bundle there (#248).
+cfg$.work_root <- generation_work_root(cfg, root)
 
 if (args$mode == "emit") {
   emit_bundle(cfg, root)
@@ -682,6 +685,8 @@ if (args$mode == "emit") {
   refresh_build_mode(cfg, root)
 } else if (args$mode == "effect-scale") {
   effect_scale_stage(cfg, root)
+} else if (args$mode == "emit-registry") {
+  emit_registry(cfg, root, "resources/generators/lib/source-formats/gwas-ssf-hybrid/generate.R")
 } else if (args$mode == "all") {
   emit_bundle(cfg, root)
   validate_emit(cfg, root)
