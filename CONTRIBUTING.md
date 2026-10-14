@@ -179,7 +179,8 @@ changed.
 `bundle.py` (load and check a bundle), `plan.py` (Bundle to argv -- the seam),
 `paths.py`, `run.py`, `index.py`. Top-level rather than inside `workflow/`
 because it is not Phase A's: a generator validates what it emits with
-`bundle.check()`, so Phase B depends on it too. `workflow/` is also Snakemake's
+`bundle.check()` (and Manifest Generation's own rules), so Phase B depends on
+it too. `workflow/` is also Snakemake's
 own namespace (`Snakefile`, `rules/`, `scripts/`, `envs/`).
 
 ### `resources/reference-resources/`
@@ -309,13 +310,16 @@ runner of its own and runs everything else with `--skip-exclusive`.
 contract. It returns a list of every registry-side error it can find (an empty
 list means valid) and never raises for invalid bundle content. The returned
 list also carries a second channel, `.tolerated`, naming the suppressions the
-#134 legacy exemption (and candidate status) deliberately tolerate -- with
+#134 legacy exemption (and a bundle Store Release Build will not build)
+deliberately tolerate -- with
 their count and citation -- so a caller can surface the gap rather than read a
 clean `[]` that silently erased it (issue #142). It reads only
 files inside Release Bundles, plus a parent bundle when resolving
 `derived_from`; it never opens a Store or inspects a Release Artifact. The
 `bundle-check` task discovers every bundle under `stores/` and fails if any
-error is returned, and CI runs that task explicitly. In particular, it rejects
+error is returned, from the contract or from Manifest Generation's own rules
+(`resources/generators/lib/generation_rules.py`, #250), and CI runs that task
+explicitly. In particular, it rejects
 a Build Recipe `artifacts` block because issue #126 moved the artifact root to
 deployment configuration.
 

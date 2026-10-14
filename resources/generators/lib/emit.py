@@ -8,7 +8,8 @@ emitter owns how it lands:
 - every YAML document is written in one style, with `status: candidate` and
   the generator commands that produced it;
 - the bundle is staged under `stores/.staging/<id>/`, checked against the
-  Release Bundle contract, and given its generated `summary.yaml`, before
+  Release Bundle contract and Manifest Generation's own rules
+  (`generation_rules`), and given its generated `summary.yaml`, before
   anything in `stores/<id>/` changes;
 - it then replaces `stores/<id>/` in one step, and only if that is absent or
   a candidate.
@@ -54,6 +55,7 @@ import yaml
 REPO_ROOT: Path = Path(__file__).resolve().parents[3]
 
 from ogstores import bundle, index, paths  # noqa: E402
+from resources.generators.lib import generation_rules  # noqa: E402
 from resources.generators.lib.indexed_subsets import IndexedSubsetConfigError, resolve_indexed_subsets  # noqa: E402
 
 #: The registry subdirectory candidates are staged under. Hidden, so
@@ -108,11 +110,11 @@ def emit(candidate: CandidateBundle, registry_root: Path | str) -> Path:
             _stage(candidate, release, staging)
             staged = bundle.load(candidate.store_id, registry_root=staging_root)
             # Lineage resolves against the real registry: a parent is never staged.
-            errors = list(bundle.check(staged, registry_root=registry_root))
+            errors = generation_rules.check_with_contract(staged, registry_root=registry_root)
             if errors:
                 raise EmitError(
-                    f"{candidate.store_id} fails the Release Bundle contract; nothing was emitted:\n  - "
-                    + "\n  - ".join(errors)
+                    f"{candidate.store_id} fails the Release Bundle contract or a Manifest Generation "
+                    "rule; nothing was emitted:\n  - " + "\n  - ".join(errors)
                 )
             index.write_bundle_summary(staged)
             # Checked last, under the lock, so a bundle accepted while this one

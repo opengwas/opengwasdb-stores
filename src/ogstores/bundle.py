@@ -82,35 +82,6 @@ BUILD_REQUIRED_KEYS: tuple[str, ...] = (
     "post",
 )
 
-PHASE_B_REQUIRED_COLUMNS: tuple[str, ...] = (
-    "assigned_ancestry",
-    "ancestry_assignment_method",
-    "stored_effect_scale",
-    "original_sd_method",
-)
-
-# The optional per-Analysis INFO policy columns (stores #175). A requested
-# floor (`info_score_threshold`) and an imputation score declaration
-# (`imputation_score_column`, `imputation_score_kind`,
-# `imputation_score_provenance`) are one policy: a numeric threshold without the
-# complete triple, or any triple cell without a numeric threshold, is
-# incoherent and rejected. Older bundles may omit all of them.
-INFO_SCORE_COLUMNS: tuple[str, ...] = (
-    "info_score_threshold",
-    "imputation_score_column",
-    "imputation_score_kind",
-    "imputation_score_provenance",
-)
-INFO_SCORE_KINDS: frozenset[str] = frozenset({"imputation_info", "imputation_r2"})
-
-# The optional per-Analysis MAF floor column (stores #176). A numeric value is
-# the requested floor in [0, 0.5] (0 disables); literal NaN means no validated
-# MAF evidence -- no configured default, an exempt genotyping technology, a
-# legacy record, or unusable evidence. The pinned OpenGWASDB Analysis schema may
-# predate this column, so it is validated here independently rather than being
-# left to the core reader.
-MAF_THRESHOLD_COLUMN: str = "maf_threshold"
-
 # Optional named Indexed Variant Subset declarations (stores #209, epic #214).
 # A Build Recipe may declare one or more; `plan()` turns each into a
 # `build-indexed-subset` Step. The declaration names a maintained variant-list
@@ -284,7 +255,8 @@ class Bundle:
 
     @property
     def status(self) -> str | None:
-        return self.release.get("status")
+        # A release.yaml that is not a mapping has no status; check() reports it.
+        return self.release.get("status") if isinstance(self.release, Mapping) else None
 
     @property
     def label(self) -> str | None:
@@ -1008,94 +980,12 @@ def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
     except Exception as exc:
         return [f"failed to read analyses.tsv: {type(exc).__name__}: {exc}"], []
 
-    for column in PHASE_B_REQUIRED_COLUMNS:
-        if column not in table.fieldnames:
-            errors.append(
-                f"analyses.tsv is missing Phase B required column: {column!r}"
-            )
-
     for column in opengwasdb_analyses.RETIRED_ANALYSIS_COLUMNS:
         if column in table.fieldnames:
             errors.append(
                 f"Store Release {bundle.store_id} analyses.tsv contains retired "
                 f"Analysis column {column!r}"
             )
-
-    # Optional for older bundles. A literal NaN means no validated score
-    # evidence; zero is the explicit disabled filter, not an absent value. The
-    # threshold is a request, not a fact: it is coherent only alongside the
-    # complete per-Analysis declaration (`imputation_score_column`, kind and
-    # provenance), so a numeric threshold with a partial triple and a triple
-    # with no numeric threshold are both rejected (stores #175).
-    if any(column in table.fieldnames for column in INFO_SCORE_COLUMNS):
-        for row in table.rows:
-            analysis_id = row.get("analysis_id") or "<unknown analysis_id>"
-            value = (row.get("info_score_threshold") or "").strip()
-            declaration = {
-                column: (row.get(column) or "").strip()
-                for column in INFO_SCORE_COLUMNS[1:]
-            }
-            numeric = False
-            if value == "NaN":
-                pass
-            elif value:
-                try:
-                    number = Decimal(value)
-                except InvalidOperation:
-                    number = Decimal("NaN")
-                if number.is_finite() and 0 <= number <= 1:
-                    numeric = True
-                else:
-                    errors.append(
-                        f"analysis {analysis_id!r} has info_score_threshold "
-                        f"{value!r}; expected literal NaN or a number in [0,1]"
-                    )
-            else:
-                errors.append(
-                    f"analysis {analysis_id!r} has info_score_threshold {value!r}; "
-                    "expected literal NaN or a number in [0,1]"
-                )
-            declaration_present = any(declaration.values())
-            complete = all(declaration.values())
-            if numeric and not complete:
-                missing = [column for column, cell in declaration.items() if not cell]
-                errors.append(
-                    f"analysis {analysis_id!r} has a numeric info_score_threshold "
-                    "but an incomplete imputation score declaration; missing "
-                    + ", ".join(missing)
-                )
-            if declaration_present and (value == "" or value == "NaN"):
-                errors.append(
-                    f"analysis {analysis_id!r} has an imputation score declaration "
-                    "but no numeric info_score_threshold"
-                )
-            if complete and declaration["imputation_score_kind"] not in INFO_SCORE_KINDS:
-                errors.append(
-                    f"analysis {analysis_id!r} has invalid imputation_score_kind "
-                    f"{declaration['imputation_score_kind']!r}; expected one of "
-                    f"{sorted(INFO_SCORE_KINDS)}"
-                )
-
-    # Optional per-Analysis MAF floor (stores #176): literal NaN, or a finite
-    # number in [0, 0.5]. The column is a request, not a report of what was
-    # filtered, and its range is the whole truth checkable from the bundle alone.
-    if MAF_THRESHOLD_COLUMN in table.fieldnames:
-        for row in table.rows:
-            analysis_id = row.get("analysis_id") or "<unknown analysis_id>"
-            value = (row.get(MAF_THRESHOLD_COLUMN) or "").strip()
-            if value == "NaN":
-                continue
-            number = Decimal("NaN")
-            if value:
-                try:
-                    number = Decimal(value)
-                except InvalidOperation:
-                    number = Decimal("NaN")
-            if not number.is_finite() or not 0 <= number <= Decimal("0.5"):
-                errors.append(
-                    f"analysis {analysis_id!r} has maf_threshold {value!r}; "
-                    "expected literal NaN or a number in [0,0.5]"
-                )
 
     # A Trait Ontology Mapping is an ontology term plus its trait label. It is
     # never a gene identifier with an authority name standing in for the label:
@@ -1170,15 +1060,16 @@ def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
         errors.append(f"failed to validate analyses.tsv: {type(exc).__name__}: {exc}")
         analysis_errors = []
 
-    release = bundle.release if isinstance(bundle.release, Mapping) else {}
-    # Candidate releases may legitimately leave values blank pending resolution.
-    # Legacy trial releases OGS-00001 and OGS-00002 are tolerated pending external
-    # study metadata and upstream schema resolution (issue #134).
-    # This exemption is strictly scoped to these two named releases so that any
-    # new release (including any future ragged-BESD build) fails loudly if required
-    # Analysis values are blank.
+    # Required values must be present in a bundle Store Release Build builds
+    # (#247). One it will not build -- a candidate still being resolved, or a
+    # retired release -- may leave them blank; what a candidate may leave blank
+    # is Manifest Generation's policy, not this contract's (#250). Legacy trial
+    # releases OGS-00001 and OGS-00002 are tolerated pending external study
+    # metadata and upstream schema resolution (issue #134), strictly scoped to
+    # those two so that any new release (including any future ragged-BESD
+    # build) fails loudly if required Analysis values are blank.
     allow_blank_overlay_values = (
-        release.get("status") == "candidate"
+        not is_buildable(bundle)
         or bundle.store_id in LEGACY_BLANK_ANALYSIS_RELEASES
     )
     suppressed_blank_values = 0
@@ -1200,7 +1091,7 @@ def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
                 citation=(
                     "#134"
                     if bundle.store_id in LEGACY_BLANK_ANALYSIS_RELEASES
-                    else "candidate status"
+                    else "not buildable"
                 ),
             )
         )
@@ -1237,9 +1128,9 @@ def check(
     kept a plain ``list`` by making :class:`CheckResult` a ``list`` subclass, so
     every existing caller comparing ``== []``, iterating, or testing membership
     is unchanged. The second channel is ``CheckResult.tolerated``: the
-    suppressions the #134 legacy exemption (and candidate status) deliberately
-    tolerate, each with its count and citation, so a caller can surface the gap
-    instead of a clean ``[]`` silently erasing it (issue #142).
+    suppressions the #134 legacy exemption (and a bundle that is not buildable)
+    deliberately tolerate, each with its count and citation, so a caller can
+    surface the gap instead of a clean ``[]`` silently erasing it (issue #142).
 
     The check reads files contained in the Release Bundle and other registered
     bundles needed to resolve lineage. It never resolves source paths, uses an
@@ -1274,13 +1165,9 @@ __all__ = [
     "BUILD_REQUIRED_KEYS",
     "Bundle",
     "CheckResult",
-    "INFO_SCORE_COLUMNS",
-    "INFO_SCORE_KINDS",
     "LEGACY_BLANK_ANALYSIS_RELEASES",
     "LEGAL_STATUS_TRANSITIONS",
-    "MAF_THRESHOLD_COLUMN",
     "NotBuildableError",
-    "PHASE_B_REQUIRED_COLUMNS",
     "RELEASE_REQUIRED_KEYS",
     "SUPERPOPULATIONS",
     "ToleratedGap",

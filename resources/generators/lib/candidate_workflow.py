@@ -53,7 +53,9 @@ from typing import Any, Iterable, Mapping, Sequence
 
 import yaml
 
+from ogstores.bundle import SUPERPOPULATIONS
 from resources.generators.lib.ancestry_sidecar import format_sidecar_float
+from resources.generators.lib.generation_rules import INFO_SCORE_KINDS
 from resources.generators.lib.indexed_subsets import resolve_indexed_subsets
 from resources.generators.lib.source_inventory import (
     INVENTORY_COLUMNS,
@@ -70,11 +72,6 @@ from resources.generators.lib.source_inventory import (
 
 #: The only Release Status a Phase B candidate workflow may write.
 CANDIDATE_STATUS: str = "candidate"
-
-#: The super-population vocabulary Assigned Ancestry must use. Re-stated from
-#: ``ogstores.bundle`` rather than imported so this generator does not depend on
-#: the Phase A package at import time; a drift is caught by ``bundle.check()``.
-SUPERPOPULATIONS: tuple[str, ...] = ("AFR", "AMR", "EAS", "EUR", "MID", "NAF", "SAS")
 
 #: ``opengwasdb resolve-analyses`` columns this module writes, in file order.
 #: The resolver reads these names (or their documented aliases); the checksum is
@@ -212,17 +209,6 @@ SD_ESTIMATION_SIDECAR_COLUMNS: tuple[str, ...] = (
 # <5% matched rows signals a likely source-specific assembly/allele mismatch.
 MAX_OFF_REFERENCE_SHARE = 0.25
 LOW_OVERLAP_RATE = 0.05
-
-# The INFO columns `analyses.tsv` may carry (stores #175). A declaration is a
-# per-Analysis triple: the exact source column, its kind, and independent
-# provider provenance. `info_score_threshold` is the requested floor and is
-# emitted only alongside that complete triple.
-INFO_SCORE_COLUMNS: tuple[str, ...] = (
-    "info_score_threshold",
-    "imputation_score_column",
-    "imputation_score_kind",
-    "imputation_score_provenance",
-)
 
 #: The two resolver values that mean a declared score was actually evaluated:
 #: `disabled` is an explicit zero floor, `filtered` a positive one. A declared
@@ -947,7 +933,6 @@ SCORE_DECLARATION_COLUMNS: tuple[str, ...] = (
     "analysis_id", "imputation_score_column", "imputation_score_kind",
     "imputation_score_provenance",
 )
-SCORE_KINDS: frozenset[str] = frozenset({"imputation_info", "imputation_r2"})
 
 
 def read_imputation_score_declarations(
@@ -985,7 +970,7 @@ def read_imputation_score_declarations(
                     f"{path}:{number}: imputation_score_column must be an exact "
                     "non-empty header name"
                 )
-            if kind not in SCORE_KINDS:
+            if kind not in INFO_SCORE_KINDS:
                 raise CandidateError(f"{path}:{number}: invalid imputation_score_kind {kind!r}")
             if not provenance or not provenance.strip() or any(c in provenance for c in "\r\n\t"):
                 raise CandidateError(
@@ -3102,7 +3087,6 @@ __all__ = [
     "ANCESTRY_SIDECAR_COLUMNS",
     "ANALYSES_COLUMNS",
     "CANDIDATE_STATUS",
-    "INFO_SCORE_COLUMNS",
     "EFFECT_PLACEHOLDER_EXCLUSION_COLUMNS",
     "MAF_FILTER_EXEMPTION_COLUMNS",
     "REFERENCE_OVERLAP_COLUMNS",

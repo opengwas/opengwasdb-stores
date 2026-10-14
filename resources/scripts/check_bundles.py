@@ -1,17 +1,27 @@
 #!/usr/bin/env python3
-"""Run the Release Bundle contract over every registered bundle."""
+"""Run the Release Bundle contract and Manifest Generation's rules over every registered bundle.
+
+The contract (`ogstores.bundle.check`) is what both workflows share; Manifest
+Generation's own rules (`resources.generators.lib.generation_rules`) are not
+part of it, but every committed bundle came through a generator, so CI holds
+it to both (#250).
+"""
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
+
+from ogstores import bundle
+from resources.generators.lib import generation_rules
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-from ogstores import bundle
 
-
-def main() -> int:
-    registry = REPO_ROOT / "stores"
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--registry-root", type=Path, default=REPO_ROOT / "stores")
+    registry = parser.parse_args(argv).registry_root
     bundle_dirs = sorted(
         path
         for path in registry.iterdir()
@@ -20,10 +30,8 @@ def main() -> int:
     failures = 0
     tolerated_bundles = 0
     for root in bundle_dirs:
-        result = bundle.check(
-            bundle.load(root.name, registry_root=registry),
-            registry_root=registry,
-        )
+        loaded = bundle.load(root.name, registry_root=registry)
+        result = generation_rules.check_with_contract(loaded, registry_root=registry)
         if not result:
             gaps = result.tolerated
             if gaps:

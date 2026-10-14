@@ -265,8 +265,9 @@ alone is not evidence.
 
 `analyses.tsv` therefore carries four optional INFO columns: the requested
 `info_score_threshold` plus `imputation_score_column`,
-`imputation_score_kind` and `imputation_score_provenance`. `bundle.check()`
-rejects a numeric threshold without the complete triple and a triple without a
+`imputation_score_kind` and `imputation_score_provenance`. Manifest
+Generation's rules (`resources/generators/lib/generation_rules.py`, #250)
+reject a numeric threshold without the complete triple and a triple without a
 numeric threshold.
 
 ### Deriving the score declarations (#176)
@@ -349,9 +350,9 @@ per-Analysis fingerprint still binds the same `maf_threshold`. Every other
 Analysis emits literal `NaN`. `verify` requires a numeric request to be bound
 by the fingerprint, exactly as it does for the INFO threshold, and the
 resolution receipt's contract records the configured default and both exemption
-rules, so changing any of them makes the receipt stale. `bundle.check()` rejects any
-`maf_threshold` value that is not literal `NaN` or a finite number in
-`[0, 0.5]`.
+rules, so changing any of them makes the receipt stale. Manifest Generation's
+rules reject any `maf_threshold` value that is not literal `NaN` or a finite
+number in `[0, 0.5]`.
 
 ### Store composition (#203)
 

@@ -256,6 +256,19 @@ class TestEmitRefusals(EmitTestCase):
         self.assertIn("in progress", str(raised.exception))
         self.assertEqual(tree(self.registry), before)
 
+    def test_a_candidate_breaking_a_manifest_generation_rule_is_refused(self) -> None:
+        """The emitter runs Manifest Generation's own rules as well as the contract (#250)."""
+        names, values = (line.split("\t") for line in ANALYSES_TSV.strip().split("\n"))
+        keep = [i for i, name in enumerate(names) if name != "assigned_ancestry"]
+        without = "\t".join(names[i] for i in keep) + "\n" + "\t".join(values[i] for i in keep) + "\n"
+
+        with self.assertRaises(emitter.EmitError) as raised:
+            emitter.emit(candidate(analyses_tsv=without), self.registry)
+
+        self.assertIn("assigned_ancestry", str(raised.exception))
+        self.assertFalse((self.registry / STORE_ID).exists())
+        self.assert_nothing_staged()
+
     def test_a_directory_that_is_not_a_bundle_is_never_replaced(self) -> None:
         stray = self.registry / STORE_ID
         stray.mkdir()

@@ -81,6 +81,7 @@ sys.modules["ogstores_metadata_content_sha"] = metadata_content
 _content_spec.loader.exec_module(metadata_content)
 
 from ogstores import bundle as bundle_module  # noqa: E402
+from resources.generators.lib import generation_rules  # noqa: E402
 from opengwasdb.model.analyses import SampleSizeKind  # noqa: E402
 
 DEFAULT_CONFIG = "resources/generators/dbgap-mvp/config-candidate.yaml"
@@ -916,9 +917,9 @@ def emit_bundle(
 
 
 def check_bundle(bundle_dir: Path, registry_root: Path) -> list[str]:
-    """Run the registry's executable bundle contract and return its errors."""
+    """Run the registry's bundle contract and Manifest Generation's rules (#250)."""
     bundle = bundle_module.load(bundle_dir.name, registry_root=registry_root)
-    return list(bundle_module.check(bundle, registry_root=registry_root))
+    return list(generation_rules.check_with_contract(bundle, registry_root=registry_root))
 
 
 # ---------------------------------------------------------------------------

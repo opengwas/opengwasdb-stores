@@ -16,6 +16,14 @@ everything in one pass:
 pixi run bundle-check        # discovers and checks every stores/<id>/ bundle
 ```
 
+The contract holds only what both workflows share and what Store Release Build
+needs to consume a bundle. Manifest Generation's own rules for a candidate's
+`analyses.tsv` live beside it, in `resources/generators/lib/generation_rules.py`
+(#250): the columns a generator must resolve, and how it records the INFO and
+MAF filters it requests. The emitter runs them before a candidate lands, and
+`pixi run bundle-check` runs them with the contract over every committed bundle,
+so neither escapes CI.
+
 A Release Bundle structure is:
 
 ```text
@@ -200,7 +208,7 @@ ignored: the registry materialises a derived build manifest with every excluded
 row removed and points the builder at it, so `opengwasdb` never sees an excluded
 row at all ([ADR 0025](adr/0025-registry-filters-excluded-analyses.md)).
 
-`bundle.check()` requires these columns to be present in the header:
+A bundle's header carries these columns:
 
 ```text
 analysis_id  stored_effect_scale  sample_size_kind  sample_size_scope
@@ -208,18 +216,21 @@ sample_size  original_effect_scale  original_sd_method
 ancestry_assignment_method  assigned_ancestry
 ```
 
-The first eight are OpenGWASDB's required set; `assigned_ancestry` is added by
-the registry. `bundle.check()` structurally enforces exactly these header
-columns, the retired-column list, and the ancestry, case/control-count, and
-checksum rules below. The `Required` column in the reference table is the
+The first eight are OpenGWASDB's required set, which `bundle.check()` enforces
+through the pinned shared schema. `assigned_ancestry` is added by the registry
+and required by Manifest Generation's rules, which also require
+`ancestry_assignment_method`, `stored_effect_scale` and `original_sd_method`
+(#250). `bundle.check()` enforces the shared required set, the retired-column
+list, and the ancestry vocabulary, case/control-count, and checksum rules
+below. The `Required` column in the reference table is the
 broader authoring convention for a complete bundle — columns marked Yes that
 `check()` does not itself demand (`analysis_label`, `source_label`, `source_file`,
 `checksum`, `source_genome_build`, `license`, `trait_ontology_mapping_method`)
 are what a reviewer and the pinned OpenGWASDB schema expect to see populated.
 Every required column must also be non-empty on every row, except
-that a `candidate` release and the two legacy trial releases `OGS-00001` and
-`OGS-00002` may leave required Analysis values blank pending resolution (issue
-#134; see "Blank required values" below).
+that a release Store Release Build will not build and the two legacy trial
+releases `OGS-00001` and `OGS-00002` may leave required Analysis values blank
+(issue #134; see "Blank required values" below).
 
 `bundle.check()` **rejects** any column named by the pinned upstream
 `RETIRED_ANALYSIS_COLUMNS` list: `phenotype_id`, `phenotype_label`, `trait_id`,
@@ -269,19 +280,21 @@ and the matching authority name in `trait_ontology_label` (issue #141).
 | `n_controls` | No | Control count for binary traits, or non-event/comparison count for time-to-event traits when reported by the source. Same absence rule as `n_cases`. |
 | `analysis_group_id` | No | Grouping key for analyses sharing a publication, analyte panel, phenotype batch, or source bundle. |
 | `inclusion_reason` | No | Short reason this Analysis was selected. |
-| `info_score_threshold` | No | Optional per-Analysis requested imputation INFO/R² floor in `[0,1]`. A numeric value (including `0`) is emitted only alongside the complete declaration triple below and only on resolver evidence: the record reports `info_score_state` `disabled` (explicit zero) or `filtered` (positive floor), `info_rows_usable > 0`, and a fingerprint that still binds the declaration. Literal `NaN` means unavailable -- no approved declaration, a legacy record without the diagnostics, or unusable evidence. A source MAF/EAF or a lookalike `INFO` header is not evidence of imputation quality. This value alone does not imply any variants were filtered. `bundle.check()` rejects a numeric threshold without the complete triple. Omission remains valid for older bundles. |
+| `info_score_threshold` | No | Optional per-Analysis requested imputation INFO/R² floor in `[0,1]`. A numeric value (including `0`) is emitted only alongside the complete declaration triple below and only on resolver evidence: the record reports `info_score_state` `disabled` (explicit zero) or `filtered` (positive floor), `info_rows_usable > 0`, and a fingerprint that still binds the declaration. Literal `NaN` means unavailable -- no approved declaration, a legacy record without the diagnostics, or unusable evidence. A source MAF/EAF or a lookalike `INFO` header is not evidence of imputation quality. This value alone does not imply any variants were filtered. Manifest Generation's rules reject a numeric threshold without the complete triple. Omission remains valid for older bundles. |
 | `imputation_score_column` | No | Exact, case-sensitive source column name the declaration cites as the imputation score. Emitted only with a numeric `info_score_threshold` and the other two triple columns; empty otherwise. |
-| `imputation_score_kind` | No | `imputation_info` or `imputation_r2`. `bundle.check()` rejects any other non-empty value. |
+| `imputation_score_kind` | No | `imputation_info` or `imputation_r2`. Manifest Generation's rules reject any other non-empty value. |
 | `imputation_score_provenance` | No | Independent provider semantic evidence (for example a provider data dictionary) for the declared column. A header guess, the column name itself, or MAF/EAF is not provenance. |
-| `maf_threshold` | No | Optional per-Analysis MAF floor in `[0, 0.5]`; `0` disables filtering and literal `NaN` means no MAF filter. A numeric value is emitted only on resolver evidence: the record reports a usable `maf_state` (`disabled` for an explicit zero, `filtered` for a positive floor) and the per-Analysis fingerprint still binds the same value. Every other Analysis -- no configured default, a MAF-exempt genotyping technology, a legacy record without the diagnostics, or a changed fingerprint -- emits literal `NaN`. The frequency is the reader's `af_alt` (GWAS-SSF `effect_allele_frequency`); `MAF = min(af, 1 - af)`. A row whose `af` is missing, non-finite or outside `[0, 1]` is retained, not dropped. `bundle.check()` rejects any non-`NaN` value outside `[0, 0.5]`. This value alone does not imply any variants were filtered. Omission remains valid for older bundles. |
+| `maf_threshold` | No | Optional per-Analysis MAF floor in `[0, 0.5]`; `0` disables filtering and literal `NaN` means no MAF filter. A numeric value is emitted only on resolver evidence: the record reports a usable `maf_state` (`disabled` for an explicit zero, `filtered` for a positive floor) and the per-Analysis fingerprint still binds the same value. Every other Analysis -- no configured default, a MAF-exempt genotyping technology, a legacy record without the diagnostics, or a changed fingerprint -- emits literal `NaN`. The frequency is the reader's `af_alt` (GWAS-SSF `effect_allele_frequency`); `MAF = min(af, 1 - af)`. A row whose `af` is missing, non-finite or outside `[0, 1]` is retained, not dropped. Manifest Generation's rules reject any non-`NaN` value outside `[0, 0.5]`. This value alone does not imply any variants were filtered. Omission remains valid for older bundles. |
 | `exclude_from_build` | No | `true` only for rows retained for audit but intentionally skipped by the build. The registry honours it at build time: it materialises a derived build manifest (`<artifact-root>/<store-id>/work/analyses.tsv`) with every `true` row removed and points the builder at that, so `opengwasdb` never sees an excluded row. The row itself stays in the committed bundle, with its `inclusion_reason`, as the audit record of why the Analysis is absent. See [ADR 0025](adr/0025-registry-filters-excluded-analyses.md). |
 | `ancestry_prop_*` | No | Optional family of columns for estimated reference ancestry proportions. |
 
 The four INFO columns are one policy: `info_score_threshold` is the requested
 floor and `imputation_score_column`/`imputation_score_kind`/
 `imputation_score_provenance` are the exact source-column declaration it
-requires. `bundle.check()` rejects a numeric threshold without the complete
-triple and a triple without a numeric threshold. A declared column is only
+requires. Manifest Generation's rules reject a numeric threshold without the
+complete triple and a triple without a numeric threshold, on every row; the
+pinned shared schema `bundle.check()` runs also checks the rows that will be
+built. A declared column is only
 meaningful to the GWAS-SSF reader, and the pinned OpenGWASDB validator reads
 the reader from the row, not from the Build Recipe's
 `source-reader-capability` default. A row with a numeric threshold must
@@ -312,8 +325,8 @@ YAML's `genotyping_technology` list is non-empty and every technology is in
 metadata is never an exemption. The resolver manifest carries the derived
 `maf_threshold` per Analysis and the resolver record's `maf_state` plus its
 fingerprint binding decide the emitted candidate value, exactly as for INFO.
-`bundle.check()` validates the column independently of the pinned OpenGWASDB
-Analysis schema.
+Manifest Generation's rules validate the column on every row, independently of
+the pinned OpenGWASDB Analysis schema.
 
 A separate optional `store_composition.require_maf_filtered` generator-config
 rule decides whether a shared Store may admit an Analysis with no applied MAF
@@ -369,9 +382,11 @@ vocabulary, so the split cannot silently reappear.
 `bundle.check()` normally fails a row that leaves a required column blank.
 Two deliberate exemptions exist, both narrow:
 
-- **Candidate releases.** A `candidate` may legitimately leave values blank
-  pending resolution; this is the one status where an unresolved row is the
-  expected state rather than a defect.
+- **Releases Store Release Build will not build.** A release whose status is
+  not `accepted`, `built` or `validated` (#247) may leave values blank: a
+  `candidate` is still being resolved, and what it must resolve before it
+  lands is Manifest Generation's policy, not the contract's (#250). `check()`
+  discloses the count as a tolerated gap cited `not buildable`.
 - **Legacy monolithic BESD releases.** `OGS-00001` and `OGS-00002` are exempt
   because their required Analytical Metadata is unpopulated in upstream BESD
   sources and cannot be resolved without external study metadata. The exemption
@@ -537,20 +552,23 @@ The candidate's Phase B acceptance evidence is kept in its own labelled
 `acceptance` block, apart from those findings, and nothing in it feeds them
 (#195). `register` fills the block in one of three ways:
 - **From a candidate record** (one whose `validator.name` is not
-  `opengwasdb validate`): its `checks`, `warnings`, `reports`,
-  `reference_overlap` and `store_composition`, verbatim. The
-  block is dated by the candidate's own `validated_at` and tied to the commit
-  that record came from.
+  `opengwasdb validate`): every block it holds, verbatim -- its `checks`,
+  `warnings` and `reports`, and whatever evidence its generator records, such
+  as `reference_overlap` (OGS-00011), `store_composition` (#203) or a dbGaP
+  candidate's own `acceptance` -- except the fields that describe the
+  generator's run rather than the bundle: `status`, `validated_at`,
+  `validator`, `build_environment`, `observed` and `errors`. The block is dated
+  by the candidate's own `validated_at` and tied to the commit that record came
+  from. A candidate block named `recorded_at` or `commit` is refused, since it
+  would overwrite that dating.
 - **From a `register`-written record:** its `acceptance` block is passed on
   verbatim, because the accepted bundle it describes is immutable.
 - **Not at all, from a record #135 migrated** (OGS-00001..7). Those records
   mix Phase B evidence with an earlier build's findings, so nothing is
   extracted from them; git keeps them.
 
-Only those five named fields are carried; a new kind of Phase B evidence is
-added here by name, never swept up as "everything else". `reference_overlap` is
-the top-level block OGS-00011's generator writes, and `store_composition` is the
-block it writes for #203.
+`register` names no generator's evidence, so a generator that records a new
+kind is carried without changing `register` (#250).
 
 A `built` or `validated` release must carry a `validation.yaml` whose `status`
 is one of `not_run`, `passed`, `passed_with_warnings`, or `failed`;
@@ -601,7 +619,7 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `acceptance` | No | The accepted bundle's Phase B acceptance evidence, kept apart from this run's findings (#195). See above for when `register` writes it. Absent when there is none to keep. |
 | `acceptance.recorded_at` | Yes, in the block | The candidate record's own `validated_at`. |
 | `acceptance.commit` | Yes, in the block | The commit the candidate record came from, or `null` when the file was untracked or modified since its last commit, so no commit describes it. |
-| `acceptance.checks`, `acceptance.warnings`, `acceptance.reports`, `acceptance.reference_overlap`, `acceptance.store_composition` | Yes, in the block | The candidate record's `checks`, `warnings`, `reports`, `reference_overlap` and `store_composition`, verbatim (`null` where it had none). |
+| `acceptance.<block>` | No | Every other block of the candidate record, verbatim, except `status`, `validated_at`, `validator`, `build_environment`, `observed` and `errors`: its `checks`, `warnings` and `reports`, and any evidence its generator records. A block the candidate did not have is absent. |
 
 The record's top-level `status` is the release-level verdict, and the generated
 master list publishes that value and no other. A per-check entry in `checks`
