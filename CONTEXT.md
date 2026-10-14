@@ -37,13 +37,25 @@ _Avoid_: source collection, store layout
 The OpenGWASDB capability assigned to a Source Collection for reading and normalising all analyses in that collection.
 _Avoid_: source format, build recipe
 
+**Manifest Generation**:
+The workflow that turns a frozen Source Inventory into a candidate Release Bundle. A Manifest Generator selects and resolves the Analyses, applies the release policy, and emits the bundle into the Store Registry with Release Status `candidate`. It never builds, validates or publishes a Store, and it meets Store Release Build only at the Release Bundle (ADR 0035).
+_Avoid_: Phase B, candidate generation, build phase
+
 **Manifest Generator**:
-An orchestration program that discovers or selects upstream inputs from a Source Collection and emits a Release Manifest candidate.
+An orchestration program that discovers or selects upstream inputs from a Source Collection and emits a candidate Release Bundle.
 _Avoid_: selector, manifest script
 
+**Store Release Build**:
+The workflow that turns an accepted Release Bundle into a built, validated and published Store Release, run through `pixi run release`. It builds only a bundle whose Release Status allows a build (`accepted`, `built` or `validated`), and it never regenerates a bundle (ADR 0035).
+_Avoid_: Phase A, release pipeline, build phase
+
+**Release Bundle**:
+The Store Registry directory `stores/<store-id>/` that Manifest Generation and Store Release Build meet at, and the only thing they share: `release.yaml` (identity, lineage, Release Status and provenance), `build.yaml` (the Build Recipe), `analyses.tsv` (the Release Manifest), `validation.yaml` (the Validation Record), and sidecars. Manifest Generation emits it as a candidate, a human accepts it, and Store Release Build consumes it. A candidate and an accepted Release Bundle are the same thing at different Release Statuses.
+_Avoid_: Release Manifest Candidate, candidate bundle (as a separate kind), release directory
+
 **Release Manifest**:
-A standardised, declarative, accepted bundle describing the concrete Analyses, Traits, files, checksums, metadata, and build inputs from one Source Collection for one Store Release.
-_Avoid_: study list, input list
+The membership table of a Release Bundle, its `analyses.tsv`: the concrete Analyses and Traits from one Source Collection for one Store Release, with their source files, checksums, metadata and per-Analysis build inputs, including the `exclude_from_build` audit rows.
+_Avoid_: study list, input list, release bundle (for the whole directory)
 
 **Analysis**:
 One statistical analysis of one Trait, producing associations between that Trait and variants. Every Analysis in a Release Manifest has a stable registry analysis ID and source or ontology metadata describing the analysed Trait where available.
@@ -61,12 +73,8 @@ _Avoid_: phenotype, analysis
 The trait identifier supplied by the upstream Source Collection and preserved in the Release Manifest as provenance.
 _Avoid_: trait ID, analysis ID
 
-**Release Manifest Candidate**:
-The output of a Manifest Generator before it has been accepted as the reproducible input record for a Store Release.
-_Avoid_: draft release, generated release
-
 **Build Recipe**:
-A declarative description of the release shape to produce from an accepted Release Manifest, including layout, completion mode, indexing, validation, and execution parameters.
+A declarative description of the release shape to produce from an accepted Release Bundle, including layout, completion mode, indexing, validation, and execution parameters.
 _Avoid_: pipeline, script, release manifest
 
 **Reference Resource**:
@@ -86,20 +94,32 @@ A release-level admission rule deciding which Analyses may share one Store's var
 _Avoid_: routing rule, panel policy
 
 **Store Release**:
-A versioned, immutable, validated OpenGWASDB analytical asset produced from an accepted Release Manifest and material Build Recipe choices.
+A versioned, immutable, validated OpenGWASDB analytical asset that Store Release Build produces from an accepted Release Bundle and material Build Recipe choices.
 _Avoid_: database, live store
 
 **Trial Store Release**:
 A deliberately small Store Release used to exercise a distinct Source Collection, Source Format, or Store Layout while developing and testing the generic release pipeline; it is not a phase of a production Store Release.
 _Avoid_: pilot store, pilot release
 
-**Preflight Run**:
-A representative subset run within the production workflow for a Store Release that produces stage reports for one explicit human review gate before the full build proceeds. Distinct from the Phase B `preflight` inventory-readiness gate command, which proves a frozen Source Inventory before candidate selection and reads no association rows.
-_Avoid_: pilot run, pilot phase, trial run
+**Rehearsal Run**:
+A representative subset run within Store Release Build for a Store Release, producing stage reports for one explicit human review gate before the full build proceeds. Not a Preflight.
+_Avoid_: preflight run, pilot run, pilot phase, trial run
+
+**Preflight**:
+The checks that refuse a run before it reads or writes anything costly, with one meaning in each workflow. In Manifest Generation, `pixi run preflight` is the inventory-readiness gate: it proves a frozen Source Inventory and the release config before candidate selection, and reads no association rows. In Store Release Build, it is the release entry point's pre-write checks: its dry run and its refusals (Release Status, published releases, leftover snapshots, runtime and resources), before any snapshot or build work. A Preflight never builds anything.
+_Avoid_: preflight run (see Rehearsal Run)
+
+**Emit**:
+Manifest Generation's act of writing a candidate Release Bundle into the Store Registry: staged, checked against the Release Bundle contract, then moved into `stores/<store-id>/` atomically. Only Manifest Generation emits, and it never emits over an accepted bundle.
+_Avoid_: publish (a candidate), finalise (a candidate), register (a candidate)
 
 **Release Artifact**:
 A large material file or directory produced or consumed while building a Store Release, such as filtered source files, transient work files, build logs, or the built OpenGWASDB store. Release Artifacts live outside the Store Registry repository under the Artifact Root, one directory per Store Release, so a release's artifact path is the identifier-derived `<artifact-root>/<store-id>/` (ADRs 0022 and 0030).
 _Avoid_: release bundle, manifest
+
+**Publish**:
+Store Release Build's act of moving a validated Store from its staged `.partial` path to its final path under the Artifact Root, as one recoverable transaction recorded in `publication.json`. To finalize is only to complete that transaction. Only Store Release Build publishes.
+_Avoid_: emit (a Store), publish (a candidate)
 
 **Artifact Root**:
 The deployment-configured directory under which every Store Release's Release Artifacts live, one directory per Store Release id (`<artifact-root>/<store-id>/`). It is not a Release Bundle field: a bundle is immutable once accepted, so the root resolves from deployment configuration -- a workflow config override, the `OPENGWASDB_ARTIFACT_ROOT` environment variable, the repository `ogstores.yaml`, then the built-in default -- so one bundle can be built on CI, a laptop, or the production host.
@@ -110,7 +130,7 @@ The relationship between Store Releases, including observed-only releases, refer
 _Avoid_: source lineage
 
 **Release Status**:
-The registry lifecycle state for a release bundle: candidate, accepted, built, validated, superseded, or withdrawn.
+The registry lifecycle state for a Release Bundle: candidate, accepted, built, validated, superseded, or withdrawn.
 _Avoid_: job state, scheduler state
 
 **Association Coverage**:
