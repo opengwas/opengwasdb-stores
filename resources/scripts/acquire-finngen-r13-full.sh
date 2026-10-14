@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Acquisition for the full FinnGen R13 release (planned as OGS-00016), the
+# Acquisition for the full FinnGen R13 release (OGS-00017), the
 # production-scale sibling of the 20-Analysis r13-pilot-20 trial (OGS-00003).
 #
 # `generate.R --config=config-full.yaml --mode=emit` freezes all 2,754 endpoints
-# of the pinned public manifest into
-# `families/finngen-r13/releases/r13-full/analyses.tsv`; this script downloads
+# of the pinned public manifest into the generator's work root,
+# `<artifact-root>/OGS-00017/generate/analyses.tsv` (#248); this script downloads
 # every endpoint's summary-statistics `.gz` into the release's artifact source
 # directory using the pilot's resumable acquirer. Files already present (for
 # example the 19 endpoints already staged under /data/opengwasdb/raw) are
@@ -16,12 +16,12 @@
 set -uo pipefail
 
 REPO=/home/gh13047/repo/opengwasdb-stores
-RELEASE_DIR=families/finngen-r13/releases/r13-full
 LOG=/data/opengwasdb/finngen-r13/releases/r13-full/acquire.log
 WORKERS="${WORKERS:-8}"
 ATTEMPTS="${ATTEMPTS:-10}"
 
 cd "$REPO" || exit 1
+RELEASE_DIR="$(python3 resources/generators/lib/emit.py work-root OGS-00017)" || exit 1
 
 exec > >(tee -a "$LOG") 2>&1
 echo "=== FinnGen R13 full acquisition ==="

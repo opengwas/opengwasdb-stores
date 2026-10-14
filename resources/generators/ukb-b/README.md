@@ -1,20 +1,22 @@
 # ukb-b Manifest Generator
 
 This Store Family's Manifest Generator resolves analyses from the
-`opengwas-gwas-vcf` Source Collection and emits a candidate release bundle
-(`../releases/<family-release-id>/`).
+`opengwas-gwas-vcf` Source Collection and keeps a working bundle in its work root,
+`<artifact-root>/<output.store_id>/generate`; `--mode=emit-registry` emits the
+candidate into `stores/<output.store_id>/` through the one emitter (#248).
+`config-pilot-10.yaml` is registered as `OGS-00008`.
 
 It is a **thin family-specific wrapper** over the shared engine at
 `resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/`. The engine is generic
 across dense-observed OpenGWAS-GWAS-VCF batches; only this family's inputs
 differ, held here as:
 
-- `config.yaml` - the candidate manifest to resolve
-  (`../releases/dense-observed-vcf-c128/analyses.tsv`, the existing
-  hand-reverse-engineered bundle for this batch), source/output paths, and
-  release identity.
+- `config-pilot-10.yaml` - the candidate manifest to resolve
+  (`families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv`, the
+  existing hand-reverse-engineered bundle for this batch), the 10-Analysis
+  selection, and release identity (`OGS-00008`).
 - `generate.R` - a one-call driver that runs the shared engine with
-  `config.yaml`.
+  `config-pilot-10.yaml`.
 
 ## What this generator does (and does not do)
 
@@ -56,7 +58,14 @@ Requires an OpenGWAS API JWT (see <https://api.opengwas.io/>) in the
 ```sh
 pixi run Rscript resources/generators/ukb-b/generate.R --mode=emit
 pixi run Rscript resources/generators/ukb-b/generate.R --mode=validate
+pixi run Rscript resources/generators/ukb-b/generate.R --mode=emit-registry
 ```
+
+The legacy driver runs `config-pilot-10.yaml` (`ukb-b-pilot-10`, `OGS-00008`)
+and keeps its working bundle in `<artifact-root>/OGS-00008/generate`;
+`emit-registry` emits it into `stores/OGS-00008/` through the one emitter
+(#248). The full ukb-b release comes from `generate_candidate.py` below; the
+legacy full-batch `config.yaml` was removed in #248.
 
 For smoke tests, pass `--max-analyses=N` or
 `--only-analysis-id=ukb-b-...,ukb-b-...`; both request only a subset of the
@@ -79,7 +88,7 @@ pixi run Rscript resources/scripts/download-opengwas-vcfs.R \
   --out-dir=/data/opengwasdb/wip/ukb-b-vcf
 
 pixi run python resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/annotate.py \
-  --release-dir=families/ukb-b/releases/dense-observed-vcf-c128-resolved
+  --release-dir="$(pixi run python3 resources/generators/lib/emit.py work-root OGS-00008)"
 ```
 
 ## Restored full membership (#219, current bundle shape)

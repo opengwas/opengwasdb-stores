@@ -107,7 +107,7 @@ emit_bundle <- function(cfg, root, config_path) {
   }
   artifact_source_dir <- file.path(cfg$output$artifact_root, cfg$output$artifact_subdir, "source")
   analyses <- finngen_release_rows(selected, artifact_source_dir, cfg$defaults, selection_mode)
-  release_dir <- path_abs(root, cfg$output$release_dir)
+  release_dir <- cfg$.work_root
   dir.create(file.path(release_dir, "sidecars"), recursive = TRUE, showWarnings = FALSE)
   fwrite(analyses, file.path(release_dir, "analyses.tsv"), sep = "\t", na = "")
   fwrite(finngen_derivations(analyses), file.path(release_dir, "sidecars", "derivations.tsv"), sep = "\t", na = "")
@@ -192,73 +192,15 @@ emit_bundle <- function(cfg, root, config_path) {
 
 # --- Registry Release Bundle emission -------------------------------------
 #
-# The pilot above emits a family-scoped working bundle under `families/`, which
-# `acquire.py` turns into checksummed sources. The registry consumes a bundle in
-# the current contract (`stores/<OGS-id>/`): flat `release.yaml`/`build.yaml`,
-# the acquired `analyses.tsv`, and the checksummed sidecars. `emit-registry`
-# renders that from the acquired working bundle without re-resolving a row, so
-# it can be re-run after any acquisition fix and is a pure projection of the
-# acquisition evidence.
-
-render_registry_build_yaml <- function(cfg, root) {
-  build <- list(
-    store_id = cfg$output$store_id,
-    layout = cfg$build$layout,
-    completion_state = cfg$build$completion_state,
-    build = list(
-      command = cfg$build$command,
-      options = cfg$build$options
-    ),
-    post = cfg$build$post
-  )
-  # Dense (and, for a future Hybrid config, Hybrid) releases default to the
-  # maintained hm3 Indexed Variant Subset (stores #210). The declaration is read
-  # from the one maintained resource; Ragged emits nothing.
-  indexed <- resolve_indexed_subsets(cfg, cfg$build$layout, root)
-  if (!is.null(indexed$subsets)) build$indexed_subsets <- indexed$subsets
-  build
-}
-
-render_registry_release_yaml <- function(cfg, root, commands, created_at) {
-  manifest_path <- path_abs(root, cfg$source$manifest_path)
-  list(
-    store_id = cfg$output$store_id,
-    label = cfg$label %||% cfg$family_release_id,
-    access_posture = cfg$access_posture %||% "public",
-    status = "candidate",
-    derived_from = NULL,
-    created_at = created_at,
-    source_snapshot_id = cfg$source$source_snapshot_id,
-    source_snapshot = list(
-      manifest_url = cfg$source$manifest_url,
-      manifest_sha256 = cfg$source$manifest_sha256,
-      manifest_size_bytes = as.integer(file.size(manifest_path)),
-      manifest_etag = cfg$source$manifest_etag %||% NULL,
-      manifest_last_modified = cfg$source$manifest_last_modified %||% NULL
-    ),
-    generator = list(
-      version = script_version(root),
-      commands = commands
-    ),
-    description = cfg$description,
-    notes = notes_with_indexed_subsets_opt_out(cfg$notes %||% "", cfg$build$layout, cfg, root)
-  )
-}
+# The emit mode above writes a family-shaped working bundle into the work root,
+# <artifact-root>/<store-id>/generate, which `acquire.py` turns into
+# checksummed sources. `emit-registry` projects the current contract from it
+# without re-resolving a row and emits it through the one emitter
+# (resources/generators/lib/emit_registry.R, #248), so it can be re-run after
+# any acquisition fix and is a pure projection of the acquisition evidence.
 
 emit_registry_bundle <- function(cfg, root) {
-  store_id <- cfg$output$store_id
-  if (is.null(store_id) || !nzchar(store_id)) {
-    stop("output.store_id is required for --mode=emit-registry")
-  }
-  if (!grepl("^OGS-[0-9]{5}$", store_id)) {
-    stop("output.store_id must match OGS-\\d{5}: ", store_id)
-  }
-  if (is.null(cfg$build) || is.null(cfg$build$command)) {
-    stop("a build: block (command/layout/completion_state/options/post) is required for --mode=emit-registry")
-  }
-
-  legacy_dir <- path_abs(root, cfg$output$release_dir)
-  analyses_path <- file.path(legacy_dir, "analyses.tsv")
+  analyses_path <- file.path(cfg$.work_root, "analyses.tsv")
   if (!file.exists(analyses_path)) {
     stop("acquired analyses.tsv not found: ", analyses_path,
          " (run --mode=emit then acquire.py first)")
@@ -274,42 +216,24 @@ emit_registry_bundle <- function(cfg, root) {
          paste(head(missing_checksum, 5), collapse = ", "))
   }
 
-  registry_root <- path_abs(root, cfg$output$registry_root %||% "stores")
-  bundle_dir <- file.path(registry_root, store_id)
-  sidecar_dir <- file.path(bundle_dir, "sidecars")
-  dir.create(sidecar_dir, recursive = TRUE, showWarnings = FALSE)
-
-  fwrite(analyses, file.path(bundle_dir, "analyses.tsv"), sep = "\t", na = "")
-  for (sidecar in c("selection.tsv", "derivations.tsv", "downloads.tsv")) {
-    source_path <- file.path(legacy_dir, "sidecars", sidecar)
-    if (file.exists(source_path)) {
-      file.copy(source_path, file.path(sidecar_dir, sidecar), overwrite = TRUE)
-    }
-  }
-
-  emit_command <- paste("Rscript resources/generators/lib/source-formats/finngen-r13-dense/generate.R",
-                        paste0("--config=", cfg$.config_path), "--mode=emit")
-  acquire_command <- paste("python resources/generators/lib/source-formats/finngen-r13-dense/acquire.py",
-                           paste0("--release-dir=", cfg$output$release_dir), "--workers=8")
-  registry_command <- paste("Rscript resources/generators/lib/source-formats/finngen-r13-dense/generate.R",
-                            paste0("--config=", cfg$.config_path), "--mode=emit-registry")
-  created_at <- format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
-
-  write_yaml_file(
-    render_registry_release_yaml(cfg, root, list(emit_command, acquire_command, registry_command), created_at),
-    file.path(bundle_dir, "release.yaml")
+  # acquire.py logs nothing into the working bundle, so its step is recorded
+  # here, symbolically: an artifact root is never committed into a bundle.
+  acquire <- paste(
+    "python resources/generators/lib/source-formats/finngen-r13-dense/acquire.py",
+    sprintf('--release-dir="$(python3 resources/generators/lib/emit.py work-root %s)"', cfg$output$store_id),
+    "--workers=8"
   )
-  write_yaml_file(render_registry_build_yaml(cfg, root), file.path(bundle_dir, "build.yaml"))
-
-  legacy_validation_path <- file.path(legacy_dir, "validation.yaml")
-  if (file.exists(legacy_validation_path)) {
-    validation <- read_yaml(legacy_validation_path)
-    validation$validated_at <- created_at
-    write_yaml_file(validation, file.path(bundle_dir, "validation.yaml"))
-  }
-
-  cat(sprintf("Emitted registry Release Bundle %s with %d Analyses to %s\n",
-              store_id, nrow(analyses), bundle_dir))
+  manifest_path <- path_abs(root, cfg$source$manifest_path)
+  source_snapshot <- list(
+    manifest_url = cfg$source$manifest_url,
+    manifest_sha256 = cfg$source$manifest_sha256,
+    manifest_size_bytes = as.integer(file.size(manifest_path)),
+    manifest_etag = cfg$source$manifest_etag %||% NULL,
+    manifest_last_modified = cfg$source$manifest_last_modified %||% NULL
+  )
+  emit_registry(cfg, root, "resources/generators/lib/source-formats/finngen-r13-dense/generate.R",
+                also_ran = acquire, source_snapshot = source_snapshot)
+  cat(sprintf("Emitted registry Release Bundle %s with %d Analyses\n", cfg$output$store_id, nrow(analyses)))
 }
 
 args <- parse_args(commandArgs(trailingOnly = TRUE))
@@ -319,15 +243,18 @@ source(path_abs(root, "resources/generators/lib/build_environment.R"))
 source(path_abs(root, "resources/generators/lib/schema_validate.R"))
 source(path_abs(root, "resources/generators/lib/finngen_r13_pilot.R"))
 source(path_abs(root, "resources/generators/lib/indexed_subsets.R"))
+source(path_abs(root, "resources/generators/lib/emit_registry.R"))
 cfg <- read_yaml(path_abs(root, args$config))
 cfg$.config_path <- args$config
+# Resolved once: every mode reads and writes the working bundle there (#248).
+cfg$.work_root <- generation_work_root(cfg, root)
 
 if (args$mode == "emit") {
   emit_bundle(cfg, root, args$config)
 } else if (args$mode == "emit-registry") {
   emit_registry_bundle(cfg, root)
 } else if (args$mode == "validate") {
-  update_schema_check(path_abs(root, cfg$output$release_dir), root)
+  update_schema_check(cfg$.work_root, root)
   cat("FinnGen R13 release schema is valid\n")
 } else {
   stop("Unknown --mode=", args$mode)

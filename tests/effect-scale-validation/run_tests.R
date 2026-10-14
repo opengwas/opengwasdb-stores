@@ -22,11 +22,19 @@ check <- function(cond, ...) {
 }
 
 fixtures_dir <- "tests/effect-scale-validation/fixtures"
-release_dir <- file.path(fixtures_dir, "release")
 config_path <- file.path(fixtures_dir, "config.yaml")
 
 status <- system2("Rscript", c(shQuote(file.path(fixtures_dir, "generate_fixtures.R"))))
 if (status != 0) fail("Fixture generation failed")
+
+# The fixture's working bundle goes to the generator's work root,
+# <artifact-root>/<id>/generate (#248); its filtered sources stay in data_dir.
+artifact_root <- tempfile("effect-scale-artifacts-")
+Sys.setenv(OPENGWASDB_ARTIFACT_ROOT = artifact_root)
+on.exit(unlink(artifact_root, recursive = TRUE), add = TRUE)
+release_dir <- file.path(artifact_root, "OGS-99051", "generate")
+dir.create(release_dir, recursive = TRUE)
+file.copy(file.path(fixtures_dir, "release", c("release.yaml", "analyses.tsv", "validation.yaml")), release_dir)
 
 status <- system2("Rscript", c(
   "resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R",

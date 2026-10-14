@@ -149,7 +149,7 @@ emit_bundle <- function(cfg, root, max_analyses = NA_integer_, only_analysis_id 
   canonical_table <- load_canonical_trait_table_from_cfg(cfg$reference_resources, root)
   analyses <- apply_trait_ontology_mapping(analyses, canonical_table)
 
-  release_dir <- path_abs(root, cfg$output$release_dir)
+  release_dir <- cfg$.work_root
   sidecar_dir <- file.path(release_dir, "sidecars")
   dir.create(sidecar_dir, recursive = TRUE, showWarnings = FALSE)
   fwrite(analyses, file.path(release_dir, "analyses.tsv"), sep = "\t", na = "")
@@ -225,7 +225,7 @@ emit_bundle <- function(cfg, root, max_analyses = NA_integer_, only_analysis_id 
 }
 
 validate_emit <- function(cfg, root) {
-  release_dir <- path_abs(root, cfg$output$release_dir)
+  release_dir <- cfg$.work_root
   # exclude_from_build's only non-blank value is the literal string "true"
   # (see docs/release-metadata-schema.md); fread's type inference otherwise
   # reads a column of blanks + "true" as logical, and a subsequent `!=
@@ -290,16 +290,21 @@ source(path_abs(root, "resources/generators/lib/build_environment.R"))
 source(path_abs(root, "resources/generators/lib/opengwas_gwas_vcf_dense.R"))
 source(path_abs(root, "resources/generators/lib/schema_validate.R"))
 source(path_abs(root, "resources/generators/lib/indexed_subsets.R"))
+source(path_abs(root, "resources/generators/lib/emit_registry.R"))
 cfg <- read_yaml(path_abs(root, args$config))
 cfg$.config_path <- args$config
+# Resolved once: every mode reads and writes the working bundle there (#248).
+cfg$.work_root <- generation_work_root(cfg, root)
 
 if (args$mode == "emit") {
   emit_bundle(cfg, root, args$max_analyses, args$only_analysis_id)
   validate_emit(cfg, root)
 } else if (args$mode == "validate") {
   validate_emit(cfg, root)
+} else if (args$mode == "emit-registry") {
+  emit_registry(cfg, root, "resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/generate.R")
 } else if (args$mode == "refresh-build") {
-  release_dir <- path_abs(root, cfg$output$release_dir)
+  release_dir <- cfg$.work_root
   write_build_yaml(cfg, root, release_dir)
   cat("Refreshed ", file.path(release_dir, "build.yaml"), "\n", sep = "")
 } else {

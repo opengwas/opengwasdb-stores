@@ -1,5 +1,7 @@
 store_family_id: pqtl-interval-2018
 family_release_id: 2018-sun-pilot-10
+label: 2018-sun-pilot-10
+access_posture: public
 store_key: ragged__pmid-29875488__European__pilot10
 source_collection_id: gwas-catalog-ssf
 release_kind: one-off
@@ -57,7 +59,11 @@ filter:
   download_timeout_seconds: 3600
 
 output:
-  release_dir: families/pqtl-interval-2018/releases/2018-sun-pilot-10
+  # Registry Release Bundle id (ADR 0022). The working bundle lives in the work
+  # root, <artifact-root>/OGS-00007/generate; --mode=emit-registry emits it into
+  # stores/OGS-00007/ through the one emitter (#248), which refuses to replace a
+  # bundle that has been accepted or built.
+  store_id: OGS-00007
   artifact_root: /data/opengwasdb
   artifact_subdir: pqtl-interval-2018/releases/2018-sun-pilot-10
 
@@ -86,3 +92,15 @@ effect_scale_validation:
   reference_resources:
     - ancestry: EUR
       resource_id: ukb-hg38-eur-af
+
+# The observed-only Build Recipe the registry bundle carries, as registered in
+# stores/OGS-00007/build.yaml. --mode=emit-registry renders build.yaml from it.
+build:
+  layout: ragged
+  completion_state: observed_only
+  command: build-ragged-ssf
+  options:
+    stored-effect-scale: sd
+  post:
+    top_hits: true
+    overview: false

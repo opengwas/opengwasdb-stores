@@ -40,5 +40,5 @@ filter:
   download_timeout_seconds: 60
 
 output:
-  release_dir: tests/qc-panel-retention/fixtures/output-without-panel
+  store_id: OGS-99032
   data_dir: tests/qc-panel-retention/fixtures/output-without-panel

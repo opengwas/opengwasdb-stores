@@ -1,2 +1,0 @@
-analysis_id	region_id	region_kind	chromosome	start	end	source_genome_build	target_id	target_label	lead_variant_id	pvalue_threshold	n_variants_retained	region_policy_id
-GCST900001	GCST900001__qc_panel__001	qc_panel	1	1e+07	12800000	GRCh38	""	""	""	""	15	sig-trans-1mb_suggestive-leads

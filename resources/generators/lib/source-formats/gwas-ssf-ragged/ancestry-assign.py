@@ -17,7 +17,9 @@ build-store.py introduced, so no stage clobbers another's checks.
 
 Usage:
   pixi run python resources/generators/lib/source-formats/gwas-ssf-ragged/ancestry-assign.py \
-    --release-dir=families/<family>/releases/<release>
+    --release-dir="$(python3 resources/generators/lib/emit.py work-root <OGS-id>)"
+
+`--release-dir` is the generator's working bundle, in its work root (#248).
 """
 
 from __future__ import annotations

@@ -2,7 +2,7 @@
 
 args <- commandArgs(trailingOnly = TRUE)
 if (!any(grepl("^--config=", args))) {
-  args <- c("--config=resources/generators/ukb-b/config.yaml", args)
+  args <- c("--config=resources/generators/ukb-b/config-pilot-10.yaml", args)
 }
 
 status <- system2(

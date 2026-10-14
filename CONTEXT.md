@@ -105,6 +105,10 @@ _Avoid_: release bundle, manifest
 The deployment-configured directory under which every Store Release's Release Artifacts live, one directory per Store Release id (`<artifact-root>/<store-id>/`). It is not a Release Bundle field: a bundle is immutable once accepted, so the root resolves from deployment configuration -- a workflow config override, the `OPENGWASDB_ARTIFACT_ROOT` environment variable, the repository `ogstores.yaml`, then the built-in default -- so one bundle can be built on CI, a laptop, or the production host.
 _Avoid_: output directory, data root
 
+**Work Root**:
+Where a Manifest Generator keeps its working files for one Store Release, `<artifact-root>/<store-id>/generate` (`paths.generation_dir`). A legacy generator's working bundle lives there and is emitted from there; Store Release Build never reads it.
+_Avoid_: release directory, families/ release dir
+
 **Release Lineage**:
 The relationship between Store Releases, including observed-only releases, reference-completed releases, corrected releases, and other derived releases.
 _Avoid_: source lineage

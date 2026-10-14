@@ -32,9 +32,12 @@ system by accident.
    Analyses, which method tier, and what tolerance to accept.
 5. **Every generator emits through one emitter** (#248, ADR 0035).
    `lib/emit.py` is the only code that writes a candidate into `stores/<id>/`.
-   A Python generator calls `emit()`; an R generator renders the bundle into a
-   directory and runs `python3 resources/generators/lib/emit.py <id> --from
-   <dir> --command ...`. The emitter writes `status: candidate` and the
+   A Python generator calls `emit()`. A legacy (R or BESD) generator keeps a
+   family-shaped working bundle in its work root,
+   `<artifact-root>/<output.store_id>/generate` (`emit.py work-root <id>`), and
+   its `--mode=emit-registry` projects the current contract from that and its
+   config's `build:` block through `emit.py project` (`lib/emit_registry.R`).
+   No generator config names a `families/` path as output or work root. The emitter writes `status: candidate` and the
    generator commands, checks the bundle against the Release Bundle contract,
    writes its `summary.yaml`, and replaces `stores/<id>/` in one step. It
    replaces only an earlier candidate, refuses a bundle that has been accepted

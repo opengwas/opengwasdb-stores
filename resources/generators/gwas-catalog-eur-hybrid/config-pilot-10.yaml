@@ -1,5 +1,7 @@
 store_family_id: gwas-catalog-eur-hybrid
 family_release_id: eur-hybrid-pilot-10
+label: eur-hybrid-pilot-10
+access_posture: public
 store_key: hybrid__European__pilot10-cc
 source_collection_id: gwas-catalog-ssf
 release_kind: one-off
@@ -52,7 +54,11 @@ download:
   timeout_seconds: 3600
 
 output:
-  release_dir: families/gwas-catalog-eur-hybrid/releases/eur-hybrid-pilot-10
+  # Registry Release Bundle id (ADR 0022). The working bundle lives in the work
+  # root, <artifact-root>/OGS-00004/generate; --mode=emit-registry emits it into
+  # stores/OGS-00004/ through the one emitter (#248), which refuses to replace a
+  # bundle that has been accepted or built.
+  store_id: OGS-00004
   artifact_root: /data/opengwasdb
   artifact_subdir: gwas-catalog-eur-hybrid/releases/eur-hybrid-pilot-10
 
@@ -67,3 +73,17 @@ reference_resources:
     variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
     root: /data/opengwasdb/wip/hybrid-ieua/panel_alids.txt
     location_kind: external_file
+
+# The observed-only Build Recipe the registry bundle carries, as registered in
+# stores/OGS-00004/build.yaml. --mode=emit-registry renders build.yaml from it.
+build:
+  layout: hybrid
+  completion_state: observed_only
+  command: build-hybrid
+  options:
+    variant-reference: /data/opengwasdb/reference/alid-panel/EUR-variants.tsv.gz
+    source-reader-capability: opengwasdb.gwas-ssf
+    source-assembly: hg38
+  post:
+    top_hits: false
+    overview: true

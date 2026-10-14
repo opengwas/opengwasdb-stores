@@ -7,6 +7,7 @@ completed release can resolve its parent's Store from `derived_from` alone,
 with no registry lookup.
 
     <artifact-root>/OGS-00042/
+        generate/               Manifest Generation's working files (#248)
         source/                 acquired or filtered source files
         work/                   checkpoints, scratch
         work/analyses.tsv       derived build manifest: the bundle's analyses.tsv
@@ -129,6 +130,16 @@ def release_root(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Pat
 def source_dir(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
     """Directory for acquired or filtered source files: `<root>/<store_id>/source`."""
     return store_dir(store_id, root=root) / "source"
+
+
+def generation_dir(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
+    """Manifest Generation's working files for one release: `<root>/<store_id>/generate`.
+
+    A generator's working bundle and acquisition evidence live here, apart
+    from the `source/` a build reads and the `work/` and `records/` Store
+    Release Build owns (#248).
+    """
+    return store_dir(store_id, root=root) / "generate"
 
 
 def work_dir(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
