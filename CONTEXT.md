@@ -18,8 +18,12 @@ The ordering of what should be produced next, based on value, readiness, cost, r
 _Avoid_: scheduler state, job priority
 
 **Source Collection**:
-A homogeneous upstream set of summary-statistics inputs with one Source Format and one Source Reader Capability, recorded with its provider, provenance, location, access constraints, and validation state.
+A homogeneous upstream set of summary-statistics inputs with one Source Format and one Source Reader Capability, recorded with its Source Provider, provenance, location, access constraints, and validation state. Several Store Releases can come from one Source Collection, each through its own Selection.
 _Avoid_: input folder, data dump
+
+**Source Provider**:
+The organisation or repository Source Collections come from, such as the GWAS Catalog, FinnGen, OpenGWAS or dbGaP. Acquisition and the metadata adapter are written once per Source Provider where it delivers consistently -- every GWAS Catalog collection shares them -- and once per Source Collection where it does not: dbGaP is a host whose datasets each look different, so each is its own Source Collection (MVP `phs002453` is one) with its own adapter, sharing only common dbGaP plumbing. A Column Map is always per Source Collection.
+_Avoid_: host, repository (as a separate concept), source
 
 **Source Inventory**:
 The frozen reconciliation, for one Selection, of the Analyses a Source Collection intends (its Source Metadata Table) against the files acquisition produced (its Acquisition Manifest): each selected Analysis with its source IDs, location, checksum, size and readiness. Freezing fails loudly on a selected Analysis with no file, a file no Analysis claims, or a duplicate; a directory listing is never the intent.
