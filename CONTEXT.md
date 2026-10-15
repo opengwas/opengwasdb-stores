@@ -62,7 +62,7 @@ An orchestration program that discovers or selects upstream inputs from a Source
 _Avoid_: selector, manifest script
 
 **Analysis Resolution**:
-OpenGWASDB's pass over one Analysis's source file that measures what release decisions need -- ancestry fit, allele alignment against a reference, phenotype SD, allele-frequency and imputation-quality state -- and records the measurements in a Resolution Record. Every Analysis Manifest Generation admits is resolved, except one whose Source Format OpenGWASDB cannot resolve: its values are then declared by the source and recorded as declared, not measured. Manifest Generation decides from the record and never computes these statistics itself (ADRs 0012, 0017).
+OpenGWASDB's pass over one Analysis's source file that measures what release decisions need -- ancestry fit, allele alignment against a reference, phenotype SD, allele-frequency and imputation-quality state -- and records the measurements in a Resolution Record. Every Analysis Manifest Generation admits is resolved, without exception: a Source Format OpenGWASDB cannot yet resolve is a gap in OpenGWASDB, and its Source Collections wait for it rather than entering a Release Bundle on declared values. Manifest Generation decides from the record and never computes these statistics itself (ADRs 0012, 0017).
 _Avoid_: metadata resolution (fetching source metadata is not resolution)
 
 **Quality Check**:
