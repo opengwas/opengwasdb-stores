@@ -10,6 +10,12 @@ issue #152. What remained was the workflow that turns those into a candidate
 Release Bundle without building a Store and without re-implementing statistics
 OpenGWASDB already owns.
 
+**Amended by [0036](0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.md).**
+The workflow described here becomes the pipeline every Source Collection uses:
+its candidate table becomes a canonical Source Metadata Table, its freeze
+reconciles that table against an Acquisition Manifest for one Selection, and its
+exclusions become Quality Checks. Every decision below stands.
+
 ## Decision
 
 **Expose one thin registry-owned candidate workflow that invokes
