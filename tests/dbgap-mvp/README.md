@@ -1,6 +1,7 @@
 # MVP ancestry/META candidate emitter test suite
 
-Test suite for `resources/generators/dbgap-mvp` (issue #221).
+Test suite for the dbGaP MVP generator, `manifest_generation.providers.dbgap.mvp`
+(issue #221); its config stays in `resources/generators/dbgap-mvp`.
 
 ## Contracts and invariants covered
 

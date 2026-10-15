@@ -28,7 +28,7 @@ Pixi environments (issue #41).
 
 `ancestry-assign.py` and `resources/generators/lib/source-formats/gwas-ssf-ragged/build-store.py`
 both mutate `validation.yaml` in place via the shared
-`resources/generators/lib/release_yaml.py::merge_validation_yaml` helper, so re-running
+`src/manifest_generation/release_yaml.py::merge_validation_yaml` helper, so re-running
 either stage on a real release never discards the other's checks. The fixture
 generators reset `validation.yaml` to a pristine `not_run` baseline on every
 regeneration for the same reason: without that reset, repeated test runs

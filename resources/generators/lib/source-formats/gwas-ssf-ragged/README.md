@@ -99,7 +99,7 @@ releases whose Source Collection provides usable source allele frequencies:
 
 ```sh
 pixi run python resources/generators/lib/source-formats/gwas-ssf-ragged/ancestry-assign.py \
-  --release-dir="$(pixi run python3 resources/generators/lib/emit.py work-root <OGS-id>)"
+  --release-dir="$(pixi run python3 -m manifest_generation.emit work-root <OGS-id>)"
 ```
 
 For each Analysis with usable source AF, this builds a canonical `{alid: af}`
@@ -112,7 +112,7 @@ without usable source AF are left untouched at `source_trusted_no_af`, per
 issue #11's settled trust-vs-validate policy — this stage never assigns
 ancestry when there is nothing to validate against. It merges empirical
 `checks.ancestry` into `validation.yaml` via the same shared
-`resources/generators/lib/release_yaml.py::merge_validation_yaml` helper the effect-scale
+`src/manifest_generation/release_yaml.py::merge_validation_yaml` helper the effect-scale
 stage's fix to `build-store.py` introduced, so it never clobbers another
 stage's checks. See `docs/release-metadata-schema.md` ("Ancestry assignment
 configuration") and `tests/ancestry-assignment/` for fixture coverage.

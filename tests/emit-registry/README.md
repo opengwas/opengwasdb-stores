@@ -5,7 +5,7 @@ generator's `--mode=emit-registry` (#248). A legacy generator keeps its
 family-shaped working bundle in its work root,
 `<artifact-root>/<output.store_id>/generate`. `emit-registry` projects the
 current Release Bundle contract from that working bundle and the config's
-`build:` block, and emits it through `resources/generators/lib/emit.py`.
+`build:` block, and emits it through `src/manifest_generation/emit.py`.
 
 Covered by `tests/emit-registry/run_tests.R`:
 - `generation_work_root()` is `<artifact-root>/<id>/generate`, resolved by

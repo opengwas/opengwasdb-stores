@@ -47,7 +47,7 @@ acquisition manifest under the mirror.
 # candidate pool. `--manifest` is repeatable and REPLACES the configured passes
 # entirely; order is the precedence rule, so the last pass wins for any
 # analysis_id it covers:
-pixi run python resources/generators/gwas-catalog-eur-hybrid/inventory.py freeze \
+pixi run python -m manifest_generation.inventory freeze \
   --snapshot-id gwas-catalog-ssf-eur-hybrid-2026-10-01 \
   --manifest base=/data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-manifest.tsv \
   --manifest retry_transient=/data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-retry-transient-manifest.tsv \
@@ -70,7 +70,7 @@ snapshot recorded as non-ready. Re-run it with:
 awk -F'\t' 'NR>1 && $6!="ok" && $6!="already_present"{print $1}' \
   resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-10.tsv > /tmp/not-ready.txt
 
-pixi run python resources/scripts/download-ebi-gwas-catalog-eur-hybrid.py \
+pixi run python -m manifest_generation.providers.gwas_catalog.download_ebi_gwas_catalog_eur_hybrid \
   --accessions-file /tmp/not-ready.txt \
   --harmonised-index /data/opengwasdb/raw/ebi-gwas-catalog/harmonised_list-2026-09-22.txt \
   --manifest /data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-rescue-upstream-harmonised-manifest.tsv
@@ -109,7 +109,7 @@ The Phase B candidate workflow turns the frozen Source Inventory into a
 preflight, derives the canonical resolver manifest, invokes
 `opengwasdb resolve-analyses`, accounts every resolver record, applies the
 registry's membership/exclusion policy, and emits the bundle through the shared
-emitter (`resources/generators/lib/emit.py`), which checks it against the
+emitter (`src/manifest_generation/emit.py`), which checks it against the
 Release Bundle contract and replaces only an earlier candidate. It never
 builds, validates or accepts a Store, and it never invokes Phase A.
 
@@ -266,7 +266,7 @@ alone is not evidence.
 `analyses.tsv` therefore carries four optional INFO columns: the requested
 `info_score_threshold` plus `imputation_score_column`,
 `imputation_score_kind` and `imputation_score_provenance`. Manifest
-Generation's rules (`resources/generators/lib/generation_rules.py`, #250)
+Generation's rules (`src/manifest_generation/generation_rules.py`, #250)
 reject a numeric threshold without the complete triple and a triple without a
 numeric threshold.
 
@@ -277,7 +277,7 @@ numeric threshold.
 deterministically from the header of every ready inventory row:
 
 ```sh
-pixi run python resources/generators/gwas-catalog-eur-hybrid/derive_score_declarations.py
+pixi run python -m manifest_generation.providers.gwas_catalog.derive_score_declarations
 ```
 
 The synonym table is fixed and case-sensitive (the OGS-00011 admission
@@ -480,7 +480,7 @@ partitions that publication into per-ancestry `dense__pmid-39024449__*` store
 keys, so acquisition is one pass per key against this same mirror:
 
 ```sh
-resources/scripts/download-ebi-gwas-catalog-dense-pmid39024449.sh
+src/manifest_generation/providers/gwas_catalog/download-ebi-gwas-catalog-dense-pmid39024449.sh
 ```
 
 The wrapper loops the four keys (`European`, `African`,
@@ -494,7 +494,7 @@ rather than frozen as absent.
 GWAS-SSF v1.0, `is_harmonised: false`) -- the harmonised `<GCST>.h.tsv.gz`
 directory genuinely does not exist. For those the harmonised pass records
 `missing_remote_harmonised_yaml`/`data_absent_upstream`, and a second pass
-(`resources/scripts/download-ebi-gwas-catalog-raw.py`) then downloads the raw
+(`src/manifest_generation/providers/gwas_catalog/download_ebi_gwas_catalog_raw.py`) then downloads the raw
 pair into the same mirror layout, writing
 `dense-pmid39024449-<ancestry>-raw-download-manifest.tsv`. It skips every row
 the harmonised pass already obtained, so nothing is fetched twice, and it
@@ -505,13 +505,13 @@ acquisition only: which pass supplies membership is still a Phase B decision.
 ## Pieces
 
 - `resources/inventories/` — the frozen snapshot, sample manifest, and what their columns mean;
-- `resources/generators/lib/source_inventory.py` — the freeze merge rule, the
+- `src/manifest_generation/source_inventory.py` — the freeze merge rule, the
   readiness vocabulary, and preflight;
-- `resources/generators/lib/concordance_sampling.py` — deterministic stratified sampling;
-- `resources/generators/lib/qc_panel_concordance.py` — concordance comparison engine & metrics;
+- `src/manifest_generation/concordance_sampling.py` — deterministic stratified sampling;
+- `src/manifest_generation/qc_panel_concordance.py` — concordance comparison engine & metrics;
 - `docs/spec/qc-panel-concordance-preregistration.md` — locked preregistration document;
 - `docs/qc-panel-concordance-report.md` — finalized decision & empirical concordance evidence report;
-- `resources/scripts/download-ebi-gwas-catalog-eur-hybrid.py` — acquisition,
+- `src/manifest_generation/providers/gwas_catalog/download_ebi_gwas_catalog_eur_hybrid.py` — acquisition,
   which writes the status manifests the freeze merges;
-- `resources/scripts/download-ebi-gwas-catalog-raw.py` — raw-file fallback for
+- `src/manifest_generation/providers/gwas_catalog/download_ebi_gwas_catalog_raw.py` — raw-file fallback for
   accessions EBI did not harmonise, writing a separate status manifest.

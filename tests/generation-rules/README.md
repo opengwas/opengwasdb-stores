@@ -1,7 +1,7 @@
 # Manifest Generation rules
 
 Tests for #250: Manifest Generation's own rules for a candidate's
-`analyses.tsv` live in `resources/generators/lib/generation_rules.py`, not in
+`analyses.tsv` live in `src/manifest_generation/generation_rules.py`, not in
 the Release Bundle contract (`ogstores.bundle.check()`). Store Release Build
 does not need them to consume a bundle; the emitter runs them before a
 candidate lands, and `pixi run bundle-check` runs them over every committed

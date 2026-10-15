@@ -1,4 +1,4 @@
-## R mirror of resources/generators/lib/indexed_subsets.py (stores #210).
+## R mirror of src/manifest_generation/indexed_subsets.py (stores #210).
 ##
 ## Dense and Hybrid Release Bundles declare the maintained `hm3` Indexed
 ## Variant Subset by default (epic opengwas/opengwasdb-stores#214). The

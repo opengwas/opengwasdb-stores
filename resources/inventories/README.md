@@ -49,7 +49,7 @@ string on the release, and this directory holds data files
 | `error` | Unexpected exception during acquisition. | no |
 
 Only `ok` and `already_present` are ready. The vocabulary is owned by
-`resources/generators/lib/source_inventory.py` (`READY_STATUSES`,
+`src/manifest_generation/source_inventory.py` (`READY_STATUSES`,
 `KNOWN_READINESS_STATUSES`) so that "ready" has exactly one spelling, and an
 unknown status is a loud failure rather than an implied "not ready".
 
@@ -123,7 +123,7 @@ stale and should be re-frozen deliberately.
 ## Declared-selection inventories
 
 Not every Source Collection is described by acquisition manifests. The `ukb-b`
-batch (#219) has a fixed, declared membership: `resources/generators/ukb-b/inventory.py`
+batch (#219) has a fixed, declared membership: `src/manifest_generation/providers/ukb_b/inventory.py`
 reads the registry's own declared selection as intent, discovers the local
 `.vcf.gz` files, and reconciles the two against the old built baseline. There a
 glob is never intention: a declared Analysis missing from the mirror is a copy
