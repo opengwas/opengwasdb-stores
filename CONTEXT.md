@@ -18,12 +18,28 @@ The ordering of what should be produced next, based on value, readiness, cost, r
 _Avoid_: scheduler state, job priority
 
 **Source Collection**:
-A homogeneous upstream set of summary-statistics inputs with one Source Format and one Source Reader Capability, recorded with its provider, provenance, location, access constraints, and validation state.
+A homogeneous upstream set of summary-statistics inputs with one Source Format and one Source Reader Capability, recorded with its Source Provider, provenance, location, access constraints, and validation state. Several Store Releases can come from one Source Collection, each through its own Selection.
 _Avoid_: input folder, data dump
 
+**Source Provider**:
+The organisation or repository Source Collections come from, such as the GWAS Catalog, FinnGen, OpenGWAS or dbGaP. Acquisition and the metadata adapter are written once per Source Provider where it delivers consistently -- every GWAS Catalog collection shares them -- and once per Source Collection where it does not: dbGaP is a host whose datasets each look different, so each is its own Source Collection (MVP `phs002453` is one) with its own adapter, sharing only common dbGaP plumbing. A Column Map is always per Source Collection.
+_Avoid_: host, repository (as a separate concept), source
+
 **Source Inventory**:
-A discovered list or snapshot of upstream Analyses available in a Source Collection, including source IDs, locations, checksums, sizes, and basic readiness metadata where available.
-_Avoid_: release manifest, store manifest
+The frozen reconciliation, for one Selection, of the Analyses a Source Collection intends (its Source Metadata Table) against the files acquisition produced (its Acquisition Manifest): each selected Analysis with its source IDs, location, checksum, size and readiness. Freezing fails loudly on a selected Analysis with no file, a file no Analysis claims, or a duplicate; a directory listing is never the intent.
+_Avoid_: release manifest, store manifest, discovered file list
+
+**Acquisition Manifest**:
+What acquisition produced for a Source Collection: each file fetched, extracted or converted, with its location, size and checksum. It records what is available, never what is intended. A file acquisition had to reformat before any reader could open it -- a structural change a Column Map cannot express, such as splitting one file into one per Analysis -- also records the original it came from, with that original's location and checksum and the tool that reformatted it, so a Release Bundle traces back to what the provider published.
+_Avoid_: download log, source inventory
+
+**Selection**:
+The subset of a Source Collection's intended Analyses that one release takes, declared in its release config by rule or by list -- all of them, a Trial Store Release's handful, or one ancestry group. Freezing requires only the selected Analyses, and the Source Inventory records the Selection it was frozen for, so a subset is visible in the bundle rather than implied by which metadata was used. One Selection gives one candidate Release Bundle: a Source Collection split into several Store Releases is several Selections, which share Resolution Records but never route an Analysis from one Store Release to another.
+_Avoid_: sample, pilot set, partial acquisition, routing
+
+**Source Metadata Table**:
+The per-Analysis source metadata a Manifest Generator reads, in one canonical set of columns whatever the Source Collection: Source Analysis ID, Source Trait Label, source ancestry, sample size, trait type and declared effect scale, genome build, publication and licence. A source-specific adapter writes it from the provider's own metadata -- an API, a manifest, a study table -- and it is frozen with the Source Inventory, so generation reads no live source and a metadata change is a reviewed re-freeze rather than a silent difference between runs.
+_Avoid_: candidate table, candidates table, metadata resolver output
 
 **Source Bundle**:
 A named group of source files shared by one or more Analyses when a single `source_file` column is insufficient.
@@ -34,8 +50,12 @@ The structural format of upstream summary-statistics inputs, such as GWAS-VCF, G
 _Avoid_: source collection, store layout
 
 **Source Reader Capability**:
-The OpenGWASDB capability assigned to a Source Collection for reading and normalising all analyses in that collection.
+The OpenGWASDB capability assigned to a Source Collection for reading and normalising all analyses in that collection. For tabular sources it is OpenGWASDB's generic tabular reader together with the collection's Column Map; a dedicated reader remains only for a Source Format a Column Map cannot describe, such as GWAS-VCF or BESD.
 _Avoid_: source format, build recipe
+
+**Column Map**:
+The declaration, one per Source Collection, of how OpenGWASDB's generic tabular reader reads that collection's files: which provider column supplies each required and optional field, and the collection's conventions -- missing-value tokens, effect type, p-value form, which allele the effect and frequency refer to, chromosome spelling and genome build. An undeclared required field or an unknown key is a refusal, never a guess. It travels in the Release Bundle, checksummed, so Analysis Resolution and Store Release Build read every file the same way. Files that need different Column Maps belong to different Source Collections.
+_Avoid_: header mapping, schema, reader config
 
 **Manifest Generation**:
 The workflow that turns a frozen Source Inventory into a candidate Release Bundle. A Manifest Generator selects and resolves the Analyses, applies the release policy, and emits the bundle into the Store Registry with Release Status `candidate`. It never builds, validates or publishes a Store, and it meets Store Release Build only at the Release Bundle (ADR 0035).
@@ -44,6 +64,18 @@ _Avoid_: Phase B, candidate generation, build phase
 **Manifest Generator**:
 An orchestration program that discovers or selects upstream inputs from a Source Collection and emits a candidate Release Bundle.
 _Avoid_: selector, manifest script
+
+**Analysis Resolution**:
+OpenGWASDB's pass over one Analysis's source file that measures what release decisions need -- ancestry fit, allele alignment against a reference, phenotype SD, allele-frequency and imputation-quality state -- and records the measurements in a Resolution Record. Every Analysis Manifest Generation admits is resolved, without exception: a Source Format OpenGWASDB cannot yet resolve is a gap in OpenGWASDB, and its Source Collections wait for it rather than entering a Release Bundle on declared values. Manifest Generation decides from the record and never computes these statistics itself (ADRs 0012, 0017).
+_Avoid_: metadata resolution (fetching source metadata is not resolution)
+
+**Resolution Record**:
+What Analysis Resolution measured for one Analysis's source file under one set of references and settings. It belongs to the Analysis, kept once per Source Collection, not to a Store Release: every Selection that takes the Analysis reuses a matching record, and a changed file, reference or setting makes a new one. Each candidate Release Bundle names the records its decisions came from.
+_Avoid_: resolver output, QC report
+
+**Quality Check**:
+A named release-policy test of one Resolution Record measurement against a threshold, with its consequence fixed when the check is defined: an exclusion (the Analysis stays in the Release Manifest as an `exclude_from_build` audit row with the check's reason) or a warning (the Analysis stays in and the finding is recorded). OpenGWASDB measures; Manifest Generation holds the threshold, a shared default a release may override and records, and records every Analysis's measurement whether it passes or not. A Quality Check decides membership, so it runs before the Release Bundle exists; checks on a built Store are Store Release Build's validation and cannot change membership.
+_Avoid_: QC panel (a variant extraction panel, not a check), validation (of a built Store)
 
 **Store Release Build**:
 The workflow that turns an accepted Release Bundle into a built, validated and published Store Release, run through `pixi run release`. It builds only a bundle whose Release Status allows a build (`accepted`, `built` or `validated`), and it never regenerates a bundle (ADR 0035).
@@ -182,7 +214,7 @@ The ancestry or population label supplied by the upstream Source Collection and 
 _Avoid_: assigned ancestry
 
 **Assigned Ancestry**:
-The registry-normalised ancestry label used for store inclusion, routing, grouping, and ancestry-specific build choices. It is one controlled vocabulary on every Analysis — one of the ancestry mixture's super-population codes (AFR, AMR, EAS, EUR, MID, NAF, SAS) or empty when unassigned — so a free-text Source Ancestry Label such as European is never stored here.
+The registry-normalised ancestry label used for store inclusion checks, grouping, and ancestry-specific build choices. It never moves an Analysis into a different Store Release: a Store's Selection decides which Analyses it considers, and a disagreement between Assigned Ancestry and that Selection is a Quality Check. It is one controlled vocabulary on every Analysis — one of the ancestry mixture's super-population codes (AFR, AMR, EAS, EUR, MID, NAF, SAS) or empty when unassigned — so a free-text Source Ancestry Label such as European is never stored here.
 _Avoid_: source ancestry label
 
 **Ancestry Assignment Method**:
