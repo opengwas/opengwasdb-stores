@@ -20,6 +20,13 @@ dependencies = []
 # Store Release Build (`ogstores`) and Manifest Generation
 # (`manifest_generation`, #249) live under src/; they meet only at the Release
 # Bundle (ADR 0035). The curation tooling still lives at the repository root.
+#
+# `manifest_generation` installs editable only: it resolves its inputs and the
+# registry against the checkout it lives in, and refuses to import from
+# anywhere else. The shell scripts in its provider directories run
+# `python3 -m manifest_generation...` and so rely on that editable install.
+# tests/packaging/test_packages.py keeps this list equal to the package's
+# directories.
 package-dir = { "ogstores" = "src/ogstores", "manifest_generation" = "src/manifest_generation", "curation" = "curation" }
 packages = [
     "ogstores",

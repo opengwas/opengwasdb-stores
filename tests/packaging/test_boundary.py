@@ -7,8 +7,9 @@ Generation is the `manifest_generation` package (`src/manifest_generation`),
 plus the legacy R generators under `resources/generators/` until they retire.
 Store Release Build may not import either, or run them by module or by path.
 
-Both sides may import the Release Bundle contract. Manifest Generation's side
-of that is the `ogstores` modules it may import, listed in `CONTRACT`.
+Both sides may import the Release Bundle contract. The `ogstores` modules
+Manifest Generation may import are listed in `CONTRACT_AND_SHARED_LAYOUT`: the
+contract, and the registry layout it shares with Store Release Build.
 
 Run from the repository root:
     python3 tests/packaging/test_boundary.py
@@ -23,16 +24,21 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# What a dependency on Manifest Generation looks like as an import.
-GENERATION_MODULES = re.compile(r"^(manifest_generation|resources\.generators|resources)(\.|$)")
+# What a dependency on Manifest Generation looks like as an import. `resources`
+# covers `resources.generators` and anything else a generator might import.
+GENERATION_MODULES = re.compile(r"^(manifest_generation|resources)(\.|$)")
 # ... and as a string handed to a subprocess: `-m manifest_generation...`, or
 # a path into the package or the legacy generators.
 GENERATION_PATHS = re.compile(r"manifest_generation|resources/generators")
 
-# The `ogstores` modules Manifest Generation imports: the Release Bundle
-# contract (`bundle`), Store id and Artifact Root paths (`paths`), and the
-# registry index the emitter refreshes (`index`).
-CONTRACT = {"ogstores", "ogstores.bundle", "ogstores.paths", "ogstores.index"}
+# The `ogstores` modules Manifest Generation may import: the contract and the
+# registry layout it shares. ADR 0035 has each side depend only on the Release
+# Bundle contract, which is `bundle`. The other two are not the contract but the
+# registry layout both sides write into, and the dependency on them predates
+# #249: `paths` is the Store id grammar and the Artifact Root / work-root
+# resolution the emitter must agree with, and `index` regenerates stores.tsv
+# and STORES.md after an emit. Adding a module here widens the boundary.
+CONTRACT_AND_SHARED_LAYOUT = {"ogstores", "ogstores.bundle", "ogstores.paths", "ogstores.index"}
 
 
 def store_release_build_files() -> list[Path]:
@@ -99,6 +105,32 @@ def snakefile_code_lines(source: str) -> list[str]:
     return [line for line in source.splitlines() if not line.lstrip().startswith("#")]
 
 
+def snakefile_includes(source: str) -> list[str]:
+    """What a Snakefile pulls in: `include:` targets and `module` snakefiles."""
+    return [
+        match.group(1).strip()
+        for line in snakefile_code_lines(source)
+        if (match := re.match(r"^\s*(?:include|snakefile)\s*:\s*(.+)$", line))
+    ]
+
+
+def includes_generation(target: str) -> bool:
+    return "generate.smk" in target or bool(GENERATION_PATHS.search(target))
+
+
+def outside_shared_surface(module: str) -> bool:
+    """An `ogstores` import beyond `CONTRACT_AND_SHARED_LAYOUT`.
+
+    `from ogstores import bundle` names the module `ogstores.bundle`; `from
+    ogstores.bundle import check` names a member of it, so a name is allowed
+    when it, or its parent other than bare `ogstores`, is listed.
+    """
+    if module.split(".")[0] != "ogstores" or module in CONTRACT_AND_SHARED_LAYOUT:
+        return False
+    parent = module.rsplit(".", 1)[0]
+    return parent == "ogstores" or parent not in CONTRACT_AND_SHARED_LAYOUT
+
+
 class ScannerTest(unittest.TestCase):
     """The scan finds what it looks for, so a clean result means something."""
 
@@ -133,6 +165,25 @@ class ScannerTest(unittest.TestCase):
             ["manifest_generation", "manifest_generation.emit", "ogstores", "ogstores.bundle", "ogstores.paths", "os"],
         )
 
+    def test_a_snakefile_include_of_generation_is_found(self) -> None:
+        source = (
+            'include: "rules/common.smk"\n'
+            'include: "generate.smk"\n'
+            "# include: \"generate.smk\" (a comment)\n"
+            "module gen:\n"
+            '    snakefile: "../src/manifest_generation/rules.smk"\n'
+        )
+        self.assertEqual(
+            [t for t in snakefile_includes(source) if includes_generation(t)],
+            ['"generate.smk"', '"../src/manifest_generation/rules.smk"'],
+        )
+
+    def test_only_the_shared_ogstores_surface_is_allowed(self) -> None:
+        allowed = ["ogstores", "ogstores.bundle", "ogstores.bundle.check", "ogstores.paths.artifact_root", "os"]
+        refused = ["ogstores.plan", "ogstores.run", "ogstores.run.run_step", "ogstores.release"]
+        self.assertEqual([m for m in allowed if outside_shared_surface(m)], [])
+        self.assertEqual([m for m in refused if outside_shared_surface(m)], refused)
+
     def test_a_subprocess_into_generation_is_found(self) -> None:
         strings = code_strings('"""Docs may name manifest_generation."""\nrun(["python3", "-m", "manifest_generation.emit"])\n')
         self.assertEqual([s for s in strings if GENERATION_PATHS.search(s)], ["manifest_generation.emit"])
@@ -165,19 +216,19 @@ class StoreReleaseBuildBoundaryTest(unittest.TestCase):
             offenders += [f"{relative}: {s.strip()!r}" for s in strings if GENERATION_PATHS.search(s)]
         self.assertEqual(offenders, [], "\n".join(offenders))
 
-    def test_manifest_generation_imports_only_the_contract_from_ogstores(self) -> None:
+    def test_the_snakefile_includes_nothing_from_manifest_generation(self) -> None:
+        snakefile = (REPO_ROOT / "workflow" / "Snakefile").read_text(encoding="utf-8")
+        offenders = [t for t in snakefile_includes(snakefile) if includes_generation(t)]
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
+    def test_manifest_generation_imports_only_the_shared_ogstores_surface(self) -> None:
         offenders = []
         package = REPO_ROOT / "src" / "manifest_generation"
         self.assertTrue(package.is_dir(), f"{package} is missing")
         for path in sorted(package.rglob("*.py")):
             relative = path.relative_to(REPO_ROOT)
             for module in imported_modules(path.read_text(encoding="utf-8")):
-                if module.split(".")[0] != "ogstores":
-                    continue
-                # `from ogstores import bundle` names the module ogstores.bundle;
-                # `from ogstores.bundle import check` names a member of it.
-                parent = module.rsplit(".", 1)[0]
-                if module not in CONTRACT and (parent == "ogstores" or parent not in CONTRACT):
+                if outside_shared_surface(module):
                     offenders.append(f"{relative}: imports {module}")
         self.assertEqual(offenders, [], "\n".join(offenders))
 

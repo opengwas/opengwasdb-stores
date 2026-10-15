@@ -8,8 +8,9 @@ Snakefile, inserts the repository root or its `src/` into `sys.path`.
 Manifest Generation code and the tests go further (#249): they insert nothing
 into `sys.path` at all, not even a script's own directory, and load no module
 by file path (`spec_from_file_location`, `SourceFileLoader`, `runpy.run_path`).
-They import modules. `NOT_GENERATION` lists the tests exempt from that, each
-of which exercises a script that is not generation code.
+They import modules. `EXEMPT_TESTS` lists the tests exempt from that, each
+with its reason: each exercises a script that is not generation code and
+cannot be imported as a module.
 
 Run from the repository root:
     python3 tests/packaging/test_imports.py
@@ -47,9 +48,10 @@ ALLOWED: set[tuple[str, str]] = {
 GENERATION_AND_TESTS = ("src/manifest_generation/", "resources/generators/", "tests/")
 
 # Tests of scripts that are not generation code and are not importable modules
-# (a hyphenated filename, or a directory that is not a package). Each may load
-# that script by path or put its directory on sys.path.
-NOT_GENERATION: dict[str, str] = {
+# (a hyphenated filename, or a directory that is not a package), with what each
+# one exercises. Each may load that script by path or put its directory on
+# sys.path.
+EXEMPT_TESTS: dict[str, str] = {
     "tests/ld-panel-generation/run_tests.py": "LD-panel Reference Resource scripts (resources/scripts/ld-panel)",
     "tests/hapmap3-resource/test_hapmap3_resource.py": "the HapMap3 Reference Resource verifier",
     "tests/hm3-migration/test_hm3_migration.py": "the indexed-subset audit script (resources/scripts)",
@@ -57,6 +59,9 @@ NOT_GENERATION: dict[str, str] = {
     "tests/packaging/test_discovery.py": "the test runner, run_all_tests.py",
     "tests/workflow/test_release_faults.py": "Store Release Build tests importing their sibling test module",
 }
+
+# This file spells out the patterns it looks for, so it does not scan itself.
+THIS_FILE = "tests/packaging/test_imports.py"
 
 # Loading a module from a file path rather than importing it.
 FILE_PATH_LOADERS = {"spec_from_file_location", "SourceFileLoader", "run_path", "load_source"}
@@ -111,10 +116,11 @@ def file_path_loads(source: str) -> list[str]:
 
 
 def tracked_python(prefixes: tuple[str, ...] = ("",)) -> list[str]:
+    """Tracked Python files under `prefixes`, this file excluded."""
     tracked = subprocess.run(
         ["git", "ls-files", "*.py"], cwd=REPO_ROOT, capture_output=True, text=True, check=True
     ).stdout.split()
-    return [relative for relative in tracked if relative.startswith(prefixes)]
+    return [relative for relative in tracked if relative.startswith(prefixes) and relative != THIS_FILE]
 
 
 class GenerationImportsModulesTest(unittest.TestCase):
@@ -142,7 +148,7 @@ class GenerationImportsModulesTest(unittest.TestCase):
         offenders = [
             f"{relative}: sys.path <- {argument.strip()}"
             for relative in tracked_python(GENERATION_AND_TESTS)
-            if relative not in NOT_GENERATION and relative != "tests/packaging/test_imports.py"
+            if relative not in EXEMPT_TESTS
             for argument in path_insertions((REPO_ROOT / relative).read_text(encoding="utf-8"))
         ]
         self.assertEqual(offenders, [], "\n".join(offenders))
@@ -151,7 +157,7 @@ class GenerationImportsModulesTest(unittest.TestCase):
         offenders = [
             f"{relative}: {use}"
             for relative in tracked_python(GENERATION_AND_TESTS)
-            if relative not in NOT_GENERATION and relative != "tests/packaging/test_imports.py"
+            if relative not in EXEMPT_TESTS
             for use in file_path_loads((REPO_ROOT / relative).read_text(encoding="utf-8"))
         ]
         self.assertEqual(offenders, [], "\n".join(offenders))
@@ -159,7 +165,7 @@ class GenerationImportsModulesTest(unittest.TestCase):
     def test_every_exemption_is_still_needed(self) -> None:
         stale = [
             relative
-            for relative in NOT_GENERATION
+            for relative in EXEMPT_TESTS
             if not (REPO_ROOT / relative).is_file()
             or not (
                 path_insertions((REPO_ROOT / relative).read_text(encoding="utf-8"))
@@ -173,8 +179,6 @@ class NoPathInsertionTest(unittest.TestCase):
     def test_no_python_file_inserts_the_repository_root_or_src(self) -> None:
         offenders = []
         for relative in tracked_python():
-            if relative == "tests/packaging/test_imports.py":
-                continue
             for argument in path_insertions((REPO_ROOT / relative).read_text(encoding="utf-8")):
                 if ROOT_OR_SRC.match(argument.strip()) and (relative, argument.strip()) not in ALLOWED:
                     offenders.append(f"{relative}: sys.path <- {argument.strip()}")
@@ -184,7 +188,7 @@ class NoPathInsertionTest(unittest.TestCase):
         offenders = [
             f"{relative}:{number}: {line.strip()}"
             for relative in tracked_python()
-            if relative not in PYTHONPATH_ALLOWED and relative != "tests/packaging/test_imports.py"
+            if relative not in PYTHONPATH_ALLOWED
             for number, line in enumerate((REPO_ROOT / relative).read_text(encoding="utf-8").splitlines(), 1)
             if PYTHONPATH_SRC.search(line)
         ]
