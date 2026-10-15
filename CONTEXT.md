@@ -30,8 +30,8 @@ What acquisition produced for a Source Collection: each file fetched, extracted 
 _Avoid_: download log, source inventory
 
 **Selection**:
-The subset of a Source Collection's intended Analyses that one release takes, declared in its release config by rule or by list -- all of them, a Trial Store Release's handful, or one ancestry group. Freezing requires only the selected Analyses, and the Source Inventory records the Selection it was frozen for, so a subset is visible in the bundle rather than implied by which metadata was used.
-_Avoid_: sample, pilot set, partial acquisition
+The subset of a Source Collection's intended Analyses that one release takes, declared in its release config by rule or by list -- all of them, a Trial Store Release's handful, or one ancestry group. Freezing requires only the selected Analyses, and the Source Inventory records the Selection it was frozen for, so a subset is visible in the bundle rather than implied by which metadata was used. One Selection gives one candidate Release Bundle: a Source Collection split into several Store Releases is several Selections, which share Resolution Records but never route an Analysis from one Store Release to another.
+_Avoid_: sample, pilot set, partial acquisition, routing
 
 **Source Metadata Table**:
 The per-Analysis source metadata a Manifest Generator reads, in one canonical set of columns whatever the Source Collection: Source Analysis ID, Source Trait Label, source ancestry, sample size, trait type and declared effect scale, genome build, publication and licence. A source-specific adapter writes it from the provider's own metadata -- an API, a manifest, a study table -- and it is frozen with the Source Inventory, so generation reads no live source and a metadata change is a reviewed re-freeze rather than a silent difference between runs.
@@ -202,7 +202,7 @@ The ancestry or population label supplied by the upstream Source Collection and 
 _Avoid_: assigned ancestry
 
 **Assigned Ancestry**:
-The registry-normalised ancestry label used for store inclusion, routing, grouping, and ancestry-specific build choices. It is one controlled vocabulary on every Analysis — one of the ancestry mixture's super-population codes (AFR, AMR, EAS, EUR, MID, NAF, SAS) or empty when unassigned — so a free-text Source Ancestry Label such as European is never stored here.
+The registry-normalised ancestry label used for store inclusion checks, grouping, and ancestry-specific build choices. It never moves an Analysis into a different Store Release: a Store's Selection decides which Analyses it considers, and a disagreement between Assigned Ancestry and that Selection is a Quality Check. It is one controlled vocabulary on every Analysis — one of the ancestry mixture's super-population codes (AFR, AMR, EAS, EUR, MID, NAF, SAS) or empty when unassigned — so a free-text Source Ancestry Label such as European is never stored here.
 _Avoid_: source ancestry label
 
 **Ancestry Assignment Method**:
