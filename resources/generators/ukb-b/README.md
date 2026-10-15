@@ -87,7 +87,7 @@ pixi run Rscript resources/scripts/download-opengwas-vcfs.R \
   --ids=ukb-b-10787,ukb-b-11842,ukb-b-19953 \
   --out-dir=/data/opengwasdb/wip/ukb-b-vcf
 
-pixi run python -m manifest_generation.providers.opengwas.annotate \
+pixi run python3 -m manifest_generation.providers.opengwas.annotate \
   --release-dir="$(pixi run python3 -m manifest_generation.emit work-root OGS-00008)"
 ```
 

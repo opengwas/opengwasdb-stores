@@ -47,7 +47,7 @@ acquisition manifest under the mirror.
 # candidate pool. `--manifest` is repeatable and REPLACES the configured passes
 # entirely; order is the precedence rule, so the last pass wins for any
 # analysis_id it covers:
-pixi run python -m manifest_generation.inventory freeze \
+pixi run python3 -m manifest_generation.inventory freeze \
   --snapshot-id gwas-catalog-ssf-eur-hybrid-2026-10-01 \
   --manifest base=/data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-manifest.tsv \
   --manifest retry_transient=/data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-retry-transient-manifest.tsv \
@@ -70,7 +70,7 @@ snapshot recorded as non-ready. Re-run it with:
 awk -F'\t' 'NR>1 && $6!="ok" && $6!="already_present"{print $1}' \
   resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-10.tsv > /tmp/not-ready.txt
 
-pixi run python -m manifest_generation.providers.gwas_catalog.download_ebi_gwas_catalog_eur_hybrid \
+pixi run python3 -m manifest_generation.providers.gwas_catalog.download_ebi_gwas_catalog_eur_hybrid \
   --accessions-file /tmp/not-ready.txt \
   --harmonised-index /data/opengwasdb/raw/ebi-gwas-catalog/harmonised_list-2026-09-22.txt \
   --manifest /data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-rescue-upstream-harmonised-manifest.tsv
@@ -277,7 +277,7 @@ numeric threshold.
 deterministically from the header of every ready inventory row:
 
 ```sh
-pixi run python -m manifest_generation.providers.gwas_catalog.derive_score_declarations
+pixi run python3 -m manifest_generation.providers.gwas_catalog.derive_score_declarations
 ```
 
 The synonym table is fixed and case-sensitive (the OGS-00011 admission

@@ -110,5 +110,5 @@ The 162 studies belong to only 29 distinct publications (PMIDs). The top cohorts
    - **`summary.tsv`**: Full tabulated matrix of all 162 analyses.
 2. **`resources/scripts/check_allele_orientation.py`**:
    - The reproducible inspection script.
-3. **`resources/scripts/create_rescued_gwas_files.py`**:
+3. **`src/manifest_generation/providers/gwas_catalog/create_rescued_gwas_files.py`**:
    - Script generating the 91 verified derived files into `/data/opengwasdb/derived/ebi-gwas-catalog/` and creating the overlay manifest `eur-hybrid-rescue-orientation-manifest.tsv`.

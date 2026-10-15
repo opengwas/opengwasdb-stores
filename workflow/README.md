@@ -7,10 +7,9 @@ Two workflows, deliberately separate, meeting at the accepted Release Bundle.
 | `Snakefile` | Phase A | accepted bundle -> validated Store Release |
 | `generate.smk` | Phase B | frozen Source Inventory -> candidate bundle (coarse wiring; the operator entry point is `pixi run generate-candidate`) |
 
-Phase A is Store Release Build: `Snakefile`, `release.py` and the `ogstores`
-package (`src/ogstores`). Phase B is Manifest Generation: the
-`manifest_generation` package (`src/manifest_generation`), which `generate.smk`
-only wires. Store Release Build imports nothing from Manifest Generation; both
+Store Release Build is `Snakefile`, `release.py` and the `ogstores` package
+(`src/ogstores`). Manifest Generation is the `manifest_generation` package
+(`src/manifest_generation`), which `generate.smk` only wires. Store Release Build imports nothing from Manifest Generation; both
 may import the Release Bundle contract (`tests/packaging/test_boundary.py`).
 
 They share no DAG. The reason is not that one graph would be complex: the
@@ -90,7 +89,7 @@ See `docs/spec/store-release-workflow.md`.
 
 ## Phase B Operator Interface
 
-The Phase B candidate workflow (issue #153) is driven by the Manifest
+The candidate workflow (issue #153) is driven by the Manifest
 Generation entry point, `python3 -m manifest_generation.generate_candidate`
 (`src/manifest_generation/generate_candidate.py`), exposed as one Pixi task. It
 runs any candidate-workflow config:

@@ -47,7 +47,7 @@ assignment:
 ```sh
 pixi run Rscript resources/generators/metabolome-plasma-2023/generate.R --mode=effect-scale
 
-pixi run python resources/generators/lib/source-formats/gwas-ssf-ragged/ancestry-assign.py \
+pixi run python3 -m manifest_generation.providers.gwas_catalog.ancestry_assign \
   --release-dir="$(pixi run python3 -m manifest_generation.emit work-root OGS-00006)"
 ```
 

@@ -136,13 +136,13 @@ workflow begins at the fixed-input boundary documented in
 stores/            accepted Release Bundles, one per Store Release
 workflow/          Phase A: accepted bundle -> validated Store Release
 src/ogstores/      Store Release Build, and the Release Bundle contract both use
-src/manifest_generation/  Manifest Generation (Phase B): sources -> candidate bundle
+src/manifest_generation/  Manifest Generation: sources -> candidate Release Bundle
   providers/           per-Source-Provider connector code
 resources/         everything on the input side
   reference-resources/ auxiliary build-time inputs
   annotations/         curated metadata that outlives a release
   inventories/         frozen Source Inventories
-  generators/          Phase B inputs: per-generator configs and reviewed
+  generators/          Manifest Generation inputs: per-generator configs and reviewed
                        tables; legacy R generators until they retire
   scripts/             standalone toolchains and repo tooling
 docs/              adr/ decisions, spec/ specifications, rendered site
@@ -173,7 +173,7 @@ Per ADR 0023 it contains no source column name, no
 manifest translation, and no layout branch -- each rule asks `ogstores.plan`
 for a Step and hands it to `ogstores.run`.
 
-`generate.smk` (Phase B) lives here too, as coarse wiring over
+`generate.smk` (Manifest Generation) lives here too, as coarse wiring over
 `python3 -m manifest_generation.generate_candidate`. The two share no DAG: the accepted
 bundle is a boundary only because a human froze it, and one graph spanning both
 would silently regenerate a bundle and rebuild a Store when a generator config
@@ -188,13 +188,15 @@ because it is not Phase A's: a generator validates what it emits with
 it too. `workflow/` is also Snakemake's
 own namespace (`Snakefile`, `rules/`, `scripts/`, `envs/`).
 
-Manifest Generation may import the Release Bundle contract from `ogstores`
-(`bundle`, `paths`, `index`); Store Release Build imports nothing from
-Manifest Generation. `tests/packaging/test_boundary.py` enforces both.
+Store Release Build imports nothing from Manifest Generation. Manifest
+Generation imports from `ogstores` the Release Bundle contract (`bundle`) and
+the registry layout it shares with Store Release Build: Store id and Artifact
+Root paths (`paths`) and the master-list index (`index`).
+`tests/packaging/test_boundary.py` enforces both directions.
 
 ### `src/manifest_generation/`
 
-Phase B, Manifest Generation (ADRs 0035 and 0036), installed editable like
+Manifest Generation (ADRs 0035 and 0036), installed editable like
 `ogstores`. Its root holds the shared pipeline: the candidate workflow
 (`candidate_workflow.py`), its entry point (`generate_candidate.py`, run as
 `pixi run generate-candidate` or `python3 -m manifest_generation.generate_candidate`),
@@ -204,8 +206,10 @@ the one emitter (`emit.py`), Manifest Generation's rules
 
 `providers/<provider>/` holds one Source Provider's connector code, each an
 importable subpackage: acquisition and download scripts, metadata adapters,
-and generators specific to that provider. dbGaP is a host rather than one
-collection, so its MVP (phs002453) generator is `providers/dbgap/mvp/`.
+and generators specific to that provider. A provider that is inconsistent
+across its collections gets one subpackage per Source Collection (ADR 0036):
+dbGaP is a host rather than one collection, so the MVP (phs002453)
+acquisition and generator are `providers/dbgap/mvp/`.
 
 Everything here is imported as a module, never loaded by file path or through
 `sys.path` (`tests/packaging/test_imports.py`). Run a module with
@@ -233,7 +237,7 @@ changes how the statistics are interpreted, does.
 
 ### `resources/generators/`
 
-Phase B's inputs. `<generator>/` holds a generator's configs, reviewed tables,
+Manifest Generation's inputs. `<generator>/` holds a generator's configs, reviewed tables,
 `generation-*.yaml` receipts and README; recorded config paths and receipts
 resolve here, so they do not move. The code that reads them is in
 `src/manifest_generation/`.

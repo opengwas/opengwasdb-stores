@@ -16,12 +16,12 @@ The working bundle lives in the generator's work root,
 ```sh
 WORK=$(pixi run python3 -m manifest_generation.emit work-root OGS-00003)
 pixi run Rscript resources/generators/finngen-r13/generate.R --mode=emit
-pixi run python -m manifest_generation.providers.finngen.acquire \
+pixi run python3 -m manifest_generation.providers.finngen.acquire \
   --release-dir="$WORK"
-pixi run python -m manifest_generation.providers.opengwas.annotate \
+pixi run python3 -m manifest_generation.providers.opengwas.annotate \
   --release-dir="$WORK" \
   --workers=8
-pixi run python -m manifest_generation.providers.finngen.assess \
+pixi run python3 -m manifest_generation.providers.finngen.assess \
   --release-dir="$WORK" \
   --full-analysis-count=2754
 ```
@@ -51,7 +51,7 @@ pixi run Rscript resources/generators/finngen-r13/generate.R \
 
 # 2. Download every endpoint into the release artifact source directory.
 #    Resumable: completed files are checksummed and kept, not re-fetched.
-pixi run python -m manifest_generation.providers.finngen.acquire \
+pixi run python3 -m manifest_generation.providers.finngen.acquire \
   --release-dir="$(pixi run python3 -m manifest_generation.emit work-root OGS-00017)" --workers=8
 ```
 

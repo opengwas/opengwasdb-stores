@@ -37,24 +37,24 @@ than invoking a bare interpreter or a sibling checkout's virtualenv.
 
 ```text
 Source Collection
-  -> Manifest Generation           (Phase B: src/manifest_generation/)
+  -> Manifest Generation           (src/manifest_generation/)
   -> accepted Release Bundle       stores/OGS-00042/
-  -> Store Release Build           (Phase A: src/ogstores/, workflow/)
+  -> Store Release Build           (src/ogstores/, workflow/)
 ```
 
 Two workflows, meeting at the accepted Release Bundle and sharing no DAG.
 Phase A is specified in
 [`docs/spec/store-release-workflow.md`](docs/spec/store-release-workflow.md).
-Phase B generation is the `manifest_generation` package under
+Manifest Generation is the `manifest_generation` package under
 `src/manifest_generation/` (#249): the shared candidate workflow and emitter at
 its root, and each Source Provider's connector code (acquisition, metadata
 adapters, provider-specific generators) under `providers/`. Each generator's
 config and reviewed inputs stay under `resources/generators/<generator>/`, and
 each release records the commands it ran in `release.yaml:generator.commands`.
 The legacy R generators also remain under `resources/generators/` until they
-retire (ADR 0036). What is still open is a Phase B Snakemake
-DAG (`workflow/generate.smk`), whose four boundary rules are fixed so Phase A
-is not built against a moving target.
+retire (ADR 0036). What is still open is a Manifest Generation Snakemake
+DAG (`workflow/generate.smk`), whose four boundary rules are fixed so Store
+Release Build is not built against a moving target.
 
 The single rule everything else follows from (ADR 0023):
 
@@ -81,7 +81,7 @@ resources/
   reference-resources/     LD panels, reference AF, trait mappings, QC panels
   annotations/             curated metadata that evolves after release
   inventories/             frozen Source Inventories
-  generators/              Phase B inputs: per-generator configs, reviewed TSVs,
+  generators/              Manifest Generation inputs: per-generator configs, reviewed TSVs,
                            generation receipts; legacy R generators
   scripts/                 toolchains and repository tooling
 docs/adr/  docs/spec/    decisions and specifications

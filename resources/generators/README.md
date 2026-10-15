@@ -1,6 +1,6 @@
-# Manifest Generation inputs (Phase B)
+# Manifest Generation inputs
 
-Phase B, Manifest Generation, produces a candidate Release Bundle from a Source
+Manifest Generation produces a candidate Release Bundle from a Source
 Collection. Its machinery is the `manifest_generation` package under
 [`src/manifest_generation/`](../../src/manifest_generation/) (#249); this
 directory holds its **inputs**:
@@ -22,9 +22,10 @@ src/manifest_generation/              the shared pipeline: candidate workflow,
                                       generate_candidate (entry point), inventory
                                       (freeze/preflight), emit, generation_rules
 src/manifest_generation/providers/    per-Source-Provider connectors:
-  gwas_catalog/   EBI downloads; imputation-score declarations
+  gwas_catalog/   EBI downloads; the OGS-00011 orientation rescue; imputation-score
+                  declarations; ancestry assignment for the R GWAS-SSF Ragged generators
   ukb_b/          Source Inventory, provider metadata, candidate generator
-  dbgap/          phs002453 acquisition; mvp/ the MVP candidate generator and pilot
+  dbgap/mvp/      phs002453 (MVP): acquisition, candidate generator and pilot
   finngen/        R13 acquisition and assessment
   eqtlgen/        BESD generator and subsetter
   opengwas/       GWAS-VCF annotation
