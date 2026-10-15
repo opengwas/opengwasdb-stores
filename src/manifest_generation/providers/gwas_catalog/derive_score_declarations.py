@@ -13,7 +13,7 @@ look-alike such as ``additional_info`` or ``r2_iCOGS`` never becomes a score.
 The first synonym declared, in the listed order, wins: every ``imputation_info``
 synonym is preferred over every ``imputation_r2`` synonym.
 
-    pixi run python -m manifest_generation.providers.gwas_catalog.derive_score_declarations
+    pixi run python3 -m manifest_generation.providers.gwas_catalog.derive_score_declarations
 
 Writes ``resources/generators/gwas-catalog-eur-hybrid/score-declarations.tsv``
 (or ``--out``) and prints a per-header count.  The output columns are exactly

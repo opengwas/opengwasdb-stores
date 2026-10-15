@@ -32,22 +32,22 @@ resources/data/derived/store-candidates-analyses.tsv   candidate table (gitignor
 ```
 # 1. materialise every member of every verified tar (33 tars, one sequential
 #    pass each; members land in GIA/extracted/<tar directory>/<member>)
-pixi run python -m manifest_generation.providers.dbgap.acquire_dbgap_phs002453 \
+pixi run python3 -m manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 \
   --out /data/opengwasdb/raw/dbgap-phs002453 extract --jobs 4
 
 # 2. bind each Analysis to its candidate-table row; writes mapping.tsv,
 #    mapping-report.tsv and the mapping-review.tsv trait queue, and exits
 #    non-zero unless the bijection is complete (the default
 #    --discrepancies ledger is resources/scripts/dbgap-phs002453-key-discrepancies.yaml)
-pixi run python -m manifest_generation.providers.dbgap.acquire_dbgap_phs002453 map \
+pixi run python3 -m manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 map \
   --candidates resources/data/derived/store-candidates-analyses.tsv
 
 # 3. convert into gwas-ssf/<bucket>/<GCST>/{<GCST>.tsv.gz,<GCST>.tsv.gz-meta.yaml}
-pixi run python -m manifest_generation.providers.dbgap.acquire_dbgap_phs002453 convert --jobs 32
+pixi run python3 -m manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 convert --jobs 32
 
 # 4. one acquisition manifest per store_key, readable by
 #    manifest_generation.source_inventory
-pixi run python -m manifest_generation.providers.dbgap.acquire_dbgap_phs002453 manifest --jobs 8
+pixi run python3 -m manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 manifest --jobs 8
 ```
 
 Every stage is idempotent, writes through `.partial` files and renames, and can

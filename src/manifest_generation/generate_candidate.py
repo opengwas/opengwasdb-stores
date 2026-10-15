@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Phase B candidate generator: the Manifest Generation entry point (issues #153, #249).
+"""Candidate Release Bundle generator: the Manifest Generation entry point (#153, #249).
 
 One operator entry point turns a frozen Source Inventory into a candidate Release
-Bundle, without ever invoking Phase A or building a Store. It runs any
+Bundle, without ever invoking Store Release Build or building a Store. It runs any
 candidate-workflow config; the EBI GWAS Catalog eur-hybrid release's
 `config-full.yaml` is only the default:
 
@@ -76,7 +76,8 @@ from manifest_generation.source_inventory import (
 from ogstores.paths import require_valid_store_id
 
 #: The module this entry point runs as, recorded in the bundle's command log.
-MODULE = "manifest_generation.generate_candidate"
+#: `__spec__.name`, not `__name__`, which is "__main__" under `python3 -m`.
+MODULE = __spec__.name
 #: Any candidate-workflow config runs; without --config, the OGS-00011 release's.
 DEFAULT_CONFIG = "resources/generators/gwas-catalog-eur-hybrid/config-full.yaml"
 STAGES = ("preflight", "prepare", "resolve", "verify", "emit", "all")

@@ -58,7 +58,7 @@ for slug in European African Hispanic-or-Latin-American East-Asian; do
   while :; do
     attempt=$((attempt + 1))
     echo "=== ${key} harmonised attempt ${attempt}/${ATTEMPTS} : $(date -Is) ==="
-    pixi run python -m manifest_generation.providers.gwas_catalog.download_ebi_gwas_catalog_eur_hybrid \
+    pixi run python3 -m manifest_generation.providers.gwas_catalog.download_ebi_gwas_catalog_eur_hybrid \
       --store-key "$key" \
       --dest "$MIRROR" \
       --harmonised-index "$INDEX" \
@@ -82,7 +82,7 @@ for slug in European African Hispanic-or-Latin-American East-Asian; do
   done
 
   echo "=== ${key} raw fallback : $(date -Is) ==="
-  pixi run python -m manifest_generation.providers.gwas_catalog.download_ebi_gwas_catalog_raw \
+  pixi run python3 -m manifest_generation.providers.gwas_catalog.download_ebi_gwas_catalog_raw \
     --store-key "$key" \
     --dest "$MIRROR" \
     --harmonised-manifest "$manifest" \

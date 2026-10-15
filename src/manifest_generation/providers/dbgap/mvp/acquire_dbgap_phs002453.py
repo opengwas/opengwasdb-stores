@@ -47,7 +47,7 @@ Subcommands, in order:
 
 Usage (see ``README.md`` next to this module)::
 
-    python3 -m manifest_generation.providers.dbgap.acquire_dbgap_phs002453 --help
+    python3 -m manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 --help
 """
 from __future__ import annotations
 

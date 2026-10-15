@@ -11,7 +11,7 @@
 
 suppressPackageStartupMessages(library(yaml))
 
-.run_emit_py <- function(root, args) {
+.run_emit_py <- function(args) {
   # system2 hands its arguments to a shell, so each is quoted: a command log
   # entry holds spaces.
   out <- suppressWarnings(system2("python3", shQuote(c("-m", "manifest_generation.emit", args)),
@@ -21,13 +21,13 @@ suppressPackageStartupMessages(library(yaml))
 }
 
 ## <artifact-root>/<output.store_id>/generate, where a generator keeps its working files.
-generation_work_root <- function(cfg, root) {
+generation_work_root <- function(cfg) {
   store_id <- cfg$output$store_id
   if (is.null(store_id) || !nzchar(store_id)) {
     stop("output.store_id is required: a generator's work root is <artifact-root>/<store-id>/generate",
          call. = FALSE)
   }
-  result <- .run_emit_py(root, c("work-root", store_id))
+  result <- .run_emit_py(c("work-root", store_id))
   if (!result$ok) stop("manifest_generation.emit work-root failed:\n", paste(result$output, collapse = "\n"), call. = FALSE)
   result$output[[length(result$output)]]
 }
@@ -59,7 +59,7 @@ emit_registry <- function(cfg, root, script, also_ran = character(), source_snap
     write_yaml(source_snapshot, snapshot_path)
     args <- c(args, "--source-snapshot", snapshot_path)
   }
-  result <- .run_emit_py(root, args)
+  result <- .run_emit_py(args)
   if (!result$ok) stop(paste(result$output, collapse = "\n"), call. = FALSE)
   cat(result$output, sep = "\n")
   invisible(TRUE)

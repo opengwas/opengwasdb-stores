@@ -2,7 +2,7 @@
 # Labels to the super-population codes Assigned Ancestry uses
 # (docs/release-metadata-schema.md; resources/reference-resources/
 # ukb-ancestry-mixture-hg38/resource.yaml). Both the R generators and
-# resources/generators/lib/source-formats/gwas-ssf-ragged/ancestry-assign.py
+# src/manifest_generation/providers/gwas_catalog/ancestry_assign.py
 # read the same tracked TSV so the two vocabularies cannot drift apart
 # (opengwasdb-stores#133).
 #

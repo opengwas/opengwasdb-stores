@@ -99,7 +99,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-MODULE = "manifest_generation.providers.eqtlgen.generate"
+MODULE = __spec__.name  # not __name__: that is "__main__" under python3 -m
 GENERATOR = f"python3 -m {MODULE}"
 
 

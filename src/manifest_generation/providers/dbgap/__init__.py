@@ -1,1 +1,1 @@
-"""dbGaP: acquisition for phs002453 and, in `mvp`, the MVP collection's generator."""
+"""dbGaP: a host, not one collection. Each Source Collection is a subpackage (`mvp`)."""

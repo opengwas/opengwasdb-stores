@@ -4,7 +4,7 @@
 
   python3 tests/ancestry-assignment/run_tests.py
 
-Regenerates the deterministic fixtures, runs ancestry-assign.py against them
+Regenerates the deterministic fixtures, runs the ancestry-assignment module against them
 exactly as a real Store Family would, and asserts on the emitted
 release-bundle outputs (sidecar, analyses.tsv, validation.yaml) rather than on
 internal helper functions, matching this repository's testing convention.
@@ -60,13 +60,14 @@ def main() -> None:
     result = subprocess.run(
         [
             sys.executable,
-            str(REPO_ROOT / "resources" / "generators" / "lib" / "source-formats" / "gwas-ssf-ragged" / "ancestry-assign.py"),
+            "-m",
+            "manifest_generation.providers.gwas_catalog.ancestry_assign",
             f"--release-dir={RELEASE_DIR}",
         ],
         cwd=REPO_ROOT,
     )
     if result.returncode != 0:
-        raise SystemExit("ancestry-assign.py exited non-zero")
+        raise SystemExit("manifest_generation.providers.gwas_catalog.ancestry_assign exited non-zero")
 
     sidecar = read_tsv(RELEASE_DIR / "sidecars" / "ancestry.tsv")
     analyses = read_tsv(RELEASE_DIR / "analyses.tsv")

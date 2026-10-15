@@ -198,7 +198,7 @@ def main() -> None:
     write_tsv(report_path, reports, report_fields)
     merge_validation_yaml(
         release_dir / "validation.yaml",
-        validator_name="manifest_generation.providers.finngen.acquire",
+        validator_name=__spec__.name,
         updated_checks={"files": "failed" if evidence_errors else "passed"},
         updated_reports={"downloads": "sidecars/downloads.tsv"},
         new_warnings=evidence_errors,

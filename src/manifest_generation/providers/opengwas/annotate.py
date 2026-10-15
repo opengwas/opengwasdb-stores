@@ -365,7 +365,7 @@ def main() -> None:
     write_tsv(release_dir / "sidecars" / "sd_estimation.tsv", sd_rows, sd_columns)
     merge_validation_yaml(
         release_dir / "validation.yaml",
-        validator_name="manifest_generation.providers.opengwas.annotate",
+        validator_name=__spec__.name,
         updated_checks={
             "ancestry": overall_check(ancestry_statuses),
             "effect_scale": overall_check(sd_statuses),

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Tests for dbGaP phs002453 (PMID 39024449) acquisition (``acquire-dbgap-phs002453.py``).
+"""Tests for dbGaP phs002453 (PMID 39024449) acquisition
+(``manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453``).
 
 Covers the contract the acquisition script implements:
 
@@ -36,9 +37,9 @@ from pathlib import Path
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 #: The acquisition command line, run as the installed module.
-SCRIPT = ("-m", "manifest_generation.providers.dbgap.acquire_dbgap_phs002453")
+SCRIPT = ("-m", "manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453")
 
-from manifest_generation.providers.dbgap import acquire_dbgap_phs002453 as ACQUIRE
+from manifest_generation.providers.dbgap.mvp import acquire_dbgap_phs002453 as ACQUIRE
 from manifest_generation.source_inventory import (
     ACQUISITION_MANIFEST_COLUMNS,
     AcquisitionPass,

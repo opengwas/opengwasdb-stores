@@ -5,7 +5,7 @@
 # mode this repository and opengwasdb independently defining analyses.tsv
 # schemas invites (see docs/adr/0017-opengwasdb-owns-shared-analysis-schema.md).
 
-validate_against_opengwasdb_schema <- function(analyses_path, root) {
+validate_against_opengwasdb_schema <- function(analyses_path) {
   python_bin <- Sys.which("python3")
   if (!nzchar(python_bin)) {
     stop("python3 not found on PATH; required to validate analyses.tsv against opengwasdb's shared schema")

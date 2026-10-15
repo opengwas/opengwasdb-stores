@@ -35,7 +35,7 @@ fi
 status=0
 for attempt in $(seq 1 "$ATTEMPTS"); do
   echo "=== attempt ${attempt}/${ATTEMPTS} : $(date -Is) ==="
-  pixi run python -m manifest_generation.providers.finngen.acquire \
+  pixi run python3 -m manifest_generation.providers.finngen.acquire \
     --release-dir="$RELEASE_DIR" \
     --workers="$WORKERS"
   rc=$?

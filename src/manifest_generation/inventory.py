@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase B inventory commands: freeze and preflight a Source Inventory (#151, #249).
+"""Manifest Generation inventory commands: freeze and preflight a Source Inventory (#151, #249).
 
 Two operator commands, one per direction of the same seam (issue #151):
 

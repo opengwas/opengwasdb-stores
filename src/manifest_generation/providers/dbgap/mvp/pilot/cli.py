@@ -16,13 +16,14 @@ import shutil
 import sys
 from pathlib import Path
 
+from manifest_generation import REPO_ROOT
 from manifest_generation.providers.dbgap.mvp import generate_candidate as generator
 from manifest_generation.providers.dbgap.mvp.pilot import selection, wrapper
 
 _HERE = Path(__file__).resolve().parent
 
 DEFAULT_MAPPING = Path("/data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv")
-DEFAULT_CANDIDATE_TABLE = Path("/home/gh13047/repo/opengwasdb-stores/resources/data/derived/store-candidates-analyses.tsv")
+DEFAULT_CANDIDATE_TABLE = REPO_ROOT / "resources/data/derived/store-candidates-analyses.tsv"
 DEFAULT_METADATA_ROOT = Path("/data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z")
 GUARD_SOURCE = _HERE / "guard" / "sitecustomize.py"
 

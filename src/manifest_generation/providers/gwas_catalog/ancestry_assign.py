@@ -16,7 +16,7 @@ via the same shared merge helper the effect-scale stage's fix to
 build-store.py introduced, so no stage clobbers another's checks.
 
 Usage:
-  pixi run python resources/generators/lib/source-formats/gwas-ssf-ragged/ancestry-assign.py \
+  pixi run python3 -m manifest_generation.providers.gwas_catalog.ancestry_assign \
     --release-dir="$(python3 -m manifest_generation.emit work-root <OGS-id>)"
 
 `--release-dir` is the generator's working bundle, in its work root (#248).
@@ -29,6 +29,7 @@ import csv
 import gzip
 from pathlib import Path
 
+from manifest_generation import REPO_ROOT
 from manifest_generation.ancestry_sidecar import format_sidecar_float
 from manifest_generation.release_yaml import (
     get,
@@ -52,9 +53,8 @@ from opengwasdb.variants.normalise import VariantNormalisationError, orient_to_c
 # (Multiple/Mixed, NR/Unknown, Other, Asian (unspecified)) are absent from the
 # map so no mismatch is fabricated from a label that isn't precise enough to
 # compare.
-_REPO_ROOT = Path(__file__).resolve().parents[5]
 _SOURCE_LABEL_MAP_PATH = (
-    _REPO_ROOT / "resources" / "reference-resources"
+    REPO_ROOT / "resources" / "reference-resources"
     / "ukb-ancestry-mixture-hg38" / "source_label_map.tsv"
 )
 
@@ -299,7 +299,7 @@ def main() -> None:
 
     merge_validation_yaml(
         release_dir / "validation.yaml",
-        validator_name="resources/generators/lib/source-formats/gwas-ssf-ragged/ancestry-assign.py",
+        validator_name=__spec__.name,
         updated_checks={"ancestry": ancestry_check},
         updated_reports={},
         new_warnings=checks_warnings,

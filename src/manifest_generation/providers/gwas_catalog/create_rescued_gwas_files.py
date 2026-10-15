@@ -11,6 +11,9 @@ Writes derived files under:
   /data/opengwasdb/derived/ebi-gwas-catalog/<bucket>/<accession>/harmonised/
 And status manifest:
   /data/opengwasdb/derived/ebi-gwas-catalog/eur-hybrid-rescue-orientation-manifest.tsv
+
+Run with:
+  pixi run python3 -m manifest_generation.providers.gwas_catalog.create_rescued_gwas_files
 """
 
 from __future__ import annotations
@@ -24,7 +27,8 @@ import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from manifest_generation import REPO_ROOT
+
 SUMMARY_TSV = REPO_ROOT / "stores/OGS-00011/sidecars/allele-check/summary.tsv"
 SOURCE_READINESS_TSV = REPO_ROOT / "stores/OGS-00011/sidecars/source_readiness.tsv"
 DERIVED_BASE = Path("/data/opengwasdb/derived/ebi-gwas-catalog")

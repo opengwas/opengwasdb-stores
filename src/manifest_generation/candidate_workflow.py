@@ -23,7 +23,7 @@ things and nothing else:
   controlled, explained exclusions), and the pinned OpenGWASDB Analysis schema.
 
 Output is a **candidate-only** Release Bundle, rendered deterministically and
-emitted through the shared emitter (``emit.py``, #248). It never builds, validates
+emitted through the shared emitter (``manifest_generation.emit``, #248). It never builds, validates
 or materialises a Store, never redownloads or copies a source body, never
 invokes Phase A, and never infers an accepted status.
 

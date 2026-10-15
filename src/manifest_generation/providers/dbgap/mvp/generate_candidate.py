@@ -57,7 +57,7 @@ from ogstores import bundle as bundle_module
 from opengwasdb.model.analyses import SampleSizeKind
 
 #: The module this generator runs as, recorded in the bundles it emits.
-MODULE = "manifest_generation.providers.dbgap.mvp.generate_candidate"
+MODULE = __spec__.name
 
 DEFAULT_CONFIG = "resources/generators/dbgap-mvp/config-candidate.yaml"
 
@@ -119,10 +119,7 @@ def sha256_file(path: Path | str) -> str:
     return digest.hexdigest()
 
 
-DEFAULT_REGISTRY_ROOTS: tuple[Path, ...] = (
-    REPO_ROOT / "stores",
-    Path("/home/gh13047/repo/opengwasdb-stores/stores"),
-)
+DEFAULT_REGISTRY_ROOTS: tuple[Path, ...] = (REPO_ROOT / "stores",)
 
 META_ANCESTRY_ALIASES: frozenset[str] = frozenset(
     {"", "META", "MULTI-ANCESTRY", "MULTIANCESTRY", "MIXED"}
@@ -149,9 +146,10 @@ def assert_not_registry_store_root(
 
     A candidate passes ``bundle.check()``, and the Phase A Snakefile targets
     every valid bundle under ``stores/``; writing there would make an unbuilt,
-    acceptance-pending candidate buildable. Rejects this checkout's root, the
-    canonical/primary root, any caller-supplied ``--registry-root``, any path
-    component literally named ``stores``, and any symlinked ancestor.
+    acceptance-pending candidate buildable. Rejects this checkout's root, any
+    caller-supplied ``--registry-root``, any path component literally named
+    ``stores`` (which covers every other checkout's registry), and any
+    symlinked ancestor.
     """
     path = Path(out_dir)
     roots = [Path(root).resolve() for root in (*DEFAULT_REGISTRY_ROOTS, *registry_roots)]
@@ -412,21 +410,16 @@ def _metadata_root(config: Mapping) -> Path:
 def _resolve_metadata_path(config: Mapping, value: str | None) -> Path | None:
     """Resolve a named metadata input to an existing regular file, if possible.
 
-    Relative names are tried against this checkout and the primary checkout (the
-    gitignored candidate table lives only in the primary). Returns None rather
-    than guessing when the file is absent.
+    Relative names resolve against this checkout (``REPO_ROOT``); a file that
+    lives elsewhere, such as a gitignored candidate table generated in another
+    checkout, must be named by an absolute path. Returns None rather than
+    guessing when the file is absent.
     """
     if not value:
         return None
     candidate = Path(value)
-    bases = [Path("/")]
-    if not candidate.is_absolute():
-        bases = [REPO_ROOT, Path("/home/gh13047/repo/opengwasdb-stores")]
-    for base in bases:
-        resolved = candidate if candidate.is_absolute() else base / candidate
-        if resolved.is_file():
-            return resolved
-    return None
+    resolved = candidate if candidate.is_absolute() else REPO_ROOT / candidate
+    return resolved if resolved.is_file() else None
 
 
 def _require_metadata_file(

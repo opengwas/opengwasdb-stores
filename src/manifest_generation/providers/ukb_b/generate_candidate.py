@@ -52,7 +52,7 @@ from manifest_generation.providers.ukb_b import inventory as ukb_inventory
 from ogstores.paths import is_valid_store_id
 
 #: The module this generator runs as, recorded in the bundle it emits.
-MODULE = "manifest_generation.providers.ukb_b.generate_candidate"
+MODULE = __spec__.name  # not __name__: that is "__main__" under python3 -m
 
 DEFAULT_CONFIG = "resources/generators/ukb-b/config-candidate.yaml"
 

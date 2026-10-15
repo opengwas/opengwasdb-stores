@@ -138,7 +138,7 @@ def main() -> None:
     report_path.write_text("\n".join(report_lines), encoding="utf-8")
     merge_validation_yaml(
         release_dir / "validation.yaml",
-        validator_name="manifest_generation.providers.finngen.assess",
+        validator_name=__spec__.name,
         updated_checks={},
         updated_reports={"pilot_assessment": "pilot_report.md"},
         new_warnings=[],
