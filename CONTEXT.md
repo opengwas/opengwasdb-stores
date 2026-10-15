@@ -22,8 +22,20 @@ A homogeneous upstream set of summary-statistics inputs with one Source Format a
 _Avoid_: input folder, data dump
 
 **Source Inventory**:
-A discovered list or snapshot of upstream Analyses available in a Source Collection, including source IDs, locations, checksums, sizes, and basic readiness metadata where available.
-_Avoid_: release manifest, store manifest
+The frozen reconciliation, for one Selection, of the Analyses a Source Collection intends (its Source Metadata Table) against the files acquisition produced (its Acquisition Manifest): each selected Analysis with its source IDs, location, checksum, size and readiness. Freezing fails loudly on a selected Analysis with no file, a file no Analysis claims, or a duplicate; a directory listing is never the intent.
+_Avoid_: release manifest, store manifest, discovered file list
+
+**Acquisition Manifest**:
+What acquisition produced for a Source Collection: each file fetched, extracted or converted, with its location, size and checksum. It records what is available, never what is intended.
+_Avoid_: download log, source inventory
+
+**Selection**:
+The subset of a Source Collection's intended Analyses that one release takes, declared in its release config by rule or by list -- all of them, a Trial Store Release's handful, or one ancestry group. Freezing requires only the selected Analyses, and the Source Inventory records the Selection it was frozen for, so a subset is visible in the bundle rather than implied by which metadata was used.
+_Avoid_: sample, pilot set, partial acquisition
+
+**Source Metadata Table**:
+The per-Analysis source metadata a Manifest Generator reads, in one canonical set of columns whatever the Source Collection: Source Analysis ID, Source Trait Label, source ancestry, sample size, trait type and declared effect scale, genome build, publication and licence. A source-specific adapter writes it from the provider's own metadata -- an API, a manifest, a study table -- and it is frozen with the Source Inventory, so generation reads no live source and a metadata change is a reviewed re-freeze rather than a silent difference between runs.
+_Avoid_: candidate table, candidates table, metadata resolver output
 
 **Source Bundle**:
 A named group of source files shared by one or more Analyses when a single `source_file` column is insufficient.
@@ -44,6 +56,14 @@ _Avoid_: Phase B, candidate generation, build phase
 **Manifest Generator**:
 An orchestration program that discovers or selects upstream inputs from a Source Collection and emits a candidate Release Bundle.
 _Avoid_: selector, manifest script
+
+**Analysis Resolution**:
+OpenGWASDB's pass over one Analysis's source file that measures what release decisions need -- ancestry fit, allele alignment against a reference, phenotype SD, allele-frequency and imputation-quality state -- and records the measurements in a Resolution Record. Every Analysis Manifest Generation admits is resolved, except one whose Source Format OpenGWASDB cannot resolve: its values are then declared by the source and recorded as declared, not measured. Manifest Generation decides from the record and never computes these statistics itself (ADRs 0012, 0017).
+_Avoid_: metadata resolution (fetching source metadata is not resolution)
+
+**Quality Check**:
+A named release-policy test of one Resolution Record measurement against a threshold, with its consequence fixed when the check is defined: an exclusion (the Analysis stays in the Release Manifest as an `exclude_from_build` audit row with the check's reason) or a warning (the Analysis stays in and the finding is recorded). OpenGWASDB measures; Manifest Generation holds the threshold, a shared default a release may override and records, and records every Analysis's measurement whether it passes or not. A Quality Check decides membership, so it runs before the Release Bundle exists; checks on a built Store are Store Release Build's validation and cannot change membership.
+_Avoid_: QC panel (a variant extraction panel, not a check), validation (of a built Store)
 
 **Store Release Build**:
 The workflow that turns an accepted Release Bundle into a built, validated and published Store Release, run through `pixi run release`. It builds only a bundle whose Release Status allows a build (`accepted`, `built` or `validated`), and it never regenerates a bundle (ADR 0035).
