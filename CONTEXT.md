@@ -26,7 +26,7 @@ The frozen reconciliation, for one Selection, of the Analyses a Source Collectio
 _Avoid_: release manifest, store manifest, discovered file list
 
 **Acquisition Manifest**:
-What acquisition produced for a Source Collection: each file fetched, extracted or converted, with its location, size and checksum. It records what is available, never what is intended.
+What acquisition produced for a Source Collection: each file fetched, extracted or converted, with its location, size and checksum. It records what is available, never what is intended. A file acquisition had to reformat before any reader could open it -- a structural change a Column Map cannot express, such as splitting one file into one per Analysis -- also records the original it came from, with that original's location and checksum and the tool that reformatted it, so a Release Bundle traces back to what the provider published.
 _Avoid_: download log, source inventory
 
 **Selection**:
@@ -46,8 +46,12 @@ The structural format of upstream summary-statistics inputs, such as GWAS-VCF, G
 _Avoid_: source collection, store layout
 
 **Source Reader Capability**:
-The OpenGWASDB capability assigned to a Source Collection for reading and normalising all analyses in that collection.
+The OpenGWASDB capability assigned to a Source Collection for reading and normalising all analyses in that collection. For tabular sources it is OpenGWASDB's generic tabular reader together with the collection's Column Map; a dedicated reader remains only for a Source Format a Column Map cannot describe, such as GWAS-VCF or BESD.
 _Avoid_: source format, build recipe
+
+**Column Map**:
+The declaration, one per Source Collection, of how OpenGWASDB's generic tabular reader reads that collection's files: which provider column supplies each required and optional field, and the collection's conventions -- missing-value tokens, effect type, p-value form, which allele the effect and frequency refer to, chromosome spelling and genome build. An undeclared required field or an unknown key is a refusal, never a guess. It travels in the Release Bundle, checksummed, so Analysis Resolution and Store Release Build read every file the same way. Files that need different Column Maps belong to different Source Collections.
+_Avoid_: header mapping, schema, reader config
 
 **Manifest Generation**:
 The workflow that turns a frozen Source Inventory into a candidate Release Bundle. A Manifest Generator selects and resolves the Analyses, applies the release policy, and emits the bundle into the Store Registry with Release Status `candidate`. It never builds, validates or publishes a Store, and it meets Store Release Build only at the Release Bundle (ADR 0035).
