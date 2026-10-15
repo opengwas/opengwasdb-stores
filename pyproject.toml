@@ -17,8 +17,21 @@ requires-python = ">=3.12"
 dependencies = []
 
 [tool.setuptools]
-# `ogstores` lives under src/. The curation tooling and the generator library
-# still live at the repository root: `resources.generators.lib` is mapped here
-# only until #249 moves Manifest Generation into a package of its own.
-package-dir = { "ogstores" = "src/ogstores", "curation" = "curation", "resources" = "resources" }
-packages = ["ogstores", "curation", "resources.generators.lib"]
+# Store Release Build (`ogstores`) and Manifest Generation
+# (`manifest_generation`, #249) live under src/; they meet only at the Release
+# Bundle (ADR 0035). The curation tooling still lives at the repository root.
+package-dir = { "ogstores" = "src/ogstores", "manifest_generation" = "src/manifest_generation", "curation" = "curation" }
+packages = [
+    "ogstores",
+    "manifest_generation",
+    "manifest_generation.providers",
+    "manifest_generation.providers.dbgap",
+    "manifest_generation.providers.dbgap.mvp",
+    "manifest_generation.providers.dbgap.mvp.pilot",
+    "manifest_generation.providers.eqtlgen",
+    "manifest_generation.providers.finngen",
+    "manifest_generation.providers.gwas_catalog",
+    "manifest_generation.providers.opengwas",
+    "manifest_generation.providers.ukb_b",
+    "curation",
+]
