@@ -15,16 +15,10 @@ reparented detached grandchild (the escape case) and sum its RSS.
 from __future__ import annotations
 
 import os
-import sys
 import unittest
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-PILOT_DIR = REPO_ROOT / "resources" / "generators" / "dbgap-mvp"
-if str(PILOT_DIR) not in sys.path:
-    sys.path.insert(0, str(PILOT_DIR))
-
-import pilot.wrapper as wrapper  # noqa: E402
+from manifest_generation.providers.dbgap.mvp.pilot import wrapper
 
 
 def _stat_text(pid: int, entry: dict) -> str:

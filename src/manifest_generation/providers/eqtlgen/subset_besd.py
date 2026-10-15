@@ -3,7 +3,7 @@
 
 Command-line interface::
 
-    subset_besd.py ANALYSES_TSV INPUT_PREFIX OUTPUT_PREFIX
+    python3 -m manifest_generation.providers.eqtlgen.subset_besd ANALYSES_TSV INPUT_PREFIX OUTPUT_PREFIX
 
 ``analysis_id`` supplies the probe ID; an optional ``::tissue`` suffix is
 removed. Rows whose ``exclude_from_build`` value is true are ignored.

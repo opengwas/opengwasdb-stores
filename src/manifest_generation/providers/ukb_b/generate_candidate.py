@@ -21,13 +21,13 @@ What it owns, and what it deliberately does not:
   if `--ancestry-records` is supplied (e.g. from `opengwasdb resolve-analyses`),
   its per-Analysis values are used instead and the ancestry check is marked run.
 - It never builds, completes, accepts, validates or publishes a Store. The
-  shared emitter (`resources/generators/lib/emit.py`) lands the bundle, and it
+  shared emitter (`manifest_generation.emit`) lands the bundle, and it
   replaces only an earlier candidate (#248).
 
 Usage:
 
-    python3 resources/generators/ukb-b/generate_candidate.py OGS-00017
-    python3 resources/generators/ukb-b/generate_candidate.py OGS-00017 \\
+    python3 -m manifest_generation.providers.ukb_b.generate_candidate OGS-00017
+    python3 -m manifest_generation.providers.ukb_b.generate_candidate OGS-00017 \\
         --ancestry-records /data/opengwasdb/work/epic232/219/ancestry.tsv
 """
 
@@ -36,7 +36,6 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
-import importlib.util
 import json
 import sys
 import tempfile
@@ -47,18 +46,13 @@ from typing import Mapping, Sequence
 
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+from manifest_generation import REPO_ROOT
+from manifest_generation.emit import CandidateBundle, emit
+from manifest_generation.providers.ukb_b import inventory as ukb_inventory
+from ogstores.paths import is_valid_store_id
 
-# The inventory module lives beside this script in a hyphenated directory that
-# is not importable as a package; load it by path.
-_spec = importlib.util.spec_from_file_location("ukb_inventory", Path(__file__).with_name("inventory.py"))
-assert _spec and _spec.loader
-ukb_inventory = importlib.util.module_from_spec(_spec)
-sys.modules["ukb_inventory"] = ukb_inventory
-_spec.loader.exec_module(ukb_inventory)
-
-from ogstores.paths import is_valid_store_id  # noqa: E402
-from resources.generators.lib.emit import CandidateBundle, emit  # noqa: E402
+#: The module this generator runs as, recorded in the bundle it emits.
+MODULE = "manifest_generation.providers.ukb_b.generate_candidate"
 
 DEFAULT_CONFIG = "resources/generators/ukb-b/config-candidate.yaml"
 
@@ -437,7 +431,7 @@ def render_release_yaml(
         "source_snapshot_id": str(config.get("source_snapshot_id", "")),
         "source_snapshot": source_snapshot,
         "generator": {
-            "name": "resources/generators/ukb-b/generate_candidate.py",
+            "name": MODULE,
             "version": generator_version,
         },
         "description": str(config.get("description", "")).strip(),
@@ -475,7 +469,7 @@ def render_validation_yaml(
     return {
         "status": status,
         "validated_at": generated_at,
-        "validator": {"name": "resources/generators/ukb-b/generate_candidate.py", "version": None},
+        "validator": {"name": MODULE, "version": None},
         "checks": {
             "schema": "passed",
             "files": "passed",
@@ -561,8 +555,8 @@ def main(argv: list[str] | None = None) -> int:
 
     n_buildable = sum(1 for row in rows if row["exclude_from_build"] != "true")
     created_at = args.created_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    command = "python3 resources/generators/ukb-b/generate_candidate.py " + " ".join(raw_argv)
-    generator_version = "sha256:" + hashlib.sha256((REPO_ROOT / "resources/generators/ukb-b/generate_candidate.py").read_bytes()).hexdigest()
+    command = f"python3 -m {MODULE} " + " ".join(raw_argv)
+    generator_version = "sha256:" + hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
     # `checks.ancestry` is `passed` only when EVERY admitted Analysis has a valid
     # af_assigned record. A partial, extra or source-fallback record set yields

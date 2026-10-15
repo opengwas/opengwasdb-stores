@@ -193,7 +193,8 @@ emit_bundle <- function(cfg, root, config_path) {
 # --- Registry Release Bundle emission -------------------------------------
 #
 # The emit mode above writes a family-shaped working bundle into the work root,
-# <artifact-root>/<store-id>/generate, which `acquire.py` turns into
+# <artifact-root>/<store-id>/generate, which the FinnGen acquirer
+# (`python -m manifest_generation.providers.finngen.acquire`) turns into
 # checksummed sources. `emit-registry` projects the current contract from it
 # without re-resolving a row and emits it through the one emitter
 # (resources/generators/lib/emit_registry.R, #248), so it can be re-run after
@@ -219,8 +220,8 @@ emit_registry_bundle <- function(cfg, root) {
   # acquire.py logs nothing into the working bundle, so its step is recorded
   # here, symbolically: an artifact root is never committed into a bundle.
   acquire <- paste(
-    "python resources/generators/lib/source-formats/finngen-r13-dense/acquire.py",
-    sprintf('--release-dir="$(python3 resources/generators/lib/emit.py work-root %s)"', cfg$output$store_id),
+    "python -m manifest_generation.providers.finngen.acquire",
+    sprintf('--release-dir="$(python3 -m manifest_generation.emit work-root %s)"', cfg$output$store_id),
     "--workers=8"
   )
   manifest_path <- path_abs(root, cfg$source$manifest_path)

@@ -12,7 +12,7 @@ This code is **not** a live-pilot instruction. `run` refuses to execute without
 
 ```sh
 # DRY PLAN (default): metadata only, no resolver, no body open.
-python3 resources/generators/dbgap-mvp/pilot/cli.py plan \
+python3 -m manifest_generation.providers.dbgap.mvp.pilot.cli plan \
   --metadata-root /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z \
   --mapping /data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv \
   --effect-provenance <owner/source effect-scale provenance.tsv> \
@@ -99,7 +99,7 @@ the outcome is fully ok; a failure leaves the partial output in place for
 inspection and never promotes it. Capped runs are recorded as
 `capped_pilot_diagnostic`, not whole-source qualification.
 
-All registry writes use `resources/generators/lib/safe_write.py` (containment +
+All registry writes use `manifest_generation.safe_write` (containment +
 exclusive temp). The core owns its own JSON writes; no claim is made that they
 use this helper.
 
@@ -111,7 +111,7 @@ selection evidence into the emitter's canonical resolution table and refuses
 when any admitted Analysis lacks a complete (`status: success`) record:
 
 ```
-python3 resources/generators/dbgap-mvp/pilot/merge_records.py \
+python3 -m manifest_generation.providers.dbgap.mvp.pilot.merge_records \
   --scope bucket:EAS \
   --records-dir /data/opengwasdb/work/epic232/221/resolve-eas-<ts>/records \
   --metadata-root <metadata-refresh-root> \
@@ -125,7 +125,7 @@ That writes `<staging>/merge/resolution.tsv` and
 to drive the observed Store through the audited emitter:
 
 ```
-python3 resources/generators/dbgap-mvp/generate_candidate.py emit \
+python3 -m manifest_generation.providers.dbgap.mvp.generate_candidate emit \
   --config resources/generators/dbgap-mvp/config-candidate.yaml \
   --mapping <mapping.tsv> \
   --resolution <staging>/merge/resolution.tsv \

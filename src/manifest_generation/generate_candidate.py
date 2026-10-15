@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Phase B candidate generator for the EBI GWAS Catalog eur-hybrid release (issue #153).
+"""Phase B candidate generator: the Manifest Generation entry point (issues #153, #249).
 
 One operator entry point turns a frozen Source Inventory into a candidate Release
-Bundle, without ever invoking Phase A or building a Store:
+Bundle, without ever invoking Phase A or building a Store. It runs any
+candidate-workflow config; the EBI GWAS Catalog eur-hybrid release's
+`config-full.yaml` is only the default:
 
     pixi run generate-candidate OGS-00011 \
       --config resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
@@ -15,7 +17,7 @@ Stages, in order (``--stage``, default ``all``):
     prepare     derive the canonical resolver manifest from the frozen exact paths
     resolve     invoke `opengwasdb resolve-analyses` (owns the pool and checkpoints)
     verify      account every resolver record; fail on missing/stale/duplicate/extra
-    emit        apply release policy, render the bundle, emit it (resources/generators/lib/emit.py)
+    emit        apply release policy, render the bundle, emit it (manifest_generation.emit)
 
 The per-stage form exists so coarse dependency wiring can drive the same code; the
 operator normally runs ``all``. The registry owns membership, method tiers,
@@ -24,6 +26,7 @@ thresholds and exclusions; ``opengwasdb`` owns the statistics.
 Usage:
     pixi run generate-candidate OGS-00011 --config <config> --cores 64 --resume
     pixi run generate-candidate OGS-00011 --config <config> --cores 64 --resume --stage emit
+    python3 -m manifest_generation.generate_candidate OGS-00011 --config <config> ...
 """
 
 from __future__ import annotations
@@ -35,9 +38,8 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Sequence
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-
-from resources.generators.lib.candidate_workflow import (  # noqa: E402
+from manifest_generation import REPO_ROOT
+from manifest_generation.candidate_workflow import (
     DEFAULT_RESOLVER_BIN,
     RECEIPT_FILENAME,
     CandidateConfiguration,
@@ -63,18 +65,20 @@ from resources.generators.lib.candidate_workflow import (  # noqa: E402
     verify_records,
     write_resolution_receipt,
 )
-from resources.generators.lib.emit import CandidateBundle, EmitError, emit  # noqa: E402
-from resources.generators.lib.source_inventory import (  # noqa: E402
+from manifest_generation.emit import CandidateBundle, EmitError, emit
+from manifest_generation.source_inventory import (
     InventoryError,
     PreflightConfigError,
     preflight,
     read_inventory,
     render_preflight_summary,
 )
-from ogstores.paths import require_valid_store_id  # noqa: E402
+from ogstores.paths import require_valid_store_id
 
-FAMILY_DIR = "resources/generators/gwas-catalog-eur-hybrid"
-DEFAULT_CONFIG = f"{FAMILY_DIR}/config-full.yaml"
+#: The module this entry point runs as, recorded in the bundle's command log.
+MODULE = "manifest_generation.generate_candidate"
+#: Any candidate-workflow config runs; without --config, the OGS-00011 release's.
+DEFAULT_CONFIG = "resources/generators/gwas-catalog-eur-hybrid/config-full.yaml"
 STAGES = ("preflight", "prepare", "resolve", "verify", "emit", "all")
 
 
@@ -289,9 +293,7 @@ def stage_emit(
 
     inventory_sha256 = _sha256_file(pipeline.inventory_path)
     created_at = pipeline.args.created_at or now_utc()
-    generator_version = "sha256:" + sha256_text(
-        (pipeline.repo_root / FAMILY_DIR / "generate_candidate.py").read_bytes()
-    )
+    generator_version = "sha256:" + sha256_text(Path(__file__).read_bytes())
     commands = list(dict.fromkeys(pipeline.commands))
     try:
         receipt = read_resolution_receipt(pipeline.receipt_path)
@@ -327,7 +329,7 @@ def stage_emit(
             tables=tables,
             index_summary=index,
             validated_at=created_at,
-            validator_name="resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py",
+            validator_name=MODULE,
         ),
         sidecars={
             "source_readiness.tsv": tables.source_readiness_tsv,
@@ -390,8 +392,7 @@ def _sha256_file(path: Path) -> str:
 
 def operator_command(argv: Sequence[str]) -> str:
     """Render the invocation this process is carrying out, for the command log."""
-    script = f"{FAMILY_DIR}/generate_candidate.py"
-    return " ".join(["python3", script, *argv])
+    return " ".join(["python3", "-m", MODULE, *argv])
 
 
 def main(argv: list[str] | None = None) -> int:

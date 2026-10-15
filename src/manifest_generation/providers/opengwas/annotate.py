@@ -32,8 +32,9 @@ from opengwasdb.readers import (
     write_regions_file,
 )
 
-from resources.generators.lib.ancestry_sidecar import format_sidecar_float
-from resources.generators.lib.release_yaml import (
+from manifest_generation import REPO_ROOT
+from manifest_generation.ancestry_sidecar import format_sidecar_float
+from manifest_generation.release_yaml import (
     get,
     merge_validation_yaml,
     read_release_yaml,
@@ -295,7 +296,7 @@ def main() -> None:
     chromosome = str(ancestry_cfg.get("sampling_chromosome", "1"))
     max_sites = int(ancestry_cfg.get("max_reference_sites", 20000))
     maf_floor = float(ancestry_cfg.get("maf_floor", 0.01))
-    root = Path(__file__).resolve().parents[5]
+    root = REPO_ROOT
     reference_path = resolve_path(root, str(resource["location"]))
     groups_path = resolve_path(root, str(resource["fine_group_map"]))
 
@@ -364,7 +365,7 @@ def main() -> None:
     write_tsv(release_dir / "sidecars" / "sd_estimation.tsv", sd_rows, sd_columns)
     merge_validation_yaml(
         release_dir / "validation.yaml",
-        validator_name="resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/annotate.py",
+        validator_name="manifest_generation.providers.opengwas.annotate",
         updated_checks={
             "ancestry": overall_check(ancestry_statuses),
             "effect_scale": overall_check(sd_statuses),

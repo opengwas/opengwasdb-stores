@@ -3,10 +3,11 @@
 
 Executes Method A (Full Reference Scan) vs Method B (QC Panel Extraction)
 across the preregistered stratified sample manifest and outputs machine-readable
-evidence and a summary Markdown report.
+evidence and a summary Markdown report. It runs any candidate-workflow config
+(``--config``); the defaults are the EBI GWAS Catalog eur-hybrid release's.
 
 Usage:
-  python3 resources/generators/gwas-catalog-eur-hybrid/run_concordance_study.py \
+  pixi run concordance-run \
     --manifest resources/inventories/gwas-catalog-ssf-eur-hybrid-qc-sample-2026-09-10.tsv \
     --config resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
     --cores 64 \
@@ -18,23 +19,10 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-
-# Ensure opengwasdb is discoverable
-for sibling_candidate in [
-    Path("/home/gh13047/repo/opengwasdb-phase-b-integration"),
-    Path("/home/gh13047/repo/opengwasdb-ticket207"),
-    Path("/home/gh13047/repo/opengwasdb"),
-]:
-    if sibling_candidate.exists() and (sibling_candidate / "opengwasdb" / "build" / "resolve.py").exists():
-        if str(sibling_candidate) not in sys.path:
-            sys.path.insert(0, str(sibling_candidate))
-        break
-
-from resources.generators.lib.qc_panel_concordance import (
+from manifest_generation import REPO_ROOT
+from manifest_generation.qc_panel_concordance import (
     COMPARISON_TSV_COLUMNS,
     evaluate_concordance_study,
     render_concordance_markdown_report,

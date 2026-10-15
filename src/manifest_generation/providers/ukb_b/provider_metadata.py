@@ -27,7 +27,7 @@ is deliberately not reproduced, and `af_assigned` is not claimed until
 
 Usage:
 
-    python3 resources/generators/ukb-b/provider_metadata.py derive \\
+    python3 -m manifest_generation.providers.ukb_b.provider_metadata derive \\
         --inventory resources/inventories/ukb-b-restored-2026-10-11.tsv \\
         --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b \\
         --out resources/inventories/ukb-b-provider-resolution-2026-10-11.tsv \\

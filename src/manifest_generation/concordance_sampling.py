@@ -25,7 +25,7 @@ from typing import Sequence
 
 import yaml
 
-from resources.generators.lib.source_inventory import (
+from manifest_generation.source_inventory import (
     INVENTORY_COLUMNS,
     READY_STATUSES,
     SourceInventoryRow,

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Acquire FinnGen R13 endpoint artifacts with resumable, idempotent downloads."""
+"""Acquire FinnGen R13 endpoint artifacts with resumable, idempotent downloads.
+
+    python3 -m manifest_generation.providers.finngen.acquire --release-dir=<dir>
+"""
 from __future__ import annotations
 
 import argparse
@@ -11,7 +14,7 @@ from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from resources.generators.lib.release_yaml import merge_validation_yaml, read_tsv
+from manifest_generation.release_yaml import merge_validation_yaml, read_tsv
 
 
 def parse_args() -> argparse.Namespace:
@@ -195,7 +198,7 @@ def main() -> None:
     write_tsv(report_path, reports, report_fields)
     merge_validation_yaml(
         release_dir / "validation.yaml",
-        validator_name="resources/generators/lib/source-formats/finngen-r13-dense/acquire.py",
+        validator_name="manifest_generation.providers.finngen.acquire",
         updated_checks={"files": "failed" if evidence_errors else "passed"},
         updated_reports={"downloads": "sidecars/downloads.tsv"},
         new_warnings=evidence_errors,

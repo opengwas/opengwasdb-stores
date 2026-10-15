@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """CLI script to generate the frozen sample manifest for the QC Panel Concordance Study (#152).
 
+It samples any frozen Source Inventory (``--inventory``); the defaults are the
+EBI GWAS Catalog eur-hybrid 2026-09-10 snapshot's.
+
 Usage:
-  python3 resources/generators/gwas-catalog-eur-hybrid/sample_concordance.py
+  pixi run concordance-sample
+  python3 -m manifest_generation.sample_concordance --inventory <inventory.tsv> ...
 """
 
 from __future__ import annotations
@@ -10,13 +14,12 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-
-from resources.generators.lib.concordance_sampling import (
+from manifest_generation import REPO_ROOT
+from manifest_generation.concordance_sampling import (
     build_concordance_sample,
     write_sample_manifest,
 )
-from resources.generators.lib.source_inventory import read_inventory
+from manifest_generation.source_inventory import read_inventory
 
 DEFAULT_INVENTORY = REPO_ROOT / "resources" / "inventories" / "gwas-catalog-ssf-eur-hybrid-2026-09-10.tsv"
 DEFAULT_OUT_TSV = REPO_ROOT / "resources" / "inventories" / "gwas-catalog-ssf-eur-hybrid-qc-sample-2026-09-10.tsv"

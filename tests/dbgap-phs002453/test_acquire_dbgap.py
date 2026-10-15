@@ -13,7 +13,7 @@ Covers the contract the acquisition script implements:
    without ``r2``), fails loudly on an unrecognised header, and is idempotent;
 4. ``manifest`` writes EBI's raw-pass manifest columns with ``status=ok`` and a
    sha256 of the data file, and the result is accepted by
-   ``resources/generators/lib/source_inventory.py``.
+   ``manifest_generation.source_inventory``.
 
 The fixture tars and members are synthetic but use the real member names, the
 real metadata table shape and the real member headers.
@@ -25,7 +25,6 @@ from __future__ import annotations
 import csv
 import gzip
 import hashlib
-import importlib.util
 import os
 import subprocess
 import sys
@@ -36,16 +35,11 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-SCRIPT = REPO_ROOT / "resources/scripts/acquire-dbgap-phs002453.py"
+#: The acquisition command line, run as the installed module.
+SCRIPT = ("-m", "manifest_generation.providers.dbgap.acquire_dbgap_phs002453")
 
-_spec = importlib.util.spec_from_file_location("acquire_dbgap_phs002453", SCRIPT)
-assert _spec and _spec.loader
-ACQUIRE = importlib.util.module_from_spec(_spec)
-# dataclasses resolves annotations through sys.modules, so register before exec.
-sys.modules[_spec.name] = ACQUIRE
-_spec.loader.exec_module(ACQUIRE)
-
-from resources.generators.lib.source_inventory import (  # noqa: E402
+from manifest_generation.providers.dbgap import acquire_dbgap_phs002453 as ACQUIRE
+from manifest_generation.source_inventory import (
     ACQUISITION_MANIFEST_COLUMNS,
     AcquisitionPass,
     build_snapshot,
@@ -259,7 +253,7 @@ def build_fixture(root: Path, verified: bool = True, candidates: list[dict[str, 
 
 
 def run(root: Path, *argv: str) -> subprocess.CompletedProcess[str]:
-    command = [sys.executable, str(SCRIPT), "--out", str(root), *argv]
+    command = [sys.executable, *SCRIPT, "--out", str(root), *argv]
     if argv and argv[0] == "map" and "--discrepancies" not in argv:
         # The real repo ledger names dbGaP members this synthetic mirror does not
         # carry; a fixture run supplies its own (empty by default) ledger.
@@ -1339,7 +1333,7 @@ class RefreshTests(unittest.TestCase):
                 writer = csv.DictWriter(handle, fieldnames=list(ACQUIRE.MAPPING_COLUMNS), delimiter="\t", lineterminator="\n")
                 writer.writeheader()
                 writer.writerow(mapping_row)
-            base = [sys.executable, str(SCRIPT), "--out", str(iso), "refresh",
+            base = [sys.executable, *SCRIPT, "--out", str(iso), "refresh",
                     "--candidates", str(root / "candidates.tsv"), "--mapping", str(mapping_path),
                     "--source-sidecars", str(root / "mirror" / "gwas-ssf"),
                     "--source-manifest-dir", str(manifest_dir)]
@@ -1407,7 +1401,7 @@ class RefreshTests(unittest.TestCase):
                 "mapping": mapping_path, "sidecar": sidecar, "accession": accession}
 
     def _refresh_cli(self, fx: dict[str, object]) -> list[str]:
-        return [sys.executable, str(SCRIPT), "--out", str(fx["iso"]), "refresh",
+        return [sys.executable, *SCRIPT, "--out", str(fx["iso"]), "refresh",
                 "--candidates", str(fx["candidates"]), "--mapping", str(fx["mapping"]),
                 "--source-sidecars", str(fx["source_sidecars"]),
                 "--source-manifest-dir", str(fx["manifest_dir"])]

@@ -17,7 +17,7 @@ build-store.py introduced, so no stage clobbers another's checks.
 
 Usage:
   pixi run python resources/generators/lib/source-formats/gwas-ssf-ragged/ancestry-assign.py \
-    --release-dir="$(python3 resources/generators/lib/emit.py work-root <OGS-id>)"
+    --release-dir="$(python3 -m manifest_generation.emit work-root <OGS-id>)"
 
 `--release-dir` is the generator's working bundle, in its work root (#248).
 """
@@ -29,8 +29,8 @@ import csv
 import gzip
 from pathlib import Path
 
-from resources.generators.lib.ancestry_sidecar import format_sidecar_float
-from resources.generators.lib.release_yaml import (
+from manifest_generation.ancestry_sidecar import format_sidecar_float
+from manifest_generation.release_yaml import (
     get,
     merge_validation_yaml,
     read_release_yaml,

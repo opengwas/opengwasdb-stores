@@ -13,20 +13,14 @@ Run from the repository root:
 from __future__ import annotations
 
 import csv
-import importlib.util
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MODULE_PATH = REPO_ROOT / "resources" / "generators" / "ukb-b" / "provider_metadata.py"
-_spec = importlib.util.spec_from_file_location("ukb_provider_metadata", MODULE_PATH)
-assert _spec and _spec.loader
-provider = importlib.util.module_from_spec(_spec)
-sys.modules["ukb_provider_metadata"] = provider
-_spec.loader.exec_module(provider)
+
+from manifest_generation.providers.ukb_b import provider_metadata as provider
 
 
 def record(analysis_id: str, **overrides) -> dict:

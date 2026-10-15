@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase B inventory commands for the EBI GWAS Catalog eur-hybrid release.
+"""Phase B inventory commands: freeze and preflight a Source Inventory (#151, #249).
 
 Two operator commands, one per direction of the same seam (issue #151):
 
@@ -18,14 +18,17 @@ open a GWAS-SSF association file, does not recompute a source checksum, and does
 not compute ancestry or effect scale. It exits non-zero on anything that would
 make the run proceed against a snapshot it cannot trust.
 
-Both commands default to the full-release config, which names the snapshot it
-selects from; ``--config`` and the per-input overrides exist for re-freezing a
-later snapshot and for fixture-scale testing.
+Both commands take any candidate-workflow config through ``--config``. Without
+it they default to the EBI GWAS Catalog eur-hybrid full-release config, which
+names the snapshot it selects from; the per-input overrides exist for
+re-freezing a later snapshot and for fixture-scale testing.
 
 Usage:
     pixi run inventory-freeze
     pixi run preflight
     pixi run preflight --cores=32
+    pixi run preflight --config <candidate-workflow config>
+    python3 -m manifest_generation.inventory preflight --config <config>
 """
 
 from __future__ import annotations
@@ -36,9 +39,8 @@ import json
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-
-from resources.generators.lib.source_inventory import (  # noqa: E402
+from manifest_generation import REPO_ROOT
+from manifest_generation.source_inventory import (
     AcquisitionPass,
     InventoryError,
     PreflightConfigError,
@@ -51,8 +53,8 @@ from resources.generators.lib.source_inventory import (  # noqa: E402
     write_snapshot,
 )
 
-FAMILY_DIR = "resources/generators/gwas-catalog-eur-hybrid"
-DEFAULT_CONFIG = f"{FAMILY_DIR}/config-full.yaml"
+#: Any candidate-workflow config runs; without --config, the OGS-00011 release's.
+DEFAULT_CONFIG = "resources/generators/gwas-catalog-eur-hybrid/config-full.yaml"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

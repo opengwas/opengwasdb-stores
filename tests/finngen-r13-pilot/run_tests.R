@@ -241,8 +241,8 @@ check(length(commands) == 3L, "the command log should be emit, acquire and emit-
       paste(commands, collapse = "\n"))
 check(grepl("--mode=emit$", commands[[1]]), "the emit step comes from the working bundle's own log")
 check(identical(commands[[2]], paste(
-        "python resources/generators/lib/source-formats/finngen-r13-dense/acquire.py",
-        '--release-dir="$(python3 resources/generators/lib/emit.py work-root OGS-99001)"',
+        "python -m manifest_generation.providers.finngen.acquire",
+        '--release-dir="$(python3 -m manifest_generation.emit work-root OGS-99001)"',
         "--workers=8")),
       "the acquire step is recorded symbolically, never with an artifact root")
 check(identical(registry_release$source_snapshot$manifest_sha256, manifest_sha256),

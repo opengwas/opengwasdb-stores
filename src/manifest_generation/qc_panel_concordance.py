@@ -20,7 +20,6 @@ import csv
 import json
 import math
 import os
-import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
@@ -29,17 +28,6 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import yaml
-
-# Ensure opengwasdb from integration worktree / sibling is discoverable
-for sibling_candidate in [
-    Path("/home/gh13047/repo/opengwasdb-phase-b-integration"),
-    Path("/home/gh13047/repo/opengwasdb-ticket207"),
-    Path("/home/gh13047/repo/opengwasdb"),
-]:
-    if sibling_candidate.exists() and (sibling_candidate / "opengwasdb" / "build" / "resolve.py").exists():
-        if str(sibling_candidate) not in sys.path:
-            sys.path.insert(0, str(sibling_candidate))
-        break
 
 from opengwasdb.ancestry.mixture import AncestryAssignment, Gates  # type: ignore[import-untyped]
 from opengwasdb.ancestry.reference import AncestryReference, load_reference  # type: ignore[import-untyped]
@@ -53,7 +41,8 @@ from opengwasdb.build.resolve import (  # type: ignore[import-untyped]
 )
 from opengwasdb.model.enums import OriginalSdMethod, StoredEffectScale  # type: ignore[import-untyped]
 from opengwasdb.readers.gwas_ssf import GwasSsfReader  # type: ignore[import-untyped]
-from resources.generators.lib.source_inventory import (
+from manifest_generation import REPO_ROOT
+from manifest_generation.source_inventory import (
     ReleaseConfiguration,
     SourceInventoryRow,
     load_release_configuration,
@@ -508,7 +497,7 @@ def evaluate_concordance_study(
     qc_panel_path: Path | None = None,
 ) -> ConcordanceStudySummary:
     """Execute the concordance study on the sample manifest."""
-    repo_root = Path(__file__).resolve().parents[3]
+    repo_root = REPO_ROOT
     config = load_release_configuration(config_path, repo_root)
     raw_doc = yaml.safe_load(config_path.read_text(encoding="utf-8")) if config_path.is_file() else {}
 

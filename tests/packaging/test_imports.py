@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Nothing patches `sys.path` to import this repository's own code (#257).
+"""Nothing patches `sys.path` to import this repository's own code (#257, #249).
 
-`ogstores`, `curation` and the generator library install editable into the
+`ogstores`, `curation` and `manifest_generation` install editable into the
 pixi environments (pyproject.toml), so no tracked Python file, and not the
-Snakefile, inserts the repository root or its `src/` into `sys.path`. Adding a
-script's own directory is a different thing, left for #249 to retire.
+Snakefile, inserts the repository root or its `src/` into `sys.path`.
+
+Manifest Generation code and the tests go further (#249): they insert nothing
+into `sys.path` at all, not even a script's own directory, and load no module
+by file path (`spec_from_file_location`, `SourceFileLoader`, `runpy.run_path`).
+They import modules. `NOT_GENERATION` lists the tests exempt from that, each
+of which exercises a script that is not generation code.
 
 Run from the repository root:
     python3 tests/packaging/test_imports.py
@@ -37,6 +42,25 @@ ALLOWED: set[tuple[str, str]] = {
     ("resources/scripts/release-benchmark-report.py", "str(src)"),
 }
 
+# Where the stricter #249 rule applies: Manifest Generation code (the package,
+# and the legacy generators that remain under resources/generators) and tests.
+GENERATION_AND_TESTS = ("src/manifest_generation/", "resources/generators/", "tests/")
+
+# Tests of scripts that are not generation code and are not importable modules
+# (a hyphenated filename, or a directory that is not a package). Each may load
+# that script by path or put its directory on sys.path.
+NOT_GENERATION: dict[str, str] = {
+    "tests/ld-panel-generation/run_tests.py": "LD-panel Reference Resource scripts (resources/scripts/ld-panel)",
+    "tests/hapmap3-resource/test_hapmap3_resource.py": "the HapMap3 Reference Resource verifier",
+    "tests/hm3-migration/test_hm3_migration.py": "the indexed-subset audit script (resources/scripts)",
+    "tests/hm3-benchmark-report/test_release_benchmark_report.py": "release-benchmark-report.py, which imports another checkout",
+    "tests/packaging/test_discovery.py": "the test runner, run_all_tests.py",
+    "tests/workflow/test_release_faults.py": "Store Release Build tests importing their sibling test module",
+}
+
+# Loading a module from a file path rather than importing it.
+FILE_PATH_LOADERS = {"spec_from_file_location", "SourceFileLoader", "run_path", "load_source"}
+
 # `src/` handed to a subprocess through the environment instead.
 PYTHONPATH_SRC = re.compile(r"PYTHONPATH.*(SRC_DIR|REPO_ROOT|['\"]src['\"])")
 # Deliberate: the HM3 proof runs a separate capability runtime, an environment
@@ -45,23 +69,24 @@ PYTHONPATH_ALLOWED: set[str] = {"resources/scripts/hm3-pipeline-proof.py"}
 
 
 def path_insertions(source: str) -> list[str]:
-    """The argument of every `sys.path.insert(...)`/`sys.path.append(...)` call.
+    """The argument of every `sys.path.insert/append/extend(...)` call.
 
     Inside a `for` loop over a literal tuple or list, the loop's items are
     what is inserted, so each item is reported as well.
     """
     found = []
     tree = ast.parse(source)
+    insert_or_append = r"sys\.path\.(insert|append|extend)"
     for loop in ast.walk(tree):
         if isinstance(loop, ast.For) and isinstance(loop.iter, (ast.Tuple, ast.List)):
             body = ast.unparse(ast.Module(body=loop.body, type_ignores=[]))
-            if re.search(r"sys\.path\.(insert|append)", body):
+            if re.search(insert_or_append, body):
                 found += [ast.unparse(item) for item in loop.iter.elts]
     for node in ast.walk(tree):
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
-            and node.func.attr in {"insert", "append"}
+            and node.func.attr in {"insert", "append", "extend"}
             and ast.unparse(node.func.value) == "sys.path"
             and node.args
         ):
@@ -72,13 +97,82 @@ def path_insertions(source: str) -> list[str]:
     return found
 
 
+def file_path_loads(source: str) -> list[str]:
+    """Every use of a loader that imports a module from a file path."""
+    found = []
+    for node in ast.walk(ast.parse(source)):
+        name = node.attr if isinstance(node, ast.Attribute) else node.id if isinstance(node, ast.Name) else None
+        if name in FILE_PATH_LOADERS:
+            found.append(ast.unparse(node))
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.ImportFrom) and node.module in {"importlib.util", "importlib.machinery", "runpy", "imp"}:
+            found += [f"from {node.module} import {a.name}" for a in node.names if a.name in FILE_PATH_LOADERS]
+    return found
+
+
+def tracked_python(prefixes: tuple[str, ...] = ("",)) -> list[str]:
+    tracked = subprocess.run(
+        ["git", "ls-files", "*.py"], cwd=REPO_ROOT, capture_output=True, text=True, check=True
+    ).stdout.split()
+    return [relative for relative in tracked if relative.startswith(prefixes)]
+
+
+class GenerationImportsModulesTest(unittest.TestCase):
+    """#249: generation code and tests import modules; they never patch sys.path."""
+
+    def test_the_scanners_find_what_they_look_for(self) -> None:
+        source = (
+            "import importlib.util, runpy, sys\n"
+            "from importlib.machinery import SourceFileLoader\n"
+            "sys.path.insert(0, str(HERE))\n"
+            "spec = importlib.util.spec_from_file_location('x', path)\n"
+            "runpy.run_path('script.py')\n"
+        )
+        self.assertEqual(path_insertions(source), ["str(HERE)"])
+        self.assertEqual(
+            sorted(file_path_loads(source)),
+            sorted([
+                "importlib.util.spec_from_file_location",
+                "runpy.run_path",
+                "from importlib.machinery import SourceFileLoader",
+            ]),
+        )
+
+    def test_generation_code_and_tests_insert_nothing_into_sys_path(self) -> None:
+        offenders = [
+            f"{relative}: sys.path <- {argument.strip()}"
+            for relative in tracked_python(GENERATION_AND_TESTS)
+            if relative not in NOT_GENERATION and relative != "tests/packaging/test_imports.py"
+            for argument in path_insertions((REPO_ROOT / relative).read_text(encoding="utf-8"))
+        ]
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
+    def test_generation_code_and_tests_load_no_module_by_file_path(self) -> None:
+        offenders = [
+            f"{relative}: {use}"
+            for relative in tracked_python(GENERATION_AND_TESTS)
+            if relative not in NOT_GENERATION and relative != "tests/packaging/test_imports.py"
+            for use in file_path_loads((REPO_ROOT / relative).read_text(encoding="utf-8"))
+        ]
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
+    def test_every_exemption_is_still_needed(self) -> None:
+        stale = [
+            relative
+            for relative in NOT_GENERATION
+            if not (REPO_ROOT / relative).is_file()
+            or not (
+                path_insertions((REPO_ROOT / relative).read_text(encoding="utf-8"))
+                or file_path_loads((REPO_ROOT / relative).read_text(encoding="utf-8"))
+            )
+        ]
+        self.assertEqual(stale, [], "exempt but no longer loading by path: " + ", ".join(stale))
+
+
 class NoPathInsertionTest(unittest.TestCase):
     def test_no_python_file_inserts_the_repository_root_or_src(self) -> None:
-        tracked = subprocess.run(
-            ["git", "ls-files", "*.py"], cwd=REPO_ROOT, capture_output=True, text=True, check=True
-        ).stdout.split()
         offenders = []
-        for relative in tracked:
+        for relative in tracked_python():
             if relative == "tests/packaging/test_imports.py":
                 continue
             for argument in path_insertions((REPO_ROOT / relative).read_text(encoding="utf-8")):
@@ -87,12 +181,9 @@ class NoPathInsertionTest(unittest.TestCase):
         self.assertEqual(offenders, [], "\n".join(offenders))
 
     def test_no_python_file_hands_src_to_a_subprocess_through_pythonpath(self) -> None:
-        tracked = subprocess.run(
-            ["git", "ls-files", "*.py"], cwd=REPO_ROOT, capture_output=True, text=True, check=True
-        ).stdout.split()
         offenders = [
             f"{relative}:{number}: {line.strip()}"
-            for relative in tracked
+            for relative in tracked_python()
             if relative not in PYTHONPATH_ALLOWED and relative != "tests/packaging/test_imports.py"
             for number, line in enumerate((REPO_ROOT / relative).read_text(encoding="utf-8").splitlines(), 1)
             if PYTHONPATH_SRC.search(line)

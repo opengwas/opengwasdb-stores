@@ -19,26 +19,17 @@ Covers the ticket-specific contracts with small fixtures:
 from __future__ import annotations
 
 import csv
-import importlib.util
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRIPT_DIR = REPO_ROOT / "resources" / "generators" / "dbgap-mvp"
+from manifest_generation.providers.dbgap.mvp import generate_candidate as gen
+from manifest_generation.providers.dbgap.mvp import partition
 
-_spec = importlib.util.spec_from_file_location(
-    "dbgap_mvp_generate", SCRIPT_DIR / "generate_candidate.py"
-)
-assert _spec and _spec.loader
-gen = importlib.util.module_from_spec(_spec)
-sys.modules["dbgap_mvp_generate"] = gen
-_spec.loader.exec_module(gen)
-partition = gen.partition_module
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # Fixture membership: small, but the shape mirrors the real buckets.
 MEMBERS = {

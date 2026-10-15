@@ -36,8 +36,8 @@ import yaml
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
-from ogstores import bundle  # noqa: E402
-from resources.generators.lib import emit as emitter  # noqa: E402
+from ogstores import bundle
+from manifest_generation import emit as emitter
 
 STORE_ID = "OGS-00090"
 COMMANDS = ("python3 fixtures/generate.py OGS-00090", "opengwasdb resolve-analyses fixture")
@@ -314,7 +314,7 @@ class TestCommandLine(EmitTestCase):
 
     def run_cli(self, *args: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [sys.executable, str(REPO_ROOT / "resources" / "generators" / "lib" / "emit.py"), *args],
+            [sys.executable, "-m", "manifest_generation.emit", *args],
             capture_output=True,
             text=True,
         )
@@ -506,14 +506,14 @@ class TestGeneratorConfigs(unittest.TestCase):
 
 
 class TestWorkRoot(unittest.TestCase):
-    """`emit.py work-root <id>`: where a generator keeps its working files (#248)."""
+    """`python3 -m manifest_generation.emit work-root <id>`: where a generator keeps its working files (#248)."""
 
     def run_work_root(self, *args: str, env_root: str | None = None) -> subprocess.CompletedProcess[str]:
         env = {k: v for k, v in os.environ.items() if k != "OPENGWASDB_ARTIFACT_ROOT"}
         if env_root is not None:
             env["OPENGWASDB_ARTIFACT_ROOT"] = env_root
         return subprocess.run(
-            [sys.executable, str(REPO_ROOT / "resources" / "generators" / "lib" / "emit.py"), "work-root", *args],
+            [sys.executable, "-m", "manifest_generation.emit", "work-root", *args],
             capture_output=True,
             text=True,
             env=env,

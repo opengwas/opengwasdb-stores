@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from resources.generators.lib.release_yaml import (
+from manifest_generation.release_yaml import (
     merge_validation_yaml,
     read_previous_checks_and_warnings,
     read_tsv,
@@ -138,7 +138,7 @@ def main() -> None:
     report_path.write_text("\n".join(report_lines), encoding="utf-8")
     merge_validation_yaml(
         release_dir / "validation.yaml",
-        validator_name="resources/generators/lib/source-formats/finngen-r13-dense/assess.py",
+        validator_name="manifest_generation.providers.finngen.assess",
         updated_checks={},
         updated_reports={"pilot_assessment": "pilot_report.md"},
         new_warnings=[],

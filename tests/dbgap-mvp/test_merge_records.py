@@ -3,27 +3,19 @@
 from __future__ import annotations
 
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 import yaml
 
-_HERE = Path(__file__).resolve().parent
-_REPO_ROOT = _HERE.parents[1]
-_GEN_DIR = _REPO_ROOT / "resources" / "generators" / "dbgap-mvp"
-_PILOT_DIR = _GEN_DIR / "pilot"
-for path in (_HERE, _PILOT_DIR, str(_GEN_DIR)):
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
-
-import generate_candidate  # noqa: E402
-import merge_records  # noqa: E402
-import selection  # noqa: E402
-import test_pilot  # noqa: E402
-from ogstores import bundle as bundle_module  # noqa: E402
-from opengwasdb.model import analyses as opengwasdb_analyses  # noqa: E402
+# Run as a script (tests/dbgap-mvp/test_merge_records.py), so this directory is
+# already first on sys.path and its sibling fixture module imports directly.
+import test_pilot
+from manifest_generation.providers.dbgap.mvp import generate_candidate
+from manifest_generation.providers.dbgap.mvp.pilot import merge_records, selection
+from ogstores import bundle as bundle_module
+from opengwasdb.model import analyses as opengwasdb_analyses
 
 
 def _write_tsv(path: Path, columns: list[str], rows: list[dict[str, str]]) -> None:
@@ -155,7 +147,7 @@ class MergeRecordsTest(unittest.TestCase):
         return {
             "publication_pmid": "39024449",
             "source_snapshot_id": "fixture",
-            "generator_commands": ["python3 resources/generators/dbgap-mvp/generate_candidate.py"],
+            "generator_commands": ["python3 -m manifest_generation.providers.dbgap.mvp.generate_candidate"],
             "metadata": {
                 "root": str(self.meta),
                 "code_sha": test_pilot.FIXTURE_CODE_SHA,

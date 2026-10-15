@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 # The shared R side of the one candidate emitter (#248): a legacy generator's
 # work root, and the projection of its working bundle into the current Release
-# Bundle contract through resources/generators/lib/emit.py.
+# Bundle contract through src/manifest_generation/emit.py.
 
 suppressPackageStartupMessages({
   library(yaml)

@@ -21,7 +21,7 @@ WORKERS="${WORKERS:-8}"
 ATTEMPTS="${ATTEMPTS:-10}"
 
 cd "$REPO" || exit 1
-RELEASE_DIR="$(python3 resources/generators/lib/emit.py work-root OGS-00017)" || exit 1
+RELEASE_DIR="$(python3 -m manifest_generation.emit work-root OGS-00017)" || exit 1
 
 exec > >(tee -a "$LOG") 2>&1
 echo "=== FinnGen R13 full acquisition ==="
@@ -35,7 +35,7 @@ fi
 status=0
 for attempt in $(seq 1 "$ATTEMPTS"); do
   echo "=== attempt ${attempt}/${ATTEMPTS} : $(date -Is) ==="
-  pixi run python resources/generators/lib/source-formats/finngen-r13-dense/acquire.py \
+  pixi run python -m manifest_generation.providers.finngen.acquire \
     --release-dir="$RELEASE_DIR" \
     --workers="$WORKERS"
   rc=$?

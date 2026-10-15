@@ -10,7 +10,7 @@ reports what opengwasdb says about it.
 
 Usage:
 
-    python3 resources/generators/lib/schema_validate.py <analyses.tsv path>
+    python3 -m manifest_generation.schema_validate <analyses.tsv path>
 
 Exits 0 with no output when the file conforms to the shared core schema.
 Exits 1 with one violation per stdout line otherwise.

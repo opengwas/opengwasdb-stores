@@ -31,10 +31,10 @@ than fetched here, so the freeze stays deterministic and offline.
 
 Usage:
 
-    python3 resources/generators/ukb-b/inventory.py reconcile --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b
-    python3 resources/generators/ukb-b/inventory.py freeze --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b \\
+    python3 -m manifest_generation.providers.ukb_b.inventory reconcile --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b
+    python3 -m manifest_generation.providers.ukb_b.inventory freeze --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b \\
         --snapshot-id ukb-b-restored-2026-10-11 --upstream-batch-evidence <batches.json>
-    python3 resources/generators/ukb-b/inventory.py verify --inventory resources/inventories/ukb-b-restored-2026-10-11.tsv
+    python3 -m manifest_generation.providers.ukb_b.inventory verify --inventory resources/inventories/ukb-b-restored-2026-10-11.tsv
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ from typing import Iterable, Mapping, Sequence
 
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+from manifest_generation import REPO_ROOT
 
 #: The Source Collection this inventory belongs to (CONTEXT.md).
 SOURCE_COLLECTION_ID: str = "opengwas-gwas-vcf"

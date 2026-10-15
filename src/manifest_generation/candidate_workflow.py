@@ -33,7 +33,8 @@ estimate) it comes from the resolver record; where a value is a release decision
 ADR 0017's, not this module's invention.
 
 See ``docs/spec/store-release-workflow.md`` (Phase B) and
-``resources/generators/gwas-catalog-eur-hybrid/README.md``.
+``resources/generators/gwas-catalog-eur-hybrid/README.md``; the operator entry
+point is ``manifest_generation.generate_candidate``.
 """
 
 from __future__ import annotations
@@ -54,10 +55,10 @@ from typing import Any, Iterable, Mapping, Sequence
 import yaml
 
 from ogstores.bundle import SUPERPOPULATIONS
-from resources.generators.lib.ancestry_sidecar import format_sidecar_float
-from resources.generators.lib.generation_rules import INFO_SCORE_KINDS
-from resources.generators.lib.indexed_subsets import resolve_indexed_subsets
-from resources.generators.lib.source_inventory import (
+from manifest_generation.ancestry_sidecar import format_sidecar_float
+from manifest_generation.generation_rules import INFO_SCORE_KINDS
+from manifest_generation.indexed_subsets import resolve_indexed_subsets
+from manifest_generation.source_inventory import (
     INVENTORY_COLUMNS,
     PreflightConfigError,
     ReleaseConfiguration,

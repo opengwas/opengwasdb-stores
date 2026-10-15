@@ -10,32 +10,21 @@ here, so no arbitrary command can be run.
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import os
 import shutil
 import sys
 from pathlib import Path
 
-_HERE = Path(__file__).resolve().parent
-if str(_HERE.parent) not in sys.path:
-    sys.path.insert(0, str(_HERE.parent))
+from manifest_generation.providers.dbgap.mvp import generate_candidate as generator
+from manifest_generation.providers.dbgap.mvp.pilot import selection, wrapper
 
-from pilot import selection, wrapper  # noqa: E402
+_HERE = Path(__file__).resolve().parent
 
 DEFAULT_MAPPING = Path("/data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv")
 DEFAULT_CANDIDATE_TABLE = Path("/home/gh13047/repo/opengwasdb-stores/resources/data/derived/store-candidates-analyses.tsv")
 DEFAULT_METADATA_ROOT = Path("/data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z")
 GUARD_SOURCE = _HERE / "guard" / "sitecustomize.py"
-
-
-def _load_module(name: str, path: Path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
 
 
 def _write(path: Path, text: str, root: Path, *, overwrite: bool = False) -> None:
@@ -83,7 +72,6 @@ def _verify_inputs(args: argparse.Namespace, content_sha: str) -> None:
     if args.candidate_table and not Path(args.candidate_table).is_file():
         raise wrapper.WrapperError(f"candidate table not found: {args.candidate_table}")
     # Reuse the qualified candidate validator for the frozen receipt.
-    generator = _load_module("dbgap_mvp_generate", _HERE.parent / "generate_candidate.py")
     config = {
         "metadata": {
             "root": str(root),

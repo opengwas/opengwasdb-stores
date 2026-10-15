@@ -12,21 +12,14 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-PILOT_DIR = REPO_ROOT / "resources" / "generators" / "dbgap-mvp"
-for extra in (str(PILOT_DIR), str(REPO_ROOT / "resources" / "generators" / "lib")):
-    if extra not in sys.path:
-        sys.path.insert(0, extra)
+from manifest_generation import metadata_content_sha as content_sha
+from manifest_generation.providers.dbgap.mvp.pilot import cli, selection, wrapper
 
-import pilot.cli as cli  # noqa: E402
-import pilot.selection as selection  # noqa: E402
-import pilot.wrapper as wrapper  # noqa: E402
-import metadata_content_sha as content_sha  # noqa: E402
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 FAKE_RESOLVER = REPO_ROOT / "tests" / "dbgap-mvp" / "fixtures" / "fake_resolver.py"
 FIXTURE_CODE_SHA = "b" * 40

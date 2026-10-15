@@ -88,4 +88,6 @@ def capture(root: Path) -> dict[str, str]:
 
 
 if __name__ == "__main__":
-    print(json.dumps(capture(Path(__file__).resolve().parents[3]), indent=2, sort_keys=True))
+    from manifest_generation import REPO_ROOT
+
+    print(json.dumps(capture(REPO_ROOT), indent=2, sort_keys=True))

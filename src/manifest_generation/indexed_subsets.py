@@ -52,7 +52,9 @@ class IndexedSubsetConfigError(ValueError):
 
 
 def _repo_root(repo_root: Path | str | None) -> Path:
-    return Path(repo_root) if repo_root is not None else Path(__file__).resolve().parents[3]
+    from manifest_generation import REPO_ROOT
+
+    return Path(repo_root) if repo_root is not None else REPO_ROOT
 
 
 def load_variant_list_resource(

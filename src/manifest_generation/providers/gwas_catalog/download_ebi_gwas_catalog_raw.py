@@ -33,7 +33,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import importlib.util
 import re
 import sys
 import time
@@ -41,12 +40,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from urllib.parse import urljoin
 
-_SCRIPT = Path(__file__).with_name("download-ebi-gwas-catalog-eur-hybrid.py")
-_spec = importlib.util.spec_from_file_location("ebi_harmonised_download", _SCRIPT)
-assert _spec and _spec.loader
-ebi = importlib.util.module_from_spec(_spec)
-sys.modules[_spec.name] = ebi
-_spec.loader.exec_module(ebi)
+from manifest_generation.providers.gwas_catalog import download_ebi_gwas_catalog_eur_hybrid as ebi
 
 #: Harmonised-manifest statuses that already prove an accession has a local
 #: association file; the raw pass must not re-fetch those.

@@ -14,7 +14,7 @@ The working bundle lives in the work root, `<artifact-root>/<store-id>/generate`
 `stores/<store-id>/` through the one emitter (#248).
 
 Run from the repository root:
-    python3 resources/generators/lib/source-formats/eqtlgen-besd-ragged/generate.py \
+    python3 -m manifest_generation.providers.eqtlgen.generate \
         --config=resources/generators/eqtlgen-cis-pilot/config-pilot-10.yaml [--mode=emit-registry]
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ import logging
 import sys
 from pathlib import Path
 
-from resources.generators.lib.release_yaml import (
+from manifest_generation.release_yaml import (
     get,
     merge_validation_yaml,
     read_release_yaml,
@@ -36,14 +36,12 @@ from resources.generators.lib.release_yaml import (
     resolve_path,
 )
 
-from resources.generators.lib.emit import EmitError, emit_working_bundle, work_root
+from manifest_generation.emit import EmitError, emit_working_bundle, work_root
+from manifest_generation.providers.eqtlgen.subset_besd import write_besd_subset
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from subset_besd import write_besd_subset  # noqa: E402
-
-from opengwasdb.layouts.ragged.build_besd import build_ragged_from_besd  # noqa: E402
-from opengwasdb.query import query_store  # noqa: E402
-from opengwasdb.validation import validate_store  # noqa: E402
+from opengwasdb.layouts.ragged.build_besd import build_ragged_from_besd
+from opengwasdb.query import query_store
+from opengwasdb.validation import validate_store
 
 
 def _dump_yaml(value: object, indent: int = 0) -> list[str]:
@@ -101,7 +99,8 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-GENERATOR = "python3 resources/generators/lib/source-formats/eqtlgen-besd-ragged/generate.py"
+MODULE = "manifest_generation.providers.eqtlgen.generate"
+GENERATOR = f"python3 -m {MODULE}"
 
 
 def emit_registry(cfg: dict, config_arg: str) -> None:
@@ -256,7 +255,7 @@ def main() -> None:
     # ── 7. release.yaml / build.yaml / validation.yaml ─────────────────────────
     from datetime import UTC, datetime
 
-    from resources.generators.lib.build_environment import capture as capture_build_environment
+    from manifest_generation.build_environment import capture as capture_build_environment
 
     write_yaml_file(
         {
@@ -280,8 +279,8 @@ def main() -> None:
             "description": require_text(cfg, "description"),
             "created_at": datetime.now(UTC).isoformat(),
             "generator": {
-                "name": "resources/generators/lib/source-formats/eqtlgen-besd-ragged/generate.py",
-                "command": f"python3 resources/generators/lib/source-formats/eqtlgen-besd-ragged/generate.py --config={args.config}",
+                "name": MODULE,
+                "command": f"{GENERATOR} --config={args.config}",
             },
             "build_environment": capture_build_environment(root),
             "sidecars": {"selection": "sidecars/selection.tsv", "build_report": "sidecars/build_report.tsv"},
@@ -326,7 +325,7 @@ def main() -> None:
     build_status = "passed_with_warnings" if warnings else "passed"
     merge_validation_yaml(
         release_dir / "validation.yaml",
-        validator_name="resources/generators/lib/source-formats/eqtlgen-besd-ragged/generate.py",
+        validator_name=MODULE,
         updated_checks={
             # not_run, not fabricated "passed": opengwasdb.model.analyses.
             # validate_analyses() validates a registry-authored, pre-build

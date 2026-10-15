@@ -233,7 +233,8 @@ def merge_validation_yaml(
     """
     from datetime import UTC, datetime
 
-    from resources.generators.lib.build_environment import capture as capture_build_environment
+    from manifest_generation import REPO_ROOT
+    from manifest_generation.build_environment import capture as capture_build_environment
 
     previous_checks, previous_warnings = read_previous_checks_and_warnings(path)
     checks = _ordered({**(default_checks or {}), **previous_checks, **updated_checks}, _CANONICAL_CHECK_ORDER)
@@ -254,11 +255,11 @@ def merge_validation_yaml(
         if reports
         else "reports: {}"
     )
-    # Rooted at this module's own location (not `path.parent`, which callers
-    # may point at an arbitrary directory outside the repo, e.g. a test's
-    # tempdir) so provenance capture works regardless of where the
-    # validation.yaml being written happens to live.
-    build_environment = capture_build_environment(Path(__file__).resolve().parents[3])
+    # Rooted at the package's checkout (not `path.parent`, which callers may
+    # point at an arbitrary directory outside the repo, e.g. a test's tempdir)
+    # so provenance capture works regardless of where the validation.yaml
+    # being written happens to live.
+    build_environment = capture_build_environment(REPO_ROOT)
     build_environment_lines = "\n".join(f"  {key}: {value}" for key, value in build_environment.items())
     path.write_text(
         "\n".join([

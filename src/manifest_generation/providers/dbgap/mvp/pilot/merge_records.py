@@ -3,7 +3,7 @@
 The full MVP resolution writes one JSON record per Analysis under a bucket's
 ``records/`` directory. This module turns those records plus the metadata-only
 selection evidence into the canonical resolution rows that
-``generate_candidate.py emit`` consumes, and refuses to produce a table when any
+``generate_candidate emit`` consumes, and refuses to produce a table when any
 admitted Analysis is missing a record or did not resolve.
 
 Nothing here opens an association body; the records are the resolver's output
@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import importlib.util
 import io
 import json
 import sys
@@ -22,17 +21,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
 
-_HERE = Path(__file__).resolve().parent
-if str(_HERE.parent) not in sys.path:
-    sys.path.insert(0, str(_HERE.parent))
-from pilot import selection, wrapper  # noqa: E402
-
-_GC_PATH = _HERE.parent / "generate_candidate.py"
-_spec = importlib.util.spec_from_file_location("dbgap_mvp_generate", _GC_PATH)
-assert _spec and _spec.loader
-generate_candidate = importlib.util.module_from_spec(_spec)
-sys.modules["dbgap_mvp_generate"] = generate_candidate
-_spec.loader.exec_module(generate_candidate)
+from manifest_generation.providers.dbgap.mvp import generate_candidate
+from manifest_generation.providers.dbgap.mvp.pilot import selection, wrapper
 
 #: Canonical resolution columns written for the emitter, in stable order.
 RESOLUTION_COLUMNS: tuple[str, ...] = (

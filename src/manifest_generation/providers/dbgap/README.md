@@ -1,6 +1,6 @@
 # Dense PMID 39024449 acquisition from dbGaP (phs002453)
 
-`acquire-dbgap-phs002453.py` materialises the 6,022 GWAS Catalog Analyses of
+`acquire_dbgap_phs002453.py` materialises the 6,022 GWAS Catalog Analyses of
 PMID 39024449 (Verma et al. 2024, VA Million Veteran Program) from the authors'
 own dbGaP deposit (`phs002453`, open access) instead of from the EBI mirror.
 
@@ -32,22 +32,22 @@ resources/data/derived/store-candidates-analyses.tsv   candidate table (gitignor
 ```
 # 1. materialise every member of every verified tar (33 tars, one sequential
 #    pass each; members land in GIA/extracted/<tar directory>/<member>)
-pixi run python resources/scripts/acquire-dbgap-phs002453.py \
+pixi run python -m manifest_generation.providers.dbgap.acquire_dbgap_phs002453 \
   --out /data/opengwasdb/raw/dbgap-phs002453 extract --jobs 4
 
 # 2. bind each Analysis to its candidate-table row; writes mapping.tsv,
 #    mapping-report.tsv and the mapping-review.tsv trait queue, and exits
 #    non-zero unless the bijection is complete (the default
 #    --discrepancies ledger is resources/scripts/dbgap-phs002453-key-discrepancies.yaml)
-pixi run python resources/scripts/acquire-dbgap-phs002453.py map \
+pixi run python -m manifest_generation.providers.dbgap.acquire_dbgap_phs002453 map \
   --candidates resources/data/derived/store-candidates-analyses.tsv
 
 # 3. convert into gwas-ssf/<bucket>/<GCST>/{<GCST>.tsv.gz,<GCST>.tsv.gz-meta.yaml}
-pixi run python resources/scripts/acquire-dbgap-phs002453.py convert --jobs 32
+pixi run python -m manifest_generation.providers.dbgap.acquire_dbgap_phs002453 convert --jobs 32
 
 # 4. one acquisition manifest per store_key, readable by
-#    resources/generators/lib/source_inventory.py
-pixi run python resources/scripts/acquire-dbgap-phs002453.py manifest --jobs 8
+#    manifest_generation.source_inventory
+pixi run python -m manifest_generation.providers.dbgap.acquire_dbgap_phs002453 manifest --jobs 8
 ```
 
 Every stage is idempotent, writes through `.partial` files and renames, and can
@@ -173,7 +173,7 @@ the GWAS Catalog counterpart differs it is preserved under `catalog_metadata`.
 
 **manifest** writes `<out>/manifests/<store-key-slug>-download-manifest.tsv`
 using exactly the columns of the EBI raw-pass manifest
-(`download-ebi-gwas-catalog-raw.py`), so a freeze reads it unchanged: the
+(`providers/gwas_catalog/download_ebi_gwas_catalog_raw.py`), so a freeze reads it unchanged: the
 fourteen `source_inventory.ACQUISITION_MANIFEST_COLUMNS` plus
 `harmonised_status`, `genome_assembly`, `file_type`, `is_harmonised` and
 `seconds`. Converted rows are `status=ok` with `genome_assembly GRCh38`,
@@ -187,7 +187,7 @@ non-ready rather than as a usable member.
 ## Verification
 
 `tests/dbgap-phs002453/test_acquire_dbgap.py` (wired into
-`resources/scripts/run_all_tests.py`) builds synthetic real-format tars and
+`pixi run test`) builds synthetic real-format tars and
 covers extraction, mapping (including the ambiguity and unmatched cases),
 golden row equality against EBI's published rows, the META shape without `r2`,
 unrecognised headers, idempotence/atomicity and the inventory freeze. It also

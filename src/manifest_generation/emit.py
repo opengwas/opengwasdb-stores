@@ -19,18 +19,18 @@ One emit of an id runs at a time: each holds `stores/.staging/<id>.lock`.
 Python generators call `emit()`. R generators render the files into a
 directory and call the command line:
 
-    python3 resources/generators/lib/emit.py OGS-00042 --from <dir> \\
+    python3 -m manifest_generation.emit OGS-00042 --from <dir> \\
         --command "Rscript ... --mode=emit" [--command ...] [--registry-root stores]
 
 and ask it where their working files go, `<artifact-root>/<id>/generate`,
 resolved as Store Release Build resolves the artifact root:
 
-    python3 resources/generators/lib/emit.py work-root OGS-00042 [--artifact-root <path>]
+    python3 -m manifest_generation.emit work-root OGS-00042 [--artifact-root <path>]
 
 A legacy generator keeps a family-shaped working bundle there, and `project`
 emits the current contract from it and its config's `build:` block:
 
-    python3 resources/generators/lib/emit.py project --config <cfg.yaml> \\
+    python3 -m manifest_generation.emit project --config <cfg.yaml> \\
         --generator-version sha256:... --command ... [--source-snapshot <yaml>]
 """
 
@@ -52,11 +52,9 @@ from typing import Any
 
 import yaml
 
-REPO_ROOT: Path = Path(__file__).resolve().parents[3]
-
-from ogstores import bundle, index, paths  # noqa: E402
-from resources.generators.lib import generation_rules  # noqa: E402
-from resources.generators.lib.indexed_subsets import IndexedSubsetConfigError, resolve_indexed_subsets  # noqa: E402
+from ogstores import bundle, index, paths
+from manifest_generation import REPO_ROOT, generation_rules
+from manifest_generation.indexed_subsets import IndexedSubsetConfigError, resolve_indexed_subsets
 
 #: The registry subdirectory candidates are staged under. Hidden, so
 #: `bundle-check` and `index` never see a half-written bundle, and ignored by
@@ -465,7 +463,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _project_main(argv: Sequence[str]) -> int:
-    parser = argparse.ArgumentParser(prog="emit.py project", description="emit a legacy generator's working bundle")
+    parser = argparse.ArgumentParser(prog="python3 -m manifest_generation.emit project", description="emit a legacy generator's working bundle")
     parser.add_argument("--config", required=True, help="the generator config, with output.store_id and build:")
     parser.add_argument("--generator-version", required=True)
     parser.add_argument("--command", dest="commands", action="append", required=True)
@@ -490,7 +488,7 @@ def _project_main(argv: Sequence[str]) -> int:
 
 
 def _work_root_main(argv: Sequence[str]) -> int:
-    parser = argparse.ArgumentParser(prog="emit.py work-root", description="print a generator's work root")
+    parser = argparse.ArgumentParser(prog="python3 -m manifest_generation.emit work-root", description="print a generator's work root")
     parser.add_argument("store_id")
     parser.add_argument("--artifact-root", help="overrides OPENGWASDB_ARTIFACT_ROOT and ogstores.yaml")
     args = parser.parse_args(argv)

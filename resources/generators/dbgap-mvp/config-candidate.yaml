@@ -51,8 +51,8 @@ metadata:
   candidates_table: resources/data/derived/store-candidates-analyses.tsv
   mapping: /data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv
 generator_commands:
-  - python3 resources/scripts/acquire-dbgap-phs002453.py map --candidates resources/data/derived/store-candidates-analyses.tsv
-  - python3 resources/generators/dbgap-mvp/generate_candidate.py
+  - python3 -m manifest_generation.providers.dbgap.acquire_dbgap_phs002453 map --candidates resources/data/derived/store-candidates-analyses.tsv
+  - python3 -m manifest_generation.providers.dbgap.mvp.generate_candidate
 
 # One entry per intended Store.
 #

@@ -43,9 +43,11 @@ Subcommands, in order:
     Write one acquisition manifest per candidate-table ``store_key`` with EBI's
     raw-pass manifest columns, ``status=ok`` and the data file's sha256 for
     converted files.  The manifests are consumed by
-    ``resources/generators/lib/source_inventory.py``.
+    ``manifest_generation.source_inventory``.
 
-Usage (see ``README-acquire-dbgap-phs002453.md`` next to this script).
+Usage (see ``README.md`` next to this module)::
+
+    python3 -m manifest_generation.providers.dbgap.acquire_dbgap_phs002453 --help
 """
 from __future__ import annotations
 
@@ -68,10 +70,11 @@ from typing import TextIO
 
 import yaml
 
+from manifest_generation import REPO_ROOT
+
 DEFAULT_OUT = "/data/opengwasdb/raw/dbgap-phs002453"
 DEFAULT_CANDIDATES = "resources/data/derived/store-candidates-analyses.tsv"
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DISCREPANCIES = str(_REPO_ROOT / "resources/scripts/dbgap-phs002453-key-discrepancies.yaml")
+DEFAULT_DISCREPANCIES = str(REPO_ROOT / "resources/scripts/dbgap-phs002453-key-discrepancies.yaml")
 PUBMED_ID = "39024449"
 
 #: Dispositions a key-discrepancy ledger record may carry.  Anything else is an
@@ -95,7 +98,7 @@ CANDIDATE_ANCESTRY = {
 #: identified by ``ancestry_fraction < 1`` and only *labelled* Multi-ancestry.
 META_ANCESTRY_LABEL = "Multi-ancestry"
 
-#: Manifest columns: exactly the ones ``download-ebi-gwas-catalog-raw.py``
+#: Manifest columns: exactly the ones ``download_ebi_gwas_catalog_raw.py``
 #: writes, because the frozen Source Inventory reads the same schema.  The
 #: first fourteen are ``source_inventory.ACQUISITION_MANIFEST_COLUMNS``'s
 #: required set (``seconds`` is dropped there deliberately: per-run timing is

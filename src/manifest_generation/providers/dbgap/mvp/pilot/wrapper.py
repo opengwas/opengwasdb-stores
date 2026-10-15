@@ -19,7 +19,6 @@ containment-checked writes only for its own selection and receipt files.
 from __future__ import annotations
 
 import ctypes
-import importlib.util
 import json
 import math
 import os
@@ -32,21 +31,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
-_LIB = REPO_ROOT / "resources" / "generators" / "lib"
-
-
-def _load(name: str, filename: str):
-    spec = importlib.util.spec_from_file_location(name, _LIB / filename)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-safe_write = _load("ogstores_safe_write", "safe_write.py")
-metadata_content = _load("ogstores_metadata_content_sha", "metadata_content_sha.py")
+from manifest_generation import REPO_ROOT, safe_write
+from manifest_generation import metadata_content_sha as metadata_content
 
 ANCESTRY_REFERENCE = Path("/data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz")
 ANCESTRY_GROUPS = Path("/data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv")

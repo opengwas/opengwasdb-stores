@@ -24,11 +24,11 @@ Store. It is deliberately conservative.
 
 Usage:
 
-    python3 resources/generators/dbgap-mvp/generate_candidate.py plan \\
+    python3 -m manifest_generation.providers.dbgap.mvp.generate_candidate plan \\
         --mapping /data/opengwasdb/work/epic232/220/conversion-retry-.../mapping.tsv \\
         --out-dir /data/opengwasdb/work/epic232/221
 
-    python3 resources/generators/dbgap-mvp/generate_candidate.py emit \\
+    python3 -m manifest_generation.providers.dbgap.mvp.generate_candidate emit \\
         --mapping .../mapping.tsv --resolution /path/to/resolution.tsv
 """
 
@@ -37,52 +37,27 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
-import importlib.util
 import json
 import math
 import os
 import re
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Mapping, Sequence
 
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-
-# The partition module lives beside this script in a hyphenated directory that is
-# not importable as a package; load it by path.
-_spec = importlib.util.spec_from_file_location(
-    "dbgap_mvp_partition", Path(__file__).with_name("partition.py")
-)
-assert _spec and _spec.loader
-partition_module = importlib.util.module_from_spec(_spec)
-sys.modules["dbgap_mvp_partition"] = partition_module
-_spec.loader.exec_module(partition_module)
-
-# Shared containment-checked, exclusive-temp writer (parent BAF pattern).
-_safe_spec = importlib.util.spec_from_file_location(
-    "ogstores_safe_write", REPO_ROOT / "resources" / "generators" / "lib" / "safe_write.py"
-)
-assert _safe_spec and _safe_spec.loader
-safe_write = importlib.util.module_from_spec(_safe_spec)
-sys.modules["ogstores_safe_write"] = safe_write
-_safe_spec.loader.exec_module(safe_write)
-
+from manifest_generation import REPO_ROOT, generation_rules
 # The parent's exact metadata content-hash algorithm.
-_content_spec = importlib.util.spec_from_file_location(
-    "ogstores_metadata_content_sha",
-    REPO_ROOT / "resources" / "generators" / "lib" / "metadata_content_sha.py",
-)
-assert _content_spec and _content_spec.loader
-metadata_content = importlib.util.module_from_spec(_content_spec)
-sys.modules["ogstores_metadata_content_sha"] = metadata_content
-_content_spec.loader.exec_module(metadata_content)
+from manifest_generation import metadata_content_sha as metadata_content
+# Shared containment-checked, exclusive-temp writer (parent BAF pattern).
+from manifest_generation import safe_write
+from manifest_generation.providers.dbgap.mvp import partition as partition_module
+from ogstores import bundle as bundle_module
+from opengwasdb.model.analyses import SampleSizeKind
 
-from ogstores import bundle as bundle_module  # noqa: E402
-from resources.generators.lib import generation_rules  # noqa: E402
-from opengwasdb.model.analyses import SampleSizeKind  # noqa: E402
+#: The module this generator runs as, recorded in the bundles it emits.
+MODULE = "manifest_generation.providers.dbgap.mvp.generate_candidate"
 
 DEFAULT_CONFIG = "resources/generators/dbgap-mvp/config-candidate.yaml"
 
@@ -860,7 +835,7 @@ def render_validation_yaml(
         }
     return {
         "status": "not_run",
-        "validator": {"name": "resources/generators/dbgap-mvp/generate_candidate.py"},
+        "validator": {"name": MODULE},
         "acceptance": acceptance,
         "warnings": [
             "Candidate: membership, Analytical Metadata and the Source Inventory are "
