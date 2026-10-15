@@ -30,7 +30,8 @@
 # than frozen into the manifest as absent.
 set -uo pipefail
 
-REPO=/home/gh13047/repo/opengwasdb-stores
+# The checkout this script lives in: src/manifest_generation/providers/<provider>/.
+REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)
 MIRROR=/data/opengwasdb/raw/ebi-gwas-catalog
 INDEX="$MIRROR/harmonised_list-2026-09-28.txt"
 LOG="$MIRROR/dense-pmid39024449-download.log"

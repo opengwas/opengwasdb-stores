@@ -15,7 +15,8 @@
 # a retry resumes rather than restarting.
 set -uo pipefail
 
-REPO=/home/gh13047/repo/opengwasdb-stores
+# The checkout this script lives in: src/manifest_generation/providers/<provider>/.
+REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)
 LOG=/data/opengwasdb/finngen-r13/releases/r13-full/acquire.log
 WORKERS="${WORKERS:-8}"
 ATTEMPTS="${ATTEMPTS:-10}"
