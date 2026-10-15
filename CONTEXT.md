@@ -65,6 +65,10 @@ _Avoid_: selector, manifest script
 OpenGWASDB's pass over one Analysis's source file that measures what release decisions need -- ancestry fit, allele alignment against a reference, phenotype SD, allele-frequency and imputation-quality state -- and records the measurements in a Resolution Record. Every Analysis Manifest Generation admits is resolved, without exception: a Source Format OpenGWASDB cannot yet resolve is a gap in OpenGWASDB, and its Source Collections wait for it rather than entering a Release Bundle on declared values. Manifest Generation decides from the record and never computes these statistics itself (ADRs 0012, 0017).
 _Avoid_: metadata resolution (fetching source metadata is not resolution)
 
+**Resolution Record**:
+What Analysis Resolution measured for one Analysis's source file under one set of references and settings. It belongs to the Analysis, kept once per Source Collection, not to a Store Release: every Selection that takes the Analysis reuses a matching record, and a changed file, reference or setting makes a new one. Each candidate Release Bundle names the records its decisions came from.
+_Avoid_: resolver output, QC report
+
 **Quality Check**:
 A named release-policy test of one Resolution Record measurement against a threshold, with its consequence fixed when the check is defined: an exclusion (the Analysis stays in the Release Manifest as an `exclude_from_build` audit row with the check's reason) or a warning (the Analysis stays in and the finding is recorded). OpenGWASDB measures; Manifest Generation holds the threshold, a shared default a release may override and records, and records every Analysis's measurement whether it passes or not. A Quality Check decides membership, so it runs before the Release Bundle exists; checks on a built Store are Store Release Build's validation and cannot change membership.
 _Avoid_: QC panel (a variant extraction panel, not a check), validation (of a built Store)
