@@ -6,6 +6,8 @@ from __future__ import annotations
 import builtins
 import csv
 import hashlib
+import importlib.resources
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -1462,11 +1464,11 @@ _OMIT: Any = object()
 class TestColumnMapContract(unittest.TestCase):
     """A mapped Source Collection's Column Map travels in the bundle (#292, ADR 0036).
 
-    A bundle whose `analyses.tsv` or Build Recipe names the
-    `opengwasdb.column-map` capability binds its map in `build.yaml`
-    (`column_map: {name, sha256}`) and carries the file at
-    `column_maps/<name>.toml`, unless the name is a built-in. `check()` validates
-    the map shallowly; OpenGWASDB validates it fully at resolution and build.
+    A bundle with an Analysis read through `opengwasdb.column-map` binds its map
+    in `build.yaml` (`column_map: {name, sha256, file}`) and carries it at
+    `column_maps/<file>`; a built-in is bound without `file`. `check()`
+    validates the map shallowly; OpenGWASDB validates it fully at resolution
+    and build.
     """
 
     MAP = (
@@ -1482,6 +1484,7 @@ class TestColumnMapContract(unittest.TestCase):
         'alleles = "effect_and_other"\nposition_notation = "integer"\n'
         'chromosome_spelling = "adr-0052"\ngenome_build = "GRCh38"\n'
     )
+    FILE = "fixture-map.toml"
     COLUMN_MAP = "opengwasdb.column-map"
 
     setUp = TestBundleContract.setUp
@@ -1493,158 +1496,280 @@ class TestColumnMapContract(unittest.TestCase):
         data = text.encode("utf-8") if isinstance(text, str) else text
         return hashlib.sha256(data).hexdigest()
 
+    def binding(self, content: str | bytes = MAP, **overrides: Any) -> dict[str, Any]:
+        return {"name": "fixture-map", "sha256": self.sha256(content), "file": self.FILE, **overrides}
+
     def mapped_bundle(
         self,
         *,
-        row_capability: str | None = COLUMN_MAP,
+        row_capabilities: tuple[str, ...] | None = (COLUMN_MAP,),
         recipe_capability: str | None = None,
         binding: Any = _OMIT,
         maps: Mapping[str, str | bytes] | None = None,
         options: Mapping[str, Any] | None = None,
+        recipe: Mapping[str, Any] | None = None,
     ) -> bundle.Bundle:
+        """One Analysis per entry of `row_capabilities`; `None` omits the column."""
         store_id = "OGS-00095"
         base = self.make_bundle(store_id=store_id)
         header, row = (base.root / "analyses.tsv").read_text().strip().split("\n")
-        if row_capability is not None:
+        rows = [row]
+        if row_capabilities is not None:
             header += "\tsource_reader_capability"
-            row += f"\t{row_capability}"
+            rows = [
+                row.replace("FIXTURE_1", f"FIXTURE_{number}") + f"\t{capability}"
+                for number, capability in enumerate(row_capabilities, 1)
+            ]
         build_options: dict[str, Any] = dict(options or {})
         if recipe_capability is not None:
             build_options["source-reader-capability"] = recipe_capability
         build: dict[str, Any] = {
-            "build": {"command": "build-dense-vcf", "options": build_options}
+            "build": {"command": "build-dense-vcf", "options": build_options},
+            **(recipe or {}),
         }
         if binding is _OMIT:
-            binding = {"name": "fixture-map", "sha256": self.sha256(self.MAP)}
+            binding = self.binding()
         if binding is not None:
             build["column_map"] = binding
         loaded = self.make_bundle(
-            store_id=store_id, analyses=f"{header}\n{row}\n", build=build
+            store_id=store_id, analyses="\n".join([header, *rows]) + "\n", build=build
         )
-        if binding is None and maps is None:
-            maps = {}
-        directory = loaded.root / "column_maps"
-        shutil.rmtree(directory, ignore_errors=True)  # one store id serves every call
-        for name, content in (maps if maps is not None else {"fixture-map.toml": self.MAP}).items():
+        if maps is None:
+            carries = isinstance(binding, Mapping) and binding.get("file")
+            maps = {self.FILE: self.MAP} if carries else {}
+        directory = loaded.root / "column_maps"  # one store id serves every call
+        if directory.is_symlink() or directory.is_file():
+            directory.unlink()
+        shutil.rmtree(directory, ignore_errors=True)
+        for name, content in maps.items():
             directory.mkdir(exist_ok=True)
             data = content.encode("utf-8") if isinstance(content, str) else content
             (directory / name).write_bytes(data)
         return loaded
 
-    def errors(self, **kwargs: Any) -> list[str]:
-        return list(bundle.check(self.mapped_bundle(**kwargs), registry_root=self.tmp_dir))
+    def result(self, **kwargs: Any) -> bundle.CheckResult:
+        return bundle.check(self.mapped_bundle(**kwargs), registry_root=self.tmp_dir)
 
-    def assert_refused(self, expected: str, **kwargs: Any) -> None:
+    def errors(self, **kwargs: Any) -> list[str]:
+        return list(self.result(**kwargs))
+
+    def assert_refused(self, expected: str, **kwargs: Any) -> list[str]:
         errors = self.errors(**kwargs)
-        self.assertTrue(
-            any("Column Map" in error and expected in error for error in errors), errors
-        )
+        self.assertTrue(any(expected in error for error in errors), errors)
         record_check()
+        return errors
 
     def test_a_mapped_bundle_with_its_map_and_checksum_passes(self) -> None:
         self.assertEqual(self.errors(), [])
-        # The Build Recipe's default capability maps the rows that do not name one.
+        # The binding is OpenGWASDB's fingerprint, `{name, sha256}` over the
+        # file's bytes, plus where the bundle carries it.
+        loaded = self.mapped_bundle()
+        written = (loaded.root / "column_maps" / "fixture-map.toml").read_bytes()
         self.assertEqual(
-            self.errors(row_capability=None, recipe_capability=self.COLUMN_MAP), []
+            loaded.build["column_map"],
+            {"name": "fixture-map", "sha256": hashlib.sha256(written).hexdigest(),
+             "file": "fixture-map.toml"},
         )
         record_check()
 
-    def test_the_binding_is_the_resolution_record_fingerprint_shape(self) -> None:
-        """`{name, sha256}` over the file bytes, as OpenGWASDB fingerprints a map (#287)."""
-        loaded = self.mapped_bundle()
-        binding = loaded.build["column_map"]
-        self.assertEqual(set(binding), {"name", "sha256"})
-        path = loaded.root / bundle.column_map_path("fixture-map")
-        self.assertEqual(path, loaded.root / "column_maps" / "fixture-map.toml")
-        self.assertEqual(binding["sha256"], hashlib.sha256(path.read_bytes()).hexdigest())
+    def test_a_map_name_is_any_name_opengwasdb_accepts(self) -> None:
+        """The fingerprint's `name` is the map's own; only `file` takes the bundle's grammar."""
+        named = self.MAP.replace('"fixture-map"', '"MVP GIA / phs002453"')
+        self.assertEqual(
+            self.errors(
+                binding=self.binding(named, name="MVP GIA / phs002453"),
+                maps={self.FILE: named},
+            ),
+            [],
+        )
         record_check()
+
+    def test_rows_without_a_reader_inherit_the_recipe_capability(self) -> None:
+        # No column, a blank cell, and a padded recipe value all inherit it.
+        self.assertEqual(self.errors(row_capabilities=None, recipe_capability=self.COLUMN_MAP), [])
+        self.assertEqual(
+            self.errors(
+                row_capabilities=("opengwasdb.gwas-ssf", ""),
+                recipe_capability=f" {self.COLUMN_MAP} ",
+            ),
+            [],
+        )
+        record_check()
+        self.assert_refused(
+            "binds no 'column_map'",
+            row_capabilities=("",), recipe_capability=f" {self.COLUMN_MAP} ", binding=None,
+        )
+        # Every row names a dedicated reader, so nothing inherits the recipe's map.
+        self.assertEqual(
+            self.errors(
+                row_capabilities=("opengwasdb.gwas-ssf",),
+                recipe_capability=self.COLUMN_MAP, binding=None,
+            ),
+            [],
+        )
+        record_check()
+        self.assert_refused(
+            "no Analysis reads through it",
+            row_capabilities=("opengwasdb.gwas-ssf",), recipe_capability=self.COLUMN_MAP,
+        )
 
     def test_a_missing_map_is_refused(self) -> None:
-        # The capability is named, but the Build Recipe binds no map.
-        self.assert_refused("opengwasdb.column-map", binding=None)
-        self.assert_refused(
-            "opengwasdb.column-map",
-            binding=None, row_capability=None, recipe_capability=self.COLUMN_MAP,
-        )
-        # The Build Recipe binds a map the bundle does not carry.
-        self.assert_refused("column_maps/fixture-map.toml", maps={})
+        self.assert_refused("binds no 'column_map'", binding=None)
+        self.assert_refused("binds column_maps/fixture-map.toml, but the bundle does not carry it", maps={})
 
     def test_a_checksum_mismatch_is_refused(self) -> None:
         self.assert_refused(
-            "sha256", maps={"fixture-map.toml": self.MAP + "# edited after binding\n"}
+            "column_maps/fixture-map.toml has sha256",
+            maps={self.FILE: self.MAP + "# edited after binding\n"},
         )
 
     def test_an_unreferenced_map_is_refused(self) -> None:
-        # Bound and carried, but no row and no recipe reads through it.
-        self.assert_refused("no Analysis", row_capability="opengwasdb.gwas-ssf")
-        # Carried, but not the bound map.
         self.assert_refused(
-            "column_maps/other-map.toml",
-            maps={"fixture-map.toml": self.MAP, "other-map.toml": self.MAP},
+            "no Analysis reads through it", row_capabilities=("opengwasdb.gwas-ssf",)
         )
-        # Carried with nothing bound.
         self.assert_refused(
-            "column_maps/fixture-map.toml",
-            row_capability="opengwasdb.gwas-ssf", binding=None,
-            maps={"fixture-map.toml": self.MAP},
+            "column_maps/other-map.toml is carried but not bound",
+            maps={self.FILE: self.MAP, "other-map.toml": self.MAP},
+        )
+        self.assert_refused(
+            "column_maps/fixture-map.toml is carried but not bound",
+            row_capabilities=("opengwasdb.gwas-ssf",), binding=None,
+            maps={self.FILE: self.MAP},
         )
 
     def test_dedicated_and_built_in_readers_need_no_file(self) -> None:
         for capability in ("opengwasdb.gwas-ssf", "opengwasdb.finngen-r13"):
-            self.assertEqual(self.errors(row_capability=capability, binding=None), [])
+            self.assertEqual(self.errors(row_capabilities=(capability,), binding=None), [])
             self.assertEqual(
-                self.errors(row_capability=None, recipe_capability=capability, binding=None),
+                self.errors(row_capabilities=None, recipe_capability=capability, binding=None),
                 [],
             )
         builtin = {"name": "gwas-ssf", "sha256": "b" * 64}
-        self.assertEqual(self.errors(binding=builtin, maps={}), [])
+        result = self.result(binding=builtin)
+        self.assertEqual(list(result), [])
         record_check()
-        # A built-in's name is never also a carried file: that is ambiguous.
-        self.assert_refused(
-            "built-in", binding=builtin, maps={"gwas-ssf.toml": self.MAP}
+        # Its sha256 cannot be checked against the pinned package yet, and the
+        # result says so rather than reading as clean (#142).
+        self.assertEqual(
+            [(gap.count, gap.citation) for gap in result.tolerated], [(1, "#292 part 2")]
         )
+        self.assertIn("built-in Column Map 'gwas-ssf'", result.tolerated[0].detail)
+        record_check()
+        self.assert_refused(
+            "column_maps/gwas-ssf.toml is carried but not bound",
+            binding=builtin, maps={"gwas-ssf.toml": self.MAP},
+        )
+        self.assert_refused(
+            "names no built-in map and carries no file",
+            binding={"name": "fixture-map", "sha256": self.sha256(self.MAP)},
+        )
+        # A carried copy of a built-in is an ordinary carried map.
+        copy = self.MAP.replace('"fixture-map"', '"gwas-ssf"')
+        self.assertEqual(
+            self.errors(binding=self.binding(copy, name="gwas-ssf"), maps={self.FILE: copy}),
+            [],
+        )
+        record_check()
+
+    def test_builtin_names_are_a_copy_until_the_pin_bump(self) -> None:
+        """`BUILTIN_COLUMN_MAPS` copies opengwasdb's, which the pin (4e92256) predates.
+
+        When the pin bump brings `opengwasdb.readers.column_map`, this fails:
+        import `BUILTIN_COLUMN_MAPS` from there, delete the copy, and verify a
+        built-in binding's sha256 against the package (#292 part 2).
+        """
+        self.assertIsNone(importlib.util.find_spec("opengwasdb.readers.column_map"))
+        self.assertFalse(
+            importlib.resources.files("opengwasdb.readers").joinpath("column_maps").is_dir()
+        )
+        record_check()
 
     def test_the_map_is_validated_shallowly(self) -> None:
         def bound(content: str | bytes) -> dict[str, Any]:
-            return {
-                "binding": {"name": "fixture-map", "sha256": self.sha256(content)},
-                "maps": {"fixture-map.toml": content},
-            }
+            return {"binding": self.binding(content), "maps": {self.FILE: content}}
 
-        self.assert_refused("TOML", **bound("column_map_version = \n"))
-        self.assert_refused("TOML", **bound(b"\xff\xfe"))
+        self.assert_refused("fixture-map.toml is not UTF-8 TOML", **bound("column_map_version = \n"))
+        self.assert_refused("fixture-map.toml is not UTF-8 TOML", **bound(b"\xff\xfe"))
         self.assert_refused(
-            "column_map_version", **bound(self.MAP.replace("column_map_version = 1\n", ""))
+            "fixture-map.toml is missing 'column_map_version'",
+            **bound(self.MAP.replace("column_map_version = 1\n", "")),
         )
-        self.assert_refused("'other-map'", **bound(self.MAP.replace("fixture-map", "other-map")))
-        # Anything deeper is OpenGWASDB's to refuse: an unknown convention passes here.
+        self.assert_refused(
+            "names itself 'other-map'; build.yaml binds 'fixture-map'",
+            **bound(self.MAP.replace("fixture-map", "other-map")),
+        )
+        # Anything deeper is OpenGWASDB's to refuse: an unknown key passes here.
         self.assertEqual(self.errors(**bound(self.MAP + 'unknown_key = "x"\n')), [])
         record_check()
 
     def test_a_malformed_binding_is_refused(self) -> None:
         good = self.sha256(self.MAP)
-        self.assert_refused("mapping", binding="fixture-map")
-        self.assert_refused("sha256", binding={"name": "fixture-map"})
-        self.assert_refused("sha256", binding={"name": "fixture-map", "sha256": good.upper()})
-        self.assert_refused("sha256", binding={"name": "fixture-map", "sha256": good[:40]})
-        self.assert_refused(
-            "unknown", binding={"name": "fixture-map", "sha256": good, "path": "x.toml"}
-        )
-        self.assert_refused("name", binding={"name": "../fixture-map", "sha256": good})
+        self.assert_refused("must be a Column Map binding", binding="fixture-map")
+        self.assert_refused("sha256 must be", binding=self.binding(sha256=None))
+        self.assert_refused("sha256 must be", binding=self.binding(sha256=good.upper()))
+        self.assert_refused("sha256 must be", binding=self.binding(sha256=good[:40]))
+        self.assert_refused("unknown key(s) ['path']", binding=self.binding(path="x.toml"))
+        self.assert_refused("name must be a non-empty string", binding=self.binding(name=" "))
+        for bad in ("../fixture-map.toml", "sub/fixture-map.toml", "fixture-map.yaml"):
+            self.assert_refused(
+                f"file {bad!r} must be", binding=self.binding(file=bad), maps={}
+            )
         # Null is malformed, not "no map": omit the key to bind none.
-        loaded = self.mapped_bundle(row_capability="opengwasdb.gwas-ssf", maps={})
-        build = dict(loaded.build, column_map=None)
-        (loaded.root / "build.yaml").write_text(yaml.safe_dump(build), encoding="utf-8")
-        errors = list(
-            bundle.check(bundle.load(loaded.store_id, self.tmp_dir), registry_root=self.tmp_dir)
+        self.assert_refused("not null", binding=None, recipe={"column_map": None})
+
+    def test_every_defect_is_reported_in_one_pass(self) -> None:
+        errors = self.errors(
+            binding=self.binding(sha256="A" * 64),
+            maps={self.FILE: self.MAP, "stray.toml": self.MAP},
+            options={"column-map": "x"},
         )
-        self.assertTrue(any("null" in error for error in errors), errors)
+        for expected in ("sha256 must be", "stray.toml is carried but not bound", "must not set"):
+            self.assertTrue(any(expected in error for error in errors), (expected, errors))
+        record_check()
+        errors = self.errors(maps={self.FILE: self.MAP + "#x\n", "stray.toml": ""})
+        for expected in ("has sha256", "stray.toml is carried but not bound"):
+            self.assertTrue(any(expected in error for error in errors), (expected, errors))
+        record_check()
+
+    def test_the_directory_and_map_must_be_real(self) -> None:
+        loaded = self.mapped_bundle(maps={})
+        outside = self.tmp_dir / "outside"
+        outside.mkdir()
+        (outside / self.FILE).write_text(self.MAP, encoding="utf-8")
+        (loaded.root / "column_maps").symlink_to(outside, target_is_directory=True)
+        errors = list(bundle.check(loaded, registry_root=self.tmp_dir))
+        self.assertTrue(any("column_maps/ must be a directory" in e for e in errors), errors)
+        record_check()
+
+        loaded = self.mapped_bundle(maps={})
+        (loaded.root / "column_maps").write_text("", encoding="utf-8")
+        errors = list(bundle.check(loaded, registry_root=self.tmp_dir))
+        self.assertTrue(any("column_maps/ must be a directory" in e for e in errors), errors)
+        record_check()
+
+        loaded = self.mapped_bundle(maps={})
+        (loaded.root / "column_maps").mkdir()
+        (loaded.root / "column_maps" / self.FILE).symlink_to(outside / self.FILE)
+        errors = list(bundle.check(loaded, registry_root=self.tmp_dir))
+        self.assertTrue(
+            any("column_maps/fixture-map.toml must be a regular file" in e for e in errors), errors
+        )
         record_check()
 
     def test_options_cannot_pass_a_map_around_the_binding(self) -> None:
         """`--column-map` is composed from the checksummed binding, never passed through."""
-        self.assert_refused("column-map", options={"column-map": "/elsewhere/map.toml"})
-        self.assert_refused("column-map", options={"--column-map": "gwas-ssf"})
+        self.assert_refused(
+            "build.options must not set ['column-map']",
+            options={"column-map": "/elsewhere/map.toml"},
+        )
+        self.assert_refused("build.options must not set ['--column-map']", options={"--column-map": "gwas-ssf"})
+        self.assert_refused(
+            "complete.options must not set ['column-map']",
+            recipe={
+                "completion_state": "reference_completed",
+                "complete": {"command": "complete-dense", "options": {"column-map": "x"}},
+            },
+        )
 
 
 class TestBundleSummary(unittest.TestCase):
