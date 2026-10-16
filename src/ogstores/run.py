@@ -78,12 +78,12 @@ from typing import Any, Iterable, Mapping
 from ogstores import paths
 from ogstores.bundle import (
     INDEXED_SUBSET_STEP_PREFIX,
+    STORE_PRODUCING_STEPS,
     Bundle,
     is_valid_indexed_subset_name,
 )
 from ogstores.plan import Step
 
-STORE_PRODUCING_STEPS: frozenset[str] = frozenset({"build", "complete"})
 VARIANT_REFERENCE_STEP: str = "variant-reference"
 VALID_STEP_NAMES: frozenset[str] = frozenset({
     "build",

@@ -34,6 +34,7 @@ stores/OGS-00042/
   summary.yaml      generated review view derived only from analyses.tsv
   validation.yaml   evidence, written back by the register step
   sidecars/         optional generated evidence (ancestry, SD, sparse regions)
+  column_maps/      the Column Map a mapped Source Collection is read through
 ```
 
 The `store_id` is the opaque `OGS-` identifier (ADR 0022). It is the directory
@@ -255,7 +256,7 @@ and the matching authority name in `trait_ontology_label` (issue #141).
 | `trait_ontology_id` | No | Ontology or controlled-vocabulary identifier for the analysed Trait, when available. CURIE format, for example `EFO:0001073`; blank when unmapped. Never a gene or protein identifier: `bundle.check()` rejects Ensembl, HGNC, Entrez/NCBI Gene, and UniProt identifiers, bare or authority-qualified (issue #141). Not required to be unique. |
 | `trait_ontology_mapping_method` | Yes | Controlled value describing how `trait_ontology_id`/`trait_ontology_label` were resolved: `source_provided`, `canonical_table_lookup`, or `unmapped`. The #130 `external_authority_lookup` value is retired: gene/target identity is annotation, not a Trait Ontology Mapping (issue #141). Registry-only. |
 | `source_file` | Yes | Source file or filtered source file consumed by the builder. Omitted in legacy monolithic BESD releases (`OGS-00001` and `OGS-00002`), where source identity is currently recorded only as an unverified path prefix (a known integrity gap tracked in issue #134). |
-| `source_reader_capability` | No | The OpenGWASDB reader that consumes `source_file` (for example `opengwasdb.gwas-ssf`). The builder reads it per row and falls back to the Build Recipe's `source-reader-capability` when absent. Required on any row with a numeric `info_score_threshold`. |
+| `source_reader_capability` | No | The OpenGWASDB reader that consumes `source_file` (for example `opengwasdb.gwas-ssf`). The builder reads it per row and falls back to the Build Recipe's `source-reader-capability` when absent. Required on any row with a numeric `info_score_threshold`. `opengwasdb.column-map` reads the row through the bundle's Column Map, which the Build Recipe must then bind; see "Column Map binding". |
 | `source_bundle_id` | No | Identifier for a multi-file Source Bundle when one file is insufficient. |
 | `checksum` | Yes | Checksum for `source_file` or source bundle manifest. Omitted in legacy monolithic BESD releases (`OGS-00001` and `OGS-00002`; known integrity gap tracked in issue #134). When both `checksum` and `checksum_algorithm` are present, `bundle.check()` validates the digest length for `md5` (32), `sha1` (40), or `sha256` (64) hex; an unsupported algorithm is rejected. |
 | `checksum_algorithm` | Yes | Algorithm used for `checksum`, for example `sha256`. |
@@ -416,6 +417,7 @@ registry fact or an `opengwasdb` flag. It does not record *where* artifacts land
 | `build.options` / `complete.options` | No | `opengwasdb` flag names passed through verbatim; see "The passthrough rule". |
 | `post` | Yes | Post-processing choices: `top_hits`, `rho`, `overview`, `validate`. `rho` defaults off and `validate` defaults on (`plan.POST_DEFAULTS`); a recipe states only what it chooses differently. `top_hits` and `overview` are always explicit because they vary per release. |
 | `indexed_subsets` | No | Optional named Indexed Variant Subset declarations (stores #209, epic #214). A list of `{name, resource_id, variant_list, reference_assembly, checksum?, options?}`. Dense and Hybrid only; a Ragged release rejects any declaration. Every declaration adds one `build-indexed-subset` Step before `overview` and `validate`. See "Indexed Variant Subset declarations". |
+| `column_map` | When an Analysis reads through `opengwasdb.column-map` | The Column Map binding `{name, sha256, file}` (#292), with no `file` for a built-in map. Required exactly when an `analyses.tsv` row names `opengwasdb.column-map`, or leaves its reader blank under a recipe `source-reader-capability` of `opengwasdb.column-map`. See "Column Map binding". |
 
 A Build Recipe must **not** declare an `artifacts` block: `bundle.check()`
 rejects it, because the artifact root is deployment configuration (issue #126).
@@ -502,6 +504,90 @@ tracked `opengwasdb` pin provides the capability since stores#218, so the entry
 point needs no `PATH` overlay. See
 [ADR 0034](adr/0034-indexed-variant-subsets-in-release-planning.md) and the
 workflow specification's "Indexed Variant Subsets".
+
+### Column Map binding
+
+A tabular Source Collection read through OpenGWASDB's generic tabular reader
+has a **Column Map**: a TOML file declaring which provider column supplies each
+field and the collection's conventions (opengwasdb ADR 0063). ADR 0036 has it
+travel in the Release Bundle, checksummed, so Analysis Resolution and Store
+Release Build read every file the same way (#292).
+
+An Analysis **reads through a Column Map** when its `source_reader_capability`
+is `opengwasdb.column-map`. A row that leaves `source_reader_capability` blank,
+or has no such column, inherits the Build Recipe's
+`build`/`complete` `options.source-reader-capability`. Both values are compared
+with surrounding whitespace stripped. A bundle with at least one such Analysis
+is **mapped**. A recipe default of `opengwasdb.column-map` does not map a
+bundle whose every row names its own reader. A mapped bundle's Build Recipe
+binds exactly one map, since files that need different maps belong to different
+Source Collections:
+
+```yaml
+column_map:
+  name: dbgap-phs002453-mvp-gia
+  sha256: 3f0c...e9a1   # 64 lower-case hex characters
+  file: dbgap-phs002453-mvp-gia.toml
+```
+
+| Field | Required | Description |
+|---|---:|---|
+| `name` | Yes | The map's own `name`, as its TOML declares it. Any non-empty string, as OpenGWASDB accepts. |
+| `sha256` | Yes | The sha256 of the map file's bytes, as 64 lower-case hex characters. |
+| `file` | Yes, except for a built-in | The file the bundle carries the map in, under `column_maps/`. A file name, not a path: the Indexed Variant Subset grammar `[A-Za-z0-9][A-Za-z0-9._-]{0,127}` with no `..`, ending `.toml`. |
+
+`name` and `sha256` are the fingerprint OpenGWASDB records in a mapped
+Resolution Record (`resolution_config.column_map`) and in a mapped Store's
+`manifest.json` (`provenance.column_map`). The three can therefore be compared
+field for field. `file` is kept apart from `name` so that a map's name never
+has to be a safe file name.
+
+**Built-in maps.** OpenGWASDB ships two maps, `gwas-ssf` and `finngen-r13`.
+A binding with no `file` names one of them, and the bundle carries nothing for
+it, because the pinned OpenGWASDB package holds the bytes. Its `sha256` records
+the built-in's checksum as the Resolution Records report it. A binding with no
+`file` and any other `name` is refused. A carried copy of a built-in, bound with
+a `file`, is an ordinary carried map. A bundle whose rows use the dedicated
+readers `opengwasdb.gwas-ssf` or `opengwasdb.finngen-r13` is not mapped and
+needs neither a binding nor a file. That covers every bundle registered before
+#292.
+
+`bundle.check()` (`_check_column_map`) refuses, reporting every one it finds in
+one pass:
+
+- a mapped bundle whose Build Recipe binds no `column_map`;
+- a binding in a bundle that is not mapped: a map no Analysis reads through;
+- a bound `file` the bundle does not carry at `column_maps/<file>`, or one that
+  is a symbolic link or not a regular file;
+- a carried map whose bytes do not hash to the bound `sha256`;
+- any other entry in `column_maps/`: a carried map that is not bound;
+- a `column_maps` that is a symbolic link or not a directory;
+- a malformed binding: not a mapping, `null` (omit the key to bind none), an
+  unknown key, an empty `name`, a `sha256` that is not 64 lower-case hex
+  characters, a `file` outside the grammar, or no `file` with a `name` that is
+  not a built-in;
+- `column-map` in `build.options` or `complete.options`. The flag will be
+  composed from the checksummed binding, never passed through around it.
+
+The contract checks a carried map **shallowly**. It must be UTF-8 TOML with a
+`column_map_version` and a `name` equal to the binding's. Its full validation,
+covering fields, conventions and refusals, belongs to OpenGWASDB, which applies
+it at Analysis Resolution and at every build that reads through the map. The
+contract does not copy those rules.
+
+`bundle.check()` cannot yet verify a built-in's `sha256` against its bytes,
+because the pinned OpenGWASDB has no built-in maps. Rather than pass silently,
+it reports the gap on `CheckResult.tolerated`, the #142 channel, cited
+`#292 part 2`. `BUILTIN_COLUMN_MAPS` is a copy of OpenGWASDB's list until the
+pin bump. A bundle test fails once the installed OpenGWASDB has
+`opengwasdb.readers.column_map`, so the copy and the gap cannot outlive the
+bump.
+
+Store Release Build does not yet pass the map to OpenGWASDB. The tracked
+`opengwasdb` pin predates the Column Map reader and refuses
+`opengwasdb.column-map` as an unknown capability. These follow the pin bump
+(#292, #287): `--column-map` on resolution and on every build command, the
+built-in checksum check, and a changed map making its Resolution Records stale.
 
 ### The passthrough rule
 
