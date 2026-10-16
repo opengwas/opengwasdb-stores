@@ -1823,7 +1823,8 @@ def compute_resolution_contract(config: CandidateConfiguration) -> dict[str, Any
     # The effective Quality Check thresholds, defaults included, and the
     # release's overrides (#285): changing a shared default or an override makes
     # the receipt stale. A receipt written before #285 lacks the key and is
-    # stale too; re-resolving with --resume rewrites it.
+    # stale too. Re-running the resolve stage rewrites it, reusing every record:
+    # thresholds are not in the resolver's fingerprint (#284).
     contract["quality_checks"] = quality_checks.receipt_contract(config.quality_check_overrides)
     return contract
 

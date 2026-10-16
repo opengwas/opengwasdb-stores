@@ -698,10 +698,10 @@ class QualityCheckTests(unittest.TestCase):
         run_root = self.fixture.work_root / STORE_ID / "resolver"
         _, failures = verify_records(
             derive_resolver_manifest(rows, config, metadata),
-            run_root / "records",
             config=config,
             manifest_path=run_root / "analyses.tsv",
             receipt_path=run_root / RECEIPT_FILENAME,
+            index_path=run_root / "index.json",
         )
         return failures
 
