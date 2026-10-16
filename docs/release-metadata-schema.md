@@ -871,6 +871,32 @@ specialised sidecar.
 | `evidence` | No | Compact evidence string or URI. |
 | `notes` | No | Free-text notes for audit. |
 
+## Source connector files and freeze
+
+A Source Collection plugs into Manifest Generation through files, never through
+code the pipeline calls ([ADR 0036](adr/0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.md)).
+Two of them meet at freeze (`python3 -m manifest_generation.freeze`, #283):
+
+- the **Source Metadata Table**: one row per intended Analysis in canonical
+  columns -- `source_analysis_id` (the only required one), Source Trait Label
+  and ontology terms, Source Ancestry Label and super-population, study
+  design, declared effect scale, sample size and case counts, genome build,
+  Publication Metadata, licence, a provider grouping (`store_key`) and
+  optional target columns for single-target Analyses;
+- the **Acquisition Manifest**: per Analysis, the file acquisition produced --
+  location, size, sha256, source URL, metadata sidecar, lineage for a
+  reformatted file -- or the readiness status recording why there is none.
+
+A release config's **Selection** (`all`, an `analyses` list, or a `where`
+rule) picks the Analyses one release takes. Freeze reconciles them, fails on a
+selected Analysis with no manifest row, a row no Analysis claims or a
+duplicate, keeps an explained absence as a non-ready inventory row, and writes
+the Source Inventory with the selected connector rows frozen beside it.
+
+[`docs/spec/source-connectors.md`](spec/source-connectors.md) specifies every
+column, the vocabularies, the GWAS Catalog adapter and writer, the Selection
+grammar and the frozen inventory's provenance.
+
 ## Manifest Generator configuration
 
 The blocks below are **Phase B generator configuration**, not Release Bundle

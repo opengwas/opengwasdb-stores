@@ -41,11 +41,10 @@ from pathlib import Path
 
 from manifest_generation import REPO_ROOT
 from manifest_generation.source_inventory import (
-    AcquisitionPass,
     InventoryError,
-    PreflightConfigError,
     build_snapshot,
     load_release_configuration,
+    parse_pass_arguments,
     preflight,
     read_candidate_selection,
     read_inventory,
@@ -90,7 +89,7 @@ def command_freeze(args: argparse.Namespace, repo_root: Path) -> int:
     config = load_release_configuration(_config_path(repo_root, args.config), repo_root)
     snapshot_id = args.snapshot_id or config.inventory_snapshot_id
     manifests = (
-        _parse_manifest_overrides(args.manifest) if args.manifest else config.freeze_inputs
+        parse_pass_arguments(args.manifest, flag="--manifest") if args.manifest else config.freeze_inputs
     )
     candidates_path = Path(args.candidates) if args.candidates else config.candidates_path
 
@@ -198,28 +197,6 @@ def _provenance_path(args: argparse.Namespace, config, inventory_path: Path) -> 
         # can be preflighted without retargeting the release config.
         return inventory_path.with_name(f"{inventory_path.stem}.meta.yaml")
     return config.inventory_provenance_path
-
-
-def _parse_manifest_overrides(values: list[str]) -> tuple[AcquisitionPass, ...]:
-    """Parse repeated ``--manifest ROLE=PATH`` values into ordered acquisition passes.
-
-    Giving the flag at least once replaces the configured list entirely, so an
-    operator can freeze a snapshot from passes the release config does not name
-    without editing the config. Order is the precedence rule, exactly as in config.
-    """
-    passes: list[AcquisitionPass] = []
-    seen: set[str] = set()
-    for value in values:
-        role, separator, path_value = value.partition("=")
-        role = role.strip()
-        path_value = path_value.strip()
-        if not separator or not role or not path_value:
-            raise PreflightConfigError(f"--manifest expects ROLE=PATH, got {value!r}")
-        if role in seen:
-            raise PreflightConfigError(f"--manifest declares role {role!r} twice")
-        seen.add(role)
-        passes.append(AcquisitionPass(role=role, path=Path(path_value).expanduser()))
-    return tuple(passes)
 
 
 def main(argv: list[str] | None = None) -> int:

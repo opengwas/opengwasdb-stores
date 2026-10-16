@@ -120,6 +120,26 @@ a preflight, it is the resolution run's job. It also never treats a non-ready ro
 whose file has since appeared as ready — that only signals the frozen snapshot is
 stale and should be re-frozen deliberately.
 
+## The shared freeze (ADR 0036)
+
+`python3 -m manifest_generation.freeze` writes a Source Inventory in these same
+columns from a Source Collection's two connector files -- its **Source Metadata
+Table** (intent) and its **Acquisition Manifest** (what acquisition produced)
+-- and a release config's **Selection** (#283). It also writes the selected
+rows of both connector files beside the snapshot
+(`<snapshot-id>.source-metadata.tsv`, `<snapshot-id>.acquisition-manifest.tsv`),
+and its provenance sidecar records the Selection and each connector's frozen
+and original sha256 instead of the candidate table and the acquisition passes;
+the GWAS Catalog's passes are recorded beside its Acquisition Manifest by the
+writer that overlays them, and that record's sha256 is in the provenance too.
+[`docs/spec/source-connectors.md`](../../docs/spec/source-connectors.md) is the
+authority on its inputs and provenance.
+
+Re-freezing `gwas-catalog-ssf-eur-hybrid-2026-09-22` through it, with
+`selection: {where: {store_key: hybrid__European}}`, reproduces the committed
+TSV byte for byte. `inventory-freeze` above remains until #287 moves the GWAS
+Catalog release onto the shared freeze.
+
 ## Declared-selection inventories
 
 Not every Source Collection is described by acquisition manifests. The `ukb-b`

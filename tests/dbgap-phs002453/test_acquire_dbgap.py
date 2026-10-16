@@ -44,7 +44,7 @@ from manifest_generation.source_inventory import (
     ACQUISITION_MANIFEST_COLUMNS,
     AcquisitionPass,
     build_snapshot,
-    read_acquisition_manifest,
+    read_acquisition_pass,
     read_candidate_selection,
     write_snapshot,
 )
@@ -578,7 +578,7 @@ class AcquisitionTest(unittest.TestCase):
 
     def test_12_manifest_is_accepted_by_the_source_inventory(self) -> None:
         path = self.root / "manifests" / f"{STORE_KEY.replace('__', '-')}-download-manifest.tsv"
-        rows = read_acquisition_manifest(path)
+        rows = read_acquisition_pass(path)
         self.assertEqual(len(rows), 3)
         self.assertIn("GCST90479999", {row["analysis_id"] for row in rows if row["status"] != "ok"})
 
