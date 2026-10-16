@@ -35,6 +35,14 @@ The pipeline does the rest, the same way for every source:
 1. **Freeze.** Reconcile the selected intent against the Acquisition Manifest
    into a frozen Source Inventory. An intended Analysis with no file, a file
    nobody claims, or a duplicate fails the run.
+
+   *Clarified by #283:* "no file" means no Acquisition Manifest row at all.
+   A row whose readiness status records why acquisition could not produce a
+   usable file is an explained absence: the Analysis stays in the Source
+   Inventory as a non-ready row and never becomes a release member. Freeze
+   writes the selected rows of both connector files beside the inventory and
+   checksums them into its provenance
+   ([spec](../spec/source-connectors.md)).
 2. Preflight.
 3. **Analysis Resolution** of every Analysis, by OpenGWASDB.
 4. Verify the records.

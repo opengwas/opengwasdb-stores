@@ -1,0 +1,5 @@
+source_label	reason
+Multiple/Mixed	Several major ancestry groups contribute, or one cohort reports a compound category; no single super-population describes the Analysis.
+NR/Unknown	The source did not report ancestry (GWAS Catalog NR) or ebi-studies.r found none; there is nothing to translate.
+Other	GWAS Catalog's residual category, which names no population a super-population code could stand for.
+Asian (unspecified)	Spans East, South and South East Asian populations, which map to different super-populations (EAS, SAS).

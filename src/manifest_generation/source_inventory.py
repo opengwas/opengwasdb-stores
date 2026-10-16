@@ -45,7 +45,7 @@ import shutil
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 import yaml
 
@@ -269,7 +269,7 @@ class InventorySnapshot:
 
     @property
     def readiness_counts(self) -> dict[str, int]:
-        return _counts(row.readiness_status for row in self.rows)
+        return counts(row.readiness_status for row in self.rows)
 
     @property
     def ready_rows(self) -> tuple[SourceInventoryRow, ...]:
@@ -287,11 +287,11 @@ class InventorySnapshot:
 
     @property
     def study_design_counts(self) -> dict[str, int]:
-        return _counts(row.study_design for row in self.rows)
+        return counts(row.study_design for row in self.rows)
 
     @property
     def ready_study_design_counts(self) -> dict[str, int]:
-        return _counts(row.study_design for row in self.ready_rows)
+        return counts(row.study_design for row in self.ready_rows)
 
     @property
     def duplicates(self) -> tuple[DuplicateContentGroup, ...]:
@@ -320,18 +320,22 @@ def _read_tsv(path: Path, required_columns: Sequence[str], what: str) -> list[di
     return rows
 
 
-def _duplicate_ids(rows: Iterable[Mapping[str, str]], key: str) -> list[str]:
+def duplicate_values(values: Iterable[str]) -> list[str]:
+    """Every value that occurs more than once, sorted."""
     seen: set[str] = set()
-    duplicates: list[str] = []
-    for row in rows:
-        value = row[key]
+    repeated: set[str] = set()
+    for value in values:
         if value in seen:
-            duplicates.append(value)
+            repeated.add(value)
         seen.add(value)
-    return sorted(set(duplicates))
+    return sorted(repeated)
 
 
-def read_acquisition_manifest(path: Path) -> list[dict[str, str]]:
+def _duplicate_ids(rows: Iterable[Mapping[str, str]], key: str) -> list[str]:
+    return duplicate_values(row[key] for row in rows)
+
+
+def read_acquisition_pass(path: Path) -> list[dict[str, str]]:
     """Read one acquisition status manifest, failing on duplicate or unknown rows.
 
     Duplicate ``analysis_id`` inside a single manifest is a defect in that
@@ -413,7 +417,7 @@ def reject_ready_regressions(
 
 
 def _readiness_counts(rows: Iterable[Mapping[str, str]]) -> dict[str, int]:
-    return _counts(row["status"] for row in rows)
+    return counts(row["status"] for row in rows)
 
 
 # ---------------------------------------------------------------------------
@@ -453,7 +457,7 @@ def read_candidate_selection(
         bytes=size if size is not None else path.stat().st_size,
         store_key=store_key,
         analysis_ids=tuple(sorted(row["STUDY.ACCESSION"] for row in selected)),
-        study_design_counts=_counts(row["study_design"] for row in selected),
+        study_design_counts=counts(row["study_design"] for row in selected),
     )
 
 
@@ -485,7 +489,7 @@ def build_snapshot(
             "a freeze needs at least one acquisition manifest; source.inventory.freeze_inputs "
             "declares the ordered passes"
         )
-    passes = [(manifest.role, read_acquisition_manifest(manifest.path)) for manifest in manifests]
+    passes = [(manifest.role, read_acquisition_pass(manifest.path)) for manifest in manifests]
     merged, overrides_by_role = merge_acquisition_manifests(passes)
     reject_ready_regressions(passes, {row["analysis_id"]: row for row in merged})
 
@@ -574,8 +578,17 @@ def build_snapshot(
 
 def render_inventory_tsv(snapshot: InventorySnapshot) -> str:
     """Render the frozen inventory TSV, one row per discovered Analysis."""
+    return render_inventory_rows(snapshot.rows)
+
+
+def render_inventory_rows(rows: Iterable[SourceInventoryRow]) -> str:
+    """Render Source Inventory rows as the frozen TSV, in the order given.
+
+    Shared by both freezes, so a Source Inventory has one byte format whichever
+    wrote it (``manifest_generation.freeze`` is the shared one, #283).
+    """
     lines = ["\t".join(INVENTORY_COLUMNS)]
-    for row in snapshot.rows:
+    for row in rows:
         record = row.as_dict()
         for name in INVENTORY_COLUMNS:
             if "\t" in record[name] or "\n" in record[name]:
@@ -595,13 +608,7 @@ def render_provenance_yaml(snapshot: InventorySnapshot, inventory_sha256: str) -
         "store_key": snapshot.store_key,
         "ancestry_group": snapshot.ancestry_group,
         "frozen_at": snapshot.frozen_at,
-        "rows": len(snapshot.rows),
-        "readiness_counts": snapshot.readiness_counts,
-        "ready_rows": len(snapshot.ready_rows),
-        "ready_bytes": snapshot.ready_bytes,
-        "study_design_counts": snapshot.study_design_counts,
-        "ready_study_design_counts": snapshot.ready_study_design_counts,
-        "duplicate_content_groups": [group.as_dict() for group in snapshot.duplicates],
+        **inventory_counts(snapshot.rows),
         "inventory_tsv_sha256": inventory_sha256,
         "inputs": [entry.as_dict() for entry in snapshot.inputs],
         "candidates": {
@@ -616,14 +623,56 @@ def render_provenance_yaml(snapshot: InventorySnapshot, inventory_sha256: str) -
     return yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100)
 
 
+def inventory_counts(rows: Sequence[SourceInventoryRow]) -> dict[str, Any]:
+    """The counts every Source Inventory's provenance records and preflight re-checks.
+
+    Shared by both freezes, so the keys preflight reads have one spelling and
+    one computation whichever freeze wrote them.
+    """
+    ready = [row for row in rows if row.ready]
+    ready_bytes = 0
+    for row in ready:
+        recorded = row.recorded_bytes
+        if recorded is None:
+            raise InventoryError(f"{row.analysis_id}: ready row has no recorded data_bytes")
+        ready_bytes += recorded
+    return {
+        "rows": len(rows),
+        "readiness_counts": counts(row.readiness_status for row in rows),
+        "ready_rows": len(ready),
+        "ready_bytes": ready_bytes,
+        "study_design_counts": counts(row.study_design for row in rows),
+        "ready_study_design_counts": counts(row.study_design for row in ready),
+        "duplicate_content_groups": [group.as_dict() for group in duplicate_content_groups(rows)],
+    }
+
+
+def write_inventory(
+    rows: Sequence[SourceInventoryRow],
+    inventory_path: Path,
+    provenance_path: Path,
+    render_provenance: Callable[[str], str],
+) -> str:
+    """Write the inventory TSV, then its provenance, each atomically; return the TSV's sha256.
+
+    ``render_provenance`` receives the TSV's sha256, which the sidecar must
+    record to bind itself to the bytes that were frozen.
+    """
+    text = render_inventory_rows(rows)
+    atomic_write(inventory_path, text)
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    atomic_write(provenance_path, render_provenance(digest))
+    return digest
+
+
 def write_snapshot(snapshot: InventorySnapshot, inventory_path: Path, provenance_path: Path) -> str:
     """Write the inventory and its sidecar atomically; return the inventory checksum."""
-    text = render_inventory_tsv(snapshot)
-    inventory_path.parent.mkdir(parents=True, exist_ok=True)
-    _atomic_write(inventory_path, text)
-    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
-    _atomic_write(provenance_path, render_provenance_yaml(snapshot, digest))
-    return digest
+    return write_inventory(
+        snapshot.rows,
+        inventory_path,
+        provenance_path,
+        lambda digest: render_provenance_yaml(snapshot, digest),
+    )
 
 
 def read_inventory(path: Path) -> tuple[SourceInventoryRow, ...]:
@@ -759,7 +808,7 @@ def _require(mapping: Mapping[str, Any], key: str, where: str) -> Any:
     return mapping[key]
 
 
-def _parse_freeze_inputs(raw: Any, path: Path) -> tuple[AcquisitionPass, ...]:
+def parse_freeze_inputs(raw: Any, path: Path) -> tuple[AcquisitionPass, ...]:
     """Parse the ordered acquisition passes, where list order is the precedence rule.
 
     The config lists passes earliest first, so the order in the file is the merge
@@ -789,6 +838,28 @@ def _parse_freeze_inputs(raw: Any, path: Path) -> tuple[AcquisitionPass, ...]:
     return tuple(passes)
 
 
+def parse_pass_arguments(values: Sequence[str], *, flag: str) -> tuple[AcquisitionPass, ...]:
+    """Parse repeated ``ROLE=PATH`` command-line values into ordered acquisition passes.
+
+    ``flag`` is the option the values came from, so an error names what the
+    operator typed. Order is the precedence rule, exactly as in a config's
+    ``freeze_inputs``; a role given twice is refused.
+    """
+    passes: list[AcquisitionPass] = []
+    seen: set[str] = set()
+    for value in values:
+        role, separator, path_value = value.partition("=")
+        role = role.strip()
+        path_value = path_value.strip()
+        if not separator or not role or not path_value:
+            raise PreflightConfigError(f"{flag} expects ROLE=PATH, got {value!r}")
+        if role in seen:
+            raise PreflightConfigError(f"{flag} declares role {role!r} twice")
+        seen.add(role)
+        passes.append(AcquisitionPass(role=role, path=Path(path_value).expanduser()))
+    return tuple(passes)
+
+
 def load_release_configuration(path: Path, repo_root: Path) -> ReleaseConfiguration:
     """Load the full-release generator config, failing on any missing required fact.
 
@@ -806,7 +877,7 @@ def load_release_configuration(path: Path, repo_root: Path) -> ReleaseConfigurat
 
     source = _require(document, "source", str(path))
     inventory_block = _require(source, "inventory", f"{path}:source")
-    freeze_inputs = _parse_freeze_inputs(
+    freeze_inputs = parse_freeze_inputs(
         _require(inventory_block, "freeze_inputs", f"{path}:source.inventory"), path
     )
 
@@ -965,7 +1036,7 @@ def preflight(
     effective_cores = config.cores if cores is None else cores
     cores_source = "config" if cores is None else "cli"
 
-    readiness = _counts(row.readiness_status for row in rows)
+    readiness = counts(row.readiness_status for row in rows)
     ready = [row for row in rows if row.ready]
 
     # --- ready records completeness -----------------------------------------
@@ -1201,8 +1272,8 @@ def preflight(
             "readiness_counts": readiness,
             "ready_rows": len(ready),
             "ready_bytes": sum(row.recorded_bytes for row in ready if row.recorded_bytes is not None),
-            "study_design_counts": _counts(row.study_design for row in rows),
-            "ready_study_design_counts": _counts(row.study_design for row in ready),
+            "study_design_counts": counts(row.study_design for row in rows),
+            "ready_study_design_counts": counts(row.study_design for row in ready),
         },
         "selection": {
             "source_collection_id": config.source_collection_id,
@@ -1349,11 +1420,12 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _counts(values: Iterable[str]) -> dict[str, int]:
-    counts: dict[str, int] = {}
+def counts(values: Iterable[str]) -> dict[str, int]:
+    """How often each value occurs, sorted by value."""
+    tally: dict[str, int] = {}
     for value in values:
-        counts[value] = counts.get(value, 0) + 1
-    return dict(sorted(counts.items()))
+        tally[value] = tally.get(value, 0) + 1
+    return dict(sorted(tally.items()))
 
 
 def _repo_path(repo_root: Path, value: str) -> Path:
@@ -1365,7 +1437,7 @@ def _external_path(value: str) -> Path:
     return Path(value)
 
 
-def _atomic_write(path: Path, text: str) -> None:
+def atomic_write(path: Path, text: str) -> None:
     """Write through a temporary sibling so a reader never sees a partial file."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.tmp")

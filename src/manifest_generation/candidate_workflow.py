@@ -66,6 +66,7 @@ from manifest_generation.resolution_area import (
     ResolutionAreaError,
 )
 from manifest_generation.safe_write import atomic_write_bytes
+from manifest_generation.source_ancestry import SOURCE_LABEL_MAP_RELATIVE_PATH, load_source_label_map
 from manifest_generation.source_inventory import (
     INVENTORY_COLUMNS,
     PreflightConfigError,
@@ -325,11 +326,6 @@ HISTORICAL_RECEIPT_SCHEMA_VERSIONS: tuple[int, ...] = (1,)
 #: Filename of the registry-side resolution receipt in the run's Work Root.
 RECEIPT_FILENAME: str = "resolution_receipt.json"
 
-#: Path (relative to the repository root) of the tracked Source Ancestry Label
-#: -> super-population map, read exactly as ``ancestry.R``'s helper reads it.
-SOURCE_LABEL_MAP_RELATIVE_PATH: str = (
-    "resources/reference-resources/ukb-ancestry-mixture-hg38/source_label_map.tsv"
-)
 
 #: The upstream resolver this module invokes; overridable only for tests through
 #: ``--resolver`` so production always uses the pinned ``opengwasdb`` CLI.
@@ -830,24 +826,11 @@ def read_source_label_map(repo_root: Path, label: str) -> str:
     A label absent from the tracked map is an error, not a silent pass-through:
     an unnormalised value is not a valid Assigned Ancestry (issue #133).
     """
-    path = repo_root / SOURCE_LABEL_MAP_RELATIVE_PATH
-    if not path.is_file():
-        raise PreflightConfigError(f"tracked Source Ancestry Label map not found: {path}")
-    with path.open(newline="", encoding="utf-8") as fh:
-        rows = list(csv.DictReader(fh, delimiter="\t"))
-    mapping = {
-        (row.get("source_label") or "").strip(): (row.get("super_population") or "").strip()
-        for row in rows
-    }
-    code = mapping.get(label)
+    code = load_source_label_map(repo_root).get(label)
     if not code:
         raise PreflightConfigError(
             f"no tracked Source Ancestry Label -> super-population mapping for {label!r} "
-            f"in {path}"
-        )
-    if code not in SUPERPOPULATIONS:
-        raise PreflightConfigError(
-            f"{path} maps {label!r} to {code!r}, which is not a super-population code"
+            f"in {repo_root / SOURCE_LABEL_MAP_RELATIVE_PATH}"
         )
     return code
 
