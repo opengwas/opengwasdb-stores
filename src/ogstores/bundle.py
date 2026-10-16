@@ -1,10 +1,11 @@
 """Load and validate Release Bundles without inspecting Store artifacts.
 
 ``check()`` owns registry-side structure only: bundle identity and provenance,
-declared bundle files, checksum syntax, Release Status, lineage, and the shared
-``analyses.tsv`` contract. It accumulates errors and never raises, so CI and a
-Manifest Generator can report every defect from one pass. It does not resolve
-source files, construct artifact paths, or open a Store.
+declared bundle files, checksum syntax, Release Status, lineage, the shared
+``analyses.tsv`` contract, and a mapped bundle's Column Map. It accumulates
+errors and never raises, so CI and a Manifest Generator can report every defect
+from one pass. It does not resolve source files, construct artifact paths, or
+open a Store.
 
 See docs/spec/store-release-workflow.md and ADRs 0017, 0022, 0023, and 0028.
 """
@@ -12,7 +13,9 @@ See docs/spec/store-release-workflow.md and ADRs 0017, 0022, 0023, and 0028.
 from __future__ import annotations
 
 import csv
+import hashlib
 import re
+import tomllib
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
@@ -211,6 +214,30 @@ QUALITY_CHECK_RESULTS: tuple[str, ...] = (
 EXCLUSIONS_SIDECAR: str = "sidecars/exclusions.tsv"
 #: How many row-level errors one sidecar reports before summarising the rest.
 _MAX_SIDECAR_ROW_ERRORS: int = 10
+
+#: The Source Reader Capability that reads a tabular collection through a Column
+#: Map (#292, ADR 0036; opengwasdb ADR 0063). A bundle that names it, in
+#: ``analyses.tsv`` or as the Build Recipe's ``source-reader-capability``, binds
+#: its map in the Build Recipe and carries it; :func:`_check_column_map`.
+COLUMN_MAP_CAPABILITY: str = "opengwasdb.column-map"
+#: The Build Recipe key binding the map: ``{name, sha256}``, the shape of the
+#: ``resolution_config.column_map`` fingerprint OpenGWASDB records in a mapped
+#: Resolution Record, so the two can be compared (#287).
+COLUMN_MAP_KEY: str = "column_map"
+COLUMN_MAP_BINDING_KEYS: tuple[str, ...] = ("name", "sha256")
+#: Where a bundle carries the map it binds: ``column_maps/<name>.toml``.
+COLUMN_MAPS_DIR: str = "column_maps"
+#: OpenGWASDB's built-in maps (its ``BUILTIN_COLUMN_MAPS``). A bundle names one
+#: without carrying it; the pinned package holds its bytes.
+BUILTIN_COLUMN_MAPS: frozenset[str] = frozenset({"finngen-r13", "gwas-ssf"})
+#: A map name becomes a file name, so it takes the Indexed Variant Subset grammar.
+_COLUMN_MAP_NAME_RE: re.Pattern[str] = INDEXED_SUBSET_NAME_RE
+#: Lower-case, as ``hashlib`` writes it, so the binding compares byte for byte
+#: with the Resolution Record's fingerprint.
+_SHA256_RE: re.Pattern[str] = re.compile(r"\A[0-9a-f]{64}\Z")
+#: The flag Store Release Build will compose from the binding; ``options`` may not pass it.
+_COLUMN_MAP_OPTION: str = "column-map"
+_READER_OPTION: str = "source-reader-capability"
 
 SUMMARY_COLUMNS: tuple[str, ...] = (
     "first_author",
@@ -1271,6 +1298,171 @@ def _check_quality_checks(bundle: Bundle) -> list[str]:
     return shown
 
 
+def column_map_path(name: str) -> str:
+    """Where a bundle carries the Column Map it binds by ``name``, relative to its root."""
+    return f"{COLUMN_MAPS_DIR}/{name}.toml"
+
+
+def _recipe_options(build: Mapping[str, Any]) -> Iterable[tuple[str, Mapping[Any, Any]]]:
+    """``(block name, options)`` for the Build Recipe's ``build`` and ``complete`` blocks."""
+    for block_name in ("build", "complete"):
+        block = build.get(block_name)
+        options = block.get("options") if isinstance(block, Mapping) else None
+        if isinstance(options, Mapping):
+            yield block_name, options
+
+
+def _column_map_readers(bundle: Bundle, build: Mapping[str, Any]) -> list[str]:
+    """Where the bundle names the Column Map capability, for the messages that cite it."""
+    readers = [
+        f"build.yaml {block_name}.options"
+        for block_name, options in _recipe_options(build)
+        for key, value in options.items()
+        if normalize_option_key(key) == _READER_OPTION and value == COLUMN_MAP_CAPABILITY
+    ]
+    path = Path(bundle.analyses_path)
+    if path.is_file() and not path.is_symlink():
+        from opengwasdb.model import analyses as opengwasdb_analyses
+
+        rows = opengwasdb_analyses.read_analyses(path).rows
+        mapped = sum(
+            (row.get("source_reader_capability") or "").strip() == COLUMN_MAP_CAPABILITY
+            for row in rows
+        )
+        if mapped:
+            readers.append(f"{mapped} analyses.tsv row(s)")
+    return readers
+
+
+def _column_map_binding(build: Mapping[str, Any]) -> tuple[dict[str, str] | None, list[str]]:
+    """The Build Recipe's ``column_map`` binding, or ``None`` when it binds none."""
+    if COLUMN_MAP_KEY not in build:
+        return None, []
+    raw = build[COLUMN_MAP_KEY]
+    where = f"build.yaml {COLUMN_MAP_KEY}"
+    shape = f"a Column Map binding {{{', '.join(COLUMN_MAP_BINDING_KEYS)}}}"
+    if raw is None:
+        return None, [f"{where} must be {shape}, not null; omit the key to bind none"]
+    if not isinstance(raw, Mapping):
+        return None, [f"{where} must be {shape}, a mapping, not {type(raw).__name__}"]
+    errors: list[str] = []
+    unknown = sorted(str(key) for key in raw if key not in COLUMN_MAP_BINDING_KEYS)
+    if unknown:
+        errors.append(f"{where} (Column Map binding) has unknown key(s) {unknown}")
+    name, sha256 = raw.get("name"), raw.get("sha256")
+    if not isinstance(name, str) or ".." in name or not _COLUMN_MAP_NAME_RE.fullmatch(name):
+        errors.append(
+            f"{where} (Column Map binding) name {name!r} must match "
+            f"{_COLUMN_MAP_NAME_RE.pattern} and contain no '..'"
+        )
+    if not isinstance(sha256, str) or not _SHA256_RE.fullmatch(sha256):
+        errors.append(
+            f"{where} (Column Map binding) sha256 must be the map file's sha256 as 64 "
+            f"lower-case hex characters, got {sha256!r}"
+        )
+    if errors:
+        return None, errors
+    return {"name": name, "sha256": sha256}, []
+
+
+def _check_column_map_file(path: Path, relative: str, binding: Mapping[str, str]) -> list[str]:
+    """Checksum and shallow shape of a carried map; OpenGWASDB validates the rest."""
+    data = path.read_bytes()
+    errors: list[str] = []
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != binding["sha256"]:
+        errors.append(
+            f"Column Map {relative} has sha256 {digest}; build.yaml "
+            f"{COLUMN_MAP_KEY}.sha256 records {binding['sha256']}"
+        )
+    try:
+        document = tomllib.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+        return [*errors, f"Column Map {relative} is not UTF-8 TOML: {exc}"]
+    for key in ("column_map_version", "name"):
+        if key not in document:
+            errors.append(f"Column Map {relative} is missing {key!r}")
+    if "name" in document and document["name"] != binding["name"]:
+        errors.append(
+            f"Column Map {relative} names itself {document['name']!r}; build.yaml "
+            f"binds {binding['name']!r}"
+        )
+    return errors
+
+
+def _check_column_map(bundle: Bundle) -> list[str]:
+    """A mapped bundle binds its Column Map and carries it, checksummed (#292, ADR 0036).
+
+    A bundle that names ``opengwasdb.column-map`` binds ``build.yaml``
+    ``column_map: {name, sha256}``; one that binds a map names the capability.
+    ``column_maps/<name>.toml`` must hash to the bound ``sha256`` and be the
+    only file in ``column_maps/``. A built-in map (``gwas-ssf``,
+    ``finngen-r13``) is named, not carried. The map is checked shallowly:
+    readable TOML with ``column_map_version`` and a ``name`` equal to the
+    binding's. Its full validation is OpenGWASDB's, at resolution and build.
+    """
+    build = bundle.build if isinstance(bundle.build, Mapping) else {}
+    errors: list[str] = []
+    for block_name, options in _recipe_options(build):
+        reserved = sorted(
+            str(key) for key in options if normalize_option_key(key) == _COLUMN_MAP_OPTION
+        )
+        if reserved:
+            errors.append(
+                f"build.yaml {block_name}.options must not set {reserved}; the Column Map "
+                f"is the Build Recipe's checksummed {COLUMN_MAP_KEY!r} binding"
+            )
+    binding, binding_errors = _column_map_binding(build)
+    if binding_errors:
+        return errors + binding_errors
+
+    readers = _column_map_readers(bundle, build)
+    if readers and binding is None:
+        errors.append(
+            f"Column Map missing: {' and '.join(readers)} name {COLUMN_MAP_CAPABILITY}, "
+            f"but build.yaml binds no {COLUMN_MAP_KEY!r}"
+        )
+    if binding is not None and not readers:
+        errors.append(
+            f"Column Map {binding['name']!r} is bound in build.yaml, but no Analysis "
+            f"reads through it: neither analyses.tsv nor the Build Recipe names "
+            f"{COLUMN_MAP_CAPABILITY}"
+        )
+
+    name = binding["name"] if binding is not None else None
+    expected = column_map_path(name) if name and name not in BUILTIN_COLUMN_MAPS else None
+    directory = Path(bundle.root) / COLUMN_MAPS_DIR
+    if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
+        return [*errors, f"Column Map directory {COLUMN_MAPS_DIR}/ must be a real directory"]
+    carried = (
+        sorted(f"{COLUMN_MAPS_DIR}/{entry.name}" for entry in directory.iterdir())
+        if directory.is_dir()
+        else []
+    )
+    bound = expected or (f"built-in {name!r}" if name else "no map")
+    for relative in carried:
+        if relative == expected:
+            continue
+        if name in BUILTIN_COLUMN_MAPS and relative == column_map_path(name):
+            errors.append(
+                f"Column Map {relative} is carried, but {name!r} names a built-in map, "
+                "which a bundle names and never carries; the two are ambiguous"
+            )
+        else:
+            errors.append(f"Column Map {relative} is carried but not bound: build.yaml binds {bound}")
+    if expected is None:
+        return errors
+    path = Path(bundle.root) / expected
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        return [*errors, f"Column Map {expected} must be a regular file"]
+    if not path.exists():
+        return [
+            *errors,
+            f"Column Map {name!r} is bound in build.yaml, but the bundle does not carry {expected}",
+        ]
+    return errors + _check_column_map_file(path, expected, binding)
+
+
 def check(
     bundle: Bundle,
     previous_status: str | Bundle | None = None,
@@ -1303,6 +1495,7 @@ def check(
         ("validation.yaml", lambda: (_check_validation(bundle), [])),
         ("analyses.tsv", lambda: _check_analyses(bundle)),
         (QUALITY_CHECKS_SIDECAR, lambda: (_check_quality_checks(bundle), [])),
+        ("Column Map", lambda: (_check_column_map(bundle), [])),
     )
     for label, stage in stages:
         try:
@@ -1318,6 +1511,11 @@ def check(
 __all__ = [
     "BUILDABLE_STATUSES",
     "BUILD_REQUIRED_KEYS",
+    "BUILTIN_COLUMN_MAPS",
+    "COLUMN_MAPS_DIR",
+    "COLUMN_MAP_BINDING_KEYS",
+    "COLUMN_MAP_CAPABILITY",
+    "COLUMN_MAP_KEY",
     "Bundle",
     "CheckResult",
     "LEGACY_BLANK_ANALYSIS_RELEASES",
@@ -1334,6 +1532,7 @@ __all__ = [
     "VALID_STATUSES",
     "build_refusal",
     "check",
+    "column_map_path",
     "is_buildable",
     "is_legal_status_transition",
     "load",
