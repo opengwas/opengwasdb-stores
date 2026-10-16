@@ -69,6 +69,7 @@ from manifest_generation.candidate_workflow import (  # noqa: E402
     info_score_emission,
     load_candidate_configuration,
     maf_threshold_emission,
+    map_candidate_trait_ontologies,
     parse_maf_filter_exempt_technologies,
     parse_maf_threshold,
     parse_store_composition,
@@ -83,6 +84,11 @@ from manifest_generation.candidate_workflow import (  # noqa: E402
     resolver_argv,
     validate_candidate_analyses,
     verify_records,
+)
+from manifest_generation.trait_ontology_mapping import (  # noqa: E402
+    CANONICAL_TRAIT_MAPPING_RESOURCE,
+    TraitOntologyMapping,
+    load_canonical_trait_mapping_table,
 )
 from manifest_generation.source_inventory import (  # noqa: E402
     ACQUISITION_MANIFEST_COLUMNS,
@@ -487,14 +493,14 @@ def _synthetic_candidate_metadata(
     return CandidateMetadata(
         analysis_id="GCST90000001",
         source_label="Trait",
-        trait_ontology_label="",
-        trait_ontology_id="",
-        trait_ontology_mapping_method="unmapped",
+        source_trait_ontology_id="",
+        source_trait_ontology_label="",
         publication_pmid="12345678",
         first_author="Author",
         n_cases=n_cases,
         n_controls=n_controls,
         sample_size=sample_size,
+        trait_ontology=TraitOntologyMapping("", "", "unmapped"),
     )
 
 
@@ -1434,6 +1440,114 @@ class CandidateWorkflowTests(unittest.TestCase):
 
     # -- accounting ------------------------------------------------------------
 
+    # -- Trait Ontology Mapping (#286) -------------------------------------------
+
+    def _rewrite_candidate_traits(self, traits: dict[str, tuple[str, str, str]]) -> None:
+        """Set (DISEASE.TRAIT, MAPPED_TRAIT_URI, MAPPED_TRAIT) for some Analyses."""
+        path = self.fixture.candidates_path
+        with path.open(newline="", encoding="utf-8") as fh:
+            reader = csv.DictReader(fh, delimiter="\t")
+            columns = list(reader.fieldnames or [])
+            rows = list(reader)
+        for row in rows:
+            if row["STUDY.ACCESSION"] in traits:
+                label, uri, term_label = traits[row["STUDY.ACCESSION"]]
+                row.update({"DISEASE.TRAIT": label, "MAPPED_TRAIT_URI": uri, "MAPPED_TRAIT": term_label})
+        _write_tsv(path, columns, rows)
+
+    def test_emitted_trait_columns_come_from_the_trait_ontology_mapping_step(self) -> None:
+        self._rewrite_candidate_traits(
+            {
+                "GCST90000001": (
+                    "Trait GCST90000001",
+                    "http://www.ebi.ac.uk/efo/EFO_0004340, http://purl.obolibrary.org/obo/MONDO_0005148",
+                    "body mass index, type 2 diabetes mellitus",
+                ),
+                "GCST90000002": ("Weight", "", ""),
+                "GCST90000003": ("Trait GCST90000003", "", ""),
+                "GCST90000004": (
+                    "Trait GCST90000004",
+                    "http://www.orpha.net/ORDO/Orphanet_101960",
+                    "genetic chronic primary adrenal insufficiency",
+                ),
+            }
+        )
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        bundle_dir = self.fixture.registry_root / STORE_ID
+        by_id = {row["analysis_id"]: row for row in _read_tsv(bundle_dir / "analyses.tsv")}
+
+        def trait(analysis_id: str) -> tuple[str, str, str]:
+            row = by_id[analysis_id]
+            return (
+                row["trait_ontology_id"],
+                row["trait_ontology_label"],
+                row["trait_ontology_mapping_method"],
+            )
+
+        self.assertEqual(
+            trait("GCST90000001"),
+            (
+                "EFO:0004340, MONDO:0005148",
+                "body mass index, type 2 diabetes mellitus",
+                "source_provided",
+            ),
+        )
+        self.assertEqual(trait("GCST90000002"), ("EFO:0004338", "body weight", "canonical_table_lookup"))
+        self.assertEqual(trait("GCST90000003"), ("", "", "unmapped"))
+        self.assertEqual(
+            trait("GCST90000004"),
+            ("Orphanet:101960", "genetic chronic primary adrenal insufficiency", "source_provided"),
+        )
+        self.assertEqual(
+            trait("GCST90000005"), ("MONDO:0005148", "mapped GCST90000005", "source_provided")
+        )
+
+        validation = yaml.safe_load((bundle_dir / "validation.yaml").read_text(encoding="utf-8"))
+        mapping = validation["trait_ontology_mapping"]
+        resource_dir = REPO_ROOT / CANONICAL_TRAIT_MAPPING_RESOURCE
+        declared = yaml.safe_load((resource_dir / "resource.yaml").read_text(encoding="utf-8"))
+        table = mapping["canonical_trait_mapping_table"]
+        self.assertEqual(table["resource_id"], "canonical-trait-mapping-efo")
+        self.assertEqual(table["version"], declared["version"])
+        self.assertEqual(
+            table["sha256"], hashlib.sha256((resource_dir / "mapping.tsv").read_bytes()).hexdigest()
+        )
+        self.assertEqual(
+            mapping["method_counts"],
+            {
+                "source_provided": len(READY_ANALYSES) - 2,
+                "canonical_table_lookup": 1,
+                "unmapped": 1,
+            },
+        )
+        self.assertEqual(mapping["rejected_source_terms"], [])
+
+    def test_trait_ontology_mapping_runs_after_verification(self) -> None:
+        """An unknown source form does not block resolution; it fails the emit, by name."""
+        self._rewrite_candidate_traits(
+            {"GCST90000002": ("Trait", "https://example.org/trait/7", "a trait")}
+        )
+        resolved = _run_cli(self.fixture, "--stage", "resolve")
+        self.assertEqual(resolved.returncode, 0, resolved.stderr)
+        emitted = self._run_emit_only()
+        self.assertNotEqual(emitted.returncode, 0)
+        self.assertIn("GCST90000002", emitted.stderr)
+        self.assertIn("'https://example.org/trait/7'", emitted.stderr)
+        self.assertFalse((self.fixture.registry_root / STORE_ID).exists())
+
+    def test_a_row_without_a_trait_ontology_mapping_is_refused(self) -> None:
+        row = _synthetic_inventory_row()
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        unmapped = replace(_synthetic_candidate_metadata(), trait_ontology=None)
+        outcomes = apply_release_policy(
+            [row], config, {row.analysis_id: unmapped}, {row.analysis_id: _synthetic_resolver_record()},
+        )
+        with self.assertRaisesRegex(CandidateError, "Trait Ontology Mapping"):
+            build_candidate_tables(
+                inventory_rows=[row], outcomes=outcomes, config=config, index_summary={}
+            )
+
     def _run_emit_only(self) -> subprocess.CompletedProcess:
         return _run_cli(self.fixture, "--stage", "emit")
 
@@ -1738,6 +1852,9 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertEqual(failures, [])
         index = json.loads(
             (self.fixture.work_root / STORE_ID / "resolver/records/index.json").read_text()
+        )
+        metadata, _ = map_candidate_trait_ontologies(
+            metadata, load_canonical_trait_mapping_table(REPO_ROOT / CANONICAL_TRAIT_MAPPING_RESOURCE)
         )
         outcomes = apply_release_policy(
             rows, config, metadata, {record["analysis_id"]: record for record in records}

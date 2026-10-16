@@ -620,6 +620,10 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `store_composition.unfiltered_included_off_reference_rows` | No | Sum of those Analyses' build-eligible rows off the variant reference, or `null` when no `variant-reference` is declared or any counted Analysis lacks the resolver count. |
 | `store_composition.unfiltered_routed` | No | Number of Analyses excluded as `not_maf_filtered`. |
 | `store_composition.unfiltered_routed_off_reference_rows` | No | The same off-reference sum for the routed Analyses, or `null` under the same absence rule. |
+| `trait_ontology_mapping` | No | The Trait Ontology Mapping step's evidence (Phase B record, #286). |
+| `trait_ontology_mapping.canonical_trait_mapping_table` | No | The Canonical Trait Mapping Table the run read: `resource_id`, `version` (from its `resource.yaml`), `location`, `sha256` of the table file, and `rows`. |
+| `trait_ontology_mapping.method_counts` | No | Analyses per `trait_ontology_mapping_method`: `source_provided`, `canonical_table_lookup`, `unmapped`. |
+| `trait_ontology_mapping.rejected_source_terms` | No | Each source term the #141 guards rejected: `analysis_id`, `source_trait_ontology_id`, `source_trait_ontology_label` and `reason`. Empty when none was rejected. |
 | `reports` | No | URIs or paths to detailed reports. A Phase B record points at its sidecars; `register` writes no top-level `reports` (#195). |
 | `warnings` | No | List of non-blocking warnings. In a `register`-written record, exactly the `warnings` list `opengwasdb validate --format json` printed for this run. Reference-AF effect-scale warnings should name the Analysis and reason, for example low reference-AF overlap, an allele mismatch, unstable implied SD, a missing reference resource for the assigned ancestry, or scale inconsistency versus the declared effect scale. |
 | `errors` | No | List of blocking errors. In a `register`-written record, exactly the `errors` list `opengwasdb validate --format json` printed for this run. |
@@ -932,6 +936,51 @@ Three implementations exist:
   `unresolved`.
 
 ### Trait ontology mapping resolver
+
+**Manifest Generation's shared step (#286, ADR 0036 step 5).** The Python
+pipeline maps every Analysis in
+`src/manifest_generation/trait_ontology_mapping.py`, after the resolver records
+are verified. It reads the source term from the Source Metadata Table's
+`source_trait_ontology_id`/`source_trait_ontology_label` (GWAS Catalog's
+`MAPPED_TRAIT_URI`/`MAPPED_TRAIT`) and the Source Trait Label. Precedence and
+methods are those below:
+- a source term is kept as `source_provided`;
+- otherwise an exact match of the trimmed, lower-cased Source Trait Label is
+  `canonical_table_lookup`;
+- otherwise the Analysis is `unmapped`.
+
+A source term is normalised to CURIEs term by term:
+
+| Source form | CURIE |
+|---|---|
+| `http://www.ebi.ac.uk/efo/EFO_0004839` | `EFO:0004839` |
+| `http://purl.obolibrary.org/obo/MONDO_0005148` (any `NS_local`) | `MONDO:0005148` |
+| `http://www.orpha.net/ORDO/Orphanet_101960` | `Orphanet:101960` |
+| a CURIE | unchanged |
+
+Any other form is refused, naming the Analysis and the term: the run fails
+rather than emitting a URI or a guess. A comma-separated source list stays a
+list, its CURIEs joined by `", "` in the source's order, and the source label is
+kept verbatim (see `trait_ontology_id` above).
+
+A source term with a gene- or protein-shaped identifier in any term, or an
+identifier-authority name for a label, is rejected using `ogstores.bundle`'s
+#141 guards. It falls through to the table, and the rejection and its reason
+are recorded.
+
+The table is read from `resources/reference-resources/canonical-trait-mapping-efo/`,
+a directory named explicitly: no network is involved. A malformed curated row
+fails the load:
+- a blank lookup value;
+- a non-CURIE term;
+- a gene-shaped term or an authority-name label;
+- a label listed twice.
+
+The table's identity, the method counts and the rejected source terms are
+recorded in `validation.yaml`'s `trait_ontology_mapping` block.
+
+**The R generators** still resolve through the R resolver below until they
+retire (epic #282).
 
 A separate resolver family, also under
 `resources/generators/lib/metadata_resolvers/`, resolves Trait Ontology Mapping

@@ -50,6 +50,7 @@ from manifest_generation.candidate_workflow import (
     build_resolution_receipt,
     derive_resolver_manifest,
     load_candidate_configuration,
+    map_candidate_trait_ontologies,
     now_utc,
     read_candidate_metadata,
     read_resolution_receipt,
@@ -66,6 +67,11 @@ from manifest_generation.candidate_workflow import (
     write_resolution_receipt,
 )
 from manifest_generation.emit import CandidateBundle, EmitError, emit
+from manifest_generation.trait_ontology_mapping import (
+    CANONICAL_TRAIT_MAPPING_RESOURCE,
+    TraitOntologyMappingError,
+    load_canonical_trait_mapping_table,
+)
 from manifest_generation.source_inventory import (
     InventoryError,
     PreflightConfigError,
@@ -272,6 +278,16 @@ def stage_emit(
     records: list,
     index: dict,
 ) -> Path:
+    # Trait Ontology Mapping (#286, ADR 0036 step 5): after verification, from
+    # the frozen source terms and the tracked Canonical Trait Mapping Table.
+    try:
+        table = load_canonical_trait_mapping_table(
+            pipeline.repo_root / CANONICAL_TRAIT_MAPPING_RESOURCE
+        )
+    except TraitOntologyMappingError as exc:
+        raise CandidateError(str(exc)) from exc
+    metadata, trait_ontology_run = map_candidate_trait_ontologies(metadata, table)
+
     rows = read_inventory(pipeline.inventory_path)
     outcomes = apply_release_policy(rows, pipeline.config, metadata, {
         record["analysis_id"]: record for record in records
@@ -331,6 +347,7 @@ def stage_emit(
             index_summary=index,
             validated_at=created_at,
             validator_name=MODULE,
+            trait_ontology_mapping=trait_ontology_run.provenance(),
         ),
         sidecars={
             "source_readiness.tsv": tables.source_readiness_tsv,

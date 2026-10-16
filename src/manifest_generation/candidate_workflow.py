@@ -67,6 +67,14 @@ from manifest_generation.source_inventory import (
     duplicate_content_groups,
     load_release_configuration,
 )
+from manifest_generation.trait_ontology_mapping import (
+    CanonicalTraitMappingTable,
+    SourceTrait,
+    TraitOntologyMapping,
+    TraitOntologyMappingError,
+    TraitOntologyMappingRun,
+    map_trait_ontologies,
+)
 
 # ---------------------------------------------------------------------------
 # Contract constants
@@ -814,35 +822,26 @@ class CandidateMetadata:
     against and checksums into the provenance sidecar. Reading them here is a
     join on an already-frozen selection, not a second selection: membership is
     still the inventory's.
+
+    The source's own ontology term is carried verbatim. Its Trait Ontology
+    Mapping is the shared step's (#286, ADR 0036 step 5), run after
+    verification by :func:`map_candidate_trait_ontologies`; until then
+    ``trait_ontology`` is ``None`` and a bundle row cannot be rendered.
     """
 
     analysis_id: str
+    #: The Source Trait Label.
     source_label: str
-    trait_ontology_label: str
-    trait_ontology_id: str
-    trait_ontology_mapping_method: str
+    #: ``MAPPED_TRAIT_URI``, verbatim: a CURIE, a URI or a comma-separated list.
+    source_trait_ontology_id: str
+    #: ``MAPPED_TRAIT``, verbatim.
+    source_trait_ontology_label: str
     publication_pmid: str
     first_author: str
     n_cases: str
     n_controls: str
     sample_size: str
-
-
-def _obo_uri_to_curie(uri: str) -> str:
-    """Turn an OBO PURL into a CURIE, or pass any other id through unchanged.
-
-    ``http://purl.obolibrary.org/obo/MONDO_0005148`` -> ``MONDO:0005148``. A URI
-    that does not match the PURL shape is left verbatim rather than guessed.
-    """
-    value = (uri or "").strip()
-    prefix = "http://purl.obolibrary.org/obo/"
-    if value.startswith(prefix):
-        tail = value[len(prefix):]
-        if "_" in tail:
-            namespace, _, local = tail.partition("_")
-            if namespace and local:
-                return f"{namespace}:{local}"
-    return value
+    trait_ontology: TraitOntologyMapping | None = None
 
 
 def read_candidate_metadata(
@@ -869,22 +868,11 @@ def read_candidate_metadata(
             accession = (raw.get("STUDY.ACCESSION") or "").strip()
             if accession not in wanted:
                 continue
-            mapped_uri = (raw.get("MAPPED_TRAIT_URI") or "").strip()
-            mapped_label = (raw.get("MAPPED_TRAIT") or "").strip()
-            if mapped_uri and mapped_label:
-                ontology_id = _obo_uri_to_curie(mapped_uri)
-                ontology_label = mapped_label
-                method = "source_provided"
-            else:
-                ontology_id = ""
-                ontology_label = ""
-                method = "unmapped"
             found[accession] = CandidateMetadata(
                 analysis_id=accession,
                 source_label=(raw.get("DISEASE.TRAIT") or "").strip(),
-                trait_ontology_label=ontology_label,
-                trait_ontology_id=ontology_id,
-                trait_ontology_mapping_method=method,
+                source_trait_ontology_id=(raw.get("MAPPED_TRAIT_URI") or "").strip(),
+                source_trait_ontology_label=(raw.get("MAPPED_TRAIT") or "").strip(),
                 publication_pmid=(raw.get("PUBMED.ID") or "").strip(),
                 first_author=(raw.get("FIRST.AUTHOR") or "").strip(),
                 n_cases=_clean_number(raw.get("n_cases")),
@@ -898,6 +886,38 @@ def read_candidate_metadata(
             f"ready Analysis/Analyses: {', '.join(missing[:10])}"
         )
     return found
+
+
+def map_candidate_trait_ontologies(
+    metadata: Mapping[str, CandidateMetadata],
+    table: CanonicalTraitMappingTable | None,
+) -> tuple[dict[str, CandidateMetadata], TraitOntologyMappingRun]:
+    """Run the shared Trait Ontology Mapping step over every Analysis (#286).
+
+    Returns the metadata with each Analysis's ``trait_ontology`` set, and the
+    run, whose provenance release.yaml records. A source term in a form the
+    step cannot normalise fails the run, naming the Analysis and the term.
+    """
+    try:
+        run = map_trait_ontologies(
+            (
+                SourceTrait(
+                    analysis_id=analysis_id,
+                    label=resolved.source_label,
+                    ontology_id=resolved.source_trait_ontology_id,
+                    ontology_label=resolved.source_trait_ontology_label,
+                )
+                for analysis_id, resolved in metadata.items()
+            ),
+            table,
+        )
+    except TraitOntologyMappingError as exc:
+        raise CandidateError(f"Trait Ontology Mapping failed: {exc}") from exc
+    mapped = {
+        analysis_id: replace(resolved, trait_ontology=run.mappings[analysis_id])
+        for analysis_id, resolved in metadata.items()
+    }
+    return mapped, run
 
 
 def _clean_number(value: str | None) -> str:
@@ -2550,15 +2570,21 @@ def _analyses_row(
         inclusion_reason = f"excluded: {outcome.exclusion_reason}: {outcome.exclusion_detail}"
         exclude = "true"
     tier = config.base.method_tiers[row.study_design]
+    trait_ontology = resolved.trait_ontology
+    if trait_ontology is None:
+        raise CandidateError(
+            f"{row.analysis_id}: no Trait Ontology Mapping; run "
+            "map_candidate_trait_ontologies after verification (#286)"
+        )
     return {
         "analysis_index": str(index),
         "analysis_id": row.analysis_id,
         "source_analysis_id": row.analysis_id,
         "source_label": resolved.source_label or row.trait,
         "analysis_label": resolved.source_label or row.trait,
-        "trait_ontology_label": resolved.trait_ontology_label,
-        "trait_ontology_id": resolved.trait_ontology_id,
-        "trait_ontology_mapping_method": resolved.trait_ontology_mapping_method,
+        "trait_ontology_label": trait_ontology.trait_ontology_label,
+        "trait_ontology_id": trait_ontology.trait_ontology_id,
+        "trait_ontology_mapping_method": trait_ontology.method,
         "source_file": row.data_file,
         "source_reader_capability": config.reader_capability,
         "source_url": row.data_url,
@@ -2935,12 +2961,15 @@ def render_validation_yaml(
     index_summary: Mapping[str, Any],
     validated_at: str,
     validator_name: str,
+    trait_ontology_mapping: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Render the candidate Validation Record as the emitter's ``validation.yaml`` document.
 
     No Store was built, so every ``observed`` measurement is ``null``: absence is
     recorded, never guessed (issue #135). The checks describe the Phase B
-    evidence that does exist.
+    evidence that does exist. ``trait_ontology_mapping`` is the Trait Ontology
+    Mapping run's provenance (#286): the Canonical Trait Mapping Table's
+    identity, the method counts and any rejected source terms.
     """
     status = ("failed" if tables.reference_overlap_errors else
               "passed_with_warnings" if tables.warnings else "passed")
@@ -2971,6 +3000,11 @@ def render_validation_yaml(
         },
         "reference_overlap": dict(tables.reference_overlap),
         "store_composition": dict(tables.store_composition),
+        **(
+            {"trait_ontology_mapping": dict(trait_ontology_mapping)}
+            if trait_ontology_mapping is not None
+            else {}
+        ),
         "reports": {
             "source_readiness": "sidecars/source_readiness.tsv",
             "ancestry": "sidecars/ancestry.tsv",
@@ -3106,6 +3140,7 @@ __all__ = [
     "now_utc",
     "parse_store_composition",
     "read_candidate_metadata",
+    "map_candidate_trait_ontologies",
     "read_genotyping_technologies",
     "read_effect_placeholder_exclusions",
     "read_maf_filter_exempt_analyses",
