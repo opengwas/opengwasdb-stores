@@ -71,6 +71,57 @@ value -- never zero and never a default.
 The target columns are annotation, never a Trait Ontology Mapping: a gene is
 not the Trait (issue #141).
 
+### The GWAS Catalog adapter
+
+`src/manifest_generation/providers/gwas_catalog/source_metadata_adapter.py`
+converts `resources/scripts/ebi-studies.r`'s candidate table, unchanged, and
+loads the result back through the canonical loader; a table it refuses is
+removed.
+
+| Candidate column | Canonical column |
+|---|---|
+| `STUDY.ACCESSION` | `source_analysis_id` |
+| `DISEASE.TRAIT` | `source_trait_label` |
+| `MAPPED_TRAIT_URI`, `MAPPED_TRAIT` | `source_trait_ontology_id`, `source_trait_ontology_label` |
+| `ancestry_group` | `source_ancestry_label`, and its `source_label_map.tsv` translation as `source_superpopulation` |
+| `study_design`, `sample_size` | the same |
+| `n_cases`, `n_controls` | the same for `case-control`; see below for `quantitative` |
+| `PUBMED.ID`, `FIRST.AUTHOR` | `publication_pmid`, `first_author` |
+| `store_key` | `store_key` |
+
+Its translations, and only these:
+
+- **Missing values.** `ebi-studies.r` writes with `data.table::fwrite`'s
+  default `na = ""`, so an R `NA` is an empty field and an empty string is
+  `""`; both read as empty, the only missing value. A literal `NA` or `nan` is
+  carried, and the canonical loader refuses it where a number is due.
+- **Quantitative case counts.** The candidate table writes `0`/`0` for a
+  resolved quantitative study. Those become blank, because a zero count is a
+  real count (#133). A non-zero count on a quantitative study, or any count on
+  an Analysis with no `study_design`, is refused.
+- **Padding** is trimmed with `str.strip`, as the candidate-table freeze
+  trimmed it: a few GWAS Catalog trait labels carry trailing non-breaking
+  spaces.
+- **Super-population** (`source_ancestry.load_source_label_translation`). A
+  label `source_label_map.tsv` lists becomes its code. A label
+  `source_label_imprecise.tsv` lists -- `Multiple/Mixed`, `NR/Unknown`,
+  `Other`, `Asian (unspecified)`, each with its reason -- leaves
+  `source_superpopulation` blank on purpose. Any other label is refused by
+  name, so a new or misspelt label is never silently blank: map it, or list it
+  as imprecise with a reason. Both files live in the
+  `ukb-ancestry-mixture-hg38` Reference Resource.
+- **Collection-wide facts** -- the GRCh38 build of EBI's harmonised files and
+  the EBI GWAS Catalog terms of use -- are not written; the release config's
+  defaults supply them (#287).
+
+Example (abridged):
+
+```text
+source_analysis_id  source_trait_label  source_ancestry_label  source_superpopulation  study_design  sample_size  n_cases  n_controls  publication_pmid  store_key
+GCST000028          Type 2 diabetes     European               EUR                     case-control  2931         1464     1467        17463246          hybrid__European
+GCST90006908        Anti-human herpes…  European               EUR                     quantitative  8735                             33204752          hybrid__European
+```
+
 ## Acquisition Manifest
 
 What acquisition produced for a Source Collection: one row per Analysis it
@@ -103,6 +154,22 @@ pipeline.
 An acquisition writer may record the passes a manifest was written from in
 `<manifest-stem>.meta.yaml` beside it (`acquisition_manifest.pass_lineage_path`).
 Freeze checksums that file into the inventory's provenance when it exists.
+
+The GWAS Catalog's writer,
+`src/manifest_generation/providers/gwas_catalog/write_acquisition_manifest.py`,
+overlays the EBI downloader's per-pass status manifests -- earliest first; a
+later pass wins for every `analysis_id` it covers and may not regress a ready
+Analysis -- and records each pass's path, sha256, size, row count, readiness
+counts and overrides there. It drops the download manifests' study columns
+(intent, the table's job) and per-run `seconds`.
+
+Example (abridged):
+
+```text
+source_analysis_id  status                          location                                          bytes     sha256     source_url                                    sidecar_location                          sidecar_bytes
+GCST000028          ok                              /data/…/17463246-GCST000028-EFO_0001360.h.tsv.gz  35279386  fd598567…  https://ftp.ebi.ac.uk/…/…EFO_0001360.h.tsv.gz  /data/…/…EFO_0001360.h.tsv.gz-meta.yaml  811
+GCST000803          missing_remote_harmonised_yaml
+```
 
 ## Selection
 
