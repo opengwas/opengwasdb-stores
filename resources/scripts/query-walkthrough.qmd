@@ -433,17 +433,6 @@ release instead.
 
 ## Indexed Variant Subsets — fast repeated extraction {#indexed-variant-subsets}
 
-::: {.callout-warning}
-## Provisional — blocked on upstream opengwas/opengwasdb#263 and #267
-
-This section documents a workflow that is **not yet available in the
-`opengwasdb` revision pinned by this repository**. It describes the CLI contract
-landed on the upstream integration branches for opengwas/opengwasdb#263 and
-benchmarked by opengwas/opengwasdb#267, and it must not be read as a claim that
-the package pinned here already provides it. The section loses its provisional
-status, and the pin moves, only when that upstream change lands.
-:::
-
 An **Indexed Variant Subset** is an optional, named, rebuildable query index
 over a caller-supplied list of canonical ALIDs, stored beside the other derived
 artifacts under `data.zarr/indexed_subsets/<name>/`. It is **full-statistic and

@@ -6,7 +6,7 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
-<meta name="dcterms.date" content="2026-10-11">
+<meta name="dcterms.date" content="2026-10-16">
 
 <title>Getting started with opengwasdb stores</title>
 <style>
@@ -2254,7 +2254,7 @@ vertical-align: -.125em;
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">October 11, 2026</p>
+      <p class="date">October 16, 2026</p>
     </div>
   </div>
   
@@ -2561,19 +2561,6 @@ Note
 </section>
 <section id="indexed-variant-subsets" class="level2">
 <h2 class="anchored" data-anchor-id="indexed-variant-subsets">Indexed Variant Subsets — fast repeated extraction</h2>
-<div class="callout callout-style-default callout-warning callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-<span class="screen-reader-only">Warning</span>Provisional — blocked on upstream opengwas/opengwasdb#263 and #267
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>This section documents a workflow that is <strong>not yet available in the <code>opengwasdb</code> revision pinned by this repository</strong>. It describes the CLI contract landed on the upstream integration branches for opengwas/opengwasdb#263 and benchmarked by opengwas/opengwasdb#267, and it must not be read as a claim that the package pinned here already provides it. The section loses its provisional status, and the pin moves, only when that upstream change lands.</p>
-</div>
-</div>
 <p>An <strong>Indexed Variant Subset</strong> is an optional, named, rebuildable query index over a caller-supplied list of canonical ALIDs, stored beside the other derived artifacts under <code>data.zarr/indexed_subsets/&lt;name&gt;/</code>. It is <strong>full-statistic and all-Analysis</strong>:</p>
 <ul>
 <li>it holds the subset for <strong>every Analysis</strong> in the release — there is no partial-Analysis mode;</li>
