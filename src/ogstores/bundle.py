@@ -11,8 +11,9 @@ See docs/spec/store-release-workflow.md and ADRs 0017, 0022, 0023, and 0028.
 
 from __future__ import annotations
 
+import csv
 import re
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -244,6 +245,31 @@ def is_authority_name_trait_ontology_label(label: str) -> bool:
 # Store-level descriptive metadata that is derived from the membership table.
 # Names intentionally match their source columns: in particular, ``context``
 # is not renamed to ``assay`` because the Analysis contract has no assay field.
+#: ``sidecars/quality_checks.tsv`` (#285, ADR 0036): every Analysis's Quality
+#: Check results. Optional: a bundle emitted before #285 has none. Present, it
+#: is validated by :func:`_check_quality_checks`. Store Release Build never
+#: reads it; membership is already decided in ``analyses.tsv``.
+QUALITY_CHECKS_SIDECAR: str = "sidecars/quality_checks.tsv"
+#: Its leading columns; each check then adds ``<check>`` and ``<check>_measured``.
+QUALITY_CHECK_LEADING_COLUMNS: tuple[str, ...] = (
+    "analysis_id",
+    "exclude_from_build",
+    "exclusion_reason",
+)
+QUALITY_CHECK_MEASURED_SUFFIX: str = "_measured"
+#: The controlled ``<check>`` result vocabulary.
+QUALITY_CHECK_RESULTS: tuple[str, ...] = (
+    "passed",
+    "failed",
+    "not_applicable",
+    "unmeasured",
+    "invalid",
+)
+#: The exclusions sidecar, whose ``reason`` the Quality Check sidecar must agree with.
+EXCLUSIONS_SIDECAR: str = "sidecars/exclusions.tsv"
+#: How many row-level errors one sidecar reports before summarising the rest.
+_MAX_SIDECAR_ROW_ERRORS: int = 10
+
 SUMMARY_COLUMNS: tuple[str, ...] = (
     "first_author",
     "publication_pmid",
@@ -1195,6 +1221,134 @@ def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
     return errors, tolerated
 
 
+def _read_sidecar_rows(path: Path) -> tuple[list[str], list[list[str]]]:
+    """Header and rows of a strict TSV sidecar, or raise ``ValueError``."""
+    with path.open(newline="", encoding="utf-8") as fh:
+        rows = list(csv.reader(fh, delimiter="\t", quoting=csv.QUOTE_NONE))
+    if not rows:
+        raise ValueError("is empty; it needs at least a header")
+    header, body = rows[0], rows[1:]
+    for number, row in enumerate(body, 2):
+        if len(row) != len(header):
+            raise ValueError(f"line {number} has {len(row)} fields; the header has {len(header)}")
+    return header, body
+
+
+def _quality_check_column_errors(header: Sequence[str]) -> list[str]:
+    leading = len(QUALITY_CHECK_LEADING_COLUMNS)
+    expected = (
+        f"columns must be {', '.join(QUALITY_CHECK_LEADING_COLUMNS)}, then one "
+        f"<check>, <check>{QUALITY_CHECK_MEASURED_SUFFIX} pair per Quality Check"
+    )
+    pairs = header[leading:]
+    if tuple(header[:leading]) != QUALITY_CHECK_LEADING_COLUMNS or not pairs or len(pairs) % 2:
+        return [f"{QUALITY_CHECKS_SIDECAR}: {expected}; got {list(header)}"]
+    names = pairs[0::2]
+    for name, measured in zip(names, pairs[1::2]):
+        if not name.isidentifier() or measured != f"{name}{QUALITY_CHECK_MEASURED_SUFFIX}":
+            return [f"{QUALITY_CHECKS_SIDECAR}: {expected}; {name!r} is followed by {measured!r}"]
+    if len(set(names)) != len(names):
+        return [f"{QUALITY_CHECKS_SIDECAR}: columns name a Quality Check twice: {names}"]
+    return []
+
+
+def _exclusion_reasons(bundle: Bundle) -> dict[str, str] | None:
+    """``analysis_id -> reason`` from ``sidecars/exclusions.tsv``, or ``None`` if absent."""
+    path = bundle.root / EXCLUSIONS_SIDECAR
+    if not path.is_file() or path.is_symlink():
+        return None
+    header, body = _read_sidecar_rows(path)
+    if "analysis_id" not in header or "reason" not in header:
+        raise ValueError(f"{EXCLUSIONS_SIDECAR} needs analysis_id and reason columns")
+    id_at, reason_at = header.index("analysis_id"), header.index("reason")
+    return {row[id_at]: row[reason_at] for row in body}
+
+
+def _check_quality_checks(bundle: Bundle) -> list[str]:
+    """Validate ``sidecars/quality_checks.tsv`` when the bundle carries one (#285).
+
+    It must name every ``analyses.tsv`` Analysis once, in the same order; use
+    the controlled result vocabulary; and agree with ``analyses.tsv`` on which
+    Analyses are excluded, and with ``sidecars/exclusions.tsv`` (when present)
+    on why. Absent is valid.
+    """
+    path = bundle.root / QUALITY_CHECKS_SIDECAR
+    if not path.exists() and not path.is_symlink():
+        return []
+    if path.is_symlink() or not path.is_file():
+        return [f"{QUALITY_CHECKS_SIDECAR} must be a regular file"]
+    try:
+        header, body = _read_sidecar_rows(path)
+    except (OSError, UnicodeDecodeError, ValueError, csv.Error) as exc:
+        return [f"{QUALITY_CHECKS_SIDECAR} {exc}"]
+    errors = _quality_check_column_errors(header)
+    if errors:
+        return errors
+
+    from opengwasdb.model import analyses as opengwasdb_analyses
+
+    table = opengwasdb_analyses.read_analyses(bundle.analyses_path)
+    expected: list[tuple[str, bool]] = []
+    for index, row in enumerate(table.rows):
+        analysis_id = (row.get("analysis_id") or "").strip()
+        expected.append(
+            (analysis_id, classify_exclusion(row.get(EXCLUDE_COLUMN), index, analysis_id))
+        )
+    found = [row[0] for row in body]
+    wanted = [analysis_id for analysis_id, _ in expected]
+    if found != wanted:
+        missing = [aid for aid in wanted if aid not in set(found)]
+        extra = [aid for aid in found if aid not in set(wanted)]
+        detail = []
+        if missing:
+            detail.append(f"missing {missing[:5]}")
+        if extra:
+            detail.append(f"not in analyses.tsv {extra[:5]}")
+        if not missing and not extra:
+            detail.append("rows are not in analyses.tsv order")
+        return [
+            f"{QUALITY_CHECKS_SIDECAR} must have one row per analyses.tsv Analysis, "
+            f"in its order: {'; '.join(detail)}"
+        ]
+    try:
+        reasons = _exclusion_reasons(bundle)
+    except (OSError, UnicodeDecodeError, ValueError, csv.Error) as exc:
+        return [f"{EXCLUSIONS_SIDECAR} {exc}"]
+
+    leading = len(QUALITY_CHECK_LEADING_COLUMNS)
+    checks = list(zip(header[leading::2], range(leading, len(header), 2)))
+    row_errors: list[str] = []
+    for row, (analysis_id, excluded) in zip(body, expected):
+        flag, reason = row[1], row[2]
+        if flag not in ("", "true"):
+            row_errors.append(f"{analysis_id}: exclude_from_build {flag!r} is not 'true' or empty")
+        elif (flag == "true") != excluded:
+            row_errors.append(
+                f"{analysis_id}: exclude_from_build {flag!r} disagrees with analyses.tsv"
+            )
+        if excluded and not reason:
+            row_errors.append(f"{analysis_id}: excluded with an empty exclusion_reason")
+        if not excluded and reason:
+            row_errors.append(f"{analysis_id}: included but has exclusion_reason {reason!r}")
+        if excluded and reasons is not None and reasons.get(analysis_id) != reason:
+            row_errors.append(
+                f"{analysis_id}: exclusion_reason {reason!r} disagrees with "
+                f"{EXCLUSIONS_SIDECAR} ({reasons.get(analysis_id)!r})"
+            )
+        for name, at in checks:
+            if row[at] not in QUALITY_CHECK_RESULTS:
+                row_errors.append(
+                    f"{analysis_id}: {name} result {row[at]!r} is not one of "
+                    f"{', '.join(QUALITY_CHECK_RESULTS)}"
+                )
+    shown = [f"{QUALITY_CHECKS_SIDECAR}: {error}" for error in row_errors[:_MAX_SIDECAR_ROW_ERRORS]]
+    if len(row_errors) > _MAX_SIDECAR_ROW_ERRORS:
+        shown.append(
+            f"{QUALITY_CHECKS_SIDECAR}: {len(row_errors) - _MAX_SIDECAR_ROW_ERRORS} more row error(s)"
+        )
+    return shown
+
+
 def check(
     bundle: Bundle,
     previous_status: str | Bundle | None = None,
@@ -1226,6 +1380,7 @@ def check(
         ("Release Lineage", lambda: (_check_lineage(bundle, registry_root), [])),
         ("validation.yaml", lambda: (_check_validation(bundle), [])),
         ("analyses.tsv", lambda: _check_analyses(bundle)),
+        (QUALITY_CHECKS_SIDECAR, lambda: (_check_quality_checks(bundle), [])),
     )
     for label, stage in stages:
         try:
@@ -1246,6 +1401,10 @@ __all__ = [
     "LEGACY_BLANK_ANALYSIS_RELEASES",
     "LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES",
     "LEGAL_STATUS_TRANSITIONS",
+    "QUALITY_CHECKS_SIDECAR",
+    "QUALITY_CHECK_LEADING_COLUMNS",
+    "QUALITY_CHECK_MEASURED_SUFFIX",
+    "QUALITY_CHECK_RESULTS",
     "NotBuildableError",
     "RELEASE_REQUIRED_KEYS",
     "SUPERPOPULATIONS",

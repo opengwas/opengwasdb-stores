@@ -13,9 +13,11 @@ things and nothing else:
   this module never loads a reference, forks a worker, or computes an ancestry,
   allele alignment, or phenotype SD itself;
 - **accounting for every record** before anything is written: exactly one record
-  per selected Analysis, no missing/stale/duplicate/extra records, and every
+  per selected Analysis, no missing/stale/duplicate records, and every
   record's source identity and method tier matching the manifest that was
-  resolved;
+  resolved. Records are kept once per Source Collection and reused by every
+  Selection (#284, ``manifest_generation.resolution_area``); the resolution
+  receipt names exactly the kept records a candidate is decided from;
 - **applying the registry's release membership and exclusion policy** -- the
   decisions in ADR 0025 (``exclude_from_build`` audit rows), issue #152
   (full-reference ancestry assignment; source-AF-only quantitative estimation;
@@ -55,9 +57,23 @@ from typing import Any, Iterable, Mapping, Sequence
 import yaml
 
 from ogstores.bundle import SUPERPOPULATIONS
+from manifest_generation import quality_checks
+from manifest_generation.quality_checks import (
+    NON_QUANTITATIVE_EFFECT_SCALES,
+    CheckSummary,
+    Stage,
+    diagnostic_count,
+    record_section,
+)
 from manifest_generation.ancestry_sidecar import format_sidecar_float
 from manifest_generation.generation_rules import INFO_SCORE_KINDS
 from manifest_generation.indexed_subsets import resolve_indexed_subsets
+from manifest_generation.resolution_area import (
+    KeptRecord,
+    ResolutionArea,
+    ResolutionAreaError,
+)
+from manifest_generation.safe_write import atomic_write_bytes
 from manifest_generation.source_ancestry import SOURCE_LABEL_MAP_RELATIVE_PATH, load_source_label_map
 from manifest_generation.source_inventory import (
     INVENTORY_COLUMNS,
@@ -245,65 +261,64 @@ EXCLUSION_COLUMNS: tuple[str, ...] = (
     "exclude_from_build",
 )
 
-#: Controlled exclusion vocabulary (issue #152). Every excluded ready Analysis
-#: carries exactly one of these, so "why is this Analysis absent" has one spelling.
-EXCLUSION_REASONS: frozenset[str] = frozenset(
-    {
-        "resolution_failed",
-        "ancestry_unassigned",
-        "ancestry_not_eur",
-        "orientation_failure",
-        "sd_no_reference_resource_for_ancestry",
-        "sd_no_qualifying_evidence",
-        "sd_no_usable_sample_size",
-        "sd_failed",
-        "missing_sample_size",
-        "missing_case_control_counts",
-        "no_build_eligible_rows",
-        "effect_placeholder_rows",
-        "not_maf_filtered",
-    }
-)
-
-#: Exclusion reason -> sidecar ``category`` value.
-EXCLUSION_CATEGORIES: Mapping[str, str] = {
+#: Exclusion reasons that are release policy rather than a Quality Check (#285),
+#: with their sidecar ``category``: a missing or failed Resolution Record has
+#: nothing to measure, missing counts are candidate-table metadata, and the
+#: Store Composition Rule is a release-level admission rule (ADR 0033). Every
+#: other reason is declared by a Quality Check (``quality_checks``).
+POLICY_EXCLUSION_CATEGORIES: Mapping[str, str] = {
     "resolution_failed": "resolution",
-    "ancestry_unassigned": "ancestry",
-    "ancestry_not_eur": "ancestry",
-    "orientation_failure": "orientation",
-    "sd_no_reference_resource_for_ancestry": "effect_scale",
-    "sd_no_qualifying_evidence": "effect_scale",
-    "sd_no_usable_sample_size": "effect_scale",
-    "sd_failed": "effect_scale",
     "missing_sample_size": "metadata",
     "missing_case_control_counts": "metadata",
-    "no_build_eligible_rows": "effect_scale",
-    "effect_placeholder_rows": "effect_scale",
     "not_maf_filtered": "store_composition",
 }
 
+
+def controlled_exclusion_categories() -> dict[str, str]:
+    """The controlled exclusion vocabulary (#152), each reason with its category.
+
+    Every excluded ready Analysis carries exactly one of these, so "why is this
+    Analysis absent" has one spelling: the release policy's own reasons and
+    those of every registered Quality Check.
+    """
+    return {**POLICY_EXCLUSION_CATEGORIES, **quality_checks.exclusion_categories()}
+
+
 #: Resolver record statuses that this module treats as a completed resolution.
 _RESOLVER_RECORD_STATUSES: tuple[str, ...] = ("success", "controlled_failure")
-
-#: The pinned upstream EAF-orientation vocabulary (opengwasdb
-#: ``EafOrientationOutcome``): ``passed``/``failed``/``unverified``. The resolver
-#: records it on every successful assignment, so the release policy can exclude a
-#: mis-oriented column and still admit an unchecked one. ``failed`` means the
-#: A1-oriented source frequencies correlate negatively with the reference (the
-#: column is untrustworthy); ``unverified`` means no direction could be read, so
-#: the ordinary assignment/gate policy decides the row. A value outside this set
-#: is a contract violation and fails loudly rather than being read as a failure.
-EAF_ORIENTATION_OUTCOMES: tuple[str, ...] = ("passed", "failed", "unverified")
 
 #: The resolver record/index schema this registry can finalise. A record or index
 #: declaring a different version is incompatible and must fail rather than be
 #: interpreted field-by-field against a schema it was not written for.
 SUPPORTED_RECORD_SCHEMA_VERSION: int = 1
 
-#: The resolution-receipt schema this module writes and reads.
-RECEIPT_SCHEMA_VERSION: int = 1
+#: The resolution-receipt schema this module writes and reads. Version 2 (#284)
+#: names each Analysis's kept Resolution Record in the Source Collection's
+#: resolution area -- fingerprint digest, record checksum and path.
+RECEIPT_SCHEMA_VERSION: int = 2
 
-#: Filename of the registry-side resolution receipt, beside the resolver records.
+#: Every key a resolution receipt carries. A receipt with any other key is
+#: refused; a later release-policy key (#285) is added here explicitly.
+RECEIPT_KEYS: frozenset[str] = frozenset(
+    {
+        "receipt_schema_version",
+        "record_schema_version",
+        "manifest_sha256",
+        "analysis_ids",
+        "resolver",
+        "contract",
+        "resolution_area",
+        "records",
+    }
+)
+
+#: Receipt versions written before #284, whose records lived in the Store
+#: Release's Work Root (``resolver/records/``). Receipts of emitted candidates
+#: (``source_snapshot.resolver_receipt`` in their ``release.yaml``) remain their
+#: provenance; reading one again is refused by name rather than as corrupt.
+HISTORICAL_RECEIPT_SCHEMA_VERSIONS: tuple[int, ...] = (1,)
+
+#: Filename of the registry-side resolution receipt in the run's Work Root.
 RECEIPT_FILENAME: str = "resolution_receipt.json"
 
 
@@ -382,6 +397,10 @@ class CandidateConfiguration:
     #: The reviewed reason an operator deliberately omitted the default (`#210`).
     #: Recorded in release.yaml notes so the omission is reviewable.
     indexed_subsets_opt_out: str | None = None
+    #: The release's Quality Check threshold overrides (``quality_checks:``,
+    #: #285): check name -> parsed threshold. Empty means every check uses its
+    #: shared default. Recorded in the resolution receipt and validation.yaml.
+    quality_check_overrides: Mapping[str, Any] = field(default_factory=dict)
 
 
 def _require(document: Mapping[str, Any], key: str, where: str) -> Any:
@@ -470,10 +489,21 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
     if declaration_path is not None and not declaration_path.is_absolute():
         declaration_path = repo_root / declaration_path
 
+    quality_check_overrides = parse_quality_check_overrides(
+        document.get("quality_checks"), path
+    )
+
     layout = str(build.get("layout") or "hybrid")
     indexed_subsets, indexed_subsets_opt_out = resolve_indexed_subsets(
         document, layout, repo_root
     )
+    if "resolution_root" in _mapping(document.get("output")):
+        raise PreflightConfigError(
+            f"{path}: output.resolution_root is not a release config key: the resolution "
+            "root is deployment configuration (--resolution-root, "
+            "OPENGWASDB_RESOLUTION_ROOT or ogstores.yaml), so every release over a "
+            "Source Collection finds the same Resolution Area (#284)"
+        )
 
     return CandidateConfiguration(
         base=base,
@@ -504,7 +534,21 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
             tuple(indexed_subsets) if indexed_subsets is not None else None
         ),
         indexed_subsets_opt_out=indexed_subsets_opt_out,
+        quality_check_overrides=quality_check_overrides,
     )
+
+
+def parse_quality_check_overrides(value: Any, path: Path) -> dict[str, Any]:
+    """Validate the release's ``quality_checks:`` threshold overrides (#285).
+
+    Each key names a registered Quality Check with a threshold; its value
+    replaces that check's shared default for this release. Absent means no
+    override. Anything else is a config error, never silently ignored.
+    """
+    try:
+        return quality_checks.parse_overrides(value, f"{path}:quality_checks")
+    except quality_checks.QualityCheckError as exc:
+        raise PreflightConfigError(str(exc)) from exc
 
 
 def parse_info_score_threshold(value: Any) -> str:
@@ -684,14 +728,14 @@ def info_score_emission(
     """
     if declaration is None or not declaration.imputation_score_column:
         return ("NaN", "", "", "")
-    diagnostics = _record_mapping(record, "diagnostics")
+    diagnostics = record_section(record, "diagnostics")
     if diagnostics.get("info_score_state") not in USABLE_INFO_SCORE_STATES:
         return ("NaN", "", "", "")
     usable = diagnostics.get("info_rows_usable")
     if not _positive_int(usable):
         return ("NaN", "", "", "")
-    resolution_config = _record_mapping(
-        _record_mapping(record, "fingerprints"), "resolution_config"
+    resolution_config = record_section(
+        record_section(record, "fingerprints"), "resolution_config"
     )
     if resolution_config.get("info_score_threshold") != float(declaration.info_score_threshold):
         return ("NaN", "", "", "")
@@ -729,11 +773,11 @@ def maf_threshold_emission(
     """
     if declaration is None or declaration.maf_threshold in ("", "NaN"):
         return "NaN"
-    diagnostics = _record_mapping(record, "diagnostics")
+    diagnostics = record_section(record, "diagnostics")
     if diagnostics.get("maf_state") not in USABLE_MAF_STATES:
         return "NaN"
-    resolution_config = _record_mapping(
-        _record_mapping(record, "fingerprints"), "resolution_config"
+    resolution_config = record_section(
+        record_section(record, "fingerprints"), "resolution_config"
     )
     try:
         wanted = float(declaration.maf_threshold)
@@ -1126,22 +1170,16 @@ def _resolve_af_reference_specs(config: CandidateConfiguration) -> list[str]:
     return specs
 
 
-def resolver_argv(
-    *,
-    resolver_bin: str,
-    manifest_path: Path,
-    records_dir: Path,
-    config: CandidateConfiguration,
-    cores: int,
-    resume: bool,
-) -> list[str]:
-    """Compose the exact ``opengwasdb resolve-analyses`` argv.
+def resolver_settings(config: CandidateConfiguration) -> list[str]:
+    """The ``opengwasdb resolve-analyses`` flags that apply to every Analysis.
 
-    Only registry facts and declared config values are composed: the manifest
-    and records paths, the declared ancestry reference and its fine-group map,
-    the declared gates, and the worker count. Everything else is the resolver's
-    own default. Per ADR 0023 the registry names a subcommand and passes flags
-    through, and does not mirror a parameter schema.
+    Only registry facts and declared config values are composed: the declared
+    ancestry reference and its fine-group map, the extraction panel, the
+    Variant Reference axis, reference-AF resources and the declared gates and
+    floors. Everything else is the resolver's own default. Per ADR 0023 the
+    registry names a subcommand and passes flags through, and does not mirror a
+    parameter schema. The manifest, the records directory and the worker count
+    are a run's, not settings, and :func:`resolver_argv` adds them.
     """
     ancestry_resource = config.base.reference_resources.get(
         config.base.ancestry_reference_resource_id
@@ -1158,11 +1196,7 @@ def resolver_argv(
         )
 
     gates = _mapping(config.ancestry_block.get("gates"))
-    argv: list[str] = [
-        resolver_bin,
-        RESOLVER_SUBCOMMAND,
-        str(manifest_path),
-        str(records_dir),
+    settings: list[str] = [
         "--ancestry-reference",
         ancestry_resource.location,
         "--ancestry-groups",
@@ -1170,13 +1204,13 @@ def resolver_argv(
     ]
     extraction_panel = config.ancestry_block.get("extraction_panel")
     if extraction_panel:
-        argv.extend(["--extraction-panel", str(extraction_panel)])
+        settings.extend(["--extraction-panel", str(extraction_panel)])
     axis = config.build_options.get("variant-reference")
     if axis:
-        argv.extend(["--variant-reference", str(axis)])
+        settings.extend(["--variant-reference", str(axis)])
     for spec in _resolve_af_reference_specs(config):
-        argv.extend(["--af-reference", spec])
-    argv.extend(
+        settings.extend(["--af-reference", spec])
+    settings.extend(
         [
             "--default-source-reader-capability",
             config.reader_capability,
@@ -1190,13 +1224,80 @@ def resolver_argv(
             str(gates.get("n_min", 5000)),
             "--residual-max",
             str(gates.get("residual_max", 0.06)),
-            "--n-workers",
-            str(cores),
         ]
     )
-    if resume:
-        argv.append("--resume")
-    return argv
+    return settings
+
+
+def resolver_argv(
+    *,
+    resolver_bin: str,
+    manifest_path: Path,
+    records_dir: Path,
+    config: CandidateConfiguration,
+    cores: int,
+) -> list[str]:
+    """Compose the exact ``opengwasdb resolve-analyses`` argv.
+
+    The resolver always resumes: it reuses every record whose fingerprint still
+    matches and re-resolves the rest (#284).
+    """
+    return [
+        resolver_bin,
+        RESOLVER_SUBCOMMAND,
+        str(manifest_path),
+        str(records_dir),
+        *resolver_settings(config),
+        "--n-workers",
+        str(cores),
+        "--resume",
+    ]
+
+
+#: Resolver flags whose value is a file the resolver reads, so the settings
+#: digest binds the file's content and not only its path.
+_RESOLVER_FILE_FLAGS: tuple[str, ...] = (
+    "--ancestry-reference",
+    "--ancestry-groups",
+    "--extraction-panel",
+    "--variant-reference",
+)
+
+
+def resolver_settings_digest(settings: Sequence[str]) -> str:
+    """The digest that routes a run to its checkpoint in the Resolution Area (#284).
+
+    It covers the resolver settings that enter every record's fingerprint:
+    :func:`resolver_settings` as passed, the content checksum of every file
+    they name, and the installed resolver's identity. It is only a routing key
+    -- the resolver checks each Analysis's full fingerprint on ``--resume`` --
+    so a setting it misses causes a re-resolve, never a wrong reuse.
+    """
+    files: dict[str, str] = {}
+    for position, token in enumerate(settings[:-1]):
+        value = settings[position + 1]
+        if token in _RESOLVER_FILE_FLAGS:
+            path = value
+        elif token == "--af-reference":
+            path = value.partition("=")[2]
+        else:
+            continue
+        if not Path(path).is_file():
+            raise CandidateError(
+                f"resolver setting {token} names {path}, which is not a file; refusing "
+                "to resolve against it"
+            )
+        files[path] = sha256_file(Path(path))
+    version, resolver_sha256 = _opengwasdb_tool_identity()
+    payload = {
+        "settings": list(settings),
+        "file_sha256": files,
+        "opengwasdb_version": version,
+        "opengwasdb_resolver_sha256": resolver_sha256,
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -1213,24 +1314,28 @@ class ResolverRun:
     log_path: Path
 
 
-def run_resolver(argv: Sequence[str], *, cwd: Path, log_path: Path) -> ResolverRun:
-    """Run the resolver subprocess, teeing its output to a durable log.
+def run_resolver(
+    argv: Sequence[str], *, cwd: Path, log_path: Path, pass_fds: Sequence[int] = ()
+) -> ResolverRun:
+    """Run the resolver subprocess, writing its output to a durable log.
 
     The registry does not parse the resolver's stdout for accounting: the
     accounting comes from the records and ``index.json``, which are the
-    resolver's declared contract. The raw output is kept so a failure is
-    auditable without re-running it.
+    resolver's declared contract. The raw output goes straight to the log, so
+    a failure is auditable without re-running it, and the resolver never
+    writes into a pipe that dies with this process. ``pass_fds`` hands it
+    descriptors to hold, such as the Resolution Area's lock.
     """
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    completed = subprocess.run(
-        list(argv),
-        cwd=str(cwd),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        check=False,
-    )
-    log_path.write_text(completed.stdout or "", encoding="utf-8")
+    with log_path.open("w", encoding="utf-8") as log:
+        completed = subprocess.run(
+            list(argv),
+            cwd=str(cwd),
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            pass_fds=tuple(pass_fds),
+            check=False,
+        )
     return ResolverRun(argv=list(argv), returncode=completed.returncode, log_path=log_path)
 
 
@@ -1280,46 +1385,178 @@ def account_records(
     manifest_rows: Sequence[ResolverRow],
     records_dir: Path,
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Account the resolver records against the manifest that was resolved.
+    """Account one resolver run's output against the manifest it resolved.
 
+    ``records_dir`` is the directory the resolver wrote: its ``index.json`` must
+    describe exactly this manifest, and it must hold one record per manifest row.
     Returns ``(records, failures)`` where ``records`` is in manifest order and
-    ``failures`` lists every way the records are missing, duplicated, extra or
+    ``failures`` lists every way the records are missing, duplicated or
     incompatible with the pinned record schema. This is the resolver's own
-    contract, checked without reference to the resolution receipt; the receipt
-    check in :func:`verify_records` is what detects a record set produced under
-    a different contract.
+    contract, checked without reference to the resolution receipt.
+
+    The directory is a Source Collection's checkpoint, shared by every Selection
+    (#284), so a record there for an Analysis outside this manifest belongs to
+    another Selection and is not a failure. What a candidate was decided from is
+    what its resolution receipt names, and :func:`verify_records` refuses a
+    receipt that names any record outside the manifest.
+    """
+    failures = _duplicate_manifest_ids(manifest_rows)
+    index_failures, index_usable = _account_index(manifest_rows, records_dir / "index.json")
+    failures.extend(index_failures)
+    if not index_usable:
+        return [], failures
+    records: list[dict[str, Any]] = []
+    for row in manifest_rows:
+        record, row_failures = _account_record(row, records_dir / f"{row.analysis_id}.json")
+        failures.extend(row_failures)
+        if record is not None:
+            records.append(record)
+    return records, failures
+
+
+def verify_records(
+    manifest_rows: Sequence[ResolverRow],
+    *,
+    config: CandidateConfiguration,
+    manifest_path: Path,
+    receipt_path: Path,
+    index_path: Path,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Account the records a receipt names *and* prove they are current.
+
+    The resolution receipt names, per Analysis, the kept Resolution Record the
+    candidate is decided from: its fingerprint digest and its checksum in the
+    Source Collection's Resolution Area (#284). This reads exactly those
+    records, requires each to be byte-for-byte the record the receipt bound, and
+    accounts each against its manifest row as :func:`account_records` does for
+    a fresh run. ``index_path`` is the run's copy of the resolver's index.
+
+    A record's own fingerprint digest only proves it is internally consistent.
+    A record set produced under different gates, ancestry reference/group map,
+    extraction panel, reference-AF resources or tool revision is still
+    internally consistent, so this function also recomputes the current
+    resolution contract and requires the receipt to match it. Any failure means
+    the candidate is not emitted: a partial, stale or extra-contract record set
+    is exactly the silently-wrong bundle this repository exists to prevent.
+    """
+    failures = _duplicate_manifest_ids(manifest_rows)
+    failures.extend(_account_index(manifest_rows, index_path)[0])
+    try:
+        receipt = read_resolution_receipt(receipt_path)
+        area = ResolutionArea.from_receipt(receipt["resolution_area"])
+    except (CandidateError, ResolutionAreaError) as exc:
+        return [], failures + [str(exc)]
+    kept, parse_failures = parse_receipt_records(manifest_rows, receipt["records"])
+    failures.extend(parse_failures)
+    records, record_failures = account_kept_records(manifest_rows, area, kept)
+    failures.extend(record_failures)
+    failures.extend(
+        _verify_receipt(
+            manifest_rows=manifest_rows,
+            records=records,
+            kept=kept,
+            receipt=receipt,
+            config=config,
+            manifest_path=manifest_path,
+            receipt_path=receipt_path,
+        )
+    )
+    return records, failures
+
+
+def parse_receipt_records(
+    manifest_rows: Sequence[ResolverRow], named: Any
+) -> tuple[dict[str, KeptRecord], list[str]]:
+    """Parse a receipt's ``records`` into one :class:`KeptRecord` per Analysis."""
+    if not isinstance(named, Mapping):
+        return {}, ["the resolution receipt's records is not a mapping"]
+    failures: list[str] = []
+    expected = {row.analysis_id for row in manifest_rows}
+    outside = [str(analysis_id) for analysis_id in named if analysis_id not in expected]
+    if outside:
+        failures.append(
+            f"the resolution receipt names {len(outside)} record(s) for Analyses outside "
+            f"this Selection's manifest: {', '.join(outside[:10])}"
+        )
+    kept: dict[str, KeptRecord] = {}
+    for row in manifest_rows:
+        if row.analysis_id not in named:
+            failures.append(
+                f"{row.analysis_id}: the resolution receipt names no Resolution Record for "
+                "this Analysis; re-run resolution"
+            )
+            continue
+        try:
+            kept[row.analysis_id] = KeptRecord.from_receipt_entry(
+                row.analysis_id, named[row.analysis_id]
+            )
+        except ResolutionAreaError as exc:
+            failures.append(str(exc))
+    return kept, failures
+
+
+def account_kept_records(
+    manifest_rows: Sequence[ResolverRow],
+    area: ResolutionArea,
+    kept: Mapping[str, KeptRecord],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Read and account the kept Resolution Records a receipt names, in manifest order."""
+    failures: list[str] = []
+    records: list[dict[str, Any]] = []
+    for row in manifest_rows:
+        record_ref = kept.get(row.analysis_id)
+        if record_ref is None:
+            continue  # parse_receipt_records already reported this.
+        try:
+            data = area.read_kept(record_ref)
+        except ResolutionAreaError as exc:
+            failures.append(str(exc))
+            continue
+        record, row_failures = _account_record(row, area.record_path(record_ref), data)
+        failures.extend(row_failures)
+        if record is not None:
+            records.append(record)
+    return records, failures
+
+
+def _duplicate_manifest_ids(manifest_rows: Sequence[ResolverRow]) -> list[str]:
+    expected_ids = [row.analysis_id for row in manifest_rows]
+    duplicate_ids = sorted({aid for aid in expected_ids if expected_ids.count(aid) > 1})
+    if duplicate_ids:
+        return [f"resolver manifest has duplicate analysis_id: {', '.join(duplicate_ids)}"]
+    return []
+
+
+def _account_index(
+    manifest_rows: Sequence[ResolverRow], index_path: Path
+) -> tuple[list[str], bool]:
+    """Check a resolver ``index.json`` describes exactly this manifest.
+
+    Returns ``(failures, usable)``; ``usable`` is false when the index is
+    missing or unreadable, so there is nothing to account against.
     """
     failures: list[str] = []
     expected_ids = [row.analysis_id for row in manifest_rows]
-    expected_set = set(expected_ids)
-    duplicate_ids = sorted({aid for aid in expected_ids if expected_ids.count(aid) > 1})
-    if duplicate_ids:
-        failures.append(f"resolver manifest has duplicate analysis_id: {', '.join(duplicate_ids)}")
-
-    index_path = records_dir / "index.json"
     if not index_path.is_file():
-        failures.append(f"resolver index is missing: {index_path}")
-        return [], failures
+        return [f"resolver index is missing: {index_path}"], False
     try:
         index = json.loads(index_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        failures.append(f"resolver index {index_path} is not valid JSON: {exc}")
-        return [], failures
+        return [f"resolver index {index_path} is not valid JSON: {exc}"], False
     if not isinstance(index, Mapping):
-        failures.append(f"resolver index {index_path} is not a JSON mapping")
-        return [], failures
+        return [f"resolver index {index_path} is not a JSON mapping"], False
     index_schema_version = index.get("record_schema_version")
     if index_schema_version != SUPPORTED_RECORD_SCHEMA_VERSION:
         failures.append(
             f"resolver index {index_path} declares record_schema_version "
-            f"{index_schema_version!r}; this registry finalises only "
+            f"{index_schema_version!r}; this registry accepts only "
             f"{SUPPORTED_RECORD_SCHEMA_VERSION}"
         )
 
     recorded = index.get("analyses")
     if not isinstance(recorded, list):
         failures.append(f"resolver index {index_path} has no 'analyses' list")
-        return [], failures
+        return failures, False
     index_ids = [str(entry.get("analysis_id", "")) for entry in recorded if isinstance(entry, dict)]
     if index_ids != expected_ids:
         failures.append(
@@ -1335,98 +1572,43 @@ def account_records(
     duplicate_index_ids = sorted({aid for aid in index_ids if index_ids.count(aid) > 1})
     if duplicate_index_ids:
         failures.append(f"resolver index has duplicate analysis_id: {', '.join(duplicate_index_ids)}")
-
-    # Extra record files: a records dir reused across a changed manifest leaves
-    # records the current manifest does not account for.
-    extra = sorted(
-        path.name
-        for path in records_dir.glob("*.json")
-        if path.name != "index.json"
-        and path.stem not in expected_set
-        and not path.name.startswith(".tmp_")
-    )
-    if extra:
-        failures.append(
-            f"{len(extra)} extra resolver record(s) for analyses outside the manifest: "
-            f"{', '.join(extra[:10])}"
-        )
-
-    records: list[dict[str, Any]] = []
-    by_id: dict[str, dict[str, Any]] = {}
-    for row in manifest_rows:
-        record_path = records_dir / f"{row.analysis_id}.json"
-        if not record_path.is_file():
-            failures.append(f"{row.analysis_id}: resolver record is missing ({record_path})")
-            continue
-        try:
-            record = json.loads(record_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            failures.append(f"{row.analysis_id}: resolver record is not valid JSON: {exc}")
-            continue
-        if not isinstance(record, Mapping):
-            failures.append(f"{row.analysis_id}: resolver record is not a JSON mapping")
-            continue
-        record_schema_version = record.get("record_schema_version")
-        if record_schema_version != SUPPORTED_RECORD_SCHEMA_VERSION:
-            failures.append(
-                f"{row.analysis_id}: resolver record declares record_schema_version "
-                f"{record_schema_version!r}; this registry finalises only "
-                f"{SUPPORTED_RECORD_SCHEMA_VERSION}"
-            )
-            continue
-        if record.get("analysis_id") != row.analysis_id:
-            failures.append(
-                f"{row.analysis_id}: resolver record names analysis_id "
-                f"{record.get('analysis_id')!r}"
-            )
-            continue
-        status = record.get("status")
-        if status not in _RESOLVER_RECORD_STATUSES:
-            failures.append(
-                f"{row.analysis_id}: resolver record has unexpected status {status!r}"
-            )
-            continue
-        failures.extend(_verify_fingerprints(row, record))
-        by_id[row.analysis_id] = record
-
-    for row in manifest_rows:
-        if row.analysis_id in by_id:
-            records.append(by_id[row.analysis_id])
-    return records, failures
+    return failures, True
 
 
-def verify_records(
-    manifest_rows: Sequence[ResolverRow],
-    records_dir: Path,
-    *,
-    config: CandidateConfiguration,
-    manifest_path: Path,
-    receipt_path: Path,
-) -> tuple[list[dict[str, Any]], list[str]]:
-    """Account the records *and* prove they were produced under the current contract.
+def _account_record(
+    row: ResolverRow, record_path: Path, data: bytes | None = None
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """Read one resolver record and check it against its manifest row.
 
-    The record-level accounting in :func:`account_records` only proves each
-    record is internally consistent. A record set produced under different
-    gates, ancestry reference/group map, extraction panel, reference-AF
-    resources or tool revision is still internally consistent, so this function
-    additionally recomputes the current resolution contract and requires the
-    successful resolver's resolution receipt to match it, with every record's
-    fingerprint digest equal to the digest the receipt bound. Any failure means
-    the candidate is not written: a partial, stale or extra-contract record set
-    is exactly the silently-wrong bundle this repository exists to prevent.
+    ``data`` is the record's bytes when the caller has already read them.
+    Returns the record, or ``None`` when it cannot be used at all.
     """
-    records, failures = account_records(manifest_rows, records_dir)
-    failures.extend(
-        _verify_receipt(
-            manifest_rows=manifest_rows,
-            records=records,
-            config=config,
-            manifest_path=manifest_path,
-            receipt_path=receipt_path,
-        )
-    )
-    return records, failures
-
+    if data is None:
+        if not record_path.is_file():
+            return None, [f"{row.analysis_id}: resolver record is missing ({record_path})"]
+        data = record_path.read_bytes()
+    try:
+        record = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return None, [f"{row.analysis_id}: resolver record is not valid JSON: {exc}"]
+    if not isinstance(record, Mapping):
+        return None, [f"{row.analysis_id}: resolver record is not a JSON mapping"]
+    record_schema_version = record.get("record_schema_version")
+    if record_schema_version != SUPPORTED_RECORD_SCHEMA_VERSION:
+        return None, [
+            f"{row.analysis_id}: resolver record declares record_schema_version "
+            f"{record_schema_version!r}; this registry accepts only "
+            f"{SUPPORTED_RECORD_SCHEMA_VERSION}"
+        ]
+    if record.get("analysis_id") != row.analysis_id:
+        return None, [
+            f"{row.analysis_id}: resolver record names analysis_id "
+            f"{record.get('analysis_id')!r}"
+        ]
+    status = record.get("status")
+    if status not in _RESOLVER_RECORD_STATUSES:
+        return None, [f"{row.analysis_id}: resolver record has unexpected status {status!r}"]
+    return dict(record), _verify_fingerprints(row, record)
 
 
 def _first_mismatch(actual: Sequence[str], expected: Sequence[str]) -> str:
@@ -1543,19 +1725,35 @@ def _verify_source_file_unchanged(
 # candidate. After every successful resolver invocation the registry therefore
 # persists a resolution receipt: the resolver manifest's checksum, the
 # registry-recomputable slice of the resolution contract, the tool identity the
-# resolver reported, and every analysis_id bound to the fingerprint digest the
-# resolver wrote. Standalone verify/emit recompute the contract from the current
-# config, references and installed tool and require it to equal the receipt;
-# they never re-derive the resolver's statistics.
+# resolver reported, and every analysis_id bound to the kept Resolution Record
+# it was decided from -- fingerprint digest and record checksum, in the Source
+# Collection's resolution area (#284). Standalone verify/emit recompute the
+# contract from the current config, references and installed tool and require
+# it to equal the receipt, and read exactly the records it names; they never
+# re-derive the resolver's statistics.
 
 
 def sha256_file(path: Path) -> str:
-    """SHA-256 hex digest of a file, streamed so a genome-scale reference fits."""
+    """SHA-256 hex digest of a file, streamed so a genome-scale reference fits.
+
+    One run hashes each reference for its settings digest, the contract it
+    binds and the contract it verifies, so a digest is remembered for the
+    process, keyed by the file's identity and modification time.
+    """
+    stat = Path(path).stat()
+    key = (str(Path(path).resolve()), stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
+    cached = _SHA256_BY_FILE_IDENTITY.get(key)
+    if cached is not None:
+        return cached
     digest = hashlib.sha256()
-    with path.open("rb") as fh:
+    with Path(path).open("rb") as fh:
         for chunk in iter(lambda: fh.read(1024 * 1024), b""):
             digest.update(chunk)
-    return digest.hexdigest()
+    _SHA256_BY_FILE_IDENTITY[key] = digest.hexdigest()
+    return _SHA256_BY_FILE_IDENTITY[key]
+
+
+_SHA256_BY_FILE_IDENTITY: dict[tuple[str, int, int, int, int], str] = {}
 
 
 def _opengwasdb_tool_identity() -> tuple[str, str | None]:
@@ -1679,6 +1877,12 @@ def compute_resolution_contract(config: CandidateConfiguration) -> dict[str, Any
             contract["maf_filter_exempt_analyses_reasons"] = dict(
                 config.maf_filter_exempt_analyses
             )
+    # The effective Quality Check thresholds, defaults included, and the
+    # release's overrides (#285): changing a shared default or an override makes
+    # the receipt stale. A receipt written before #285 lacks the key and is
+    # stale too. Re-running the resolve stage rewrites it, reusing every record:
+    # thresholds are not in the resolver's fingerprint (#284).
+    contract["quality_checks"] = quality_checks.receipt_contract(config.quality_check_overrides)
     return contract
 
 
@@ -1687,33 +1891,40 @@ def build_resolution_receipt(
     manifest_rows: Sequence[ResolverRow],
     config: CandidateConfiguration,
     manifest_path: Path,
-    records_dir: Path,
+    area: ResolutionArea,
+    kept: Mapping[str, KeptRecord],
     argv: Sequence[str],
+    settings_digest: str,
     index: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Bind a successful resolver run to the contract and record digests it produced."""
+    """Bind a successful resolver run to its contract and the records it kept.
+
+    ``records`` names, in manifest order, each Analysis's kept Resolution Record
+    in the Source Collection's resolution area: its fingerprint digest, its
+    checksum and its path in the area (#284). It names exactly this Selection's
+    records, whether this run resolved them or reused them. ``settings_digest``
+    names the checkpoint the run resolved into.
+    """
     contract = compute_resolution_contract(config)
-    index_version = str(index.get("opengwasdb_version") or "")
+    index_version = index.get("opengwasdb_version")
+    index_git_hash = index.get("opengwasdb_git_hash")
+    if not isinstance(index_version, str) or not isinstance(index_git_hash, str):
+        raise CandidateError(
+            "resolver index does not report its opengwasdb_version and "
+            "opengwasdb_git_hash; refusing to write a resolution receipt"
+        )
     if index_version != contract["opengwasdb_version"]:
         raise CandidateError(
             "resolver index reports opengwasdb version "
             f"{index_version!r} but the installed opengwasdb is "
             f"{contract['opengwasdb_version']!r}; refusing to write a resolution receipt"
         )
-    record_digests: dict[str, str] = {}
+    records: dict[str, dict[str, str]] = {}
     for row in manifest_rows:
-        record_path = records_dir / f"{row.analysis_id}.json"
-        try:
-            record = json.loads(record_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise CandidateError(
-                f"{row.analysis_id}: cannot read resolver record for the receipt: {exc}"
-            ) from exc
-        fingerprints = record.get("fingerprints")
-        digest = fingerprints.get("fingerprint_digest") if isinstance(fingerprints, Mapping) else None
-        if not isinstance(digest, str) or not digest:
-            raise CandidateError(f"{row.analysis_id}: resolver record has no fingerprint digest")
-        record_digests[row.analysis_id] = digest
+        record = kept.get(row.analysis_id)
+        if record is None:
+            raise CandidateError(f"{row.analysis_id}: no Resolution Record was kept for the receipt")
+        records[row.analysis_id] = record.as_receipt_entry()
     return {
         "receipt_schema_version": RECEIPT_SCHEMA_VERSION,
         "record_schema_version": SUPPORTED_RECORD_SCHEMA_VERSION,
@@ -1721,22 +1932,24 @@ def build_resolution_receipt(
         "analysis_ids": [row.analysis_id for row in manifest_rows],
         "resolver": {
             "argv": list(argv),
+            "settings_digest": settings_digest,
             "opengwasdb_version": index_version,
-            "opengwasdb_git_hash": str(index.get("opengwasdb_git_hash") or ""),
+            "opengwasdb_git_hash": index_git_hash,
         },
         "contract": contract,
-        "record_digests": record_digests,
+        "resolution_area": str(area.root),
+        "records": records,
     }
 
 
 def write_resolution_receipt(path: Path, receipt: Mapping[str, Any]) -> None:
-    """Write the receipt through a temporary sibling and an atomic rename."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".tmp_{path.name}")
-    temporary.write_text(
-        json.dumps(receipt, indent=2, sort_keys=False) + "\n", encoding="utf-8"
+    """Write the receipt atomically and durably, replacing an earlier run's."""
+    atomic_write_bytes(
+        path,
+        (json.dumps(receipt, indent=2, sort_keys=False) + "\n").encode("utf-8"),
+        path.parent,
+        overwrite=True,
     )
-    os.replace(temporary, path)
 
 
 def read_resolution_receipt(path: Path) -> dict[str, Any]:
@@ -1753,6 +1966,14 @@ def read_resolution_receipt(path: Path) -> dict[str, Any]:
     if not isinstance(receipt, Mapping):
         raise CandidateError(f"resolution receipt {path} is not a JSON mapping")
     receipt_schema_version = receipt.get("receipt_schema_version")
+    if receipt_schema_version in HISTORICAL_RECEIPT_SCHEMA_VERSIONS:
+        raise CandidateError(
+            f"resolution receipt {path} has receipt_schema_version "
+            f"{receipt_schema_version!r}: a historical receipt, whose records lived in "
+            "the Store Release's own Work Root before Resolution Records were kept per "
+            "Source Collection (#284). It stays the provenance of the candidate it "
+            "produced but cannot be verified again; re-run the resolve stage"
+        )
     if receipt_schema_version != RECEIPT_SCHEMA_VERSION:
         raise CandidateError(
             f"resolution receipt {path} has incompatible receipt_schema_version "
@@ -1766,9 +1987,15 @@ def read_resolution_receipt(path: Path) -> dict[str, Any]:
             f"{record_schema_version!r}; this registry finalises "
             f"{SUPPORTED_RECORD_SCHEMA_VERSION}"
         )
-    for key in ("manifest_sha256", "analysis_ids", "contract", "record_digests"):
-        if key not in receipt:
-            raise CandidateError(f"resolution receipt {path} is missing key {key!r}")
+    missing = sorted(RECEIPT_KEYS - set(receipt))
+    if missing:
+        raise CandidateError(f"resolution receipt {path} is missing key(s) {missing}")
+    unknown = sorted(set(receipt) - RECEIPT_KEYS)
+    if unknown:
+        raise CandidateError(
+            f"resolution receipt {path} has unknown key(s) {unknown}; this registry "
+            f"reads only {sorted(RECEIPT_KEYS)}"
+        )
     return dict(receipt)
 
 
@@ -1776,6 +2003,8 @@ def _verify_receipt(
     *,
     manifest_rows: Sequence[ResolverRow],
     records: Sequence[Mapping[str, Any]],
+    kept: Mapping[str, KeptRecord],
+    receipt: Mapping[str, Any],
     config: CandidateConfiguration,
     manifest_path: Path,
     receipt_path: Path,
@@ -1787,11 +2016,6 @@ def _verify_receipt(
     compares them to the receipt the successful run wrote, and requires each
     record to still carry the exact digest that run bound.
     """
-    try:
-        receipt = read_resolution_receipt(receipt_path)
-    except CandidateError as exc:
-        return [str(exc)]
-
     failures: list[str] = []
     try:
         current_contract = compute_resolution_contract(config)
@@ -1823,26 +2047,18 @@ def _verify_receipt(
             f"manifest ({receipt_ids!r} != {expected_ids!r})"
         )
 
-    record_digests = receipt.get("record_digests")
-    if not isinstance(record_digests, Mapping):
-        failures.append(f"resolution receipt {receipt_path} has no record_digests mapping")
-        return failures
     by_id = {record.get("analysis_id"): record for record in records}
     for row in manifest_rows:
         record = by_id.get(row.analysis_id)
-        if record is None:
-            continue  # account_records already reported this.
+        record_ref = kept.get(row.analysis_id)
+        if record is None or record_ref is None:
+            continue  # parse_receipt_records or account_kept_records reported this.
         fingerprints = record.get("fingerprints")
         digest = (
             fingerprints.get("fingerprint_digest") if isinstance(fingerprints, Mapping) else None
         )
-        expected_digest = record_digests.get(row.analysis_id)
-        if expected_digest is None:
-            failures.append(
-                f"{row.analysis_id}: the resolution receipt binds no fingerprint digest "
-                "for this Analysis; re-run resolution"
-            )
-        elif digest != expected_digest:
+        expected_digest = record_ref.fingerprint_digest
+        if digest != expected_digest:
             failures.append(
                 f"{row.analysis_id}: resolver fingerprint digest is {digest!r} but the "
                 f"successful resolution bound {expected_digest!r}; the record is stale or "
@@ -1899,6 +2115,9 @@ class AnalysisOutcome:
     #: The emitted MAF floor (stores #176): the numeric value on resolver
     #: evidence, else literal ``NaN``. (:func:`maf_threshold_emission`).
     maf_threshold: str = "NaN"
+    #: Every registered Quality Check's result for this Analysis (#285), in
+    #: registry order, whether or not one of them decided its membership.
+    check_results: tuple[quality_checks.Finding, ...] = ()
 
     @property
     def analysis_id(self) -> str:
@@ -1908,11 +2127,6 @@ class AnalysisOutcome:
     def maf_filtered(self) -> bool:
         """True when a MAF floor was emitted on resolver evidence (#203)."""
         return self.maf_threshold != "NaN"
-
-
-def _record_mapping(record: Mapping[str, Any] | None, key: str) -> Mapping[str, Any]:
-    value = (record or {}).get(key)
-    return value if isinstance(value, Mapping) else {}
 
 
 def apply_release_policy(
@@ -1930,6 +2144,10 @@ def apply_release_policy(
     one controlled reason -- never a silently dropped row and never a fabricated
     value. Duplicate-content accessions are not collapsed: each keeps its own
     row and its own decision.
+
+    Every registered Quality Check (``quality_checks``, #285) is evaluated for
+    every Analysis and its result kept on the outcome. A failed exclusion check
+    excludes at its declared stage; a warning check never changes membership.
 
     The Store-composition gate (#203) is the *last* one, on purpose: when
     ``store_composition.require_maf_filtered`` is on, an otherwise-included
@@ -1955,14 +2173,17 @@ def apply_release_policy(
     for row in rows:
         if not row.ready:
             continue
-        outcome = _decide(
-            row=row,
-            resolved=metadata[row.analysis_id],
-            tier=config.base.method_tiers[row.study_design],
-            record=records.get(row.analysis_id),
-            config=config,
-            declaration=declaration_by_id.get(row.analysis_id),
-        )
+        try:
+            outcome = _decide(
+                row=row,
+                resolved=metadata[row.analysis_id],
+                tier=config.base.method_tiers[row.study_design],
+                record=records.get(row.analysis_id),
+                config=config,
+                declaration=declaration_by_id.get(row.analysis_id),
+            )
+        except quality_checks.QualityCheckError as exc:
+            raise CandidateError(str(exc)) from exc
         if config.require_maf_filtered and outcome.included and not outcome.maf_filtered:
             outcome = replace(
                 outcome,
@@ -1991,12 +2212,12 @@ def _not_maf_filtered_detail(
     rendered explicitly (``undeclared``, ``unrecorded``, ``?``), never as a zero
     count or as a declared ``NaN``.
     """
-    diagnostics = _record_mapping(record, "diagnostics")
+    diagnostics = record_section(record, "diagnostics")
     declared = declaration.maf_threshold if declaration is not None else "undeclared"
     state = str(diagnostics.get("maf_state") or "unrecorded")
     technologies = "; ".join(read_genotyping_technologies(row.yaml_file)) or "unrecorded"
-    off = _diagnostic_count(diagnostics.get("build_eligible_rows_off_variant_reference"))
-    eligible = _diagnostic_count(diagnostics.get("build_eligible_rows"))
+    off = diagnostic_count(diagnostics.get("build_eligible_rows_off_variant_reference"))
+    eligible = diagnostic_count(diagnostics.get("build_eligible_rows"))
     return (
         f"no MAF floor applied (requested maf_threshold={declared}, "
         f"resolver maf_state={state}, genotyping_technology={technologies}); "
@@ -2013,13 +2234,30 @@ def _decide(
     config: CandidateConfiguration,
     declaration: ResolverRow | None = None,
 ) -> AnalysisOutcome:
+    """One Analysis's membership: release policy, with Quality Checks in its slots.
+
+    The order is the #152 decision. Each ``Stage`` is a slot where the first
+    failed exclusion check at that stage decides; a new stage needs a slot here.
+    """
     stored_effect_scale = tier.stored_effect_scale
-    case_control = stored_effect_scale in {"log_or", "log_hazard"}
+    case_control = stored_effect_scale in NON_QUANTITATIVE_EFFECT_SCALES
     sample_size = resolved.sample_size
     n_cases = resolved.n_cases if case_control else ""
     n_controls = resolved.n_controls if case_control else ""
     emitted_info = info_score_emission(declaration, record)
     emitted_maf = maf_threshold_emission(declaration, record)
+    # Every check measures every Analysis, so the sidecar records each result
+    # whatever decides membership below.
+    findings = quality_checks.evaluate(
+        quality_checks.Subject(
+            analysis_id=row.analysis_id,
+            record=record,
+            stored_effect_scale=stored_effect_scale,
+            selection_ancestry=config.target_ancestry,
+            effect_placeholder_reason=config.effect_placeholder_exclusions.get(row.analysis_id),
+        ),
+        config.quality_check_overrides,
+    )
 
     def make(
         *,
@@ -2051,7 +2289,11 @@ def _decide(
             info_score_kind=emitted_info[2],
             info_score_provenance=emitted_info[3],
             maf_threshold=emitted_maf,
+            check_results=findings,
         )
+
+    def excluded_by(finding: quality_checks.Finding, **carried: str) -> AnalysisOutcome:
+        return make(included=False, reason=finding.reason, detail=finding.detail, **carried)
 
     if not sample_size or _non_positive(sample_size):
         return make(
@@ -2066,37 +2308,11 @@ def _decide(
         error = str(record.get("error") or "resolver returned controlled_failure")
         return make(included=False, reason="resolution_failed", detail=error)
 
-    # A successful record whose own tally is zero contributes nothing: an
-    # Analysis with no row carrying a finite effect and a positive standard
-    # error has no association to build, and its zero build-eligible count is
-    # what the reference-overlap gate reads as an unusable denominator (#176).
-    # Only an explicit integer zero excludes here; an absent, non-integer or
-    # negative count keeps the overlap check's existing behaviour.
-    diagnostics = _record_mapping(record, "diagnostics")
-    build_eligible_rows = diagnostics.get("build_eligible_rows")
-    if type(build_eligible_rows) is int and build_eligible_rows == 0:
-        return make(
-            included=False,
-            reason="no_build_eligible_rows",
-            detail=(
-                "resolver found no row with a finite effect and positive standard "
-                f"error (rows_read={_diagnostic_count(diagnostics.get('rows_read'))}, "
-                "canonical_rows_retained="
-                f"{_diagnostic_count(diagnostics.get('canonical_rows_retained'))})"
-            ),
-        )
-
-    # A reviewed listing: the source writes unestimated effects as a
-    # +-2.2e-308 placeholder with standard_error 0, which core would store as a
-    # near-zero effect with a ~1e-308 standard error (see
-    # read_effect_placeholder_exclusions).
-    placeholder_reason = config.effect_placeholder_exclusions.get(row.analysis_id)
-    if placeholder_reason is not None:
-        return make(
-            included=False,
-            reason="effect_placeholder_rows",
-            detail=placeholder_reason,
-        )
+    # Slot RESOLVED: checks on the record before its Assigned Ancestry is read
+    # (build-eligible rows, the reviewed effect-placeholder listing).
+    failed = quality_checks.first_exclusion(findings, Stage.RESOLVED)
+    if failed is not None:
+        return excluded_by(failed)
 
     # A declared score with no usable evidence is *included*: every row is
     # retained and this Analysis emits literal ``NaN`` INFO cells (#176). The
@@ -2104,68 +2320,41 @@ def _decide(
     # :func:`info_score_emission` reads as no evidence; it is never a controlled
     # failure and never a refusal here.
 
-    ancestry = _record_mapping(record, "ancestry")
-    assigned = str(ancestry.get("assigned_ancestry") or "").strip()
-    gate_reason = str(ancestry.get("gate_reason") or "").strip()
-    eaf_orientation = str(ancestry.get("eaf_orientation") or "").strip().lower()
+    assigned = str(record_section(record, "ancestry").get("assigned_ancestry") or "").strip()
 
-    if eaf_orientation and eaf_orientation not in EAF_ORIENTATION_OUTCOMES:
-        raise CandidateError(
-            f"{row.analysis_id}: resolver ancestry carries unknown eaf_orientation "
-            f"{eaf_orientation!r}; expected one of "
-            f"{', '.join(EAF_ORIENTATION_OUTCOMES)} (opengwasdb EafOrientationOutcome)"
-        )
-    # ``failed`` is the upstream signal that the A1-oriented frequencies correlate
-    # negatively with the reference; ``gate_reason=eaf_orientation`` is the
-    # assignment gate that names the same condition. Both exclude. ``passed`` is
-    # the ordinary case; ``unverified`` (no direction readable) and any legacy
-    # empty value fall through to the assignment/gate policy below rather than
-    # being invented into either success or failure here.
-    if eaf_orientation == "failed" or gate_reason == "eaf_orientation":
+    # Slot ANCESTRY_READ: EAF orientation. The audit row keeps the value read.
+    failed = quality_checks.first_exclusion(findings, Stage.ANCESTRY_READ)
+    if failed is not None:
+        return excluded_by(failed, assigned=assigned)
+
+    # Slot SELECTION: the Assigned Ancestry check (ADR 0036). An assignment that
+    # is a super-population code is carried as af_assigned, even when it is
+    # not the Selection's.
+    failed = quality_checks.first_exclusion(findings, Stage.SELECTION)
+    if failed is not None:
+        if assigned in SUPERPOPULATIONS:
+            return excluded_by(failed, assigned=assigned, method="af_assigned")
+        return excluded_by(failed)
+
+    # From here the Analysis has the Selection's ancestry; the only remaining
+    # question is whether its effects are on the release's scale.
+    if case_control and (not _positive(n_cases) or not _positive(n_controls)):
         return make(
             included=False,
-            reason="orientation_failure",
-            detail=(
-                f"eaf_orientation={eaf_orientation or 'unrecorded'} "
-                f"gate_reason={gate_reason or 'none'} "
-                f"r={ancestry.get('eaf_orientation_r')!r}"
-            ),
-            assigned=assigned,
-        )
-    if not assigned:
-        return make(
-            included=False,
-            reason="ancestry_unassigned",
-            detail=f"gate_reason={gate_reason or 'none'}",
-        )
-    if assigned not in SUPERPOPULATIONS:
-        return make(
-            included=False,
-            reason="ancestry_unassigned",
-            detail=f"assigned_ancestry {assigned!r} is not a super-population code",
-        )
-    if assigned != config.target_ancestry:
-        return make(
-            included=False,
-            reason="ancestry_not_eur",
-            detail=(
-                f"assigned_ancestry={assigned} (release target {config.target_ancestry})"
-            ),
+            reason="missing_case_control_counts",
+            detail=f"n_cases={n_cases or 'empty'} n_controls={n_controls or 'empty'}",
             assigned=assigned,
             method="af_assigned",
         )
 
-    # From here the Analysis has a trustworthy target ancestry; the only
-    # remaining question is whether its effects are on the release's scale.
+    # Slot TARGET_ANCESTRY: the phenotype SD.
+    failed = quality_checks.first_exclusion(findings, Stage.TARGET_ANCESTRY)
+    if failed is not None:
+        return excluded_by(failed, assigned=assigned, method="af_assigned")
+
+    # Nothing excluded it, so every exclusion check must have tested it.
+    quality_checks.require_measured(findings, row.analysis_id)
     if case_control:
-        if not _positive(n_cases) or not _positive(n_controls):
-            return make(
-                included=False,
-                reason="missing_case_control_counts",
-                detail=f"n_cases={n_cases or 'empty'} n_controls={n_controls or 'empty'}",
-                assigned=assigned,
-                method="af_assigned",
-            )
         return make(
             included=True,
             assigned=assigned,
@@ -2173,76 +2362,15 @@ def _decide(
             original_sd="",
             sd_method="binary_trait",
         )
-
-    pheno = _record_mapping(record, "phenotype_sd")
-    status = str(pheno.get("status") or "").strip()
-    reason = str(pheno.get("reason") or "").strip()
-    estimate = pheno.get("estimate")
-    if status == "estimated" and isinstance(estimate, Mapping) and estimate.get("sd") is not None:
-        sd_value = float(estimate["sd"])
-        # The builder refuses a non-positive original_sd, so an estimate that
-        # is not a positive finite number is no evidence (an all-placeholder
-        # source estimated exactly 0: GCST90454200/1).
-        if not math.isfinite(sd_value) or sd_value <= 0:
-            return make(
-                included=False,
-                reason="sd_no_qualifying_evidence",
-                detail=f"estimated phenotype SD {sd_value!r} is not a positive finite number",
-                assigned=assigned,
-                method="af_assigned",
-            )
-        return make(
-            included=True,
-            assigned=assigned,
-            method="af_assigned",
-            original_sd=format_sidecar_float(sd_value),
-            sd_method=str(estimate.get("method") or tier.original_sd_method),
-        )
-    if status == "skipped" and reason == "no_reference_resource_for_ancestry":
-        return make(
-            included=False,
-            reason="sd_no_reference_resource_for_ancestry",
-            detail=reason,
-            assigned=assigned,
-            method="af_assigned",
-        )
-    if status == "skipped":
-        return make(
-            included=False,
-            reason="sd_no_reference_resource_for_ancestry" if not reason else _sd_reason(reason),
-            detail=reason or "quantitative SD estimation was skipped",
-            assigned=assigned,
-            method="af_assigned",
-        )
-    if status == "unavailable":
-        return make(
-            included=False,
-            reason=_sd_reason(reason),
-            detail=reason or "no phenotype SD could be estimated",
-            assigned=assigned,
-            method="af_assigned",
-        )
+    # The phenotype_sd check passed, so this is a positive finite estimate.
+    estimate = record_section(record_section(record, "phenotype_sd"), "estimate")
     return make(
-        included=False,
-        reason="sd_failed",
-        detail=f"phenotype_sd status={status or 'missing'!r} reason={reason or 'none'!r}",
+        included=True,
         assigned=assigned,
         method="af_assigned",
+        original_sd=format_sidecar_float(float(estimate["sd"])),
+        sd_method=str(estimate.get("method") or tier.original_sd_method),
     )
-
-
-def _diagnostic_count(value: Any) -> str:
-    """Render a resolver diagnostic count for the exclusion detail, or ``?``."""
-    return str(value) if type(value) is int else "?"
-
-
-def _sd_reason(reason: str) -> str:
-    mapping = {
-        "no_reference_resource_for_ancestry": "sd_no_reference_resource_for_ancestry",
-        "no_qualifying_evidence": "sd_no_qualifying_evidence",
-        "no_usable_sample_size": "sd_no_usable_sample_size",
-    }
-    return mapping.get(reason, "sd_failed")
 
 
 def _non_positive(value: str) -> bool:
@@ -2286,6 +2414,10 @@ class CandidateTables:
     sd_check: str
     effect_scale_check: str
     warnings: tuple[str, ...]
+    #: ``sidecars/quality_checks.tsv``: one row per selected Analysis (#285).
+    quality_checks_tsv: str = ""
+    #: Each applied Quality Check's summary, keyed by name (#285).
+    quality_checks: Mapping[str, CheckSummary] = field(default_factory=dict)
 
 
 def build_candidate_tables(
@@ -2337,7 +2469,7 @@ def build_candidate_tables(
             exclusion_counts[outcome.exclusion_reason] = (
                 exclusion_counts.get(outcome.exclusion_reason, 0) + 1
             )
-    unknown = sorted(set(exclusion_counts) - EXCLUSION_REASONS)
+    unknown = sorted(set(exclusion_counts) - set(controlled_exclusion_categories()))
     if unknown:
         raise CandidateError(f"internal error: uncontrolled exclusion reason(s): {unknown}")
 
@@ -2346,6 +2478,8 @@ def build_candidate_tables(
     )
     store_composition = _store_composition(outcomes, config)
     warnings.extend(_store_composition_warnings(store_composition))
+    quality_checks_tsv, quality_check_summary = _quality_check_tables(outcomes, config)
+    warnings.extend(quality_checks.warning_lines(quality_check_summary))
 
     return CandidateTables(
         analyses_tsv=_render_tsv(ANALYSES_COLUMNS, analyses_rows),
@@ -2365,7 +2499,49 @@ def build_candidate_tables(
         sd_check=sd_check,
         effect_scale_check=effect_scale_check,
         warnings=tuple(warnings),
+        quality_checks_tsv=quality_checks_tsv,
+        quality_checks=quality_check_summary,
     )
+
+
+def _quality_check_tables(
+    outcomes: Sequence[AnalysisOutcome], config: CandidateConfiguration
+) -> tuple[str, dict[str, CheckSummary]]:
+    """The Quality Check sidecar and its ``validation.yaml`` summary (#285).
+
+    The columns come from the checks the policy applied, which every outcome
+    carries in the same order; with no outcomes they are the registry's.
+    """
+    declared = (
+        quality_checks.declared_checks(outcomes[0].check_results)
+        if outcomes
+        else quality_checks.checks()
+    )
+    for outcome in outcomes:
+        if quality_checks.declared_checks(outcome.check_results) != declared:
+            raise CandidateError(
+                f"internal error: {outcome.analysis_id} carries Quality Check results "
+                f"for a different check set than {[check.name for check in declared]}"
+            )
+    rows = [
+        quality_checks.sidecar_row(
+            outcome.analysis_id,
+            outcome.included,
+            outcome.exclusion_reason,
+            outcome.check_results,
+        )
+        for outcome in outcomes
+    ]
+    summary = quality_checks.summarise(
+        [
+            quality_checks.Decided(
+                outcome.included, outcome.exclusion_reason, outcome.check_results
+            )
+            for outcome in outcomes
+        ],
+        config.quality_check_overrides,
+    )
+    return _render_tsv(quality_checks.sidecar_columns(declared), rows), summary
 
 
 def _store_composition(
@@ -2413,7 +2589,7 @@ def _off_reference_sum(
         return None
     total = 0
     for outcome in outcomes:
-        diagnostics = _record_mapping(outcome.record, "diagnostics")
+        diagnostics = record_section(outcome.record, "diagnostics")
         off = diagnostics.get("build_eligible_rows_off_variant_reference")
         if type(off) is not int or off < 0:
             return None
@@ -2465,7 +2641,7 @@ def _reference_overlap(
     ancestry_measured: list[tuple[str, int, int]] = []
     missing: list[str] = []
     for outcome in outcomes:
-        diagnostics = _record_mapping(outcome.record, "diagnostics")
+        diagnostics = record_section(outcome.record, "diagnostics")
         ancestry_n = diagnostics.get("ancestry_rows_read", diagnostics.get("rows_read"))
         ancestry_matched = diagnostics.get("ancestry_reference_rows_matched")
         total = diagnostics.get("rows_read")
@@ -2490,7 +2666,7 @@ def _reference_overlap(
             and count(eligible_off, eligible_total)
             and eligible_on + eligible_off == eligible_total
         )
-        fingerprints = _record_mapping(outcome.record, "fingerprints")
+        fingerprints = record_section(outcome.record, "fingerprints")
         row = {
             "analysis_id": outcome.analysis_id,
             "ancestry_reference_id": str(fingerprints.get("ancestry_reference_id") or ""),
@@ -2663,7 +2839,7 @@ def _ancestry_row(
     outcome: AnalysisOutcome, config: CandidateConfiguration
 ) -> dict[str, str]:
     record = outcome.record
-    ancestry = _record_mapping(record, "ancestry")
+    ancestry = record_section(record, "ancestry")
     row: dict[str, str] = {name: "" for name in ANCESTRY_SIDECAR_COLUMNS}
     row["analysis_id"] = outcome.analysis_id
     row["source_analysis_id"] = outcome.analysis_id
@@ -2709,7 +2885,7 @@ def _sd_row(
     index_summary: Mapping[str, Any],
 ) -> dict[str, str]:
     record = outcome.record
-    pheno = _record_mapping(record, "phenotype_sd")
+    pheno = record_section(record, "phenotype_sd")
     row: dict[str, str] = {name: "" for name in SD_ESTIMATION_SIDECAR_COLUMNS}
     row["analysis_id"] = outcome.analysis_id
     row["source_analysis_id"] = outcome.analysis_id
@@ -2722,7 +2898,7 @@ def _sd_row(
         f"opengwasdb@{git_hash}" if git_hash else (f"opengwasdb:{version}" if version else "")
     )
 
-    if outcome.stored_effect_scale in {"log_or", "log_hazard"}:
+    if outcome.stored_effect_scale in NON_QUANTITATIVE_EFFECT_SCALES:
         row["status"] = "skipped"
         row["skip_reason"] = "non_quantitative_effect_scale"
         row["sd_notes"] = "case-control effect scale; phenotype-SD estimation not applicable"
@@ -2781,7 +2957,7 @@ def _exclusion_row(outcome: AnalysisOutcome) -> dict[str, str]:
         "analysis_id": outcome.analysis_id,
         "source_analysis_id": outcome.analysis_id,
         "study_design": outcome.row.study_design,
-        "category": EXCLUSION_CATEGORIES[outcome.exclusion_reason],
+        "category": controlled_exclusion_categories()[outcome.exclusion_reason],
         "reason": outcome.exclusion_reason,
         "detail": outcome.exclusion_detail,
         "resolver_status": record_status,
@@ -3037,6 +3213,9 @@ def render_validation_yaml(
         },
         "reference_overlap": dict(tables.reference_overlap),
         "store_composition": dict(tables.store_composition),
+        "quality_checks": {
+            name: summary.as_dict() for name, summary in tables.quality_checks.items()
+        },
         "trait_ontology_mapping": dict(trait_ontology_mapping),
         "reports": {
             "source_readiness": "sidecars/source_readiness.tsv",
@@ -3044,6 +3223,7 @@ def render_validation_yaml(
             "sd_estimation": "sidecars/sd_estimation.tsv",
             "exclusions": "sidecars/exclusions.tsv",
             "reference_overlap": "sidecars/reference_overlap.tsv",
+            "quality_checks": "sidecars/quality_checks.tsv",
         },
         "warnings": list(tables.warnings),
         "errors": list(tables.reference_overlap_errors),
@@ -3148,9 +3328,10 @@ __all__ = [
     "CandidateMetadata",
     "CandidateTables",
     "EXCLUSION_COLUMNS",
-    "EXCLUSION_REASONS",
-    "EAF_ORIENTATION_OUTCOMES",
+    "HISTORICAL_RECEIPT_SCHEMA_VERSIONS",
+    "POLICY_EXCLUSION_CATEGORIES",
     "RECEIPT_FILENAME",
+    "RECEIPT_KEYS",
     "RECEIPT_SCHEMA_VERSION",
     "RESOLVER_MANIFEST_COLUMNS",
     "SD_ESTIMATION_SIDECAR_COLUMNS",
@@ -3160,17 +3341,21 @@ __all__ = [
     "AnalysisOutcome",
     "ResolverRow",
     "ResolverRun",
+    "account_kept_records",
     "account_records",
+    "parse_receipt_records",
     "analysis_maf_threshold",
     "apply_release_policy",
     "build_candidate_tables",
     "build_resolution_receipt",
     "compute_resolution_contract",
+    "controlled_exclusion_categories",
     "derive_resolver_manifest",
     "info_score_emission",
     "load_candidate_configuration",
     "maf_threshold_emission",
     "now_utc",
+    "parse_quality_check_overrides",
     "parse_store_composition",
     "read_candidate_metadata",
     "candidate_source_traits",
@@ -3185,6 +3370,8 @@ __all__ = [
     "render_resolver_manifest",
     "render_validation_yaml",
     "resolver_argv",
+    "resolver_settings",
+    "resolver_settings_digest",
     "run_resolver",
     "sha256_file",
     "sha256_text",

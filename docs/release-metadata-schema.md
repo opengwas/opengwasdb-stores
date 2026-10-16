@@ -633,6 +633,16 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `trait_ontology_mapping.method_counts` | No | Analyses per `trait_ontology_mapping_method`: `source_provided`, `canonical_table_lookup`, `unmapped`. |
 | `trait_ontology_mapping.source_id_without_label` | No | How many `source_provided` mappings carry a source term with no label. They are kept; the count is for review. |
 | `trait_ontology_mapping.rejected_source_terms` | No | Each source term the #141 guards rejected: `analysis_id`, `source_trait_ontology_id`, `source_trait_ontology_label` and `reason`. Empty when none was rejected. |
+| `quality_checks` | No | The candidate's Quality Check summary (Manifest Generation record, #285; [ADR 0036](adr/0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.md)): one entry per check, keyed by its name. Per-Analysis results are in the [Quality Check sidecar](#quality-check-sidecar). |
+| `quality_checks.<check>.kind` | No | `exclusion` or `warning`, as the check declares it. |
+| `quality_checks.<check>.stage` | No | The precedence slot where a failed exclusion takes effect: `resolved`, `ancestry_read`, `selection` or `target_ancestry` (see the sidecar). |
+| `quality_checks.<check>.measures` | No | What the check reads, in words; it names a reviewed listing where OpenGWASDB does not measure the value yet. |
+| `quality_checks.<check>.threshold` | No | The threshold this release applied, or `null` for a check that tests a status. |
+| `quality_checks.<check>.default_threshold` | No | The shared default, or `null`. |
+| `quality_checks.<check>.overridden` | No | `true` when the generator config's `quality_checks` block overrode the default. |
+| `quality_checks.<check>.results` | No | How many Analyses had each result: `passed`, `failed`, `not_applicable`, `unmeasured`, `invalid`. |
+| `quality_checks.<check>.excluded` | No | For an exclusion: how many Analyses it excluded. An Analysis that failed it after an earlier rule excluded it is counted under `results.failed` only. |
+| `quality_checks.<check>.warned` | No | For a warning: how many included Analyses failed it. Each warning check that warned also adds one line to `warnings`. |
 | `reports` | No | URIs or paths to detailed reports. A Phase B record points at its sidecars; `register` writes no top-level `reports` (#195). |
 | `warnings` | No | List of non-blocking warnings. In a `register`-written record, exactly the `warnings` list `opengwasdb validate --format json` printed for this run. Reference-AF effect-scale warnings should name the Analysis and reason, for example low reference-AF overlap, an allele mismatch, unstable implied SD, a missing reference resource for the assigned ancestry, or scale inconsistency versus the declared effect scale. |
 | `errors` | No | List of blocking errors. In a `register`-written record, exactly the `errors` list `opengwasdb validate --format json` printed for this run. |
@@ -665,7 +675,9 @@ master list. See `bundle.summarise()` and [ADR 0014](adr/0014-release-manifest-b
 
 Generated evidence lives under `sidecars/` inside the bundle. Sidecars are
 Phase B outputs; `bundle.check()` does not validate their fields, so a Manifest
-Generator is responsible for emitting them consistently.
+Generator is responsible for emitting them consistently. The one exception is
+the [Quality Check sidecar](#quality-check-sidecar), which is part of the
+Release Bundle contract: optional, but validated whenever it is present.
 
 ### Ancestry sidecar
 
@@ -758,6 +770,92 @@ reason. The same reason is carried in the excluded `analyses.tsv` row's
 | `detail` | No | The concrete evidence (assigned ancestry, gate reason, resolver error, missing field). |
 | `resolver_status` | No | The resolver record's status (`success`, `controlled_failure`, or `missing`). |
 | `exclude_from_build` | Yes | Always `true`; the exclusion is enforced at build time per [ADR 0025](adr/0025-registry-filters-excluded-analyses.md). |
+
+Nine of these reasons are written by an exclusion Quality Check (see the
+[Quality Check sidecar](#quality-check-sidecar)): `no_build_eligible_rows`,
+`effect_placeholder_rows`, `orientation_failure`, the Assigned Ancestry check's
+`ancestry_unassigned` and `ancestry_not_eur`, and the four `sd_*` reasons. The
+other four are release policy, with no measurement to test:
+`resolution_failed` (no Resolution Record), `missing_sample_size` and
+`missing_case_control_counts` (candidate-table metadata), and the Store
+Composition Rule's `not_maf_filtered` ([ADR 0033](adr/0033-shared-stores-admit-only-maf-filtered-analyses.md)).
+
+### Quality Check sidecar
+
+Suggested path: `sidecars/quality_checks.tsv`. Written by the candidate
+workflow (issue #285; [ADR 0036](adr/0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.md)).
+One row per ready Analysis, included or excluded, in `analyses.tsv` order: a
+Quality Check's measurement is recorded whether the Analysis passes or not, and
+whether or not that check decided its membership.
+
+A **Quality Check** tests one measurement of an Analysis against a threshold,
+or, for a status, against the values it accepts. Its consequence is fixed when
+the check is declared (`src/manifest_generation/quality_checks.py`): an
+**exclusion** makes the Analysis an `exclude_from_build` audit row with the
+check's reason (see the exclusions sidecar), and a **warning** keeps it and
+records the finding. Every registered check is evaluated for every Analysis.
+
+| Field | Required | Description |
+|---|---:|---|
+| `analysis_id` | Yes | Registry Analysis ID matching `analyses.tsv`. |
+| `exclude_from_build` | Yes | `true` when the Analysis is an audit row, empty when included; as in `analyses.tsv`. |
+| `exclusion_reason` | No | The reason that decided the exclusion, whether a Quality Check's or release policy's; empty when included. |
+| `<check>` | Yes | The check's result, one of: `passed`; `failed`; `not_applicable`, the check does not apply to this Analysis (a phenotype SD on a `log_or` scale), decided before anything is measured, so it wins over `unmeasured`; `unmeasured`, there is no measurement to test (a record check without a successful Resolution Record); `invalid`, the measurement breaks its contract (an unknown `eaf_orientation`, a non-numeric SD), recorded on an Analysis an earlier rule already excluded. |
+| `<check>_measured` | No | The measurement the result is based on, as the check renders it; empty when there is none. |
+
+The `<check>` column pairs follow the registry's order. The built-in checks are:
+
+| Check | Kind | Stage | Measures | Default threshold | Fails when | Reasons |
+|---|---|---|---|---|---|---|
+| `build_eligible_rows` | exclusion | `resolved` | the record's `diagnostics.build_eligible_rows` (rows with a finite effect and positive standard error, after any INFO and MAF floor); `unmeasured` when absent, `invalid` when not a non-negative integer | `1` (minimum rows) | fewer rows than the threshold | `no_build_eligible_rows` |
+| `effect_placeholder_rows` | exclusion | `resolved` | the reviewed `source.effect_placeholder_exclusions` listing, because OpenGWASDB does not count placeholder rows yet (ADR 0036, clarified by #285); `_measured` is the listing's reason, or `not_listed` | none | the Analysis is listed | `effect_placeholder_rows` |
+| `eaf_orientation` | exclusion | `ancestry_read` | the record's `ancestry.eaf_orientation`, `gate_reason` and `eaf_orientation_r`; `passed` and `unverified` pass, no outcome is `unmeasured`, a value outside the vocabulary `invalid` | none | `eaf_orientation = failed` or `gate_reason = eaf_orientation` | `orientation_failure` |
+| `assigned_ancestry` | exclusion | `selection` | the record's `ancestry.assigned_ancestry` against the Selection's super-population (from `source.ancestry_group`, today `EUR`) | none | no assignment, or not a super-population code (`ancestry_unassigned`); a different super-population (`ancestry_not_eur`) | `ancestry_unassigned`, `ancestry_not_eur` |
+| `phenotype_sd` | exclusion | `target_ancestry` | the record's `phenotype_sd` status, reason and estimate; `not_applicable` for `log_or`/`log_hazard`; a non-numeric estimate is `invalid` | none | not a positive finite estimate | `sd_no_qualifying_evidence`, `sd_no_reference_resource_for_ancestry`, `sd_no_usable_sample_size`, `sd_failed` |
+
+A check's **stage** is a precedence slot in the release policy: the policy
+settles an Analysis in a fixed order and, at each slot, the first failed
+exclusion check there decides. The slot fixes which reason wins when several
+apply and what the audit row carries: `resolved` (a successful Resolution
+Record, before Assigned Ancestry is read; the row carries none),
+`ancestry_read` (Assigned Ancestry read but not yet assessed; the row keeps the
+value read), `selection` (Assigned Ancestry tested against the Selection; the
+row carries it as `af_assigned` when it is a super-population code) and
+`target_ancestry` (the Analysis has the Selection's ancestry, and its
+case-control counts when it needs them). Within a slot, registry order decides.
+A new check can use an existing slot without a policy change; a new slot is a
+change to the release policy.
+
+A measurement an exclusion cannot use is never a silent pass. An `invalid`
+result where its check would decide membership stops the run; on an Analysis
+an earlier rule already excluded, it is only recorded. An Analysis that nothing
+excluded but that an exclusion check recorded as `unmeasured` (or `invalid`) is
+refused, naming the Analysis and the check, rather than included untested.
+
+The INFO and MAF floors (`defaults.info_score_threshold`,
+`defaults.maf_threshold`) are not Quality Checks, because OpenGWASDB applies
+them to rows during Analysis Resolution and neither one decides an Analysis's
+membership; their effect is measured by `build_eligible_rows`.
+
+**Contract.** The sidecar is an optional Release Bundle contract file
+([ADR 0036](adr/0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.md):
+the contract grows per-Analysis Quality Check results). A bundle without it is
+valid; every bundle emitted before #285 has none. When it is present,
+`bundle.check()` (`_check_quality_checks`) requires:
+
+- the columns `analysis_id`, `exclude_from_build`, `exclusion_reason`, then
+  one `<check>`, `<check>_measured` pair per check, at least one, with no check
+  named twice;
+- one row per `analyses.tsv` Analysis, excluded audit rows included, in the
+  same order, and no other row;
+- every `<check>` value in the result vocabulary above;
+- `exclude_from_build` exactly `true` or empty, agreeing with `analyses.tsv`;
+  `exclusion_reason` non-empty exactly when excluded, and, when
+  `sidecars/exclusions.tsv` is present, equal to its `reason` for that
+  Analysis.
+
+Store Release Build never reads it: membership is already decided in
+`analyses.tsv` (`tests/packaging/test_boundary.py` holds this).
 
 ### Sparse-region sidecar
 
@@ -1089,6 +1187,30 @@ entry point probes for it and refuses a missing capability before any write; the
 repository's pinned current-format runtime provides it (stores#218). See
 `src/ogstores/resources.py`, `src/ogstores/runtime.py` and
 [the release runtime](../runtime.md).
+
+### Quality Check configuration
+
+A generator config's optional top-level `quality_checks` block overrides a
+Quality Check's shared default threshold for one release (#285):
+
+```yaml
+quality_checks:
+  build_eligible_rows: 1000   # exclude an Analysis with fewer build-eligible rows
+```
+
+Each key names a registered check that has a threshold; its value is parsed by
+that check (`build_eligible_rows` takes a whole number of rows of at least 1).
+An unknown name, a check with no threshold (one that tests a status), or a value
+the check refuses is a config error. A check's kind is part of its declaration
+and cannot be overridden.
+
+Thresholds are recorded twice. `validation.yaml` `quality_checks.<check>`
+carries the effective and default thresholds and whether this release
+overrode it. The resolution receipt's contract always carries a
+`quality_checks` entry holding the effective thresholds, defaults included, and
+the release's overrides, so changing an override or a shared default makes the
+receipt stale and `verify`/`emit` refuse it until resolution is re-run. A
+receipt written before #285 has no such entry and is stale for the same reason.
 
 ### Effect-scale validation configuration
 

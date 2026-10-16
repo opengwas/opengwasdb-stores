@@ -8,24 +8,45 @@ candidate-workflow config; the EBI GWAS Catalog eur-hybrid release's
 
     pixi run generate-candidate OGS-00011 \
       --config resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
-      --cores 64 \
-      --resume
+      --cores 64
 
 Stages, in order (``--stage``, default ``all``):
 
     preflight   prove the frozen inventory before any association row is read (#151)
     prepare     derive the canonical resolver manifest from the frozen exact paths
     resolve     invoke `opengwasdb resolve-analyses` (owns the pool and checkpoints)
-    verify      account every resolver record; fail on missing/stale/duplicate/extra
+                into the Source Collection's Resolution Area, reusing every record
+                whose fingerprint still matches; keep the records, write the receipt
+    verify      account every record the receipt names; fail on missing/stale/edited
     emit        apply release policy, render the bundle, emit it (manifest_generation.emit)
+
+Where the files go (#284):
+
+    <work-root>/<store-id>/                 this Store Release's Work Root
+      preflight/<snapshot-id>.json
+      resolver/analyses.tsv                 this Selection's resolver manifest
+      resolver/resolve.log
+      resolver/index.json                   the resolver's index for this run
+      resolver/resolution_receipt.json      names the records the bundle is decided from
+    <resolution-root>/<source-collection-id>/   the Resolution Area, shared by every Selection
+      .lock                                 held by the resolving run and its resolver
+      checkpoint/<settings-digest>/         the resolver's records directory, per settings
+      records/<analysis>/<digest>/<sha256>.json   kept Resolution Records, write-once
+
+Every run reuses each record whose fingerprint still matches; there is no
+`--resume` to pass. The resolution root is deployment configuration:
+`--resolution-root`, else OPENGWASDB_RESOLUTION_ROOT, else ogstores.yaml's
+`resolution_root`, else /data/opengwasdb/work/resolution.
+
+See ``manifest_generation.resolution_area``.
 
 The per-stage form exists so coarse dependency wiring can drive the same code; the
 operator normally runs ``all``. The registry owns membership, method tiers,
 thresholds and exclusions; ``opengwasdb`` owns the statistics.
 
 Usage:
-    pixi run generate-candidate OGS-00011 --config <config> --cores 64 --resume
-    pixi run generate-candidate OGS-00011 --config <config> --cores 64 --resume --stage emit
+    pixi run generate-candidate OGS-00011 --config <config> --cores 64
+    pixi run generate-candidate OGS-00011 --config <config> --cores 64 --stage emit
     python3 -m manifest_generation.generate_candidate OGS-00011 --config <config> ...
 """
 
@@ -60,6 +81,8 @@ from manifest_generation.candidate_workflow import (
     render_resolver_manifest,
     render_validation_yaml,
     resolver_argv,
+    resolver_settings,
+    resolver_settings_digest,
     run_resolver,
     sha256_file,
     sha256_text,
@@ -68,6 +91,14 @@ from manifest_generation.candidate_workflow import (
     write_resolution_receipt,
 )
 from manifest_generation.emit import CandidateBundle, EmitError, emit
+from manifest_generation.resolution_area import (
+    DEFAULT_RESOLUTION_ROOT,
+    RESOLUTION_ROOT_ENV_VAR,
+    ResolutionArea,
+    ResolutionAreaError,
+    resolution_root,
+)
+from manifest_generation.safe_write import atomic_write_bytes
 from manifest_generation.trait_ontology_mapping import (
     CANONICAL_TRAIT_MAPPING_RESOURCE,
     TraitOntologyMappingError,
@@ -97,12 +128,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("store_id", help="Candidate Store Release id, e.g. OGS-00011")
     parser.add_argument("--config", default=DEFAULT_CONFIG)
     parser.add_argument("--cores", type=int, help="worker count (default: config runtime.cores)")
-    parser.add_argument("--resume", action="store_true", help="reuse unchanged successful resolver records")
+    # Refused, not ignored: an operator who passes it expects it to mean something.
+    parser.add_argument("--resume", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--stage", choices=STAGES, default="all")
     parser.add_argument("--resolver", default=DEFAULT_RESOLVER_BIN, help=argparse.SUPPRESS)
     parser.add_argument("--repo-root", default=str(REPO_ROOT))
     parser.add_argument("--registry-root", help="registry stores/ directory (default: <repo>/stores)")
-    parser.add_argument("--work-root", help="run records/logs root (default: config output.work_root)")
+    parser.add_argument("--work-root", help="run manifest/logs/receipt root (default: config output.work_root)")
+    parser.add_argument(
+        "--resolution-root",
+        help="root of the per-Source-Collection Resolution Areas (default: "
+        f"{RESOLUTION_ROOT_ENV_VAR}, else ogstores.yaml resolution_root, else "
+        f"{DEFAULT_RESOLUTION_ROOT})",
+    )
     parser.add_argument("--inventory", help="override the inventory path the config declares")
     parser.add_argument("--provenance", help="override the provenance sidecar path")
     parser.add_argument("--candidates", help="override the candidate metadata table path")
@@ -112,7 +150,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         f"(default: <repo>/{CANONICAL_TRAIT_MAPPING_RESOURCE})",
     )
     parser.add_argument("--created-at", help=argparse.SUPPRESS)
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.resume:
+        parser.error(
+            "--resume is no longer an option: reuse is automatic (#284). Every run reuses "
+            "each Resolution Record whose fingerprint still matches; drop the flag"
+        )
+    return args
 
 
 class Pipeline:
@@ -132,10 +176,16 @@ class Pipeline:
         )
         self.work_root = Path(args.work_root) if args.work_root else self.config.base.work_root
         self.run_root = self.work_root / self.store_id
-        self.records_dir = self.run_root / "resolver" / "records"
-        self.resolver_manifest_path = self.run_root / "resolver" / "analyses.tsv"
-        self.resolver_log_path = self.run_root / "resolver" / "resolve.log"
-        self.receipt_path = self.run_root / "resolver" / RECEIPT_FILENAME
+        resolver_root = self.run_root / "resolver"
+        self.resolver_manifest_path = resolver_root / "analyses.tsv"
+        self.resolver_log_path = resolver_root / "resolve.log"
+        self.index_path = resolver_root / "index.json"
+        self.receipt_path = resolver_root / RECEIPT_FILENAME
+        # Records are kept per Source Collection, not per Store Release (#284).
+        self.resolution_area = ResolutionArea.for_collection(
+            resolution_root(args.resolution_root, repo_root=repo_root),
+            self.config.base.source_collection_id,
+        )
         self.preflight_report_path = (
             self.run_root / "preflight" / f"{self.config.base.inventory_snapshot_id}.json"
         )
@@ -225,61 +275,78 @@ def stage_prepare(pipeline: Pipeline) -> tuple[list, dict]:
 
 
 def stage_resolve(pipeline: Pipeline, manifest: list) -> None:
+    area = pipeline.resolution_area
+    # Each set of resolver settings has its own checkpoint, so a Selection
+    # resolved under other settings never evicts this one's records (#284).
+    settings_digest = resolver_settings_digest(resolver_settings(pipeline.config))
+    checkpoint = area.checkpoint_dir(settings_digest)
     argv = resolver_argv(
         resolver_bin=pipeline.args.resolver,
         manifest_path=pipeline.resolver_manifest_path,
-        records_dir=pipeline.records_dir,
+        records_dir=checkpoint,
         config=pipeline.config,
         cores=pipeline.cores,
-        resume=pipeline.args.resume,
     )
     pipeline.commands.append(" ".join(argv))
-    print("Running: " + " ".join(argv))
-    run = run_resolver(argv, cwd=pipeline.repo_root, log_path=pipeline.resolver_log_path)
-    if run.returncode != 0:
-        raise CandidateError(
-            f"resolver exited {run.returncode}; see {run.log_path}"
+    # One run at a time per Source Collection. The resolver holds the lock too,
+    # so a killed run cannot let a second one interleave with it.
+    with area.exclusive(f"{MODULE} {pipeline.store_id}") as lock_fd:
+        print("Running: " + " ".join(argv))
+        run = run_resolver(
+            argv, cwd=pipeline.repo_root, log_path=pipeline.resolver_log_path, pass_fds=(lock_fd,)
         )
-    print(f"Resolver log: {run.log_path}")
+        if run.returncode != 0:
+            raise CandidateError(
+                f"resolver exited {run.returncode}; see {run.log_path}"
+            )
+        print(f"Resolver log: {run.log_path}")
 
-    # A successful exit is not enough: account the records, then bind them to the
-    # contract they were resolved under. A later standalone verify/emit is only
-    # trustworthy against this receipt.
-    records, failures = account_records(manifest, pipeline.records_dir)
-    if failures:
-        raise CandidateError(
-            f"resolver exited 0 but {len(failures)} record(s) are not accountable; refusing "
-            "to bind a receipt:\n  - " + "\n  - ".join(failures)
+        # A successful exit is not enough: account the records, keep them, then
+        # bind the receipt to them and the contract they were resolved under. A
+        # later standalone verify/emit is only trustworthy against this receipt.
+        records, failures = account_records(manifest, checkpoint)
+        if failures:
+            raise CandidateError(
+                f"resolver exited 0 but {len(failures)} record(s) are not accountable; refusing "
+                "to bind a receipt:\n  - " + "\n  - ".join(failures)
+            )
+        index_bytes = (checkpoint / "index.json").read_bytes()
+        index = json.loads(index_bytes)
+        kept = {row.analysis_id: area.keep(checkpoint, row.analysis_id) for row in manifest}
+        atomic_write_bytes(
+            pipeline.index_path, index_bytes, pipeline.index_path.parent, overwrite=True
         )
-    index_path = pipeline.records_dir / "index.json"
-    index = json.loads(index_path.read_text(encoding="utf-8"))
-    receipt = build_resolution_receipt(
-        manifest_rows=manifest,
-        config=pipeline.config,
-        manifest_path=pipeline.resolver_manifest_path,
-        records_dir=pipeline.records_dir,
-        argv=argv,
-        index=index,
+        receipt = build_resolution_receipt(
+            manifest_rows=manifest,
+            config=pipeline.config,
+            manifest_path=pipeline.resolver_manifest_path,
+            area=area,
+            kept=kept,
+            argv=argv,
+            settings_digest=settings_digest,
+            index=index,
+        )
+        write_resolution_receipt(pipeline.receipt_path, receipt)
+    print(
+        f"Resolution receipt: {pipeline.receipt_path} ({len(records)} records kept in "
+        f"{area.root})"
     )
-    write_resolution_receipt(pipeline.receipt_path, receipt)
-    print(f"Resolution receipt: {pipeline.receipt_path} ({len(records)} records bound)")
 
 
 def stage_verify(pipeline: Pipeline, manifest: list) -> tuple[list, dict]:
     records, failures = verify_records(
         manifest,
-        pipeline.records_dir,
         config=pipeline.config,
         manifest_path=pipeline.resolver_manifest_path,
         receipt_path=pipeline.receipt_path,
+        index_path=pipeline.index_path,
     )
     if failures:
         raise CandidateError(
             f"{len(failures)} resolver accounting failure(s); refusing to finalise:\n  - "
             + "\n  - ".join(failures)
         )
-    index_path = pipeline.records_dir / "index.json"
-    index = json.loads(index_path.read_text(encoding="utf-8"))
+    index = json.loads(pipeline.index_path.read_text(encoding="utf-8"))
     return records, index
 
 
@@ -368,6 +435,7 @@ def stage_emit(
             "sd_estimation.tsv": tables.sd_estimation_tsv,
             "exclusions.tsv": tables.exclusions_tsv,
             "reference_overlap.tsv": tables.reference_overlap_tsv,
+            "quality_checks.tsv": tables.quality_checks_tsv,
         },
     )
     emitted = emit(candidate, pipeline.registry_root)
@@ -438,7 +506,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     try:
         run(pipeline)
-    except (CandidateError, EmitError, InventoryError, PreflightConfigError) as exc:
+    except (
+        CandidateError, EmitError, InventoryError, PreflightConfigError, ResolutionAreaError
+    ) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
     return 0

@@ -14,9 +14,11 @@ The per-Analysis work -- loading the genome-scale ancestry reference once, the
 worker pool, atomic per-Analysis records and `--resume` -- is owned by
 `opengwasdb resolve-analyses`, which the `resolve` rule invokes as a subprocess.
 Snakemake therefore never loads a reference once per Analysis; it sequences one
-resolver invocation that owns its own pool. `--resume` is passed through to that
-invocation, not to Snakemake, because the resolver's fingerprint-aware checkpoint
-is the authority on what can be reused.
+resolver invocation that owns its own pool. The resolver always resumes from the
+Source Collection's Resolution Area (#284), because its fingerprint-aware
+checkpoint is the authority on what can be reused; Snakemake reuses nothing. The
+`resolve` rule's output is the run's resolution receipt in the Work Root, never
+a file in the shared area, which other Selections' runs also write.
 
 Run it with explicit `--config` values (see `workflow/README.md`); `config` is
 any candidate-workflow config:
@@ -27,6 +29,11 @@ any candidate-workflow config:
                snapshot_id=gwas-catalog-ssf-eur-hybrid-2026-09-22 \
                work_root=/data/opengwasdb/work/gwas-catalog-eur-hybrid \
                registry_root=stores
+
+`resolution_root=<dir>` overrides where the Source Collection's Resolution Area
+lives (default: OPENGWASDB_RESOLUTION_ROOT, else `ogstores.yaml`'s
+`resolution_root`). Every run reuses each record whose fingerprint still
+matches; there is no resume switch.
 
 Production operators should prefer `pixi run generate-candidate`, which needs no
 Snakemake environment; this DAG exists so a future multi-release batch can reuse
@@ -41,7 +48,7 @@ CORES = str(config.get("cores", 64))
 WORK_ROOT = config.get("work_root")
 REGISTRY_ROOT = config.get("registry_root", "stores")
 SNAPSHOT_ID = config.get("snapshot_id")
-RESUME = config.get("resume", False)
+RESOLUTION_ROOT = config.get("resolution_root")
 
 _missing = [
     name
@@ -61,10 +68,10 @@ if _missing:
 
 CLI = "-m manifest_generation.generate_candidate"
 RUN_ROOT = os.path.join(str(WORK_ROOT), str(STORE_ID))
-RESUME_FLAG = " --resume" if RESUME else ""
+RESOLUTION_ROOT_FLAG = f" --resolution-root {RESOLUTION_ROOT}" if RESOLUTION_ROOT else ""
 COMMON = (
     f"python3 {CLI} {STORE_ID} --config {CONFIG} --cores {CORES} "
-    f"--work-root {WORK_ROOT} --registry-root {REGISTRY_ROOT}{RESUME_FLAG}"
+    f"--work-root {WORK_ROOT} --registry-root {REGISTRY_ROOT}{RESOLUTION_ROOT_FLAG}"
 )
 
 
@@ -93,7 +100,7 @@ rule resolve:
     input:
         rules.resolver_manifest.output
     output:
-        os.path.join(RUN_ROOT, "resolver", "records", "index.json")
+        os.path.join(RUN_ROOT, "resolver", "resolution_receipt.json")
     shell:
         COMMON + " --stage resolve"
 

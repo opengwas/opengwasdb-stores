@@ -89,9 +89,56 @@ def atomic_write_text(
         raise
 
 
+def atomic_write_bytes(
+    path: Path, data: bytes, root: Path, *, overwrite: bool = False
+) -> None:
+    """Write ``data`` to ``path`` atomically and durably, as :func:`atomic_write_text` does.
+
+    The bytes go through the same exclusive ``<name>.partial`` temp, refusing a
+    symlinked or aliased target, and the parent directory is synced after the
+    rename so the new name survives a crash.
+    """
+    path = Path(path)
+    for target in (path, path.with_name(path.name + ".partial")):
+        ensure_write_within(target, root, follow_final=False)
+        if target.is_symlink():
+            raise SafeWriteError(f"refusing symlinked write target: {target}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    partial = path.with_name(path.name + ".partial")
+    try:
+        handle = partial.open("xb")
+    except FileExistsError as exc:
+        raise SafeWriteError(f"refusing existing temporary file: {partial}") from exc
+    try:
+        with handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if path.is_symlink():
+            raise SafeWriteError(f"refusing symlinked final path: {path}")
+        if path.exists() and not overwrite:
+            raise SafeWriteError(f"refusing to overwrite existing target: {path}")
+        os.replace(partial, path)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        raise
+    fsync_directory(path.parent)
+
+
+def fsync_directory(directory: Path) -> None:
+    """Sync a directory so a rename into it is durable."""
+    fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 __all__ = [
     "SafeWriteError",
+    "atomic_write_bytes",
     "atomic_write_text",
+    "fsync_directory",
     "ensure_write_within",
     "open_exclusive_partial",
 ]
