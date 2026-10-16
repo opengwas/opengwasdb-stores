@@ -904,8 +904,7 @@ ADR 0017). One operator entry point runs every stage:
 ```sh
 pixi run generate-candidate OGS-00011 \
   --config resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
-  --cores 64 \
-  --resume
+  --cores 64
 ```
 
 The stages, and what they do not do:
@@ -914,16 +913,89 @@ The stages, and what they do not do:
 |---|---|---|---|
 | `preflight` | frozen inventory, provenance, config, filesystem metadata | `<work-root>/<id>/preflight/<snapshot>.json` | open an association body; checksum the corpus |
 | `prepare` | frozen inventory, candidate metadata table | `<work-root>/<id>/resolver/analyses.tsv` | reconstruct a source path or re-select membership |
-| `resolve` | the resolver manifest | `records/<analysis_id>.json`, `index.json`, `resolve.log` | load a reference, fork a worker, or compute ancestry/SD here |
-| `verify` | the resolver records | nothing | accept a missing, stale, duplicate or extra record |
+| `resolve` | the resolver manifest | records in the Source Collection's Resolution Area; `<work-root>/<id>/resolver/{index.json,resolve.log,resolution_receipt.json}` | load a reference, fork a worker, or compute ancestry/SD here |
+| `verify` | the records the receipt names | nothing | accept a missing, stale, edited or duplicate record, or one outside the Selection |
 | `emit` | inventory, records, config | a staged bundle, then `stores/<id>/` | build, validate or accept a Store; write a non-`candidate` status |
 
 The resolver subprocess is `opengwasdb resolve-analyses` (opengwasdb#208). It
 owns the process pool, the single genome-scale reference load, and the atomic,
-fingerprint-aware per-Analysis checkpoints; `--resume` is passed to it, so a
-second run reuses every successful record whose fingerprint still matches and
-re-runs the rest. The registry pins that resolver by immutable commit in
-`pixi.toml` rather than vendoring it (ADR 0023).
+fingerprint-aware per-Analysis checkpoints. The registry pins that resolver by
+immutable commit in `pixi.toml` rather than vendoring it (ADR 0023).
+
+**Resolution Records are kept per Source Collection (#284, ADR 0036).** A
+Resolution Record belongs to the Analysis, not to a Store Release, so a Trial
+Store Release, a full release and each ancestry split of one collection share
+them. The `resolve` stage resolves into the Source Collection's Resolution
+Area under the resolution root. The root is deployment configuration, resolved
+as the Artifact Root is: `--resolution-root`, else `OPENGWASDB_RESOLUTION_ROOT`,
+else `ogstores.yaml`'s `resolution_root` (`/data/opengwasdb/work/resolution`),
+else the same built-in default. A release config cannot name it
+(`output.resolution_root` is refused), so two releases over one collection
+always find the same area and the same lock.
+
+```text
+<resolution-root>/<source_collection_id>/       the Resolution Area
+  .lock                       flock held by the resolving run and its resolver
+  checkpoint/<settings-digest>/
+                              resolve-analyses' records directory for one set
+    <analysis_id>.json          of resolver settings: the latest record per
+    index.json                  Analysis, and the last run's index only
+  records/<analysis_id>/<fingerprint_digest>/<record_sha256>.json
+                              kept Resolution Records, write-once
+
+<work-root>/<store-id>/       this Store Release's Work Root
+  preflight/<snapshot>.json
+  resolver/analyses.tsv       this Selection's resolver manifest
+  resolver/resolve.log
+  resolver/index.json         the resolver's index for this run
+  resolver/resolution_receipt.json
+```
+
+- **Reuse is automatic, and the resolver decides it.** Every run invokes the
+  resolver with `--resume`; the candidate entry point has no switch for it and
+  refuses `--resume`. The resolver skips an Analysis whose existing successful
+  record carries the fingerprint this run would produce, and re-resolves one
+  whose file (path, checksum, size or mtime), references (ancestry reference,
+  group map, extraction panel, Variant Reference, reference-AF resources),
+  settings (method tier, sample size, gates, MAF and INFO requests) or tool
+  revision changed. A `controlled_failure` record is re-run on every run, as
+  the resolver has always done; nothing else is.
+- **One checkpoint per set of resolver settings.** A checkpoint holds one
+  record per Analysis. If one checkpoint served every setting, a Selection
+  resolved under other settings would evict another's records, and its next
+  run would re-resolve them into new records (the resolver's timings differ)
+  for an unchanged fingerprint, so two Stores could name different records of
+  one measurement. So the run resolves into `checkpoint/<settings-digest>/`. The
+  digest covers the flags `resolver_settings` passes (everything but the
+  manifest, records directory and worker count), the content checksum of each
+  file they name, and the installed resolver's identity; it is recorded in the
+  receipt as `resolver.settings_digest`. It is only a routing key: the
+  resolver still checks every Analysis's full fingerprint, so a setting the
+  digest misses causes a re-resolve, never a wrong reuse. Per-Analysis inputs
+  (file, method tier, sample size, MAF and INFO requests) are not in the
+  digest. Two Selections that disagree on them for one Analysis share a
+  checkpoint and re-resolve it, while the kept records of both survive.
+- **A record is kept, never replaced.** After accounting its records, a run
+  copies each of its Selection's records into `records/`, addressed by
+  fingerprint digest and checksum, through an exclusive temporary, a rename and
+  a directory sync. An existing kept file must hold the same bytes; a
+  difference is refused. A receipt never names a checkpoint file.
+- **One run at a time per collection.** A checkpoint's `index.json` is one file
+  and its records are written in place, so two runs sharing an area would
+  interleave. The `resolve` stage takes an exclusive, non-blocking `flock` on
+  `.lock` and refuses a second run at once, quoting the holder. The locked
+  descriptor is handed to the resolver subprocess, so the lock is held until
+  both the run and its resolver have exited: a killed run cannot let another
+  run interleave with its still-running resolver. Nothing removes the lock
+  file; the kernel releases the lock when the last holder exits. The area must
+  live on a filesystem that honours `flock` across every host running
+  Manifest Generation: a local filesystem, or NFS with locking. `/data` on the
+  generation host is XFS (`stat -f -c %T /data`), a local filesystem. `verify`
+  and `emit` read only kept records and take no lock.
+- **Store Release Build reads nothing here.** A record reaches a Store only
+  through the emitted bundle; `tests/packaging/test_boundary.py` refuses any
+  reference to the Resolution Area from `src/ogstores`, `workflow/Snakefile`
+  or `workflow/release.py`.
 
 **Canonical resolver manifest.** The manifest is derived from the frozen
 inventory's *exact* `data_file` paths — no filename is reconstructed from an
@@ -933,15 +1005,19 @@ candidate table is the metadata resolver's output (`resources/scripts/ebi-studie
 so reading it is a join on an already-frozen selection, never a second selection:
 membership is still the inventory's.
 
-**Record accounting.** Finalisation fails before anything replaces a prior
-candidate when a selected Analysis has no record, when a record names an
-Analysis the manifest does not, when a record appears twice, when a record
-declares a `record_schema_version` this registry does not finalise, or when a
-record's source checksum/size/file, method tier and reader capability no longer
-match the manifest that was resolved. The fingerprint digest is recomputed over
-the record's own inputs, and the source file's recorded size/mtime are re-checked
-against disk, so an edited, replaced or stale record is caught. This is the
-"wrong answer that looks like a right answer" guard applied to membership.
+**Record accounting.** `verify` fails, and `emit` refuses before anything
+replaces a prior candidate, when a selected Analysis has no record, when the
+receipt names a record for an Analysis outside the Selection's manifest, when
+an Analysis appears twice, when a kept record's bytes no longer match the
+checksum the receipt bound, when a record declares a `record_schema_version`
+this registry does not accept, or when a record's source checksum/size/file,
+method tier and reader capability no longer match the manifest that was
+resolved. Records in a shared checkpoint for Analyses outside the Selection
+belong to other Selections and are not a failure. The fingerprint digest is
+recomputed over the record's own inputs, and the source file's recorded
+size/mtime are re-checked against disk, so an edited, replaced or stale record
+is caught. This is the "wrong answer that looks like a right answer" guard
+applied to membership.
 
 **Resolution receipt.** A record's self-digest only proves it is internally
 consistent. A record produced under different gates, ancestry reference or
@@ -949,19 +1025,49 @@ fine-group map, extraction panel, reference-AF resources or resolver revision
 still recomputes a valid self-digest, so a standalone `verify`/`emit` that only
 recomputed it could freeze a stale Analysis. After a successful resolver
 invocation the `resolve` stage therefore atomically writes
-`<work-root>/<id>/resolver/resolution_receipt.json`: the resolver manifest's
-checksum, the registry-recomputable slice of the resolution contract (declared
-gates, MAF floor, reader capability, extraction panel, ancestry
-reference/group-map and reference-AF resource content fingerprints), the
-installed resolver's content identity, the actual `opengwasdb resolve-analyses`
-argv, and every `analysis_id` bound to the fingerprint digest the resolver wrote
-for it. Standalone `verify`/`emit` recompute the contract from the current
-config, references and installed tool and require it to equal the receipt, and
-require every record digest to match the receipt; a `--stage emit` without a
-prior successful `resolve` fails rather than trusting hand-assembled records.
-The registry never re-derives the resolver's statistics; it binds and re-checks
-the inputs that determine them. Core count and `--resume` are recorded as
-evidence but are not part of the contract, so neither changes it.
+`<work-root>/<id>/resolver/resolution_receipt.json` (`receipt_schema_version`
+2), with exactly these keys:
+
+- `manifest_sha256` and `analysis_ids`: the resolver manifest's checksum and
+  the Selection's Analyses in manifest order;
+- `resolver`: the actual `opengwasdb resolve-analyses` argv, the settings
+  digest, and the opengwasdb version and git hash its index reported;
+- `contract`: the registry-recomputable slice of the resolution contract
+  (declared gates, MAF floor, reader capability, extraction panel, ancestry
+  reference/group-map and reference-AF resource content fingerprints, and the
+  installed resolver's content identity);
+- `resolution_area`: the Source Collection's Resolution Area, an absolute path;
+- `records`: for every `analysis_id`, the kept Resolution Record it was decided
+  from, as `fingerprint_digest`, `record_sha256` and `record` (its path in the
+  area);
+- `receipt_schema_version` and `record_schema_version`.
+
+A receipt with a missing or unknown key, a missing or relative
+`resolution_area`, or a malformed record entry is refused; the accepted key set
+is the constant `RECEIPT_KEYS`, which a new key extends explicitly. The receipt
+names exactly the Selection's records, whether this run resolved or reused
+them. Standalone `verify`/`emit` recompute the contract from the current
+config, references and installed tool and require it to equal the receipt, read
+exactly the records it names, and require each record's checksum and digest to
+match it; a `--stage emit` without a prior successful `resolve` fails rather
+than trusting hand-assembled records. The registry never re-derives the
+resolver's statistics; it binds and re-checks the inputs that determine them.
+Core count and the resolution root are recorded as evidence but are not part
+of the contract, so neither changes it.
+
+Receipts written before #284 (`receipt_schema_version` 1) bound records in the
+Store Release's own Work Root, `<work-root>/<id>/resolver/records/`. They remain
+the provenance of the candidates they produced: each emitted `release.yaml`
+records its receipt's path and checksum in `source_snapshot.resolver_receipt`,
+and nothing in Store Release Build reads them. This registry refuses to verify
+one again, by name, rather than misreading it; a regeneration re-runs `resolve`.
+To spare that run the work, an operator may first copy the old Work Root's
+`resolver/records/<analysis_id>.json` files (not its `index.json`) into the
+checkpoint the run will use, `checkpoint/<settings-digest>/`, while no run holds
+the lock. The digest is
+`resolver_settings_digest(resolver_settings(config))` in
+`manifest_generation.candidate_workflow`. The resolver resumes each record whose
+fingerprint still matches, and re-resolves the rest, exactly as it would its own.
 
 **Release policy and controlled exclusions (issue #152).** The registry, not the
 resolver, decides membership. A ready Analysis whose Assigned Ancestry is not

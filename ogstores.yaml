@@ -16,3 +16,11 @@
 # The override exists so CI, a developer laptop, and the production host each
 # get the right answer without editing or rebuilding an immutable Release Bundle.
 artifact_root: /data/opengwasdb/stores
+
+# `resolution_root` is deployment configuration for Manifest Generation (#284):
+# each Source Collection keeps its Resolution Records in one Resolution Area,
+# <resolution_root>/<source_collection_id>/, shared by every release over it.
+# `manifest_generation.resolution_area.resolution_root()` resolves it in the same
+# order: the run's --resolution-root, then OPENGWASDB_RESOLUTION_ROOT, then this
+# key, then its built-in default. Store Release Build never reads it.
+resolution_root: /data/opengwasdb/work/resolution

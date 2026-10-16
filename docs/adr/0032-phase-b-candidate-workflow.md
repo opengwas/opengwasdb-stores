@@ -16,6 +16,14 @@ its candidate table becomes a canonical Source Metadata Table, its freeze
 reconciles that table against an Acquisition Manifest for one Selection, and its
 exclusions become Quality Checks. Every decision below stands.
 
+**Amended by #284.** The resolver's checkpoint is no longer the Store
+Release's own: it is shared per Source Collection, in the Resolution Area, and
+every run reuses each record whose fingerprint still matches. Accounting at
+emit therefore moves to the resolution receipt, which names each Analysis's
+kept Resolution Record by fingerprint digest and checksum and refuses a record
+outside the Selection; an extra record in the shared checkpoint is another
+Selection's, not a failure. The receipt-and-contract check below stands.
+
 ## Decision
 
 **Expose one thin registry-owned candidate workflow that invokes

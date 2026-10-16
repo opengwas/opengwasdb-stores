@@ -13,9 +13,11 @@ things and nothing else:
   this module never loads a reference, forks a worker, or computes an ancestry,
   allele alignment, or phenotype SD itself;
 - **accounting for every record** before anything is written: exactly one record
-  per selected Analysis, no missing/stale/duplicate/extra records, and every
+  per selected Analysis, no missing/stale/duplicate records, and every
   record's source identity and method tier matching the manifest that was
-  resolved;
+  resolved. Records are kept once per Source Collection and reused by every
+  Selection (#284, ``manifest_generation.resolution_area``); the resolution
+  receipt names exactly the kept records a candidate is decided from;
 - **applying the registry's release membership and exclusion policy** -- the
   decisions in ADR 0025 (``exclude_from_build`` audit rows), issue #152
   (full-reference ancestry assignment; source-AF-only quantitative estimation;
@@ -58,6 +60,12 @@ from ogstores.bundle import SUPERPOPULATIONS
 from manifest_generation.ancestry_sidecar import format_sidecar_float
 from manifest_generation.generation_rules import INFO_SCORE_KINDS
 from manifest_generation.indexed_subsets import resolve_indexed_subsets
+from manifest_generation.resolution_area import (
+    KeptRecord,
+    ResolutionArea,
+    ResolutionAreaError,
+)
+from manifest_generation.safe_write import atomic_write_bytes
 from manifest_generation.source_inventory import (
     INVENTORY_COLUMNS,
     PreflightConfigError,
@@ -288,10 +296,33 @@ EAF_ORIENTATION_OUTCOMES: tuple[str, ...] = ("passed", "failed", "unverified")
 #: interpreted field-by-field against a schema it was not written for.
 SUPPORTED_RECORD_SCHEMA_VERSION: int = 1
 
-#: The resolution-receipt schema this module writes and reads.
-RECEIPT_SCHEMA_VERSION: int = 1
+#: The resolution-receipt schema this module writes and reads. Version 2 (#284)
+#: names each Analysis's kept Resolution Record in the Source Collection's
+#: resolution area -- fingerprint digest, record checksum and path.
+RECEIPT_SCHEMA_VERSION: int = 2
 
-#: Filename of the registry-side resolution receipt, beside the resolver records.
+#: Every key a resolution receipt carries. A receipt with any other key is
+#: refused; a later release-policy key (#285) is added here explicitly.
+RECEIPT_KEYS: frozenset[str] = frozenset(
+    {
+        "receipt_schema_version",
+        "record_schema_version",
+        "manifest_sha256",
+        "analysis_ids",
+        "resolver",
+        "contract",
+        "resolution_area",
+        "records",
+    }
+)
+
+#: Receipt versions written before #284, whose records lived in the Store
+#: Release's Work Root (``resolver/records/``). Receipts of emitted candidates
+#: (``source_snapshot.resolver_receipt`` in their ``release.yaml``) remain their
+#: provenance; reading one again is refused by name rather than as corrupt.
+HISTORICAL_RECEIPT_SCHEMA_VERSIONS: tuple[int, ...] = (1,)
+
+#: Filename of the registry-side resolution receipt in the run's Work Root.
 RECEIPT_FILENAME: str = "resolution_receipt.json"
 
 #: Path (relative to the repository root) of the tracked Source Ancestry Label
@@ -467,6 +498,13 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
     indexed_subsets, indexed_subsets_opt_out = resolve_indexed_subsets(
         document, layout, repo_root
     )
+    if "resolution_root" in _mapping(document.get("output")):
+        raise PreflightConfigError(
+            f"{path}: output.resolution_root is not a release config key: the resolution "
+            "root is deployment configuration (--resolution-root, "
+            "OPENGWASDB_RESOLUTION_ROOT or ogstores.yaml), so every release over a "
+            "Source Collection finds the same Resolution Area (#284)"
+        )
 
     return CandidateConfiguration(
         base=base,
@@ -1086,22 +1124,16 @@ def _resolve_af_reference_specs(config: CandidateConfiguration) -> list[str]:
     return specs
 
 
-def resolver_argv(
-    *,
-    resolver_bin: str,
-    manifest_path: Path,
-    records_dir: Path,
-    config: CandidateConfiguration,
-    cores: int,
-    resume: bool,
-) -> list[str]:
-    """Compose the exact ``opengwasdb resolve-analyses`` argv.
+def resolver_settings(config: CandidateConfiguration) -> list[str]:
+    """The ``opengwasdb resolve-analyses`` flags that apply to every Analysis.
 
-    Only registry facts and declared config values are composed: the manifest
-    and records paths, the declared ancestry reference and its fine-group map,
-    the declared gates, and the worker count. Everything else is the resolver's
-    own default. Per ADR 0023 the registry names a subcommand and passes flags
-    through, and does not mirror a parameter schema.
+    Only registry facts and declared config values are composed: the declared
+    ancestry reference and its fine-group map, the extraction panel, the
+    Variant Reference axis, reference-AF resources and the declared gates and
+    floors. Everything else is the resolver's own default. Per ADR 0023 the
+    registry names a subcommand and passes flags through, and does not mirror a
+    parameter schema. The manifest, the records directory and the worker count
+    are a run's, not settings, and :func:`resolver_argv` adds them.
     """
     ancestry_resource = config.base.reference_resources.get(
         config.base.ancestry_reference_resource_id
@@ -1118,11 +1150,7 @@ def resolver_argv(
         )
 
     gates = _mapping(config.ancestry_block.get("gates"))
-    argv: list[str] = [
-        resolver_bin,
-        RESOLVER_SUBCOMMAND,
-        str(manifest_path),
-        str(records_dir),
+    settings: list[str] = [
         "--ancestry-reference",
         ancestry_resource.location,
         "--ancestry-groups",
@@ -1130,13 +1158,13 @@ def resolver_argv(
     ]
     extraction_panel = config.ancestry_block.get("extraction_panel")
     if extraction_panel:
-        argv.extend(["--extraction-panel", str(extraction_panel)])
+        settings.extend(["--extraction-panel", str(extraction_panel)])
     axis = config.build_options.get("variant-reference")
     if axis:
-        argv.extend(["--variant-reference", str(axis)])
+        settings.extend(["--variant-reference", str(axis)])
     for spec in _resolve_af_reference_specs(config):
-        argv.extend(["--af-reference", spec])
-    argv.extend(
+        settings.extend(["--af-reference", spec])
+    settings.extend(
         [
             "--default-source-reader-capability",
             config.reader_capability,
@@ -1150,13 +1178,80 @@ def resolver_argv(
             str(gates.get("n_min", 5000)),
             "--residual-max",
             str(gates.get("residual_max", 0.06)),
-            "--n-workers",
-            str(cores),
         ]
     )
-    if resume:
-        argv.append("--resume")
-    return argv
+    return settings
+
+
+def resolver_argv(
+    *,
+    resolver_bin: str,
+    manifest_path: Path,
+    records_dir: Path,
+    config: CandidateConfiguration,
+    cores: int,
+) -> list[str]:
+    """Compose the exact ``opengwasdb resolve-analyses`` argv.
+
+    The resolver always resumes: it reuses every record whose fingerprint still
+    matches and re-resolves the rest (#284).
+    """
+    return [
+        resolver_bin,
+        RESOLVER_SUBCOMMAND,
+        str(manifest_path),
+        str(records_dir),
+        *resolver_settings(config),
+        "--n-workers",
+        str(cores),
+        "--resume",
+    ]
+
+
+#: Resolver flags whose value is a file the resolver reads, so the settings
+#: digest binds the file's content and not only its path.
+_RESOLVER_FILE_FLAGS: tuple[str, ...] = (
+    "--ancestry-reference",
+    "--ancestry-groups",
+    "--extraction-panel",
+    "--variant-reference",
+)
+
+
+def resolver_settings_digest(settings: Sequence[str]) -> str:
+    """The digest that routes a run to its checkpoint in the Resolution Area (#284).
+
+    It covers the resolver settings that enter every record's fingerprint:
+    :func:`resolver_settings` as passed, the content checksum of every file
+    they name, and the installed resolver's identity. It is only a routing key
+    -- the resolver checks each Analysis's full fingerprint on ``--resume`` --
+    so a setting it misses causes a re-resolve, never a wrong reuse.
+    """
+    files: dict[str, str] = {}
+    for position, token in enumerate(settings[:-1]):
+        value = settings[position + 1]
+        if token in _RESOLVER_FILE_FLAGS:
+            path = value
+        elif token == "--af-reference":
+            path = value.partition("=")[2]
+        else:
+            continue
+        if not Path(path).is_file():
+            raise CandidateError(
+                f"resolver setting {token} names {path}, which is not a file; refusing "
+                "to resolve against it"
+            )
+        files[path] = sha256_file(Path(path))
+    version, resolver_sha256 = _opengwasdb_tool_identity()
+    payload = {
+        "settings": list(settings),
+        "file_sha256": files,
+        "opengwasdb_version": version,
+        "opengwasdb_resolver_sha256": resolver_sha256,
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -1173,24 +1268,28 @@ class ResolverRun:
     log_path: Path
 
 
-def run_resolver(argv: Sequence[str], *, cwd: Path, log_path: Path) -> ResolverRun:
-    """Run the resolver subprocess, teeing its output to a durable log.
+def run_resolver(
+    argv: Sequence[str], *, cwd: Path, log_path: Path, pass_fds: Sequence[int] = ()
+) -> ResolverRun:
+    """Run the resolver subprocess, writing its output to a durable log.
 
     The registry does not parse the resolver's stdout for accounting: the
     accounting comes from the records and ``index.json``, which are the
-    resolver's declared contract. The raw output is kept so a failure is
-    auditable without re-running it.
+    resolver's declared contract. The raw output goes straight to the log, so
+    a failure is auditable without re-running it, and the resolver never
+    writes into a pipe that dies with this process. ``pass_fds`` hands it
+    descriptors to hold, such as the Resolution Area's lock.
     """
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    completed = subprocess.run(
-        list(argv),
-        cwd=str(cwd),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        check=False,
-    )
-    log_path.write_text(completed.stdout or "", encoding="utf-8")
+    with log_path.open("w", encoding="utf-8") as log:
+        completed = subprocess.run(
+            list(argv),
+            cwd=str(cwd),
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            pass_fds=tuple(pass_fds),
+            check=False,
+        )
     return ResolverRun(argv=list(argv), returncode=completed.returncode, log_path=log_path)
 
 
@@ -1240,46 +1339,178 @@ def account_records(
     manifest_rows: Sequence[ResolverRow],
     records_dir: Path,
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Account the resolver records against the manifest that was resolved.
+    """Account one resolver run's output against the manifest it resolved.
 
+    ``records_dir`` is the directory the resolver wrote: its ``index.json`` must
+    describe exactly this manifest, and it must hold one record per manifest row.
     Returns ``(records, failures)`` where ``records`` is in manifest order and
-    ``failures`` lists every way the records are missing, duplicated, extra or
+    ``failures`` lists every way the records are missing, duplicated or
     incompatible with the pinned record schema. This is the resolver's own
-    contract, checked without reference to the resolution receipt; the receipt
-    check in :func:`verify_records` is what detects a record set produced under
-    a different contract.
+    contract, checked without reference to the resolution receipt.
+
+    The directory is a Source Collection's checkpoint, shared by every Selection
+    (#284), so a record there for an Analysis outside this manifest belongs to
+    another Selection and is not a failure. What a candidate was decided from is
+    what its resolution receipt names, and :func:`verify_records` refuses a
+    receipt that names any record outside the manifest.
+    """
+    failures = _duplicate_manifest_ids(manifest_rows)
+    index_failures, index_usable = _account_index(manifest_rows, records_dir / "index.json")
+    failures.extend(index_failures)
+    if not index_usable:
+        return [], failures
+    records: list[dict[str, Any]] = []
+    for row in manifest_rows:
+        record, row_failures = _account_record(row, records_dir / f"{row.analysis_id}.json")
+        failures.extend(row_failures)
+        if record is not None:
+            records.append(record)
+    return records, failures
+
+
+def verify_records(
+    manifest_rows: Sequence[ResolverRow],
+    *,
+    config: CandidateConfiguration,
+    manifest_path: Path,
+    receipt_path: Path,
+    index_path: Path,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Account the records a receipt names *and* prove they are current.
+
+    The resolution receipt names, per Analysis, the kept Resolution Record the
+    candidate is decided from: its fingerprint digest and its checksum in the
+    Source Collection's Resolution Area (#284). This reads exactly those
+    records, requires each to be byte-for-byte the record the receipt bound, and
+    accounts each against its manifest row as :func:`account_records` does for
+    a fresh run. ``index_path`` is the run's copy of the resolver's index.
+
+    A record's own fingerprint digest only proves it is internally consistent.
+    A record set produced under different gates, ancestry reference/group map,
+    extraction panel, reference-AF resources or tool revision is still
+    internally consistent, so this function also recomputes the current
+    resolution contract and requires the receipt to match it. Any failure means
+    the candidate is not emitted: a partial, stale or extra-contract record set
+    is exactly the silently-wrong bundle this repository exists to prevent.
+    """
+    failures = _duplicate_manifest_ids(manifest_rows)
+    failures.extend(_account_index(manifest_rows, index_path)[0])
+    try:
+        receipt = read_resolution_receipt(receipt_path)
+        area = ResolutionArea.from_receipt(receipt["resolution_area"])
+    except (CandidateError, ResolutionAreaError) as exc:
+        return [], failures + [str(exc)]
+    kept, parse_failures = parse_receipt_records(manifest_rows, receipt["records"])
+    failures.extend(parse_failures)
+    records, record_failures = account_kept_records(manifest_rows, area, kept)
+    failures.extend(record_failures)
+    failures.extend(
+        _verify_receipt(
+            manifest_rows=manifest_rows,
+            records=records,
+            kept=kept,
+            receipt=receipt,
+            config=config,
+            manifest_path=manifest_path,
+            receipt_path=receipt_path,
+        )
+    )
+    return records, failures
+
+
+def parse_receipt_records(
+    manifest_rows: Sequence[ResolverRow], named: Any
+) -> tuple[dict[str, KeptRecord], list[str]]:
+    """Parse a receipt's ``records`` into one :class:`KeptRecord` per Analysis."""
+    if not isinstance(named, Mapping):
+        return {}, ["the resolution receipt's records is not a mapping"]
+    failures: list[str] = []
+    expected = {row.analysis_id for row in manifest_rows}
+    outside = [str(analysis_id) for analysis_id in named if analysis_id not in expected]
+    if outside:
+        failures.append(
+            f"the resolution receipt names {len(outside)} record(s) for Analyses outside "
+            f"this Selection's manifest: {', '.join(outside[:10])}"
+        )
+    kept: dict[str, KeptRecord] = {}
+    for row in manifest_rows:
+        if row.analysis_id not in named:
+            failures.append(
+                f"{row.analysis_id}: the resolution receipt names no Resolution Record for "
+                "this Analysis; re-run resolution"
+            )
+            continue
+        try:
+            kept[row.analysis_id] = KeptRecord.from_receipt_entry(
+                row.analysis_id, named[row.analysis_id]
+            )
+        except ResolutionAreaError as exc:
+            failures.append(str(exc))
+    return kept, failures
+
+
+def account_kept_records(
+    manifest_rows: Sequence[ResolverRow],
+    area: ResolutionArea,
+    kept: Mapping[str, KeptRecord],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Read and account the kept Resolution Records a receipt names, in manifest order."""
+    failures: list[str] = []
+    records: list[dict[str, Any]] = []
+    for row in manifest_rows:
+        record_ref = kept.get(row.analysis_id)
+        if record_ref is None:
+            continue  # parse_receipt_records already reported this.
+        try:
+            data = area.read_kept(record_ref)
+        except ResolutionAreaError as exc:
+            failures.append(str(exc))
+            continue
+        record, row_failures = _account_record(row, area.record_path(record_ref), data)
+        failures.extend(row_failures)
+        if record is not None:
+            records.append(record)
+    return records, failures
+
+
+def _duplicate_manifest_ids(manifest_rows: Sequence[ResolverRow]) -> list[str]:
+    expected_ids = [row.analysis_id for row in manifest_rows]
+    duplicate_ids = sorted({aid for aid in expected_ids if expected_ids.count(aid) > 1})
+    if duplicate_ids:
+        return [f"resolver manifest has duplicate analysis_id: {', '.join(duplicate_ids)}"]
+    return []
+
+
+def _account_index(
+    manifest_rows: Sequence[ResolverRow], index_path: Path
+) -> tuple[list[str], bool]:
+    """Check a resolver ``index.json`` describes exactly this manifest.
+
+    Returns ``(failures, usable)``; ``usable`` is false when the index is
+    missing or unreadable, so there is nothing to account against.
     """
     failures: list[str] = []
     expected_ids = [row.analysis_id for row in manifest_rows]
-    expected_set = set(expected_ids)
-    duplicate_ids = sorted({aid for aid in expected_ids if expected_ids.count(aid) > 1})
-    if duplicate_ids:
-        failures.append(f"resolver manifest has duplicate analysis_id: {', '.join(duplicate_ids)}")
-
-    index_path = records_dir / "index.json"
     if not index_path.is_file():
-        failures.append(f"resolver index is missing: {index_path}")
-        return [], failures
+        return [f"resolver index is missing: {index_path}"], False
     try:
         index = json.loads(index_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        failures.append(f"resolver index {index_path} is not valid JSON: {exc}")
-        return [], failures
+        return [f"resolver index {index_path} is not valid JSON: {exc}"], False
     if not isinstance(index, Mapping):
-        failures.append(f"resolver index {index_path} is not a JSON mapping")
-        return [], failures
+        return [f"resolver index {index_path} is not a JSON mapping"], False
     index_schema_version = index.get("record_schema_version")
     if index_schema_version != SUPPORTED_RECORD_SCHEMA_VERSION:
         failures.append(
             f"resolver index {index_path} declares record_schema_version "
-            f"{index_schema_version!r}; this registry finalises only "
+            f"{index_schema_version!r}; this registry accepts only "
             f"{SUPPORTED_RECORD_SCHEMA_VERSION}"
         )
 
     recorded = index.get("analyses")
     if not isinstance(recorded, list):
         failures.append(f"resolver index {index_path} has no 'analyses' list")
-        return [], failures
+        return failures, False
     index_ids = [str(entry.get("analysis_id", "")) for entry in recorded if isinstance(entry, dict)]
     if index_ids != expected_ids:
         failures.append(
@@ -1295,98 +1526,43 @@ def account_records(
     duplicate_index_ids = sorted({aid for aid in index_ids if index_ids.count(aid) > 1})
     if duplicate_index_ids:
         failures.append(f"resolver index has duplicate analysis_id: {', '.join(duplicate_index_ids)}")
-
-    # Extra record files: a records dir reused across a changed manifest leaves
-    # records the current manifest does not account for.
-    extra = sorted(
-        path.name
-        for path in records_dir.glob("*.json")
-        if path.name != "index.json"
-        and path.stem not in expected_set
-        and not path.name.startswith(".tmp_")
-    )
-    if extra:
-        failures.append(
-            f"{len(extra)} extra resolver record(s) for analyses outside the manifest: "
-            f"{', '.join(extra[:10])}"
-        )
-
-    records: list[dict[str, Any]] = []
-    by_id: dict[str, dict[str, Any]] = {}
-    for row in manifest_rows:
-        record_path = records_dir / f"{row.analysis_id}.json"
-        if not record_path.is_file():
-            failures.append(f"{row.analysis_id}: resolver record is missing ({record_path})")
-            continue
-        try:
-            record = json.loads(record_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            failures.append(f"{row.analysis_id}: resolver record is not valid JSON: {exc}")
-            continue
-        if not isinstance(record, Mapping):
-            failures.append(f"{row.analysis_id}: resolver record is not a JSON mapping")
-            continue
-        record_schema_version = record.get("record_schema_version")
-        if record_schema_version != SUPPORTED_RECORD_SCHEMA_VERSION:
-            failures.append(
-                f"{row.analysis_id}: resolver record declares record_schema_version "
-                f"{record_schema_version!r}; this registry finalises only "
-                f"{SUPPORTED_RECORD_SCHEMA_VERSION}"
-            )
-            continue
-        if record.get("analysis_id") != row.analysis_id:
-            failures.append(
-                f"{row.analysis_id}: resolver record names analysis_id "
-                f"{record.get('analysis_id')!r}"
-            )
-            continue
-        status = record.get("status")
-        if status not in _RESOLVER_RECORD_STATUSES:
-            failures.append(
-                f"{row.analysis_id}: resolver record has unexpected status {status!r}"
-            )
-            continue
-        failures.extend(_verify_fingerprints(row, record))
-        by_id[row.analysis_id] = record
-
-    for row in manifest_rows:
-        if row.analysis_id in by_id:
-            records.append(by_id[row.analysis_id])
-    return records, failures
+    return failures, True
 
 
-def verify_records(
-    manifest_rows: Sequence[ResolverRow],
-    records_dir: Path,
-    *,
-    config: CandidateConfiguration,
-    manifest_path: Path,
-    receipt_path: Path,
-) -> tuple[list[dict[str, Any]], list[str]]:
-    """Account the records *and* prove they were produced under the current contract.
+def _account_record(
+    row: ResolverRow, record_path: Path, data: bytes | None = None
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """Read one resolver record and check it against its manifest row.
 
-    The record-level accounting in :func:`account_records` only proves each
-    record is internally consistent. A record set produced under different
-    gates, ancestry reference/group map, extraction panel, reference-AF
-    resources or tool revision is still internally consistent, so this function
-    additionally recomputes the current resolution contract and requires the
-    successful resolver's resolution receipt to match it, with every record's
-    fingerprint digest equal to the digest the receipt bound. Any failure means
-    the candidate is not written: a partial, stale or extra-contract record set
-    is exactly the silently-wrong bundle this repository exists to prevent.
+    ``data`` is the record's bytes when the caller has already read them.
+    Returns the record, or ``None`` when it cannot be used at all.
     """
-    records, failures = account_records(manifest_rows, records_dir)
-    failures.extend(
-        _verify_receipt(
-            manifest_rows=manifest_rows,
-            records=records,
-            config=config,
-            manifest_path=manifest_path,
-            receipt_path=receipt_path,
-        )
-    )
-    return records, failures
-
+    if data is None:
+        if not record_path.is_file():
+            return None, [f"{row.analysis_id}: resolver record is missing ({record_path})"]
+        data = record_path.read_bytes()
+    try:
+        record = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return None, [f"{row.analysis_id}: resolver record is not valid JSON: {exc}"]
+    if not isinstance(record, Mapping):
+        return None, [f"{row.analysis_id}: resolver record is not a JSON mapping"]
+    record_schema_version = record.get("record_schema_version")
+    if record_schema_version != SUPPORTED_RECORD_SCHEMA_VERSION:
+        return None, [
+            f"{row.analysis_id}: resolver record declares record_schema_version "
+            f"{record_schema_version!r}; this registry accepts only "
+            f"{SUPPORTED_RECORD_SCHEMA_VERSION}"
+        ]
+    if record.get("analysis_id") != row.analysis_id:
+        return None, [
+            f"{row.analysis_id}: resolver record names analysis_id "
+            f"{record.get('analysis_id')!r}"
+        ]
+    status = record.get("status")
+    if status not in _RESOLVER_RECORD_STATUSES:
+        return None, [f"{row.analysis_id}: resolver record has unexpected status {status!r}"]
+    return dict(record), _verify_fingerprints(row, record)
 
 
 def _first_mismatch(actual: Sequence[str], expected: Sequence[str]) -> str:
@@ -1503,19 +1679,35 @@ def _verify_source_file_unchanged(
 # candidate. After every successful resolver invocation the registry therefore
 # persists a resolution receipt: the resolver manifest's checksum, the
 # registry-recomputable slice of the resolution contract, the tool identity the
-# resolver reported, and every analysis_id bound to the fingerprint digest the
-# resolver wrote. Standalone verify/emit recompute the contract from the current
-# config, references and installed tool and require it to equal the receipt;
-# they never re-derive the resolver's statistics.
+# resolver reported, and every analysis_id bound to the kept Resolution Record
+# it was decided from -- fingerprint digest and record checksum, in the Source
+# Collection's resolution area (#284). Standalone verify/emit recompute the
+# contract from the current config, references and installed tool and require
+# it to equal the receipt, and read exactly the records it names; they never
+# re-derive the resolver's statistics.
 
 
 def sha256_file(path: Path) -> str:
-    """SHA-256 hex digest of a file, streamed so a genome-scale reference fits."""
+    """SHA-256 hex digest of a file, streamed so a genome-scale reference fits.
+
+    One run hashes each reference for its settings digest, the contract it
+    binds and the contract it verifies, so a digest is remembered for the
+    process, keyed by the file's identity and modification time.
+    """
+    stat = Path(path).stat()
+    key = (str(Path(path).resolve()), stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
+    cached = _SHA256_BY_FILE_IDENTITY.get(key)
+    if cached is not None:
+        return cached
     digest = hashlib.sha256()
-    with path.open("rb") as fh:
+    with Path(path).open("rb") as fh:
         for chunk in iter(lambda: fh.read(1024 * 1024), b""):
             digest.update(chunk)
-    return digest.hexdigest()
+    _SHA256_BY_FILE_IDENTITY[key] = digest.hexdigest()
+    return _SHA256_BY_FILE_IDENTITY[key]
+
+
+_SHA256_BY_FILE_IDENTITY: dict[tuple[str, int, int, int, int], str] = {}
 
 
 def _opengwasdb_tool_identity() -> tuple[str, str | None]:
@@ -1647,33 +1839,40 @@ def build_resolution_receipt(
     manifest_rows: Sequence[ResolverRow],
     config: CandidateConfiguration,
     manifest_path: Path,
-    records_dir: Path,
+    area: ResolutionArea,
+    kept: Mapping[str, KeptRecord],
     argv: Sequence[str],
+    settings_digest: str,
     index: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Bind a successful resolver run to the contract and record digests it produced."""
+    """Bind a successful resolver run to its contract and the records it kept.
+
+    ``records`` names, in manifest order, each Analysis's kept Resolution Record
+    in the Source Collection's resolution area: its fingerprint digest, its
+    checksum and its path in the area (#284). It names exactly this Selection's
+    records, whether this run resolved them or reused them. ``settings_digest``
+    names the checkpoint the run resolved into.
+    """
     contract = compute_resolution_contract(config)
-    index_version = str(index.get("opengwasdb_version") or "")
+    index_version = index.get("opengwasdb_version")
+    index_git_hash = index.get("opengwasdb_git_hash")
+    if not isinstance(index_version, str) or not isinstance(index_git_hash, str):
+        raise CandidateError(
+            "resolver index does not report its opengwasdb_version and "
+            "opengwasdb_git_hash; refusing to write a resolution receipt"
+        )
     if index_version != contract["opengwasdb_version"]:
         raise CandidateError(
             "resolver index reports opengwasdb version "
             f"{index_version!r} but the installed opengwasdb is "
             f"{contract['opengwasdb_version']!r}; refusing to write a resolution receipt"
         )
-    record_digests: dict[str, str] = {}
+    records: dict[str, dict[str, str]] = {}
     for row in manifest_rows:
-        record_path = records_dir / f"{row.analysis_id}.json"
-        try:
-            record = json.loads(record_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise CandidateError(
-                f"{row.analysis_id}: cannot read resolver record for the receipt: {exc}"
-            ) from exc
-        fingerprints = record.get("fingerprints")
-        digest = fingerprints.get("fingerprint_digest") if isinstance(fingerprints, Mapping) else None
-        if not isinstance(digest, str) or not digest:
-            raise CandidateError(f"{row.analysis_id}: resolver record has no fingerprint digest")
-        record_digests[row.analysis_id] = digest
+        record = kept.get(row.analysis_id)
+        if record is None:
+            raise CandidateError(f"{row.analysis_id}: no Resolution Record was kept for the receipt")
+        records[row.analysis_id] = record.as_receipt_entry()
     return {
         "receipt_schema_version": RECEIPT_SCHEMA_VERSION,
         "record_schema_version": SUPPORTED_RECORD_SCHEMA_VERSION,
@@ -1681,22 +1880,24 @@ def build_resolution_receipt(
         "analysis_ids": [row.analysis_id for row in manifest_rows],
         "resolver": {
             "argv": list(argv),
+            "settings_digest": settings_digest,
             "opengwasdb_version": index_version,
-            "opengwasdb_git_hash": str(index.get("opengwasdb_git_hash") or ""),
+            "opengwasdb_git_hash": index_git_hash,
         },
         "contract": contract,
-        "record_digests": record_digests,
+        "resolution_area": str(area.root),
+        "records": records,
     }
 
 
 def write_resolution_receipt(path: Path, receipt: Mapping[str, Any]) -> None:
-    """Write the receipt through a temporary sibling and an atomic rename."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".tmp_{path.name}")
-    temporary.write_text(
-        json.dumps(receipt, indent=2, sort_keys=False) + "\n", encoding="utf-8"
+    """Write the receipt atomically and durably, replacing an earlier run's."""
+    atomic_write_bytes(
+        path,
+        (json.dumps(receipt, indent=2, sort_keys=False) + "\n").encode("utf-8"),
+        path.parent,
+        overwrite=True,
     )
-    os.replace(temporary, path)
 
 
 def read_resolution_receipt(path: Path) -> dict[str, Any]:
@@ -1713,6 +1914,14 @@ def read_resolution_receipt(path: Path) -> dict[str, Any]:
     if not isinstance(receipt, Mapping):
         raise CandidateError(f"resolution receipt {path} is not a JSON mapping")
     receipt_schema_version = receipt.get("receipt_schema_version")
+    if receipt_schema_version in HISTORICAL_RECEIPT_SCHEMA_VERSIONS:
+        raise CandidateError(
+            f"resolution receipt {path} has receipt_schema_version "
+            f"{receipt_schema_version!r}: a historical receipt, whose records lived in "
+            "the Store Release's own Work Root before Resolution Records were kept per "
+            "Source Collection (#284). It stays the provenance of the candidate it "
+            "produced but cannot be verified again; re-run the resolve stage"
+        )
     if receipt_schema_version != RECEIPT_SCHEMA_VERSION:
         raise CandidateError(
             f"resolution receipt {path} has incompatible receipt_schema_version "
@@ -1726,9 +1935,15 @@ def read_resolution_receipt(path: Path) -> dict[str, Any]:
             f"{record_schema_version!r}; this registry finalises "
             f"{SUPPORTED_RECORD_SCHEMA_VERSION}"
         )
-    for key in ("manifest_sha256", "analysis_ids", "contract", "record_digests"):
-        if key not in receipt:
-            raise CandidateError(f"resolution receipt {path} is missing key {key!r}")
+    missing = sorted(RECEIPT_KEYS - set(receipt))
+    if missing:
+        raise CandidateError(f"resolution receipt {path} is missing key(s) {missing}")
+    unknown = sorted(set(receipt) - RECEIPT_KEYS)
+    if unknown:
+        raise CandidateError(
+            f"resolution receipt {path} has unknown key(s) {unknown}; this registry "
+            f"reads only {sorted(RECEIPT_KEYS)}"
+        )
     return dict(receipt)
 
 
@@ -1736,6 +1951,8 @@ def _verify_receipt(
     *,
     manifest_rows: Sequence[ResolverRow],
     records: Sequence[Mapping[str, Any]],
+    kept: Mapping[str, KeptRecord],
+    receipt: Mapping[str, Any],
     config: CandidateConfiguration,
     manifest_path: Path,
     receipt_path: Path,
@@ -1747,11 +1964,6 @@ def _verify_receipt(
     compares them to the receipt the successful run wrote, and requires each
     record to still carry the exact digest that run bound.
     """
-    try:
-        receipt = read_resolution_receipt(receipt_path)
-    except CandidateError as exc:
-        return [str(exc)]
-
     failures: list[str] = []
     try:
         current_contract = compute_resolution_contract(config)
@@ -1783,26 +1995,18 @@ def _verify_receipt(
             f"manifest ({receipt_ids!r} != {expected_ids!r})"
         )
 
-    record_digests = receipt.get("record_digests")
-    if not isinstance(record_digests, Mapping):
-        failures.append(f"resolution receipt {receipt_path} has no record_digests mapping")
-        return failures
     by_id = {record.get("analysis_id"): record for record in records}
     for row in manifest_rows:
         record = by_id.get(row.analysis_id)
-        if record is None:
-            continue  # account_records already reported this.
+        record_ref = kept.get(row.analysis_id)
+        if record is None or record_ref is None:
+            continue  # parse_receipt_records or account_kept_records reported this.
         fingerprints = record.get("fingerprints")
         digest = (
             fingerprints.get("fingerprint_digest") if isinstance(fingerprints, Mapping) else None
         )
-        expected_digest = record_digests.get(row.analysis_id)
-        if expected_digest is None:
-            failures.append(
-                f"{row.analysis_id}: the resolution receipt binds no fingerprint digest "
-                "for this Analysis; re-run resolution"
-            )
-        elif digest != expected_digest:
+        expected_digest = record_ref.fingerprint_digest
+        if digest != expected_digest:
             failures.append(
                 f"{row.analysis_id}: resolver fingerprint digest is {digest!r} but the "
                 f"successful resolution bound {expected_digest!r}; the record is stale or "
@@ -3100,7 +3304,9 @@ __all__ = [
     "EXCLUSION_COLUMNS",
     "EXCLUSION_REASONS",
     "EAF_ORIENTATION_OUTCOMES",
+    "HISTORICAL_RECEIPT_SCHEMA_VERSIONS",
     "RECEIPT_FILENAME",
+    "RECEIPT_KEYS",
     "RECEIPT_SCHEMA_VERSION",
     "RESOLVER_MANIFEST_COLUMNS",
     "SD_ESTIMATION_SIDECAR_COLUMNS",
@@ -3110,7 +3316,9 @@ __all__ = [
     "AnalysisOutcome",
     "ResolverRow",
     "ResolverRun",
+    "account_kept_records",
     "account_records",
+    "parse_receipt_records",
     "analysis_maf_threshold",
     "apply_release_policy",
     "build_candidate_tables",
@@ -3133,6 +3341,8 @@ __all__ = [
     "render_resolver_manifest",
     "render_validation_yaml",
     "resolver_argv",
+    "resolver_settings",
+    "resolver_settings_digest",
     "run_resolver",
     "sha256_file",
     "sha256_text",

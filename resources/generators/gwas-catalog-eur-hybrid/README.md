@@ -114,46 +114,73 @@ Release Bundle contract and replaces only an earlier candidate. It never
 builds, validates or accepts a Store, and it never invokes Phase A.
 
 ```sh
-# Preflight + resolve + verify + finalise in one resumable run:
+# Preflight, resolve, verify and emit in one run; rerunning it reuses records:
 pixi run generate-candidate OGS-00011 \
   --config resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
-  --cores 64 \
-  --resume
+  --cores 64
 ```
 
 The resolver owns the worker pool and the per-Analysis checkpoints, so
-`--cores` is passed to `opengwasdb resolve-analyses` and a resumed run reuses
-every successful record whose fingerprint still matches (source checksum/size,
-tool revision, reference, extraction panel, gates and method tier). `--resume`
-is safe to use after an interruption; without it, every record is recomputed.
+`--cores` is passed to `opengwasdb resolve-analyses`. Every run reuses each
+successful record whose fingerprint still matches (source file, checksum and
+size, tool revision, references, extraction panel, gates, method tier and
+per-Analysis requests) and re-resolves the rest, so a rerun after an
+interruption picks up where it stopped. There is no `--resume`; passing it is
+refused, because reuse is automatic (#284).
+
+Resolution Records are kept once per Source Collection, not per Store Release
+(#284, ADR 0036): a Trial Store Release, this full release and any other
+Selection of `gwas-catalog-ssf` share them, so an Analysis one of them resolved
+is not resolved again. They live in the collection's Resolution Area under the
+resolution root, a deployment setting: `--resolution-root`, else
+`OPENGWASDB_RESOLUTION_ROOT`, else `ogstores.yaml`'s `resolution_root`
+(`/data/opengwasdb/work/resolution`).
+
+```text
+<resolution-root>/gwas-catalog-ssf/
+  .lock                     held by the resolving run and its resolver
+  checkpoint/<settings-digest>/   resolve-analyses' records directory, one per
+                            set of resolver settings
+  records/<analysis>/<fingerprint-digest>/<record-sha256>.json   kept, write-once
+<work-root>/OGS-xxxxx/resolver/
+  analyses.tsv  resolve.log  index.json  resolution_receipt.json
+```
+
+Two runs over the collection cannot resolve at once: the second stops with
+"Resolution Area ... is locked by another run or its resolver" and quotes the
+holder. Re-run it when the first finishes. If the first run was killed, its
+resolver keeps the lock until it exits too. `verify` and `emit` need no lock.
 
 ### Stages
 
-Pass `--stage <name>` to run one stage against the records already under the
-work root (also how `workflow/generate.smk` wires the coarse DAG):
+Pass `--stage <name>` to run one stage against the records the Work Root's
+receipt names (also how `workflow/generate.smk` wires the coarse DAG):
 
 | Stage | What it proves / produces |
 |---|---|
 | `preflight` | The frozen inventory still matches the mirror, the declared Reference Resources exist, and every study design has a method tier. Writes `<work-root>/OGS-xxxxx/preflight/<snapshot>.json`. |
 | `prepare` | The canonical resolver manifest from the frozen exact `data_file` paths and the per-design method tiers. |
-| `resolve` | Invokes `opengwasdb resolve-analyses`; writes records, `index.json`, `resolve.log`, and the `resolution_receipt.json` that binds the run to its contract. |
-| `verify` | Accounts every record and requires the current contract and every record digest to match the successful resolution receipt; refuses a missing, stale, duplicate, extra, or incompatible-schema record. |
+| `resolve` | Invokes `opengwasdb resolve-analyses` into the collection's Resolution Area, keeps the Selection's records there, and writes `index.json`, `resolve.log` and the `resolution_receipt.json` that names those records and binds the run to its contract. |
+| `verify` | Reads exactly the records the receipt names and requires the current contract, every record checksum and every record digest to match it; refuses a missing, stale, edited, duplicate or incompatible-schema record, or one outside the Selection. |
 | `emit` | Applies release policy, checks the pinned schema, and emits `stores/OGS-xxxxx/` through the shared emitter, which runs `bundle.check()`. |
 | `all` | Default: every stage in order. |
 
 Useful options: `--registry-root` (default `stores/`), `--work-root` (default
-`output.work_root`), `--inventory` / `--provenance` / `--candidates` overrides,
-and `--resume`.
+`output.work_root`), `--resolution-root` (default `OPENGWASDB_RESOLUTION_ROOT`,
+else `ogstores.yaml`), and `--inventory` / `--provenance` / `--candidates`
+overrides.
 
 A standalone `--stage verify` or `--stage emit` requires the
 `resolution_receipt.json` a successful `resolve` wrote. The receipt binds the
 resolver manifest, the declared gates / ancestry reference and fine-group map /
 extraction panel / reference-AF resources, the installed resolver's content
-identity, and every Analysis's fingerprint digest. Changing any of those (or a
-source file) after resolving makes the receipt stale, and `verify`/`emit` fail
-and tell you to re-resolve rather than freezing stale records into a candidate.
-`--cores` and `--resume` do not change the contract or the bundle tables and
-sidecars.
+identity, and every Analysis's kept record: fingerprint digest and checksum.
+Changing any of those (or a source file) after resolving makes the receipt
+stale, and `verify`/`emit` fail and tell you to re-resolve rather than freezing
+stale records into a candidate. `--cores` and the resolution root do not change
+the contract or the bundle tables and sidecars. A receipt written
+before #284 (`receipt_schema_version` 1, records under the Work Root's
+`resolver/records/`) is refused as historical: re-run `resolve`.
 
 ### Candidate output and controlled exclusions
 
