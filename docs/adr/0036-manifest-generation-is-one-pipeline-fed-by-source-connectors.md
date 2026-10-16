@@ -55,6 +55,12 @@ The rules that make this hold:
   check is declared as an exclusion (an `exclude_from_build` audit row with
   its reason) or a warning. Every Analysis's measurements are recorded whether
   it passes or not.
+
+  *Clarified by #285:* a check's measurement comes from the Resolution
+  Record, except where OpenGWASDB does not yet measure it. Today the only
+  exception is effect-placeholder rows, read from a reviewed listing until
+  core counts them. The Assigned Ancestry check of step 6 is itself a Quality
+  Check (`assigned_ancestry`), as the Selection rule below requires.
 - **Connectors are files, frozen with the inventory.** Generation reads no live
   source. A metadata change is a reviewed re-freeze, never a silent difference
   between two runs.

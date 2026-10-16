@@ -53,7 +53,6 @@ import manifest_generation.candidate_workflow as candidate_workflow  # noqa: E40
 from ogstores import bundle as bundle_module  # noqa: E402
 from ogstores.plan import plan  # noqa: E402
 from manifest_generation.candidate_workflow import (  # noqa: E402
-    EXCLUSION_REASONS,
     RECEIPT_FILENAME,
     RESOLVER_MANIFEST_COLUMNS,
     USABLE_MAF_STATES,
@@ -65,6 +64,7 @@ from manifest_generation.candidate_workflow import (  # noqa: E402
     apply_release_policy,
     build_candidate_tables,
     compute_resolution_contract,
+    controlled_exclusion_categories,
     derive_resolver_manifest,
     info_score_emission,
     load_candidate_configuration,
@@ -523,6 +523,9 @@ def _synthetic_resolver_record(
             "source_file": "/mirror/GCST90000001.h.tsv.gz",
             "rows_read": 100,
             "ancestry_sites": 100,
+            # Measured by the build_eligible_rows Quality Check (#285): an
+            # included Analysis must carry it.
+            "build_eligible_rows": 100,
         },
         "ancestry": {
             "assigned_ancestry": assigned_ancestry,
@@ -600,7 +603,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         # Every excluded row carries its controlled reason in its audit row.
         for analysis_id, reason in EXPECTED_EXCLUDED.items():
             self.assertIn(reason, excluded[analysis_id]["inclusion_reason"])
-            self.assertIn(reason, EXCLUSION_REASONS)
+            self.assertIn(reason, controlled_exclusion_categories())
 
         exclusions = _read_tsv(bundle_dir / "sidecars/exclusions.tsv")
         reasons = {row["analysis_id"]: row["reason"] for row in exclusions}
@@ -1748,7 +1751,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         )
         self.assertTrue(
             all(
-                outcome.exclusion_reason in EXCLUSION_REASONS
+                outcome.exclusion_reason in controlled_exclusion_categories()
                 for outcome in outcomes
                 if not outcome.included
             )
@@ -1832,6 +1835,9 @@ class CandidateWorkflowTests(unittest.TestCase):
             record["diagnostics"].update(
                 ancestry_rows_read=100, ancestry_reference_rows_matched=90,
                 variant_reference_rows_matched=matches,
+                build_eligible_rows=100,
+                build_eligible_rows_on_variant_reference=matches,
+                build_eligible_rows_off_variant_reference=100 - matches,
             )
             records.append(record)
         outcomes = apply_release_policy(
@@ -1901,31 +1907,27 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertEqual(summary["low_overlap_analyses"], ["GCST90000002"])
         self.assertEqual(validation["checks"]["reference_overlap"], "failed")
 
-    def test_overlap_gate_falls_back_to_legacy_counts_without_diagnostics(self) -> None:
+    def test_a_record_without_post_info_diagnostics_is_refused_not_included(self) -> None:
+        # Before #285 such a record was included and the overlap gate fell back
+        # to the legacy pre-INFO counts. The build_eligible_rows Quality Check
+        # cannot test it, and an untested exclusion is never a silent pass.
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
         config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
         row = _synthetic_inventory_row()
         record = _synthetic_resolver_record()
         record["analysis_id"] = row.analysis_id
+        record["diagnostics"].pop("build_eligible_rows")
         record["diagnostics"].update(
             rows_read=100, ancestry_rows_read=100, ancestry_reference_rows_matched=100,
             variant_reference_rows_matched=80,
         )
-        outcomes = apply_release_policy(
-            [row], config, {row.analysis_id: _synthetic_candidate_metadata()},
-            {row.analysis_id: record},
-        )
-        tables = build_candidate_tables(
-            inventory_rows=[row], outcomes=outcomes, config=config, index_summary={}
-        )
-        overlap = list(csv.DictReader(io.StringIO(tables.reference_overlap_tsv), delimiter="\t"))
-        self.assertEqual([r["build_eligible_rows"] for r in overlap], [""])
-        validation = render_validation_yaml(
-            tables=tables, index_summary={}, validated_at="now", validator_name="test"
-        )
-        summary = validation["reference_overlap"]
-        self.assertEqual(summary["projected_off_reference_basis"], "legacy_rows_read")
-        self.assertEqual(summary["projected_off_reference_share"], 0.2)
+        with self.assertRaises(CandidateError) as raised:
+            apply_release_policy(
+                [row], config, {row.analysis_id: _synthetic_candidate_metadata()},
+                {row.analysis_id: record},
+            )
+        self.assertIn(row.analysis_id, str(raised.exception))
+        self.assertIn("build_eligible_rows is unmeasured", str(raised.exception))
 
     def test_listed_effect_placeholder_analysis_is_excluded_with_its_reason(self) -> None:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
@@ -2476,14 +2478,41 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertEqual(validation["checks"]["reference_overlap"], "passed")
         self.assertEqual(validation["errors"], [])
 
-    def test_invalid_build_eligible_counts_still_fail_the_overlap_gate(self) -> None:
+    def test_invalid_build_eligible_counts_refuse_or_fail_the_overlap_gate(self) -> None:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
         config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
         row = _synthetic_inventory_row()
-        invalid = {
-            "absent": {},
-            "non-integer": {"build_eligible_rows": "50"},
-            "negative": {"build_eligible_rows": -1},
+
+        def record_with(diagnostics):
+            record = _synthetic_resolver_record()
+            record["analysis_id"] = row.analysis_id
+            record["diagnostics"].pop("build_eligible_rows")
+            record["diagnostics"].update(
+                ancestry_rows_read=100, ancestry_reference_rows_matched=100,
+            )
+            record["diagnostics"].update(diagnostics)
+            return record
+
+        # An unusable count is no evidence the Analysis has rows to build, so
+        # the build_eligible_rows Quality Check refuses to let it be included
+        # (#285); before, it was included and only the overlap gate caught it.
+        refused = {
+            "absent": ({}, "unmeasured"),
+            "non-integer": ({"build_eligible_rows": "50"}, "not a non-negative integer"),
+            "negative": ({"build_eligible_rows": -1}, "not a non-negative integer"),
+        }
+        for name, (diagnostics, message) in refused.items():
+            with self.subTest(case=name):
+                with self.assertRaises(CandidateError) as raised:
+                    apply_release_policy(
+                        [row], config, {row.analysis_id: _synthetic_candidate_metadata()},
+                        {row.analysis_id: record_with(diagnostics)},
+                    )
+                self.assertIn(row.analysis_id, str(raised.exception))
+                self.assertIn(message, str(raised.exception))
+
+        # A valid count with an unusable on/off split is the overlap gate's.
+        partitions = {
             "inconsistent-partition": {
                 "build_eligible_rows": 50,
                 "build_eligible_rows_on_variant_reference": 20,
@@ -2495,21 +2524,12 @@ class CandidateWorkflowTests(unittest.TestCase):
                 "build_eligible_rows_off_variant_reference": -10,
             },
         }
-        for name, diagnostics in invalid.items():
+        for name, diagnostics in partitions.items():
             with self.subTest(case=name):
-                record = _synthetic_resolver_record()
-                record["analysis_id"] = row.analysis_id
-                record["diagnostics"].update(
-                    ancestry_rows_read=100, ancestry_reference_rows_matched=100,
-                )
-                record["diagnostics"].update(diagnostics)
                 outcomes = apply_release_policy(
                     [row], config, {row.analysis_id: _synthetic_candidate_metadata()},
-                    {row.analysis_id: record},
+                    {row.analysis_id: record_with(diagnostics)},
                 )
-                # Only an explicit integer zero is a policy exclusion; every other
-                # unusable count stays an included Analysis whose measurement is
-                # missing, exactly as before #176.
                 self.assertTrue(outcomes[0].included, outcomes[0].exclusion_reason)
                 tables = build_candidate_tables(
                     inventory_rows=[row], outcomes=outcomes, config=config, index_summary={}
