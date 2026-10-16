@@ -188,7 +188,13 @@ before #284 (`receipt_schema_version` 1, records under the Work Root's
 stores/OGS-xxxxx/
   release.yaml    build.yaml    analyses.tsv    validation.yaml
   sidecars/ source_readiness.tsv ancestry.tsv sd_estimation.tsv exclusions.tsv reference_overlap.tsv
+            quality_checks.tsv
 ```
+
+* `sidecars/quality_checks.tsv` (#285) records, for every selected Analysis,
+  each Quality Check's result and measurement, passing or not; the release's
+  thresholds and any `quality_checks:` override are in `validation.yaml`. See
+  [the schema](../../../docs/release-metadata-schema.md#quality-check-sidecar).
 
 * `analyses.tsv` holds every selected ready Analysis. Non-member rows stay in it
   with `exclude_from_build: true` and a controlled reason in `inclusion_reason`.

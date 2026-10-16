@@ -1340,6 +1340,120 @@ class TestBundleContract(unittest.TestCase):
                 patch.stop()
 
 
+class TestQualityCheckSidecar(unittest.TestCase):
+    """`sidecars/quality_checks.tsv` is an optional contract file (#285, ADR 0036).
+
+    Absent is valid. Present, it must name every Analysis of `analyses.tsv` in
+    the same order, use the controlled result vocabulary, and agree with
+    `analyses.tsv` and `exclusions.tsv` on which Analyses are excluded and why.
+    """
+
+    HEADER = (
+        "analysis_id\texclude_from_build\texclusion_reason\t"
+        "build_eligible_rows\tbuild_eligible_rows_measured\n"
+    )
+    ROWS = (
+        "FIXTURE_1\t\t\tpassed\t1200\n",
+        "FIXTURE_2\ttrue\tno_build_eligible_rows\tfailed\t0\n",
+    )
+    EXCLUSIONS = (
+        "analysis_id\tsource_analysis_id\tstudy_design\tcategory\treason\tdetail\t"
+        "resolver_status\texclude_from_build\n"
+        "FIXTURE_2\tFIXTURE_2\tquantitative\teffect_scale\tno_build_eligible_rows\t"
+        "none\tsuccess\ttrue\n"
+    )
+
+    setUp = TestBundleContract.setUp
+    tearDown = TestBundleContract.tearDown
+    make_bundle = TestBundleContract.make_bundle
+
+    def sidecar_bundle(
+        self,
+        sidecar: str | None,
+        *,
+        exclusions: str | None = EXCLUSIONS,
+    ) -> bundle.Bundle:
+        base = self.make_bundle(store_id="OGS-00097")
+        header, row = (base.root / "analyses.tsv").read_text().strip().split("\n")
+        analyses = (
+            header + "\texclude_from_build\n"
+            + row + "\t\n"
+            + row.replace("FIXTURE_1", "FIXTURE_2") + "\ttrue\n"
+        )
+        loaded = self.make_bundle(store_id="OGS-00097", analyses=analyses)
+        sidecars = loaded.root / "sidecars"
+        sidecars.mkdir(exist_ok=True)
+        if sidecar is not None:
+            (sidecars / "quality_checks.tsv").write_text(sidecar, encoding="utf-8")
+        if exclusions is not None:
+            (sidecars / "exclusions.tsv").write_text(exclusions, encoding="utf-8")
+        return loaded
+
+    def errors(self, sidecar: str | None, **kwargs: Any) -> list[str]:
+        loaded = self.sidecar_bundle(sidecar, **kwargs)
+        return list(bundle.check(loaded, registry_root=self.tmp_dir))
+
+    def assert_refused(self, sidecar: str, expected: str, **kwargs: Any) -> None:
+        errors = self.errors(sidecar, **kwargs)
+        self.assertTrue(
+            any("quality_checks.tsv" in error and expected in error for error in errors),
+            errors,
+        )
+        record_check()
+
+    def test_a_valid_sidecar_and_an_absent_one_pass(self) -> None:
+        self.assertEqual(self.errors(self.HEADER + "".join(self.ROWS)), [])
+        self.assertEqual(self.errors(None), [])
+        # exclusions.tsv is itself optional; the sidecar then agrees with analyses.tsv alone.
+        self.assertEqual(self.errors(self.HEADER + "".join(self.ROWS), exclusions=None), [])
+        record_check()
+
+    def test_a_missing_row_fails(self) -> None:
+        self.assert_refused(self.HEADER + self.ROWS[0], "FIXTURE_2")
+
+    def test_a_wrong_order_fails(self) -> None:
+        self.assert_refused(self.HEADER + self.ROWS[1] + self.ROWS[0], "order")
+
+    def test_an_extra_row_fails(self) -> None:
+        extra = self.ROWS[0].replace("FIXTURE_1", "FIXTURE_3")
+        self.assert_refused(self.HEADER + "".join(self.ROWS) + extra, "FIXTURE_3")
+
+    def test_a_reason_disagreeing_with_the_exclusions_sidecar_fails(self) -> None:
+        wrong = self.ROWS[1].replace("no_build_eligible_rows", "orientation_failure")
+        self.assert_refused(self.HEADER + self.ROWS[0] + wrong, "exclusions.tsv")
+
+    def test_membership_disagreeing_with_analyses_fails(self) -> None:
+        included_as_excluded = "FIXTURE_1\ttrue\tno_build_eligible_rows\tfailed\t0\n"
+        self.assert_refused(
+            self.HEADER + included_as_excluded + self.ROWS[1], "exclude_from_build",
+            exclusions=None,
+        )
+        excluded_without_reason = "FIXTURE_2\ttrue\t\tfailed\t0\n"
+        self.assert_refused(
+            self.HEADER + self.ROWS[0] + excluded_without_reason, "exclusion_reason",
+            exclusions=None,
+        )
+
+    def test_a_result_outside_the_vocabulary_fails(self) -> None:
+        self.assert_refused(
+            self.HEADER + self.ROWS[0].replace("passed", "ok") + self.ROWS[1], "'ok'"
+        )
+
+    def test_columns_must_lead_with_membership_and_pair_each_check(self) -> None:
+        self.assert_refused(
+            self.HEADER.replace("exclusion_reason\t", "") + "".join(
+                row.replace("\tno_build_eligible_rows", "").replace("\t\tpassed", "\tpassed")
+                for row in self.ROWS
+            ),
+            "columns",
+        )
+        unpaired = self.HEADER.replace("\tbuild_eligible_rows_measured", "")
+        self.assert_refused(
+            unpaired + "".join(row.rsplit("\t", 1)[0] + "\n" for row in self.ROWS),
+            "columns",
+        )
+
+
 class TestBundleSummary(unittest.TestCase):
     """Value-level collapse rules for the issue #131 bundle summary."""
 

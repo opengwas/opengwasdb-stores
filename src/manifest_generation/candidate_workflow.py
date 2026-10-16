@@ -57,6 +57,14 @@ from typing import Any, Iterable, Mapping, Sequence
 import yaml
 
 from ogstores.bundle import SUPERPOPULATIONS
+from manifest_generation import quality_checks
+from manifest_generation.quality_checks import (
+    NON_QUANTITATIVE_EFFECT_SCALES,
+    CheckSummary,
+    Stage,
+    diagnostic_count,
+    record_section,
+)
 from manifest_generation.ancestry_sidecar import format_sidecar_float
 from manifest_generation.generation_rules import INFO_SCORE_KINDS
 from manifest_generation.indexed_subsets import resolve_indexed_subsets
@@ -242,55 +250,31 @@ EXCLUSION_COLUMNS: tuple[str, ...] = (
     "exclude_from_build",
 )
 
-#: Controlled exclusion vocabulary (issue #152). Every excluded ready Analysis
-#: carries exactly one of these, so "why is this Analysis absent" has one spelling.
-EXCLUSION_REASONS: frozenset[str] = frozenset(
-    {
-        "resolution_failed",
-        "ancestry_unassigned",
-        "ancestry_not_eur",
-        "orientation_failure",
-        "sd_no_reference_resource_for_ancestry",
-        "sd_no_qualifying_evidence",
-        "sd_no_usable_sample_size",
-        "sd_failed",
-        "missing_sample_size",
-        "missing_case_control_counts",
-        "no_build_eligible_rows",
-        "effect_placeholder_rows",
-        "not_maf_filtered",
-    }
-)
-
-#: Exclusion reason -> sidecar ``category`` value.
-EXCLUSION_CATEGORIES: Mapping[str, str] = {
+#: Exclusion reasons that are release policy rather than a Quality Check (#285),
+#: with their sidecar ``category``: a missing or failed Resolution Record has
+#: nothing to measure, missing counts are candidate-table metadata, and the
+#: Store Composition Rule is a release-level admission rule (ADR 0033). Every
+#: other reason is declared by a Quality Check (``quality_checks``).
+POLICY_EXCLUSION_CATEGORIES: Mapping[str, str] = {
     "resolution_failed": "resolution",
-    "ancestry_unassigned": "ancestry",
-    "ancestry_not_eur": "ancestry",
-    "orientation_failure": "orientation",
-    "sd_no_reference_resource_for_ancestry": "effect_scale",
-    "sd_no_qualifying_evidence": "effect_scale",
-    "sd_no_usable_sample_size": "effect_scale",
-    "sd_failed": "effect_scale",
     "missing_sample_size": "metadata",
     "missing_case_control_counts": "metadata",
-    "no_build_eligible_rows": "effect_scale",
-    "effect_placeholder_rows": "effect_scale",
     "not_maf_filtered": "store_composition",
 }
 
+
+def controlled_exclusion_categories() -> dict[str, str]:
+    """The controlled exclusion vocabulary (#152), each reason with its category.
+
+    Every excluded ready Analysis carries exactly one of these, so "why is this
+    Analysis absent" has one spelling: the release policy's own reasons and
+    those of every registered Quality Check.
+    """
+    return {**POLICY_EXCLUSION_CATEGORIES, **quality_checks.exclusion_categories()}
+
+
 #: Resolver record statuses that this module treats as a completed resolution.
 _RESOLVER_RECORD_STATUSES: tuple[str, ...] = ("success", "controlled_failure")
-
-#: The pinned upstream EAF-orientation vocabulary (opengwasdb
-#: ``EafOrientationOutcome``): ``passed``/``failed``/``unverified``. The resolver
-#: records it on every successful assignment, so the release policy can exclude a
-#: mis-oriented column and still admit an unchecked one. ``failed`` means the
-#: A1-oriented source frequencies correlate negatively with the reference (the
-#: column is untrustworthy); ``unverified`` means no direction could be read, so
-#: the ordinary assignment/gate policy decides the row. A value outside this set
-#: is a contract violation and fails loudly rather than being read as a failure.
-EAF_ORIENTATION_OUTCOMES: tuple[str, ...] = ("passed", "failed", "unverified")
 
 #: The resolver record/index schema this registry can finalise. A record or index
 #: declaring a different version is incompatible and must fail rather than be
@@ -402,6 +386,10 @@ class CandidateConfiguration:
     #: The reviewed reason an operator deliberately omitted the default (`#210`).
     #: Recorded in release.yaml notes so the omission is reviewable.
     indexed_subsets_opt_out: str | None = None
+    #: The release's Quality Check threshold overrides (``quality_checks:``,
+    #: #285): check name -> parsed threshold. Empty means every check uses its
+    #: shared default. Recorded in the resolution receipt and validation.yaml.
+    quality_check_overrides: Mapping[str, Any] = field(default_factory=dict)
 
 
 def _require(document: Mapping[str, Any], key: str, where: str) -> Any:
@@ -490,6 +478,10 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
     if declaration_path is not None and not declaration_path.is_absolute():
         declaration_path = repo_root / declaration_path
 
+    quality_check_overrides = parse_quality_check_overrides(
+        document.get("quality_checks"), path
+    )
+
     layout = str(build.get("layout") or "hybrid")
     indexed_subsets, indexed_subsets_opt_out = resolve_indexed_subsets(
         document, layout, repo_root
@@ -531,7 +523,21 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
             tuple(indexed_subsets) if indexed_subsets is not None else None
         ),
         indexed_subsets_opt_out=indexed_subsets_opt_out,
+        quality_check_overrides=quality_check_overrides,
     )
+
+
+def parse_quality_check_overrides(value: Any, path: Path) -> dict[str, Any]:
+    """Validate the release's ``quality_checks:`` threshold overrides (#285).
+
+    Each key names a registered Quality Check with a threshold; its value
+    replaces that check's shared default for this release. Absent means no
+    override. Anything else is a config error, never silently ignored.
+    """
+    try:
+        return quality_checks.parse_overrides(value, f"{path}:quality_checks")
+    except quality_checks.QualityCheckError as exc:
+        raise PreflightConfigError(str(exc)) from exc
 
 
 def parse_info_score_threshold(value: Any) -> str:
@@ -711,14 +717,14 @@ def info_score_emission(
     """
     if declaration is None or not declaration.imputation_score_column:
         return ("NaN", "", "", "")
-    diagnostics = _record_mapping(record, "diagnostics")
+    diagnostics = record_section(record, "diagnostics")
     if diagnostics.get("info_score_state") not in USABLE_INFO_SCORE_STATES:
         return ("NaN", "", "", "")
     usable = diagnostics.get("info_rows_usable")
     if not _positive_int(usable):
         return ("NaN", "", "", "")
-    resolution_config = _record_mapping(
-        _record_mapping(record, "fingerprints"), "resolution_config"
+    resolution_config = record_section(
+        record_section(record, "fingerprints"), "resolution_config"
     )
     if resolution_config.get("info_score_threshold") != float(declaration.info_score_threshold):
         return ("NaN", "", "", "")
@@ -756,11 +762,11 @@ def maf_threshold_emission(
     """
     if declaration is None or declaration.maf_threshold in ("", "NaN"):
         return "NaN"
-    diagnostics = _record_mapping(record, "diagnostics")
+    diagnostics = record_section(record, "diagnostics")
     if diagnostics.get("maf_state") not in USABLE_MAF_STATES:
         return "NaN"
-    resolution_config = _record_mapping(
-        _record_mapping(record, "fingerprints"), "resolution_config"
+    resolution_config = record_section(
+        record_section(record, "fingerprints"), "resolution_config"
     )
     try:
         wanted = float(declaration.maf_threshold)
@@ -1814,6 +1820,11 @@ def compute_resolution_contract(config: CandidateConfiguration) -> dict[str, Any
             contract["maf_filter_exempt_analyses_reasons"] = dict(
                 config.maf_filter_exempt_analyses
             )
+    # The effective Quality Check thresholds, defaults included, and the
+    # release's overrides (#285): changing a shared default or an override makes
+    # the receipt stale. A receipt written before #285 lacks the key and is
+    # stale too; re-resolving with --resume rewrites it.
+    contract["quality_checks"] = quality_checks.receipt_contract(config.quality_check_overrides)
     return contract
 
 
@@ -2046,6 +2057,9 @@ class AnalysisOutcome:
     #: The emitted MAF floor (stores #176): the numeric value on resolver
     #: evidence, else literal ``NaN``. (:func:`maf_threshold_emission`).
     maf_threshold: str = "NaN"
+    #: Every registered Quality Check's result for this Analysis (#285), in
+    #: registry order, whether or not one of them decided its membership.
+    check_results: tuple[quality_checks.Finding, ...] = ()
 
     @property
     def analysis_id(self) -> str:
@@ -2055,11 +2069,6 @@ class AnalysisOutcome:
     def maf_filtered(self) -> bool:
         """True when a MAF floor was emitted on resolver evidence (#203)."""
         return self.maf_threshold != "NaN"
-
-
-def _record_mapping(record: Mapping[str, Any] | None, key: str) -> Mapping[str, Any]:
-    value = (record or {}).get(key)
-    return value if isinstance(value, Mapping) else {}
 
 
 def apply_release_policy(
@@ -2077,6 +2086,10 @@ def apply_release_policy(
     one controlled reason -- never a silently dropped row and never a fabricated
     value. Duplicate-content accessions are not collapsed: each keeps its own
     row and its own decision.
+
+    Every registered Quality Check (``quality_checks``, #285) is evaluated for
+    every Analysis and its result kept on the outcome. A failed exclusion check
+    excludes at its declared stage; a warning check never changes membership.
 
     The Store-composition gate (#203) is the *last* one, on purpose: when
     ``store_composition.require_maf_filtered`` is on, an otherwise-included
@@ -2102,14 +2115,17 @@ def apply_release_policy(
     for row in rows:
         if not row.ready:
             continue
-        outcome = _decide(
-            row=row,
-            resolved=metadata[row.analysis_id],
-            tier=config.base.method_tiers[row.study_design],
-            record=records.get(row.analysis_id),
-            config=config,
-            declaration=declaration_by_id.get(row.analysis_id),
-        )
+        try:
+            outcome = _decide(
+                row=row,
+                resolved=metadata[row.analysis_id],
+                tier=config.base.method_tiers[row.study_design],
+                record=records.get(row.analysis_id),
+                config=config,
+                declaration=declaration_by_id.get(row.analysis_id),
+            )
+        except quality_checks.QualityCheckError as exc:
+            raise CandidateError(str(exc)) from exc
         if config.require_maf_filtered and outcome.included and not outcome.maf_filtered:
             outcome = replace(
                 outcome,
@@ -2138,12 +2154,12 @@ def _not_maf_filtered_detail(
     rendered explicitly (``undeclared``, ``unrecorded``, ``?``), never as a zero
     count or as a declared ``NaN``.
     """
-    diagnostics = _record_mapping(record, "diagnostics")
+    diagnostics = record_section(record, "diagnostics")
     declared = declaration.maf_threshold if declaration is not None else "undeclared"
     state = str(diagnostics.get("maf_state") or "unrecorded")
     technologies = "; ".join(read_genotyping_technologies(row.yaml_file)) or "unrecorded"
-    off = _diagnostic_count(diagnostics.get("build_eligible_rows_off_variant_reference"))
-    eligible = _diagnostic_count(diagnostics.get("build_eligible_rows"))
+    off = diagnostic_count(diagnostics.get("build_eligible_rows_off_variant_reference"))
+    eligible = diagnostic_count(diagnostics.get("build_eligible_rows"))
     return (
         f"no MAF floor applied (requested maf_threshold={declared}, "
         f"resolver maf_state={state}, genotyping_technology={technologies}); "
@@ -2160,13 +2176,30 @@ def _decide(
     config: CandidateConfiguration,
     declaration: ResolverRow | None = None,
 ) -> AnalysisOutcome:
+    """One Analysis's membership: release policy, with Quality Checks in its slots.
+
+    The order is the #152 decision. Each ``Stage`` is a slot where the first
+    failed exclusion check at that stage decides; a new stage needs a slot here.
+    """
     stored_effect_scale = tier.stored_effect_scale
-    case_control = stored_effect_scale in {"log_or", "log_hazard"}
+    case_control = stored_effect_scale in NON_QUANTITATIVE_EFFECT_SCALES
     sample_size = resolved.sample_size
     n_cases = resolved.n_cases if case_control else ""
     n_controls = resolved.n_controls if case_control else ""
     emitted_info = info_score_emission(declaration, record)
     emitted_maf = maf_threshold_emission(declaration, record)
+    # Every check measures every Analysis, so the sidecar records each result
+    # whatever decides membership below.
+    findings = quality_checks.evaluate(
+        quality_checks.Subject(
+            analysis_id=row.analysis_id,
+            record=record,
+            stored_effect_scale=stored_effect_scale,
+            selection_ancestry=config.target_ancestry,
+            effect_placeholder_reason=config.effect_placeholder_exclusions.get(row.analysis_id),
+        ),
+        config.quality_check_overrides,
+    )
 
     def make(
         *,
@@ -2198,7 +2231,11 @@ def _decide(
             info_score_kind=emitted_info[2],
             info_score_provenance=emitted_info[3],
             maf_threshold=emitted_maf,
+            check_results=findings,
         )
+
+    def excluded_by(finding: quality_checks.Finding, **carried: str) -> AnalysisOutcome:
+        return make(included=False, reason=finding.reason, detail=finding.detail, **carried)
 
     if not sample_size or _non_positive(sample_size):
         return make(
@@ -2213,37 +2250,11 @@ def _decide(
         error = str(record.get("error") or "resolver returned controlled_failure")
         return make(included=False, reason="resolution_failed", detail=error)
 
-    # A successful record whose own tally is zero contributes nothing: an
-    # Analysis with no row carrying a finite effect and a positive standard
-    # error has no association to build, and its zero build-eligible count is
-    # what the reference-overlap gate reads as an unusable denominator (#176).
-    # Only an explicit integer zero excludes here; an absent, non-integer or
-    # negative count keeps the overlap check's existing behaviour.
-    diagnostics = _record_mapping(record, "diagnostics")
-    build_eligible_rows = diagnostics.get("build_eligible_rows")
-    if type(build_eligible_rows) is int and build_eligible_rows == 0:
-        return make(
-            included=False,
-            reason="no_build_eligible_rows",
-            detail=(
-                "resolver found no row with a finite effect and positive standard "
-                f"error (rows_read={_diagnostic_count(diagnostics.get('rows_read'))}, "
-                "canonical_rows_retained="
-                f"{_diagnostic_count(diagnostics.get('canonical_rows_retained'))})"
-            ),
-        )
-
-    # A reviewed listing: the source writes unestimated effects as a
-    # +-2.2e-308 placeholder with standard_error 0, which core would store as a
-    # near-zero effect with a ~1e-308 standard error (see
-    # read_effect_placeholder_exclusions).
-    placeholder_reason = config.effect_placeholder_exclusions.get(row.analysis_id)
-    if placeholder_reason is not None:
-        return make(
-            included=False,
-            reason="effect_placeholder_rows",
-            detail=placeholder_reason,
-        )
+    # Slot RESOLVED: checks on the record before its Assigned Ancestry is read
+    # (build-eligible rows, the reviewed effect-placeholder listing).
+    failed = quality_checks.first_exclusion(findings, Stage.RESOLVED)
+    if failed is not None:
+        return excluded_by(failed)
 
     # A declared score with no usable evidence is *included*: every row is
     # retained and this Analysis emits literal ``NaN`` INFO cells (#176). The
@@ -2251,68 +2262,41 @@ def _decide(
     # :func:`info_score_emission` reads as no evidence; it is never a controlled
     # failure and never a refusal here.
 
-    ancestry = _record_mapping(record, "ancestry")
-    assigned = str(ancestry.get("assigned_ancestry") or "").strip()
-    gate_reason = str(ancestry.get("gate_reason") or "").strip()
-    eaf_orientation = str(ancestry.get("eaf_orientation") or "").strip().lower()
+    assigned = str(record_section(record, "ancestry").get("assigned_ancestry") or "").strip()
 
-    if eaf_orientation and eaf_orientation not in EAF_ORIENTATION_OUTCOMES:
-        raise CandidateError(
-            f"{row.analysis_id}: resolver ancestry carries unknown eaf_orientation "
-            f"{eaf_orientation!r}; expected one of "
-            f"{', '.join(EAF_ORIENTATION_OUTCOMES)} (opengwasdb EafOrientationOutcome)"
-        )
-    # ``failed`` is the upstream signal that the A1-oriented frequencies correlate
-    # negatively with the reference; ``gate_reason=eaf_orientation`` is the
-    # assignment gate that names the same condition. Both exclude. ``passed`` is
-    # the ordinary case; ``unverified`` (no direction readable) and any legacy
-    # empty value fall through to the assignment/gate policy below rather than
-    # being invented into either success or failure here.
-    if eaf_orientation == "failed" or gate_reason == "eaf_orientation":
+    # Slot ANCESTRY_READ: EAF orientation. The audit row keeps the value read.
+    failed = quality_checks.first_exclusion(findings, Stage.ANCESTRY_READ)
+    if failed is not None:
+        return excluded_by(failed, assigned=assigned)
+
+    # Slot SELECTION: the Assigned Ancestry check (ADR 0036). An assignment that
+    # is a super-population code is carried as af_assigned, even when it is
+    # not the Selection's.
+    failed = quality_checks.first_exclusion(findings, Stage.SELECTION)
+    if failed is not None:
+        if assigned in SUPERPOPULATIONS:
+            return excluded_by(failed, assigned=assigned, method="af_assigned")
+        return excluded_by(failed)
+
+    # From here the Analysis has the Selection's ancestry; the only remaining
+    # question is whether its effects are on the release's scale.
+    if case_control and (not _positive(n_cases) or not _positive(n_controls)):
         return make(
             included=False,
-            reason="orientation_failure",
-            detail=(
-                f"eaf_orientation={eaf_orientation or 'unrecorded'} "
-                f"gate_reason={gate_reason or 'none'} "
-                f"r={ancestry.get('eaf_orientation_r')!r}"
-            ),
-            assigned=assigned,
-        )
-    if not assigned:
-        return make(
-            included=False,
-            reason="ancestry_unassigned",
-            detail=f"gate_reason={gate_reason or 'none'}",
-        )
-    if assigned not in SUPERPOPULATIONS:
-        return make(
-            included=False,
-            reason="ancestry_unassigned",
-            detail=f"assigned_ancestry {assigned!r} is not a super-population code",
-        )
-    if assigned != config.target_ancestry:
-        return make(
-            included=False,
-            reason="ancestry_not_eur",
-            detail=(
-                f"assigned_ancestry={assigned} (release target {config.target_ancestry})"
-            ),
+            reason="missing_case_control_counts",
+            detail=f"n_cases={n_cases or 'empty'} n_controls={n_controls or 'empty'}",
             assigned=assigned,
             method="af_assigned",
         )
 
-    # From here the Analysis has a trustworthy target ancestry; the only
-    # remaining question is whether its effects are on the release's scale.
+    # Slot TARGET_ANCESTRY: the phenotype SD.
+    failed = quality_checks.first_exclusion(findings, Stage.TARGET_ANCESTRY)
+    if failed is not None:
+        return excluded_by(failed, assigned=assigned, method="af_assigned")
+
+    # Nothing excluded it, so every exclusion check must have tested it.
+    quality_checks.require_measured(findings, row.analysis_id)
     if case_control:
-        if not _positive(n_cases) or not _positive(n_controls):
-            return make(
-                included=False,
-                reason="missing_case_control_counts",
-                detail=f"n_cases={n_cases or 'empty'} n_controls={n_controls or 'empty'}",
-                assigned=assigned,
-                method="af_assigned",
-            )
         return make(
             included=True,
             assigned=assigned,
@@ -2320,76 +2304,15 @@ def _decide(
             original_sd="",
             sd_method="binary_trait",
         )
-
-    pheno = _record_mapping(record, "phenotype_sd")
-    status = str(pheno.get("status") or "").strip()
-    reason = str(pheno.get("reason") or "").strip()
-    estimate = pheno.get("estimate")
-    if status == "estimated" and isinstance(estimate, Mapping) and estimate.get("sd") is not None:
-        sd_value = float(estimate["sd"])
-        # The builder refuses a non-positive original_sd, so an estimate that
-        # is not a positive finite number is no evidence (an all-placeholder
-        # source estimated exactly 0: GCST90454200/1).
-        if not math.isfinite(sd_value) or sd_value <= 0:
-            return make(
-                included=False,
-                reason="sd_no_qualifying_evidence",
-                detail=f"estimated phenotype SD {sd_value!r} is not a positive finite number",
-                assigned=assigned,
-                method="af_assigned",
-            )
-        return make(
-            included=True,
-            assigned=assigned,
-            method="af_assigned",
-            original_sd=format_sidecar_float(sd_value),
-            sd_method=str(estimate.get("method") or tier.original_sd_method),
-        )
-    if status == "skipped" and reason == "no_reference_resource_for_ancestry":
-        return make(
-            included=False,
-            reason="sd_no_reference_resource_for_ancestry",
-            detail=reason,
-            assigned=assigned,
-            method="af_assigned",
-        )
-    if status == "skipped":
-        return make(
-            included=False,
-            reason="sd_no_reference_resource_for_ancestry" if not reason else _sd_reason(reason),
-            detail=reason or "quantitative SD estimation was skipped",
-            assigned=assigned,
-            method="af_assigned",
-        )
-    if status == "unavailable":
-        return make(
-            included=False,
-            reason=_sd_reason(reason),
-            detail=reason or "no phenotype SD could be estimated",
-            assigned=assigned,
-            method="af_assigned",
-        )
+    # The phenotype_sd check passed, so this is a positive finite estimate.
+    estimate = record_section(record_section(record, "phenotype_sd"), "estimate")
     return make(
-        included=False,
-        reason="sd_failed",
-        detail=f"phenotype_sd status={status or 'missing'!r} reason={reason or 'none'!r}",
+        included=True,
         assigned=assigned,
         method="af_assigned",
+        original_sd=format_sidecar_float(float(estimate["sd"])),
+        sd_method=str(estimate.get("method") or tier.original_sd_method),
     )
-
-
-def _diagnostic_count(value: Any) -> str:
-    """Render a resolver diagnostic count for the exclusion detail, or ``?``."""
-    return str(value) if type(value) is int else "?"
-
-
-def _sd_reason(reason: str) -> str:
-    mapping = {
-        "no_reference_resource_for_ancestry": "sd_no_reference_resource_for_ancestry",
-        "no_qualifying_evidence": "sd_no_qualifying_evidence",
-        "no_usable_sample_size": "sd_no_usable_sample_size",
-    }
-    return mapping.get(reason, "sd_failed")
 
 
 def _non_positive(value: str) -> bool:
@@ -2433,6 +2356,10 @@ class CandidateTables:
     sd_check: str
     effect_scale_check: str
     warnings: tuple[str, ...]
+    #: ``sidecars/quality_checks.tsv``: one row per selected Analysis (#285).
+    quality_checks_tsv: str = ""
+    #: Each applied Quality Check's summary, keyed by name (#285).
+    quality_checks: Mapping[str, CheckSummary] = field(default_factory=dict)
 
 
 def build_candidate_tables(
@@ -2484,7 +2411,7 @@ def build_candidate_tables(
             exclusion_counts[outcome.exclusion_reason] = (
                 exclusion_counts.get(outcome.exclusion_reason, 0) + 1
             )
-    unknown = sorted(set(exclusion_counts) - EXCLUSION_REASONS)
+    unknown = sorted(set(exclusion_counts) - set(controlled_exclusion_categories()))
     if unknown:
         raise CandidateError(f"internal error: uncontrolled exclusion reason(s): {unknown}")
 
@@ -2493,6 +2420,8 @@ def build_candidate_tables(
     )
     store_composition = _store_composition(outcomes, config)
     warnings.extend(_store_composition_warnings(store_composition))
+    quality_checks_tsv, quality_check_summary = _quality_check_tables(outcomes, config)
+    warnings.extend(quality_checks.warning_lines(quality_check_summary))
 
     return CandidateTables(
         analyses_tsv=_render_tsv(ANALYSES_COLUMNS, analyses_rows),
@@ -2512,7 +2441,49 @@ def build_candidate_tables(
         sd_check=sd_check,
         effect_scale_check=effect_scale_check,
         warnings=tuple(warnings),
+        quality_checks_tsv=quality_checks_tsv,
+        quality_checks=quality_check_summary,
     )
+
+
+def _quality_check_tables(
+    outcomes: Sequence[AnalysisOutcome], config: CandidateConfiguration
+) -> tuple[str, dict[str, CheckSummary]]:
+    """The Quality Check sidecar and its ``validation.yaml`` summary (#285).
+
+    The columns come from the checks the policy applied, which every outcome
+    carries in the same order; with no outcomes they are the registry's.
+    """
+    declared = (
+        quality_checks.declared_checks(outcomes[0].check_results)
+        if outcomes
+        else quality_checks.checks()
+    )
+    for outcome in outcomes:
+        if quality_checks.declared_checks(outcome.check_results) != declared:
+            raise CandidateError(
+                f"internal error: {outcome.analysis_id} carries Quality Check results "
+                f"for a different check set than {[check.name for check in declared]}"
+            )
+    rows = [
+        quality_checks.sidecar_row(
+            outcome.analysis_id,
+            outcome.included,
+            outcome.exclusion_reason,
+            outcome.check_results,
+        )
+        for outcome in outcomes
+    ]
+    summary = quality_checks.summarise(
+        [
+            quality_checks.Decided(
+                outcome.included, outcome.exclusion_reason, outcome.check_results
+            )
+            for outcome in outcomes
+        ],
+        config.quality_check_overrides,
+    )
+    return _render_tsv(quality_checks.sidecar_columns(declared), rows), summary
 
 
 def _store_composition(
@@ -2560,7 +2531,7 @@ def _off_reference_sum(
         return None
     total = 0
     for outcome in outcomes:
-        diagnostics = _record_mapping(outcome.record, "diagnostics")
+        diagnostics = record_section(outcome.record, "diagnostics")
         off = diagnostics.get("build_eligible_rows_off_variant_reference")
         if type(off) is not int or off < 0:
             return None
@@ -2612,7 +2583,7 @@ def _reference_overlap(
     ancestry_measured: list[tuple[str, int, int]] = []
     missing: list[str] = []
     for outcome in outcomes:
-        diagnostics = _record_mapping(outcome.record, "diagnostics")
+        diagnostics = record_section(outcome.record, "diagnostics")
         ancestry_n = diagnostics.get("ancestry_rows_read", diagnostics.get("rows_read"))
         ancestry_matched = diagnostics.get("ancestry_reference_rows_matched")
         total = diagnostics.get("rows_read")
@@ -2637,7 +2608,7 @@ def _reference_overlap(
             and count(eligible_off, eligible_total)
             and eligible_on + eligible_off == eligible_total
         )
-        fingerprints = _record_mapping(outcome.record, "fingerprints")
+        fingerprints = record_section(outcome.record, "fingerprints")
         row = {
             "analysis_id": outcome.analysis_id,
             "ancestry_reference_id": str(fingerprints.get("ancestry_reference_id") or ""),
@@ -2804,7 +2775,7 @@ def _ancestry_row(
     outcome: AnalysisOutcome, config: CandidateConfiguration
 ) -> dict[str, str]:
     record = outcome.record
-    ancestry = _record_mapping(record, "ancestry")
+    ancestry = record_section(record, "ancestry")
     row: dict[str, str] = {name: "" for name in ANCESTRY_SIDECAR_COLUMNS}
     row["analysis_id"] = outcome.analysis_id
     row["source_analysis_id"] = outcome.analysis_id
@@ -2850,7 +2821,7 @@ def _sd_row(
     index_summary: Mapping[str, Any],
 ) -> dict[str, str]:
     record = outcome.record
-    pheno = _record_mapping(record, "phenotype_sd")
+    pheno = record_section(record, "phenotype_sd")
     row: dict[str, str] = {name: "" for name in SD_ESTIMATION_SIDECAR_COLUMNS}
     row["analysis_id"] = outcome.analysis_id
     row["source_analysis_id"] = outcome.analysis_id
@@ -2863,7 +2834,7 @@ def _sd_row(
         f"opengwasdb@{git_hash}" if git_hash else (f"opengwasdb:{version}" if version else "")
     )
 
-    if outcome.stored_effect_scale in {"log_or", "log_hazard"}:
+    if outcome.stored_effect_scale in NON_QUANTITATIVE_EFFECT_SCALES:
         row["status"] = "skipped"
         row["skip_reason"] = "non_quantitative_effect_scale"
         row["sd_notes"] = "case-control effect scale; phenotype-SD estimation not applicable"
@@ -2922,7 +2893,7 @@ def _exclusion_row(outcome: AnalysisOutcome) -> dict[str, str]:
         "analysis_id": outcome.analysis_id,
         "source_analysis_id": outcome.analysis_id,
         "study_design": outcome.row.study_design,
-        "category": EXCLUSION_CATEGORIES[outcome.exclusion_reason],
+        "category": controlled_exclusion_categories()[outcome.exclusion_reason],
         "reason": outcome.exclusion_reason,
         "detail": outcome.exclusion_detail,
         "resolver_status": record_status,
@@ -3175,12 +3146,16 @@ def render_validation_yaml(
         },
         "reference_overlap": dict(tables.reference_overlap),
         "store_composition": dict(tables.store_composition),
+        "quality_checks": {
+            name: summary.as_dict() for name, summary in tables.quality_checks.items()
+        },
         "reports": {
             "source_readiness": "sidecars/source_readiness.tsv",
             "ancestry": "sidecars/ancestry.tsv",
             "sd_estimation": "sidecars/sd_estimation.tsv",
             "exclusions": "sidecars/exclusions.tsv",
             "reference_overlap": "sidecars/reference_overlap.tsv",
+            "quality_checks": "sidecars/quality_checks.tsv",
         },
         "warnings": list(tables.warnings),
         "errors": list(tables.reference_overlap_errors),
@@ -3285,9 +3260,8 @@ __all__ = [
     "CandidateMetadata",
     "CandidateTables",
     "EXCLUSION_COLUMNS",
-    "EXCLUSION_REASONS",
-    "EAF_ORIENTATION_OUTCOMES",
     "HISTORICAL_RECEIPT_SCHEMA_VERSIONS",
+    "POLICY_EXCLUSION_CATEGORIES",
     "RECEIPT_FILENAME",
     "RECEIPT_KEYS",
     "RECEIPT_SCHEMA_VERSION",
@@ -3307,11 +3281,13 @@ __all__ = [
     "build_candidate_tables",
     "build_resolution_receipt",
     "compute_resolution_contract",
+    "controlled_exclusion_categories",
     "derive_resolver_manifest",
     "info_score_emission",
     "load_candidate_configuration",
     "maf_threshold_emission",
     "now_utc",
+    "parse_quality_check_overrides",
     "parse_store_composition",
     "read_candidate_metadata",
     "read_genotyping_technologies",

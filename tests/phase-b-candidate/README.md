@@ -66,7 +66,19 @@ alignment or SD — those stay OpenGWASDB's and are exercised upstream.
     `store_composition` block records what the gate saw; and toggling the rule
     changes no resolver manifest or resolution receipt, so the rule stays
     outside the resolution contract.
-13. **One vocabulary** — the workflow takes the super-population codes from
+13. **Quality Checks** (`test_quality_checks.py`, #285) — every measured
+    exclusion reason is declared by exactly one check with its kind and default
+    threshold; the policy over a fixture record set reproduces the pre-#285
+    `exclusions.tsv` and `analyses.tsv` decisions, pinned as literals derived
+    from the base branch's code; a warning check registered from the test
+    alone reaches `validation.yaml` and `sidecars/quality_checks.tsv` with no
+    policy change; the resolution receipt records the effective thresholds,
+    and changing an override or a shared default makes it stale; an
+    `invalid` measurement is recorded where it decides nothing and stops the
+    run where it would; an `unmeasured` exclusion refuses to include the
+    Analysis; and the sidecar has one row per Analysis, passing and excluded
+    alike.
+14. **One vocabulary** — the workflow takes the super-population codes from
     the contract (`ogstores.bundle`) and the imputation score kinds from
     Manifest Generation's rules (`generation_rules`), never its own copy (#250).
 
