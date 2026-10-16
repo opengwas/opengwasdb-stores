@@ -1,0 +1,206 @@
+# Source connectors and freeze
+
+How a Source Collection's connector files become a frozen Source Inventory.
+
+Governed by [ADR 0036](../adr/0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.md):
+a source plugs into Manifest Generation through files, never through code the
+pipeline calls. This specification covers the two connector files that meet at
+**freeze** -- the **Source Metadata Table** (what the collection intends) and
+the **Acquisition Manifest** (what acquisition produced) -- the **Selection** a
+release config declares, and the frozen Source Inventory freeze writes (#283).
+The Column Map and the release config are specified with the tickets that build
+them (#292, #287).
+
+| Contract | Owner |
+|---|---|
+| Source Metadata Table | `src/manifest_generation/source_metadata_table.py` |
+| Acquisition Manifest | `src/manifest_generation/acquisition_manifest.py` |
+| Connector file shape (reader, writer, errors) | `src/manifest_generation/connector_tsv.py` |
+| Selection | `src/manifest_generation/selection.py` |
+| Freeze and the frozen Source Inventory | `src/manifest_generation/freeze.py` |
+| Inventory columns and readiness vocabulary | `src/manifest_generation/source_inventory.py`, documented in [`resources/inventories/README.md`](../../resources/inventories/README.md) |
+
+## Connector files
+
+Both connector files are machine-written, tab-separated, UTF-8, with a header
+row and no quoting. They share one reader and one writer:
+
+- an unknown column, a missing required column, or a column named twice is
+  refused, by the reader and by the writer alike;
+- a ragged row, a value padded with whitespace and an empty file are refused,
+  never trimmed or skipped;
+- values are carried verbatim;
+- one refusal names every problem found, up to twenty.
+
+Every refusal is a `FreezeError` (an `InventoryError`), with one subclass per
+input: `SourceMetadataTableError`, `AcquisitionManifestError`,
+`SelectionError`, and `ReconciliationError` for freeze's own checks.
+
+## Source Metadata Table
+
+One row per intended Analysis, in one canonical set of columns whatever the
+Source Provider, written by the collection's metadata adapter. Its rows are the
+intended membership. Only `source_analysis_id` is required; every other column
+may be absent from the header, and a blank cell means the source supplied no
+value -- never zero and never a default.
+
+| Column | Required | Vocabulary or form | Description |
+|---|---:|---|---|
+| `source_analysis_id` | Yes | unique | Source Analysis ID: the upstream accession (`GCST…`). Becomes the Source Inventory's `analysis_id`. |
+| `source_trait_label` | No | text | Source Trait Label, verbatim. Becomes the inventory's `trait`. Blank when the source supplies none (one GWAS Catalog study does). |
+| `source_trait_id` | No | text | Source Trait ID, when the source has one (a FinnGen phenocode). |
+| `source_trait_ontology_id` | No | text | The source's own ontology term(s) for the Trait, verbatim: a CURIE, a URI, or a comma-separated list. Normalising it is Trait Ontology Mapping's job (#286). |
+| `source_trait_ontology_label` | No | text | The source's label for that term. Refused without `source_trait_ontology_id`. |
+| `source_ancestry_label` | No | text | Source Ancestry Label, verbatim provenance (`European`, `Multiple/Mixed`). Never Assigned Ancestry. |
+| `source_superpopulation` | No | `ogstores.bundle.SUPERPOPULATIONS`: `AFR` `AMR` `EAS` `EUR` `MID` `NAF` `SAS` | The super-population the source declares, or its label's translation through the tracked `source_label_map.tsv`. Blank for a label `source_label_imprecise.tsv` lists as deliberately imprecise. A Selection may name it; it never sets Assigned Ancestry. |
+| `study_design` | No | `quantitative`, `case-control` | The trait type. The release config keys its method tiers by it (`defaults.by_study_design`), and the inventory carries it. |
+| `declared_effect_scale` | No | OpenGWASDB `StoredEffectScale`: `sd`, `log_or`, `log_hazard` | An effect scale the source declares. Blank when it declares none: the release's method tier decides. |
+| `sample_size` | No | non-negative decimal | Source total sample size. Becomes the inventory's `sample_size`. |
+| `n_cases`, `n_controls` | No | non-negative decimal | Case and control counts. Refused unless `study_design` is `case-control`: a zero count where counts do not apply is the absence-vs-zero confusion `bundle.check()` refuses (#133). |
+| `source_genome_build` | No | `GRCh37`, `GRCh38` | Genome build of the source coordinates, when the source states it per Analysis, in the spelling every Release Bundle's `source_genome_build` uses. A collection-wide build is the release config's default instead. |
+| `publication_pmid` | No | positive integer | Publication Metadata. Becomes the inventory's `publication_pmid`. |
+| `publication_doi`, `first_author`, `consortium` | No | text | Publication Metadata. |
+| `license` | No | text | Source License, when the source states it per Analysis. A collection-wide licence is the release config's default instead. |
+| `store_key` | No | text | A provider-side curation's proposed Store grouping (GWAS Catalog: `ebi-studies.r`'s `store_key`). Present so a Selection can name it. |
+| `target_assay_id` | No | text | Target annotation for an Analysis of one molecular target: the assay identifier (Sun 2018: the SomaScan SeqId, `5227-60`). |
+| `target_symbol` | No | text | The target's gene symbol (`PDK1`). |
+| `target_ensembl_gene_id` | No | `ENSG` + 11 digits, optional `.version` | The target's Ensembl gene. |
+| `target_chromosome`, `target_start`, `target_end` | No | `1`–`22`, `X`, `Y`, `MT`; positive integers, start ≤ end | The target gene's span on the source build. All three or none. |
+| `tissue`, `context` | No | text | The measured tissue and assay context (`plasma`, `SomaScan`), as in `analyses.tsv`. |
+
+The target columns are annotation, never a Trait Ontology Mapping: a gene is
+not the Trait (issue #141).
+
+## Acquisition Manifest
+
+What acquisition produced for a Source Collection: one row per Analysis it
+acquired a file for, or tried to and could not. It records availability, never
+intent. A row with a non-ready `status` records *why* acquisition has no usable
+file for that Analysis -- an explained absence (see Freeze).
+
+| Column | Required | Description |
+|---|---:|---|
+| `source_analysis_id` | Yes, every row | The Analysis the file was acquired for: its claim. Unique. |
+| `status` | Yes, every row | The readiness vocabulary of `source_inventory.py`: `ok` and `already_present` are ready; `missing_remote_harmonised_yaml`, `header_rejected`, `metadata_rejected`, `data_absent_upstream`, `data_failed`, `yaml_failed`, `dry_run` and `error` record why there is no usable file. An unknown status is refused. |
+| `location` | Column yes; value on every ready row | The exact local path acquisition wrote. Becomes the inventory's `data_file`. |
+| `bytes` | Column yes; value on every ready row | The file's size in bytes, with no leading zero. Becomes `data_bytes`. |
+| `sha256` | Column yes; value on every ready row | The file's lower-case sha256. |
+| `source_url` | No | Where the file was fetched from. Becomes `data_url`. |
+| `sidecar_location`, `sidecar_url`, `sidecar_bytes` | No | A per-Analysis metadata file acquisition fetched with it (GWAS-SSF `-meta.yaml`). Become `yaml_file`, `yaml_url`, `yaml_bytes`. |
+| `error` | No | The acquisition error, when there was one. |
+| `original_location`, `original_sha256`, `reformat_tool` | No; all three or none | Lineage of a file acquisition reformatted because no reader or Column Map could read the provider's original -- splitting one file into one per Analysis, say: the original's path and sha256 and the tool, with its version, that reformatted it. Only on a ready row. |
+
+A duplicate `source_analysis_id` is refused, and so is a file -- a `location`
+or `sidecar_location` -- claimed by two rows.
+
+**One row per Analysis is one file per Analysis.** A file several Analyses
+share, such as eQTLGen's BESD file set, cannot be recorded today: it is refused
+as a duplicate file. #291 extends the manifest when eQTLGen moves onto the
+pipeline.
+
+### Pass lineage
+
+An acquisition writer may record the passes a manifest was written from in
+`<manifest-stem>.meta.yaml` beside it (`acquisition_manifest.pass_lineage_path`).
+Freeze checksums that file into the inventory's provenance when it exists.
+
+## Selection
+
+A release config declares exactly one form in its `selection` block:
+
+```yaml
+selection:
+  all: true                        # every row of the Source Metadata Table
+```
+
+```yaml
+selection:
+  analyses: [GCST000028, GCST90006908]   # an explicit list
+```
+
+```yaml
+selection:
+  where:                           # a rule: AND over canonical columns
+    store_key: hybrid__European    #   a value is equality
+    study_design: [quantitative, case-control]   # a list is membership
+```
+
+Rule values are strings or integers, compared with the cell's text; a blank
+cell matches nothing. A rule column must be canonical and carried by the table.
+Refused: a list naming an Analysis the table does not intend or naming one
+twice, a Selection that selects nothing, two forms at once, and an empty
+Selection. There is no negation, range or OR: anything a rule cannot say is
+said with a list.
+
+**The legacy grammar.** Today's generator configs carry a `selection` block in
+an older grammar (`store_key`, `ancestry_group`, `study_design`,
+`n_analyses`, `mode`, `pubmed_id`, `binary_count`, `probe_ids`,
+`fail_if_target_unresolved`). It is recognised and refused by name, never read
+as a rule: #287 migrates every release config to the forms above.
+
+## Freeze
+
+```sh
+python3 -m manifest_generation.freeze \
+  --source-metadata-table T --acquisition-manifest M \
+  --selection CONFIG --snapshot-id ID --source-collection-id C --out-dir DIR
+```
+
+reads only the two connector files and the Selection. It lists no directory
+and opens no source file, so an unrecorded file on disk changes nothing. It
+fails (`ReconciliationError`) on:
+
+- a selected Analysis with no Acquisition Manifest row -- no file and no
+  recorded reason there is none;
+- an Acquisition Manifest row no Analysis in the table claims;
+
+and a duplicate Analysis or file is refused when either connector loads.
+
+A selected Analysis whose row has a non-ready `status` is an **explained
+absence**: it stays in the inventory as a non-ready row with its `error`, as
+every Source Inventory has kept unavailable inputs, and never becomes a release
+member. A row claimed by an Analysis the Selection leaves out is counted, not
+frozen.
+
+It writes four files into `DIR` and never overwrites any of them -- a
+re-freeze is a new snapshot id:
+
+| File | Content |
+|---|---|
+| `ID.tsv` | The Source Inventory: one row per selected Analysis, sorted by `analysis_id`, in the inventory columns. `publication_pmid`, `trait`, `study_design` and `sample_size` come from the table, the rest from the manifest. |
+| `ID.source-metadata.tsv` | The frozen Source Metadata Table: the selected rows, verbatim, in the original's columns. |
+| `ID.acquisition-manifest.tsv` | The frozen Acquisition Manifest: the selected Analyses' rows, verbatim, in the original's columns. |
+| `ID.meta.yaml` | The provenance, written last. |
+
+Later generation reads the frozen connectors, never the originals:
+`freeze.load_frozen_connectors(ID.meta.yaml)` checks each against its recorded
+sha256 and loads it, and the frozen files alone reproduce the inventory.
+
+### Provenance
+
+The sidecar keeps the counts preflight re-checks, computed by
+`source_inventory.inventory_counts` for both freezes, and records:
+
+| Key | Description |
+|---|---|
+| `snapshot_id`, `source_collection_id`, `frozen_at` | Identity. |
+| `frozen_by` | `manifest_generation.freeze`. |
+| `selection` | The Selection declaration, as written in the release config. |
+| `rows`, `readiness_counts`, `ready_rows`, `ready_bytes`, `study_design_counts`, `ready_study_design_counts`, `duplicate_content_groups` | The inventory's counts. Duplicate-content groups -- ready Analyses whose files share one sha256 -- are reported for review, never collapsed. |
+| `inventory_tsv_sha256` | Binds the sidecar to `ID.tsv`. |
+| `source_metadata_table.frozen` | `path` (relative to the sidecar), `sha256`, `bytes`, `rows` of the frozen table. |
+| `source_metadata_table.original` | `path`, `sha256`, `bytes`, `rows` of the table freeze read. |
+| `acquisition_manifest.frozen` | The same, for the frozen manifest. |
+| `acquisition_manifest.original` | `path`, `sha256`, `bytes`, `rows`, `readiness_counts` of the manifest freeze read, and `pass_lineage`: the `path` and `sha256` of its pass lineage, or null when it has none. |
+| `acquisition_manifest.unselected_entries` | Rows claimed by Analyses the Selection leaves out. |
+| `lineage` | One entry per selected reformatted file: `analysis_id` and its lineage. |
+
+`manifest_generation.inventory freeze` (the candidate-table freeze) and the
+ukb-b reconciliation are not used by this path. The first stays until #287
+moves GWAS Catalog onto the shared freeze; ukb-b's goes in #289.
+
+## Open points
+
+- **Pilot prefixes (#287).** Pilot configs select a deterministic prefix with
+  `n_analyses`. The Selection grammar has no such form: #287 either writes the
+  prefix out as an `analyses` list or adds a form.

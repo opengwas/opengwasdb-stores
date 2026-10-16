@@ -26,11 +26,11 @@ The organisation or repository Source Collections come from, such as the GWAS Ca
 _Avoid_: host, repository (as a separate concept), source
 
 **Source Inventory**:
-The frozen reconciliation, for one Selection, of the Analyses a Source Collection intends (its Source Metadata Table) against the files acquisition produced (its Acquisition Manifest): each selected Analysis with its source IDs, location, checksum, size and readiness. Freezing fails loudly on a selected Analysis with no file, a file no Analysis claims, or a duplicate; a directory listing is never the intent.
+The frozen reconciliation, for one Selection, of the Analyses a Source Collection intends (its Source Metadata Table) against the files acquisition produced (its Acquisition Manifest): each selected Analysis with its source IDs, location, checksum, size and readiness. Freezing fails loudly on a selected Analysis with no file, a file no Analysis claims, or a duplicate; a directory listing is never the intent. A selected Analysis whose Acquisition Manifest row records why no file could be acquired is an explained absence, not a missing file: it stays in the Source Inventory as a non-ready row and never becomes a release member. The selected rows of both connector files are frozen beside the inventory.
 _Avoid_: release manifest, store manifest, discovered file list
 
 **Acquisition Manifest**:
-What acquisition produced for a Source Collection: each file fetched, extracted or converted, with its location, size and checksum. It records what is available, never what is intended. A file acquisition had to reformat before any reader could open it -- a structural change a Column Map cannot express, such as splitting one file into one per Analysis -- also records the original it came from, with that original's location and checksum and the tool that reformatted it, so a Release Bundle traces back to what the provider published.
+What acquisition produced for a Source Collection: each file fetched, extracted or converted, with its location, size and checksum. It records what is available, never what is intended. A row may instead record why a file could not be acquired, with a non-ready readiness status and the error, so freeze can tell an explained absence from a silent one. A file acquisition had to reformat before any reader could open it -- a structural change a Column Map cannot express, such as splitting one file into one per Analysis -- also records the original it came from, with that original's location and checksum and the tool that reformatted it, so a Release Bundle traces back to what the provider published.
 _Avoid_: download log, source inventory
 
 **Selection**:
