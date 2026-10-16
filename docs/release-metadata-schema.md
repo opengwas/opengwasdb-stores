@@ -643,7 +643,9 @@ master list. See `bundle.summarise()` and [ADR 0014](adr/0014-release-manifest-b
 
 Generated evidence lives under `sidecars/` inside the bundle. Sidecars are
 Phase B outputs; `bundle.check()` does not validate their fields, so a Manifest
-Generator is responsible for emitting them consistently.
+Generator is responsible for emitting them consistently. The one exception is
+the [Quality Check sidecar](#quality-check-sidecar), which is part of the
+Release Bundle contract: optional, but validated whenever it is present.
 
 ### Ancestry sidecar
 
@@ -736,6 +738,49 @@ reason. The same reason is carried in the excluded `analyses.tsv` row's
 | `detail` | No | The concrete evidence (assigned ancestry, gate reason, resolver error, missing field). |
 | `resolver_status` | No | The resolver record's status (`success`, `controlled_failure`, or `missing`). |
 | `exclude_from_build` | Yes | Always `true`; the exclusion is enforced at build time per [ADR 0025](adr/0025-registry-filters-excluded-analyses.md). |
+
+### Quality Check sidecar
+
+Suggested path: `sidecars/quality_checks.tsv`. Written by the candidate
+workflow (issue #285; [ADR 0036](adr/0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.md)).
+One row per ready Analysis, included or excluded, in `analyses.tsv` order: a
+Quality Check's measurement is recorded whether the Analysis passes or not, and
+whether or not that check decided its membership.
+
+A **Quality Check** tests one measurement of an Analysis against a threshold,
+or, for a status, against the values it accepts. Its consequence is fixed when
+the check is declared (`src/manifest_generation/quality_checks.py`): an
+**exclusion** makes the Analysis an `exclude_from_build` audit row with the
+check's reason (see the exclusions sidecar), and a **warning** keeps it and
+records the finding. Every registered check is evaluated for every Analysis.
+
+| Field | Required | Description |
+|---|---:|---|
+| `analysis_id` | Yes | Registry Analysis ID matching `analyses.tsv`. |
+| `exclude_from_build` | Yes | `true` when the Analysis is an audit row, empty when included; as in `analyses.tsv`. |
+| `exclusion_reason` | No | The reason that decided the exclusion, whether a Quality Check's or release policy's; empty when included. |
+| `<check>` | Yes | The check's result, one of: `passed`; `failed`; `not_applicable`, the check does not apply to this Analysis (a phenotype SD on a `log_or` scale), decided before anything is measured, so it wins over `unmeasured`; `unmeasured`, there is no measurement to test (a record check without a successful Resolution Record); `invalid`, the measurement breaks its contract (an unknown `eaf_orientation`, a non-numeric SD), recorded on an Analysis an earlier rule already excluded. |
+| `<check>_measured` | No | The measurement the result is based on, as the check renders it; empty when there is none. |
+
+**Contract.** The sidecar is an optional Release Bundle contract file
+([ADR 0036](adr/0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.md):
+the contract grows per-Analysis Quality Check results). A bundle without it is
+valid; every bundle emitted before #285 has none. When it is present,
+`bundle.check()` (`_check_quality_checks`) requires:
+
+- the columns `analysis_id`, `exclude_from_build`, `exclusion_reason`, then
+  one `<check>`, `<check>_measured` pair per check, at least one, with no check
+  named twice;
+- one row per `analyses.tsv` Analysis, excluded audit rows included, in the
+  same order, and no other row;
+- every `<check>` value in the result vocabulary above;
+- `exclude_from_build` exactly `true` or empty, agreeing with `analyses.tsv`;
+  `exclusion_reason` non-empty exactly when excluded, and, when
+  `sidecars/exclusions.tsv` is present, equal to its `reason` for that
+  Analysis.
+
+Store Release Build never reads it: membership is already decided in
+`analyses.tsv` (`tests/packaging/test_boundary.py` holds this).
 
 ### Sparse-region sidecar
 
