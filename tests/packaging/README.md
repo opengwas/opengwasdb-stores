@@ -1,7 +1,8 @@
 # Packaging and suite discovery
 
-Tests for #257: the repository's Python code installs editable into the pixi
-environments (`pyproject.toml`), and the test runner finds the suites itself.
+Tests for #257 and #249: the repository's Python code installs editable into
+the pixi environments (`pyproject.toml`), the test runner finds the suites
+itself, and the two workflows meet only at the Release Bundle.
 
 Covered:
 - `test_discovery.py` checks `resources/scripts/run_all_tests.py`:
@@ -17,9 +18,27 @@ Covered:
 - `test_imports.py`: no tracked Python file, and not the Snakefile, inserts
   the repository root or `src/` into `sys.path`. That includes inserts
   through a loop over a literal tuple, and `src/` handed to a subprocess
-  through `PYTHONPATH`. Inserting a script's own directory is #249's to
-  retire.
+  through `PYTHONPATH`. Manifest Generation code (`src/manifest_generation`,
+  `resources/generators`) and the tests go further (#249): they insert
+  nothing into `sys.path`, not even a script's own directory, and load no
+  module by file path (`spec_from_file_location`, `SourceFileLoader`,
+  `runpy.run_path`). The few tests of scripts that are not generation code
+  and cannot be imported are listed, each with its reason, in
+  `EXEMPT_TESTS`, and an exemption that is no longer needed fails.
+- `test_boundary.py` (#249, ADR 0035): Store Release Build (`src/ogstores`,
+  `workflow/Snakefile`, `workflow/release.py`) neither imports Manifest
+  Generation (`manifest_generation`, `resources`) nor runs it by module or
+  path, and the Snakefile `include:`s neither `generate.smk` nor anything
+  under `manifest_generation` or `resources/generators`. `manifest_generation`
+  is installed from this checkout, and imports from `ogstores` only
+  `CONTRACT_AND_SHARED_LAYOUT`: the Release Bundle contract (`bundle`) and the
+  registry layout it shares (`paths`, `index`). Each scanner has a positive
+  control.
+- `test_packages.py` (#249): `pyproject.toml`'s package list equals the
+  directories under `src/manifest_generation` that hold an `__init__.py`, and
+  every directory of Python there is a package, except `pilot/guard` (a
+  `sitecustomize.py` copied onto a resolver child's `PYTHONPATH`).
 
 ```sh
-pixi run test --suite packaging/discovery --suite packaging/imports
+pixi run test --suite packaging/discovery --suite packaging/imports --suite packaging/boundary --suite packaging/packages
 ```

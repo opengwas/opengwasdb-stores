@@ -41,7 +41,7 @@ import yaml
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
-from resources.generators.lib.source_inventory import (  # noqa: E402
+from manifest_generation.source_inventory import (  # noqa: E402
     ACQUISITION_MANIFEST_COLUMNS,
     CANDIDATE_COLUMNS,
     INVENTORY_COLUMNS,
@@ -1095,12 +1095,9 @@ class TestCommandLine(SourceInventoryTestCase):
 
     def setUp(self) -> None:
         super().setUp()
-        import importlib.util
+        from manifest_generation import inventory
 
-        path = REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/inventory.py"
-        spec = importlib.util.spec_from_file_location("gwas_catalog_eur_hybrid_inventory", path)
-        self.cli = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(self.cli)
+        self.cli = inventory
 
     def run_cli(self, *argv: str) -> tuple[int, str]:
         buffer = io.StringIO()

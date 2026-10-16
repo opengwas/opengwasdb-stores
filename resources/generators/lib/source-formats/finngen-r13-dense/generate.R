@@ -76,7 +76,7 @@ write_build_yaml <- function(cfg, root, release_dir) {
 }
 
 update_schema_check <- function(release_dir, root) {
-  schema <- validate_against_opengwasdb_schema(file.path(release_dir, "analyses.tsv"), root)
+  schema <- validate_against_opengwasdb_schema(file.path(release_dir, "analyses.tsv"))
   validation_path <- file.path(release_dir, "validation.yaml")
   validation <- if (file.exists(validation_path)) read_yaml(validation_path) else list(checks = list())
   if (is.null(validation$checks)) validation$checks <- list()
@@ -193,7 +193,8 @@ emit_bundle <- function(cfg, root, config_path) {
 # --- Registry Release Bundle emission -------------------------------------
 #
 # The emit mode above writes a family-shaped working bundle into the work root,
-# <artifact-root>/<store-id>/generate, which `acquire.py` turns into
+# <artifact-root>/<store-id>/generate, which the FinnGen acquirer
+# (`python3 -m manifest_generation.providers.finngen.acquire`) turns into
 # checksummed sources. `emit-registry` projects the current contract from it
 # without re-resolving a row and emits it through the one emitter
 # (resources/generators/lib/emit_registry.R, #248), so it can be re-run after
@@ -203,7 +204,7 @@ emit_registry_bundle <- function(cfg, root) {
   analyses_path <- file.path(cfg$.work_root, "analyses.tsv")
   if (!file.exists(analyses_path)) {
     stop("acquired analyses.tsv not found: ", analyses_path,
-         " (run --mode=emit then acquire.py first)")
+         " (run --mode=emit, then python3 -m manifest_generation.providers.finngen.acquire)")
   }
   analyses <- fread(analyses_path, sep = "\t", na.strings = "",
                     colClasses = list(character = "exclude_from_build"))
@@ -212,15 +213,16 @@ emit_registry_bundle <- function(cfg, root) {
   # provenance into an accepted bundle.
   missing_checksum <- analyses[is.na(checksum) | checksum == ""]$analysis_id
   if (length(missing_checksum)) {
-    stop("--mode=emit-registry requires acquired checksums; run acquire.py first. Missing: ",
+    stop("--mode=emit-registry requires acquired checksums; run ",
+         "python3 -m manifest_generation.providers.finngen.acquire first. Missing: ",
          paste(head(missing_checksum, 5), collapse = ", "))
   }
 
-  # acquire.py logs nothing into the working bundle, so its step is recorded
+  # The acquirer logs nothing into the working bundle, so its step is recorded
   # here, symbolically: an artifact root is never committed into a bundle.
   acquire <- paste(
-    "python resources/generators/lib/source-formats/finngen-r13-dense/acquire.py",
-    sprintf('--release-dir="$(python3 resources/generators/lib/emit.py work-root %s)"', cfg$output$store_id),
+    "python3 -m manifest_generation.providers.finngen.acquire",
+    sprintf('--release-dir="$(python3 -m manifest_generation.emit work-root %s)"', cfg$output$store_id),
     "--workers=8"
   )
   manifest_path <- path_abs(root, cfg$source$manifest_path)
@@ -247,7 +249,7 @@ source(path_abs(root, "resources/generators/lib/emit_registry.R"))
 cfg <- read_yaml(path_abs(root, args$config))
 cfg$.config_path <- args$config
 # Resolved once: every mode reads and writes the working bundle there (#248).
-cfg$.work_root <- generation_work_root(cfg, root)
+cfg$.work_root <- generation_work_root(cfg)
 
 if (args$mode == "emit") {
   emit_bundle(cfg, root, args$config)

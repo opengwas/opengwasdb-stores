@@ -264,7 +264,7 @@ validate_emit <- function(cfg, root) {
     fwrite(buildable, temporary_schema_path, sep = "\t", na = "")
     schema_path <- temporary_schema_path
   }
-  schema <- validate_against_opengwasdb_schema(schema_path, root)
+  schema <- validate_against_opengwasdb_schema(schema_path)
   if (!is.null(temporary_schema_path)) unlink(temporary_schema_path)
   validation_path <- file.path(release_dir, "validation.yaml")
   validation <- if (file.exists(validation_path)) read_yaml(validation_path) else list(checks = list())
@@ -294,7 +294,7 @@ source(path_abs(root, "resources/generators/lib/emit_registry.R"))
 cfg <- read_yaml(path_abs(root, args$config))
 cfg$.config_path <- args$config
 # Resolved once: every mode reads and writes the working bundle there (#248).
-cfg$.work_root <- generation_work_root(cfg, root)
+cfg$.work_root <- generation_work_root(cfg)
 
 if (args$mode == "emit") {
   emit_bundle(cfg, root, args$max_analyses, args$only_analysis_id)

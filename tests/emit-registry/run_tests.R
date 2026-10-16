@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 # The shared R side of the one candidate emitter (#248): a legacy generator's
 # work root, and the projection of its working bundle into the current Release
-# Bundle contract through resources/generators/lib/emit.py.
+# Bundle contract through src/manifest_generation/emit.py.
 
 suppressPackageStartupMessages({
   library(yaml)
@@ -40,7 +40,7 @@ cfg <- list(
 )
 
 # The work root is <artifact-root>/<id>/generate, resolved by Python.
-work_root <- generation_work_root(cfg, root)
+work_root <- generation_work_root(cfg)
 check(identical(work_root, file.path(tmp, "artifacts", "OGS-99011", "generate")),
       "work root should be <artifact-root>/<id>/generate, got %s", work_root)
 
@@ -102,7 +102,7 @@ check(identical(readLines(release_p), accepted), "the accepted bundle should be 
 # A config without a Store Release id has no work root.
 no_id <- cfg
 no_id$output$store_id <- NULL
-missing <- tryCatch({ generation_work_root(no_id, root); NULL }, error = function(e) conditionMessage(e))
+missing <- tryCatch({ generation_work_root(no_id); NULL }, error = function(e) conditionMessage(e))
 check(!is.null(missing) && grepl("output.store_id", missing), "a missing output.store_id should be named")
 
 # Each legacy generator's --mode=emit-registry emits its working bundle through
@@ -121,7 +121,7 @@ for (format in names(generators)) {
   generator_cfg$output <- list(store_id = g$id, registry_root = registry_root)
   generator_cfg$build <- list(layout = g$layout, completion_state = "observed_only", command = g$command,
                               options = g$options, post = list(top_hits = FALSE, overview = FALSE))
-  generator_work <- generation_work_root(generator_cfg, root)
+  generator_work <- generation_work_root(generator_cfg)
   dir.create(generator_work, recursive = TRUE)
   file.copy(file.path(work_root, c("analyses.tsv", "validation.yaml")), generator_work)
   config_path <- file.path(tmp, paste0(format, ".yaml"))

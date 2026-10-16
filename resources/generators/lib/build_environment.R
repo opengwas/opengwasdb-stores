@@ -1,6 +1,6 @@
 # Build-environment provenance capture (issue #41), R side.
 #
-# Mirrors resources/generators/lib/build_environment.py: complements the existing
+# Mirrors src/manifest_generation/build_environment.py: complements the existing
 # generator-script-hash provenance with the software environment that
 # actually ran the generator (repo commit, pixi.lock hash, Pixi environment
 # name, tool versions). Best-effort — any field that can't be determined is

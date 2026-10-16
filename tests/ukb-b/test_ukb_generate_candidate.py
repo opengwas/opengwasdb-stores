@@ -15,30 +15,17 @@ Run from the repository root:
 from __future__ import annotations
 
 import csv
-import importlib.util
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
+import yaml
 
-def _load(name: str, path: Path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-import yaml  # noqa: E402
-
-from ogstores import bundle  # noqa: E402
-
-ukb_inventory = _load("ukb_inventory_test", REPO_ROOT / "resources" / "generators" / "ukb-b" / "inventory.py")
-candidate = _load("ukb_generate_candidate_test", REPO_ROOT / "resources" / "generators" / "ukb-b" / "generate_candidate.py")
+from manifest_generation.providers.ukb_b import generate_candidate as candidate
+from manifest_generation.providers.ukb_b import inventory as ukb_inventory
+from ogstores import bundle
 
 INVENTORY_COLUMNS = ukb_inventory.INVENTORY_COLUMNS
 
@@ -242,7 +229,7 @@ class UkbCandidateTest(unittest.TestCase):
         self.assertEqual(loaded.status, "candidate")
         self.assertEqual(
             loaded.release["generator"]["commands"],
-            ["python3 resources/generators/ukb-b/generate_candidate.py " + " ".join(argv)],
+            ["python3 -m manifest_generation.providers.ukb_b.generate_candidate " + " ".join(argv)],
         )
 
         # A candidate is re-emitted in place, not refused (#248).

@@ -4,9 +4,9 @@ This DAG sequences the five stages of one candidate Release Bundle:
 
     preflight -> resolver-manifest -> resolve -> verify -> finalise
 
-Every rule's shell is one `--stage` invocation of the same
-`resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py` entry point
-the operator runs through `pixi run generate-candidate`. The DAG carries no
+Every rule's shell is one `--stage` invocation of the same Manifest Generation
+entry point, `python3 -m manifest_generation.generate_candidate`, that the
+operator runs through `pixi run generate-candidate`. The DAG carries no
 selection, no source column name and no manifest translation; per ADR 0023 it
 only wires dependencies and resource requests.
 
@@ -18,10 +18,15 @@ resolver invocation that owns its own pool. `--resume` is passed through to that
 invocation, not to Snakemake, because the resolver's fingerprint-aware checkpoint
 is the authority on what can be reused.
 
-Run it with an explicit config file (see `workflow/README.md`):
+Run it with explicit `--config` values (see `workflow/README.md`); `config` is
+any candidate-workflow config:
 
     snakemake --snakefile workflow/generate.smk --cores 64 \
-      --configfile resources/generators/gwas-catalog-eur-hybrid/generate-candidate-fixture.yaml
+      --config store_id=OGS-00011 \
+               config=resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
+               snapshot_id=gwas-catalog-ssf-eur-hybrid-2026-09-22 \
+               work_root=/data/opengwasdb/work/gwas-catalog-eur-hybrid \
+               registry_root=stores
 
 Production operators should prefer `pixi run generate-candidate`, which needs no
 Snakemake environment; this DAG exists so a future multi-release batch can reuse
@@ -54,7 +59,7 @@ if _missing:
         + " ".join(f"{name}=<value>" for name in _missing)
     )
 
-CLI = "resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py"
+CLI = "-m manifest_generation.generate_candidate"
 RUN_ROOT = os.path.join(str(WORK_ROOT), str(STORE_ID))
 RESUME_FLAG = " --resume" if RESUME else ""
 COMMON = (

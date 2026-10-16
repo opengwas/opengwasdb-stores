@@ -81,7 +81,7 @@ promotion false, store_operations false, association_opens int 0,
 metadata_idempotent true, source_metadata_unchanged true, all-zero integer exit
 codes) — a missing field is a failure, not a skip. The parent's own content-hash
 algorithm is reproduced by the shared
-[`metadata_content_sha`](../lib/metadata_content_sha.py) helper over the frozen
+[`metadata_content_sha`](../../../src/manifest_generation/metadata_content_sha.py) helper over the frozen
 `gwas-ssf/*/GCST*/*` + `manifests/*.tsv` + `refresh-receipt.tsv` tree (symlinks
 recorded by target, regular files by sha256+size, data bodies never opened); the
 recomputed value must equal the config value and the receipt value before any
@@ -93,7 +93,7 @@ recorded as `resolution: pending`; no numerical source metric is invented from a
 sidecar, and `actual_completion` is `not_claimed`.
 
 All writes go through the shared
-[`safe_write`](../lib/safe_write.py) helper: the target and its `.partial` temp
+[`safe_write`](../../../src/manifest_generation/safe_write.py) helper: the target and its `.partial` temp
 must resolve inside the isolated output root, temps use exclusive `open("x")`,
 and a symlinked or existing final is refused. The emitter also refuses the
 registry `stores/` tree outright.
@@ -147,17 +147,17 @@ registry `stores/` tree outright.
 
 ```sh
 # Tracked definitions from the config (not bundles, not in stores/).
-python3 resources/generators/dbgap-mvp/generate_candidate.py definitions \
+python3 -m manifest_generation.providers.dbgap.mvp.generate_candidate definitions \
   --out-dir resources/generators/dbgap-mvp
 
 # Metadata-only plan: writes partition.tsv and candidate-plan.yaml, no bundles.
-python3 resources/generators/dbgap-mvp/generate_candidate.py plan \
+python3 -m manifest_generation.providers.dbgap.mvp.generate_candidate plan \
   --mapping /data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv \
   --out-dir /data/opengwasdb/work/epic232/221
 
 # Fixture/authorised emit only: requires a resolution table, writes to staging,
 # and runs bundle.check() and Manifest Generation's rules on every emitted bundle.
-python3 resources/generators/dbgap-mvp/generate_candidate.py emit \
+python3 -m manifest_generation.providers.dbgap.mvp.generate_candidate emit \
   --mapping .../mapping.tsv --resolution /path/to/resolution.tsv \
   --out-dir /data/opengwasdb/work/epic232/221
 ```

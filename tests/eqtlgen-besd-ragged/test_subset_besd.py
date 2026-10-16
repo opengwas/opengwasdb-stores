@@ -22,12 +22,10 @@ from tempfile import TemporaryDirectory
 
 import numpy as np
 
+from manifest_generation.providers.eqtlgen.subset_besd import write_besd_subset, write_besd_subset_from_analyses
+from opengwasdb.layouts.ragged.besd_reader import BESDReader, read_epi, read_esi
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "resources" / "generators" / "lib" / "source-formats" / "eqtlgen-besd-ragged"))
-
-from subset_besd import write_besd_subset, write_besd_subset_from_analyses  # noqa: E402
-
-from opengwasdb.layouts.ragged.besd_reader import BESDReader, read_epi, read_esi  # noqa: E402
 
 # --- Synthetic source fixture -------------------------------------------------
 # 4 SNPs, 3 probes:
@@ -142,9 +140,9 @@ def main() -> None:
 
         # --- command-line interface takes analyses.tsv, input, and output ---
         cli_dest = tmp_path / "subset_cli"
-        script = REPO_ROOT / "resources/generators/lib/source-formats/eqtlgen-besd-ragged/subset_besd.py"
         cli = subprocess.run(
-            [sys.executable, str(script), str(analyses), str(source), str(cli_dest)],
+            [sys.executable, "-m", "manifest_generation.providers.eqtlgen.subset_besd",
+             str(analyses), str(source), str(cli_dest)],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,

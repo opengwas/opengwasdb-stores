@@ -10,7 +10,7 @@
 # Membership comes from the frozen Source Inventory at
 # `source.inventory.path`, not from a glob over the acquisition mirror. Which
 # readiness values count as "has a verified source file" is owned by
-# `resources/generators/lib/source_inventory.py` (READY_STATUSES) rather than
+# `src/manifest_generation/source_inventory.py` (READY_STATUSES) rather than
 # restated here, so the vocabulary has one spelling.
 #
 # Acquisition is already done: the mirror under
@@ -140,7 +140,7 @@ source:
     snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-22
     path: resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv
     provenance_path: resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.meta.yaml
-    # Written by resources/scripts/download-ebi-gwas-catalog-eur-hybrid.py.
+    # Written by src/manifest_generation/providers/gwas_catalog/download_ebi_gwas_catalog_eur_hybrid.py.
     # The retry pass re-attempted the 99 transiently failed accessions; its rows
     # are authoritative for every analysis_id they cover.
     #

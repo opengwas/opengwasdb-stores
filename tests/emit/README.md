@@ -1,6 +1,6 @@
 # Candidate emitter
 
-Tests for `resources/generators/lib/emit.py`, the one emitter every Manifest
+Tests for `src/manifest_generation/emit.py`, the one emitter every Manifest
 Generator uses to write a candidate Release Bundle into the Store Registry
 (#248, ADR 0035's *Emit*). They run at its two interfaces: `emit()`, which the
 Python generators call, and its command line (`--from <dir> --command ...`),
@@ -44,7 +44,7 @@ Covered by `tests/emit/test_emit.py`:
   Nothing is guessed: a config missing its `build:` block, layout, `post`,
   label or access posture is refused. At a pinned `created_at`, a re-emit is
   byte-identical.
-- `emit.py work-root <id>` prints `<artifact-root>/<id>/generate`, honouring
+- `python3 -m manifest_generation.emit work-root <id>` prints `<artifact-root>/<id>/generate`, honouring
   `--artifact-root` over `OPENGWASDB_ARTIFACT_ROOT`; an invalid id has none.
 - No generator config names a `families/` path or a `release_dir`, and every
   legacy config names the Store Release id it emits.

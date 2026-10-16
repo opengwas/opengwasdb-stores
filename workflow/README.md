@@ -7,6 +7,11 @@ Two workflows, deliberately separate, meeting at the accepted Release Bundle.
 | `Snakefile` | Phase A | accepted bundle -> validated Store Release |
 | `generate.smk` | Phase B | frozen Source Inventory -> candidate bundle (coarse wiring; the operator entry point is `pixi run generate-candidate`) |
 
+Store Release Build is `Snakefile`, `release.py` and the `ogstores` package
+(`src/ogstores`). Manifest Generation is the `manifest_generation` package
+(`src/manifest_generation`), which `generate.smk` only wires. Store Release Build imports nothing from Manifest Generation; both
+may import the Release Bundle contract (`tests/packaging/test_boundary.py`).
+
 They share no DAG. The reason is not that one graph would be complex: the
 accepted bundle is a boundary *only because a human froze it*. Span both
 phases with one DAG and Snakemake will correctly, silently, regenerate a
@@ -84,9 +89,10 @@ See `docs/spec/store-release-workflow.md`.
 
 ## Phase B Operator Interface
 
-The Phase B candidate workflow (issue #153) is driven by
-`resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py`, exposed as
-one Pixi task:
+The candidate workflow (issue #153) is driven by the Manifest
+Generation entry point, `python3 -m manifest_generation.generate_candidate`
+(`src/manifest_generation/generate_candidate.py`), exposed as one Pixi task. It
+runs any candidate-workflow config:
 
 ```sh
 pixi run generate-candidate OGS-00011 \
@@ -95,15 +101,15 @@ pixi run generate-candidate OGS-00011 \
   --resume
 ```
 
-See the family README for the stage (`--stage`), resume, finalise and human-review
-details. `workflow/generate.smk` wires the same stages as an optional coarse DAG
+See `resources/generators/gwas-catalog-eur-hybrid/README.md` for the stage
+(`--stage`), resume, finalise and human-review details. `workflow/generate.smk` wires the same stages as an optional coarse DAG
 for a future multi-release batch:
 
 ```sh
 snakemake --snakefile workflow/generate.smk --cores 64 \
   --config store_id=OGS-00011 \
            config=resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
-           snapshot_id=gwas-catalog-ssf-eur-hybrid-2026-09-10 \
+           snapshot_id=gwas-catalog-ssf-eur-hybrid-2026-09-22 \
            work_root=/data/opengwasdb/work/gwas-catalog-eur-hybrid \
            registry_root=stores
 ```

@@ -1,9 +1,10 @@
 # Phase B candidate workflow test suite
 
 Test suite for the resumable Phase B candidate workflow (issue #153), owned by
-[`resources/generators/lib/candidate_workflow.py`](../../resources/generators/lib/candidate_workflow.py)
+[`src/manifest_generation/candidate_workflow.py`](../../src/manifest_generation/candidate_workflow.py)
 and driven by
-[`resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py`](../../resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py).
+[`src/manifest_generation/generate_candidate.py`](../../src/manifest_generation/generate_candidate.py)
+(`python3 -m manifest_generation.generate_candidate`, `pixi run generate-candidate`).
 See [`docs/spec/store-release-workflow.md`](../../docs/spec/store-release-workflow.md)
 (Phase B) and the family README for the operator workflow.
 

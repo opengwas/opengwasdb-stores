@@ -101,7 +101,7 @@ effect_scale_validation:
         (release / "validation.yaml").write_text("checks:\n  ancestry: not_run\n  effect_scale: not_run\n  sd_estimation: not_run\nreports: {{}}\nwarnings: []\n", encoding="utf-8")
 
         subprocess.run([
-            sys.executable, "resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/annotate.py",
+            sys.executable, "-m", "manifest_generation.providers.opengwas.annotate",
             f"--release-dir={release}",
         ], cwd=ROOT, check=True)
         analysis = read_rows(release / "analyses.tsv")[0]

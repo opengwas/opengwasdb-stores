@@ -2,7 +2,7 @@
 """Run the Release Bundle contract and Manifest Generation's rules over every registered bundle.
 
 The contract (`ogstores.bundle.check`) is what both workflows share; Manifest
-Generation's own rules (`resources.generators.lib.generation_rules`) are not
+Generation's own rules (`manifest_generation.generation_rules`) are not
 part of it, but every committed bundle came through a generator, so CI holds
 it to both (#250).
 """
@@ -13,7 +13,7 @@ import argparse
 from pathlib import Path
 
 from ogstores import bundle
-from resources.generators.lib import generation_rules
+from manifest_generation import generation_rules
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

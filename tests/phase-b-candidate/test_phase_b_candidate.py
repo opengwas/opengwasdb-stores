@@ -49,10 +49,10 @@ import yaml
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
-import resources.generators.lib.candidate_workflow as candidate_workflow  # noqa: E402
+import manifest_generation.candidate_workflow as candidate_workflow  # noqa: E402
 from ogstores import bundle as bundle_module  # noqa: E402
 from ogstores.plan import plan  # noqa: E402
-from resources.generators.lib.candidate_workflow import (  # noqa: E402
+from manifest_generation.candidate_workflow import (  # noqa: E402
     EXCLUSION_REASONS,
     RECEIPT_FILENAME,
     RESOLVER_MANIFEST_COLUMNS,
@@ -84,7 +84,7 @@ from resources.generators.lib.candidate_workflow import (  # noqa: E402
     validate_candidate_analyses,
     verify_records,
 )
-from resources.generators.lib.source_inventory import (  # noqa: E402
+from manifest_generation.source_inventory import (  # noqa: E402
     ACQUISITION_MANIFEST_COLUMNS,
     AcquisitionPass,
     SourceInventoryRow,
@@ -94,7 +94,7 @@ from resources.generators.lib.source_inventory import (  # noqa: E402
     write_snapshot,
 )
 
-CLI = REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py"
+CLI = ("-m", "manifest_generation.generate_candidate")
 FAKE_RESOLVER = Path(__file__).resolve().parent / "fixtures/fake_resolver.py"
 SNAKEMAKE = shutil.which("snakemake")
 STORE_KEY = "hybrid__European"
@@ -410,7 +410,7 @@ def _run_cli(
 ) -> subprocess.CompletedProcess:
     command = [
         sys.executable,
-        str(CLI),
+        *CLI,
         STORE_ID,
         "--config",
         str(fixture.config_path),
@@ -651,7 +651,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         commands = " ".join(release["generator"]["commands"])
         self.assertIn("resolve-analyses", commands)
         self.assertIn("--n-workers 1", commands)
-        self.assertIn("generate_candidate.py", commands)
+        self.assertIn("python3 -m manifest_generation.generate_candidate", commands)
         receipt_path = self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME
         self.assertEqual(
             release["source_snapshot"]["resolver_receipt_sha256"],
@@ -2628,7 +2628,7 @@ class SharedVocabularyTests(unittest.TestCase):
         self.assertIs(candidate_workflow.SUPERPOPULATIONS, bundle_module.SUPERPOPULATIONS)
 
     def test_info_score_vocabulary_comes_from_the_generation_rules(self) -> None:
-        from resources.generators.lib import generation_rules
+        from manifest_generation import generation_rules
 
         self.assertIs(candidate_workflow.INFO_SCORE_KINDS, generation_rules.INFO_SCORE_KINDS)
 

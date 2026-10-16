@@ -145,7 +145,7 @@ def main() -> None:
         writer.writeheader()
         writer.writerows(analyses)
 
-    # ancestry-assign.py mutates validation.yaml (and analyses.tsv, above) in
+    # ancestry_assign mutates validation.yaml (and analyses.tsv, above) in
     # place. Reset it to a pristine not_run baseline on every regeneration so
     # repeated test runs are idempotent rather than accumulating warnings
     # across invocations.

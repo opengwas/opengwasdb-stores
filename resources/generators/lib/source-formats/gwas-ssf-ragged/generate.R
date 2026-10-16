@@ -1129,7 +1129,7 @@ validate_emit <- function(cfg, root) {
     stop("trait_chr and trait_bp are required for every selected analysis")
   }
 
-  schema <- validate_against_opengwasdb_schema(analyses_path, root)
+  schema <- validate_against_opengwasdb_schema(analyses_path)
   if (!schema$passed) {
     merge_validation_checks(
       release_dir, list(schema = "failed", errors = schema$errors),
@@ -1226,7 +1226,7 @@ source(path_abs(root, "resources/generators/lib/emit_registry.R"))
 cfg <- read_yaml(path_abs(root, args$config))
 cfg$.config_path <- args$config
 # Resolved once: every mode reads and writes the working bundle there (#248).
-cfg$.work_root <- generation_work_root(cfg, root)
+cfg$.work_root <- generation_work_root(cfg)
 
 if (args$mode == "emit") {
   emit_bundle(cfg, root)

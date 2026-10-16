@@ -16,9 +16,9 @@ suppressPackageStartupMessages(library(data.table))
 
 `%||%` <- function(x, y) if (is.null(x) || length(x) == 0 || (length(x) == 1 && is.na(x))) y else x
 
-phenotype_sd_bridge <- normalizePath(
-  "resources/generators/lib/phenotype_sd_estimate.py", winslash = "/", mustWork = FALSE
-)
+# The Python bridge is a module of the installed Manifest Generation package
+# (#249), so it runs as `python3 -m`, from any working directory.
+phenotype_sd_bridge <- c("-m", "manifest_generation.phenotype_sd_estimate")
 
 # ---------------------------------------------------------------------------
 # Reference AF resource access

@@ -12,23 +12,16 @@ Run from the repository root:
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MODULE_PATH = REPO_ROOT / "resources" / "generators" / "ukb-b" / "inventory.py"
 
-_spec = importlib.util.spec_from_file_location("ukb_inventory", MODULE_PATH)
-assert _spec and _spec.loader
-ukb = importlib.util.module_from_spec(_spec)
-sys.modules["ukb_inventory"] = ukb
-_spec.loader.exec_module(ukb)
+from manifest_generation.providers.ukb_b import inventory as ukb
 
 DECLARED_COLUMNS = (
     "analysis_id",

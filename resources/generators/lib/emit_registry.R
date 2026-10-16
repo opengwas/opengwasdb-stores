@@ -2,7 +2,8 @@
 ##
 ## A legacy generator keeps its working bundle, the family-shaped files its
 ## modes read and write, under its work root: <artifact-root>/<store-id>/generate.
-## Both helpers here ask resources/generators/lib/emit.py, so the artifact-root
+## Both helpers here ask the Python emitter (`python3 -m manifest_generation.emit`,
+## #249), so the artifact-root
 ## precedence (paths.artifact_root) and the projection into the current Release
 ## Bundle contract are each written once, in Python. The emitter checks the
 ## contract, records `status: candidate` and the generator commands, writes
@@ -10,24 +11,24 @@
 
 suppressPackageStartupMessages(library(yaml))
 
-.run_emit_py <- function(root, args) {
+.run_emit_py <- function(args) {
   # system2 hands its arguments to a shell, so each is quoted: a command log
   # entry holds spaces.
-  emit_py <- file.path(root, "resources", "generators", "lib", "emit.py")
-  out <- suppressWarnings(system2("python3", shQuote(c(emit_py, args)), stdout = TRUE, stderr = TRUE))
+  out <- suppressWarnings(system2("python3", shQuote(c("-m", "manifest_generation.emit", args)),
+                                  stdout = TRUE, stderr = TRUE))
   status <- attr(out, "status")
   list(ok = is.null(status) || status == 0L, output = out)
 }
 
 ## <artifact-root>/<output.store_id>/generate, where a generator keeps its working files.
-generation_work_root <- function(cfg, root) {
+generation_work_root <- function(cfg) {
   store_id <- cfg$output$store_id
   if (is.null(store_id) || !nzchar(store_id)) {
     stop("output.store_id is required: a generator's work root is <artifact-root>/<store-id>/generate",
          call. = FALSE)
   }
-  result <- .run_emit_py(root, c("work-root", store_id))
-  if (!result$ok) stop("emit.py work-root failed:\n", paste(result$output, collapse = "\n"), call. = FALSE)
+  result <- .run_emit_py(c("work-root", store_id))
+  if (!result$ok) stop("manifest_generation.emit work-root failed:\n", paste(result$output, collapse = "\n"), call. = FALSE)
   result$output[[length(result$output)]]
 }
 
@@ -58,7 +59,7 @@ emit_registry <- function(cfg, root, script, also_ran = character(), source_snap
     write_yaml(source_snapshot, snapshot_path)
     args <- c(args, "--source-snapshot", snapshot_path)
   }
-  result <- .run_emit_py(root, args)
+  result <- .run_emit_py(args)
   if (!result$ok) stop(paste(result$output, collapse = "\n"), call. = FALSE)
   cat(result$output, sep = "\n")
   invisible(TRUE)

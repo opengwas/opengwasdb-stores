@@ -101,7 +101,7 @@ class TestBundleContract(unittest.TestCase):
     def test_manifest_generation_rules_are_not_the_contracts(self) -> None:
         """Manifest Generation's rules are its own (#250).
 
-        `resources/generators/lib/generation_rules.py` requires the columns a
+        `src/manifest_generation/generation_rules.py` requires the columns a
         generator resolves, and checks the INFO and MAF requests on every row;
         the emitter and `bundle-check` run it beside the contract. The contract
         checks a request only where the shared Analysis schema does, on the

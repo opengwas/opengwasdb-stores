@@ -21,7 +21,7 @@ from pathlib import Path
 import yaml
 
 from ogstores import bundle
-from resources.generators.lib import generation_rules
+from manifest_generation import generation_rules
 
 HEADER = (
     "analysis_id\tstored_effect_scale\tsample_size_kind\tsample_size_scope\tsample_size\t"

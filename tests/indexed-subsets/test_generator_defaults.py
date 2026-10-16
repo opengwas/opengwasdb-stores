@@ -22,7 +22,7 @@ from pathlib import Path
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
-from resources.generators.lib.indexed_subsets import (  # noqa: E402
+from manifest_generation.indexed_subsets import (  # noqa: E402
     IndexedSubsetConfigError,
     default_hm3_declaration,
     resolve_indexed_subsets,

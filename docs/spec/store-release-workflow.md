@@ -215,7 +215,7 @@ Running them at build time would make Phase A mutate its own input, and the acce
 
 Effect-scale validation is additionally an *acceptance* decision rather than a build step. `finngen-r13/r13-pilot-20` is the worked case: effect-scale validation failed for `HEIGHT_IRN` (implied phenotype SD 0.665 against declared-standardised provenance) while the Store itself built and passed `opengwasdb validate`, and the pilot recorded a NO-GO. A check that can veto a release has to run before thirteen hours are spent, not after.
 
-Phase A keeps a cheap residual role: `bundle.check()` asserts the shared required columns are present through `opengwasdb.model.analyses`, and `assigned_ancestry` is vocabulary-valid wherever it appears. That `assigned_ancestry` is present is Manifest Generation's own rule (`resources/generators/lib/generation_rules.py`, #250), which `bundle-check` runs beside the contract. Asserting presence is structural validation; recomputing the values is not.
+Store Release Build keeps a cheap residual role: `bundle.check()` asserts the shared required columns are present through `opengwasdb.model.analyses`, and `assigned_ancestry` is vocabulary-valid wherever it appears. That `assigned_ancestry` is present is Manifest Generation's own rule (`src/manifest_generation/generation_rules.py`, #250), which `bundle-check` runs beside the contract. Asserting presence is structural validation; recomputing the values is not.
 
 The one thing Phase A writes is the **derived build manifest** under the artifact root (`work/analyses.tsv`), which drops `exclude_from_build` audit rows. It is not the bundle's `analyses.tsv` and it writes no column back into the bundle: the accepted input stays byte-identical, and the derived file is a projection of the registry's own selection decision, not a recomputation of Analytical Metadata (ADR 0025).
 
@@ -806,7 +806,7 @@ Two consequences are contract, not incidental:
 
 ## Phase B — what produces a bundle
 
-Phase B generation runs as per-source-format Manifest Generator scripts under `resources/generators/`, and each Release Bundle records the commands it ran in `release.yaml:generator.commands`. The GWAS Catalog eur-hybrid family now has an implemented, resumable candidate workflow (`resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py`, issue #153); `workflow/generate.smk` wires its stages as an optional coarse DAG. The five rules below fix that boundary; everything inside it is open.
+Manifest Generation is the `manifest_generation` package under `src/manifest_generation/` (#249): the shared candidate workflow and emitter at its root, per-Source-Provider connector code under `providers/`, and each generator's configs and reviewed inputs under `resources/generators/<generator>/` (the legacy R generators also remain there until they retire). Each Release Bundle records the commands it ran in `release.yaml:generator.commands`. The GWAS Catalog eur-hybrid family now has an implemented, resumable candidate workflow (`src/manifest_generation/generate_candidate.py`, issue #153); `workflow/generate.smk` wires its stages as an optional coarse DAG. The five rules below fix that boundary; everything inside it is open.
 
 ### Phase A and Phase B are separate workflows
 
@@ -835,7 +835,7 @@ Their outputs also live in different places and are reviewed differently. Phase 
 
 **Acquisition is separate from selection.** Acquisition is per Source Collection and is the expensive resumable part. Selection is per Store Release. The Source Collection is a grouping string recorded on the release, not a directory (ADR 0028).
 
-**Every generator emits through one emitter** (#248, ADR 0035). `resources/generators/lib/emit.py` is the only code that writes a candidate into `stores/<id>/`. A Python generator builds a `CandidateBundle` and calls `emit()`. A legacy R or BESD generator keeps a family-shaped working bundle in its work root, `<artifact-root>/<output.store_id>/generate` (`paths.generation_dir`, reported by `emit.py work-root <id>`), and its `--mode=emit-registry` projects the current contract from that working bundle and the config's `build:` block (`emit.py project`, called from R through `resources/generators/lib/emit_registry.R`). A directory rendered elsewhere can be emitted with `emit.py <id> --from <dir> --command ...`; anything a bundle does not hold is refused. No generator config names a `families/` path as output or work root; tracked inputs still under `families/` move with #252. The emitter:
+**Every generator emits through one emitter** (#248, ADR 0035). `src/manifest_generation/emit.py` is the only code that writes a candidate into `stores/<id>/`. A Python generator builds a `CandidateBundle` and calls `emit()`. A legacy R or BESD generator keeps a family-shaped working bundle in its work root, `<artifact-root>/<output.store_id>/generate` (`paths.generation_dir`, reported by `python3 -m manifest_generation.emit work-root <id>`), and its `--mode=emit-registry` projects the current contract from that working bundle and the config's `build:` block (`manifest_generation.emit project`, called from R through `resources/generators/lib/emit_registry.R`). A directory rendered elsewhere can be emitted with `python3 -m manifest_generation.emit <id> --from <dir> --command ...`; anything a bundle does not hold is refused. No generator config names a `families/` path as output or work root; tracked inputs still under `families/` move with #252. The emitter:
 
 - writes every YAML document in one style, with `status: candidate` and `generator.commands`, and refuses a rendered status or command log that disagrees;
 - stages the bundle under `stores/.staging/<id>/`, checks it against the Release Bundle contract with lineage resolved in the real registry, and writes `summary.yaml`;
@@ -848,7 +848,7 @@ resources/inventories/<id>.tsv discovered upstream analyses, once acquisition
                                the readiness vocabulary and the freeze/preflight
                                commands are in resources/inventories/README.md;
                                the code is
-                               resources/generators/lib/source_inventory.py.
+                               src/manifest_generation/source_inventory.py.
 
 resources/generators/<family-id>/
     README.md                  the exact commands
@@ -866,7 +866,7 @@ A generator has the same shape as the build workflow: discover upstream, select 
 
 ### The Source Inventory seam
 
-Selection starts at a **frozen Source Inventory**, not at a glob over an acquisition mirror (issue #151). Acquisition writes a status manifest per pass; freezing merges the retry pass over the base pass, accounts every row against the candidate pool, and writes one row per discovered Analysis with its readiness status and the exact local source path. `resources/inventories/README.md` is the contract; `resources/generators/lib/source_inventory.py` owns the merge rule and the readiness vocabulary (`ok` and `already_present` are ready, nothing else is).
+Selection starts at a **frozen Source Inventory**, not at a glob over an acquisition mirror (issue #151). Acquisition writes a status manifest per pass; freezing merges the retry pass over the base pass, accounts every row against the candidate pool, and writes one row per discovered Analysis with its readiness status and the exact local source path. `resources/inventories/README.md` is the contract; `src/manifest_generation/source_inventory.py` owns the merge rule and the readiness vocabulary (`ok` and `already_present` are ready, nothing else is).
 
 Two operator commands sit at this seam, and both are cheap:
 
@@ -891,7 +891,7 @@ There is no catch-22 requiring a Store to exist first. `opengwasdb.readers.inter
 
 Deferring instead -- building first and correcting the Store afterwards -- is not available. `stored_se = original_se / original_sd` is applied at write time, so a Store built without the SD holds wrong standard errors, and there is no rescale operation: Stores are immutable (ADR 0004, ADR 0007) and Reference Completion writes a new one. It would also mean building every candidate to discover which are unusable, when `GCST002047`'s odds-ratio beta column and `GCST003566`'s inverted EAF are both detectable from the source.
 
-That CLI wiring is provided upstream by `estimate-phenotype-sd` ([opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176)), now available on `dev` and active via #106; Phase B must invoke the upstream CLI command rather than keeping local estimation shims or per-family connectors. The previous `resources/generators/lib/phenotype_sd_estimate.py` was a 47-line shim taking JSON arrays on the command line, which forced each family to open source files and extract `se`/`af`/`beta` itself; that is how `resources/generators/lib/effect_scale_validation.R` grew to 562 lines, of which roughly 60 are the acceptance policy that genuinely belongs here and the rest re-implements reference-panel access and allele harmonisation `opengwasdb` already owns.
+That CLI wiring is provided upstream by `estimate-phenotype-sd` ([opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176)), now available on `dev` and active via #106; Manifest Generation must invoke the upstream CLI command rather than keeping local estimation shims or per-family connectors. The previous `src/manifest_generation/phenotype_sd_estimate.py` was a 47-line shim taking JSON arrays on the command line, which forced each family to open source files and extract `se`/`af`/`beta` itself; that is how `resources/generators/lib/effect_scale_validation.R` grew to 562 lines, of which roughly 60 are the acceptance policy that genuinely belongs here and the rest re-implements reference-panel access and allele harmonisation `opengwasdb` already owns.
 
 ### The resumable candidate workflow (issue #153)
 
@@ -996,7 +996,7 @@ not by completion order or worker count, and every numeric sidecar value is
 formatted through the issue-#143 sub-tolerance formatter, so 1 worker and 64
 workers produce byte-identical tables and sidecars. The pinned OpenGWASDB
 Analysis schema is run over the included rows, and the bundle is then emitted
-through the shared emitter, `resources/generators/lib/emit.py` (#248). The
+through the shared emitter, `src/manifest_generation/emit.py` (#248). The
 emitter stages it under `stores/.staging/<id>/` (hidden, so
 `bundle-check`/`index` cannot see a half-written candidate), runs
 `bundle.check()` against the real registry and Manifest Generation's own rules

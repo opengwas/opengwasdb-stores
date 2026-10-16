@@ -4,7 +4,7 @@
 The generator keeps its working bundle in its work root,
 `<artifact-root>/<store-id>/generate`. `emit-registry` projects the current
 Release Bundle contract from it and the config's `build:` block, and emits it
-through the one emitter (resources/generators/lib/emit.py). How that bundle
+through the one emitter (manifest_generation.emit). How that bundle
 lands is the emitter's, tested in tests/emit; this checks the generator's
 wiring, without the BESD subset or Store build the default mode runs.
 
@@ -24,7 +24,7 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-GENERATOR = REPO_ROOT / "resources" / "generators" / "lib" / "source-formats" / "eqtlgen-besd-ragged" / "generate.py"
+GENERATOR = ("-m", "manifest_generation.providers.eqtlgen.generate")
 
 ANALYSES_TSV = (
     "analysis_id\tstored_effect_scale\tsample_size_kind\tsample_size_scope\tsample_size\t"
@@ -79,7 +79,7 @@ class EqtlgenEmitRegistryTest(unittest.TestCase):
     def test_emit_registry_emits_the_working_bundle_as_a_candidate(self) -> None:
         env = {**os.environ, "OPENGWASDB_ARTIFACT_ROOT": str(self.artifact_root)}
         res = subprocess.run(
-            [sys.executable, str(GENERATOR), f"--config={self.config}", "--mode=emit-registry"],
+            [sys.executable, *GENERATOR, f"--config={self.config}", "--mode=emit-registry"],
             cwd=REPO_ROOT, env=env, capture_output=True, text=True,
         )
 

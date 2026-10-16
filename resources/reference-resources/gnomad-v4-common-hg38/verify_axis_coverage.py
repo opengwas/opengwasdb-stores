@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 
-from resources.generators.lib.source_inventory import read_inventory
+from manifest_generation.source_inventory import read_inventory
 
 AUTOSOMES = {str(i) for i in range(1, 23)}
 

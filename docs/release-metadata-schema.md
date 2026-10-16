@@ -18,7 +18,7 @@ pixi run bundle-check        # discovers and checks every stores/<id>/ bundle
 
 The contract holds only what both workflows share and what Store Release Build
 needs to consume a bundle. Manifest Generation's own rules for a candidate's
-`analyses.tsv` live beside it, in `resources/generators/lib/generation_rules.py`
+`analyses.tsv` live beside it, in `src/manifest_generation/generation_rules.py`
 (#250): the columns a generator must resolve, and how it records the INFO and
 MAF filters it requests. The emitter runs them before a candidate lands, and
 `pixi run bundle-check` runs them with the contract over every committed bundle,
@@ -802,7 +802,7 @@ snapshot was frozen from:
 | `source.inventory.freeze_inputs` | Yes | The ordered `{role, path}` acquisition status manifests `freeze` merges. Order is the precedence rule: earliest pass first, and a later pass is authoritative for every `analysis_id` it covers. A later pass may not regress a ready Analysis to a non-ready one. |
 
 Which `readiness_status` values count as a usable source is **not** a config
-key: it is owned by `resources/generators/lib/source_inventory.py`
+key: it is owned by `src/manifest_generation/source_inventory.py`
 (`READY_STATUSES`: `ok` and `already_present`), so the vocabulary has one
 spelling rather than one per generator config. An unknown status fails rather
 than defaulting to unavailable.
@@ -971,7 +971,7 @@ is the executable check of all of them.
 Every future Dense and Hybrid Store Release declares the maintained `hm3`
 Indexed Variant Subset by default (stores #210, epic #214); a Ragged-only release
 does not. A generator resolves that declaration through
-`resources/generators/lib/indexed_subsets.py` (or its R mirror
+`src/manifest_generation/indexed_subsets.py` (or its R mirror
 `resources/generators/lib/indexed_subsets.R`), which reads the one maintained
 `hapmap3-hg38` Reference Resource, so no writer copies the list path, assembly
 or checksum. The default is not a requirement:

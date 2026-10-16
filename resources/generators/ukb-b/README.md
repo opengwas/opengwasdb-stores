@@ -87,8 +87,8 @@ pixi run Rscript resources/scripts/download-opengwas-vcfs.R \
   --ids=ukb-b-10787,ukb-b-11842,ukb-b-19953 \
   --out-dir=/data/opengwasdb/wip/ukb-b-vcf
 
-pixi run python resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/annotate.py \
-  --release-dir="$(pixi run python3 resources/generators/lib/emit.py work-root OGS-00008)"
+pixi run python3 -m manifest_generation.providers.opengwas.annotate \
+  --release-dir="$(pixi run python3 -m manifest_generation.emit work-root OGS-00008)"
 ```
 
 ## Restored full membership (#219, current bundle shape)
@@ -113,16 +113,16 @@ by two pure-Python tools:
   Build does not build a candidate until it is accepted (#247).
 
 ```sh
-python3 resources/generators/ukb-b/inventory.py reconcile \
+python3 -m manifest_generation.providers.ukb_b.inventory reconcile \
   --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b \
   --built-baseline stores/OGS-00009/analyses.tsv
 
-python3 resources/generators/ukb-b/inventory.py freeze \
+python3 -m manifest_generation.providers.ukb_b.inventory freeze \
   --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b \
   --snapshot-id ukb-b-restored-2026-10-11 \
   --upstream-batch-evidence resources/inventories/ukb-b-restored-2026-10-11.upstream-batches.json
 
-python3 resources/generators/ukb-b/generate_candidate.py OGS-00017
+python3 -m manifest_generation.providers.ukb_b.generate_candidate OGS-00017
 ```
 
 The intended membership is anchored to the upstream batch count from the

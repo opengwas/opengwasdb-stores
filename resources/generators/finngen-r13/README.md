@@ -14,14 +14,14 @@ The working bundle lives in the generator's work root,
 `<artifact-root>/OGS-00003/generate` (#248):
 
 ```sh
-WORK=$(pixi run python3 resources/generators/lib/emit.py work-root OGS-00003)
+WORK=$(pixi run python3 -m manifest_generation.emit work-root OGS-00003)
 pixi run Rscript resources/generators/finngen-r13/generate.R --mode=emit
-pixi run python resources/generators/lib/source-formats/finngen-r13-dense/acquire.py \
+pixi run python3 -m manifest_generation.providers.finngen.acquire \
   --release-dir="$WORK"
-pixi run python resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/annotate.py \
+pixi run python3 -m manifest_generation.providers.opengwas.annotate \
   --release-dir="$WORK" \
   --workers=8
-pixi run python resources/generators/lib/source-formats/finngen-r13-dense/assess.py \
+pixi run python3 -m manifest_generation.providers.finngen.assess \
   --release-dir="$WORK" \
   --full-analysis-count=2754
 ```
@@ -51,11 +51,11 @@ pixi run Rscript resources/generators/finngen-r13/generate.R \
 
 # 2. Download every endpoint into the release artifact source directory.
 #    Resumable: completed files are checksummed and kept, not re-fetched.
-pixi run python resources/generators/lib/source-formats/finngen-r13-dense/acquire.py \
-  --release-dir="$(pixi run python3 resources/generators/lib/emit.py work-root OGS-00017)" --workers=8
+pixi run python3 -m manifest_generation.providers.finngen.acquire \
+  --release-dir="$(pixi run python3 -m manifest_generation.emit work-root OGS-00017)" --workers=8
 ```
 
-`resources/scripts/acquire-finngen-r13-full.sh` wraps step 2 with a retry loop
+`src/manifest_generation/providers/finngen/acquire-finngen-r13-full.sh` wraps step 2 with a retry loop
 for unattended tmux use.
 
 ## Emitting the registry Release Bundle (`emit-registry`)
@@ -67,7 +67,7 @@ sources. The registry consumes the **current** bundle contract instead: a flat
 sidecars, under `stores/<OGS-id>/`.
 
 `--mode=emit-registry` projects that bundle from the acquired working bundle and
-emits it through the one emitter (`resources/generators/lib/emit.py`, #248). It
+emits it through the one emitter (`src/manifest_generation/emit.py`, #248). It
 is a pure projection: it re-resolves no row and re-downloads nothing, so it can
 be re-run after any acquisition fix. It refuses to emit unless every row already
 carries a source checksum, so a blank provenance row cannot be frozen into a
