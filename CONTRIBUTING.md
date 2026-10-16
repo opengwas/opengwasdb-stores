@@ -348,8 +348,9 @@ runner of its own and runs everything else with `--skip-exclusive`.
 contract. It returns a list of every registry-side error it can find (an empty
 list means valid) and never raises for invalid bundle content. The returned
 list also carries a second channel, `.tolerated`, naming the suppressions the
-#134 legacy exemption (and a bundle Store Release Build will not build)
-deliberately tolerate -- with
+#134 legacy exemption, the #286 exemption for OGS-00011's non-CURIE
+`trait_ontology_id` values (an accepted bundle is never rewritten), and a
+bundle Store Release Build will not build deliberately tolerate -- with
 their count and citation -- so a caller can surface the gap rather than read a
 clean `[]` that silently erased it (issue #142). It reads only
 files inside Release Bundles, plus a parent bundle when resolving

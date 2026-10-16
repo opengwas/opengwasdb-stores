@@ -515,8 +515,8 @@ class TestBundleContract(unittest.TestCase):
         )
 
         # A list is checked term by term: a gene identifier is not hidden by
-        # following an ontology term, and an authority name is not hidden by
-        # following a trait label (#286).
+        # following an ontology term (#286). A label is checked whole, as #141
+        # defines it, because a term's own label may contain a comma.
         listed_gene = self.make_bundle(
             store_id="OGS-00094",
             analyses=analyses_with(
@@ -530,21 +530,16 @@ class TestBundleContract(unittest.TestCase):
             any("gene-shaped trait_ontology_id" in e for e in listed_gene_errors),
             listed_gene_errors,
         )
-        listed_authority = self.make_bundle(
-            store_id="OGS-00095",
-            analyses=analyses_with(
-                "EFO:0020109, EFO:0004340", "14-3-3 protein family measurement, Ensembl"
-            ),
-        )
-        listed_authority_errors = bundle.check(listed_authority, registry_root=self.tmp_dir)
         record_check()
-        self.assertTrue(
-            any(
-                "trait_ontology_label" in e and "authority" in e
-                for e in listed_authority_errors
-            ),
-            listed_authority_errors,
+        self.assertEqual(
+            bundle.trait_ontology_id_terms(" EFO:1 ,EFO:2, , MONDO:3"),
+            ["EFO:1", "EFO:2", "", "MONDO:3"],
         )
+        self.assertEqual(bundle.trait_ontology_id_terms(""), [])
+        self.assertFalse(
+            bundle.is_authority_name_trait_ontology_label("body mass index, Ensembl")
+        )
+        self.assertTrue(bundle.is_authority_name_trait_ontology_label(" Ensembl "))
 
         ok = self.make_bundle(
             store_id="OGS-00093",

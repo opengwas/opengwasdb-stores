@@ -200,35 +200,46 @@ _TRAIT_ONTOLOGY_CURIE: re.Pattern[str] = re.compile(
 LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES: frozenset[str] = frozenset({"OGS-00011"})
 
 
-def split_trait_ontology_id(value: str) -> list[str]:
-    """The terms of a ``trait_ontology_id`` cell, in order; empty for a blank cell."""
-    return value.split(TRAIT_ONTOLOGY_ID_SEPARATOR) if value else []
+def trait_ontology_id_terms(value: str) -> list[str]:
+    """The terms of a ``trait_ontology_id`` value, in order; empty for a blank value.
+
+    The one split rule (#286): split on every comma and strip each part, so a
+    malformed list (``A,B``, padding, an empty term) still yields its terms for
+    the guards. Whether the value is in canonical form is a separate question:
+    :func:`is_canonical_trait_ontology_id`.
+    """
+    return [part.strip() for part in value.split(",")] if value else []
 
 
 def is_trait_ontology_curie(term: str) -> bool:
-    """Whether one ``trait_ontology_id`` term is a CURIE (a list is split first)."""
+    """Whether one ``trait_ontology_id`` term is a CURIE."""
     return _TRAIT_ONTOLOGY_CURIE.fullmatch(term) is not None
 
 
-def is_gene_shaped_trait_ontology_id(value: str) -> bool:
-    """Whether ``value``, or any comma-separated term of it, is a gene or protein id.
-
-    Split on any comma, not only the canonical separator, so a gene identifier
-    cannot hide behind an ontology term in a malformed list (#141, #286).
-    """
-    return any(
-        _GENE_SHAPED_TRAIT_ONTOLOGY_ID.match(term.strip())
-        for term in value.split(",")
-        if term.strip()
+def is_canonical_trait_ontology_id(value: str) -> bool:
+    """Whether ``value`` is blank, one CURIE, or CURIEs joined by exactly ``", "``."""
+    terms = trait_ontology_id_terms(value)
+    return all(map(is_trait_ontology_curie, terms)) and (
+        TRAIT_ONTOLOGY_ID_SEPARATOR.join(terms) == value
     )
+
+
+def is_gene_shaped_trait_ontology_id(value: str) -> bool:
+    """Whether any term of ``value`` is a gene or protein identifier (#141).
+
+    Every term is checked, so a gene identifier cannot hide behind an ontology
+    term in a list (#286).
+    """
+    return any(_GENE_SHAPED_TRAIT_ONTOLOGY_ID.match(term) for term in trait_ontology_id_terms(value))
 
 
 def is_authority_name_trait_ontology_label(label: str) -> bool:
-    """Whether ``label``, or any comma-separated part of it, names an id authority (#141)."""
-    text = label.strip().lower()
-    return text in _TRAIT_ONTOLOGY_AUTHORITY_LABELS or any(
-        part.strip() in _TRAIT_ONTOLOGY_AUTHORITY_LABELS for part in text.split(",")
-    )
+    """Whether ``label`` names an identifier authority rather than a Trait (#141).
+
+    The label is checked whole, as #141 defines it, and never split: a term's
+    own label may contain a comma (``osteoarthritis, hip``).
+    """
+    return label.strip().lower() in _TRAIT_ONTOLOGY_AUTHORITY_LABELS
 
 # Store-level descriptive metadata that is derived from the membership table.
 # Names intentionally match their source columns: in particular, ``context``
@@ -1051,7 +1062,7 @@ def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
                     f"{ontology_id!r}; trait_ontology_id must be an ontology term "
                     "(or empty), never a gene or protein identifier"
                 )
-            elif not all(map(is_trait_ontology_curie, split_trait_ontology_id(ontology_id))):
+            elif not is_canonical_trait_ontology_id(ontology_id):
                 if tolerate_non_curie:
                     tolerated_non_curie += 1
                 else:
@@ -1246,6 +1257,7 @@ __all__ = [
     "check",
     "is_authority_name_trait_ontology_label",
     "is_buildable",
+    "is_canonical_trait_ontology_id",
     "is_gene_shaped_trait_ontology_id",
     "is_legal_status_transition",
     "is_trait_ontology_curie",
@@ -1254,7 +1266,7 @@ __all__ = [
     "partition_buildable",
     "partition_membership",
     "refuse_unbuildable",
-    "split_trait_ontology_id",
     "summarise",
+    "trait_ontology_id_terms",
     "validate_status_transition",
 ]

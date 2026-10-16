@@ -241,8 +241,16 @@ authority name standing in for the label: gene/target identity is annotation
 (`analysis_label` for a single-target Analysis; `trait_chr`/`trait_bp` and the
 target sidecar for the target itself). `bundle.check()` rejects a gene- or
 protein-shaped `trait_ontology_id` (Ensembl, HGNC, Entrez/NCBI Gene, UniProt)
-and the matching authority name in `trait_ontology_label` (issue #141), checking
-each term of a list and each comma-separated part of a label.
+and the matching authority name in `trait_ontology_label` (issue #141). It
+checks each term of a list, so a gene identifier cannot hide behind an ontology
+term. The label is checked whole and never split, because a term's own label
+may contain a comma (`osteoarthritis, hip`).
+
+One split rule serves the contract and Manifest Generation alike
+(`trait_ontology_id_terms`): split on every comma and strip each part. A value
+is in canonical form only when its parts are all CURIEs and rejoining them with
+`", "` gives the value back, so `EFO:1,EFO:2`, padding and empty terms are
+refused.
 
 `bundle.check()` also rejects a `trait_ontology_id` term that is not a CURIE,
 such as a raw `http://` URI (#286). `OGS-00011` was accepted before this check
@@ -620,9 +628,10 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `store_composition.unfiltered_included_off_reference_rows` | No | Sum of those Analyses' build-eligible rows off the variant reference, or `null` when no `variant-reference` is declared or any counted Analysis lacks the resolver count. |
 | `store_composition.unfiltered_routed` | No | Number of Analyses excluded as `not_maf_filtered`. |
 | `store_composition.unfiltered_routed_off_reference_rows` | No | The same off-reference sum for the routed Analyses, or `null` under the same absence rule. |
-| `trait_ontology_mapping` | No | The Trait Ontology Mapping step's evidence (Phase B record, #286). |
+| `trait_ontology_mapping` | No | The Trait Ontology Mapping step's evidence (Manifest Generation record, #286). |
 | `trait_ontology_mapping.canonical_trait_mapping_table` | No | The Canonical Trait Mapping Table the run read: `resource_id`, `version` (from its `resource.yaml`), `location`, `sha256` of the table file, and `rows`. |
 | `trait_ontology_mapping.method_counts` | No | Analyses per `trait_ontology_mapping_method`: `source_provided`, `canonical_table_lookup`, `unmapped`. |
+| `trait_ontology_mapping.source_id_without_label` | No | How many `source_provided` mappings carry a source term with no label. They are kept; the count is for review. |
 | `trait_ontology_mapping.rejected_source_terms` | No | Each source term the #141 guards rejected: `analysis_id`, `source_trait_ontology_id`, `source_trait_ontology_label` and `reason`. Empty when none was rejected. |
 | `reports` | No | URIs or paths to detailed reports. A Phase B record points at its sidecars; `register` writes no top-level `reports` (#195). |
 | `warnings` | No | List of non-blocking warnings. In a `register`-written record, exactly the `warnings` list `opengwasdb validate --format json` printed for this run. Reference-AF effect-scale warnings should name the Analysis and reason, for example low reference-AF overlap, an allele mismatch, unstable implied SD, a missing reference resource for the assigned ancestry, or scale inconsistency versus the declared effect scale. |
@@ -963,21 +972,29 @@ rather than emitting a URI or a guess. A comma-separated source list stays a
 list, its CURIEs joined by `", "` in the source's order, and the source label is
 kept verbatim (see `trait_ontology_id` above).
 
-A source term with a gene- or protein-shaped identifier in any term, or an
-identifier-authority name for a label, is rejected using `ogstores.bundle`'s
-#141 guards. It falls through to the table, and the rejection and its reason
-are recorded.
+A source term is rejected using `ogstores.bundle`'s #141 guards when:
+- any term is gene- or protein-shaped, checked both before and after
+  normalisation, so a PURL `HGNC_1234` is caught as `HGNC:1234`;
+- or its label, taken whole, is an identifier-authority name.
+
+A rejected term falls through to the table, and the rejection and its reason
+are recorded. A source term with no label is kept as `source_provided`, and
+the run counts how many there are.
 
 The table is read from `resources/reference-resources/canonical-trait-mapping-efo/`,
-a directory named explicitly: no network is involved. A malformed curated row
-fails the load:
+a directory named explicitly: no network is involved. Its `resource.yaml`
+`location` is resolved against that directory: the declared file must be in
+the resource's own directory, and a declared `location_kind` must be
+`tracked_file`. A malformed curated row fails the load, and the refusal lists
+up to twenty problems and counts the rest:
 - a blank lookup value;
 - a non-CURIE term;
 - a gene-shaped term or an authority-name label;
 - a label listed twice.
 
-The table's identity, the method counts and the rejected source terms are
-recorded in `validation.yaml`'s `trait_ontology_mapping` block.
+The table's identity, the method counts, the count of source terms without a
+label, and the rejected source terms are recorded in `validation.yaml`'s
+`trait_ontology_mapping` block.
 
 **The R generators** still resolve through the R resolver below until they
 retire (epic #282).
