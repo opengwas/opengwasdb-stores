@@ -29,8 +29,8 @@ import csv
 import gzip
 from pathlib import Path
 
-from manifest_generation import REPO_ROOT
 from manifest_generation.ancestry_sidecar import format_sidecar_float
+from manifest_generation.source_ancestry import load_source_label_map
 from manifest_generation.release_yaml import (
     get,
     merge_validation_yaml,
@@ -49,23 +49,12 @@ from opengwasdb.variants.normalise import VariantNormalisationError, orient_to_c
 # to the ancestry-mixture reference's super-population codes, used only to
 # flag a source/assigned disagreement. Read from the one tracked mapping the R
 # generators also use, so the R and Python vocabularies cannot drift apart
-# (issue #133). Deliberately conservative: ambiguous labels
-# (Multiple/Mixed, NR/Unknown, Other, Asian (unspecified)) are absent from the
-# map so no mismatch is fabricated from a label that isn't precise enough to
-# compare.
-_SOURCE_LABEL_MAP_PATH = (
-    REPO_ROOT / "resources" / "reference-resources"
-    / "ukb-ancestry-mixture-hg38" / "source_label_map.tsv"
-)
-
-
-def load_source_label_to_superpop() -> dict[str, str]:
-    with _SOURCE_LABEL_MAP_PATH.open(newline="", encoding="utf-8") as handle:
-        rows = csv.DictReader(handle, delimiter="\t")
-        return {row["source_label"]: row["super_population"] for row in rows}
-
-
-SOURCE_LABEL_TO_SUPERPOP = load_source_label_to_superpop()
+# (issue #133). Deliberately conservative: ambiguous labels are absent from the
+# map -- source_label_imprecise.tsv lists them with their reasons -- so no
+# mismatch is fabricated from a label that isn't precise enough to compare.
+# Any label missing from the map is simply not compared here; refusing unknown
+# labels is the metadata adapter's job (source_ancestry, #283).
+SOURCE_LABEL_TO_SUPERPOP = load_source_label_map()
 
 
 def parse_args() -> argparse.Namespace:
