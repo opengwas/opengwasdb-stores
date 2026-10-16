@@ -69,6 +69,7 @@ from manifest_generation.candidate_workflow import (  # noqa: E402
     info_score_emission,
     load_candidate_configuration,
     maf_threshold_emission,
+    candidate_source_traits,
     map_candidate_trait_ontologies,
     parse_maf_filter_exempt_technologies,
     parse_maf_threshold,
@@ -85,9 +86,13 @@ from manifest_generation.candidate_workflow import (  # noqa: E402
     validate_candidate_analyses,
     verify_records,
 )
+from manifest_generation.freeze import write_frozen_inventory  # noqa: E402
+from manifest_generation.freeze import freeze as freeze_connectors  # noqa: E402
+from manifest_generation.selection import parse_selection  # noqa: E402
 from manifest_generation.trait_ontology_mapping import (  # noqa: E402
-    CANONICAL_TRAIT_MAPPING_RESOURCE,
+    SourceTrait,
     TraitOntologyMapping,
+    TraitOntologyMappingMethod,
     load_canonical_trait_mapping_table,
 )
 from manifest_generation.source_inventory import (  # noqa: E402
@@ -152,6 +157,23 @@ EXPECTED_EXCLUDED = {
 
 META_TEMPLATE = "gwas_id: {analysis_id}\ngenome_assembly: GRCh38\nis_harmonised: true\ncoordinate_system: 1-based\n"
 
+# A fixture Canonical Trait Mapping Table (#286): the candidate tests never read
+# the tracked one, so curating it cannot change them.
+TRAIT_TABLE_RESOURCE_ID = "canonical-trait-mapping-efo"
+TRAIT_TABLE_TEXT = (
+    "trait_label\ttrait_ontology_id\ttrait_ontology_label\n"
+    "weight\tEFO:0004338\tbody weight\n"
+)
+#: sha256 of TRAIT_TABLE_TEXT.
+TRAIT_TABLE_SHA256 = "92a1eabaf92b3821219cc8e52c83245c3e93efaa29cf4ebbf7b05cc5724d14de"
+#: A trait_ontology_mapping block for tests that render validation.yaml for other reasons.
+TRAIT_ONTOLOGY_PROVENANCE = {
+    "canonical_trait_mapping_table": None,
+    "method_counts": {"source_provided": 0, "canonical_table_lookup": 0, "unmapped": 0},
+    "source_id_without_label": 0,
+    "rejected_source_terms": [],
+}
+
 
 @dataclass
 class Fixture:
@@ -162,6 +184,7 @@ class Fixture:
     outcomes_path: Path
     registry_root: Path
     work_root: Path
+    trait_table_dir: Path
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -367,6 +390,15 @@ class FixtureBuilder:
         outcomes_path = self.root / "outcomes.json"
         outcomes_path.write_text(json.dumps(OUTCOMES), encoding="utf-8")
 
+        trait_table_dir = self.root / "resources" / "reference-resources" / TRAIT_TABLE_RESOURCE_ID
+        trait_table_dir.mkdir(parents=True)
+        (trait_table_dir / "resource.yaml").write_text(
+            f"resource_id: {TRAIT_TABLE_RESOURCE_ID}\nkind: trait_ontology_mapping\nversion: 1\n"
+            f"location: resources/reference-resources/{TRAIT_TABLE_RESOURCE_ID}/mapping.tsv\n"
+            "location_kind: tracked_file\n",
+            encoding="utf-8",
+        )
+        (trait_table_dir / "mapping.tsv").write_text(TRAIT_TABLE_TEXT, encoding="utf-8")
         return Fixture(
             root=self.root,
             config_path=config_path,
@@ -375,6 +407,7 @@ class FixtureBuilder:
             outcomes_path=outcomes_path,
             registry_root=registry_root,
             work_root=work_root,
+            trait_table_dir=trait_table_dir,
         )
 
 
@@ -430,6 +463,8 @@ def _run_cli(
         str(registry_root or fixture.registry_root),
         "--work-root",
         str(work_root or fixture.work_root),
+        "--canonical-trait-mapping-table",
+        str(fixture.trait_table_dir),
     ]
     if resume:
         command.append("--resume")
@@ -500,7 +535,7 @@ def _synthetic_candidate_metadata(
         n_cases=n_cases,
         n_controls=n_controls,
         sample_size=sample_size,
-        trait_ontology=TraitOntologyMapping("", "", "unmapped"),
+        trait_ontology=TraitOntologyMapping("", "", TraitOntologyMappingMethod.UNMAPPED),
     )
 
 
@@ -1504,24 +1539,25 @@ class CandidateWorkflowTests(unittest.TestCase):
         )
 
         validation = yaml.safe_load((bundle_dir / "validation.yaml").read_text(encoding="utf-8"))
-        mapping = validation["trait_ontology_mapping"]
-        resource_dir = REPO_ROOT / CANONICAL_TRAIT_MAPPING_RESOURCE
-        declared = yaml.safe_load((resource_dir / "resource.yaml").read_text(encoding="utf-8"))
-        table = mapping["canonical_trait_mapping_table"]
-        self.assertEqual(table["resource_id"], "canonical-trait-mapping-efo")
-        self.assertEqual(table["version"], declared["version"])
         self.assertEqual(
-            table["sha256"], hashlib.sha256((resource_dir / "mapping.tsv").read_bytes()).hexdigest()
-        )
-        self.assertEqual(
-            mapping["method_counts"],
+            validation["trait_ontology_mapping"],
             {
-                "source_provided": len(READY_ANALYSES) - 2,
-                "canonical_table_lookup": 1,
-                "unmapped": 1,
+                "canonical_trait_mapping_table": {
+                    "resource_id": TRAIT_TABLE_RESOURCE_ID,
+                    "version": 1,
+                    "location": f"resources/reference-resources/{TRAIT_TABLE_RESOURCE_ID}/mapping.tsv",
+                    "sha256": TRAIT_TABLE_SHA256,
+                    "rows": 1,
+                },
+                "method_counts": {
+                    "source_provided": len(READY_ANALYSES) - 2,
+                    "canonical_table_lookup": 1,
+                    "unmapped": 1,
+                },
+                "source_id_without_label": 0,
+                "rejected_source_terms": [],
             },
         )
-        self.assertEqual(mapping["rejected_source_terms"], [])
 
     def test_trait_ontology_mapping_runs_after_verification(self) -> None:
         """An unknown source form does not block resolution; it fails the emit, by name."""
@@ -1546,6 +1582,94 @@ class CandidateWorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(CandidateError, "Trait Ontology Mapping"):
             build_candidate_tables(
                 inventory_rows=[row], outcomes=outcomes, config=config, index_summary={}
+            )
+
+    def _write_frozen_connectors(self, traits: dict[str, tuple[str, str, str]]) -> Path:
+        """A #283 freeze whose Source Metadata Table carries ``traits``; its provenance path."""
+        out = self.fixture.root / "frozen"
+        out.mkdir()
+        table = out / "source-metadata.tsv"
+        table.write_text(
+            "source_analysis_id\tsource_trait_label\tsource_trait_ontology_id\t"
+            "source_trait_ontology_label\n"
+            + "".join(f"{key}\t{label}\t{uri}\t{term}\n" for key, (label, uri, term) in traits.items()),
+            encoding="utf-8",
+        )
+        manifest = out / "acquisition-manifest.tsv"
+        lines = ["source_analysis_id\tstatus\tlocation\tbytes\tsha256"]
+        for key in traits:
+            data = out / f"{key}.tsv.gz"
+            data.write_bytes(key.encode())
+            lines.append(f"{key}\tok\t{data}\t{len(key)}\t{hashlib.sha256(key.encode()).hexdigest()}")
+        manifest.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        frozen = freeze_connectors(
+            snapshot_id="trait-snapshot",
+            source_collection_id="gwas-catalog-ssf",
+            metadata_table=table,
+            acquisition_manifest=manifest,
+            selection=parse_selection({"all": True}),
+            frozen_at="2026-10-16T12:00:00Z",
+        )
+        provenance = out / "snapshot" / "trait-snapshot.meta.yaml"
+        write_frozen_inventory(frozen, out / "snapshot" / "trait-snapshot.tsv", provenance)
+        return provenance
+
+    def _candidate_metadata(self) -> dict:
+        rows = read_inventory(self.fixture.inventory_path)
+        return read_candidate_metadata(
+            self.fixture.candidates_path, [row.analysis_id for row in rows if row.ready]
+        )
+
+    def test_the_source_term_comes_from_the_frozen_source_metadata_table(self) -> None:
+        """#286: with a #283 freeze, the step reads the Source Metadata Table, not the candidate table."""
+        metadata = self._candidate_metadata()
+        traits = {key: (f"Trait {key}", "", "") for key in metadata}
+        traits["GCST90000001"] = ("Weight", "http://www.ebi.ac.uk/efo/EFO_0004340", "body mass index")
+        traits["GCST90000002"] = ("weight", "", "")
+        sources = candidate_source_traits(self._write_frozen_connectors(traits), metadata)
+        self.assertEqual(
+            {source.analysis_id: source for source in sources}["GCST90000001"],
+            SourceTrait("GCST90000001", "Weight", "http://www.ebi.ac.uk/efo/EFO_0004340", "body mass index"),
+        )
+        mapped, _ = map_candidate_trait_ontologies(
+            metadata, sources, load_canonical_trait_mapping_table(self.fixture.trait_table_dir)
+        )
+        self.assertEqual(
+            {key: (m.trait_ontology.trait_ontology_id, m.trait_ontology.method) for key, m in mapped.items()
+             if key in ("GCST90000001", "GCST90000002", "GCST90000003")},
+            {
+                "GCST90000001": ("EFO:0004340", "source_provided"),
+                "GCST90000002": ("EFO:0004338", "canonical_table_lookup"),
+                # The candidate table maps this one to MONDO:0005148; the
+                # Source Metadata Table does not, and it is the source.
+                "GCST90000003": ("", "unmapped"),
+            },
+        )
+
+    def test_without_a_frozen_table_the_candidate_table_is_the_legacy_source(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        metadata = self._candidate_metadata()
+        sources = candidate_source_traits(config.base.inventory_provenance_path, metadata)
+        self.assertEqual(
+            {source.analysis_id: source for source in sources}["GCST90000001"],
+            SourceTrait(
+                "GCST90000001", "Trait GCST90000001",
+                "http://purl.obolibrary.org/obo/MONDO_0005148", "mapped GCST90000001",
+            ),
+        )
+
+    def test_an_analysis_the_frozen_table_does_not_intend_is_refused(self) -> None:
+        metadata = self._candidate_metadata()
+        provenance = self._write_frozen_connectors({"GCST90000001": ("Weight", "", "")})
+        with self.assertRaisesRegex(CandidateError, "GCST90000002"):
+            candidate_source_traits(provenance, metadata)
+
+    def test_the_sources_must_be_exactly_the_analyses(self) -> None:
+        metadata = self._candidate_metadata()
+        table = load_canonical_trait_mapping_table(self.fixture.trait_table_dir)
+        with self.assertRaisesRegex(CandidateError, "GCST90000002"):
+            map_candidate_trait_ontologies(
+                metadata, [SourceTrait("GCST90000001", "x", "", "")], table
             )
 
     def _run_emit_only(self) -> subprocess.CompletedProcess:
@@ -1854,7 +1978,9 @@ class CandidateWorkflowTests(unittest.TestCase):
             (self.fixture.work_root / STORE_ID / "resolver/records/index.json").read_text()
         )
         metadata, _ = map_candidate_trait_ontologies(
-            metadata, load_canonical_trait_mapping_table(REPO_ROOT / CANONICAL_TRAIT_MAPPING_RESOURCE)
+            metadata,
+            candidate_source_traits(config.base.inventory_provenance_path, metadata),
+            load_canonical_trait_mapping_table(self.fixture.trait_table_dir),
         )
         outcomes = apply_release_policy(
             rows, config, metadata, {record["analysis_id"]: record for record in records}
@@ -1963,7 +2089,8 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertEqual([row["variant_reference_rate"] for row in overlap], ["1", "0"])
         self.assertEqual([row["rows_scanned"] for row in overlap], ["100", "100"])
         validation = render_validation_yaml(
-            tables=tables, index_summary={}, validated_at="now", validator_name="test"
+            tables=tables, index_summary={}, validated_at="now", validator_name="test",
+            trait_ontology_mapping=TRAIT_ONTOLOGY_PROVENANCE,
         )
         self.assertEqual(validation["checks"]["reference_overlap"], "failed")
         self.assertEqual(validation["reference_overlap"]["projected_off_reference_share"], 0.5)
@@ -2010,7 +2137,8 @@ class CandidateWorkflowTests(unittest.TestCase):
         )
         self.assertEqual([row["build_eligible_rate"] for row in overlap], ["0.8", "0"])
         validation = render_validation_yaml(
-            tables=tables, index_summary={}, validated_at="now", validator_name="test"
+            tables=tables, index_summary={}, validated_at="now", validator_name="test",
+            trait_ontology_mapping=TRAIT_ONTOLOGY_PROVENANCE,
         )
         summary = validation["reference_overlap"]
         self.assertEqual(summary["projected_off_reference_basis"], "build_eligible_rows")
@@ -2038,7 +2166,8 @@ class CandidateWorkflowTests(unittest.TestCase):
         overlap = list(csv.DictReader(io.StringIO(tables.reference_overlap_tsv), delimiter="\t"))
         self.assertEqual([r["build_eligible_rows"] for r in overlap], [""])
         validation = render_validation_yaml(
-            tables=tables, index_summary={}, validated_at="now", validator_name="test"
+            tables=tables, index_summary={}, validated_at="now", validator_name="test",
+            trait_ontology_mapping=TRAIT_ONTOLOGY_PROVENANCE,
         )
         summary = validation["reference_overlap"]
         self.assertEqual(summary["projected_off_reference_basis"], "legacy_rows_read")
@@ -2512,6 +2641,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             index_summary={},
             validated_at="now",
             validator_name="test",
+            trait_ontology_mapping=TRAIT_ONTOLOGY_PROVENANCE,
         )
         self.assertEqual(validation["store_composition"], dict(tables.store_composition))
         release = render_release_yaml(
@@ -2588,7 +2718,8 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertEqual([row["build_eligible_rows"] for row in overlap], ["50", "0"])
         self.assertEqual([row["exclude_from_build"] for row in overlap], ["", "true"])
         validation = render_validation_yaml(
-            tables=tables, index_summary={}, validated_at="now", validator_name="test"
+            tables=tables, index_summary={}, validated_at="now", validator_name="test",
+            trait_ontology_mapping=TRAIT_ONTOLOGY_PROVENANCE,
         )
         self.assertEqual(validation["checks"]["reference_overlap"], "passed")
         self.assertEqual(validation["errors"], [])

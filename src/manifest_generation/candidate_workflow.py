@@ -67,6 +67,8 @@ from manifest_generation.source_inventory import (
     duplicate_content_groups,
     load_release_configuration,
 )
+from manifest_generation.connector_tsv import FreezeError
+from manifest_generation.freeze import load_frozen_connectors
 from manifest_generation.trait_ontology_mapping import (
     CanonicalTraitMappingTable,
     SourceTrait,
@@ -74,6 +76,7 @@ from manifest_generation.trait_ontology_mapping import (
     TraitOntologyMappingError,
     TraitOntologyMappingRun,
     map_trait_ontologies,
+    source_traits_from_source_metadata_table,
 )
 
 # ---------------------------------------------------------------------------
@@ -888,29 +891,63 @@ def read_candidate_metadata(
     return found
 
 
+def candidate_source_traits(
+    provenance_path: Path, metadata: Mapping[str, CandidateMetadata]
+) -> list[SourceTrait]:
+    """The Trait Ontology Mapping step's input for every Analysis in ``metadata`` (#286).
+
+    The source term comes from the Source Metadata Table: from the frozen
+    subset #283's freeze writes beside the inventory, when the inventory's
+    provenance records one. An inventory frozen the older way has none, so
+    its source term comes from the candidate table's ``MAPPED_TRAIT_URI`` and
+    ``MAPPED_TRAIT``, carried verbatim in :class:`CandidateMetadata`. That
+    legacy route stays until #287 moves every release config onto the shared
+    freeze.
+    """
+    if not provenance_path.is_file():
+        raise CandidateError(f"Source Inventory provenance not found: {provenance_path}")
+    document = yaml.safe_load(provenance_path.read_text(encoding="utf-8"))
+    recorded = document.get("source_metadata_table") if isinstance(document, Mapping) else None
+    if isinstance(recorded, Mapping) and "frozen" in recorded:
+        try:
+            table, _ = load_frozen_connectors(provenance_path)
+            return source_traits_from_source_metadata_table(table, metadata)
+        except (FreezeError, TraitOntologyMappingError) as exc:
+            raise CandidateError(f"Trait Ontology Mapping input: {exc}") from exc
+    return [
+        SourceTrait(
+            analysis_id=analysis_id,
+            label=resolved.source_label,
+            ontology_id=resolved.source_trait_ontology_id,
+            ontology_label=resolved.source_trait_ontology_label,
+        )
+        for analysis_id, resolved in sorted(metadata.items())
+    ]
+
+
 def map_candidate_trait_ontologies(
     metadata: Mapping[str, CandidateMetadata],
-    table: CanonicalTraitMappingTable | None,
+    sources: Iterable[SourceTrait],
+    table: CanonicalTraitMappingTable,
 ) -> tuple[dict[str, CandidateMetadata], TraitOntologyMappingRun]:
     """Run the shared Trait Ontology Mapping step over every Analysis (#286).
 
-    Returns the metadata with each Analysis's ``trait_ontology`` set, and the
-    run, whose provenance release.yaml records. A source term in a form the
-    step cannot normalise fails the run, naming the Analysis and the term.
+    ``sources`` must name exactly the Analyses in ``metadata``
+    (:func:`candidate_source_traits`). Returns the metadata with each
+    Analysis's ``trait_ontology`` set, and the run, whose provenance
+    validation.yaml records. A source term in a form the step cannot
+    normalise fails the run, naming the Analysis and the term.
     """
-    try:
-        run = map_trait_ontologies(
-            (
-                SourceTrait(
-                    analysis_id=analysis_id,
-                    label=resolved.source_label,
-                    ontology_id=resolved.source_trait_ontology_id,
-                    ontology_label=resolved.source_trait_ontology_label,
-                )
-                for analysis_id, resolved in metadata.items()
-            ),
-            table,
+    sources = list(sources)
+    named = {source.analysis_id for source in sources}
+    if named != set(metadata):
+        differing = sorted(named.symmetric_difference(metadata))
+        raise CandidateError(
+            "Trait Ontology Mapping sources do not match the Analyses: "
+            + ", ".join(differing[:20])
         )
+    try:
+        run = map_trait_ontologies(sources, table)
     except TraitOntologyMappingError as exc:
         raise CandidateError(f"Trait Ontology Mapping failed: {exc}") from exc
     mapped = {
@@ -2584,7 +2621,7 @@ def _analyses_row(
         "analysis_label": resolved.source_label or row.trait,
         "trait_ontology_label": trait_ontology.trait_ontology_label,
         "trait_ontology_id": trait_ontology.trait_ontology_id,
-        "trait_ontology_mapping_method": trait_ontology.method,
+        "trait_ontology_mapping_method": str(trait_ontology.method),
         "source_file": row.data_file,
         "source_reader_capability": config.reader_capability,
         "source_url": row.data_url,
@@ -2961,7 +2998,7 @@ def render_validation_yaml(
     index_summary: Mapping[str, Any],
     validated_at: str,
     validator_name: str,
-    trait_ontology_mapping: Mapping[str, Any] | None = None,
+    trait_ontology_mapping: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Render the candidate Validation Record as the emitter's ``validation.yaml`` document.
 
@@ -3000,11 +3037,7 @@ def render_validation_yaml(
         },
         "reference_overlap": dict(tables.reference_overlap),
         "store_composition": dict(tables.store_composition),
-        **(
-            {"trait_ontology_mapping": dict(trait_ontology_mapping)}
-            if trait_ontology_mapping is not None
-            else {}
-        ),
+        "trait_ontology_mapping": dict(trait_ontology_mapping),
         "reports": {
             "source_readiness": "sidecars/source_readiness.tsv",
             "ancestry": "sidecars/ancestry.tsv",
@@ -3140,6 +3173,7 @@ __all__ = [
     "now_utc",
     "parse_store_composition",
     "read_candidate_metadata",
+    "candidate_source_traits",
     "map_candidate_trait_ontologies",
     "read_genotyping_technologies",
     "read_effect_placeholder_exclusions",

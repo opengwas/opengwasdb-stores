@@ -50,6 +50,7 @@ from manifest_generation.candidate_workflow import (
     build_resolution_receipt,
     derive_resolver_manifest,
     load_candidate_configuration,
+    candidate_source_traits,
     map_candidate_trait_ontologies,
     now_utc,
     read_candidate_metadata,
@@ -105,6 +106,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--inventory", help="override the inventory path the config declares")
     parser.add_argument("--provenance", help="override the provenance sidecar path")
     parser.add_argument("--candidates", help="override the candidate metadata table path")
+    parser.add_argument(
+        "--canonical-trait-mapping-table",
+        help="Canonical Trait Mapping Table resource directory "
+        f"(default: <repo>/{CANONICAL_TRAIT_MAPPING_RESOURCE})",
+    )
     parser.add_argument("--created-at", help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
@@ -153,6 +159,12 @@ class Pipeline:
             if self.args.provenance
             else self.config.base.inventory_provenance_path
         )
+
+    @property
+    def canonical_trait_mapping_table(self) -> Path:
+        if self.args.canonical_trait_mapping_table:
+            return Path(self.args.canonical_trait_mapping_table)
+        return self.repo_root / CANONICAL_TRAIT_MAPPING_RESOURCE
 
     @property
     def candidates_path(self) -> Path:
@@ -279,14 +291,15 @@ def stage_emit(
     index: dict,
 ) -> Path:
     # Trait Ontology Mapping (#286, ADR 0036 step 5): after verification, from
-    # the frozen source terms and the tracked Canonical Trait Mapping Table.
+    # the frozen Source Metadata Table's source terms (the candidate table's
+    # for an older freeze) and the Canonical Trait Mapping Table.
     try:
-        table = load_canonical_trait_mapping_table(
-            pipeline.repo_root / CANONICAL_TRAIT_MAPPING_RESOURCE
-        )
+        table = load_canonical_trait_mapping_table(pipeline.canonical_trait_mapping_table)
     except TraitOntologyMappingError as exc:
         raise CandidateError(str(exc)) from exc
-    metadata, trait_ontology_run = map_candidate_trait_ontologies(metadata, table)
+    metadata, trait_ontology_run = map_candidate_trait_ontologies(
+        metadata, candidate_source_traits(pipeline.provenance_path, metadata), table
+    )
 
     rows = read_inventory(pipeline.inventory_path)
     outcomes = apply_release_policy(rows, pipeline.config, metadata, {

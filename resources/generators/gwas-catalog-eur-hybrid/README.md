@@ -138,12 +138,19 @@ work root (also how `workflow/generate.smk` wires the coarse DAG):
 | `prepare` | The canonical resolver manifest from the frozen exact `data_file` paths and the per-design method tiers. |
 | `resolve` | Invokes `opengwasdb resolve-analyses`; writes records, `index.json`, `resolve.log`, and the `resolution_receipt.json` that binds the run to its contract. |
 | `verify` | Accounts every record and requires the current contract and every record digest to match the successful resolution receipt; refuses a missing, stale, duplicate, extra, or incompatible-schema record. |
-| `emit` | Applies release policy, checks the pinned schema, and emits `stores/OGS-xxxxx/` through the shared emitter, which runs `bundle.check()`. |
+| `emit` | Maps every Analysis's Trait Ontology (#286), applies release policy, checks the pinned schema, and emits `stores/OGS-xxxxx/` through the shared emitter, which runs `bundle.check()`. |
 | `all` | Default: every stage in order. |
 
 Useful options: `--registry-root` (default `stores/`), `--work-root` (default
 `output.work_root`), `--inventory` / `--provenance` / `--candidates` overrides,
-and `--resume`.
+`--canonical-trait-mapping-table` (default
+`resources/reference-resources/canonical-trait-mapping-efo/`), and `--resume`.
+
+The Trait Ontology Mapping reads its source terms from the frozen Source
+Metadata Table when the inventory was frozen by `manifest_generation.freeze`
+(#283). The 2026-09-22 inventory predates that, so its source terms come from
+the candidate table's `MAPPED_TRAIT_URI`/`MAPPED_TRAIT` until #287 re-freezes
+it.
 
 A standalone `--stage verify` or `--stage emit` requires the
 `resolution_receipt.json` a successful `resolve` wrote. The receipt binds the
