@@ -221,6 +221,21 @@ class StoreReleaseBuildBoundaryTest(unittest.TestCase):
         offenders = [t for t in snakefile_includes(snakefile) if includes_generation(t)]
         self.assertEqual(offenders, [], "\n".join(offenders))
 
+    def test_store_release_build_reads_no_quality_check_results(self) -> None:
+        """Only the contract validates `sidecars/quality_checks.tsv` (#285).
+
+        Quality Checks decide membership before the bundle exists, and
+        `analyses.tsv` already carries the decision, so Store Release Build has
+        no reason to read their results.
+        """
+        contract = REPO_ROOT / "src" / "ogstores" / "bundle.py"
+        offenders = [
+            str(path.relative_to(REPO_ROOT))
+            for path in store_release_build_files()
+            if path != contract and "quality_checks" in path.read_text(encoding="utf-8")
+        ]
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
     def test_manifest_generation_imports_only_the_shared_ogstores_surface(self) -> None:
         offenders = []
         package = REPO_ROOT / "src" / "manifest_generation"

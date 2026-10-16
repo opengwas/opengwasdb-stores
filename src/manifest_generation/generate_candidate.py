@@ -338,6 +338,7 @@ def stage_emit(
             "sd_estimation.tsv": tables.sd_estimation_tsv,
             "exclusions.tsv": tables.exclusions_tsv,
             "reference_overlap.tsv": tables.reference_overlap_tsv,
+            "quality_checks.tsv": tables.quality_checks_tsv,
         },
     )
     emitted = emit(candidate, pipeline.registry_root)

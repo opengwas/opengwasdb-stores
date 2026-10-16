@@ -970,7 +970,13 @@ orientation failure is excluded; a quantitative Analysis on the computable
 `estimated_from_source_maf` tier whose phenotype SD is unavailable is excluded;
 a resolver `controlled_failure` is excluded. Each excluded row stays in
 `analyses.tsv` with `exclude_from_build: true` and a machine-checkable reason in
-`inclusion_reason`, and is explained in `sidecars/exclusions.tsv`. Case-control
+`inclusion_reason`, and is explained in `sidecars/exclusions.tsv`. The
+exclusions that test a measurement (zero build-eligible rows, the reviewed
+placeholder-effect listing, EAF orientation, Assigned Ancestry against the
+Selection, phenotype SD) are declared Quality Checks (#285, ADR 0036), and every
+Analysis's result for each check is recorded in `sidecars/quality_checks.tsv`,
+an optional Release Bundle contract file, passing or not. An Analysis an
+exclusion check could not test is refused rather than included. Case-control
 rows are included on `log_or`/`binary_trait` with their case/control counts and
 an explicit SD skip; duplicate-content accessions are reported and never
 collapsed. Because the candidate is a Candidate Bundle, no exclusion blocks the
@@ -989,6 +995,8 @@ stores/OGS-00011/
     ancestry.tsv            # one row per selected Analysis
     sd_estimation.tsv       # one row per selected Analysis
     exclusions.tsv          # one row per excluded selected Analysis, with its reason
+    reference_overlap.tsv   # one row per selected Analysis
+    quality_checks.tsv      # one row per selected Analysis: every Quality Check's result
 ```
 
 **Determinism and atomicity.** Aggregation is ordered by the frozen inventory,
