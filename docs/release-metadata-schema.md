@@ -241,7 +241,16 @@ authority name standing in for the label: gene/target identity is annotation
 (`analysis_label` for a single-target Analysis; `trait_chr`/`trait_bp` and the
 target sidecar for the target itself). `bundle.check()` rejects a gene- or
 protein-shaped `trait_ontology_id` (Ensembl, HGNC, Entrez/NCBI Gene, UniProt)
-and the matching authority name in `trait_ontology_label` (issue #141).
+and the matching authority name in `trait_ontology_label` (issue #141), checking
+each term of a list and each comma-separated part of a label.
+
+`bundle.check()` also rejects a `trait_ontology_id` term that is not a CURIE,
+such as a raw `http://` URI (#286). `OGS-00011` was accepted before this check
+with GWAS Catalog's raw EFO and ORDO URIs in 2,972 rows. An accepted bundle is
+never rewritten, so those values are tolerated for that release by name
+(`LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES`) and reported on `check()`'s
+second channel with their count. Every other bundle, buildable or not, is held
+to the CURIE form.
 
 ### Column reference
 
@@ -252,7 +261,7 @@ and the matching authority name in `trait_ontology_label` (issue #141).
 | `source_label` | Yes | Upstream trait or phenotype label preserved as source provenance. Registry-only; kept separate from `analysis_label` even when both hold the same source text. |
 | `analysis_label` | Yes | Free-text, non-unique display label for the Analysis, carried into the built store. Typically the same source text as `source_label`; for a single-target gene-centric Analysis it is the resolved gene symbol, and for an aggregate assay it is the SomaScan SeqId, SomaLogic's stable assay identifier (issue #141). |
 | `trait_ontology_label` | No | Human-readable label of the ontology term itself that `trait_ontology_id` identifies, exactly as the defining ontology or controlled vocabulary names it — for example `carnitine measurement` (`EFO:0010469`) or `multiple sclerosis` (`MONDO:0005301`). It is never an identifier-authority or vocabulary label such as `Ensembl`, `EFO`, `MONDO`, or `OBA`: those name the vocabulary, not the Trait, and `bundle.check()` rejects an authority-name label (issue #141). Named `trait_ontology_name` before OpenGWASDB ADR 0034. |
-| `trait_ontology_id` | No | Ontology or controlled-vocabulary identifier for the analysed Trait, when available. CURIE format, for example `EFO:0001073`; blank when unmapped. Never a gene or protein identifier: `bundle.check()` rejects Ensembl, HGNC, Entrez/NCBI Gene, and UniProt identifiers, bare or authority-qualified (issue #141). Not required to be unique. |
+| `trait_ontology_id` | No | Ontology or controlled-vocabulary identifier for the analysed Trait, when available. CURIE format, for example `EFO:0001073`, `OBA:VT0001253` or `Orphanet:101960`; blank when unmapped. When the source maps the Trait to several terms, the CURIEs are joined by exactly `", "` in the source's order (`MONDO:0005150, EFO:1001492`), and `trait_ontology_label` keeps the source's label verbatim: labels are not split per term, because a term's own label may contain a comma (#286). Never a URI. Never a gene or protein identifier: `bundle.check()` rejects Ensembl, HGNC, Entrez/NCBI Gene, and UniProt identifiers, bare or authority-qualified (issue #141). Not required to be unique. |
 | `trait_ontology_mapping_method` | Yes | Controlled value describing how `trait_ontology_id`/`trait_ontology_label` were resolved: `source_provided`, `canonical_table_lookup`, or `unmapped`. The #130 `external_authority_lookup` value is retired: gene/target identity is annotation, not a Trait Ontology Mapping (issue #141). Registry-only. |
 | `source_file` | Yes | Source file or filtered source file consumed by the builder. Omitted in legacy monolithic BESD releases (`OGS-00001` and `OGS-00002`), where source identity is currently recorded only as an unverified path prefix (a known integrity gap tracked in issue #134). |
 | `source_reader_capability` | No | The OpenGWASDB reader that consumes `source_file` (for example `opengwasdb.gwas-ssf`). The builder reads it per row and falls back to the Build Recipe's `source-reader-capability` when absent. Required on any row with a numeric `info_score_threshold`. |

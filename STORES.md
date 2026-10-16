@@ -56,3 +56,4 @@ These bundles pass the Release Bundle gate only because a named exemption tolera
 |:---|:---|
 | `OGS-00001` | 70 blank required Analysis values (tolerated under #134) |
 | `OGS-00002` | 70 blank required Analysis values (tolerated under #134) |
+| `OGS-00011` | 2972 non-CURIE trait_ontology_id values (tolerated under #286) |
