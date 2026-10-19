@@ -8,8 +8,8 @@ pipeline calls. This specification covers the two connector files that meet at
 **freeze** -- the **Source Metadata Table** (what the collection intends) and
 the **Acquisition Manifest** (what acquisition produced) -- the **Selection** a
 release config declares, and the frozen Source Inventory freeze writes (#283).
-The Column Map and the release config are specified with the tickets that build
-them (#292, #287).
+The release config is specified in [release-config.md](release-config.md)
+(#287); the Column Map is specified with the ticket that builds it (#292).
 
 | Contract | Owner |
 |---|---|
@@ -266,8 +266,8 @@ The sidecar keeps the counts preflight re-checks, computed by
 ukb-b reconciliation are not used by this path. The first stays until #287
 moves GWAS Catalog onto the shared freeze; ukb-b's goes in #289.
 
-## Open points
+## Pilot prefixes
 
-- **Pilot prefixes (#287).** Pilot configs select a deterministic prefix with
-  `n_analyses`. The Selection grammar has no such form: #287 either writes the
-  prefix out as an `analyses` list or adds a form.
+Pilot configs selected a deterministic prefix with `n_analyses`. The Selection
+grammar has no such form: a migrated pilot writes the prefix out as an
+`analyses` list ([release config](release-config.md#pilot-prefixes), #287).
