@@ -334,6 +334,8 @@ curation = { features = ["python", "curation"] }
 generate-candidate = { cmd = "python3 -m manifest_generation.generate_candidate" }
 
 [feature.python.tasks]
+# PROTOTYPE (throwaway, branch prototype/analysis-catalog): cross-store analysis catalog state model.
+prototype-catalog = { cmd = "python3 prototypes/analysis-catalog/tui.py" }
 # Manifest Generation: freeze the Source Inventory a release selects
 # from, then prove the frozen snapshot before the resolution run reads a single
 # association row (issue #151). Both are pure Python (no opengwasdb, no R), so
