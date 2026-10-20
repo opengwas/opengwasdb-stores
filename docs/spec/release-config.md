@@ -36,7 +36,7 @@ key.
 |---|---:|---|
 | `release_config_version` | Yes | `1`. |
 | `label` | Yes | Source-natural release name, written to `release.yaml`. Never an identifier. |
-| `access_posture` | No | `public` (default), `controlled` or `embargoed`. |
+| `access_posture` | No | `public`, `controlled` or `embargoed`; `public` only when the key is absent, so an explicit `false` or blank is refused. |
 | `description` | Yes | Prose for `release.yaml`. |
 | `notes` | No | Prose; the candidate's own evidence notes follow it in `release.yaml`. |
 | `source_collection` | Yes | The Source Collection and its files (below). |
@@ -51,7 +51,7 @@ key.
 | `effect_scale_validation` | No | Phenotype-SD evidence settings (below). |
 | `trait_ontology_mapping` | Yes | The Canonical Trait Mapping Table (below). |
 | `runtime` | No | `cores` (default 1, capped at 64 by preflight) and `min_free_gb` (default 0). |
-| `output` | Yes | `work_root`: the root of the Store Release's Work Root. The resolution root is deployment configuration and `output.resolution_root` is refused (#284). |
+| `output` | Yes | `work_root`: the root of the Store Release's Work Root, absolute or repository-relative like every path here. The resolution root is deployment configuration and `output.resolution_root` is refused (#284). |
 
 ### `source_collection`
 
@@ -71,7 +71,13 @@ a re-freeze is a new snapshot id.
 
 `layout`, `completion_state`, `command` and `post` are required, `options` is
 not. `command` names an `opengwasdb` subcommand and `options` are its flags,
-passed through verbatim (ADR 0023). The recipe carries no artifact root
+passed through verbatim (ADR 0023): `options` is opaque by design, and its keys
+are not checked here. `post` is the registry's own vocabulary -- `top_hits`,
+`overview`, `rho` and `validate`, each `true` or `false`, the steps
+`ogstores.plan` plans -- so an unknown key or a non-boolean is refused. An
+`indexed_subsets` entry takes only the Release Bundle contract's keys
+(`name`, `resource_id`, `variant_list`, `reference_assembly`, `checksum`,
+`options`). The recipe carries no artifact root
 (#126). Manifest Generation reads two options itself:
 `source-reader-capability` (the reader the resolver uses; default
 `opengwasdb.gwas-ssf`) and `variant-reference` (the Variant Reference the
@@ -81,10 +87,10 @@ resolver measures overlap against).
 
 | Key | Required | Description |
 |---|---:|---|
-| `by_study_design` | Yes | One method tier per `study_design`, each with `stored_effect_scale`, `original_effect_scale`, `original_sd_method` and `sample_size_kind`. A ready Analysis whose design has no tier fails preflight. |
+| `by_study_design` | Yes | One method tier per `study_design`, each with `stored_effect_scale`, `original_effect_scale`, `original_sd_method` and `sample_size_kind`. `stored_effect_scale`, `original_sd_method` and `sample_size_kind` must be in OpenGWASDB's vocabularies (`opengwasdb.model.enums`, imported, not copied); `original_effect_scale` has no closed vocabulary. A ready Analysis whose design has no tier fails preflight. |
 | `source_genome_build` | No | `GRCh37` or `GRCh38`. |
 | `license`, `publication_doi`, `consortium` | No | Text. |
-| `sample_size_scope` | No | Default `analysis_level`. |
+| `sample_size_scope` | No | OpenGWASDB's `SampleSizeScope`; default `analysis_level`. |
 | `analysis_group_id` | No | Default blank. |
 | `info_score_threshold` | No | The INFO floor in [0,1] a declared Analysis requests; default 0.6 (#175). |
 | `maf_threshold` | No | The MAF floor in [0,0.5] each Analysis requests; absent is no MAF filter (#176). |
@@ -115,7 +121,8 @@ and `location` are required; `location_kind`, `version`, `status`,
 refused. Three blocks use them, by id:
 
 - `ancestry_assignment.reference_resource_id` (required) names the ancestry
-  mixture the resolver measures against; it needs a `fine_group_map`.
+  mixture the resolver measures against: an `ancestry_mixture` resource, with a
+  `fine_group_map`.
   `maf_floor` (default 0.01), `extraction_panel` (default none) and `gates`
   (`tau` 0.50, `delta` 0.20, `n_min` 5000, `residual_max` 0.06) are passed to
   the resolver as written.

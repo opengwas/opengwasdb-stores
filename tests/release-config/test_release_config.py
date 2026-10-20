@@ -189,6 +189,16 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
         self.assertEqual(config.ancestry_gates["n_min"], 200)
         self.assertEqual(config.cores, 8)
 
+    def test_the_work_root_is_repository_relative_like_every_path(self) -> None:
+        config = self.load(lambda d: d["output"].update(work_root="work/relative"))
+        self.assertEqual(config.work_root, REPO_ROOT / "work/relative")
+
+    def test_access_posture_defaults_only_when_absent(self) -> None:
+        self.assertEqual(self.load(lambda d: d.pop("access_posture", None)).access_posture, "public")
+        self.assertEqual(
+            self.load(lambda d: d.update(access_posture="embargoed")).access_posture, "embargoed"
+        )
+
     def test_a_ragged_release_declares_no_indexed_subset(self) -> None:
         def edit(document):
             document["build"].update(layout="ragged", command="build-ragged-ssf")
@@ -215,6 +225,11 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
             "trait_ontology_mapping": lambda d: d["trait_ontology_mapping"].update(x=1),
             "output": lambda d: d["output"].update(registry_root="stores"),
             "runtime": lambda d: d.update(runtime={"cores": 1, "x": 1}),
+            "build.post": lambda d: d["build"]["post"].update(overveiw=True),
+            "indexed_subsets entry": lambda d: d.update(indexed_subsets=[{
+                "name": "hm3", "resource_id": "hapmap3-hg38", "variant_list": "/x.txt",
+                "reference_assembly": "GRCh38", "oops": 1,
+            }]),
         }
         for where, edit in cases.items():
             with self.subTest(where=where):
@@ -283,6 +298,13 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
             "trait_ontology_mapping",
         )
         self.assertRefused(
+            lambda d: d["ancestry_assignment"].update(
+                reference_resource_id="canonical-trait-mapping-efo"
+            ),
+            "'canonical-trait-mapping-efo' is a 'trait_ontology_mapping' resource",
+            "'ancestry_mixture'",
+        )
+        self.assertRefused(
             lambda d: d.update(
                 effect_scale_validation={"reference_resources": [
                     {"ancestry": "EUR", "resource_id": "absent"}
@@ -316,13 +338,37 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
                 trust_source_ancestry_without_af=True
             ),
             "cores": lambda d: d.update(runtime={"cores": 0}),
+            "access_posture false": lambda d: d.update(access_posture=False),
+            "access_posture empty": lambda d: d.update(access_posture=""),
+            "stored_effect_scale": lambda d: d["defaults"]["by_study_design"]["quantitative"].update(
+                stored_effect_scale="potato"
+            ),
+            "original_sd_method": lambda d: d["defaults"]["by_study_design"]["quantitative"].update(
+                original_sd_method="guessed"
+            ),
+            "sample_size_kind": lambda d: d["defaults"]["by_study_design"]["quantitative"].update(
+                sample_size_kind="most"
+            ),
+            "sample_size_scope": lambda d: d["defaults"].update(sample_size_scope="everywhere"),
+            "post value": lambda d: d["build"]["post"].update(overview="yes"),
             "source_collection_id": lambda d: d["source_collection"].update(
                 source_collection_id="a/b"
             ),
         }
         for field, edit in cases.items():
             with self.subTest(field=field):
-                self.assertRefused(edit, field)
+                self.assertRefused(edit, field.split()[0])
+
+    def test_the_post_keys_are_the_ones_store_release_build_plans(self) -> None:
+        import re
+
+        from manifest_generation.release_config import BUILD_POST_KEYS
+
+        planner = (REPO_ROOT / "src/ogstores/plan.py").read_text(encoding="utf-8")
+        steps = planner[planner.index("def _post_steps("):]
+        steps = steps[: steps.index("\ndef ", 1)]
+        planned = set(re.findall(r'post\.get\("([a-z_]+)"\)', steps))
+        self.assertEqual(set(BUILD_POST_KEYS), planned)
 
     def test_the_resolution_root_is_not_a_release_config_key(self) -> None:
         self.assertRefused(

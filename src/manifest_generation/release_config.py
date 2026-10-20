@@ -47,16 +47,21 @@ from manifest_generation.indexed_subsets import (
     resolve_indexed_subsets,
 )
 from manifest_generation.selection import Selection, parse_selection
+from manifest_generation.source_metadata_table import GENOME_BUILDS
 from manifest_generation.source_inventory import (
     MethodTier,
     PreflightConfigError,
     ReferenceResource,
 )
-from ogstores.bundle import SUPERPOPULATIONS
+from ogstores.bundle import (
+    INDEXED_SUBSET_OPTIONAL_KEYS,
+    INDEXED_SUBSET_REQUIRED_KEYS,
+    SUPERPOPULATIONS,
+)
 
 __all__ = [
     "ACCESS_POSTURES",
-    "GENOME_BUILDS",
+    "BUILD_POST_KEYS",
     "RELEASE_CONFIG_VERSION",
     "BuildRecipeShape",
     "Connectors",
@@ -70,13 +75,20 @@ __all__ = [
 RELEASE_CONFIG_VERSION: int = 1
 
 ACCESS_POSTURES: tuple[str, ...] = ("public", "controlled", "embargoed")
-#: The spelling every Release Bundle's ``source_genome_build`` uses
-#: (``docs/spec/source-connectors.md``).
-GENOME_BUILDS: tuple[str, ...] = ("GRCh37", "GRCh38")
+
+#: The ``build.post`` steps Store Release Build plans (``ogstores.plan``'s
+#: ``_post_steps``), each on or off. The recipe's ``options`` are opaque
+#: ``opengwasdb`` flags passed through verbatim (ADR 0023); ``post`` is the
+#: registry's own vocabulary, so it is checked. ``ogstores.plan`` is Store
+#: Release Build's, which Manifest Generation does not import, so the names
+#: are listed here; a test holds them to the planner's.
+BUILD_POST_KEYS: tuple[str, ...] = ("top_hits", "overview", "rho", "validate")
 
 #: The kind a Canonical Trait Mapping Table resource declares
 #: (``trait_ontology_mapping``'s ``resource.yaml``).
 TRAIT_ONTOLOGY_MAPPING_KIND: str = "trait_ontology_mapping"
+#: The kind of Reference Resource ancestry assignment measures against.
+ANCESTRY_MIXTURE_KIND: str = "ancestry_mixture"
 
 #: Ancestry-assignment gate defaults: the resolver flags' values when a config
 #: names none (``candidate_workflow.resolver_settings``).
@@ -273,6 +285,35 @@ def _number_in(value: Any, where: str, low: Decimal, high: Decimal) -> str:
     return format(number, "f")
 
 
+def _vocabularies() -> dict[str, tuple[str, ...]]:
+    """OpenGWASDB's controlled vocabularies a release config's defaults draw on.
+
+    Imported, never copied, so a config cannot drift from what the pinned
+    Analysis schema accepts; imported here, not at module load, as
+    ``source_metadata_table`` does.
+    """
+    from opengwasdb.model.enums import (
+        OriginalSdMethod,
+        SampleSizeKind,
+        SampleSizeScope,
+        StoredEffectScale,
+    )
+
+    return {
+        "stored_effect_scale": tuple(member.value for member in StoredEffectScale),
+        "original_sd_method": tuple(member.value for member in OriginalSdMethod),
+        "sample_size_kind": tuple(member.value for member in SampleSizeKind),
+        "sample_size_scope": tuple(member.value for member in SampleSizeScope),
+    }
+
+
+def _in_vocabulary(value: str, where: str, key: str, vocabularies: Mapping[str, tuple[str, ...]]) -> str:
+    allowed = vocabularies.get(key)
+    if allowed is not None and value not in allowed:
+        raise ReleaseConfigError(f"{where} {value!r} is not one of {', '.join(allowed)}")
+    return value
+
+
 def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfig:
     """Load and validate the release config at ``path``; refuse anything the schema does not say."""
     path = Path(path)
@@ -304,7 +345,9 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
 
     # -- identity --------------------------------------------------------------
     label = _text(document["label"], _where(path, "label"))
-    access_posture = str(document.get("access_posture") or "public")
+    # Defaulted only when the key is absent: an explicit false or blank is a
+    # mistake to refuse, not a request for public.
+    access_posture = document.get("access_posture", "public")
     if access_posture not in ACCESS_POSTURES:
         raise ReleaseConfigError(
             f"{_where(path, 'access_posture')} {access_posture!r} is not one of "
@@ -348,6 +391,10 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
     for key in ("options", "post"):
         if build_block.get(key) is not None and not isinstance(build_block[key], Mapping):
             raise ReleaseConfigError(f"{where}.{key} must be a mapping")
+    post_block = _block(build_block["post"], f"{where}.post", (), BUILD_POST_KEYS)
+    for key, value in post_block.items():
+        if not isinstance(value, bool):
+            raise ReleaseConfigError(f"{where}.post.{key} must be true or false, not {value!r}")
     build = BuildRecipeShape(
         layout=_text(build_block["layout"], f"{where}.layout"),
         completion_state=_text(build_block["completion_state"], f"{where}.completion_state"),
@@ -355,6 +402,14 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
         options=dict(build_block.get("options") or {}),
         post=dict(build_block["post"]),
     )
+    declared_subsets = document.get(INDEXED_SUBSETS_KEY)
+    if isinstance(declared_subsets, list):
+        for position, entry in enumerate(declared_subsets):
+            if isinstance(entry, Mapping):
+                _block(
+                    entry, _where(path, f"{INDEXED_SUBSETS_KEY}[{position}]"), (),
+                    INDEXED_SUBSET_REQUIRED_KEYS + INDEXED_SUBSET_OPTIONAL_KEYS,
+                )
     try:
         indexed_subsets, indexed_subsets_opt_out = resolve_indexed_subsets(
             document, build.layout, repo_root
@@ -365,8 +420,11 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
     # -- defaults and method tiers ---------------------------------------------
     where = _where(path, "defaults")
     defaults_block = _block(document["defaults"], where, ("by_study_design",), DEFAULTS_OPTIONAL)
+    vocabularies = _vocabularies()
     defaults = {
-        key: _text(defaults_block[key], f"{where}.{key}")
+        key: _in_vocabulary(
+            _text(defaults_block[key], f"{where}.{key}"), f"{where}.{key}", key, vocabularies
+        )
         for key in TEXT_DEFAULTS
         if defaults_block.get(key) is not None
     }
@@ -382,7 +440,10 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
         str(design): MethodTier(
             study_design=str(design),
             **{
-                key: _text(value, f"{where}.by_study_design.{design}.{key}")
+                key: _in_vocabulary(
+                    _text(value, f"{where}.by_study_design.{design}.{key}"),
+                    f"{where}.by_study_design.{design}.{key}", key, vocabularies,
+                )
                 for key, value in _block(
                     tier, f"{where}.by_study_design.{design}", METHOD_TIER_KEYS
                 ).items()
@@ -501,7 +562,7 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
     ancestry = _block(document["ancestry_assignment"], where, ("reference_resource_id",),
                       ("maf_floor", "extraction_panel", "gates"))
     ancestry_reference_resource_id = declared(
-        ancestry["reference_resource_id"], f"{where}.reference_resource_id"
+        ancestry["reference_resource_id"], f"{where}.reference_resource_id", ANCESTRY_MIXTURE_KIND
     )
     gates = dict(DEFAULT_GATES)
     if ancestry.get("gates") is not None:
@@ -588,7 +649,7 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
         trait_ontology_mapping_resource_id=trait_mapping_resource_id,
         cores=cores,
         min_free_gb=float(min_free_gb),
-        work_root=Path(_text(output["work_root"], _where(path, "output.work_root"))),
+        work_root=_path(output["work_root"], _where(path, "output.work_root"), repo_root),
         required_resource_ids=tuple(
             dict.fromkeys(
                 [ancestry_reference_resource_id]
