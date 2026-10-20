@@ -32,7 +32,7 @@ source_metadata_table:
     bytes: 2145
     rows: 10
   original:
-    path: /data/opengwasdb/work/p287-regen-I8jEk0/connectors/gwas-catalog-ssf.source-metadata.tsv
+    path: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-20/gwas-catalog-ssf.source-metadata.tsv
     sha256: eb77c9fc05b55c0b5977700bd5bc0492c6837b374689a1e869b81e1c2ade4169
     bytes: 38722204
     rows: 171274
@@ -43,7 +43,7 @@ acquisition_manifest:
     bytes: 5767
     rows: 10
   original:
-    path: /data/opengwasdb/work/p287-regen-I8jEk0/connectors/gwas-catalog-ssf-eur-hybrid.acquisition-manifest.tsv
+    path: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-20/gwas-catalog-ssf-eur-hybrid.acquisition-manifest.tsv
     sha256: 85240fe8b104f009f17b1d9026df091f8a0da6b9df46563e84300f5376019500
     bytes: 3106335
     rows: 6035
@@ -55,7 +55,7 @@ acquisition_manifest:
       missing_remote_harmonised_yaml: 1104
       ok: 4570
     pass_lineage:
-      path: /data/opengwasdb/work/p287-regen-I8jEk0/connectors/gwas-catalog-ssf-eur-hybrid.acquisition-manifest.meta.yaml
-      sha256: 5ee0415fb866a7c96b502e2b2ceef38050a99baf4a604abeb3e02a5e965ecd33
+      path: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-20/gwas-catalog-ssf-eur-hybrid.acquisition-manifest.meta.yaml
+      sha256: 8a1975735a06b2e30f32474ee73f3ade7eee043c28a1ced940aa7e78142d90e4
   unselected_entries: 6025
 lineage: []

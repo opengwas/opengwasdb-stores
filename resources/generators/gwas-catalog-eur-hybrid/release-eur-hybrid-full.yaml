@@ -14,6 +14,8 @@
 #   - the Acquisition Manifest the GWAS Catalog writer overlays from the three
 #     download passes the 2026-09-22 snapshot froze (base, retry_transient,
 #     rescue_upstream_harmonised).
+# Both connector files, the pass lineage and the candidate table are kept,
+# read-only, in /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-20/.
 # Their selected rows are frozen beside the inventory and checksummed into its
 # provenance, so this config names only the frozen snapshot: a new acquisition
 # or a changed Selection is a re-freeze under a new snapshot id, with

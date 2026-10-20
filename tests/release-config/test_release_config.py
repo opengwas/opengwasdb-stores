@@ -366,6 +366,36 @@ class ShippedReleaseConfigTests(unittest.TestCase):
                 )
                 self.assertTrue(config.canonical_trait_mapping_table.is_dir())
 
+    def test_every_shipped_snapshot_names_permanent_connector_originals(self) -> None:
+        """Provenance names where the connector originals live, never a scratch path.
+
+        On a host that has them, each original (and the acquisition pass
+        lineage) still has the sha256 the freeze recorded; the frozen subsets
+        beside the inventory are checked by ``load_frozen_connectors``.
+        """
+        from manifest_generation.freeze import load_frozen_connectors
+
+        scratch = ("/tmp/", "/data/opengwasdb/work/")
+        for path in shipped_release_configs():
+            config = load_release_config(path, REPO_ROOT)
+            provenance = yaml.safe_load(config.inventory_provenance_path.read_text(encoding="utf-8"))
+            recorded = [
+                provenance["source_metadata_table"]["original"],
+                provenance["acquisition_manifest"]["original"],
+            ]
+            lineage = provenance["acquisition_manifest"]["original"]["pass_lineage"]
+            if lineage is not None:
+                recorded.append(lineage)
+            for entry in recorded:
+                with self.subTest(config=path.name, original=entry["path"]):
+                    self.assertFalse(entry["path"].startswith(scratch), entry["path"])
+                    original = Path(entry["path"])
+                    if original.is_file():
+                        self.assertEqual(sha256_file(original), entry["sha256"])
+            table, manifest = load_frozen_connectors(config.inventory_provenance_path)
+            self.assertEqual(len(table.rows), provenance["rows"])
+            self.assertEqual(len(manifest.entries), provenance["rows"])
+
     def test_the_ogs_00011_config_reproduces_its_inventory_and_resolver_settings(self) -> None:
         from manifest_generation.candidate_workflow import (
             load_candidate_configuration,

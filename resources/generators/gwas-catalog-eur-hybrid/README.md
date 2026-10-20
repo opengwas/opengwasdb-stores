@@ -37,6 +37,13 @@ pixi run python3 -m manifest_generation.providers.gwas_catalog.write_acquisition
   --out <dir>/gwas-catalog-ssf-eur-hybrid.acquisition-manifest.tsv
 ```
 
+The connector files every snapshot below was frozen from are kept, read-only,
+beside the download passes in
+`/data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-20/`: the Source
+Metadata Table, the Acquisition Manifest with its pass lineage
+(`.acquisition-manifest.meta.yaml`), and the candidate table the adapter read
+(sha256 `aef4dbe2...`). A later acquisition writes a new dated directory.
+
 A release config whose `source_collection.connectors` names them freezes its
 Selection with `pixi run inventory-freeze --config <release config>` (or the
 entry point's `freeze` stage) into `resources/inventories/`, and preflights it
