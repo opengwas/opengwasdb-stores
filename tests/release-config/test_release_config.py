@@ -428,6 +428,46 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         settings = resolved[4:resolved.index("--n-workers")]
         self.assertEqual(resolver_settings(config), settings)
 
+    def test_every_shipped_config_prepares_its_resolver_manifest(self) -> None:
+        """The prepare stage, in-process: the pilots share the full release's declarations.
+
+        The full release's whole prepare reads 4,783 metadata sidecars on the
+        mirror (its MAF-exempt technologies), about 6 s, and the OGS-00011
+        regeneration ran it end to end; here it is held to the declarations
+        step, which is what the pilots' sharing changed.
+        """
+        from manifest_generation.candidate_workflow import (
+            collection_analysis_ids,
+            derive_resolver_manifest,
+            load_candidate_configuration,
+            read_analysis_metadata,
+            read_imputation_score_declarations,
+        )
+        from manifest_generation.source_inventory import read_inventory
+
+        for path in shipped_release_configs():
+            with self.subTest(config=path.name):
+                config = load_candidate_configuration(path, REPO_ROOT)
+                provenance_path = config.base.inventory_provenance_path
+                provenance = yaml.safe_load(provenance_path.read_text(encoding="utf-8"))
+                if not Path(provenance["source_metadata_table"]["original"]["path"]).is_file():
+                    self.skipTest("the collection's Source Metadata Table is not on this host")
+                rows = read_inventory(config.base.inventory_path)
+                ready = [row.analysis_id for row in rows if row.ready]
+                if len(ready) > 100:
+                    declared = read_imputation_score_declarations(
+                        config.imputation_score_declarations,
+                        [row.analysis_id for row in rows],
+                        lambda: collection_analysis_ids(provenance_path),
+                    )
+                    self.assertEqual(len(declared), 704)
+                    continue
+                metadata = read_analysis_metadata(provenance_path, ready)
+                manifest = derive_resolver_manifest(rows, config, metadata)
+                self.assertEqual([row.analysis_id for row in manifest], ready)
+                # The shared table's declarations for these Analyses, and only those.
+                self.assertTrue(any(row.imputation_score_column for row in manifest))
+
     def test_the_pilot_configs_select_exactly_their_trial_store_releases(self) -> None:
         for name, store_id in (
             ("release-eur-hybrid-pilot-10.yaml", "OGS-00004"),

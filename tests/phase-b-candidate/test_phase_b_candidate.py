@@ -92,6 +92,7 @@ from manifest_generation.candidate_workflow import (  # noqa: E402
     verify_records,
 )
 from manifest_generation.freeze import write_frozen_inventory  # noqa: E402
+from manifest_generation.inventory import freeze_release  # noqa: E402
 from manifest_generation.freeze import freeze as freeze_connectors  # noqa: E402
 from manifest_generation.selection import parse_selection  # noqa: E402
 from manifest_generation.trait_ontology_mapping import (  # noqa: E402
@@ -1493,6 +1494,51 @@ class CandidateWorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(CandidateError, "table not found"):
             derive_resolver_manifest(rows, load_candidate_configuration(
                 self.fixture.config_path, REPO_ROOT), metadata)
+
+    def _trial_selection(self, analysis_ids: list[str]) -> tuple:
+        """A second Selection of the fixture's collection, frozen; (config, rows, metadata)."""
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["selection"] = {"analyses": analysis_ids}
+        document["source_collection"]["inventory"]["snapshot_id"] = "fixture-trial"
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        freeze_release(config.base, frozen_at=FROZEN_AT)
+        rows = read_inventory(config.base.inventory_path)
+        metadata = read_analysis_metadata(
+            config.base.inventory_provenance_path, [row.analysis_id for row in rows if row.ready]
+        )
+        return config, rows, metadata
+
+    def test_score_declarations_are_the_collections_and_apply_to_the_selection(self) -> None:
+        """A shared declarations table names Analyses other Selections take (#287 review)."""
+        declaration = {
+            "imputation_score_column": "r2", "imputation_score_kind": "imputation_r2",
+            "imputation_score_provenance": "provider data dictionary: imputation R2",
+        }
+        self._declare_scores([
+            {"analysis_id": "GCST90000001", **declaration},
+            # In the collection, outside this Selection: another release's.
+            {"analysis_id": "GCST90000002", **declaration},
+        ])
+        config, rows, metadata = self._trial_selection(["GCST90000001", "GCST90000004"])
+        manifest = {row.analysis_id: row for row in derive_resolver_manifest(rows, config, metadata)}
+        self.assertEqual(set(manifest), {"GCST90000001", "GCST90000004"})
+        self.assertEqual(manifest["GCST90000001"].imputation_score_column, "r2")
+        self.assertEqual(manifest["GCST90000004"].imputation_score_column, "")
+
+        # An Analysis the collection does not intend is still refused.
+        self._declare_scores([{"analysis_id": "GCST99999999", **declaration}])
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        with self.assertRaisesRegex(CandidateError, "unknown analysis_id 'GCST99999999'"):
+            derive_resolver_manifest(rows, config, metadata)
+
+        # Without the collection's Source Metadata Table, a declaration outside
+        # the Selection cannot be checked, so it is refused rather than ignored.
+        self._declare_scores([{"analysis_id": "GCST90000002", **declaration}])
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.fixture.source_metadata_table_path.rename(self.fixture.root / "moved.tsv")
+        with self.assertRaisesRegex(CandidateError, "collection's Source Metadata Table"):
+            derive_resolver_manifest(rows, config, metadata)
 
     def test_worker_count_byte_equivalence(self) -> None:
         single_root = self.fixture.root / "stores-1"

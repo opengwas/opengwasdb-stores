@@ -58,7 +58,7 @@ from dataclasses import dataclass, field, replace
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 import yaml
 
@@ -809,12 +809,54 @@ SCORE_DECLARATION_COLUMNS: tuple[str, ...] = (
 )
 
 
+def collection_analysis_ids(provenance_path: Path) -> frozenset[str] | None:
+    """Every Analysis the Source Collection intends, from the Source Metadata Table freeze read.
+
+    A frozen inventory keeps only its Selection's rows; the collection is the
+    original table its provenance names and checksums. ``None`` when that file
+    is not on this host. A file there with another checksum is not the
+    collection that was frozen, and is refused.
+    """
+    try:
+        document = yaml.safe_load(Path(provenance_path).read_text(encoding="utf-8"))
+        original = document["source_metadata_table"]["original"]
+        path, expected = Path(original["path"]), original["sha256"]
+    except (OSError, KeyError, TypeError) as exc:
+        raise CandidateError(
+            f"{provenance_path} records no original Source Metadata Table: {exc}"
+        ) from exc
+    if not path.is_file():
+        return None
+    actual = sha256_file(path)
+    if actual != expected:
+        raise CandidateError(
+            f"the collection's Source Metadata Table {path} has sha256 {actual}, but "
+            f"{provenance_path} froze {expected}; it is not the collection that was frozen"
+        )
+    # A connector file carries no quoting (connector_tsv), so a field is what
+    # lies between tabs; the checksum above proves it is the frozen file.
+    with path.open(encoding="utf-8") as fh:
+        header = fh.readline().rstrip("\n").split("\t")
+        if "source_analysis_id" not in header:
+            raise CandidateError(f"{path} has no source_analysis_id column")
+        column = header.index("source_analysis_id")
+        return frozenset(line.rstrip("\n").split("\t")[column] for line in fh if line.strip())
+
+
 def read_imputation_score_declarations(
-    path: Path | None, analysis_ids: Iterable[str]
+    path: Path | None,
+    analysis_ids: Iterable[str],
+    collection_ids: Callable[[], frozenset[str] | None] | None = None,
 ) -> dict[str, tuple[str, str, str]]:
     """Read reviewed per-Analysis provider citations, never source-header guesses.
 
     A citation is required but its scientific independence requires human review.
+
+    The table is the Source Collection's, so several Selections can share it
+    (#287): a declaration may name an Analysis outside ``analysis_ids`` when the
+    collection intends it (``collection_ids``), and only the Selection's are
+    returned. A declaration the collection does not intend is refused, and so
+    is one outside the Selection when the collection cannot be read to check it.
     """
     if path is None:
         return {}
@@ -822,6 +864,7 @@ def read_imputation_score_declarations(
         raise CandidateError(f"imputation score declaration table not found: {path}")
     known = set(analysis_ids)
     found: dict[str, tuple[str, str, str]] = {}
+    outside: list[tuple[int, str]] = []
     with path.open(newline="", encoding="utf-8") as fh:
         reader = csv.DictReader(fh, delimiter="\t")
         if reader.fieldnames != list(SCORE_DECLARATION_COLUMNS):
@@ -832,7 +875,7 @@ def read_imputation_score_declarations(
             if None in row or any(value is None for value in row.values()):
                 raise CandidateError(f"{path}:{number}: malformed declaration row")
             analysis_id = row["analysis_id"].strip()
-            if not analysis_id or analysis_id not in known:
+            if not analysis_id:
                 raise CandidateError(f"{path}:{number}: unknown analysis_id {analysis_id!r}")
             if analysis_id in found:
                 raise CandidateError(f"{path}:{number}: duplicate analysis_id {analysis_id!r}")
@@ -852,7 +895,23 @@ def read_imputation_score_declarations(
                     "independent provider evidence"
                 )
             found[analysis_id] = (column, kind, provenance)
-    return found
+            if analysis_id not in known:
+                outside.append((number, analysis_id))
+    if outside:
+        collection = collection_ids() if collection_ids is not None else None
+        if collection is None:
+            raise CandidateError(
+                f"{path}: {len(outside)} declaration(s) name Analyses outside this Selection "
+                f"(first {outside[0][1]!r}, line {outside[0][0]}), and the collection's Source "
+                "Metadata Table is not available to check that the collection intends them"
+            )
+        for number, analysis_id in outside:
+            if analysis_id not in collection:
+                raise CandidateError(
+                    f"{path}:{number}: unknown analysis_id {analysis_id!r}: the Source "
+                    "Collection does not intend it"
+                )
+    return {analysis_id: found[analysis_id] for analysis_id in found if analysis_id in known}
 
 
 @dataclass(frozen=True)
@@ -895,7 +954,9 @@ def derive_resolver_manifest(
     metadata. ``data_file`` is used verbatim; nothing here opens it.
     """
     declarations = read_imputation_score_declarations(
-        config.imputation_score_declarations, (row.analysis_id for row in rows)
+        config.imputation_score_declarations,
+        (row.analysis_id for row in rows),
+        lambda: collection_analysis_ids(config.base.inventory_provenance_path),
     )
     manifest: list[ResolverRow] = []
     for row in rows:
@@ -3170,6 +3231,7 @@ __all__ = [
     "apply_release_policy",
     "build_candidate_tables",
     "build_resolution_receipt",
+    "collection_analysis_ids",
     "compute_resolution_contract",
     "controlled_exclusion_categories",
     "derive_resolver_manifest",
