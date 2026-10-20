@@ -45,7 +45,7 @@ from manifest_generation.candidate_workflow import (
     controlled_exclusion_categories,
     derive_resolver_manifest,
     load_candidate_configuration,
-    read_candidate_metadata,
+    read_analysis_metadata,
     render_validation_yaml,
     verify_records,
 )
@@ -59,7 +59,7 @@ from test_phase_b_candidate import (  # sibling suite's fixture helpers
     FixtureBuilder,
     _read_tsv,
     _run_cli,
-    _synthetic_candidate_metadata,
+    _synthetic_analysis_metadata,
     _synthetic_inventory_row,
     _synthetic_resolver_record,
 )
@@ -97,7 +97,7 @@ def _scenarios():
             )
         )
         metadata[analysis_id] = replace(
-            _synthetic_candidate_metadata(
+            _synthetic_analysis_metadata(
                 sample_size=sample_size, n_cases=n_cases, n_controls=n_controls
             ),
             analysis_id=analysis_id,
@@ -571,7 +571,7 @@ class QualityCheckTests(unittest.TestCase):
 
     def _decide_one(self, record, *, sample_size="5000", design="quantitative", config=None):
         row = _synthetic_inventory_row(study_design=design, sample_size=sample_size)
-        metadata = _synthetic_candidate_metadata(
+        metadata = _synthetic_analysis_metadata(
             sample_size=sample_size,
             n_cases="400" if design == "case-control" else "",
             n_controls="600" if design == "case-control" else "",
@@ -695,8 +695,8 @@ class QualityCheckTests(unittest.TestCase):
     def _verify(self) -> list[str]:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
         rows = read_inventory(self.fixture.inventory_path)
-        metadata = read_candidate_metadata(
-            self.fixture.candidates_path, [row.analysis_id for row in rows if row.ready]
+        metadata = read_analysis_metadata(
+            self.fixture.provenance_path, [row.analysis_id for row in rows if row.ready]
         )
         run_root = self.fixture.work_root / STORE_ID / "resolver"
         _, failures = verify_records(

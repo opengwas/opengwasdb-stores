@@ -1,33 +1,36 @@
-"""Freeze and preflight an acquired Source Inventory (issue #151).
+"""The frozen Source Inventory: its rows, readiness vocabulary and preflight (issue #151).
 
-Phase B selects Analyses out of a **Source Inventory**: the frozen record of
-which upstream Analyses acquisition actually produced usable files for. This
-module is the seam for that record. It owns three things and nothing else:
+Manifest Generation selects Analyses out of a **Source Inventory**: the frozen
+record of which intended Analyses acquisition actually produced usable files
+for. The shared freeze writes it (``manifest_generation.freeze``, #283); this
+module owns what every inventory shares:
 
-- **the pass-overlay precedence rule** — every acquisition pass writes a status
-  manifest, and the release config declares those passes as an *ordered* list
-  whose order is the precedence rule: a later pass is authoritative for every
-  ``analysis_id`` it covers, because it is the later observation of the same
-  file. A later pass may not, however, turn a ready Analysis into a non-ready
-  one: that would silently drop a release member, so the freeze stops instead;
-- **the readiness vocabulary** — which acquisition outcomes mean "this Analysis
+- **the inventory's rows and byte format** -- one row per selected Analysis,
+  read and written here, with the counts its provenance records;
+- **the readiness vocabulary** -- which acquisition outcomes mean "this Analysis
   has a verified, readable source file" and which mean "not this release's
   member", kept distinct so an unavailable input stays a Source Inventory fact
   and never looks like a selected member;
-- **preflight** — the cheap proof, before any association row is read, that the
-  frozen snapshot still describes the mirror on disk, that its declared
-  Reference Resources exist, and that the method tiers the release plans to
-  apply are declared rather than guessed.
+- **the GWAS Catalog's pass overlay** -- every EBI download pass writes a
+  status manifest, overlaid earliest first, a later pass winning for every
+  ``analysis_id`` it covers but never regressing a ready one; the GWAS Catalog
+  Acquisition Manifest writer applies it
+  (``providers.gwas_catalog.write_acquisition_manifest``);
+- **preflight** -- the cheap proof, before any association row is read, that the
+  frozen snapshot still describes the mirror on disk and belongs to the release
+  config's Source Collection and Selection, that its declared Reference
+  Resources exist, and that the method tiers the release plans to apply are
+  declared rather than guessed.
 
 What it deliberately does **not** do: read a full GWAS-SSF association body,
 recompute a source checksum, compute ancestry or effect scale, or decide which
 duplicate-content accession to build. Preflight compares recorded *sizes*, not
-checksums, because checksumming 1.8 TB is not a preflight — that belongs to the
+checksums, because checksumming 1.8 TB is not a preflight -- that belongs to the
 resolution stage. Duplicate-content groups are reported for review and never
 silently collapsed.
 
-The Phase B ``preflight`` command is an inventory-readiness gate before candidate
-selection, distinct from the Phase A production workflow's **Preflight Run**
+Manifest Generation's ``preflight`` is the inventory-readiness gate before
+candidate selection, distinct from Store Release Build's preflight
 (``CONTEXT.md``).
 
 See ``docs/release-metadata-schema.md`` ("Source Inventory") for the column
@@ -101,9 +104,6 @@ ACQUISITION_MANIFEST_COLUMNS: tuple[str, ...] = (
     "sha256",
     "error",
 )
-
-#: Candidate-table columns the freeze needs: identity and the selection scope.
-CANDIDATE_COLUMNS: tuple[str, ...] = ("STUDY.ACCESSION", "store_key", "study_design")
 
 #: Frozen Source Inventory columns, in file order.
 INVENTORY_COLUMNS: tuple[str, ...] = (
@@ -190,30 +190,6 @@ class SourceInventoryRow:
 
 
 @dataclass(frozen=True)
-class ManifestInput:
-    """One acquisition manifest that contributed rows to the snapshot."""
-
-    role: str
-    path: Path
-    sha256: str
-    bytes: int
-    rows: int
-    readiness_counts: Mapping[str, int]
-    overrides: int
-
-    def as_dict(self) -> dict[str, Any]:
-        return {
-            "role": self.role,
-            "path": str(self.path),
-            "sha256": self.sha256,
-            "bytes": self.bytes,
-            "rows": self.rows,
-            "readiness_counts": dict(self.readiness_counts),
-            "overrides": self.overrides,
-        }
-
-
-@dataclass(frozen=True)
 class AcquisitionPass:
     """One acquisition pass a freeze overlays, and the role it plays in the merge.
 
@@ -240,62 +216,6 @@ class DuplicateContentGroup:
             "analysis_ids": list(self.analysis_ids),
             "data_bytes": self.data_bytes,
         }
-
-
-@dataclass(frozen=True)
-class CandidateSelection:
-    """The candidate-table rows a freeze accounts the acquisition manifests against."""
-
-    path: Path
-    sha256: str
-    bytes: int
-    store_key: str
-    analysis_ids: tuple[str, ...]
-    study_design_counts: Mapping[str, int]
-
-
-@dataclass(frozen=True)
-class InventorySnapshot:
-    """A frozen Source Inventory plus the provenance that makes it reviewable."""
-
-    snapshot_id: str
-    source_collection_id: str
-    store_key: str
-    ancestry_group: str
-    rows: tuple[SourceInventoryRow, ...]
-    inputs: tuple[ManifestInput, ...]
-    candidates: CandidateSelection
-    frozen_at: str
-
-    @property
-    def readiness_counts(self) -> dict[str, int]:
-        return counts(row.readiness_status for row in self.rows)
-
-    @property
-    def ready_rows(self) -> tuple[SourceInventoryRow, ...]:
-        return tuple(row for row in self.rows if row.ready)
-
-    @property
-    def ready_bytes(self) -> int:
-        total = 0
-        for row in self.ready_rows:
-            bytes_val = row.recorded_bytes
-            if bytes_val is None:
-                raise InventoryError(f"{row.analysis_id}: ready row has no recorded data_bytes")
-            total += bytes_val
-        return total
-
-    @property
-    def study_design_counts(self) -> dict[str, int]:
-        return counts(row.study_design for row in self.rows)
-
-    @property
-    def ready_study_design_counts(self) -> dict[str, int]:
-        return counts(row.study_design for row in self.ready_rows)
-
-    @property
-    def duplicates(self) -> tuple[DuplicateContentGroup, ...]:
-        return duplicate_content_groups(self.rows)
 
 
 # ---------------------------------------------------------------------------
@@ -416,171 +336,6 @@ def reject_ready_regressions(
     )
 
 
-def _readiness_counts(rows: Iterable[Mapping[str, str]]) -> dict[str, int]:
-    return counts(row["status"] for row in rows)
-
-
-# ---------------------------------------------------------------------------
-# Candidate accounting
-# ---------------------------------------------------------------------------
-
-
-def read_candidate_selection(
-    path: Path, store_key: str, *, sha256: str | None = None, size: int | None = None
-) -> CandidateSelection:
-    """Read the candidate table's rows for one ``store_key``.
-
-    This is the pool acquisition was asked to fetch, so it is the only thing the
-    merged manifests can be accounted against: a candidate with no manifest row
-    was never attempted, and a manifest row outside the pool came from somewhere
-    else. Both are errors, not warnings.
-    """
-    if not path.is_file():
-        raise InventoryError(
-            f"candidate table not found: {path}. It is generated data that is not tracked in git; "
-            "run `Rscript resources/scripts/ebi-studies.r` first, or pass --candidates with the "
-            "copy this host generated."
-        )
-    rows = _read_tsv(path, CANDIDATE_COLUMNS, "candidate table")
-    selected = [row for row in rows if row["store_key"] == store_key]
-    if not selected:
-        raise InventoryError(f"candidate table {path} has no rows for store_key {store_key!r}")
-    duplicates = _duplicate_ids(selected, "STUDY.ACCESSION")
-    if duplicates:
-        raise InventoryError(
-            f"candidate table {path} selects duplicate STUDY.ACCESSION for {store_key!r}: "
-            f"{', '.join(duplicates)}"
-        )
-    return CandidateSelection(
-        path=path,
-        sha256=sha256 if sha256 is not None else sha256_file(path),
-        bytes=size if size is not None else path.stat().st_size,
-        store_key=store_key,
-        analysis_ids=tuple(sorted(row["STUDY.ACCESSION"] for row in selected)),
-        study_design_counts=counts(row["study_design"] for row in selected),
-    )
-
-
-# ---------------------------------------------------------------------------
-# Freezing
-# ---------------------------------------------------------------------------
-
-
-def build_snapshot(
-    *,
-    snapshot_id: str,
-    source_collection_id: str,
-    store_key: str,
-    ancestry_group: str,
-    manifests: Sequence[AcquisitionPass],
-    candidates: CandidateSelection,
-    frozen_at: str | None = None,
-) -> InventorySnapshot:
-    """Merge the ordered acquisition passes and account every row against the candidates.
-
-    ``manifests`` is in precedence order, earliest first. Deterministic by
-    construction: rows are sorted by ``analysis_id``, the ``seconds`` column is
-    dropped, and nothing here reads the mirror. Two freezes of the same inputs
-    produce the same inventory bytes; only ``frozen_at`` differs, and it lives in
-    the provenance sidecar rather than the TSV.
-    """
-    if not manifests:
-        raise InventoryError(
-            "a freeze needs at least one acquisition manifest; source.inventory.freeze_inputs "
-            "declares the ordered passes"
-        )
-    passes = [(manifest.role, read_acquisition_pass(manifest.path)) for manifest in manifests]
-    merged, overrides_by_role = merge_acquisition_manifests(passes)
-    reject_ready_regressions(passes, {row["analysis_id"]: row for row in merged})
-
-    manifest_ids = [row["analysis_id"] for row in merged]
-    pool = set(candidates.analysis_ids)
-    missing_from_manifest = sorted(pool - set(manifest_ids))
-    outside_pool = sorted(set(manifest_ids) - pool)
-    if missing_from_manifest or outside_pool:
-        problems: list[str] = []
-        if missing_from_manifest:
-            problems.append(
-                f"{len(missing_from_manifest)} candidate(s) have no acquisition row: "
-                f"{', '.join(missing_from_manifest[:10])}"
-            )
-        if outside_pool:
-            problems.append(
-                f"{len(outside_pool)} acquisition row(s) are outside the "
-                f"{store_key!r} candidate pool: {', '.join(outside_pool[:10])}"
-            )
-        raise InventoryError("; ".join(problems))
-
-    rows = tuple(
-        SourceInventoryRow(
-            analysis_id=row["analysis_id"],
-            publication_pmid=row["publication_pmid"],
-            trait=row["trait"],
-            study_design=row["study_design"],
-            sample_size=row["sample_size"],
-            readiness_status=row["status"],
-            data_url=row["data_url"],
-            yaml_url=row["yaml_url"],
-            data_file=row["data_file"],
-            yaml_file=row["yaml_file"],
-            data_bytes=row["data_bytes"],
-            yaml_bytes=row["yaml_bytes"],
-            sha256=row["sha256"],
-            error=row["error"],
-        )
-        for row in merged
-    )
-
-    invalid_ready: list[str] = []
-    for row in rows:
-        if row.ready:
-            missing_fields: list[str] = []
-            if not row.data_file.strip():
-                missing_fields.append("data_file")
-            if not row.data_url.strip():
-                missing_fields.append("data_url")
-            if not row.sha256.strip():
-                missing_fields.append("sha256")
-            if not row.data_bytes.strip() or row.recorded_bytes is None:
-                missing_fields.append("data_bytes")
-            if missing_fields:
-                invalid_ready.append(f"{row.analysis_id} (missing {', '.join(missing_fields)})")
-
-    if invalid_ready:
-        raise InventoryError(
-            f"{len(invalid_ready)} ready row(s) missing required field(s): {', '.join(invalid_ready[:10])}"
-        )
-
-    inputs = tuple(
-        ManifestInput(
-            role=manifest.role,
-            path=manifest.path,
-            sha256=sha256_file(manifest.path),
-            bytes=manifest.path.stat().st_size,
-            rows=len(rows),
-            readiness_counts=_readiness_counts(rows),
-            overrides=overrides_by_role[manifest.role],
-        )
-        for manifest, (_, rows) in zip(manifests, passes)
-    )
-
-    return InventorySnapshot(
-        snapshot_id=snapshot_id,
-        source_collection_id=source_collection_id,
-        store_key=store_key,
-        ancestry_group=ancestry_group,
-        rows=rows,
-        inputs=inputs,
-        candidates=candidates,
-        frozen_at=frozen_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    )
-
-
-def render_inventory_tsv(snapshot: InventorySnapshot) -> str:
-    """Render the frozen inventory TSV, one row per discovered Analysis."""
-    return render_inventory_rows(snapshot.rows)
-
-
 def render_inventory_rows(rows: Iterable[SourceInventoryRow]) -> str:
     """Render Source Inventory rows as the frozen TSV, in the order given.
 
@@ -598,29 +353,6 @@ def render_inventory_rows(rows: Iterable[SourceInventoryRow]) -> str:
                 )
         lines.append("\t".join(record[name] for name in INVENTORY_COLUMNS))
     return "\n".join(lines) + "\n"
-
-
-def render_provenance_yaml(snapshot: InventorySnapshot, inventory_sha256: str) -> str:
-    """Render the provenance sidecar that makes the snapshot's identity reviewable."""
-    document: dict[str, Any] = {
-        "snapshot_id": snapshot.snapshot_id,
-        "source_collection_id": snapshot.source_collection_id,
-        "store_key": snapshot.store_key,
-        "ancestry_group": snapshot.ancestry_group,
-        "frozen_at": snapshot.frozen_at,
-        **inventory_counts(snapshot.rows),
-        "inventory_tsv_sha256": inventory_sha256,
-        "inputs": [entry.as_dict() for entry in snapshot.inputs],
-        "candidates": {
-            "path": str(snapshot.candidates.path),
-            "sha256": snapshot.candidates.sha256,
-            "bytes": snapshot.candidates.bytes,
-            "store_key": snapshot.candidates.store_key,
-            "selected_rows": len(snapshot.candidates.analysis_ids),
-            "study_design_counts": dict(snapshot.candidates.study_design_counts),
-        },
-    }
-    return yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100)
 
 
 def inventory_counts(rows: Sequence[SourceInventoryRow]) -> dict[str, Any]:
@@ -663,16 +395,6 @@ def write_inventory(
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
     atomic_write(provenance_path, render_provenance(digest))
     return digest
-
-
-def write_snapshot(snapshot: InventorySnapshot, inventory_path: Path, provenance_path: Path) -> str:
-    """Write the inventory and its sidecar atomically; return the inventory checksum."""
-    return write_inventory(
-        snapshot.rows,
-        inventory_path,
-        provenance_path,
-        lambda digest: render_provenance_yaml(snapshot, digest),
-    )
 
 
 def read_inventory(path: Path) -> tuple[SourceInventoryRow, ...]:
@@ -779,7 +501,7 @@ class MethodTier:
 
 @dataclass(frozen=True)
 class ReleaseConfiguration:
-    """The full-release generator config, reduced to the facts preflight asserts."""
+    """A pre-#287 generator config, reduced to the facts the concordance study reads."""
 
     path: Path
     source_collection_id: str
@@ -861,7 +583,12 @@ def parse_pass_arguments(values: Sequence[str], *, flag: str) -> tuple[Acquisiti
 
 
 def load_release_configuration(path: Path, repo_root: Path) -> ReleaseConfiguration:
-    """Load the full-release generator config, failing on any missing required fact.
+    """Load a pre-#287 full-release generator config, failing on any missing required fact.
+
+    Kept only for the preregistered QC-panel concordance study
+    (``qc_panel_concordance``), which is bound to
+    ``resources/generators/gwas-catalog-eur-hybrid/config-full.yaml``. Manifest
+    Generation reads a release config (``release_config.load_release_config``).
 
     Unknown top-level blocks are ignored: later Phase B stages add their own
     (acquisition, build-recipe generation) and this loader must not become a
@@ -1001,6 +728,43 @@ def discover_reference_resources(repo_root: Path) -> dict[str, ReferenceResource
 # ---------------------------------------------------------------------------
 
 
+#: What a frozen Source Inventory's provenance records as its writer when the
+#: shared freeze wrote it (``manifest_generation.freeze``, #283).
+SHARED_FREEZE: str = "manifest_generation.freeze"
+
+
+def frozen_for_release_problems(
+    provenance: Mapping[str, Any], provenance_path: Path, config: Any
+) -> list[str]:
+    """Why a frozen inventory's provenance does not belong to ``config``'s release, if it does not.
+
+    The release reads the connectors frozen beside the inventory, so the
+    inventory must be the shared freeze's, of this Source Collection, for
+    exactly this Selection: a Selection edited after the freeze would
+    otherwise describe a membership the inventory does not have (#287).
+    """
+    problems: list[str] = []
+    if provenance.get("frozen_by") != SHARED_FREEZE:
+        problems.append(
+            f"{provenance_path} was not written by the shared freeze ({SHARED_FREEZE}; it records "
+            f"frozen_by {provenance.get('frozen_by')!r}), so it has no frozen connectors; "
+            "re-freeze it under a new snapshot id"
+        )
+        return problems
+    if provenance.get("source_collection_id") != config.source_collection_id:
+        problems.append(
+            f"{provenance_path} froze Source Collection {provenance.get('source_collection_id')!r}, "
+            f"but the release config names {config.source_collection_id!r}"
+        )
+    if provenance.get("selection") != config.selection.as_dict():
+        problems.append(
+            f"{provenance_path} was frozen for Selection {provenance.get('selection')!r}, but the "
+            f"release config declares {config.selection.as_dict()!r}; a changed Selection is a "
+            "new freeze under a new snapshot id"
+        )
+    return problems
+
+
 @dataclass(frozen=True)
 class PreflightResult:
     """The machine-readable preflight report plus its blocking failures."""
@@ -1019,18 +783,30 @@ def preflight(
     inventory_path: Path,
     provenance_path: Path,
     rows: Sequence[SourceInventoryRow],
-    config: ReleaseConfiguration,
+    config: Any,
     repo_root: Path,
     cores: int | None = None,
     generated_at: str | None = None,
 ) -> PreflightResult:
     """Prove the frozen inventory still describes reality before any row is read.
 
+    ``config`` is a loaded release config (``release_config.ReleaseConfig``).
     Reads the inventory, its provenance sidecar, the declared Reference Resource
     declarations, small per-Analysis metadata, and filesystem metadata only. It
     never opens a GWAS-SSF association file and never recomputes a large
     checksum. The snapshot's own identity comes from the sidecar, which is also
-    what binds the inventory TSV to the bytes that were frozen.
+    what binds the inventory TSV to the bytes that were frozen, and the sidecar
+    must record the shared freeze of this Source Collection for this Selection
+    (#283, #287).
+
+    A ready row needs the file's location, size and checksum. Its source URL is
+    provenance the Acquisition Manifest may lack -- a file acquisition
+    extracted or reformatted has none of its own -- so a ready row without one
+    is a warning, not a failure (#287). A recorded per-Analysis metadata
+    sidecar (a GWAS-SSF ``-meta.yaml``) must still declare the harmonised
+    GRCh38 source acquisition gated on; a row acquisition recorded no sidecar
+    for is counted, not failed, because the Acquisition Manifest makes the
+    sidecar optional.
     """
     failures: list[str] = []
     effective_cores = config.cores if cores is None else cores
@@ -1045,8 +821,6 @@ def preflight(
         missing_fields: list[str] = []
         if not row.data_file.strip():
             missing_fields.append("data_file")
-        if not row.data_url.strip():
-            missing_fields.append("data_url")
         if not row.sha256.strip():
             missing_fields.append("sha256")
         if not row.data_bytes.strip() or row.recorded_bytes is None:
@@ -1058,6 +832,7 @@ def preflight(
         failures.append(
             f"{len(invalid_ready)} ready Analysis row(s) are missing required field(s): {', '.join(invalid_ready[:10])}"
         )
+    no_source_url = sorted(row.analysis_id for row in ready if not row.data_url.strip())
 
     # --- planned method tiers ------------------------------------------------
     tier_counts: dict[str, int] = {}
@@ -1079,6 +854,7 @@ def preflight(
     metadata_missing: list[str] = []
     metadata_unreadable: list[str] = []
     metadata_gate_failed: list[str] = []
+    no_metadata_sidecar: list[str] = []
     not_ready_with_present_file: list[str] = []
     for row in rows:
         if not row.ready:
@@ -1092,7 +868,10 @@ def preflight(
         recorded = row.recorded_bytes
         if recorded is not None and source.stat().st_size != recorded:
             size_mismatch.append(f"{row.analysis_id} ({source.stat().st_size} != {recorded})")
-        if not row.yaml_file or not Path(row.yaml_file).is_file():
+        if not row.yaml_file:
+            no_metadata_sidecar.append(row.analysis_id)
+            continue
+        if not Path(row.yaml_file).is_file():
             metadata_missing.append(row.analysis_id)
             continue
         metadata = Path(row.yaml_file)
@@ -1145,6 +924,11 @@ def preflight(
         for res in sorted(declared.values(), key=lambda res: res.resource_id)
     ]
     warnings: list[str] = []
+    if no_source_url:
+        warnings.append(
+            f"{len(no_source_url)} ready Analysis row(s) record no source URL; analyses.tsv "
+            f"leaves source_url blank for them: {', '.join(no_source_url[:10])}"
+        )
     for resource_id in config.required_resource_ids:
         resource = config.reference_resources[resource_id]
         if not resource.version:
@@ -1214,6 +998,7 @@ def preflight(
         if not isinstance(provenance, dict):
             failures.append(f"inventory provenance sidecar is not a YAML mapping: {provenance_path}")
         else:
+            failures.extend(frozen_for_release_problems(provenance, provenance_path, config))
             inventory_snapshot_id = str(provenance.get("snapshot_id", ""))
             provenance_sha256 = str(provenance.get("inventory_tsv_sha256", ""))
             if provenance_sha256 != inventory_sha256:
@@ -1277,8 +1062,7 @@ def preflight(
         },
         "selection": {
             "source_collection_id": config.source_collection_id,
-            "store_key": config.store_key,
-            "ancestry_group": config.ancestry_group,
+            "selection": config.selection.as_dict(),
             "config_path": str(config.path),
         },
         "plan": {
@@ -1328,6 +1112,8 @@ def preflight(
             "metadata_missing": sorted(metadata_missing),
             "metadata_unreadable": sorted(metadata_unreadable),
             "metadata_gate_failed": sorted(metadata_gate_failed),
+            "no_metadata_sidecar": sorted(no_metadata_sidecar),
+            "no_source_url": no_source_url,
             "not_ready_with_present_file": sorted(not_ready_with_present_file),
             "invalid_ready": sorted(invalid_ready),
         },

@@ -64,8 +64,8 @@ from manifest_generation.candidate_workflow import (  # noqa: E402
     RECEIPT_FILENAME,
     RESOLVER_MANIFEST_COLUMNS,
     USABLE_MAF_STATES,
+    AnalysisMetadata,
     CandidateError,
-    CandidateMetadata,
     ResolverRow,
     account_records,
     analysis_maf_threshold,
@@ -77,12 +77,9 @@ from manifest_generation.candidate_workflow import (  # noqa: E402
     info_score_emission,
     load_candidate_configuration,
     maf_threshold_emission,
-    candidate_source_traits,
     map_candidate_trait_ontologies,
-    parse_maf_filter_exempt_technologies,
-    parse_maf_threshold,
-    parse_store_composition,
-    read_candidate_metadata,
+    read_analysis_metadata,
+    trait_sources,
     read_genotyping_technologies,
     read_effect_placeholder_exclusions,
     read_maf_filter_exempt_analyses,
@@ -113,15 +110,11 @@ from manifest_generation.resolution_area import (  # noqa: E402
     ResolutionAreaLocked,
     resolution_root,
 )
+from manifest_generation.release_config import RELEASE_CONFIG_VERSION  # noqa: E402
 from manifest_generation.source_inventory import (  # noqa: E402
-    ACQUISITION_MANIFEST_COLUMNS,
-    AcquisitionPass,
     PreflightConfigError,
     SourceInventoryRow,
-    build_snapshot,
-    read_candidate_selection,
     read_inventory,
-    write_snapshot,
 )
 
 CLI = ("-m", "manifest_generation.generate_candidate")
@@ -174,6 +167,20 @@ EXPECTED_EXCLUDED = {
     "GCST90000009": "missing_case_control_counts",
 }
 
+#: The fixture Selection, in #283's grammar.
+SELECTION = {"where": {"store_key": STORE_KEY}}
+FROZEN_AT = "2026-09-21T00:00:00Z"
+SOURCE_METADATA_HEADER = (
+    "source_analysis_id", "source_trait_label", "source_trait_ontology_id",
+    "source_trait_ontology_label", "source_ancestry_label", "source_superpopulation",
+    "study_design", "sample_size", "n_cases", "n_controls", "publication_pmid",
+    "first_author", "store_key",
+)
+ACQUISITION_MANIFEST_HEADER = (
+    "source_analysis_id", "status", "location", "bytes", "sha256", "source_url",
+    "sidecar_location", "sidecar_url", "sidecar_bytes", "error",
+)
+
 META_TEMPLATE = "gwas_id: {analysis_id}\ngenome_assembly: GRCh38\nis_harmonised: true\ncoordinate_system: 1-based\n"
 
 # A fixture Canonical Trait Mapping Table (#286): the candidate tests never read
@@ -199,7 +206,10 @@ class Fixture:
     root: Path
     config_path: Path
     inventory_path: Path
-    candidates_path: Path
+    provenance_path: Path
+    #: The Source Collection's connector files (#283), which freeze reads.
+    source_metadata_table_path: Path
+    acquisition_manifest_path: Path
     outcomes_path: Path
     registry_root: Path
     work_root: Path
@@ -228,7 +238,13 @@ class FixtureBuilder:
         self.inventory_dir = root / "inventory"
         self.inventory_dir.mkdir(parents=True, exist_ok=True)
 
-    def build(self) -> Fixture:
+    def build(self, *, freeze: bool = True) -> Fixture:
+        """Write the mirror, both connector files and a release config.
+
+        ``freeze`` freezes the Source Inventory up front, as unit tests that
+        read it before any stage runs need; without it, the entry point's
+        ``freeze`` stage writes it.
+        """
         (self.reference / "ref_freqs.tsv.gz").write_bytes(b"fixture reference\n")
         (self.reference / "ancestry_groups.tsv").write_text(
             "fine_group\tsuper_population\nEUR_A\tEUR\nEAS_A\tEAS\n", encoding="utf-8"
@@ -236,14 +252,8 @@ class FixtureBuilder:
 
         all_rows = READY_ANALYSES + [NON_READY]
         manifest_rows: list[dict[str, str]] = []
-        for analysis_id, design, sample_size, readiness, content, _n_cases, _n_controls in all_rows:
-            row = {name: "" for name in ACQUISITION_MANIFEST_COLUMNS}
-            row["analysis_id"] = analysis_id
-            row["publication_pmid"] = "12345678"
-            row["trait"] = f"Trait {analysis_id}"
-            row["study_design"] = design
-            row["sample_size"] = sample_size
-            row["status"] = readiness
+        for analysis_id, _design, _sample_size, readiness, content, _n_cases, _n_controls in all_rows:
+            row = {"source_analysis_id": analysis_id, "status": readiness}
             if readiness in {"ok", "already_present"}:
                 body = (
                     self.bodies(analysis_id)
@@ -256,102 +266,99 @@ class FixtureBuilder:
                 meta_path.write_text(
                     META_TEMPLATE.format(analysis_id=analysis_id), encoding="utf-8"
                 )
-                row["data_url"] = f"https://example.invalid/{analysis_id}.h.tsv.gz"
-                row["yaml_url"] = f"https://example.invalid/{analysis_id}.h.tsv.gz-meta.yaml"
-                row["data_file"] = str(data_path)
-                row["yaml_file"] = str(meta_path)
-                row["data_bytes"] = str(len(body))
-                row["yaml_bytes"] = str(meta_path.stat().st_size)
-                row["sha256"] = _sha256_bytes(body)
+                row.update(
+                    location=str(data_path),
+                    bytes=str(len(body)),
+                    sha256=_sha256_bytes(body),
+                    source_url=f"https://example.invalid/{analysis_id}.h.tsv.gz",
+                    sidecar_location=str(meta_path),
+                    sidecar_url=f"https://example.invalid/{analysis_id}.h.tsv.gz-meta.yaml",
+                    sidecar_bytes=str(meta_path.stat().st_size),
+                )
+            else:
+                row["error"] = "missing required GWAS-SSF columns: beta"
             manifest_rows.append(row)
+        acquisition_manifest_path = self.acq / "acquisition-manifest.tsv"
+        _write_tsv(acquisition_manifest_path, list(ACQUISITION_MANIFEST_HEADER), manifest_rows)
 
-        base_manifest = self.acq / "base.tsv"
-        retry_manifest = self.acq / "retry.tsv"
-        for path in (base_manifest, retry_manifest):
-            _write_tsv(path, ACQUISITION_MANIFEST_COLUMNS, manifest_rows)
-
-        candidates_path = self.root / "candidates.tsv"
-        candidate_rows = []
+        table_rows = []
         for analysis_id, design, sample_size, _readiness, _content, n_cases, n_controls in all_rows:
-            candidate_rows.append(
+            table_rows.append(
                 {
-                    "STUDY.ACCESSION": analysis_id,
-                    "store_key": STORE_KEY,
+                    "source_analysis_id": analysis_id,
+                    "source_trait_label": f"Trait {analysis_id}",
+                    "source_trait_ontology_id": "http://purl.obolibrary.org/obo/MONDO_0005148",
+                    "source_trait_ontology_label": f"mapped {analysis_id}",
+                    "source_ancestry_label": "European",
+                    "source_superpopulation": "EUR",
                     "study_design": design,
+                    "sample_size": sample_size,
                     "n_cases": n_cases,
                     "n_controls": n_controls,
-                    "sample_size": sample_size,
-                    "DISEASE.TRAIT": f"Trait {analysis_id}",
-                    "MAPPED_TRAIT": f"mapped {analysis_id}",
-                    "MAPPED_TRAIT_URI": "http://purl.obolibrary.org/obo/MONDO_0005148",
-                    "PUBMED.ID": "12345678",
-                    "FIRST.AUTHOR": "Author A",
+                    "publication_pmid": "12345678",
+                    "first_author": "Author A",
+                    "store_key": STORE_KEY,
                 }
             )
-        _write_tsv(
-            candidates_path,
-            [
-                "STUDY.ACCESSION",
-                "store_key",
-                "study_design",
-                "n_cases",
-                "n_controls",
-                "sample_size",
-                "DISEASE.TRAIT",
-                "MAPPED_TRAIT",
-                "MAPPED_TRAIT_URI",
-                "PUBMED.ID",
-                "FIRST.AUTHOR",
-            ],
-            candidate_rows,
-        )
+        source_metadata_table_path = self.root / "source-metadata.tsv"
+        _write_tsv(source_metadata_table_path, list(SOURCE_METADATA_HEADER), table_rows)
 
-        selection = read_candidate_selection(candidates_path, STORE_KEY)
-        snapshot = build_snapshot(
-            snapshot_id=SNAPSHOT_ID,
-            source_collection_id="gwas-catalog-ssf",
-            store_key=STORE_KEY,
-            ancestry_group="European",
-            manifests=[
-                AcquisitionPass(role="base", path=base_manifest),
-                AcquisitionPass(role="retry_transient", path=retry_manifest),
-            ],
-            candidates=selection,
-            frozen_at="2026-09-21T00:00:00Z",
-        )
         inventory_path = self.inventory_dir / f"{SNAPSHOT_ID}.tsv"
         provenance_path = self.inventory_dir / f"{SNAPSHOT_ID}.meta.yaml"
-        write_snapshot(snapshot, inventory_path, provenance_path)
+        if freeze:
+            frozen = freeze_connectors(
+                snapshot_id=SNAPSHOT_ID,
+                source_collection_id="gwas-catalog-ssf",
+                metadata_table=source_metadata_table_path,
+                acquisition_manifest=acquisition_manifest_path,
+                selection=parse_selection(SELECTION),
+                frozen_at=FROZEN_AT,
+            )
+            write_frozen_inventory(frozen, inventory_path, provenance_path)
 
         work_root = self.root / "work"
         registry_root = self.root / "stores"
         registry_root.mkdir(parents=True, exist_ok=True)
 
+        trait_table_dir = self.root / "resources" / "reference-resources" / TRAIT_TABLE_RESOURCE_ID
+        trait_table_dir.mkdir(parents=True)
+        (trait_table_dir / "resource.yaml").write_text(
+            f"resource_id: {TRAIT_TABLE_RESOURCE_ID}\nkind: trait_ontology_mapping\nversion: 1\n"
+            f"location: resources/reference-resources/{TRAIT_TABLE_RESOURCE_ID}/mapping.tsv\n"
+            "location_kind: tracked_file\n",
+            encoding="utf-8",
+        )
+        (trait_table_dir / "mapping.tsv").write_text(TRAIT_TABLE_TEXT, encoding="utf-8")
+
         config = {
+            "release_config_version": RELEASE_CONFIG_VERSION,
             "label": "fixture-candidate",
             "access_posture": "public",
             "description": "fixture candidate",
             "notes": "fixture notes",
-            "source": {
+            "source_collection": {
                 "source_collection_id": "gwas-catalog-ssf",
-                "store_key": STORE_KEY,
-                "ancestry_group": "European",
-                "candidates": str(candidates_path),
-                "inventory": {
-                    "snapshot_id": SNAPSHOT_ID,
-                    "path": str(inventory_path),
-                    "provenance_path": str(provenance_path),
-                    "freeze_inputs": [
-                        {"role": "base", "path": str(base_manifest)},
-                        {"role": "retry_transient", "path": str(retry_manifest)},
-                    ],
+                "connectors": {
+                    "source_metadata_table": str(source_metadata_table_path),
+                    "acquisition_manifest": str(acquisition_manifest_path),
                 },
+                "inventory": {"snapshot_id": SNAPSHOT_ID, "directory": str(self.inventory_dir)},
+            },
+            "selection": SELECTION,
+            "build": {
+                "layout": "hybrid",
+                "completion_state": "observed_only",
+                "command": "build-hybrid",
+                "options": {
+                    "source-reader-capability": "opengwasdb.gwas-ssf",
+                    "source-assembly": "hg38",
+                },
+                "post": {"top_hits": False, "overview": True},
             },
             "defaults": {
                 "source_genome_build": "GRCh38",
                 "license": "fixture license",
                 "sample_size_scope": "analysis_level",
-                "ancestry_assignment_method": "source_trusted_no_af",
                 "by_study_design": {
                     "quantitative": {
                         "stored_effect_scale": "sd",
@@ -367,6 +374,7 @@ class FixtureBuilder:
                     },
                 },
             },
+            "release_policy": {"selection_superpopulation": "EUR"},
             "reference_resources": [
                 {
                     "resource_id": "fixture-ancestry-mixture",
@@ -379,64 +387,84 @@ class FixtureBuilder:
                     "location_kind": "external_file",
                     "version": "fixture-v1",
                     "fine_group_map": str(self.reference / "ancestry_groups.tsv"),
-                }
+                },
+                {
+                    "resource_id": TRAIT_TABLE_RESOURCE_ID,
+                    "kind": "trait_ontology_mapping",
+                    "location": str(trait_table_dir),
+                    "version": "1",
+                },
             ],
             "ancestry_assignment": {
-                "enabled": True,
                 "reference_resource_id": "fixture-ancestry-mixture",
                 "maf_floor": 0.01,
                 "extraction_panel": None,
                 "gates": {"tau": 0.50, "delta": 0.20, "n_min": 5000, "residual_max": 0.06},
             },
             "effect_scale_validation": {
-                "enabled": True,
                 "maf_min": 0.01,
                 "maf_max": 0.5,
-                "min_overlap_variants": 20,
-                "sd_tolerance": 0.15,
-                "warning_multiplier": 2.0,
                 "dispersion_max": 0.5,
                 "reference_resources": [],
             },
+            "trait_ontology_mapping": {"reference_resource_id": TRAIT_TABLE_RESOURCE_ID},
             "runtime": {"cores": 4, "min_free_gb": 0},
             "output": {"work_root": str(work_root)},
-            "build": {
-                "layout": "hybrid",
-                "completion_state": "observed_only",
-                "command": "build-hybrid",
-                "options": {
-                    "source-reader-capability": "opengwasdb.gwas-ssf",
-                    "source-assembly": "hg38",
-                },
-                "post": {"top_hits": False, "overview": True},
-            },
         }
         config_path = self.root / "config.yaml"
         config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
 
         outcomes_path = self.root / "outcomes.json"
         outcomes_path.write_text(json.dumps(OUTCOMES), encoding="utf-8")
-
-        trait_table_dir = self.root / "resources" / "reference-resources" / TRAIT_TABLE_RESOURCE_ID
-        trait_table_dir.mkdir(parents=True)
-        (trait_table_dir / "resource.yaml").write_text(
-            f"resource_id: {TRAIT_TABLE_RESOURCE_ID}\nkind: trait_ontology_mapping\nversion: 1\n"
-            f"location: resources/reference-resources/{TRAIT_TABLE_RESOURCE_ID}/mapping.tsv\n"
-            "location_kind: tracked_file\n",
-            encoding="utf-8",
-        )
-        (trait_table_dir / "mapping.tsv").write_text(TRAIT_TABLE_TEXT, encoding="utf-8")
         return Fixture(
             root=self.root,
             config_path=config_path,
             inventory_path=inventory_path,
-            candidates_path=candidates_path,
+            provenance_path=provenance_path,
+            source_metadata_table_path=source_metadata_table_path,
+            acquisition_manifest_path=acquisition_manifest_path,
             outcomes_path=outcomes_path,
             registry_root=registry_root,
             work_root=work_root,
             trait_table_dir=trait_table_dir,
             resolution_root=self.root / "resolution",
         )
+
+
+def _refreeze(fixture: "Fixture", *, snapshot_id: str = SNAPSHOT_ID) -> None:
+    """Freeze the fixture's connectors again after a test edited them.
+
+    A frozen inventory is never overwritten in place by the pipeline; a test
+    that changes the Source Collection removes the old freeze first.
+    """
+    for path in fixture.inventory_path.parent.glob(f"{snapshot_id}.*"):
+        path.unlink()
+    frozen = freeze_connectors(
+        snapshot_id=snapshot_id,
+        source_collection_id="gwas-catalog-ssf",
+        metadata_table=fixture.source_metadata_table_path,
+        acquisition_manifest=fixture.acquisition_manifest_path,
+        selection=parse_selection(SELECTION),
+        frozen_at=FROZEN_AT,
+    )
+    write_frozen_inventory(
+        frozen,
+        fixture.inventory_path.parent / f"{snapshot_id}.tsv",
+        fixture.inventory_path.parent / f"{snapshot_id}.meta.yaml",
+    )
+
+
+def _rewrite_source_metadata(fixture: "Fixture", edits: dict[str, dict[str, str]]) -> None:
+    """Edit some Analyses' cells in the Source Metadata Table and freeze it again."""
+    path = fixture.source_metadata_table_path
+    with path.open(newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh, delimiter="\t")
+        columns = list(reader.fieldnames or [])
+        rows = list(reader)
+    for row in rows:
+        row.update(edits.get(row["source_analysis_id"], {}))
+    _write_tsv(path, columns, rows)
+    _refreeze(fixture)
 
 
 def _write_tsv(path: Path, columns: list[str], rows: list[dict[str, str]]) -> None:
@@ -536,8 +564,6 @@ def _cli_invocation(
         str(registry_root or fixture.registry_root),
         "--work-root",
         str(work_root or fixture.work_root),
-        "--canonical-trait-mapping-table",
-        str(fixture.trait_table_dir),
         # Never the deployment default on /data: every test resolves into its
         # own temporary resolution root.
         "--resolution-root",
@@ -605,10 +631,10 @@ def _synthetic_inventory_row(
     )
 
 
-def _synthetic_candidate_metadata(
+def _synthetic_analysis_metadata(
     *, sample_size: str = "5000", n_cases: str = "", n_controls: str = ""
-) -> CandidateMetadata:
-    return CandidateMetadata(
+) -> AnalysisMetadata:
+    return AnalysisMetadata(
         analysis_id="GCST90000001",
         source_label="Trait",
         source_trait_ontology_id="",
@@ -862,7 +888,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         path = self.fixture.root / "score-declarations.tsv"
         _write_tsv(path, list(candidate_workflow.SCORE_DECLARATION_COLUMNS), rows)
         document = yaml.safe_load(self.fixture.config_path.read_text())
-        document["source"]["imputation_score_declarations"] = str(path)
+        document["release_policy"]["imputation_score_declarations"] = str(path)
         self.fixture.config_path.write_text(yaml.safe_dump(document))
         return path
 
@@ -887,25 +913,25 @@ class CandidateWorkflowTests(unittest.TestCase):
     def _set_maf_exempt(self, technologies: object) -> None:
         document = yaml.safe_load(self.fixture.config_path.read_text())
         if technologies is None:
-            document["source"].pop("maf_filter_exempt_genotyping_technologies", None)
+            document["release_policy"].pop("maf_filter_exempt_genotyping_technologies", None)
         else:
-            document["source"]["maf_filter_exempt_genotyping_technologies"] = technologies
+            document["release_policy"]["maf_filter_exempt_genotyping_technologies"] = technologies
         self.fixture.config_path.write_text(yaml.safe_dump(document))
 
     def _set_maf_exempt_analyses(self, path: object) -> None:
         document = yaml.safe_load(self.fixture.config_path.read_text())
         if path is None:
-            document["source"].pop("maf_filter_exempt_analyses", None)
+            document["release_policy"].pop("maf_filter_exempt_analyses", None)
         else:
-            document["source"]["maf_filter_exempt_analyses"] = path
+            document["release_policy"]["maf_filter_exempt_analyses"] = path
         self.fixture.config_path.write_text(yaml.safe_dump(document))
 
     def _set_store_composition(self, value: object) -> None:
         document = yaml.safe_load(self.fixture.config_path.read_text())
         if value is None:
-            document.pop("store_composition", None)
+            document["release_policy"].pop("store_composition", None)
         else:
-            document["store_composition"] = value
+            document["release_policy"]["store_composition"] = value
         self.fixture.config_path.write_text(yaml.safe_dump(document))
 
     def _set_indexed_subsets(self, value: object, *, present: bool = True) -> None:
@@ -996,26 +1022,33 @@ class CandidateWorkflowTests(unittest.TestCase):
     # -- MAF threshold (issue #176) -------------------------------------------
 
     def test_maf_threshold_configuration_parsing(self) -> None:
-        self.assertIsNone(parse_maf_threshold(None))
-        self.assertEqual(parse_maf_threshold(0), "0")
-        self.assertEqual(parse_maf_threshold("0"), "0")
-        self.assertEqual(parse_maf_threshold(0.005), "0.005")
-        self.assertEqual(parse_maf_threshold("0.5"), "0.5")
+        def loaded():
+            return load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+
+        self._set_maf_threshold(None)
+        self.assertIsNone(loaded().maf_threshold)
+        for value, expected in ((0, "0"), ("0", "0"), (0.005, "0.005"), ("0.5", "0.5")):
+            self._set_maf_threshold(value)
+            self.assertEqual(loaded().maf_threshold, expected)
         for invalid in (True, "", "NaN", "inf", "-0.01", "0.5001", "abc"):
+            self._set_maf_threshold(invalid)
             with self.subTest(invalid=invalid), self.assertRaisesRegex(
                 ValueError, "maf_threshold"
             ):
-                parse_maf_threshold(invalid)
-        self.assertEqual(parse_maf_filter_exempt_technologies(None), ())
+                loaded()
+        self._set_maf_threshold(0.005)
+        self._set_maf_exempt(None)
+        self.assertEqual(loaded().maf_filter_exempt_genotyping_technologies, ())
+        self._set_maf_exempt([" Whole genome sequencing "])
         self.assertEqual(
-            parse_maf_filter_exempt_technologies([" Whole genome sequencing "]),
-            ("Whole genome sequencing",),
+            loaded().maf_filter_exempt_genotyping_technologies, ("Whole genome sequencing",)
         )
         for invalid in ("Whole genome sequencing", [""], [1], ["ok", ""]):
+            self._set_maf_exempt(invalid)
             with self.subTest(invalid=invalid), self.assertRaisesRegex(
                 ValueError, "maf_filter_exempt_genotyping_technologies"
             ):
-                parse_maf_filter_exempt_technologies(invalid)
+                loaded()
 
     def test_maf_threshold_is_per_analysis_from_metadata_yaml(self) -> None:
         # Omitted defaults.maf_threshold means no MAF filter at all.
@@ -1143,8 +1176,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         record_path.write_text(json.dumps(record))
         _forge_kept_record(self.fixture, "GCST90000001", _drop)
         inventory = read_inventory(self.fixture.inventory_path)
-        metadata = read_candidate_metadata(
-            self.fixture.candidates_path,
+        metadata = read_analysis_metadata(self.fixture.provenance_path,
             (row.analysis_id for row in inventory if row.ready),
         )
         manifest = derive_resolver_manifest(
@@ -1228,8 +1260,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         self._set_maf_exempt_analyses(str(exempt))
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
         rows = read_inventory(self.fixture.inventory_path)
-        metadata = read_candidate_metadata(
-            self.fixture.candidates_path, (row.analysis_id for row in rows if row.ready)
+        metadata = read_analysis_metadata(self.fixture.provenance_path, (row.analysis_id for row in rows if row.ready)
         )
         manifest = derive_resolver_manifest(rows, config, metadata)
         by_id = {row.analysis_id: row for row in manifest}
@@ -1419,7 +1450,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         record_path.write_text(json.dumps(record))
         _forge_kept_record(self.fixture, analysis_id, _drop)
         inventory = read_inventory(self.fixture.inventory_path)
-        metadata = read_candidate_metadata(self.fixture.candidates_path,
+        metadata = read_analysis_metadata(self.fixture.provenance_path,
                                            (row.analysis_id for row in inventory if row.ready))
         manifest = derive_resolver_manifest(inventory, load_candidate_configuration(
             self.fixture.config_path, REPO_ROOT), metadata)
@@ -1433,7 +1464,7 @@ class CandidateWorkflowTests(unittest.TestCase):
     def test_score_declaration_validation_and_legacy_manifest(self) -> None:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
         rows = read_inventory(self.fixture.inventory_path)
-        metadata = read_candidate_metadata(self.fixture.candidates_path,
+        metadata = read_analysis_metadata(self.fixture.provenance_path,
                                            (row.analysis_id for row in rows if row.ready))
         legacy = derive_resolver_manifest(rows, config, metadata)
         self.assertEqual({row.info_score_threshold for row in legacy}, {"NaN"})
@@ -1581,17 +1612,19 @@ class CandidateWorkflowTests(unittest.TestCase):
     # -- Trait Ontology Mapping (#286) -------------------------------------------
 
     def _rewrite_candidate_traits(self, traits: dict[str, tuple[str, str, str]]) -> None:
-        """Set (DISEASE.TRAIT, MAPPED_TRAIT_URI, MAPPED_TRAIT) for some Analyses."""
-        path = self.fixture.candidates_path
-        with path.open(newline="", encoding="utf-8") as fh:
-            reader = csv.DictReader(fh, delimiter="\t")
-            columns = list(reader.fieldnames or [])
-            rows = list(reader)
-        for row in rows:
-            if row["STUDY.ACCESSION"] in traits:
-                label, uri, term_label = traits[row["STUDY.ACCESSION"]]
-                row.update({"DISEASE.TRAIT": label, "MAPPED_TRAIT_URI": uri, "MAPPED_TRAIT": term_label})
-        _write_tsv(path, columns, rows)
+        """Set (source_trait_label, source_trait_ontology_id, source_trait_ontology_label)
+        for some Analyses in the Source Metadata Table, and freeze it again."""
+        _rewrite_source_metadata(
+            self.fixture,
+            {
+                analysis_id: {
+                    "source_trait_label": label,
+                    "source_trait_ontology_id": uri,
+                    "source_trait_ontology_label": term_label,
+                }
+                for analysis_id, (label, uri, term_label) in traits.items()
+            },
+        )
 
     def test_emitted_trait_columns_come_from_the_trait_ontology_mapping_step(self) -> None:
         self._rewrite_candidate_traits(
@@ -1678,7 +1711,7 @@ class CandidateWorkflowTests(unittest.TestCase):
     def test_a_row_without_a_trait_ontology_mapping_is_refused(self) -> None:
         row = _synthetic_inventory_row()
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
-        unmapped = replace(_synthetic_candidate_metadata(), trait_ontology=None)
+        unmapped = replace(_synthetic_analysis_metadata(), trait_ontology=None)
         outcomes = apply_release_policy(
             [row], config, {row.analysis_id: unmapped}, {row.analysis_id: _synthetic_resolver_record()},
         )
@@ -1687,93 +1720,78 @@ class CandidateWorkflowTests(unittest.TestCase):
                 inventory_rows=[row], outcomes=outcomes, config=config, index_summary={}
             )
 
-    def _write_frozen_connectors(self, traits: dict[str, tuple[str, str, str]]) -> Path:
-        """A #283 freeze whose Source Metadata Table carries ``traits``; its provenance path."""
-        out = self.fixture.root / "frozen"
-        out.mkdir()
-        table = out / "source-metadata.tsv"
-        table.write_text(
-            "source_analysis_id\tsource_trait_label\tsource_trait_ontology_id\t"
-            "source_trait_ontology_label\n"
-            + "".join(f"{key}\t{label}\t{uri}\t{term}\n" for key, (label, uri, term) in traits.items()),
-            encoding="utf-8",
-        )
-        manifest = out / "acquisition-manifest.tsv"
-        lines = ["source_analysis_id\tstatus\tlocation\tbytes\tsha256"]
-        for key in traits:
-            data = out / f"{key}.tsv.gz"
-            data.write_bytes(key.encode())
-            lines.append(f"{key}\tok\t{data}\t{len(key)}\t{hashlib.sha256(key.encode()).hexdigest()}")
-        manifest.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        frozen = freeze_connectors(
-            snapshot_id="trait-snapshot",
-            source_collection_id="gwas-catalog-ssf",
-            metadata_table=table,
-            acquisition_manifest=manifest,
-            selection=parse_selection({"all": True}),
-            frozen_at="2026-10-16T12:00:00Z",
-        )
-        provenance = out / "snapshot" / "trait-snapshot.meta.yaml"
-        write_frozen_inventory(frozen, out / "snapshot" / "trait-snapshot.tsv", provenance)
-        return provenance
-
     def _candidate_metadata(self) -> dict:
         rows = read_inventory(self.fixture.inventory_path)
-        return read_candidate_metadata(
-            self.fixture.candidates_path, [row.analysis_id for row in rows if row.ready]
+        return read_analysis_metadata(
+            self.fixture.provenance_path, [row.analysis_id for row in rows if row.ready]
         )
 
     def test_the_source_term_comes_from_the_frozen_source_metadata_table(self) -> None:
-        """#286: with a #283 freeze, the step reads the Source Metadata Table, not the candidate table."""
+        """#286/#287: the step reads the Source Metadata Table frozen with the inventory."""
+        self._rewrite_candidate_traits(
+            {
+                "GCST90000001": ("Weight", "http://www.ebi.ac.uk/efo/EFO_0004340", "body mass index"),
+                "GCST90000002": ("weight", "", ""),
+                "GCST90000003": ("Trait GCST90000003", "", ""),
+            }
+        )
         metadata = self._candidate_metadata()
-        traits = {key: (f"Trait {key}", "", "") for key in metadata}
-        traits["GCST90000001"] = ("Weight", "http://www.ebi.ac.uk/efo/EFO_0004340", "body mass index")
-        traits["GCST90000002"] = ("weight", "", "")
-        sources = candidate_source_traits(self._write_frozen_connectors(traits), metadata)
+        sources = trait_sources(metadata)
         self.assertEqual(
             {source.analysis_id: source for source in sources}["GCST90000001"],
             SourceTrait("GCST90000001", "Weight", "http://www.ebi.ac.uk/efo/EFO_0004340", "body mass index"),
         )
         mapped, _ = map_candidate_trait_ontologies(
-            metadata, sources, load_canonical_trait_mapping_table(self.fixture.trait_table_dir)
+            metadata, load_canonical_trait_mapping_table(self.fixture.trait_table_dir)
         )
         self.assertEqual(
             {key: (m.trait_ontology.trait_ontology_id, m.trait_ontology.method) for key, m in mapped.items()
-             if key in ("GCST90000001", "GCST90000002", "GCST90000003")},
+             if key in ("GCST90000001", "GCST90000002", "GCST90000003", "GCST90000004")},
             {
                 "GCST90000001": ("EFO:0004340", "source_provided"),
                 "GCST90000002": ("EFO:0004338", "canonical_table_lookup"),
-                # The candidate table maps this one to MONDO:0005148; the
-                # Source Metadata Table does not, and it is the source.
                 "GCST90000003": ("", "unmapped"),
+                "GCST90000004": ("MONDO:0005148", "source_provided"),
             },
         )
 
-    def test_without_a_frozen_table_the_candidate_table_is_the_legacy_source(self) -> None:
-        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+    def test_every_metadata_field_comes_from_the_frozen_source_metadata_table(self) -> None:
         metadata = self._candidate_metadata()
-        sources = candidate_source_traits(config.base.inventory_provenance_path, metadata)
         self.assertEqual(
-            {source.analysis_id: source for source in sources}["GCST90000001"],
-            SourceTrait(
-                "GCST90000001", "Trait GCST90000001",
-                "http://purl.obolibrary.org/obo/MONDO_0005148", "mapped GCST90000001",
+            metadata["GCST90000004"],
+            AnalysisMetadata(
+                analysis_id="GCST90000004",
+                source_label="Trait GCST90000004",
+                source_trait_ontology_id="http://purl.obolibrary.org/obo/MONDO_0005148",
+                source_trait_ontology_label="mapped GCST90000004",
+                publication_pmid="12345678",
+                first_author="Author A",
+                n_cases="4000",
+                n_controls="4000",
+                sample_size="8000",
+                source_ancestry_label="European",
+                source_superpopulation="EUR",
             ),
         )
 
-    def test_an_analysis_the_frozen_table_does_not_intend_is_refused(self) -> None:
-        metadata = self._candidate_metadata()
-        provenance = self._write_frozen_connectors({"GCST90000001": ("Weight", "", "")})
-        with self.assertRaisesRegex(CandidateError, "GCST90000002"):
-            candidate_source_traits(provenance, metadata)
+    def test_an_inventory_frozen_without_its_connectors_is_refused(self) -> None:
+        """The candidate-table freeze recorded no frozen connectors: nothing to read (#287)."""
+        provenance = yaml.safe_load(self.fixture.provenance_path.read_text())
+        del provenance["source_metadata_table"]
+        legacy = self.fixture.root / "legacy.meta.yaml"
+        legacy.write_text(yaml.safe_dump(provenance), encoding="utf-8")
+        with self.assertRaisesRegex(CandidateError, "frozen Source Metadata Table"):
+            read_analysis_metadata(legacy, ["GCST90000001"])
 
-    def test_the_sources_must_be_exactly_the_analyses(self) -> None:
-        metadata = self._candidate_metadata()
-        table = load_canonical_trait_mapping_table(self.fixture.trait_table_dir)
-        with self.assertRaisesRegex(CandidateError, "GCST90000002"):
-            map_candidate_trait_ontologies(
-                metadata, [SourceTrait("GCST90000001", "x", "", "")], table
-            )
+    def test_an_analysis_the_frozen_table_does_not_intend_is_refused(self) -> None:
+        with self.assertRaisesRegex(CandidateError, "GCST99999999"):
+            read_analysis_metadata(self.fixture.provenance_path, ["GCST90000001", "GCST99999999"])
+
+    def test_an_edited_frozen_table_is_refused(self) -> None:
+        table = self.fixture.inventory_path.with_name(f"{SNAPSHOT_ID}.source-metadata.tsv")
+        table.write_text(table.read_text().replace("Author A", "Author B"), encoding="utf-8")
+        with self.assertRaisesRegex(CandidateError, "edited after the freeze"):
+            self._candidate_metadata()
 
     def _run_emit_only(self) -> subprocess.CompletedProcess:
         return _run_cli(self.fixture, "--stage", "emit")
@@ -1898,8 +1916,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         manifest = derive_resolver_manifest(
             read_inventory(self.fixture.inventory_path),
             config,
-            read_candidate_metadata(
-                self.fixture.candidates_path,
+            read_analysis_metadata(self.fixture.provenance_path,
                 [row.analysis_id for row in read_inventory(self.fixture.inventory_path) if row.ready],
             ),
         )
@@ -2047,8 +2064,7 @@ class CandidateWorkflowTests(unittest.TestCase):
     def test_resolver_manifest_uses_exact_inventory_paths(self) -> None:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
         rows = read_inventory(self.fixture.inventory_path)
-        metadata = read_candidate_metadata(
-            self.fixture.candidates_path, [row.analysis_id for row in rows if row.ready]
+        metadata = read_analysis_metadata(self.fixture.provenance_path, [row.analysis_id for row in rows if row.ready]
         )
         manifest = derive_resolver_manifest(rows, config, metadata)
         self.assertEqual(len(manifest), len(READY_ANALYSES))
@@ -2064,7 +2080,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
         rows = read_inventory(self.fixture.inventory_path)
         ready_ids = [row.analysis_id for row in rows if row.ready]
-        metadata = read_candidate_metadata(self.fixture.candidates_path, ready_ids)
+        metadata = read_analysis_metadata(self.fixture.provenance_path, ready_ids)
         manifest = derive_resolver_manifest(rows, config, metadata)
         # Synthesise records straight from the manifest, using the fake's shape.
         run = _run_cli(self.fixture, "--stage", "resolve")
@@ -2081,9 +2097,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             (self.fixture.work_root / STORE_ID / "resolver/index.json").read_text()
         )
         metadata, _ = map_candidate_trait_ontologies(
-            metadata,
-            candidate_source_traits(config.base.inventory_provenance_path, metadata),
-            load_canonical_trait_mapping_table(self.fixture.trait_table_dir),
+            metadata, load_canonical_trait_mapping_table(self.fixture.trait_table_dir)
         )
         outcomes = apply_release_policy(
             rows, config, metadata, {record["analysis_id"]: record for record in records}
@@ -2198,7 +2212,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             records.append(record)
         outcomes = apply_release_policy(
             [first, second], config,
-            {row.analysis_id: _synthetic_candidate_metadata() for row in (first, second)},
+            {row.analysis_id: _synthetic_analysis_metadata() for row in (first, second)},
             {record["analysis_id"]: record for record in records},
         )
         tables = build_candidate_tables(
@@ -2238,7 +2252,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             records.append(record)
         outcomes = apply_release_policy(
             [first, second], config,
-            {row.analysis_id: _synthetic_candidate_metadata() for row in (first, second)},
+            {row.analysis_id: _synthetic_analysis_metadata() for row in (first, second)},
             {record["analysis_id"]: record for record in records},
         )
         tables = build_candidate_tables(
@@ -2281,7 +2295,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         )
         with self.assertRaises(CandidateError) as raised:
             apply_release_policy(
-                [row], config, {row.analysis_id: _synthetic_candidate_metadata()},
+                [row], config, {row.analysis_id: _synthetic_analysis_metadata()},
                 {row.analysis_id: record},
             )
         self.assertIn(row.analysis_id, str(raised.exception))
@@ -2302,7 +2316,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             records[row.analysis_id] = record
         outcomes = apply_release_policy(
             [first, second], config,
-            {row.analysis_id: _synthetic_candidate_metadata() for row in (first, second)},
+            {row.analysis_id: _synthetic_analysis_metadata() for row in (first, second)},
             records,
         )
         by_id = {outcome.analysis_id: outcome for outcome in outcomes}
@@ -2327,7 +2341,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             record = _synthetic_resolver_record()
             record["phenotype_sd"]["estimate"]["sd"] = sd
             (outcome,) = apply_release_policy(
-                [row], config, {row.analysis_id: _synthetic_candidate_metadata()},
+                [row], config, {row.analysis_id: _synthetic_analysis_metadata()},
                 {row.analysis_id: record},
             )
             self.assertFalse(outcome.included, sd)
@@ -2345,9 +2359,12 @@ class CandidateWorkflowTests(unittest.TestCase):
         duplicate.write_text("analysis_id\treason\nA\tx\nA\ty\n", encoding="utf-8")
         with self.assertRaisesRegex(CandidateError, "duplicate analysis_id"):
             read_effect_placeholder_exclusions(duplicate)
-        config = load_candidate_configuration(
-            REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/config-full.yaml", REPO_ROOT
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["release_policy"]["effect_placeholder_exclusions"] = (
+            "resources/generators/gwas-catalog-eur-hybrid/effect-placeholder-exclusions.tsv"
         )
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
         self.assertEqual(config.effect_placeholder_exclusions, found)
 
     # -- Indexed Variant Subset defaults (stores #210, epic #214) -------------
@@ -2477,7 +2494,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             [filtered, unfiltered],
             config,
             {
-                row.analysis_id: _synthetic_candidate_metadata()
+                row.analysis_id: _synthetic_analysis_metadata()
                 for row in (filtered, unfiltered)
             },
             {record["analysis_id"]: record for record in records},
@@ -2495,7 +2512,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             [filtered, unfiltered],
             config,
             {
-                row.analysis_id: _synthetic_candidate_metadata()
+                row.analysis_id: _synthetic_analysis_metadata()
                 for row in (filtered, unfiltered)
             },
             {record["analysis_id"]: record for record in records},
@@ -2541,7 +2558,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             [filtered, unfiltered],
             config,
             {
-                row.analysis_id: _synthetic_candidate_metadata()
+                row.analysis_id: _synthetic_analysis_metadata()
                 for row in (filtered, unfiltered)
             },
             {record["analysis_id"]: record for record in records},
@@ -2564,7 +2581,7 @@ class CandidateWorkflowTests(unittest.TestCase):
                 [filtered, unfiltered],
                 config,
                 {
-                    row.analysis_id: _synthetic_candidate_metadata()
+                    row.analysis_id: _synthetic_analysis_metadata()
                     for row in (filtered, unfiltered)
                 },
                 {record["analysis_id"]: record for record in records},
@@ -2581,7 +2598,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             [filtered, unfiltered],
             config,
             {
-                row.analysis_id: _synthetic_candidate_metadata()
+                row.analysis_id: _synthetic_analysis_metadata()
                 for row in (filtered, unfiltered)
             },
             {record["analysis_id"]: record for record in records},
@@ -2605,7 +2622,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             [filtered, unfiltered],
             config,
             {
-                row.analysis_id: _synthetic_candidate_metadata()
+                row.analysis_id: _synthetic_analysis_metadata()
                 for row in (filtered, unfiltered)
             },
             {record["analysis_id"]: record for record in records},
@@ -2738,7 +2755,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             [filtered, unfiltered],
             config,
             {
-                row.analysis_id: _synthetic_candidate_metadata()
+                row.analysis_id: _synthetic_analysis_metadata()
                 for row in (filtered, unfiltered)
             },
             {record["analysis_id"]: record for record in records},
@@ -2775,13 +2792,6 @@ class CandidateWorkflowTests(unittest.TestCase):
             release["notes"],
         )
 
-    def test_committed_store_composition_requires_maf_filtering(self) -> None:
-        config = load_candidate_configuration(
-            REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/config-full.yaml",
-            REPO_ROOT,
-        )
-        self.assertTrue(config.require_maf_filtered)
-
     def test_zero_build_eligible_rows_is_excluded_and_not_missing(self) -> None:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
         config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
@@ -2804,7 +2814,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             records.append(record)
         outcomes = apply_release_policy(
             [first, second], config,
-            {row.analysis_id: _synthetic_candidate_metadata() for row in (first, second)},
+            {row.analysis_id: _synthetic_analysis_metadata() for row in (first, second)},
             {record["analysis_id"]: record for record in records},
         )
         by_id = {outcome.analysis_id: outcome for outcome in outcomes}
@@ -2865,7 +2875,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             with self.subTest(case=name):
                 with self.assertRaises(CandidateError) as raised:
                     apply_release_policy(
-                        [row], config, {row.analysis_id: _synthetic_candidate_metadata()},
+                        [row], config, {row.analysis_id: _synthetic_analysis_metadata()},
                         {row.analysis_id: record_with(diagnostics)},
                     )
                 self.assertIn(row.analysis_id, str(raised.exception))
@@ -2887,7 +2897,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         for name, diagnostics in partitions.items():
             with self.subTest(case=name):
                 outcomes = apply_release_policy(
-                    [row], config, {row.analysis_id: _synthetic_candidate_metadata()},
+                    [row], config, {row.analysis_id: _synthetic_analysis_metadata()},
                     {row.analysis_id: record_with(diagnostics)},
                 )
                 self.assertTrue(outcomes[0].included, outcomes[0].exclusion_reason)
@@ -2904,7 +2914,7 @@ class CandidateWorkflowTests(unittest.TestCase):
     ):
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
         row = _synthetic_inventory_row()
-        metadata = _synthetic_candidate_metadata()
+        metadata = _synthetic_analysis_metadata()
         record = _synthetic_resolver_record(
             eaf_orientation=eaf_orientation,
             gate_reason=gate_reason,
@@ -2987,7 +2997,9 @@ class CandidateWorkflowTests(unittest.TestCase):
             command, cwd=str(self.fixture.root), capture_output=True, text=True, check=False
         )
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        for rule in ("preflight", "resolver_manifest", "resolve", "verify", "finalise"):
+        for rule in (
+            "freeze", "preflight", "resolver_manifest", "resolve", "verify", "render", "emit"
+        ):
             self.assertIn(rule, result.stdout)
         # The same DAG refuses to run without its required configuration.
         missing = subprocess.run(
@@ -2999,6 +3011,103 @@ class CandidateWorkflowTests(unittest.TestCase):
         )
         self.assertNotEqual(missing.returncode, 0)
         self.assertIn("store_id", missing.stderr + missing.stdout)
+
+
+class EntryPointStageTests(unittest.TestCase):
+    """One entry point runs every stage for a release config, end to end (#287).
+
+    The fixture starts with the Source Collection's two connector files and a
+    release config only: nothing is frozen until the ``freeze`` stage runs.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="entry-point-")
+        self.fixture = FixtureBuilder(Path(self._tmp.name)).build(freeze=False)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def stage(self, name: str, **kwargs) -> subprocess.CompletedProcess:
+        result = _run_cli(self.fixture, "--stage", name, **kwargs)
+        self.assertEqual(result.returncode, 0, f"{name}: {result.stderr}{result.stdout}")
+        return result
+
+    def test_each_stage_in_turn_freezes_resolves_renders_and_emits(self) -> None:
+        run_root = self.fixture.work_root / STORE_ID
+        self.assertFalse(self.fixture.provenance_path.exists())
+
+        self.stage("freeze")
+        provenance = yaml.safe_load(self.fixture.provenance_path.read_text())
+        self.assertEqual(provenance["frozen_by"], "manifest_generation.freeze")
+        self.assertEqual(provenance["selection"], SELECTION)
+        report = json.loads((run_root / "freeze" / f"{SNAPSHOT_ID}.json").read_text())
+        self.assertTrue(report["frozen_by_this_run"])
+
+        self.stage("preflight")
+        self.assertTrue((run_root / "preflight" / f"{SNAPSHOT_ID}.json").is_file())
+        self.stage("prepare")
+        self.assertTrue((run_root / "resolver" / "analyses.tsv").is_file())
+        self.stage("resolve")
+        self.assertTrue((run_root / "resolver" / RECEIPT_FILENAME).is_file())
+        self.stage("verify")
+        self.assertFalse((run_root / "bundle").exists())
+
+        rendered = self.stage("render")
+        self.assertIn("Trait Ontology Mapping:", rendered.stdout)
+        self.assertIn("Release policy: 3 included, 6 excluded", rendered.stdout)
+        self.assertTrue((run_root / "bundle" / "release.yaml").is_file())
+        self.assertFalse((self.fixture.registry_root / STORE_ID).exists())
+
+        self.stage("emit")
+        bundle_dir = self.fixture.registry_root / STORE_ID
+        self.assertEqual(
+            (bundle_dir / "analyses.tsv").read_bytes(),
+            (run_root / "bundle" / "analyses.tsv").read_bytes(),
+        )
+        included = {
+            row["analysis_id"]
+            for row in _read_tsv(bundle_dir / "analyses.tsv")
+            if row["exclude_from_build"] != "true"
+        }
+        self.assertEqual(included, EXPECTED_INCLUDED)
+        self.assertEqual(bundle_module.check(bundle_module.load(STORE_ID, registry_root=self.fixture.registry_root), registry_root=self.fixture.registry_root), [])
+
+    def test_all_stages_then_a_rerun_reuses_the_frozen_inventory(self) -> None:
+        self.stage("all")
+        inventory_bytes = self.fixture.inventory_path.read_bytes()
+        frozen_mtime = self.fixture.provenance_path.stat().st_mtime_ns
+        rerun = self.stage("all")
+        self.assertIn("Found the frozen Source Inventory", rerun.stdout)
+        self.assertEqual(self.fixture.inventory_path.read_bytes(), inventory_bytes)
+        self.assertEqual(self.fixture.provenance_path.stat().st_mtime_ns, frozen_mtime)
+
+    def test_a_changed_selection_under_the_same_snapshot_id_is_refused(self) -> None:
+        self.stage("freeze")
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["selection"] = {"analyses": ["GCST90000001", "GCST90000004"]}
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        for name in ("freeze", "preflight"):
+            with self.subTest(stage=name):
+                result = _run_cli(self.fixture, "--stage", name)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("a changed Selection is a new freeze", result.stderr + result.stdout)
+
+    def test_a_release_config_with_no_connectors_needs_a_frozen_inventory(self) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        del document["source_collection"]["connectors"]
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        result = _run_cli(self.fixture, "--stage", "freeze")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("names no source_collection.connectors", result.stderr)
+
+    def test_a_legacy_config_is_refused_by_the_entry_point(self) -> None:
+        result = _run_cli(
+            self.fixture,
+            config_path=REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/config-full.yaml",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("release_config_version", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
 
 
 class SharedVocabularyTests(unittest.TestCase):
@@ -3045,49 +3154,16 @@ class SharedResolutionRecordsTests(unittest.TestCase):
         return path
 
     def _trial_config(self, analysis_ids: list[str]) -> Path:
-        """A second Selection over the same Source Collection: a Trial Store Release."""
-        root = self.fixture.root
-        keep = set(analysis_ids)
-        acquisition = [
-            row for row in _read_tsv(root / "acq" / "base.tsv") if row["analysis_id"] in keep
-        ]
-        passes = []
-        for role, name in (("base", "trial-base.tsv"), ("retry_transient", "trial-retry.tsv")):
-            path = root / "acq" / name
-            _write_tsv(path, ACQUISITION_MANIFEST_COLUMNS, acquisition)
-            passes.append(AcquisitionPass(role=role, path=path))
-        candidates = _read_tsv(self.fixture.candidates_path)
-        trial_candidates = root / "trial-candidates.tsv"
-        _write_tsv(
-            trial_candidates,
-            list(candidates[0]),
-            [row for row in candidates if row["STUDY.ACCESSION"] in keep],
-        )
-        snapshot = build_snapshot(
-            snapshot_id="fixture-trial",
-            source_collection_id=COLLECTION_ID,
-            store_key=STORE_KEY,
-            ancestry_group="European",
-            manifests=passes,
-            candidates=read_candidate_selection(trial_candidates, STORE_KEY),
-            frozen_at="2026-09-21T00:00:00Z",
-        )
-        inventory = root / "inventory" / "fixture-trial.tsv"
-        provenance = root / "inventory" / "fixture-trial.meta.yaml"
-        write_snapshot(snapshot, inventory, provenance)
+        """A second Selection over the same Source Collection: a Trial Store Release.
 
+        Its own snapshot id and an ``analyses`` list over the same connector
+        files; the entry point's freeze stage freezes it.
+        """
         document = yaml.safe_load(self.fixture.config_path.read_text(encoding="utf-8"))
         document["label"] = "fixture-trial"
-        document["source"]["candidates"] = str(trial_candidates)
-        document["source"]["inventory"] = {
-            "snapshot_id": "fixture-trial",
-            "path": str(inventory),
-            "provenance_path": str(provenance),
-            "freeze_inputs": [
-                {"role": p.role, "path": str(p.path)} for p in passes
-            ],
-        }
-        config_path = root / "config-trial.yaml"
+        document["selection"] = {"analyses": list(analysis_ids)}
+        document["source_collection"]["inventory"]["snapshot_id"] = "fixture-trial"
+        config_path = self.fixture.root / "config-trial.yaml"
         config_path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
         return config_path
 

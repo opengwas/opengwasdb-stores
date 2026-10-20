@@ -1,14 +1,15 @@
-"""Phase B candidate generation -- coarse dependency wiring only (issue #153).
+"""Manifest Generation -- coarse dependency wiring only (issues #153, #287).
 
-This DAG sequences the five stages of one candidate Release Bundle:
+This DAG sequences the stages of one candidate Release Bundle:
 
-    preflight -> resolver-manifest -> resolve -> verify -> finalise
+    freeze -> preflight -> resolver-manifest -> resolve -> verify -> render -> emit
 
-Every rule's shell is one `--stage` invocation of the same Manifest Generation
+Every rule's shell is one `--stage` invocation of the one Manifest Generation
 entry point, `python3 -m manifest_generation.generate_candidate`, that the
-operator runs through `pixi run generate-candidate`. The DAG carries no
-selection, no source column name and no manifest translation; per ADR 0023 it
-only wires dependencies and resource requests.
+operator runs through `pixi run generate-candidate`, for any release config
+(`docs/spec/release-config.md`). The DAG carries no selection, no source column
+name and no manifest translation; per ADR 0023 it only wires dependencies and
+resource requests.
 
 The per-Analysis work -- loading the genome-scale ancestry reference once, the
 worker pool, atomic per-Analysis records and `--resume` -- is owned by
@@ -18,15 +19,17 @@ resolver invocation that owns its own pool. The resolver always resumes from the
 Source Collection's Resolution Area (#284), because its fingerprint-aware
 checkpoint is the authority on what can be reused; Snakemake reuses nothing. The
 `resolve` rule's output is the run's resolution receipt in the Work Root, never
-a file in the shared area, which other Selections' runs also write.
+a file in the shared area, which other Selections' runs also write. The
+`freeze` rule's output is the freeze stage's report in the Work Root: the
+frozen Source Inventory itself is never overwritten.
 
 Run it with explicit `--config` values (see `workflow/README.md`); `config` is
-any candidate-workflow config:
+any release config, and `snapshot_id` its `source_collection.inventory.snapshot_id`:
 
     snakemake --snakefile workflow/generate.smk --cores 64 \
       --config store_id=OGS-00011 \
-               config=resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
-               snapshot_id=gwas-catalog-ssf-eur-hybrid-2026-09-22 \
+               config=resources/generators/gwas-catalog-eur-hybrid/release-eur-hybrid-full.yaml \
+               snapshot_id=gwas-catalog-ssf-eur-hybrid-2026-10-19 \
                work_root=/data/opengwasdb/work/gwas-catalog-eur-hybrid \
                registry_root=stores
 
@@ -80,7 +83,16 @@ rule all:
         os.path.join(str(REGISTRY_ROOT), str(STORE_ID), "analyses.tsv")
 
 
+rule freeze:
+    output:
+        os.path.join(RUN_ROOT, "freeze", f"{SNAPSHOT_ID}.json")
+    shell:
+        COMMON + " --stage freeze"
+
+
 rule preflight:
+    input:
+        rules.freeze.output
     output:
         os.path.join(RUN_ROOT, "preflight", f"{SNAPSHOT_ID}.json")
     shell:
@@ -114,9 +126,18 @@ rule verify:
         COMMON + " --stage verify"
 
 
-rule finalise:
+rule render:
     input:
         rules.verify.output
+    output:
+        os.path.join(RUN_ROOT, "bundle", "analyses.tsv")
+    shell:
+        COMMON + " --stage render"
+
+
+rule emit:
+    input:
+        rules.render.output
     output:
         os.path.join(str(REGISTRY_ROOT), str(STORE_ID), "analyses.tsv")
     shell:

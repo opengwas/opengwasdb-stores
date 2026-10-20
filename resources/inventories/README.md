@@ -1,18 +1,21 @@
 # Source Inventories
 
-A **Source Inventory** is the frozen record of which upstream Analyses
-acquisition actually produced usable files for, one row per discovered Analysis.
-It is where Phase B starts: a generator selects release membership from a
+A **Source Inventory** is the frozen record of which intended Analyses
+acquisition actually produced usable files for, one row per selected Analysis.
+It is where Manifest Generation starts: a release selects its membership from a
 frozen inventory rather than from a glob over an acquisition mirror, so the
 selection it made is checksummable, diffable in a pull request, and unaffected
 by the mirror changing underneath it.
 
 `resources/inventories/<snapshot-id>.tsv` holds the rows;
 `<snapshot-id>.meta.yaml` holds the provenance that makes the snapshot
-reviewable — the checksum of the TSV itself, the acquisition manifests it was
-merged from (with their checksums and per-status counts), the candidate table
-that fixes the selection scope, and the duplicate-content groups awaiting a
-review decision.
+reviewable -- the checksum of the TSV itself, the Selection it was frozen for,
+the Source Collection's two connector files (frozen beside it as
+`<snapshot-id>.source-metadata.tsv` and `<snapshot-id>.acquisition-manifest.tsv`,
+with their originals' checksums), and the duplicate-content groups awaiting a
+review decision. Snapshots frozen before #283 (`*-2026-09-10`, `*-2026-09-22`)
+record the candidate table and acquisition passes instead; they stay as the
+history of the bundles built from them.
 
 A Source Inventory is rows, not a metadata tier: the Source Collection is a
 string on the release, and this directory holds data files
@@ -57,48 +60,54 @@ Unavailable inputs stay in the inventory as facts. They are **not** release
 members: a selection step reads the ready rows and never reclassifies a
 non-ready one.
 
-## Retry overlay
+## The GWAS Catalog's acquisition passes
 
-Acquisition writes one status manifest per pass. A retry pass re-attempts the
-transient failures of the first, and its rows are authoritative for every
-`analysis_id` they cover — it is the later observation of the same upstream
-file. `freeze` therefore overlays the retry manifest on the base manifest and
-records, in the provenance sidecar, both manifests' checksums and per-status
-counts plus the number of rows the overlay replaced. That is where a status
-count that differs from the base manifest's is explained rather than silently
-replaced.
+The GWAS Catalog downloader writes one status manifest per pass. A retry pass
+re-attempts the transient failures of the first, and its rows are authoritative
+for every `analysis_id` they cover -- it is the later observation of the same
+upstream file -- but a later pass may never turn a ready Analysis into a
+non-ready one. The GWAS Catalog Acquisition Manifest writer
+(`providers.gwas_catalog.write_acquisition_manifest`) applies that overlay once
+and records each pass's checksum, per-status counts and overrides beside the
+manifest it writes; freeze checksums that record into the inventory's
+provenance.
 
 ## Freezing and preflighting
 
-Both commands are driven by the release's generator config, which names the
-snapshot it selects from; both are pure-Python (no `opengwasdb`, no R) and run
-in the default Pixi environment.
+Both commands take a release config ([`docs/spec/release-config.md`](../../docs/spec/release-config.md)),
+which names the Source Collection's connector files, the snapshot id and the
+Selection; both are pure Python (no `opengwasdb`, no R) and run in the default
+Pixi environment. The candidate entry point runs them as its first two stages.
 
 ```sh
-pixi run inventory-freeze     # acquisition manifests + candidates -> frozen inventory
-pixi run preflight            # prove the frozen inventory before reading any association row
+pixi run inventory-freeze --config <release config>   # connectors -> frozen inventory
+pixi run preflight --config <release config>          # prove it before reading any association row
 ```
 
-`inventory-freeze` writes `<snapshot-id>.tsv` and `<snapshot-id>.meta.yaml`, then
-commit them. It fails on duplicate `analysis_id`s, an unknown readiness status, a
-candidate with no acquisition row, an acquisition row outside the candidate
-pool, or a duplicate candidate accession — anything that would leave a row
-unaccounted.
+`inventory-freeze` runs the shared freeze (`manifest_generation.freeze`, #283)
+and writes the four snapshot files into the config's
+`source_collection.inventory.directory`; commit them. It fails on a selected
+Analysis with no Acquisition Manifest row, a row no Analysis claims, or a
+duplicate Analysis or file -- anything that would leave a row unaccounted. It
+never overwrites a snapshot: when one exists, it writes nothing and refuses
+one frozen for another Source Collection or Selection.
+[`docs/spec/source-connectors.md`](../../docs/spec/source-connectors.md) is the
+authority on its inputs and provenance.
 
-`preflight` is the cheap gate before a resolution run (and is distinct from the
-Phase A production workflow's Preflight Run, `CONTEXT.md`). In seconds, and
-without opening a single GWAS-SSF file, it reports:
+`preflight` is the cheap gate before a resolution run (and is distinct from
+Store Release Build's preflight, `CONTEXT.md`). In seconds, and without opening
+a single association file, it reports:
 
 - total and per-status counts, and the ready count/bytes with the
   quantitative/case-control split;
 - the planned method tier per study design, reference-AF fallback policy, and
   every expected exclusion (each non-ready readiness status);
-- missing source files, files whose size changed since the freeze, and metadata
-  files that are missing, unreadable, or no longer declare GRCh38 harmonised
-  source;
+- missing source files, files whose size changed since the freeze, and recorded
+  metadata sidecars that are missing, unreadable, or no longer declare GRCh38
+  harmonised source; ready rows with no recorded sidecar or no source URL;
 - duplicate-content groups for review;
 - every declared Reference Resource with its presence, size and whether this
-  release requires it — including resources the registry declares but this
+  release requires it -- including resources the registry declares but this
   release does not use, which is how a decision about a reference fallback sees
   the fact that the panel is absent;
 - the requested cores (refusing more than the release's cap), the work root's
@@ -106,39 +115,23 @@ without opening a single GWAS-SSF file, it reports:
 
 It exits non-zero when the frozen snapshot cannot be trusted: the TSV no longer
 matches the checksum its provenance sidecar records, the snapshot is not the one
-the config declares, a required Reference Resource (or an ancestry-mixture
-reference's fine-group map) is absent, a ready source or metadata file is gone
-or changed, a study design has no declared method tier, the requested core count
-exceeds the cap, or the work root is unusable or below the declared free-space
-minimum.
+the config declares or was not frozen by the shared freeze for the config's
+Source Collection and Selection, a required Reference Resource (or an
+ancestry-mixture reference's fine-group map) is absent, a ready source or
+recorded metadata file is gone or changed, a study design has no declared method
+tier, the requested core count exceeds the cap, or the work root is unusable or
+below the declared free-space minimum. A ready row without a source URL is a
+warning: the Acquisition Manifest makes it optional (#287).
 
 Its machine-readable report is written under the release's work root
-(`<work_root>/preflight/<snapshot-id>.json`) for use as candidate evidence.
+(`<work_root>/<store-id>/preflight/<snapshot-id>.json` from the entry point,
+`<work_root>/preflight/<snapshot-id>.json` from `pixi run preflight`) for use as
+candidate evidence.
 
 `preflight` compares recorded **sizes**, never checksums: verifying 1.8 TB is not
 a preflight, it is the resolution run's job. It also never treats a non-ready row
-whose file has since appeared as ready — that only signals the frozen snapshot is
+whose file has since appeared as ready -- that only signals the frozen snapshot is
 stale and should be re-frozen deliberately.
-
-## The shared freeze (ADR 0036)
-
-`python3 -m manifest_generation.freeze` writes a Source Inventory in these same
-columns from a Source Collection's two connector files -- its **Source Metadata
-Table** (intent) and its **Acquisition Manifest** (what acquisition produced)
--- and a release config's **Selection** (#283). It also writes the selected
-rows of both connector files beside the snapshot
-(`<snapshot-id>.source-metadata.tsv`, `<snapshot-id>.acquisition-manifest.tsv`),
-and its provenance sidecar records the Selection and each connector's frozen
-and original sha256 instead of the candidate table and the acquisition passes;
-the GWAS Catalog's passes are recorded beside its Acquisition Manifest by the
-writer that overlays them, and that record's sha256 is in the provenance too.
-[`docs/spec/source-connectors.md`](../../docs/spec/source-connectors.md) is the
-authority on its inputs and provenance.
-
-Re-freezing `gwas-catalog-ssf-eur-hybrid-2026-09-22` through it, with
-`selection: {where: {store_key: hybrid__European}}`, reproduces the committed
-TSV byte for byte. `inventory-freeze` above remains until #287 moves the GWAS
-Catalog release onto the shared freeze.
 
 ## Declared-selection inventories
 

@@ -40,13 +40,18 @@ REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 SCRIPT = ("-m", "manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453")
 
 from manifest_generation.providers.dbgap.mvp import acquire_dbgap_phs002453 as ACQUIRE
+from manifest_generation.freeze import freeze, write_frozen_inventory
+from manifest_generation.providers.gwas_catalog.source_metadata_adapter import (
+    convert_candidate_table,
+)
+from manifest_generation.providers.gwas_catalog.write_acquisition_manifest import (
+    write_from_passes,
+)
+from manifest_generation.selection import parse_selection
 from manifest_generation.source_inventory import (
     ACQUISITION_MANIFEST_COLUMNS,
     AcquisitionPass,
-    build_snapshot,
     read_acquisition_pass,
-    read_candidate_selection,
-    write_snapshot,
 )
 
 TAR = "phs002453.MVP_R4.1000G_AGR.GIA.Fixture.analysis-PI.MULTI.tar"
@@ -183,7 +188,7 @@ CANDIDATES: list[dict[str, str]] = [
      "study_design": "quantitative", "n_cases": "0", "n_controls": "0", "sample_size": "542276",
      "n_variants": "14903227", "association_count": "14903227", "MAPPED_TRAIT_URI": "EFO_0004531"},
     {"STUDY.ACCESSION": "GCST90479999", "PUBMED.ID": "39024449", "FIRST.AUTHOR": "Verma A",
-     "STUDY": "Diversity and scale", "DISEASE.TRAIT": "Bogus trait", "MAPPED_TRAIT": "bogus trait",
+     "STUDY": "Diversity and scale", "DISEASE.TRAIT": "Bogus trait", "MAPPED_TRAIT": "",
      "ancestry_group": "European", "ancestry_fraction": "1", "is_molecular": "FALSE",
      "molecular_subtype": "", "store_type": "dense", "store_key": STORE_KEY, "molecular_type": "",
      "study_design": "quantitative", "n_cases": "0", "n_controls": "0", "sample_size": "12345",
@@ -582,18 +587,24 @@ class AcquisitionTest(unittest.TestCase):
         self.assertEqual(len(rows), 3)
         self.assertIn("GCST90479999", {row["analysis_id"] for row in rows if row["status"] != "ok"})
 
-        selection = read_candidate_selection(self.candidates, STORE_KEY)
-        snapshot = build_snapshot(
+        # Its consumer is the shared freeze (#283, #287): the pass becomes the
+        # Acquisition Manifest, the candidate table the Source Metadata Table.
+        table = self.root / "source-metadata.tsv"
+        convert_candidate_table(self.candidates, table, repo_root=REPO_ROOT)
+        manifest = self.root / "acquisition-manifest.tsv"
+        write_from_passes([AcquisitionPass(role="dbgap-phs002453", path=path)], manifest)
+        frozen = freeze(
             snapshot_id="test-dbgap-phs002453",
             source_collection_id="test-source-collection",
-            store_key=STORE_KEY,
-            ancestry_group="European",
-            manifests=[AcquisitionPass(role="dbgap-phs002453", path=path)],
-            candidates=selection,
+            metadata_table=table,
+            acquisition_manifest=manifest,
+            selection=parse_selection({"where": {"store_key": STORE_KEY}}),
         )
-        self.assertEqual(len(snapshot.rows), 3)
-        self.assertEqual({row.analysis_id for row in snapshot.ready_rows}, {"GCST90475097", "GCST90477833"})
-        write_snapshot(snapshot, self.root / "inventory.tsv", self.root / "inventory.meta.yaml")
+        self.assertEqual(len(frozen.rows), 3)
+        self.assertEqual(
+            {row.analysis_id for row in frozen.rows if row.ready}, {"GCST90475097", "GCST90477833"}
+        )
+        write_frozen_inventory(frozen, self.root / "inventory.tsv", self.root / "inventory.meta.yaml")
         self.assertTrue((self.root / "inventory.tsv").is_file())
 
     def test_13_manifest_covers_each_store_key(self) -> None:

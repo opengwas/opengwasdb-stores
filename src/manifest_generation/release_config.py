@@ -417,7 +417,7 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
         require_maf_filtered = composition.get("require_maf_filtered", False)
         if not isinstance(require_maf_filtered, bool):
             raise ReleaseConfigError(
-                f"{where}.store_composition.require_maf_filtered must be true or false"
+                f"{where}.store_composition.require_maf_filtered must be a boolean (true or false)"
             )
         if require_maf_filtered and (maf_threshold is None or Decimal(maf_threshold) == 0):
             raise ReleaseConfigError(

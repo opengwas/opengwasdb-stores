@@ -866,14 +866,14 @@ A generator has the same shape as the build workflow: discover upstream, select 
 
 ### The Source Inventory seam
 
-Selection starts at a **frozen Source Inventory**, not at a glob over an acquisition mirror (issue #151). Acquisition writes a status manifest per pass; freezing merges the retry pass over the base pass, accounts every row against the candidate pool, and writes one row per discovered Analysis with its readiness status and the exact local source path. `resources/inventories/README.md` is the contract; `src/manifest_generation/source_inventory.py` owns the merge rule and the readiness vocabulary (`ok` and `already_present` are ready, nothing else is).
+Selection starts at a **frozen Source Inventory**, not at a glob over an acquisition mirror (issues #151, #283). A Source Collection's acquisition writes an **Acquisition Manifest** and its metadata adapter a **Source Metadata Table** ([source connectors](source-connectors.md)); the shared freeze reconciles the release config's **Selection** of the table against the manifest and writes the inventory, with both connector files' selected rows frozen beside it. `resources/inventories/README.md` is the contract; `src/manifest_generation/source_inventory.py` owns the readiness vocabulary (`ok` and `already_present` are ready, nothing else is).
 
-Two operator commands sit at this seam, and both are cheap:
+Two operator commands sit at this seam, both take a release config ([release config](release-config.md), #287), and both are cheap:
 
-- `pixi run inventory-freeze` turns acquisition output into the frozen snapshot plus a provenance sidecar recording the inputs' checksums, the per-status counts of each pass, and the duplicate-content groups awaiting review;
-- `pixi run preflight` re-derives the plan from a frozen snapshot and the release config — per-status counts, ready count/bytes and design split, planned method tier per study design, expected exclusions, duplicate groups, Reference Resource presence, requested cores, work root and free space — reading only the inventory, small per-Analysis metadata and filesystem metadata. It never opens an association body and never checksums the source corpus. This Phase B inventory-readiness gate is distinct from a Phase A **Preflight Run** (`CONTEXT.md`), which executes a representative subset within the production build workflow.
+- `pixi run inventory-freeze --config <release config>` writes the frozen snapshot, its frozen connectors and a provenance sidecar recording the Selection, both connectors' checksums and the duplicate-content groups awaiting review. It never overwrites a snapshot;
+- `pixi run preflight --config <release config>` re-derives the plan from a frozen snapshot and the release config — per-status counts, ready count/bytes and design split, planned method tier per study design, expected exclusions, duplicate groups, Reference Resource presence, requested cores, work root and free space — reading only the inventory, small per-Analysis metadata and filesystem metadata, and refusing a snapshot not frozen for the config's Source Collection and Selection. It never opens an association body and never checksums the source corpus. This inventory-readiness gate is distinct from Store Release Build's preflight and from a **Rehearsal Run** (`CONTEXT.md`).
 
-A snapshot is frozen so membership cannot move underneath a proposal: re-freezing after further acquisition creates a new snapshot, and the config is repointed deliberately. Duplicate source content across accessions is reported for a human decision rather than collapsed.
+A snapshot is frozen so membership cannot move underneath a proposal: re-freezing after further acquisition, or for a changed Selection, creates a new snapshot id, and the config is repointed deliberately. Duplicate source content across accessions is reported for a human decision rather than collapsed.
 
 ### Who implements the statistics
 
@@ -893,29 +893,37 @@ Deferring instead -- building first and correcting the Store afterwards -- is no
 
 That CLI wiring is provided upstream by `estimate-phenotype-sd` ([opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176)), now available on `dev` and active via #106; Manifest Generation must invoke the upstream CLI command rather than keeping local estimation shims or per-family connectors. The previous `src/manifest_generation/phenotype_sd_estimate.py` was a 47-line shim taking JSON arrays on the command line, which forced each family to open source files and extract `se`/`af`/`beta` itself; that is how `resources/generators/lib/effect_scale_validation.R` grew to 562 lines, of which roughly 60 are the acceptance policy that genuinely belongs here and the rest re-implements reference-panel access and allele harmonisation `opengwasdb` already owns.
 
-### The resumable candidate workflow (issue #153)
+### The shared pipeline (issues #153, #287)
 
-The first implemented Phase B workflow is the EBI GWAS Catalog `hybrid__European`
-candidate generator. It is deliberately thin: it turns the frozen Source
-Inventory into a candidate Release Bundle by invoking OpenGWASDB for the
+Manifest Generation is one pipeline fed by source connectors (ADR 0036), first
+written for the EBI GWAS Catalog `hybrid__European` release (#153) and run for
+any release config since #287. It is deliberately thin: it turns a frozen
+Source Inventory into a candidate Release Bundle by invoking OpenGWASDB for the
 statistics, and it never builds, validates or registers a Store (ADR 0012,
 ADR 0017). One operator entry point runs every stage:
 
 ```sh
 pixi run generate-candidate OGS-00011 \
-  --config resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
+  --config resources/generators/gwas-catalog-eur-hybrid/release-eur-hybrid-full.yaml \
   --cores 64
 ```
 
-The stages, and what they do not do:
+The stages, and what they do not do (`--stage <name>` runs one; a later stage
+run alone repeats the in-memory steps it needs, never `freeze`, `preflight` or
+`resolve`):
 
 | Stage | Reads | Writes | Never does |
 |---|---|---|---|
+| `freeze` | the release config's connector files and Selection | the frozen inventory, its frozen connectors and provenance, when absent; `<work-root>/<id>/freeze/<snapshot>.json` | overwrite a frozen snapshot, or accept one frozen for another Selection |
 | `preflight` | frozen inventory, provenance, config, filesystem metadata | `<work-root>/<id>/preflight/<snapshot>.json` | open an association body; checksum the corpus |
-| `prepare` | frozen inventory, candidate metadata table | `<work-root>/<id>/resolver/analyses.tsv` | reconstruct a source path or re-select membership |
+| `prepare` | frozen inventory, frozen Source Metadata Table | `<work-root>/<id>/resolver/analyses.tsv` | reconstruct a source path or re-select membership |
 | `resolve` | the resolver manifest | records in the Source Collection's Resolution Area; `<work-root>/<id>/resolver/{index.json,resolve.log,resolution_receipt.json}` | load a reference, fork a worker, or compute ancestry/SD here |
 | `verify` | the records the receipt names | nothing | accept a missing, stale, edited or duplicate record, or one outside the Selection |
-| `emit` | inventory, records, config | a staged bundle, then `stores/<id>/` | build, validate or accept a Store; write a non-`candidate` status |
+| `render` | records, frozen Source Metadata Table, the Canonical Trait Mapping Table, config | Trait Ontology Mapping, then the release policy, then `<work-root>/<id>/bundle/` | compute a statistic; write into `stores/` |
+| `emit` | the rendered bundle | a staged bundle, then `stores/<id>/` | build, validate or accept a Store; write a non-`candidate` status |
+
+Re-running a stopped run repeats nothing costly: `freeze` finds the frozen
+snapshot and `resolve` reuses every record whose fingerprint still matches.
 
 The resolver subprocess is `opengwasdb resolve-analyses` (opengwasdb#208). It
 owns the process pool, the single genome-scale reference load, and the atomic,
@@ -1000,10 +1008,14 @@ always find the same area and the same lock.
 **Canonical resolver manifest.** The manifest is derived from the frozen
 inventory's *exact* `data_file` paths — no filename is reconstructed from an
 accession — with the per-design method tier from `defaults.by_study_design` and
-the resolved total N from the candidate table the freeze already checksums. The
-candidate table is the metadata resolver's output (`resources/scripts/ebi-studies.r`),
-so reading it is a join on an already-frozen selection, never a second selection:
-membership is still the inventory's.
+the total N from the Source Metadata Table frozen beside the inventory, which
+the provenance checksums (#287). Every per-Analysis metadata value the bundle
+carries comes from that frozen table, with the release config's `defaults`
+filling the collection-wide ones (`source_genome_build`, `license`,
+`publication_doi`, `consortium`) where a cell is blank. Reading it is a join on
+an already-frozen Selection, never a second selection: membership is still the
+inventory's. An inventory frozen without its connectors (the pre-#283
+candidate-table freeze) is refused.
 
 **Record accounting.** `verify` fails, and `emit` refuses before anything
 replaces a prior candidate, when a selected Analysis has no record, when the
@@ -1071,7 +1083,8 @@ fingerprint still matches, and re-resolves the rest, exactly as it would its own
 
 **Release policy and controlled exclusions (issue #152).** The registry, not the
 resolver, decides membership. A ready Analysis whose Assigned Ancestry is not
-the release's target (`EUR`), is unassigned, or was gated out on an EAF
+the super-population the Selection expects (`release_policy.selection_superpopulation`,
+`EUR` for OGS-00011), is unassigned, or was gated out on an EAF
 orientation failure is excluded; a quantitative Analysis on the computable
 `estimated_from_source_maf` tier whose phenotype SD is unavailable is excluded;
 a resolver `controlled_failure` is excluded. Each excluded row stays in

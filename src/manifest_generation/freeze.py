@@ -41,8 +41,10 @@ Freeze never lists a directory and never reads the mirror or a live source:
 intent is the table, availability is the manifest. Two freezes of the same
 inputs write the same bytes.
 
-This is the new path. ``manifest_generation.inventory freeze`` (the
-candidate-table freeze) remains until #287 moves GWAS Catalog onto this one.
+This is the only freeze. A release config drives it through
+``pixi run inventory-freeze --config <release config>`` or the candidate entry
+point's ``freeze`` stage (``manifest_generation.inventory.freeze_release``,
+#287); the command line below takes the connector files directly.
 ``docs/spec/source-connectors.md`` specifies the inputs and the provenance.
 
 Usage:
