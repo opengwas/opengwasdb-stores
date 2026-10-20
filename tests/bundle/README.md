@@ -46,6 +46,24 @@ Covered by `tests/bundle/test_bundle.py`:
   names its status and how to accept it, a superseded or withdrawn release is
   never offered acceptance, a missing or unknown status is refused, and
   `partition_buildable`/`refuse_unbuildable` name every refused bundle.
+- Column Map (#292, ADR 0036): a bundle with an Analysis read through
+  `opengwasdb.column-map`, by its own row or inherited from the Build Recipe,
+  binds `build.yaml` `column_map: {name, sha256, file}` and carries
+  `column_maps/<file>`. The checks refuse:
+  - a missing binding or file;
+  - a checksum mismatch;
+  - a map nothing reads through;
+  - an unbound carried file;
+  - a linked or non-directory `column_maps`, or a linked map;
+  - a malformed binding;
+  - `column-map` in either `options` block.
+
+  Every defect is reported in one pass. A built-in (`gwas-ssf`, `finngen-r13`)
+  is bound without `file` and reported as a tolerated gap (its sha256 is
+  unverifiable before the pin bump). A test fails once opengwasdb ships
+  built-in maps, retiring the copied list. A bundle on a dedicated reader needs
+  neither binding nor file. The map is checked only as TOML with
+  `column_map_version` and a matching `name`; OpenGWASDB validates the rest.
 - Artifact-root separation: `artifacts` is neither required nor allowed in a
   Build Recipe; `paths.artifact_root()` owns deployment placement.
 - `check()` and `load()` open no Store.
