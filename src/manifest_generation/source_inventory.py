@@ -123,10 +123,6 @@ INVENTORY_COLUMNS: tuple[str, ...] = (
     "error",
 )
 
-#: The assembly every source in this collection is required to declare, and the
-#: harmonisation flag the acquisition script gated on. Re-asserted at preflight
-#: so a substituted or replaced file cannot pass as the frozen one.
-REQUIRED_SOURCE_ASSEMBLY: str = "GRCh38"
 
 #: Issue #150 caps the release at 64 cores; a larger request is a configuration
 #: error, not a faster run.
@@ -803,10 +799,13 @@ def preflight(
     provenance the Acquisition Manifest may lack -- a file acquisition
     extracted or reformatted has none of its own -- so a ready row without one
     is a warning, not a failure (#287). A recorded per-Analysis metadata
-    sidecar (a GWAS-SSF ``-meta.yaml``) must still declare the harmonised
-    GRCh38 source acquisition gated on; a row acquisition recorded no sidecar
-    for is counted, not failed, because the Acquisition Manifest makes the
-    sidecar optional.
+    sidecar must still exist, and a ``genome_assembly`` it declares (a
+    GWAS-SSF ``-meta.yaml`` does) must be the release's declared build: the
+    Analysis's ``source_genome_build``, else the release config's default. A
+    sidecar declaring no build, and a row acquisition recorded no sidecar for,
+    are counted, not failed: the Acquisition Manifest makes the sidecar
+    optional. Harmonisation is the GWAS Catalog downloader's gate
+    (``metadata_rejected``), not generic preflight's (#287 review).
     """
     failures: list[str] = []
     effective_cores = config.cores if cores is None else cores
@@ -854,7 +853,10 @@ def preflight(
     metadata_missing: list[str] = []
     metadata_unreadable: list[str] = []
     metadata_gate_failed: list[str] = []
+    metadata_build_undeclared: list[str] = []
     no_metadata_sidecar: list[str] = []
+    expected_builds = _declared_builds(provenance_path, config)
+    gate_expected: set[str] = set()
     not_ready_with_present_file: list[str] = []
     for row in rows:
         if not row.ready:
@@ -883,13 +885,21 @@ def preflight(
         if not isinstance(document, dict):
             metadata_unreadable.append(f"{row.analysis_id} (not a YAML mapping)")
             continue
-        assembly = str(document.get("genome_assembly", "")).strip()
-        harmonised = document.get("is_harmonised")
-        if assembly != REQUIRED_SOURCE_ASSEMBLY or harmonised is not True:
-            metadata_gate_failed.append(
-                f"{row.analysis_id} (genome_assembly={assembly or 'missing'!r}, "
-                f"is_harmonised={harmonised!r})"
-            )
+        # The sidecar's build against the release's declared build: the
+        # Analysis's own source_genome_build, else the config's default. A
+        # sidecar declaring none cannot contradict it, and is counted.
+        # Harmonisation is the GWAS Catalog downloader's gate, recorded as the
+        # metadata_rejected status at acquisition (#287 review).
+        assembly = str(document.get("genome_assembly") or "").strip()
+        if not assembly:
+            metadata_build_undeclared.append(row.analysis_id)
+            continue
+        expected = expected_builds.get(row.analysis_id) or str(
+            config.defaults.get("source_genome_build") or ""
+        )
+        if assembly != expected:
+            gate_expected.add(expected or "(none declared)")
+            metadata_gate_failed.append(f"{row.analysis_id} (genome_assembly={assembly!r})")
 
     if missing:
         failures.append(
@@ -911,9 +921,14 @@ def preflight(
             f"{', '.join(metadata_unreadable[:10])}"
         )
     if metadata_gate_failed:
+        declared_build = (
+            f"the release's source_genome_build {next(iter(gate_expected))}"
+            if len(gate_expected) == 1
+            else "their source_genome_build"
+        )
         failures.append(
-            f"{len(metadata_gate_failed)} ready Analysis metadata file(s) no longer declare "
-            f"{REQUIRED_SOURCE_ASSEMBLY} harmonised source: {', '.join(metadata_gate_failed[:10])}"
+            f"{len(metadata_gate_failed)} ready Analysis metadata file(s) declare a "
+            f"genome_assembly that is not {declared_build}: {', '.join(metadata_gate_failed[:10])}"
         )
 
     # --- Reference Resources -------------------------------------------------
@@ -1112,6 +1127,7 @@ def preflight(
             "metadata_missing": sorted(metadata_missing),
             "metadata_unreadable": sorted(metadata_unreadable),
             "metadata_gate_failed": sorted(metadata_gate_failed),
+            "metadata_build_undeclared": sorted(metadata_build_undeclared),
             "no_metadata_sidecar": sorted(no_metadata_sidecar),
             "no_source_url": no_source_url,
             "not_ready_with_present_file": sorted(not_ready_with_present_file),
@@ -1126,6 +1142,27 @@ def preflight(
     return PreflightResult(
         report=report, failures=tuple(failures), warnings=tuple(warnings)
     )
+
+
+def _declared_builds(provenance_path: Path, config: Any) -> dict[str, str]:
+    """Each Analysis's ``source_genome_build`` from the frozen Source Metadata Table.
+
+    Blank cells are absent: the release config's default applies to them.
+    An inventory whose connectors cannot be read gives none, and preflight
+    fails it for that already (:func:`frozen_for_release_problems`).
+    """
+    from manifest_generation.connector_tsv import FreezeError
+    from manifest_generation.freeze import load_frozen_connectors
+
+    try:
+        table, _manifest = load_frozen_connectors(provenance_path)
+    except (FreezeError, OSError):
+        return {}
+    return {
+        row["source_analysis_id"]: row["source_genome_build"]
+        for row in table.rows
+        if row.get("source_genome_build")
+    }
 
 
 def render_preflight_summary(report: Mapping[str, Any]) -> str:

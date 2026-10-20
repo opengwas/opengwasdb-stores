@@ -770,7 +770,7 @@ class TestPreflight(SourceInventoryTestCase):
         self.assertFalse(result.ok)
         failures = " ".join(result.failures)
         self.assertIn("metadata file(s) are unreadable", failures)
-        self.assertIn("no longer declare GRCh38", failures)
+        self.assertIn("not the release's source_genome_build GRCh38", failures)
         self.assertEqual(result.report["source_files"]["metadata_unreadable"], ["GCST90000001 (ParserError)"])
         self.assertEqual(len(result.report["source_files"]["metadata_gate_failed"]), 1)
 
@@ -1001,6 +1001,45 @@ class TestPreflightReconciliation(SourceInventoryTestCase):
         result = self.workspace.preflight()
         self.assertTrue(result.ok, result.failures)
         self.assertEqual(result.report["source_files"]["no_metadata_sidecar"], ["GCST90000004"])
+
+    def rewrite_sidecars(self, text: str) -> None:
+        for analysis_id in ("GCST90000001", "GCST90000003", "GCST90000004"):
+            self.workspace.yaml_path(self.workspace.analysis(analysis_id)).write_text(
+                text.format(analysis_id=analysis_id), encoding="utf-8"
+            )
+
+    def test_a_sidecar_build_is_checked_against_the_releases_declared_build(self) -> None:
+        """Preflight checks the release's build, not GWAS Catalog's acquisition policy (#287 review)."""
+        self.workspace.freeze()
+        self.rewrite_sidecars(BAD_METADATA)  # genome_assembly: GRCh37
+        grch37 = self.workspace.config(
+            lambda document: document["defaults"].update(source_genome_build="GRCh37")
+        )
+        result = self.workspace.preflight(config=grch37)
+        self.assertTrue(result.ok, result.failures)
+        # The same sidecars against a GRCh38 release fail, naming the Analyses.
+        result = self.workspace.preflight()
+        self.assertFalse(result.ok)
+        failures = " ".join(result.failures)
+        self.assertIn("GCST90000001 (genome_assembly='GRCh37')", failures)
+        self.assertIn("not the release's source_genome_build GRCh38", failures)
+
+    def test_is_harmonised_is_not_a_preflight_requirement(self) -> None:
+        """Harmonisation is the GWAS Catalog downloader's gate (status metadata_rejected)."""
+        self.workspace.freeze()
+        self.rewrite_sidecars("gwas_id: {analysis_id}\ngenome_assembly: GRCh38\n")
+        result = self.workspace.preflight()
+        self.assertTrue(result.ok, result.failures)
+
+    def test_a_sidecar_declaring_no_build_is_counted_not_failed(self) -> None:
+        self.workspace.freeze()
+        self.rewrite_sidecars("trait: something\n")
+        result = self.workspace.preflight()
+        self.assertTrue(result.ok, result.failures)
+        self.assertEqual(
+            result.report["source_files"]["metadata_build_undeclared"],
+            ["GCST90000001", "GCST90000003", "GCST90000004"],
+        )
 
     def test_a_provenance_frozen_for_another_selection_fails(self) -> None:
         self.workspace.freeze()

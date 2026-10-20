@@ -103,8 +103,9 @@ a single association file, it reports:
 - the planned method tier per study design, reference-AF fallback policy, and
   every expected exclusion (each non-ready readiness status);
 - missing source files, files whose size changed since the freeze, and recorded
-  metadata sidecars that are missing, unreadable, or no longer declare GRCh38
-  harmonised source; ready rows with no recorded sidecar or no source URL;
+  metadata sidecars that are missing, unreadable, or declare a genome assembly
+  other than the release's `source_genome_build`; sidecars declaring no build;
+  ready rows with no recorded sidecar or no source URL;
 - duplicate-content groups for review;
 - every declared Reference Resource with its presence, size and whether this
   release requires it -- including resources the registry declares but this

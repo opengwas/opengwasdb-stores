@@ -275,8 +275,11 @@ row's `location`, `bytes` and `sha256`. The Acquisition Manifest makes
 `source_url` and the sidecar columns optional, so a ready row without a source
 URL is a preflight warning (its `analyses.tsv` `source_url` is blank), and a
 ready row with no recorded sidecar is counted, not failed. A recorded sidecar
-must still exist and, for a GWAS-SSF `-meta.yaml`, still declare the harmonised
-GRCh38 source acquisition gated on.
+must still exist, and a build it declares (`genome_assembly`, as a GWAS-SSF
+`-meta.yaml` does) must be the release's: the Analysis's `source_genome_build`,
+else the release config's default. A sidecar declaring no build is counted.
+Harmonisation is not a preflight requirement: the GWAS Catalog downloader gates
+it at acquisition and records a failure as `metadata_rejected`.
 
 ## Pilot prefixes
 
