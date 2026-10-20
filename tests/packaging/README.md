@@ -34,6 +34,19 @@ Covered:
   `CONTRACT_AND_SHARED_LAYOUT`: the Release Bundle contract (`bundle`) and the
   registry layout it shares (`paths`, `index`). Each scanner has a positive
   control.
+- `test_per_source_statistics.py` (#287, ADR 0036): no module under
+  `src/manifest_generation/providers/` -- per-Source-Provider connector code --
+  computes ancestry, allele alignment or phenotype SD, or drives that
+  computation itself. The AST scan refuses imports of OpenGWASDB's ancestry,
+  phenotype-SD, allele-orientation and resolution internals and of the AF
+  extraction they read through, imports of this repository's helpers that do
+  it, and string routes around the import check (a `python3 -m` module path,
+  `importlib.import_module`, or the `assign-ancestry`,
+  `estimate-phenotype-sd` and `resolve-analyses` subcommands); docstrings are
+  not scanned. Positive and negative controls pin each route. The modules
+  that still do it are exempt, each citing the ticket that moves its source
+  onto the pipeline (#288-#291, #300), and an exemption that no longer finds a
+  violation fails.
 - `test_packages.py` (#249): `pyproject.toml`'s package list equals the
   directories under `src/manifest_generation` that hold an `__init__.py`, and
   every directory of Python there is a package, except `pilot/guard` (a
