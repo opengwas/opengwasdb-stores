@@ -283,6 +283,10 @@ QUALITY_CHECK_RESULTS: tuple[str, ...] = (
     "not_applicable",
     "unmeasured",
     "invalid",
+    # The measurement fails the test, but a declared release policy keeps the
+    # Analysis and records the finding (#287: Assigned Ancestry trusted from the
+    # source for an Analysis with no allele frequencies).
+    "warning",
 )
 #: The exclusions sidecar, whose ``reason`` the Quality Check sidecar must agree with.
 EXCLUSIONS_SIDECAR: str = "sidecars/exclusions.tsv"

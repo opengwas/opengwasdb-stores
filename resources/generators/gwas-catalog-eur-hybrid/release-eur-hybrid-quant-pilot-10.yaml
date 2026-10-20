@@ -1,0 +1,172 @@
+# Release config for the GWAS Catalog EUR Hybrid quantitative pilot (#287).
+#
+# A Trial Store Release over the same GWAS Catalog Source Collection as the
+# full release (release-eur-hybrid-full.yaml): its own Selection, and every
+# other fact the full release's, so it exercises the shared pipeline exactly as
+# the full release runs it. It shares the full release's Resolution Records
+# (#284).
+#
+# It migrates OGS-00005's pre-#287 config (config-quant-pilot-10.yaml),
+# which stays unchanged because OGS-00005's generator.commands cite it.
+# That config selected "the first 10" Analyses of the pool that had a usable
+# harmonised file, probing EBI's FTP in table order, so the prefix depended on
+# the FTP's contents on the day. The Selection grammar has no prefix form
+# (docs/spec/release-config.md, "Pilot prefixes"): the Analyses are written
+# out, and are exactly OGS-00005's.
+
+release_config_version: 1
+
+label: eur-hybrid-quant-pilot-10
+access_posture: public
+description: >
+  The 10 quantitative Analyses of the EBI GWAS Catalog hybrid__European pool
+  that the OGS-00005 Trial Store Release took, generated through the shared
+  Manifest Generation pipeline: AF-based ancestry assignment and source-AF
+  phenotype-SD estimation by OpenGWASDB, with the Quality Checks of the full
+  release.
+
+source_collection:
+  source_collection_id: gwas-catalog-ssf
+  inventory:
+    snapshot_id: gwas-catalog-ssf-eur-hybrid-quant-pilot-10-2026-10-20
+    directory: resources/inventories
+
+selection:
+  analyses:
+    - GCST002047
+    - GCST003368
+    - GCST003898
+    - GCST004162
+    - GCST004422
+    - GCST007406
+    - GCST007436
+    - GCST008396
+    - GCST009236
+    - GCST009237
+
+build:
+  layout: hybrid
+  completion_state: observed_only
+  command: build-hybrid
+  options:
+    # The Dense Component axis: gnomAD v4.1 common variants at MAF >= 1%
+    # (13,415,936 ALIDs; chr1-22, X, Y, MT), declared by
+    # resources/reference-resources/gnomad-v4-common-hg38. The X, Y and MT rows
+    # do not resolve yet (opengwas/opengwasdb#216) and route to the Ragged
+    # Overflow.
+    variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz
+    # Pass 2 forks only when this is > 1; a Hybrid build reads every row. 24,
+    # not 32: throughput is flat above 8 workers (#154) and the build shares the
+    # host. --checkpoint lets a failed build --resume (#227).
+    n-workers: 24
+    checkpoint: true
+    source-reader-capability: opengwasdb.gwas-ssf
+    source-assembly: hg38
+  post:
+    top_hits: false
+    overview: true
+
+defaults:
+  # Collection-wide facts the GWAS Catalog adapter does not write (#283): the
+  # build of EBI's harmonised files and the EBI GWAS Catalog terms of use.
+  source_genome_build: GRCh38
+  license: EBI GWAS Catalog terms of use
+  sample_size_scope: analysis_level
+  # Requested INFO floor once a per-Analysis declaration and resolver evidence
+  # prove a usable score (#175); explicit 0 disables filtering.
+  info_score_threshold: 0.6
+  # Requested per-Analysis MAF floor (#176), emitted only on resolver evidence.
+  # 0.005 is the operator's choice for this release, independent of the
+  # Dense-Component panel's own MAF >= 1% axis.
+  maf_threshold: 0.005
+  # One method tier per study design: this release mixes designs, so a single
+  # stored_effect_scale cannot describe both. A ready Analysis whose design has
+  # no tier fails preflight.
+  by_study_design:
+    quantitative:
+      stored_effect_scale: sd
+      original_effect_scale: sd
+      # Source-provided allele frequencies (ADR 0019); a quantitative Analysis
+      # whose source AF is unusable is excluded, not estimated against a
+      # reference this release does not declare.
+      original_sd_method: estimated_from_source_maf
+      sample_size_kind: total
+    case-control:
+      stored_effect_scale: log_or
+      original_effect_scale: log_or
+      original_sd_method: binary_trait
+      sample_size_kind: case_control
+
+release_policy:
+  # The Assigned Ancestry check tests each Analysis against this; it never
+  # moves an Analysis (ADR 0036).
+  selection_superpopulation: EUR
+  # Store composition (issue #203, ADR 0033): a shared Store admits only
+  # Analyses whose rows were MAF-filtered; the 148 sequencing Analyses exempted
+  # below are excluded as not_maf_filtered and belong in a separate Store.
+  store_composition:
+    require_maf_filtered: true
+  # Reviewed per-Analysis provider score declarations (#176), derived by
+  # derive_score_declarations.py.
+  imputation_score_declarations: resources/generators/gwas-catalog-eur-hybrid/score-declarations.tsv
+  # Sequencing-only studies are exempt from the MAF floor (#176, 2026-09-28):
+  # their low-frequency calls are observed, not imputed. An Analysis that also
+  # lists an array is still filtered.
+  maf_filter_exempt_genotyping_technologies:
+    - Whole genome sequencing
+    - Exome-wide sequencing
+  # GCST90428462 and GCST90428463 carry effect_allele_frequency 0.0 on every
+  # row, which core reads as missing (#176, 2026-09-29).
+  maf_filter_exempt_analyses: resources/generators/gwas-catalog-eur-hybrid/maf-filter-exemptions.tsv
+  # The 27 included Analyses with a +-2.2250738585072014e-308 placeholder
+  # effect, excluded as effect_placeholder_rows until core refuses it (#285).
+  effect_placeholder_exclusions: resources/generators/gwas-catalog-eur-hybrid/effect-placeholder-exclusions.tsv
+
+reference_resources:
+  - resource_id: ukb-ancestry-mixture-hg38
+    kind: ancestry_mixture
+    ancestry: multi
+    super_populations: [AFR, AMR, EAS, EUR, MID, NAF, SAS]
+    genome_build: GRCh38
+    variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+    location: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
+    location_kind: external_file
+    fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+    # Canonical declaration: resources/reference-resources/ukb-ancestry-mixture-hg38/resource.yaml
+  - resource_id: canonical-trait-mapping-efo
+    kind: trait_ontology_mapping
+    location: resources/reference-resources/canonical-trait-mapping-efo
+    location_kind: tracked_directory
+    version: "3"
+
+ancestry_assignment:
+  reference_resource_id: ukb-ancestry-mixture-hg38
+  maf_floor: 0.01
+  # Method A, the full 5.8M reference scan, is retained: the 10k qc-panel-hg38
+  # failed the preregistered concordance gate (#152,
+  # docs/qc-panel-concordance-report.md).
+  extraction_panel: null
+  gates:
+    tau: 0.50
+    delta: 0.20
+    n_min: 5000
+    residual_max: 0.06
+
+effect_scale_validation:
+  maf_min: 0.01
+  maf_max: 0.5
+  dispersion_max: 0.5
+  # Source-AF-only (#152, Option 3): no reference-AF fallback is declared, so a
+  # quantitative Analysis lacking usable source AF is excluded.
+  reference_resources: []
+
+trait_ontology_mapping:
+  reference_resource_id: canonical-trait-mapping-efo
+
+runtime:
+  # Issue #150 caps this release at 64 cores; preflight refuses more.
+  cores: 64
+  min_free_gb: 50
+
+output:
+  work_root: /data/opengwasdb/work/gwas-catalog-eur-hybrid

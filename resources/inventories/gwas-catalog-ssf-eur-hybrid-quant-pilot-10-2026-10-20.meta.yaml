@@ -1,0 +1,61 @@
+snapshot_id: gwas-catalog-ssf-eur-hybrid-quant-pilot-10-2026-10-20
+source_collection_id: gwas-catalog-ssf
+frozen_at: '2026-10-20T22:26:47Z'
+frozen_by: manifest_generation.freeze
+selection:
+  analyses:
+  - GCST002047
+  - GCST003368
+  - GCST003898
+  - GCST004162
+  - GCST004422
+  - GCST007406
+  - GCST007436
+  - GCST008396
+  - GCST009236
+  - GCST009237
+rows: 10
+readiness_counts:
+  ok: 10
+ready_rows: 10
+ready_bytes: 1530008576
+study_design_counts:
+  quantitative: 10
+ready_study_design_counts:
+  quantitative: 10
+duplicate_content_groups: []
+inventory_tsv_sha256: 6f6caff8f006fab7951f2566037aa6dd9a17c70a114d360217a7c4af19f95fcd
+source_metadata_table:
+  frozen:
+    path: gwas-catalog-ssf-eur-hybrid-quant-pilot-10-2026-10-20.source-metadata.tsv
+    sha256: 981d1bdf3f0ac6db1a5bfc926642c3eb21daecf20854198186f84b727914c7fc
+    bytes: 2145
+    rows: 10
+  original:
+    path: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-20/gwas-catalog-ssf.source-metadata.tsv
+    sha256: eb77c9fc05b55c0b5977700bd5bc0492c6837b374689a1e869b81e1c2ade4169
+    bytes: 38722204
+    rows: 171274
+acquisition_manifest:
+  frozen:
+    path: gwas-catalog-ssf-eur-hybrid-quant-pilot-10-2026-10-20.acquisition-manifest.tsv
+    sha256: a09c2408cfac5aa951572eb3d3263a7e7853f8104f1cb81a60db60c5b3d632a6
+    bytes: 5767
+    rows: 10
+  original:
+    path: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-20/gwas-catalog-ssf-eur-hybrid.acquisition-manifest.tsv
+    sha256: 85240fe8b104f009f17b1d9026df091f8a0da6b9df46563e84300f5376019500
+    bytes: 3106335
+    rows: 6035
+    readiness_counts:
+      already_present: 213
+      data_absent_upstream: 49
+      header_rejected: 98
+      metadata_rejected: 1
+      missing_remote_harmonised_yaml: 1104
+      ok: 4570
+    pass_lineage:
+      path: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-20/gwas-catalog-ssf-eur-hybrid.acquisition-manifest.meta.yaml
+      sha256: 8a1975735a06b2e30f32474ee73f3ade7eee043c28a1ced940aa7e78142d90e4
+  unselected_entries: 6025
+lineage: []

@@ -45,7 +45,7 @@ from manifest_generation.candidate_workflow import (
     controlled_exclusion_categories,
     derive_resolver_manifest,
     load_candidate_configuration,
-    read_candidate_metadata,
+    read_analysis_metadata,
     render_validation_yaml,
     verify_records,
 )
@@ -59,7 +59,7 @@ from test_phase_b_candidate import (  # sibling suite's fixture helpers
     FixtureBuilder,
     _read_tsv,
     _run_cli,
-    _synthetic_candidate_metadata,
+    _synthetic_analysis_metadata,
     _synthetic_inventory_row,
     _synthetic_resolver_record,
 )
@@ -97,7 +97,7 @@ def _scenarios():
             )
         )
         metadata[analysis_id] = replace(
-            _synthetic_candidate_metadata(
+            _synthetic_analysis_metadata(
                 sample_size=sample_size, n_cases=n_cases, n_controls=n_controls
             ),
             analysis_id=analysis_id,
@@ -555,7 +555,7 @@ class QualityCheckTests(unittest.TestCase):
                 # Two Analyses have no successful record; two have zero rows.
                 "results": {
                     "passed": 26, "failed": 2, "not_applicable": 0, "unmeasured": 2,
-                    "invalid": 0,
+                    "invalid": 0, "warning": 0,
                 },
                 "excluded": 2,
             },
@@ -563,6 +563,9 @@ class QualityCheckTests(unittest.TestCase):
         self.assertIn("build_eligible_rows", build_eligible["measures"])
         self.assertEqual(validation["quality_checks"]["phenotype_sd"]["excluded"], 10)
         self.assertEqual(validation["quality_checks"]["assigned_ancestry"]["excluded"], 4)
+        # The one check that may warn (#287) always says how many it warned.
+        self.assertEqual(validation["quality_checks"]["assigned_ancestry"]["warned"], 0)
+        self.assertNotIn("warned", build_eligible)
         self.assertIn(
             "reviewed", validation["quality_checks"]["effect_placeholder_rows"]["measures"]
         )
@@ -571,7 +574,7 @@ class QualityCheckTests(unittest.TestCase):
 
     def _decide_one(self, record, *, sample_size="5000", design="quantitative", config=None):
         row = _synthetic_inventory_row(study_design=design, sample_size=sample_size)
-        metadata = _synthetic_candidate_metadata(
+        metadata = _synthetic_analysis_metadata(
             sample_size=sample_size,
             n_cases="400" if design == "case-control" else "",
             n_controls="600" if design == "case-control" else "",
@@ -695,8 +698,8 @@ class QualityCheckTests(unittest.TestCase):
     def _verify(self) -> list[str]:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
         rows = read_inventory(self.fixture.inventory_path)
-        metadata = read_candidate_metadata(
-            self.fixture.candidates_path, [row.analysis_id for row in rows if row.ready]
+        metadata = read_analysis_metadata(
+            self.fixture.provenance_path, [row.analysis_id for row in rows if row.ready]
         )
         run_root = self.fixture.work_root / STORE_ID / "resolver"
         _, failures = verify_records(
@@ -765,6 +768,134 @@ class QualityCheckTests(unittest.TestCase):
             failures,
         )
         self.assertEqual(self._verify(), [])
+
+
+class SourceTrustedAncestryWithoutAfTests(unittest.TestCase):
+    """#287's decision for sources with no allele frequencies, such as Sun 2018.
+
+    Only an Analysis whose record shows ancestry unmeasurable because it has no
+    frequency (reference sites matched, none with a frequency) may take the
+    Source Metadata Table's super-population, and only when the release opts
+    in. A measured ancestry never takes the source label.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="no-af-")
+        self.fixture = FixtureBuilder(Path(self._tmp.name)).build()
+        self.config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.opted_in = replace(self.config, trust_source_ancestry_without_af=True)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def decide(self, config, record, source_superpopulation="EUR"):
+        row = replace(_synthetic_inventory_row(study_design="case-control"), analysis_id="GCST1")
+        metadata = replace(
+            _synthetic_analysis_metadata(n_cases="100", n_controls="200"),
+            analysis_id="GCST1",
+            source_superpopulation=source_superpopulation,
+        )
+        record = dict(record, analysis_id="GCST1")
+        (outcome,) = apply_release_policy([row], config, {"GCST1": metadata}, {"GCST1": record})
+        finding = {f.name: f for f in outcome.check_results}["assigned_ancestry"]
+        return outcome, finding
+
+    @staticmethod
+    def no_af_record() -> dict:
+        record = _synthetic_resolver_record(assigned_ancestry=None, gate_reason="overlap")
+        record["ancestry"]["af_overlap"] = 0
+        record["diagnostics"].update(
+            ancestry_sites=0, ancestry_reference_rows_matched=1500,
+            maf_state="disabled", canonical_rows_observed=2000, maf_rows_missing=2000,
+        )
+        return record
+
+    def test_frequencies_the_fit_could_not_read_are_not_absent_frequencies(self) -> None:
+        """Palindromic-only, or unusable-SE, sites: no ancestry site, but frequencies (#287 review)."""
+        unreadable = self.no_af_record()
+        unreadable["diagnostics"]["maf_rows_missing"] = 0
+        outcome, finding = self.decide(self.opted_in, unreadable)
+        self.assertEqual(outcome.exclusion_reason, "ancestry_unassigned")
+        self.assertIs(finding.result, Result.FAILED)
+        self.assertNotIn("source_superpopulation", finding.measured)
+        some = self.no_af_record()
+        some["diagnostics"]["maf_rows_missing"] = 1999
+        outcome, _ = self.decide(self.opted_in, some)
+        self.assertEqual(outcome.exclusion_reason, "ancestry_unassigned")
+
+    def test_without_a_maf_request_the_record_proves_no_absence(self) -> None:
+        """The resolver counts rows without a frequency only under a MAF request."""
+        unrequested = self.no_af_record()
+        unrequested["diagnostics"].update(maf_state="unavailable", maf_rows_missing=0)
+        outcome, finding = self.decide(self.opted_in, unrequested)
+        self.assertEqual(outcome.exclusion_reason, "ancestry_unassigned")
+        self.assertIs(finding.result, Result.FAILED)
+
+    def test_opted_in_a_no_af_analysis_takes_the_source_super_population(self) -> None:
+        outcome, finding = self.decide(self.opted_in, self.no_af_record())
+        self.assertTrue(outcome.included)
+        self.assertEqual(outcome.assigned_ancestry, "EUR")
+        self.assertEqual(outcome.ancestry_assignment_method, "source_trusted_no_af")
+        self.assertIs(finding.result, Result.WARNING)
+        self.assertIn("ancestry_sites=0", finding.measured)
+        self.assertIn("source_superpopulation=EUR", finding.measured)
+
+    def test_without_the_opt_in_a_no_af_analysis_is_unassigned(self) -> None:
+        outcome, finding = self.decide(self.config, self.no_af_record())
+        self.assertFalse(outcome.included)
+        self.assertEqual(outcome.exclusion_reason, "ancestry_unassigned")
+        self.assertIs(finding.result, Result.FAILED)
+        self.assertIn("no allele frequency", finding.detail)
+
+    def test_a_measured_ancestry_never_takes_the_source_label(self) -> None:
+        measured_eas = _synthetic_resolver_record(assigned_ancestry="EAS")
+        outcome, finding = self.decide(self.opted_in, measured_eas, source_superpopulation="EUR")
+        self.assertEqual(outcome.exclusion_reason, "ancestry_not_eur")
+        self.assertIs(finding.result, Result.FAILED)
+        measured_eur = _synthetic_resolver_record(assigned_ancestry="EUR")
+        outcome, finding = self.decide(self.opted_in, measured_eur, source_superpopulation="EAS")
+        self.assertTrue(outcome.included)
+        self.assertEqual(outcome.assigned_ancestry, "EUR")
+        self.assertEqual(outcome.ancestry_assignment_method, "af_assigned")
+        self.assertIs(finding.result, Result.PASSED)
+
+    def test_a_measured_but_gated_ancestry_is_not_trusted_from_the_source(self) -> None:
+        # Frequencies were read at reference sites; the fit failed its gates.
+        gated = _synthetic_resolver_record(assigned_ancestry=None, gate_reason="residual")
+        gated["diagnostics"].update(ancestry_sites=4000, ancestry_reference_rows_matched=4000)
+        outcome, finding = self.decide(self.opted_in, gated)
+        self.assertEqual(outcome.exclusion_reason, "ancestry_unassigned")
+        self.assertIs(finding.result, Result.FAILED)
+
+    def test_a_no_af_analysis_with_no_usable_source_label_is_excluded(self) -> None:
+        outcome, finding = self.decide(self.opted_in, self.no_af_record(), source_superpopulation="")
+        self.assertEqual(outcome.exclusion_reason, "ancestry_unassigned")
+        self.assertIn("no source_superpopulation", finding.detail)
+        outcome, finding = self.decide(self.opted_in, self.no_af_record(), source_superpopulation="EAS")
+        self.assertEqual(outcome.exclusion_reason, "ancestry_not_eur")
+        self.assertIn("source_superpopulation=EAS", finding.detail)
+
+    def test_the_warning_is_counted_and_reported(self) -> None:
+        row = replace(_synthetic_inventory_row(study_design="case-control"), analysis_id="GCST1")
+        metadata = replace(
+            _synthetic_analysis_metadata(n_cases="100", n_controls="200"),
+            analysis_id="GCST1", source_superpopulation="EUR",
+        )
+        outcomes = apply_release_policy(
+            [row], self.opted_in, {"GCST1": metadata},
+            {"GCST1": dict(self.no_af_record(), analysis_id="GCST1")},
+        )
+        tables = build_candidate_tables(
+            inventory_rows=[row], outcomes=outcomes, config=self.opted_in, index_summary={}
+        )
+        summary = tables.quality_checks["assigned_ancestry"].as_dict()
+        self.assertEqual(summary["results"]["warning"], 1)
+        self.assertEqual(summary["warned"], 1)
+        self.assertEqual(summary["excluded"], 0)
+        self.assertTrue(any("source_trusted_no_af" in line for line in tables.warnings))
+        sidecar = list(csv.DictReader(io.StringIO(tables.quality_checks_tsv), delimiter="\t"))
+        self.assertEqual(sidecar[0]["assigned_ancestry"], "warning")
+
 
 
 if __name__ == "__main__":

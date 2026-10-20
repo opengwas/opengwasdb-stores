@@ -8,8 +8,8 @@ pipeline calls. This specification covers the two connector files that meet at
 **freeze** -- the **Source Metadata Table** (what the collection intends) and
 the **Acquisition Manifest** (what acquisition produced) -- the **Selection** a
 release config declares, and the frozen Source Inventory freeze writes (#283).
-The Column Map and the release config are specified with the tickets that build
-them (#292, #287).
+The release config is specified in [release-config.md](release-config.md)
+(#287); the Column Map is specified with the ticket that builds it (#292).
 
 | Contract | Owner |
 |---|---|
@@ -262,12 +262,27 @@ The sidecar keeps the counts preflight re-checks, computed by
 | `acquisition_manifest.unselected_entries` | Rows claimed by Analyses the Selection leaves out. |
 | `lineage` | One entry per selected reformatted file: `analysis_id` and its lineage. |
 
-`manifest_generation.inventory freeze` (the candidate-table freeze) and the
-ukb-b reconciliation are not used by this path. The first stays until #287
-moves GWAS Catalog onto the shared freeze; ukb-b's goes in #289.
+A release config drives this freeze (`pixi run inventory-freeze --config
+<release config>`, or the candidate entry point's `freeze` stage, #287): it
+freezes the config's Selection into `source_collection.inventory.directory`
+and, when the snapshot already exists, writes nothing and refuses one frozen
+for another Source Collection or Selection. The candidate-table freeze this
+replaced is gone (#287); the inventories it wrote stay as history. The ukb-b
+reconciliation goes in #289.
 
-## Open points
+Preflight (`pixi run preflight --config <release config>`) requires a ready
+row's `location`, `bytes` and `sha256`. The Acquisition Manifest makes
+`source_url` and the sidecar columns optional, so a ready row without a source
+URL is a preflight warning (its `analyses.tsv` `source_url` is blank), and a
+ready row with no recorded sidecar is counted, not failed. A recorded sidecar
+must still exist, and a build it declares (`genome_assembly`, as a GWAS-SSF
+`-meta.yaml` does) must be the release's: the Analysis's `source_genome_build`,
+else the release config's default. A sidecar declaring no build is counted.
+Harmonisation is not a preflight requirement: the GWAS Catalog downloader gates
+it at acquisition and records a failure as `metadata_rejected`.
 
-- **Pilot prefixes (#287).** Pilot configs select a deterministic prefix with
-  `n_analyses`. The Selection grammar has no such form: #287 either writes the
-  prefix out as an `analyses` list or adds a form.
+## Pilot prefixes
+
+Pilot configs selected a deterministic prefix with `n_analyses`. The Selection
+grammar has no such form: a migrated pilot writes the prefix out as an
+`analyses` list ([release config](release-config.md#pilot-prefixes), #287).

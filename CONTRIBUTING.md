@@ -200,7 +200,9 @@ Manifest Generation (ADRs 0035 and 0036), installed editable like
 `ogstores`. Its root holds the shared pipeline: the candidate workflow
 (`candidate_workflow.py`), its entry point (`generate_candidate.py`, run as
 `pixi run generate-candidate` or `python3 -m manifest_generation.generate_candidate`),
-Source Inventory freeze and preflight (`source_inventory.py`, `inventory.py`),
+the release config it runs (`release_config.py`), the shared freeze over a
+Source Collection's connector files (`freeze.py`), Source Inventory preflight
+(`source_inventory.py`, `inventory.py`),
 the Resolution Area where Resolution Records are kept once per Source
 Collection (`resolution_area.py`), the one emitter (`emit.py`), Manifest
 Generation's rules (`generation_rules.py`) and the helpers they share.

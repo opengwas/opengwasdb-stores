@@ -10,8 +10,11 @@ See [`docs/spec/store-release-workflow.md`](../../docs/spec/store-release-workfl
 
 ## How it stays hermetic
 
-The suite builds a temporary mirror, candidate metadata table, frozen Source
-Inventory and config, and drives the real operator entry point as a subprocess.
+The suite builds a temporary mirror, the Source Collection's two connector
+files (a Source Metadata Table and an Acquisition Manifest), a release config
+(`docs/spec/release-config.md`) and, for most tests, the Source Inventory the
+shared freeze writes from them, and drives the real operator entry point as a
+subprocess.
 `fixtures/fake_resolver.py` stands in for `opengwasdb resolve-analyses`: it
 reproduces only the resolver's *contract* (atomic per-Analysis records, a
 deterministic `index.json` in manifest order, fingerprint inputs, `--resume`
@@ -109,6 +112,13 @@ Collection (#284, ADR 0036):
     `opengwasdb resolve-analyses` on a tiny synthetic panel and GWAS-SSF
     sources: a second unchanged run resumes every record and the receipt names
     the same records (skipped when the resolver is not installed).
+
+`EntryPointStageTests` cover the one entry point (#287): starting from the
+connector files alone, each stage in turn -- freeze, preflight, prepare,
+resolve, verify, render, emit -- leaves its file in the Work Root, the rendered
+bundle is what is emitted, a re-run reuses the frozen inventory, a changed
+Selection under the same snapshot id is refused, and a pre-#287 config is
+refused by name.
 
 `fixtures/fake_resolver.py` hashes the ancestry reference and group map as the
 real resolver does (failing if either is missing), re-runs `controlled_failure`

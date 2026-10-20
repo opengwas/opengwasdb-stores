@@ -93,6 +93,12 @@ class Result(StrEnum):
     #: The measurement breaks its contract (an unknown EAF-orientation outcome,
     #: a non-numeric SD); ``Finding.detail`` says how.
     INVALID = "invalid"
+    #: An exclusion check's measurement fails its test, but a policy the release
+    #: declared keeps the Analysis and records the finding. Only a check
+    #: declared ``warns`` gives it; today ``assigned_ancestry``, for an Analysis
+    #: whose source has no allele frequencies when the release trusts the
+    #: source's super-population (#287).
+    WARNING = "warning"
 
 
 if tuple(Result) != QUALITY_CHECK_RESULTS:  # pragma: no cover - import-time guard
@@ -130,6 +136,10 @@ class Subject:
     ``selection_ancestry`` is the super-population the release's Selection
     expects. ``effect_placeholder_reason`` is the reviewed listing's entry for
     this Analysis, or ``None`` when it is not listed.
+    ``source_superpopulation`` is the Source Metadata Table's, and
+    ``trust_source_ancestry_without_af`` the release's opt-in to take it as
+    Assigned Ancestry when the record shows the source has no allele
+    frequencies (#287).
     """
 
     analysis_id: str
@@ -137,6 +147,8 @@ class Subject:
     stored_effect_scale: str
     selection_ancestry: str
     effect_placeholder_reason: str | None = None
+    source_superpopulation: str = ""
+    trust_source_ancestry_without_af: bool = False
 
     @property
     def resolved(self) -> bool:
@@ -185,6 +197,9 @@ class QualityCheck:
     category: str = ""
     default_threshold: Any = None
     parse_threshold: Callable[[Any], Any] | None = None
+    #: An exclusion that may give a ``warning`` result: a declared release
+    #: policy keeps the Analysis though its measurement fails the test.
+    warns: bool = False
 
     def __post_init__(self) -> None:
         if not self.name or not self.name.isidentifier():
@@ -202,6 +217,11 @@ class QualityCheck:
         if self.kind is Kind.WARNING and self.reasons:
             raise QualityCheckError(
                 f"warning Quality Check {self.name!r} excludes nothing, so it has no reasons"
+            )
+        if self.warns and self.kind is not Kind.EXCLUSION:
+            raise QualityCheckError(
+                f"warning Quality Check {self.name!r} warns already; only an exclusion "
+                "declares that a release policy may keep a failing Analysis"
             )
         if self.default_threshold is not None and self.parse_threshold is None:
             raise QualityCheckError(
@@ -311,6 +331,45 @@ def _eaf_orientation(subject: Subject, _threshold: None) -> Finding:
     return Finding(Result.UNMEASURED, measured)
 
 
+#: The resolver ``maf_state`` values under which it reads the frequency column
+#: and counts every row with no usable frequency (``maf_rows_missing``).
+#: ``unavailable`` -- no MAF request -- counts nothing, so it proves nothing.
+MAF_STATES_COUNTING_MISSING: frozenset[str] = frozenset({"disabled", "filtered"})
+
+
+def no_allele_frequency(record: Mapping[str, Any] | None) -> int | None:
+    """The row count when the record shows a source with no allele frequency, else ``None``.
+
+    Under a MAF request (``maf_state`` ``disabled`` or ``filtered``; a
+    ``defaults.maf_threshold`` of 0 filters nothing), the resolver counts the
+    rows whose frequency is missing, non-finite, or 0 or 1
+    (``maf_rows_missing``) among the rows it observed
+    (``canonical_rows_observed``). Every observed row without one, and no
+    ancestry site read, is a source with no allele frequencies, such as Sun
+    2018's. A source whose frequencies the fit could not read -- palindromic
+    sites only, unusable standard errors at the reference sites -- also has no
+    ancestry site, but its frequencies are counted present, so it is a measured
+    failure, never an absence (#287 review). Without a MAF request the record
+    says nothing about frequencies, and this returns ``None``.
+    """
+    diagnostics = record_section(record, "diagnostics")
+    state = diagnostics.get("maf_state")
+    observed = diagnostics.get("canonical_rows_observed")
+    missing = diagnostics.get("maf_rows_missing")
+    sites = diagnostics.get("ancestry_sites")
+    if (
+        state in MAF_STATES_COUNTING_MISSING
+        and type(observed) is int
+        and observed > 0
+        and type(missing) is int
+        and missing == observed
+        and type(sites) is int
+        and sites == 0
+    ):
+        return observed
+    return None
+
+
 def _assigned_ancestry(subject: Subject, _threshold: None) -> Finding:
     """The record's Assigned Ancestry against the Selection's super-population.
 
@@ -319,6 +378,14 @@ def _assigned_ancestry(subject: Subject, _threshold: None) -> Finding:
     assignment is ``ancestry_unassigned``; a different super-population is
     ``ancestry_not_eur`` (the reason keeps its historical spelling whatever the
     Selection's ancestry).
+
+    #287's decision: when the record shows ancestry unmeasurable because the
+    source has no allele frequencies (:func:`no_allele_frequency`: every row
+    counted without one, under a MAF request) and the
+    release opts in (``release_policy.trust_source_ancestry_without_af``), the
+    Source Metadata Table's ``source_superpopulation`` stands in, recorded as a
+    ``warning`` when it is the Selection's. A measured ancestry -- assigned, or
+    measured and gated -- never takes the source label.
     """
     if not subject.resolved:
         return Finding(Result.UNMEASURED)
@@ -327,8 +394,41 @@ def _assigned_ancestry(subject: Subject, _threshold: None) -> Finding:
     gate_reason = str(ancestry.get("gate_reason") or "").strip()
     measured = f"assigned_ancestry={assigned or 'none'} gate_reason={gate_reason or 'none'}"
     if not assigned:
+        observed = no_allele_frequency(subject.record)
+        if observed is None:
+            return Finding(
+                Result.FAILED, measured, "ancestry_unassigned", f"gate_reason={gate_reason or 'none'}"
+            )
+        source = subject.source_superpopulation
+        measured += (
+            f" ancestry_sites=0 maf_rows_missing={observed} of {observed} "
+            f"source_superpopulation={source or 'none'}"
+        )
+        unmeasurable = (
+            f"no allele frequency on any of the {observed} rows read, so ancestry is "
+            "unmeasurable"
+        )
+        if not subject.trust_source_ancestry_without_af:
+            return Finding(
+                Result.FAILED, measured, "ancestry_unassigned",
+                f"{unmeasurable}; release_policy.trust_source_ancestry_without_af is off",
+            )
+        if source not in SUPERPOPULATIONS:
+            return Finding(
+                Result.FAILED, measured, "ancestry_unassigned",
+                f"{unmeasurable}, and the Source Metadata Table gives no source_superpopulation "
+                "to trust",
+            )
+        if source != subject.selection_ancestry:
+            return Finding(
+                Result.FAILED, measured, "ancestry_not_eur",
+                f"{unmeasurable}; source_superpopulation={source}, trusted without allele "
+                f"frequencies (release target {subject.selection_ancestry})",
+            )
         return Finding(
-            Result.FAILED, measured, "ancestry_unassigned", f"gate_reason={gate_reason or 'none'}"
+            Result.WARNING, measured,
+            detail=f"{unmeasurable}; Assigned Ancestry {source} from source_superpopulation "
+            "(source_trusted_no_af)",
         )
     if assigned not in SUPERPOPULATIONS:
         return Finding(
@@ -433,7 +533,7 @@ BUILT_IN_CHECKS: tuple[QualityCheck, ...] = (
         stage=Stage.RESOLVED,
         measures=(
             "rows whose effect is the +/-2.2e-308 placeholder, from the reviewed "
-            "source.effect_placeholder_exclusions listing until core counts them"
+            "release_policy.effect_placeholder_exclusions listing until core counts them"
         ),
         evaluate=_effect_placeholder_rows,
         reasons=("effect_placeholder_rows",),
@@ -452,10 +552,15 @@ BUILT_IN_CHECKS: tuple[QualityCheck, ...] = (
         name="assigned_ancestry",
         kind=Kind.EXCLUSION,
         stage=Stage.SELECTION,
-        measures="ancestry.assigned_ancestry against the Selection's super-population",
+        measures=(
+            "ancestry.assigned_ancestry against the Selection's super-population; for a "
+            "source with no allele frequency, its source_superpopulation when the release "
+            "trusts it"
+        ),
         evaluate=_assigned_ancestry,
         reasons=("ancestry_unassigned", "ancestry_not_eur"),
         category="ancestry",
+        warns=True,
     ),
     QualityCheck(
         name="phenotype_sd",
@@ -611,6 +716,11 @@ def evaluate(subject: Subject, overrides: Mapping[str, Any]) -> tuple[Finding, .
                 f"Quality Check {check.name!r} returned result {finding.result!r} for "
                 f"{subject.analysis_id}; expected a Result"
             )
+        if finding.result is Result.WARNING and not check.warns:
+            raise QualityCheckError(
+                f"Quality Check {check.name!r} gave {subject.analysis_id} a warning result, "
+                "but it is not declared to warn"
+            )
         if check.kind is Kind.EXCLUSION and finding.result is Result.FAILED and (
             finding.reason not in check.reasons
         ):
@@ -714,7 +824,9 @@ class CheckSummary:
     """One check's ``validation.yaml`` ``quality_checks`` entry.
 
     ``consequence`` counts the Analyses it excluded (an exclusion) or the
-    included Analyses it warned about (a warning).
+    included Analyses it warned about (a warning). ``warned`` counts, for an
+    exclusion that ``warns``, the included Analyses with a ``warning`` result;
+    ``None`` for any other check.
     """
 
     name: str
@@ -726,9 +838,10 @@ class CheckSummary:
     overridden: bool
     results: Mapping[Result, int]
     consequence: int
+    warned: int | None = None
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        document = {
             "kind": self.kind.value,
             "stage": self.stage.value,
             "measures": self.measures,
@@ -738,6 +851,9 @@ class CheckSummary:
             "results": {result.value: count for result, count in self.results.items()},
             ("excluded" if self.kind is Kind.EXCLUSION else "warned"): self.consequence,
         }
+        if self.warned is not None:
+            document["warned"] = self.warned
+        return document
 
 
 def summarise(
@@ -748,6 +864,7 @@ def summarise(
     declared = declared_checks(decided[0].findings) if decided else checks()
     counts = {check.name: {result: 0 for result in Result} for check in declared}
     consequence = {check.name: 0 for check in declared}
+    warned = {check.name: 0 for check in declared}
     for analysis in decided:
         for finding in analysis.findings:
             counts[finding.name][finding.result] += 1
@@ -755,6 +872,7 @@ def summarise(
                 consequence[finding.name] += (
                     not analysis.included and analysis.exclusion_reason in finding.check.reasons
                 )
+                warned[finding.name] += analysis.included and finding.result is Result.WARNING
             else:
                 consequence[finding.name] += (
                     analysis.included and finding.result is Result.FAILED
@@ -770,6 +888,7 @@ def summarise(
             overridden=check.name in overrides,
             results=counts[check.name],
             consequence=consequence[check.name],
+            warned=warned[check.name] if check.warns else None,
         )
         for check in declared
     }
@@ -809,6 +928,8 @@ __all__ = [
     "evaluate",
     "exclusion_categories",
     "first_exclusion",
+    "MAF_STATES_COUNTING_MISSING",
+    "no_allele_frequency",
     "parse_overrides",
     "receipt_contract",
     "record_section",

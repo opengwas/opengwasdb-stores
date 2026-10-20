@@ -1,12 +1,16 @@
-"""Phase B candidate workflow: frozen Source Inventory -> candidate Release Bundle (issue #153).
+"""The shared Manifest Generation pipeline: frozen Source Inventory -> candidate Release Bundle.
 
-This module is the registry-owned orchestration between the frozen Source
-Inventory (issue #151) and an OpenGWASDB Store Release Candidate. It owns four
-things and nothing else:
+The pipeline every Source Collection uses (ADR 0036), first written for the
+GWAS Catalog (issue #153) and generalised onto any release config by #287. It
+is the registry-owned orchestration between a frozen Source Inventory, with
+its connector files frozen beside it (#283), and a candidate Release Bundle.
+It owns five things and nothing else:
 
+- **reading the release config** (``manifest_generation.release_config``) and
+  the reviewed per-Analysis listings it names;
 - **deriving the canonical resolver manifest** from the frozen inventory's exact
-  ``data_file`` paths and the release's per-study-design method tiers, plus the
-  resolved per-Analysis metadata the OpenGWASDB Analysis schema needs;
+  ``data_file`` paths and the release's per-study-design method tiers, with
+  the per-Analysis metadata of the frozen Source Metadata Table;
 - **invoking the upstream resolver subprocess** and recording the argv that
   actually ran. The reference panel, the worker pool and per-Analysis
   checkpointing are owned by ``opengwasdb resolve-analyses`` (opengwasdb#208);
@@ -21,22 +25,24 @@ things and nothing else:
 - **applying the registry's release membership and exclusion policy** -- the
   decisions in ADR 0025 (``exclude_from_build`` audit rows), issue #152
   (full-reference ancestry assignment; source-AF-only quantitative estimation;
-  non-EUR/unassigned/orientation/SD-unavailable/resolution failures become
-  controlled, explained exclusions), and the pinned OpenGWASDB Analysis schema.
+  non-target/unassigned/orientation/SD-unavailable/resolution failures become
+  controlled, explained exclusions), the Quality Checks (#285), and the pinned
+  OpenGWASDB Analysis schema.
 
 Output is a **candidate-only** Release Bundle, rendered deterministically and
-emitted through the shared emitter (``manifest_generation.emit``, #248). It never builds, validates
-or materialises a Store, never redownloads or copies a source body, never
-invokes Phase A, and never infers an accepted status.
+emitted through the shared emitter (``manifest_generation.emit``, #248). It
+never builds, validates or materialises a Store, never redownloads or copies a
+source body, never invokes Store Release Build, and never infers an accepted
+status.
 
 Where a value is the statistics (ancestry fit, allele alignment, phenotype-SD
 estimate) it comes from the resolver record; where a value is a release decision
 (membership, method tier, exclusion) it is made here. That line is ADR 0012 /
 ADR 0017's, not this module's invention.
 
-See ``docs/spec/store-release-workflow.md`` (Phase B) and
-``resources/generators/gwas-catalog-eur-hybrid/README.md``; the operator entry
-point is ``manifest_generation.generate_candidate``.
+See ``docs/spec/store-release-workflow.md`` (Manifest Generation) and
+``docs/spec/release-config.md``; the operator entry point is
+``manifest_generation.generate_candidate``.
 """
 
 from __future__ import annotations
@@ -52,7 +58,7 @@ from dataclasses import dataclass, field, replace
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 import yaml
 
@@ -74,15 +80,12 @@ from manifest_generation.resolution_area import (
     ResolutionAreaError,
 )
 from manifest_generation.safe_write import atomic_write_bytes
-from manifest_generation.source_ancestry import SOURCE_LABEL_MAP_RELATIVE_PATH, load_source_label_map
 from manifest_generation.source_inventory import (
     INVENTORY_COLUMNS,
-    PreflightConfigError,
-    ReleaseConfiguration,
     SourceInventoryRow,
     duplicate_content_groups,
-    load_release_configuration,
 )
+from manifest_generation.release_config import ReleaseConfig, load_release_config
 from manifest_generation.connector_tsv import FreezeError
 from manifest_generation.freeze import load_frozen_connectors
 from manifest_generation.trait_ontology_mapping import (
@@ -92,7 +95,6 @@ from manifest_generation.trait_ontology_mapping import (
     TraitOntologyMappingError,
     TraitOntologyMappingRun,
     map_trait_ontologies,
-    source_traits_from_source_metadata_table,
 )
 
 # ---------------------------------------------------------------------------
@@ -263,7 +265,7 @@ EXCLUSION_COLUMNS: tuple[str, ...] = (
 
 #: Exclusion reasons that are release policy rather than a Quality Check (#285),
 #: with their sidecar ``category``: a missing or failed Resolution Record has
-#: nothing to measure, missing counts are candidate-table metadata, and the
+#: nothing to measure, missing counts are Source Metadata Table facts, and the
 #: Store Composition Rule is a release-level admission rule (ADR 0033). Every
 #: other reason is declared by a Quality Check (``quality_checks``).
 POLICY_EXCLUSION_CATEGORIES: Mapping[str, str] = {
@@ -339,28 +341,35 @@ class CandidateError(ValueError):
 
 @dataclass(frozen=True)
 class CandidateConfiguration:
-    """The full-release config reduced to the facts candidate generation needs.
+    """A release config reduced to the facts candidate generation needs (#287).
 
-    ``base`` is the #151 ``ReleaseConfiguration`` (inventory, method tiers,
-    Reference Resources, runtime). Everything else here is the release identity
-    and Build Recipe shape the Candidate Bundle carries, plus the raw blocks this
-    module passes to the resolver unchanged.
+    ``base`` is the loaded release config (``manifest_generation.release_config``):
+    the Source Collection and its frozen inventory, the Selection, method
+    tiers, Reference Resources and runtime, which preflight reads too, so a
+    candidate and its preflight cannot disagree about them. The fields here
+    are the release identity, the Build Recipe shape and the release policy in
+    the form this module applies them, with the reviewed listings read.
     """
 
-    base: ReleaseConfiguration
+    base: ReleaseConfig
     label: str
     access_posture: str
     description: str
     notes: str
+    #: The collection-wide Analytical Metadata defaults (``defaults``): an
+    #: Analysis whose Source Metadata Table cell is blank takes the default.
     defaults: Mapping[str, Any]
     layout: str
     completion_state: str
     build_command: str
     build_options: Mapping[str, Any]
     post: Mapping[str, Any]
+    #: ``maf_floor``, ``extraction_panel`` and ``gates``, as the resolver is passed them.
     ancestry_block: Mapping[str, Any]
+    #: ``maf_min``, ``maf_max`` and ``dispersion_max``, where declared.
     effect_scale_block: Mapping[str, Any]
     reader_capability: str
+    #: The super-population the Selection expects (``release_policy.selection_superpopulation``).
     target_ancestry: str
     info_score_threshold: str
     imputation_score_declarations: Path | None
@@ -368,27 +377,28 @@ class CandidateConfiguration:
     #: ``defaults.maf_threshold`` is omitted (= no MAF filter at all).
     maf_threshold: str | None
     #: Genotyping technologies whose Analyses are exempt from the default MAF
-    #: floor (``source.maf_filter_exempt_genotyping_technologies``). An Analysis
-    #: is exempt when it has non-empty technology metadata and every technology
-    #: is in this list.
+    #: floor (``release_policy.maf_filter_exempt_genotyping_technologies``). An
+    #: Analysis is exempt when it has non-empty technology metadata and every
+    #: technology is in this list.
     maf_filter_exempt_genotyping_technologies: tuple[str, ...]
     #: The reviewed per-Analysis MAF-floor exemption file
-    #: (``source.maf_filter_exempt_analyses``), or ``None`` when the key is
-    #: absent (= no Analysis is exempt).
+    #: (``release_policy.maf_filter_exempt_analyses``), or ``None`` when the key
+    #: is absent (= no Analysis is exempt).
     maf_filter_exempt_analyses_path: Path | None
     #: ``analysis_id -> recorded reason`` read from that file. An exempt
     #: Analysis emits literal ``NaN`` exactly as an exempt technology does, and
     #: the reason is carried into the resolution receipt.
     maf_filter_exempt_analyses: Mapping[str, str]
     #: The reviewed effect-placeholder exclusion file
-    #: (``source.effect_placeholder_exclusions``), or ``None`` when absent.
+    #: (``release_policy.effect_placeholder_exclusions``), or ``None`` when absent.
     effect_placeholder_exclusions_path: Path | None = None
     #: ``analysis_id -> recorded reason`` read from that file; each listed
     #: Analysis is excluded as ``effect_placeholder_rows``.
     effect_placeholder_exclusions: Mapping[str, str] = field(default_factory=dict)
-    #: ``store_composition.require_maf_filtered`` (issue #203): a shared Store
-    #: admits only Analyses whose rows were MAF-filtered, so an included Analysis
-    #: with no applied MAF floor is excluded as ``not_maf_filtered``.
+    #: ``release_policy.store_composition.require_maf_filtered`` (issue #203): a
+    #: shared Store admits only Analyses whose rows were MAF-filtered, so an
+    #: included Analysis with no applied MAF floor is excluded as
+    #: ``not_maf_filtered``.
     require_maf_filtered: bool = False
     #: The ``indexed_subsets`` declarations to emit (stores #210). ``None`` means
     #: emit no key at all (a Ragged release); the default is the maintained
@@ -401,250 +411,73 @@ class CandidateConfiguration:
     #: #285): check name -> parsed threshold. Empty means every check uses its
     #: shared default. Recorded in the resolution receipt and validation.yaml.
     quality_check_overrides: Mapping[str, Any] = field(default_factory=dict)
+    #: ``release_policy.trust_source_ancestry_without_af`` (#287): an Analysis
+    #: whose record shows no allele frequency takes the Source Metadata Table's
+    #: super-population as Assigned Ancestry (``source_trusted_no_af``).
+    trust_source_ancestry_without_af: bool = False
 
 
-def _require(document: Mapping[str, Any], key: str, where: str) -> Any:
-    value = document.get(key)
-    if value is None or value == "":
-        raise PreflightConfigError(f"{where} is missing required key {key!r}")
-    return value
+#: The Ancestry Assignment Method of an Analysis whose source has no allele
+#: frequencies and whose release trusts its source super-population (#287).
+SOURCE_TRUSTED_NO_AF: str = "source_trusted_no_af"
+
+#: The reader a release uses when its Build Recipe names none.
+DEFAULT_SOURCE_READER_CAPABILITY: str = "opengwasdb.gwas-ssf"
 
 
 def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfiguration:
-    """Load the release config and the candidate-specific facts it declares.
+    """Load the release config (``release_config``) and read the reviewed listings it names.
 
-    The #151 facts are loaded by ``load_release_configuration`` unchanged, so a
-    candidate and a preflight cannot disagree about the inventory, method tiers,
-    Reference Resources or runtime. Candidate-specific keys that would otherwise
-    be implicit -- the release identity, the Hybrid Build Recipe, and the
-    Source Ancestry Label -> Assigned Ancestry translation -- are checked, never
-    defaulted to a guessed value.
+    The schema is the release config's: an unknown key, a missing required
+    fact or a legacy Selection is refused there (#287). What is added here is
+    only what candidate generation derives from it -- the resolver's reader
+    capability and blocks, and the reviewed per-Analysis listings' contents.
     """
-    base = load_release_configuration(path, repo_root)
-    document = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(document, dict):
-        raise PreflightConfigError(f"release config {path} is not a YAML mapping")
-
-    label = str(_require(document, "label", str(path)))
-    access_posture = str(document.get("access_posture") or "public")
-    if access_posture not in {"public", "controlled", "embargoed"}:
-        raise PreflightConfigError(
-            f"{path}: access_posture {access_posture!r} is not public/controlled/embargoed"
-        )
-
-    defaults = _require(document, "defaults", str(path))
-    build = document.get("build") or {}
-    if not isinstance(build, dict):
-        raise PreflightConfigError(f"{path}:build must be a mapping")
-    options = build.get("options") or {}
-    if not isinstance(options, dict):
-        raise PreflightConfigError(f"{path}:build.options must be a mapping")
-    post = build.get("post") or {}
-    if not isinstance(post, dict):
-        raise PreflightConfigError(f"{path}:build.post must be a mapping")
-
-    reader_capability = str(options.get("source-reader-capability") or "opengwasdb.gwas-ssf")
-    info_score_threshold = parse_info_score_threshold(
-        defaults.get("info_score_threshold", 0.6)
-    )
-    maf_threshold = parse_maf_threshold(defaults.get("maf_threshold"))
-    require_maf_filtered = parse_store_composition(
-        document.get("store_composition"), maf_threshold, path
-    )
-    target_ancestry = read_source_label_map(repo_root, base.ancestry_group)
-    source = _mapping(document.get("source"))
-    maf_filter_exempt = parse_maf_filter_exempt_technologies(
-        source.get("maf_filter_exempt_genotyping_technologies")
-    )
-    exemption_input = source.get("maf_filter_exempt_analyses")
-    if exemption_input is not None and (
-        not isinstance(exemption_input, str) or not exemption_input.strip()
-    ):
-        raise PreflightConfigError(
-            "source.maf_filter_exempt_analyses must be a non-empty TSV path"
-        )
-    exemption_path = Path(exemption_input) if exemption_input else None
-    if exemption_path is not None and not exemption_path.is_absolute():
-        exemption_path = repo_root / exemption_path
-    maf_filter_exempt_analyses = read_maf_filter_exempt_analyses(exemption_path)
-    placeholder_input = source.get("effect_placeholder_exclusions")
-    if placeholder_input is not None and (
-        not isinstance(placeholder_input, str) or not placeholder_input.strip()
-    ):
-        raise PreflightConfigError(
-            "source.effect_placeholder_exclusions must be a non-empty TSV path"
-        )
-    placeholder_path = Path(placeholder_input) if placeholder_input else None
-    if placeholder_path is not None and not placeholder_path.is_absolute():
-        placeholder_path = repo_root / placeholder_path
-    effect_placeholder_exclusions = read_effect_placeholder_exclusions(placeholder_path)
-    declaration_input = source.get("imputation_score_declarations")
-    if declaration_input is not None and (
-        not isinstance(declaration_input, str) or not declaration_input.strip()
-    ):
-        raise PreflightConfigError(
-            "source.imputation_score_declarations must be a non-empty TSV path"
-        )
-    declaration_path = Path(declaration_input) if declaration_input else None
-    if declaration_path is not None and not declaration_path.is_absolute():
-        declaration_path = repo_root / declaration_path
-
-    quality_check_overrides = parse_quality_check_overrides(
-        document.get("quality_checks"), path
-    )
-
-    layout = str(build.get("layout") or "hybrid")
-    indexed_subsets, indexed_subsets_opt_out = resolve_indexed_subsets(
-        document, layout, repo_root
-    )
-    if "resolution_root" in _mapping(document.get("output")):
-        raise PreflightConfigError(
-            f"{path}: output.resolution_root is not a release config key: the resolution "
-            "root is deployment configuration (--resolution-root, "
-            "OPENGWASDB_RESOLUTION_ROOT or ogstores.yaml), so every release over a "
-            "Source Collection finds the same Resolution Area (#284)"
-        )
-
+    base = load_release_config(path, repo_root)
     return CandidateConfiguration(
         base=base,
-        label=label,
-        access_posture=access_posture,
-        description=str(document.get("description") or ""),
-        notes=str(document.get("notes") or ""),
-        defaults=defaults,
-        layout=layout,
-        completion_state=str(build.get("completion_state") or "observed_only"),
-        build_command=str(build.get("command") or "build-hybrid"),
-        build_options=dict(options),
-        post=dict(post),
-        ancestry_block=_mapping(document.get("ancestry_assignment") or {}),
-        effect_scale_block=_mapping(document.get("effect_scale_validation") or {}),
-        reader_capability=reader_capability,
-        target_ancestry=target_ancestry,
-        info_score_threshold=info_score_threshold,
-        imputation_score_declarations=declaration_path,
-        maf_threshold=maf_threshold,
-        maf_filter_exempt_genotyping_technologies=maf_filter_exempt,
-        maf_filter_exempt_analyses_path=exemption_path,
-        maf_filter_exempt_analyses=maf_filter_exempt_analyses,
-        effect_placeholder_exclusions_path=placeholder_path,
-        effect_placeholder_exclusions=effect_placeholder_exclusions,
-        require_maf_filtered=require_maf_filtered,
-        indexed_subsets=(
-            tuple(indexed_subsets) if indexed_subsets is not None else None
+        label=base.label,
+        access_posture=base.access_posture,
+        description=base.description,
+        notes=base.notes,
+        defaults=dict(base.defaults),
+        layout=base.build.layout,
+        completion_state=base.build.completion_state,
+        build_command=base.build.command,
+        build_options=dict(base.build.options),
+        post=dict(base.build.post),
+        ancestry_block={
+            "maf_floor": base.ancestry_maf_floor,
+            "extraction_panel": base.ancestry_extraction_panel,
+            "gates": dict(base.ancestry_gates),
+        },
+        effect_scale_block=dict(base.effect_scale),
+        reader_capability=str(
+            base.build.options.get("source-reader-capability") or DEFAULT_SOURCE_READER_CAPABILITY
         ),
-        indexed_subsets_opt_out=indexed_subsets_opt_out,
-        quality_check_overrides=quality_check_overrides,
+        target_ancestry=base.selection_superpopulation,
+        info_score_threshold=base.info_score_threshold,
+        imputation_score_declarations=base.imputation_score_declarations,
+        maf_threshold=base.maf_threshold,
+        maf_filter_exempt_genotyping_technologies=base.maf_filter_exempt_genotyping_technologies,
+        maf_filter_exempt_analyses_path=base.maf_filter_exempt_analyses_path,
+        maf_filter_exempt_analyses=read_maf_filter_exempt_analyses(
+            base.maf_filter_exempt_analyses_path
+        ),
+        effect_placeholder_exclusions_path=base.effect_placeholder_exclusions_path,
+        effect_placeholder_exclusions=read_effect_placeholder_exclusions(
+            base.effect_placeholder_exclusions_path
+        ),
+        require_maf_filtered=base.require_maf_filtered,
+        indexed_subsets=base.indexed_subsets,
+        indexed_subsets_opt_out=base.indexed_subsets_opt_out,
+        quality_check_overrides=dict(base.quality_check_overrides),
+        trust_source_ancestry_without_af=base.trust_source_ancestry_without_af,
     )
-
-
-def parse_quality_check_overrides(value: Any, path: Path) -> dict[str, Any]:
-    """Validate the release's ``quality_checks:`` threshold overrides (#285).
-
-    Each key names a registered Quality Check with a threshold; its value
-    replaces that check's shared default for this release. Absent means no
-    override. Anything else is a config error, never silently ignored.
-    """
-    try:
-        return quality_checks.parse_overrides(value, f"{path}:quality_checks")
-    except quality_checks.QualityCheckError as exc:
-        raise PreflightConfigError(str(exc)) from exc
-
-
-def parse_info_score_threshold(value: Any) -> str:
-    """Validate the requested INFO floor; zero disables filtering explicitly."""
-    if isinstance(value, bool) or value is None or not str(value).strip():
-        raise PreflightConfigError("defaults.info_score_threshold must be a number in [0,1]")
-    try:
-        number = Decimal(str(value).strip())
-    except InvalidOperation as exc:
-        raise PreflightConfigError(
-            "defaults.info_score_threshold must be a number in [0,1]"
-        ) from exc
-    if not number.is_finite() or not 0 <= number <= 1:
-        raise PreflightConfigError("defaults.info_score_threshold must be a number in [0,1]")
-    return format(number, "f")
-
-
-def parse_maf_threshold(value: Any) -> str | None:
-    """Validate the requested MAF floor; omitted disables it for every Analysis.
-
-    ``None`` (an omitted or null key) means no MAF filter at all and every
-    manifest row emits literal ``NaN``. A numeric value must be finite and in
-    ``[0, 0.5]``; ``0`` disables filtering explicitly, exactly as the INFO floor
-    does. The canonical string is returned so the manifest and fingerprint bind
-    the same spelling the operator wrote.
-    """
-    if value is None:
-        return None
-    if isinstance(value, bool) or not str(value).strip():
-        raise PreflightConfigError("defaults.maf_threshold must be a number in [0,0.5]")
-    try:
-        number = Decimal(str(value).strip())
-    except InvalidOperation as exc:
-        raise PreflightConfigError(
-            "defaults.maf_threshold must be a number in [0,0.5]"
-        ) from exc
-    if not number.is_finite() or not 0 <= number <= Decimal("0.5"):
-        raise PreflightConfigError("defaults.maf_threshold must be a number in [0,0.5]")
-    return format(number, "f")
-
-
-def parse_store_composition(value: Any, maf_threshold: str | None, path: Path) -> bool:
-    """Validate the top-level ``store_composition`` block (issue #203).
-
-    An absent block (or an absent ``require_maf_filtered``) defaults to ``False``,
-    so a Store that has not opted in is unchanged. The block accepts exactly one
-    key; an unknown key is an error rather than being ignored. Turning the rule
-    on also requires a positive ``defaults.maf_threshold``: with no floor (or an
-    explicit zero floor) no Analysis can be MAF-filtered, so the rule would
-    silently empty the Store or admit everything.
-    """
-    if value is None:
-        return False
-    if not isinstance(value, dict):
-        raise PreflightConfigError(f"{path}:store_composition must be a mapping")
-    unknown = sorted(set(value) - {"require_maf_filtered"})
-    if unknown:
-        raise PreflightConfigError(
-            f"{path}:store_composition has unknown key(s): {', '.join(unknown)}"
-        )
-    require = value.get("require_maf_filtered", False)
-    if not isinstance(require, bool):
-        raise PreflightConfigError(
-            f"{path}:store_composition.require_maf_filtered must be a boolean"
-        )
-    if require and (maf_threshold is None or Decimal(maf_threshold) == 0):
-        raise PreflightConfigError(
-            f"{path}:store_composition.require_maf_filtered needs a positive "
-            "defaults.maf_threshold; with no floor (or a disabled floor of 0) no "
-            "Analysis can be MAF-filtered"
-        )
-    return require
-
-
-def parse_maf_filter_exempt_technologies(value: Any) -> tuple[str, ...]:
-    """Validate the genotyping technologies exempt from the default MAF floor.
-
-    A list of non-empty technology labels (for example
-    ``'Whole genome sequencing'``). An Analysis is exempt only when it has
-    non-empty technology metadata and *every* technology is in this list; an
-    omitted key means no Analysis is exempt.
-    """
-    if value is None:
-        return ()
-    if not isinstance(value, list) or any(
-        not isinstance(item, str) or not item.strip() for item in value
-    ):
-        raise PreflightConfigError(
-            "source.maf_filter_exempt_genotyping_technologies must be a list of "
-            "non-empty technology labels"
-        )
-    return tuple(item.strip() for item in value)
 
 
 #: The exact reviewed MAF-floor exemption table header
-#: (``source.maf_filter_exempt_analyses``); see ``analysis_maf_threshold``.
+#: (``release_policy.maf_filter_exempt_analyses``); see ``analysis_maf_threshold``.
 MAF_FILTER_EXEMPTION_COLUMNS: tuple[str, ...] = ("analysis_id", "reason")
 
 
@@ -662,7 +495,7 @@ def read_maf_filter_exempt_analyses(path: Path | None) -> dict[str, str]:
 
 
 #: The exact reviewed effect-placeholder exclusion table header
-#: (``source.effect_placeholder_exclusions``); same shape as the MAF exemptions.
+#: (``release_policy.effect_placeholder_exclusions``); same shape as the MAF exemptions.
 EFFECT_PLACEHOLDER_EXCLUSION_COLUMNS: tuple[str, ...] = MAF_FILTER_EXEMPTION_COLUMNS
 
 
@@ -819,10 +652,10 @@ def read_genotyping_technologies(yaml_file: str) -> list[str]:
 def analysis_maf_threshold(row: SourceInventoryRow, config: CandidateConfiguration) -> str:
     """The manifest ``maf_threshold`` for one Analysis: the default or ``NaN``.
 
-    An Analysis is exempt when ``source.maf_filter_exempt_analyses`` lists it
+    An Analysis is exempt when ``release_policy.maf_filter_exempt_analyses`` lists it
     (the operator's reviewed reason is carried into the resolution receipt), or
     when it has non-empty technology metadata and *every* technology is in
-    ``source.maf_filter_exempt_genotyping_technologies``. Missing technology
+    ``release_policy.maf_filter_exempt_genotyping_technologies``. Missing technology
     metadata is never an exemption (#176).
     """
     if config.maf_threshold is None:
@@ -837,38 +670,22 @@ def analysis_maf_threshold(row: SourceInventoryRow, config: CandidateConfigurati
     return config.maf_threshold
 
 
-def read_source_label_map(repo_root: Path, label: str) -> str:
-    """Translate a Source Ancestry Label to its super-population code.
-
-    A label absent from the tracked map is an error, not a silent pass-through:
-    an unnormalised value is not a valid Assigned Ancestry (issue #133).
-    """
-    code = load_source_label_map(repo_root).get(label)
-    if not code:
-        raise PreflightConfigError(
-            f"no tracked Source Ancestry Label -> super-population mapping for {label!r} "
-            f"in {repo_root / SOURCE_LABEL_MAP_RELATIVE_PATH}"
-        )
-    return code
-
-
 # ---------------------------------------------------------------------------
-# Resolved per-Analysis metadata (the candidate table)
+# Per-Analysis source metadata (the frozen Source Metadata Table)
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
-class CandidateMetadata:
-    """Resolved Analytical Metadata for one Analysis, from the candidate table.
+class AnalysisMetadata:
+    """One Analysis's source metadata, from the frozen Source Metadata Table (#283, #287).
 
-    The frozen Source Inventory (#151) records selection identity, the exact
-    source path and readiness; it deliberately does not carry the resolved
-    labels, publication identity, case/control split or total N. Those are the
-    metadata resolver's output (`resources/scripts/ebi-studies.r`), materialised
-    into the candidate table the freeze already accounts every inventory row
-    against and checksums into the provenance sidecar. Reading them here is a
-    join on an already-frozen selection, not a second selection: membership is
-    still the inventory's.
+    The frozen Source Inventory records selection identity, the exact source
+    path and readiness; the per-Analysis metadata is the Source Metadata
+    Table's, frozen beside the inventory and checksummed into its provenance
+    (``freeze.load_frozen_connectors``). Reading it is a join on an already
+    frozen Selection, not a second selection: membership is the inventory's.
+    A blank cell means the source supplied no value; the release config's
+    ``defaults`` fill the collection-wide ones when rows are rendered.
 
     The source's own ontology term is carried verbatim. Its Trait Ontology
     Mapping is the shared step's (#286, ADR 0036 step 5), run after
@@ -877,87 +694,78 @@ class CandidateMetadata:
     """
 
     analysis_id: str
-    #: The Source Trait Label.
+    #: The Source Trait Label (``source_trait_label``).
     source_label: str
-    #: ``MAPPED_TRAIT_URI``, verbatim: a CURIE, a URI or a comma-separated list.
+    #: ``source_trait_ontology_id``, verbatim: a CURIE, a URI or a comma-separated list.
     source_trait_ontology_id: str
-    #: ``MAPPED_TRAIT``, verbatim.
+    #: ``source_trait_ontology_label``, verbatim.
     source_trait_ontology_label: str
     publication_pmid: str
     first_author: str
     n_cases: str
     n_controls: str
     sample_size: str
+    #: The Source Ancestry Label, verbatim provenance; never Assigned Ancestry.
+    source_ancestry_label: str = ""
+    #: The super-population the source declares; never Assigned Ancestry.
+    source_superpopulation: str = ""
+    publication_doi: str = ""
+    consortium: str = ""
+    license: str = ""
+    source_genome_build: str = ""
     trait_ontology: TraitOntologyMapping | None = None
 
 
-def read_candidate_metadata(
-    path: Path, analysis_ids: Iterable[str]
-) -> dict[str, CandidateMetadata]:
-    """Read resolved metadata for ``analysis_ids`` from the candidate table.
+def read_analysis_metadata(
+    provenance_path: Path, analysis_ids: Iterable[str]
+) -> dict[str, AnalysisMetadata]:
+    """Read ``analysis_ids``' rows of the Source Metadata Table frozen with the inventory.
 
-    A selected ready Analysis with no row here cannot have schema-valid metadata,
-    so it fails loudly rather than being emitted with a guessed label or a
-    fabricated case count.
+    The frozen table is checked against the sha256 its provenance records
+    before it is read. A selected ready Analysis with no row cannot have
+    schema-valid metadata, so it fails loudly rather than being emitted with a
+    guessed label or a fabricated case count.
     """
-    if not path.is_file():
-        raise CandidateError(f"candidate metadata table not found: {path}")
-    wanted = set(analysis_ids)
-    found: dict[str, CandidateMetadata] = {}
-    with path.open(newline="", encoding="utf-8") as fh:
-        reader = csv.DictReader(fh, delimiter="\t")
-        fieldnames = reader.fieldnames or []
-        if "STUDY.ACCESSION" not in fieldnames:
-            raise CandidateError(
-                f"candidate metadata table {path} is missing required column 'STUDY.ACCESSION'"
-            )
-        for raw in reader:
-            accession = (raw.get("STUDY.ACCESSION") or "").strip()
-            if accession not in wanted:
-                continue
-            found[accession] = CandidateMetadata(
-                analysis_id=accession,
-                source_label=(raw.get("DISEASE.TRAIT") or "").strip(),
-                source_trait_ontology_id=(raw.get("MAPPED_TRAIT_URI") or "").strip(),
-                source_trait_ontology_label=(raw.get("MAPPED_TRAIT") or "").strip(),
-                publication_pmid=(raw.get("PUBMED.ID") or "").strip(),
-                first_author=(raw.get("FIRST.AUTHOR") or "").strip(),
-                n_cases=_clean_number(raw.get("n_cases")),
-                n_controls=_clean_number(raw.get("n_controls")),
-                sample_size=_clean_number(raw.get("sample_size")),
-            )
-    missing = sorted(wanted - set(found))
+    try:
+        table, _manifest = load_frozen_connectors(provenance_path)
+    except FreezeError as exc:
+        raise CandidateError(
+            f"cannot read the frozen Source Metadata Table: {exc}. Freeze the Source "
+            "Inventory with the shared freeze (pixi run inventory-freeze, or the "
+            "pipeline's freeze stage) so its connectors are frozen beside it"
+        ) from exc
+    wanted = sorted(set(analysis_ids))
+    missing = [analysis_id for analysis_id in wanted if analysis_id not in table]
     if missing:
         raise CandidateError(
-            f"candidate metadata table {path} has no row for {len(missing)} selected "
-            f"ready Analysis/Analyses: {', '.join(missing[:10])}"
+            f"the frozen Source Metadata Table {table.path} has no row for {len(missing)} "
+            f"selected ready Analysis/Analyses: {', '.join(missing[:10])}"
+        )
+    found: dict[str, AnalysisMetadata] = {}
+    for analysis_id in wanted:
+        row = table.row(analysis_id)
+        found[analysis_id] = AnalysisMetadata(
+            analysis_id=analysis_id,
+            source_label=row.get("source_trait_label", ""),
+            source_trait_ontology_id=row.get("source_trait_ontology_id", ""),
+            source_trait_ontology_label=row.get("source_trait_ontology_label", ""),
+            publication_pmid=row.get("publication_pmid", ""),
+            first_author=row.get("first_author", ""),
+            n_cases=row.get("n_cases", ""),
+            n_controls=row.get("n_controls", ""),
+            sample_size=row.get("sample_size", ""),
+            source_ancestry_label=row.get("source_ancestry_label", ""),
+            source_superpopulation=row.get("source_superpopulation", ""),
+            publication_doi=row.get("publication_doi", ""),
+            consortium=row.get("consortium", ""),
+            license=row.get("license", ""),
+            source_genome_build=row.get("source_genome_build", ""),
         )
     return found
 
 
-def candidate_source_traits(
-    provenance_path: Path, metadata: Mapping[str, CandidateMetadata]
-) -> list[SourceTrait]:
-    """The Trait Ontology Mapping step's input for every Analysis in ``metadata`` (#286).
-
-    The source term comes from the Source Metadata Table: from the frozen
-    subset #283's freeze writes beside the inventory, when the inventory's
-    provenance records one. An inventory frozen the older way has none, so
-    its source term comes from the candidate table's ``MAPPED_TRAIT_URI`` and
-    ``MAPPED_TRAIT``, carried verbatim in :class:`CandidateMetadata`. That
-    legacy route stays until #287 moves every release config onto the shared
-    freeze.
-    """
-    if not provenance_path.is_file():
-        raise CandidateError(f"Source Inventory provenance not found: {provenance_path}")
-    document = yaml.safe_load(provenance_path.read_text(encoding="utf-8"))
-    recorded = document.get("source_metadata_table") if isinstance(document, Mapping) else None
-    if isinstance(recorded, Mapping) and "frozen" in recorded:
-        try:
-            table, _ = load_frozen_connectors(provenance_path)
-            return source_traits_from_source_metadata_table(table, metadata)
-        except (FreezeError, TraitOntologyMappingError) as exc:
-            raise CandidateError(f"Trait Ontology Mapping input: {exc}") from exc
+def trait_sources(metadata: Mapping[str, AnalysisMetadata]) -> list[SourceTrait]:
+    """The Trait Ontology Mapping step's input: each Analysis's source trait columns."""
     return [
         SourceTrait(
             analysis_id=analysis_id,
@@ -970,28 +778,17 @@ def candidate_source_traits(
 
 
 def map_candidate_trait_ontologies(
-    metadata: Mapping[str, CandidateMetadata],
-    sources: Iterable[SourceTrait],
+    metadata: Mapping[str, AnalysisMetadata],
     table: CanonicalTraitMappingTable,
-) -> tuple[dict[str, CandidateMetadata], TraitOntologyMappingRun]:
+) -> tuple[dict[str, AnalysisMetadata], TraitOntologyMappingRun]:
     """Run the shared Trait Ontology Mapping step over every Analysis (#286).
 
-    ``sources`` must name exactly the Analyses in ``metadata``
-    (:func:`candidate_source_traits`). Returns the metadata with each
-    Analysis's ``trait_ontology`` set, and the run, whose provenance
-    validation.yaml records. A source term in a form the step cannot
-    normalise fails the run, naming the Analysis and the term.
+    Returns the metadata with each Analysis's ``trait_ontology`` set, and the
+    run, whose provenance validation.yaml records. A source term in a form the
+    step cannot normalise fails the run, naming the Analysis and the term.
     """
-    sources = list(sources)
-    named = {source.analysis_id for source in sources}
-    if named != set(metadata):
-        differing = sorted(named.symmetric_difference(metadata))
-        raise CandidateError(
-            "Trait Ontology Mapping sources do not match the Analyses: "
-            + ", ".join(differing[:20])
-        )
     try:
-        run = map_trait_ontologies(sources, table)
+        run = map_trait_ontologies(trait_sources(metadata), table)
     except TraitOntologyMappingError as exc:
         raise CandidateError(f"Trait Ontology Mapping failed: {exc}") from exc
     mapped = {
@@ -999,14 +796,6 @@ def map_candidate_trait_ontologies(
         for analysis_id, resolved in metadata.items()
     }
     return mapped, run
-
-
-def _clean_number(value: str | None) -> str:
-    """Normalise a numeric cell to its canonical string, or empty when absent."""
-    text = (value or "").strip()
-    if not text or text.lower() in {"na", "nan", "null", "none"}:
-        return ""
-    return text
 
 
 # ---------------------------------------------------------------------------
@@ -1020,12 +809,54 @@ SCORE_DECLARATION_COLUMNS: tuple[str, ...] = (
 )
 
 
+def collection_analysis_ids(provenance_path: Path) -> frozenset[str] | None:
+    """Every Analysis the Source Collection intends, from the Source Metadata Table freeze read.
+
+    A frozen inventory keeps only its Selection's rows; the collection is the
+    original table its provenance names and checksums. ``None`` when that file
+    is not on this host. A file there with another checksum is not the
+    collection that was frozen, and is refused.
+    """
+    try:
+        document = yaml.safe_load(Path(provenance_path).read_text(encoding="utf-8"))
+        original = document["source_metadata_table"]["original"]
+        path, expected = Path(original["path"]), original["sha256"]
+    except (OSError, KeyError, TypeError) as exc:
+        raise CandidateError(
+            f"{provenance_path} records no original Source Metadata Table: {exc}"
+        ) from exc
+    if not path.is_file():
+        return None
+    actual = sha256_file(path)
+    if actual != expected:
+        raise CandidateError(
+            f"the collection's Source Metadata Table {path} has sha256 {actual}, but "
+            f"{provenance_path} froze {expected}; it is not the collection that was frozen"
+        )
+    # A connector file carries no quoting (connector_tsv), so a field is what
+    # lies between tabs; the checksum above proves it is the frozen file.
+    with path.open(encoding="utf-8") as fh:
+        header = fh.readline().rstrip("\n").split("\t")
+        if "source_analysis_id" not in header:
+            raise CandidateError(f"{path} has no source_analysis_id column")
+        column = header.index("source_analysis_id")
+        return frozenset(line.rstrip("\n").split("\t")[column] for line in fh if line.strip())
+
+
 def read_imputation_score_declarations(
-    path: Path | None, analysis_ids: Iterable[str]
+    path: Path | None,
+    analysis_ids: Iterable[str],
+    collection_ids: Callable[[], frozenset[str] | None] | None = None,
 ) -> dict[str, tuple[str, str, str]]:
     """Read reviewed per-Analysis provider citations, never source-header guesses.
 
     A citation is required but its scientific independence requires human review.
+
+    The table is the Source Collection's, so several Selections can share it
+    (#287): a declaration may name an Analysis outside ``analysis_ids`` when the
+    collection intends it (``collection_ids``), and only the Selection's are
+    returned. A declaration the collection does not intend is refused, and so
+    is one outside the Selection when the collection cannot be read to check it.
     """
     if path is None:
         return {}
@@ -1033,6 +864,7 @@ def read_imputation_score_declarations(
         raise CandidateError(f"imputation score declaration table not found: {path}")
     known = set(analysis_ids)
     found: dict[str, tuple[str, str, str]] = {}
+    outside: list[tuple[int, str]] = []
     with path.open(newline="", encoding="utf-8") as fh:
         reader = csv.DictReader(fh, delimiter="\t")
         if reader.fieldnames != list(SCORE_DECLARATION_COLUMNS):
@@ -1043,7 +875,7 @@ def read_imputation_score_declarations(
             if None in row or any(value is None for value in row.values()):
                 raise CandidateError(f"{path}:{number}: malformed declaration row")
             analysis_id = row["analysis_id"].strip()
-            if not analysis_id or analysis_id not in known:
+            if not analysis_id:
                 raise CandidateError(f"{path}:{number}: unknown analysis_id {analysis_id!r}")
             if analysis_id in found:
                 raise CandidateError(f"{path}:{number}: duplicate analysis_id {analysis_id!r}")
@@ -1063,7 +895,23 @@ def read_imputation_score_declarations(
                     "independent provider evidence"
                 )
             found[analysis_id] = (column, kind, provenance)
-    return found
+            if analysis_id not in known:
+                outside.append((number, analysis_id))
+    if outside:
+        collection = collection_ids() if collection_ids is not None else None
+        if collection is None:
+            raise CandidateError(
+                f"{path}: {len(outside)} declaration(s) name Analyses outside this Selection "
+                f"(first {outside[0][1]!r}, line {outside[0][0]}), and the collection's Source "
+                "Metadata Table is not available to check that the collection intends them"
+            )
+        for number, analysis_id in outside:
+            if analysis_id not in collection:
+                raise CandidateError(
+                    f"{path}:{number}: unknown analysis_id {analysis_id!r}: the Source "
+                    "Collection does not intend it"
+                )
+    return {analysis_id: found[analysis_id] for analysis_id in found if analysis_id in known}
 
 
 @dataclass(frozen=True)
@@ -1094,7 +942,7 @@ class ResolverRow:
 def derive_resolver_manifest(
     rows: Sequence[SourceInventoryRow],
     config: CandidateConfiguration,
-    metadata: Mapping[str, CandidateMetadata],
+    metadata: Mapping[str, AnalysisMetadata],
 ) -> list[ResolverRow]:
     """Derive the canonical resolver manifest from the frozen exact paths.
 
@@ -1106,7 +954,9 @@ def derive_resolver_manifest(
     metadata. ``data_file`` is used verbatim; nothing here opens it.
     """
     declarations = read_imputation_score_declarations(
-        config.imputation_score_declarations, (row.analysis_id for row in rows)
+        config.imputation_score_declarations,
+        (row.analysis_id for row in rows),
+        lambda: collection_analysis_ids(config.base.inventory_provenance_path),
     )
     manifest: list[ResolverRow] = []
     for row in rows:
@@ -1896,8 +1746,14 @@ def build_resolution_receipt(
     argv: Sequence[str],
     settings_digest: str,
     index: Mapping[str, Any],
+    override: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Bind a successful resolver run to its contract and the records it kept.
+
+    ``override`` is the executable that ran in place of the pinned
+    ``opengwasdb`` (its ``path`` and ``sha256``), or ``None``: the
+    verification-only ``--resolver`` flag (#287), recorded so a receipt made by
+    another resolver is never mistaken for the pinned one's.
 
     ``records`` names, in manifest order, each Analysis's kept Resolution Record
     in the Source Collection's resolution area: its fingerprint digest, its
@@ -1935,6 +1791,7 @@ def build_resolution_receipt(
             "settings_digest": settings_digest,
             "opengwasdb_version": index_version,
             "opengwasdb_git_hash": index_git_hash,
+            "override": dict(override) if override is not None else None,
         },
         "contract": contract,
         "resolution_area": str(area.root),
@@ -2093,7 +1950,7 @@ class AnalysisOutcome:
     """One selected ready Analysis after the release policy was applied."""
 
     row: SourceInventoryRow
-    metadata: CandidateMetadata
+    metadata: AnalysisMetadata
     record: Mapping[str, Any] | None
     included: bool
     exclusion_reason: str
@@ -2132,7 +1989,7 @@ class AnalysisOutcome:
 def apply_release_policy(
     rows: Sequence[SourceInventoryRow],
     config: CandidateConfiguration,
-    metadata: Mapping[str, CandidateMetadata],
+    metadata: Mapping[str, AnalysisMetadata],
     records: Mapping[str, Mapping[str, Any]],
     manifest_rows: Sequence[ResolverRow] = (),
 ) -> list[AnalysisOutcome]:
@@ -2228,7 +2085,7 @@ def _not_maf_filtered_detail(
 def _decide(
     *,
     row: SourceInventoryRow,
-    resolved: CandidateMetadata,
+    resolved: AnalysisMetadata,
     tier: Any,
     record: Mapping[str, Any] | None,
     config: CandidateConfiguration,
@@ -2255,6 +2112,8 @@ def _decide(
             stored_effect_scale=stored_effect_scale,
             selection_ancestry=config.target_ancestry,
             effect_placeholder_reason=config.effect_placeholder_exclusions.get(row.analysis_id),
+            source_superpopulation=resolved.source_superpopulation,
+            trust_source_ancestry_without_af=config.trust_source_ancestry_without_af,
         ),
         config.quality_check_overrides,
     )
@@ -2335,6 +2194,16 @@ def _decide(
         if assigned in SUPERPOPULATIONS:
             return excluded_by(failed, assigned=assigned, method="af_assigned")
         return excluded_by(failed)
+    # A warning-level Assigned Ancestry result is #287's source-trusted
+    # assignment: the record shows no allele frequency and the release trusts
+    # the Source Metadata Table's super-population, which the check has
+    # already tested against the Selection's.
+    method = "af_assigned"
+    if any(
+        finding.name == "assigned_ancestry" and finding.result is quality_checks.Result.WARNING
+        for finding in findings
+    ):
+        assigned, method = resolved.source_superpopulation, SOURCE_TRUSTED_NO_AF
 
     # From here the Analysis has the Selection's ancestry; the only remaining
     # question is whether its effects are on the release's scale.
@@ -2344,13 +2213,13 @@ def _decide(
             reason="missing_case_control_counts",
             detail=f"n_cases={n_cases or 'empty'} n_controls={n_controls or 'empty'}",
             assigned=assigned,
-            method="af_assigned",
+            method=method,
         )
 
     # Slot TARGET_ANCESTRY: the phenotype SD.
     failed = quality_checks.first_exclusion(findings, Stage.TARGET_ANCESTRY)
     if failed is not None:
-        return excluded_by(failed, assigned=assigned, method="af_assigned")
+        return excluded_by(failed, assigned=assigned, method=method)
 
     # Nothing excluded it, so every exclusion check must have tested it.
     quality_checks.require_measured(findings, row.analysis_id)
@@ -2358,7 +2227,7 @@ def _decide(
         return make(
             included=True,
             assigned=assigned,
-            method="af_assigned",
+            method=method,
             original_sd="",
             sd_method="binary_trait",
         )
@@ -2367,7 +2236,7 @@ def _decide(
     return make(
         included=True,
         assigned=assigned,
-        method="af_assigned",
+        method=method,
         original_sd=format_sidecar_float(float(estimate["sd"])),
         sd_method=str(estimate.get("method") or tier.original_sd_method),
     )
@@ -2806,13 +2675,15 @@ def _analyses_row(
         "checksum": row.sha256,
         "checksum_algorithm": "sha256",
         "size_bytes": row.data_bytes,
-        "source_genome_build": str(config.defaults.get("source_genome_build", "GRCh38")),
-        "license": str(config.defaults.get("license", "")),
-        "publication_doi": "",
+        # Collection-wide facts: the Analysis's own value, else the release
+        # config's default (#287). Neither is ever guessed here.
+        "source_genome_build": _or_default(resolved.source_genome_build, config, "source_genome_build"),
+        "license": _or_default(resolved.license, config, "license"),
+        "publication_doi": _or_default(resolved.publication_doi, config, "publication_doi"),
         "publication_pmid": resolved.publication_pmid or row.publication_pmid,
-        "consortium": "",
+        "consortium": _or_default(resolved.consortium, config, "consortium"),
         "first_author": resolved.first_author,
-        "source_ancestry_label": config.base.ancestry_group,
+        "source_ancestry_label": resolved.source_ancestry_label,
         "assigned_ancestry": outcome.assigned_ancestry,
         "ancestry_assignment_method": outcome.ancestry_assignment_method,
         "original_effect_scale": tier.original_effect_scale,
@@ -2835,6 +2706,11 @@ def _analyses_row(
     }
 
 
+def _or_default(value: str, config: CandidateConfiguration, key: str) -> str:
+    """An Analysis's own value, or the release config's collection-wide default."""
+    return value or str(config.defaults.get(key, ""))
+
+
 def _ancestry_row(
     outcome: AnalysisOutcome, config: CandidateConfiguration
 ) -> dict[str, str]:
@@ -2843,7 +2719,7 @@ def _ancestry_row(
     row: dict[str, str] = {name: "" for name in ANCESTRY_SIDECAR_COLUMNS}
     row["analysis_id"] = outcome.analysis_id
     row["source_analysis_id"] = outcome.analysis_id
-    row["source_ancestry_label"] = config.base.ancestry_group
+    row["source_ancestry_label"] = outcome.metadata.source_ancestry_label
     row["assigned_ancestry"] = outcome.assigned_ancestry
     row["ancestry_assignment_method"] = outcome.ancestry_assignment_method
     if record is None:
@@ -2978,7 +2854,20 @@ def _derive_checks(
         + exclusion_counts.get("ancestry_not_eur", 0)
         + exclusion_counts.get("orientation_failure", 0)
     )
-    ancestry_check = "passed" if ancestry_problem == 0 else "passed_with_warnings"
+    source_trusted = sum(
+        1
+        for outcome in outcomes
+        if outcome.included and outcome.ancestry_assignment_method == SOURCE_TRUSTED_NO_AF
+    )
+    ancestry_check = (
+        "passed" if ancestry_problem == 0 and source_trusted == 0 else "passed_with_warnings"
+    )
+    if source_trusted:
+        warnings.append(
+            f"{source_trusted} included Analysis/Analyses carry no allele frequencies, so their "
+            "Assigned Ancestry is the Source Metadata Table's super-population "
+            f"({SOURCE_TRUSTED_NO_AF}, #287); see sidecars/quality_checks.tsv"
+        )
     if ancestry_problem:
         warnings.append(
             f"{ancestry_problem} Analysis/Analyses excluded by ancestry policy "
@@ -3325,7 +3214,7 @@ __all__ = [
     "USABLE_MAF_STATES",
     "CandidateConfiguration",
     "CandidateError",
-    "CandidateMetadata",
+    "AnalysisMetadata",
     "CandidateTables",
     "EXCLUSION_COLUMNS",
     "HISTORICAL_RECEIPT_SCHEMA_VERSIONS",
@@ -3336,6 +3225,7 @@ __all__ = [
     "RESOLVER_MANIFEST_COLUMNS",
     "SD_ESTIMATION_SIDECAR_COLUMNS",
     "SOURCE_READINESS_COLUMNS",
+    "SOURCE_TRUSTED_NO_AF",
     "SUPERPOPULATIONS",
     "SUPPORTED_RECORD_SCHEMA_VERSION",
     "AnalysisOutcome",
@@ -3348,6 +3238,7 @@ __all__ = [
     "apply_release_policy",
     "build_candidate_tables",
     "build_resolution_receipt",
+    "collection_analysis_ids",
     "compute_resolution_contract",
     "controlled_exclusion_categories",
     "derive_resolver_manifest",
@@ -3355,16 +3246,13 @@ __all__ = [
     "load_candidate_configuration",
     "maf_threshold_emission",
     "now_utc",
-    "parse_quality_check_overrides",
-    "parse_store_composition",
-    "read_candidate_metadata",
-    "candidate_source_traits",
+    "read_analysis_metadata",
+    "trait_sources",
     "map_candidate_trait_ontologies",
     "read_genotyping_technologies",
     "read_effect_placeholder_exclusions",
     "read_maf_filter_exempt_analyses",
     "read_resolution_receipt",
-    "read_source_label_map",
     "render_build_yaml",
     "render_release_yaml",
     "render_resolver_manifest",
