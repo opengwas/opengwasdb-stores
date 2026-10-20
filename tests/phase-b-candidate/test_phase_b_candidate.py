@@ -1236,7 +1236,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertIn(f"not found: {missing}", str(caught.exception))
 
     def test_committed_maf_filter_exemptions_resolve_against_the_repo_root(self) -> None:
-        # `source.maf_filter_exempt_analyses` is a repo-root-relative path and the
+        # `release_policy.maf_filter_exempt_analyses` is a repo-root-relative path and the
         # committed table records the operator's reason for each exemption.
         self._set_maf_exempt_analyses(
             "resources/generators/gwas-catalog-eur-hybrid/maf-filter-exemptions.tsv"

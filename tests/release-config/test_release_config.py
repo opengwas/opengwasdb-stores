@@ -15,6 +15,7 @@ Run from the repository root:
 from __future__ import annotations
 
 import copy
+import csv
 import tempfile
 import unittest
 from pathlib import Path
@@ -28,6 +29,7 @@ from manifest_generation.release_config import (
     load_release_config,
 )
 from manifest_generation.selection import SelectionError
+from manifest_generation.source_inventory import frozen_for_release_problems, sha256_file
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -324,6 +326,77 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
             load_release_config(path, REPO_ROOT)
         with self.assertRaises(ReleaseConfigError):
             load_release_config(self.root / "absent.yaml", REPO_ROOT)
+
+
+GENERATORS = REPO_ROOT / "resources" / "generators"
+EUR_HYBRID = GENERATORS / "gwas-catalog-eur-hybrid"
+
+
+def shipped_release_configs() -> list[Path]:
+    return sorted(GENERATORS.glob("*/release-*.yaml"))
+
+
+def bundle_analyses(store_id: str) -> list[str]:
+    with (REPO_ROOT / "stores" / store_id / "analyses.tsv").open(encoding="utf-8") as fh:
+        return [row["analysis_id"] for row in csv.DictReader(fh, delimiter="\t")]
+
+
+class ShippedReleaseConfigTests(unittest.TestCase):
+    """Every committed release config loads and names a frozen inventory that is its own."""
+
+    def test_every_shipped_release_config_loads_and_its_inventory_is_its_own(self) -> None:
+        configs = shipped_release_configs()
+        self.assertGreaterEqual(len(configs), 3)
+        for path in configs:
+            with self.subTest(config=path.name):
+                config = load_release_config(path, REPO_ROOT)
+                provenance = yaml.safe_load(config.inventory_provenance_path.read_text(encoding="utf-8"))
+                self.assertEqual(
+                    frozen_for_release_problems(provenance, config.inventory_provenance_path, config),
+                    [],
+                )
+                self.assertEqual(
+                    provenance["inventory_tsv_sha256"], sha256_file(config.inventory_path)
+                )
+                self.assertTrue(config.canonical_trait_mapping_table.is_dir())
+
+    def test_the_ogs_00011_config_reproduces_its_inventory_and_resolver_settings(self) -> None:
+        from manifest_generation.candidate_workflow import (
+            load_candidate_configuration,
+            resolver_settings,
+        )
+
+        path = EUR_HYBRID / "release-eur-hybrid-full.yaml"
+        config = load_candidate_configuration(path, REPO_ROOT)
+        # The shared freeze of this Selection is the candidate-table freeze's
+        # inventory, byte for byte.
+        self.assertEqual(
+            config.base.inventory_path.read_bytes(),
+            (REPO_ROOT / "resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv").read_bytes(),
+        )
+        self.assertTrue(config.require_maf_filtered)
+        self.assertEqual(config.target_ancestry, "EUR")
+        self.assertEqual(len(config.effect_placeholder_exclusions), 27)
+        self.assertEqual(set(config.maf_filter_exempt_analyses), {"GCST90428462", "GCST90428463"})
+        # The resolver is passed exactly the settings OGS-00011 was resolved
+        # under, so its Resolution Records are reused rather than re-measured.
+        release = yaml.safe_load((REPO_ROOT / "stores/OGS-00011/release.yaml").read_text())
+        resolved = next(
+            command for command in release["generator"]["commands"]
+            if command.startswith("opengwasdb resolve-analyses")
+        ).split()
+        settings = resolved[4:resolved.index("--n-workers")]
+        self.assertEqual(resolver_settings(config), settings)
+
+    def test_the_pilot_configs_select_exactly_their_trial_store_releases(self) -> None:
+        for name, store_id in (
+            ("release-eur-hybrid-pilot-10.yaml", "OGS-00004"),
+            ("release-eur-hybrid-quant-pilot-10.yaml", "OGS-00005"),
+        ):
+            with self.subTest(config=name):
+                config = load_release_config(EUR_HYBRID / name, REPO_ROOT)
+                self.assertEqual(config.selection.form, "analyses")
+                self.assertEqual(sorted(config.selection.analyses), sorted(bundle_analyses(store_id)))
 
 
 if __name__ == "__main__":

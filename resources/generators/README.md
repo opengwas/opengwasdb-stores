@@ -6,8 +6,9 @@ Collection. Its machinery is the `manifest_generation` package under
 directory holds its **inputs**:
 
 ```text
-<generator>/           a generator's configs, reviewed tables, generation-*.yaml
-                       receipts and README
+<generator>/           release configs (release-*.yaml, docs/spec/release-config.md),
+                       a legacy generator's configs, reviewed tables,
+                       generation-*.yaml receipts and README
 <family-id>/generate.R legacy R generators, until epic #282 retires them
 lib/*.R                the legacy R generators' shared helpers
 lib/metadata_resolvers/    their metadata resolvers
@@ -18,9 +19,11 @@ Recorded config paths and receipts resolve here, so these files do not move.
 The code that reads them:
 
 ```text
-src/manifest_generation/              the shared pipeline: candidate workflow,
-                                      generate_candidate (entry point), inventory
-                                      (freeze/preflight), emit, generation_rules
+src/manifest_generation/              the shared pipeline: release_config,
+                                      candidate workflow, generate_candidate (the
+                                      entry point for any release config), freeze
+                                      and inventory (freeze/preflight), emit,
+                                      generation_rules
 src/manifest_generation/providers/    per-Source-Provider connectors:
   gwas_catalog/   EBI downloads; the OGS-00011 orientation rescue; imputation-score
                   declarations; ancestry assignment for the R GWAS-SSF Ragged generators

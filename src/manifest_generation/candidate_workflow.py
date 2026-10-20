@@ -468,7 +468,7 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
 
 
 #: The exact reviewed MAF-floor exemption table header
-#: (``source.maf_filter_exempt_analyses``); see ``analysis_maf_threshold``.
+#: (``release_policy.maf_filter_exempt_analyses``); see ``analysis_maf_threshold``.
 MAF_FILTER_EXEMPTION_COLUMNS: tuple[str, ...] = ("analysis_id", "reason")
 
 
@@ -486,7 +486,7 @@ def read_maf_filter_exempt_analyses(path: Path | None) -> dict[str, str]:
 
 
 #: The exact reviewed effect-placeholder exclusion table header
-#: (``source.effect_placeholder_exclusions``); same shape as the MAF exemptions.
+#: (``release_policy.effect_placeholder_exclusions``); same shape as the MAF exemptions.
 EFFECT_PLACEHOLDER_EXCLUSION_COLUMNS: tuple[str, ...] = MAF_FILTER_EXEMPTION_COLUMNS
 
 
@@ -643,10 +643,10 @@ def read_genotyping_technologies(yaml_file: str) -> list[str]:
 def analysis_maf_threshold(row: SourceInventoryRow, config: CandidateConfiguration) -> str:
     """The manifest ``maf_threshold`` for one Analysis: the default or ``NaN``.
 
-    An Analysis is exempt when ``source.maf_filter_exempt_analyses`` lists it
+    An Analysis is exempt when ``release_policy.maf_filter_exempt_analyses`` lists it
     (the operator's reviewed reason is carried into the resolution receipt), or
     when it has non-empty technology metadata and *every* technology is in
-    ``source.maf_filter_exempt_genotyping_technologies``. Missing technology
+    ``release_policy.maf_filter_exempt_genotyping_technologies``. Missing technology
     metadata is never an exemption (#176).
     """
     if config.maf_threshold is None:

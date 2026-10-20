@@ -1,63 +1,53 @@
-# gwas-catalog-eur-hybrid (Phase B)
+# gwas-catalog-eur-hybrid
 
-Phase B entry point for the EBI GWAS Catalog `hybrid__European` pool: the
-`gwas-catalog-ssf` Source Collection's European-ancestry Hybrid Store Family
-(issue #150).
+Manifest Generation inputs for the EBI GWAS Catalog `hybrid__European` pool:
+the `gwas-catalog-ssf` Source Collection's European-ancestry Hybrid Store
+Releases (issue #150). Every release here runs through the one shared pipeline
+(ADR 0036, #287); this directory holds only its release configs and reviewed
+tables.
 
 ```text
-inventory.py                freeze + preflight for this family's Source Inventory (issue #151)
-config-full.yaml            the full-release Phase B configuration
-derive_score_declarations.py  derive the reviewed score declarations from source headers (#176)
-score-declarations.tsv      the committed derivation output (config-full.yaml consumes it)
+release-eur-hybrid-full.yaml           OGS-00011's release config (docs/spec/release-config.md)
+release-eur-hybrid-pilot-10.yaml       the OGS-00004 case-control Trial Store Release's Selection
+release-eur-hybrid-quant-pilot-10.yaml the OGS-00005 quantitative Trial Store Release's Selection
+score-declarations.tsv                 reviewed INFO score declarations (derive_score_declarations.py, #176)
+maf-filter-exemptions.tsv              reviewed per-Analysis MAF-floor exemptions (#176)
+effect-placeholder-exclusions.tsv      reviewed effect-placeholder listing (#285)
+config-full.yaml, config-pilot-10.yaml, config-quant-pilot-10.yaml
+                                       pre-#287 configs, kept unchanged as the history
+                                       OGS-00011, OGS-00004 and OGS-00005 cite
 ```
 
-## The full release (issue #150)
+## The connectors and the frozen inventory
 
-`config-full.yaml` declares the release this family is working toward: every
-ready Analysis in the frozen Source Inventory at
-`resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-10.tsv`, resolved
-through AF-based ancestry assignment and phenotype-SD effect-scale estimation.
-It is Phase B only — it never declares how to build a Store.
+The Source Collection plugs in through two connector files
+([source connectors](../../../docs/spec/source-connectors.md)):
 
 ```sh
-# 0. (Optional) re-attempt non-ready rows first -- see "The rescue pass" below.
-# 1. Freeze the inventory (writes resources/inventories/<snapshot-id>.{tsv,meta.yaml}).
-pixi run inventory-freeze
+# The Source Metadata Table, from resources/scripts/ebi-studies.r's candidate table:
+pixi run python3 -m manifest_generation.providers.gwas_catalog.source_metadata_adapter \
+  --candidates resources/data/derived/store-candidates-analyses.tsv \
+  --out <dir>/gwas-catalog-ssf.source-metadata.tsv
 
-# 2. Prove the frozen snapshot before spending hours on resolution.
-pixi run preflight
-
-# 3. Review the machine-readable report preflight wrote.
-#    <work_root>/preflight/<snapshot-id>.json
+# The Acquisition Manifest, overlaying the download passes earliest first:
+pixi run python3 -m manifest_generation.providers.gwas_catalog.write_acquisition_manifest \
+  --pass base=/data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-manifest.tsv \
+  --pass retry_transient=/data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-retry-transient-manifest.tsv \
+  --pass rescue_upstream_harmonised=/data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-rescue-upstream-harmonised-manifest.tsv \
+  --out <dir>/gwas-catalog-ssf-eur-hybrid.acquisition-manifest.tsv
 ```
 
-Both commands default to `config-full.yaml`; pass `--config` to point them at a
-different release configuration, `--cores` to lower the planned worker count,
-`--inventory`/`--provenance` to preflight a different snapshot, or
-`--snapshot-id`/`--out-dir`/`--candidates` to freeze a later one.
-
-`inventory-freeze` needs the generated candidate table
-(`resources/data/derived/store-candidates-analyses.tsv`), which is not tracked in
-git: run `Rscript resources/scripts/ebi-studies.r` first, or pass `--candidates`
-with this host's copy. Everything else it reads is either tracked or an
-acquisition manifest under the mirror.
-
-```sh
-# A later snapshot, re-frozen after more acquisition, still accounting the same
-# candidate pool. `--manifest` is repeatable and REPLACES the configured passes
-# entirely; order is the precedence rule, so the last pass wins for any
-# analysis_id it covers:
-pixi run python3 -m manifest_generation.inventory freeze \
-  --snapshot-id gwas-catalog-ssf-eur-hybrid-2026-10-01 \
-  --manifest base=/data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-manifest.tsv \
-  --manifest retry_transient=/data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-retry-transient-manifest.tsv \
-  --candidates resources/data/derived/store-candidates-analyses.tsv
-```
-
-Re-freezing does not change which Analyses an earlier snapshot selected; it
-creates a new snapshot that the config must then be pointed at. `freeze` refuses
-to run if a later pass would turn an already-ready Analysis into a non-ready one,
-because that would silently drop a release member.
+A release config whose `source_collection.connectors` names them freezes its
+Selection with `pixi run inventory-freeze --config <release config>` (or the
+entry point's `freeze` stage) into `resources/inventories/`, and preflights it
+with `pixi run preflight --config <release config>`. The three release configs
+here name only their committed frozen snapshots
+(`gwas-catalog-ssf-eur-hybrid*-2026-10-20`), frozen on 2026-10-20 from the
+candidate table the 2026-09-22 snapshot froze against (sha256 `aef4dbe2...`) and
+the three passes it overlaid. The full release's inventory TSV is byte-identical
+to `gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv`. A later acquisition, or a
+changed Selection, is a re-freeze under a new snapshot id with `connectors`
+naming the new files.
 
 ### The rescue pass (issue #151)
 
@@ -104,19 +94,20 @@ permanent absence, not a transfer that could be retried.
 
 ## Candidate generation (issue #153)
 
-The Phase B candidate workflow turns the frozen Source Inventory into a
+The shared pipeline turns the frozen Source Inventory into a
 **candidate** Release Bundle (`stores/OGS-xxxxx/`, `status: candidate`). It runs
 preflight, derives the canonical resolver manifest, invokes
 `opengwasdb resolve-analyses`, accounts every resolver record, applies the
 registry's membership/exclusion policy, and emits the bundle through the shared
 emitter (`src/manifest_generation/emit.py`), which checks it against the
 Release Bundle contract and replaces only an earlier candidate. It never
-builds, validates or accepts a Store, and it never invokes Phase A.
+builds, validates or accepts a Store, and it never invokes Store Release Build.
 
 ```sh
-# Preflight, resolve, verify and emit in one run; rerunning it reuses records:
+# Freeze, preflight, resolve, verify, render and emit in one run; rerunning it
+# reuses the frozen inventory and every matching Resolution Record:
 pixi run generate-candidate OGS-00011 \
-  --config resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
+  --config resources/generators/gwas-catalog-eur-hybrid/release-eur-hybrid-full.yaml \
   --cores 64
 ```
 
@@ -158,24 +149,19 @@ receipt names (also how `workflow/generate.smk` wires the coarse DAG):
 
 | Stage | What it proves / produces |
 |---|---|
+| `freeze` | Finds the frozen inventory the release config names and proves it was frozen for this Source Collection and Selection, or freezes it from `source_collection.connectors`. Writes `<work-root>/OGS-xxxxx/freeze/<snapshot>.json`. |
 | `preflight` | The frozen inventory still matches the mirror, the declared Reference Resources exist, and every study design has a method tier. Writes `<work-root>/OGS-xxxxx/preflight/<snapshot>.json`. |
-| `prepare` | The canonical resolver manifest from the frozen exact `data_file` paths and the per-design method tiers. |
+| `prepare` | The canonical resolver manifest from the frozen exact `data_file` paths, the per-design method tiers and the frozen Source Metadata Table. |
 | `resolve` | Invokes `opengwasdb resolve-analyses` into the collection's Resolution Area, keeps the Selection's records there, and writes `index.json`, `resolve.log` and the `resolution_receipt.json` that names those records and binds the run to its contract. |
 | `verify` | Reads exactly the records the receipt names and requires the current contract, every record checksum and every record digest to match it; refuses a missing, stale, edited, duplicate or incompatible-schema record, or one outside the Selection. |
-| `emit` | Maps every Analysis's Trait Ontology (#286), applies release policy, checks the pinned schema, and emits `stores/OGS-xxxxx/` through the shared emitter, which runs `bundle.check()`. |
+| `render` | Maps every Analysis's Trait Ontology (#286) from the frozen Source Metadata Table and the config's Canonical Trait Mapping Table, applies release policy, checks the pinned schema, and writes the bundle into `<work-root>/OGS-xxxxx/bundle/`. |
+| `emit` | Emits the rendered bundle into `stores/OGS-xxxxx/` through the shared emitter, which runs `bundle.check()`. |
 | `all` | Default: every stage in order. |
 
 Useful options: `--registry-root` (default `stores/`), `--work-root` (default
-`output.work_root`), `--resolution-root` (default `OPENGWASDB_RESOLUTION_ROOT`,
-else `ogstores.yaml`), `--canonical-trait-mapping-table` (default
-`resources/reference-resources/canonical-trait-mapping-efo/`), and `--inventory`
-/ `--provenance` / `--candidates` overrides.
-
-The Trait Ontology Mapping reads its source terms from the frozen Source
-Metadata Table when the inventory was frozen by `manifest_generation.freeze`
-(#283). The 2026-09-22 inventory predates that, so its source terms come from
-the candidate table's `MAPPED_TRAIT_URI`/`MAPPED_TRAIT` until #287 re-freezes
-it.
+`output.work_root`) and `--resolution-root` (default `OPENGWASDB_RESOLUTION_ROOT`,
+else `ogstores.yaml`). The Canonical Trait Mapping Table is the release config's
+`trait_ontology_mapping` resource.
 
 A standalone `--stage verify` or `--stage emit` requires the
 `resolution_receipt.json` a successful `resolve` wrote. The receipt binds the
@@ -258,7 +244,7 @@ reader's `effect_allele_frequency` nor a look-alike name becomes INFO. An
 Analysis with no resolver evidence is reported as unavailable, not as filtered
 or quality-passing. Legacy bundles without the column remain valid.
 
-An optional `source.imputation_score_declarations` path may point to an
+An optional `release_policy.imputation_score_declarations` path may point to an
 explicit, reviewed TSV (relative to the repository root or absolute). It must
 have **exactly** these headers in order:
 
@@ -271,7 +257,7 @@ name is the exact, case-sensitive source header (no normalization); the kind is
 `imputation_info` or `imputation_r2`; provenance must cite independent provider
 semantic evidence (e.g. a provider data dictionary), not a header guess or
 MAF/EAF. Unknown IDs, duplicate IDs, malformed rows and unsupported kinds fail
-prepare. `config-full.yaml` sets this path to the committed
+prepare. `release-eur-hybrid-full.yaml` sets this path to the committed
 `score-declarations.tsv` (derived below). An Analysis absent from the table
 passes literal `NaN` and empty declaration columns to the resolver. A mapped
 Analysis passes the requested numeric threshold (including `0`) and the exact
@@ -312,7 +298,7 @@ numeric threshold.
 
 ### Deriving the score declarations (#176)
 
-`config-full.yaml` sets `source.imputation_score_declarations` to the committed
+`release-eur-hybrid-full.yaml` sets `release_policy.imputation_score_declarations` to the committed
 `score-declarations.tsv`, which `derive_score_declarations.py` derives
 deterministically from the header of every ready inventory row:
 
@@ -335,14 +321,14 @@ than hand-editing the TSV.
 frozen inventory's `yaml_file` metadata decides the per-Analysis exemption: an
 Analysis is exempt (emitting literal `NaN`) only when its
 `genotyping_technology` list is non-empty and **every** technology appears in
-`source.maf_filter_exempt_genotyping_technologies`; missing technology metadata
-is never an exemption. `config-full.yaml` sets `maf_threshold: 0.005` and
+`release_policy.maf_filter_exempt_genotyping_technologies`; missing technology metadata
+is never an exemption. `release-eur-hybrid-full.yaml` sets `maf_threshold: 0.005` and
 exempts `Whole genome sequencing` and `Exome-wide sequencing` (operator
 decision, #176): the 158 sequencing-only Analyses carry no MAF floor because
 their low-frequency calls are observed rather than imputed, while an Analysis
 that also lists a genotyping array is filtered.
 
-An optional `source.maf_filter_exempt_analyses` path may point to a reviewed TSV
+An optional `release_policy.maf_filter_exempt_analyses` path may point to a reviewed TSV
 (relative to the repository root or absolute) that exempts individual Analyses
 with a recorded reason. It must have **exactly** these headers in order:
 
@@ -352,7 +338,7 @@ analysis_id\treason
 
 Each `analysis_id` must be non-empty and occur at most once, and `reason` must
 be non-empty; a missing file, a different header, a blank id and a duplicate id
-all fail configuration with the file and line. `config-full.yaml` sets this path
+all fail configuration with the file and line. `release-eur-hybrid-full.yaml` sets this path
 to the committed `maf-filter-exemptions.tsv`, which exempts `GCST90428462` and
 `GCST90428463`: every row of both carries `effect_allele_frequency = 0.0`, a
 placeholder the study metadata's own `minor_allele_freq_lower_limit` (0.01) says
@@ -363,7 +349,7 @@ resolution receipt contract records the exemption file and its
 `analysis_id -> reason` mapping, so changing either makes the receipt stale and
 requires a re-resolve.
 
-An optional `source.effect_placeholder_exclusions` path points to a reviewed
+An optional `release_policy.effect_placeholder_exclusions` path points to a reviewed
 TSV of the same shape and validation (`analysis_id`, `reason`). Each listed
 Analysis is excluded at emit as `effect_placeholder_rows` (category
 `effect_scale`), with its `reason` as the exclusion detail. It exists for
@@ -372,7 +358,7 @@ sources that write an effect they did not estimate as
 survives) with `standard_error` 0. Core derives a missing standard error from
 the effect and the p-value (opengwasdb#236) and refuses only an effect of exactly
 0, so such a row would be stored as an effect of ~0 with a standard error of
-~1e-308. `config-full.yaml` lists the 27 included OGS-00011 Analyses that carry
+~1e-308. `release-eur-hybrid-full.yaml` lists the 27 included OGS-00011 Analyses that carry
 at least one such row in a full-file scan (2026-09-30). Four are almost entirely
 placeholder (`GCST90454200/1`, whose SD then estimates as exactly 0, and
 `GCST90565871/2`); the other 23 have fewer than 0.5% of rows affected. This is
@@ -396,7 +382,7 @@ number in `[0, 0.5]`.
 
 ### Store composition (#203)
 
-`store_composition.require_maf_filtered` is an optional Phase B generator-config
+`release_policy.store_composition.require_maf_filtered` is an optional release-config
 rule deciding whether a shared Store may admit an Analysis with no applied MAF
 floor. Absent or `false`, membership is unchanged; `true` requires a positive
 `defaults.maf_threshold` and adds one gate after every other membership decision:
@@ -408,7 +394,7 @@ the variant reference. An Analysis excluded for any other reason keeps that
 reason.
 
 The rule exists because the 148 included Analyses the sequencing exemption
-leaves unfiltered in `config-full.yaml` (97 WGS and 51 WES) carry 49,537,183
+leaves unfiltered in `release-eur-hybrid-full.yaml` (97 WGS and 51 WES) carry 49,537,183
 Overflow variants -- 32.9 % of `OGS-00011`'s Overflow -- on 63,770,673 rows, and
 49.3 M of the axis's 75.9 M variants below 0.5 % MAF are carried only by them.
 Build and validation scale with that axis (opengwasdb #254), even though the
@@ -449,7 +435,7 @@ registers or builds it. A human reviewer should:
    failure is expected evidence, not necessarily a defect);
 3. resolve the duplicate-content groups in `sidecars/source_readiness.tsv`;
 4. inspect the dense-axis / `--variant-reference` choice for the Hybrid Recipe,
-   which `config-full.yaml` deliberately leaves undeclared (see below);
+   which `release-eur-hybrid-full.yaml` deliberately leaves undeclared (see below);
 5. only then accept the bundle, set `accepted_at`, and let Phase A build it.
 
 A generated candidate is a reviewed git change like any other: commit
@@ -458,7 +444,7 @@ A generated candidate is a reviewed git change like any other: commit
 already written the bundle's generated `summary.yaml`; `index` rewrites it
 identically, so `bundle-check` and the CI clean-tree gate stay green.
 
-`config-full.yaml`'s `build` block declares the reader capability and assembly
+`release-eur-hybrid-full.yaml`'s `build` block declares the reader capability and assembly
 but no `variant-reference`/`reference-panel`: the full release's Dense-Component
 axis is a Reference Resource decision for acceptance, and inventing a host path
 would bind the candidate to one machine. The candidate is schema-valid and
@@ -473,7 +459,7 @@ are finalized and ratified on empirical concordance evidence:
    `extraction_panel: null`). `qc-panel-hg38` was evaluated on the preregistered 106-Analysis sample
    and rejected due to failing the genome-wide concordance gate (95.1% < 98.0% threshold) caused
    by overlap drop on non-standard arrays. Full evidence is in `docs/qc-panel-concordance-report.md`.
-2. **Reference-AF Fallback Policy:** Adopt Option 3 (**Source-AF-Only**). `config-full.yaml` sets
+2. **Reference-AF Fallback Policy:** Adopt Option 3 (**Source-AF-Only**). `release-eur-hybrid-full.yaml` sets
    `effect_scale_validation.reference_resources: []`. Quantitative Analyses lacking usable source AF
    receive an explicit `skipped` resolution (`no_reference_resource_for_ancestry`) and are excluded from
    candidate release membership rather than estimated against an absent panel.
@@ -505,7 +491,7 @@ pixi run --environment dev concordance-run --cores 64 \
 ### Reference-AF Fallback Policy
 
 This release adopts an explicit **Source-AF-Only** policy:
-- `config-full.yaml` sets `effect_scale_validation.reference_resources: []`.
+- `release-eur-hybrid-full.yaml` sets `effect_scale_validation.reference_resources: []`.
 - Quantitative Analyses lacking usable source AF receive an explicit `skipped`
   resolution with reason `no_reference_resource_for_ancestry` and are excluded
   from the candidate manifest.

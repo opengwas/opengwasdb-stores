@@ -1,0 +1,185 @@
+# Release config for the EBI GWAS Catalog hybrid__European release (OGS-00011).
+#
+# The release config schema is docs/spec/release-config.md (#287). This file
+# replaces config-full.yaml for every new run; config-full.yaml stays unchanged
+# because OGS-00011's generator.commands cite it.
+#
+# Membership comes from the frozen Source Inventory named below, never from a
+# glob over the acquisition mirror (/data/opengwasdb/raw/ebi-gwas-catalog,
+# ~1.8 TB, never copied). That snapshot is the shared freeze (#283) of the
+# GWAS Catalog's two connector files for this Selection:
+#   - the Source Metadata Table the GWAS Catalog adapter writes from
+#     resources/scripts/ebi-studies.r's candidate table (sha256 aef4dbe2...,
+#     the table the 2026-09-22 snapshot froze against);
+#   - the Acquisition Manifest the GWAS Catalog writer overlays from the three
+#     download passes the 2026-09-22 snapshot froze (base, retry_transient,
+#     rescue_upstream_harmonised).
+# Their selected rows are frozen beside the inventory and checksummed into its
+# provenance, so this config names only the frozen snapshot: a new acquisition
+# or a changed Selection is a re-freeze under a new snapshot id, with
+# source_collection.connectors naming the new connector files.
+
+release_config_version: 1
+
+label: eur-hybrid-full
+access_posture: public
+description: >
+  Every ready Analysis in the hybrid__European candidate pool of the EBI GWAS
+  Catalog harmonised GWAS-SSF Source Collection, resolved through AF-based
+  ancestry assignment and phenotype-SD effect-scale estimation. Mixed study
+  designs: quantitative Analyses carry an empirically estimated phenotype SD,
+  and case-control Analyses are stored on the log-OR scale with SD estimation
+  explicitly skipped rather than defaulted.
+notes: >
+  The candidate pool is 6,035 Analyses across 1,007 publications. Only the
+  subset the frozen Source Inventory records as ready becomes release membership;
+  the remaining inputs stay inventory facts and are never selected. Two
+  accession pairs are byte-identical under different accessions and are reported
+  for an explicit review decision instead of being silently collapsed
+  (`sidecars/source_readiness.tsv` and `duplicates` in the preflight report).
+
+source_collection:
+  source_collection_id: gwas-catalog-ssf
+  inventory:
+    # Re-frozen by the shared freeze on 2026-10-20 (#287). Its inventory TSV is
+    # byte-identical to gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv, which the
+    # candidate-table freeze wrote and OGS-00011 was built from.
+    snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-10-20
+    directory: resources/inventories
+
+# Every Analysis the candidate table's curation groups as hybrid__European
+# (its ancestry_group is European for all 6,035).
+selection:
+  where:
+    store_key: hybrid__European
+
+# The observed-only Hybrid Build Recipe the candidate carries (issue #153).
+# It is a registry fact plus opengwasdb flags: the artifact root is deployment
+# configuration, never a bundle field (issue #126), and `command` names a
+# subcommand, never an import path (ADR 0023).
+build:
+  layout: hybrid
+  completion_state: observed_only
+  command: build-hybrid
+  options:
+    # The Dense Component axis: gnomAD v4.1 common variants at MAF >= 1%
+    # (13,415,936 ALIDs; chr1-22, X, Y, MT), declared by
+    # resources/reference-resources/gnomad-v4-common-hg38. The X, Y and MT rows
+    # do not resolve yet (opengwas/opengwasdb#216) and route to the Ragged
+    # Overflow.
+    variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz
+    # Pass 2 forks only when this is > 1; a Hybrid build reads every row. 24,
+    # not 32: throughput is flat above 8 workers (#154) and the build shares the
+    # host. --checkpoint lets a failed build --resume (#227).
+    n-workers: 24
+    checkpoint: true
+    source-reader-capability: opengwasdb.gwas-ssf
+    source-assembly: hg38
+  post:
+    top_hits: false
+    overview: true
+
+defaults:
+  # Collection-wide facts the GWAS Catalog adapter does not write (#283): the
+  # build of EBI's harmonised files and the EBI GWAS Catalog terms of use.
+  source_genome_build: GRCh38
+  license: EBI GWAS Catalog terms of use
+  sample_size_scope: analysis_level
+  # Requested INFO floor once a per-Analysis declaration and resolver evidence
+  # prove a usable score (#175); explicit 0 disables filtering.
+  info_score_threshold: 0.6
+  # Requested per-Analysis MAF floor (#176), emitted only on resolver evidence.
+  # 0.005 is the operator's choice for this release, independent of the
+  # Dense-Component panel's own MAF >= 1% axis.
+  maf_threshold: 0.005
+  # One method tier per study design: this release mixes designs, so a single
+  # stored_effect_scale cannot describe both. A ready Analysis whose design has
+  # no tier fails preflight.
+  by_study_design:
+    quantitative:
+      stored_effect_scale: sd
+      original_effect_scale: sd
+      # Source-provided allele frequencies (ADR 0019); a quantitative Analysis
+      # whose source AF is unusable is excluded, not estimated against a
+      # reference this release does not declare.
+      original_sd_method: estimated_from_source_maf
+      sample_size_kind: total
+    case-control:
+      stored_effect_scale: log_or
+      original_effect_scale: log_or
+      original_sd_method: binary_trait
+      sample_size_kind: case_control
+
+release_policy:
+  # The Assigned Ancestry check tests each Analysis against this; it never
+  # moves an Analysis (ADR 0036).
+  selection_superpopulation: EUR
+  # Store composition (issue #203, ADR 0033): a shared Store admits only
+  # Analyses whose rows were MAF-filtered; the 148 sequencing Analyses exempted
+  # below are excluded as not_maf_filtered and belong in a separate Store.
+  store_composition:
+    require_maf_filtered: true
+  # Reviewed per-Analysis provider score declarations (#176), derived by
+  # derive_score_declarations.py.
+  imputation_score_declarations: resources/generators/gwas-catalog-eur-hybrid/score-declarations.tsv
+  # Sequencing-only studies are exempt from the MAF floor (#176, 2026-09-28):
+  # their low-frequency calls are observed, not imputed. An Analysis that also
+  # lists an array is still filtered.
+  maf_filter_exempt_genotyping_technologies:
+    - Whole genome sequencing
+    - Exome-wide sequencing
+  # GCST90428462 and GCST90428463 carry effect_allele_frequency 0.0 on every
+  # row, which core reads as missing (#176, 2026-09-29).
+  maf_filter_exempt_analyses: resources/generators/gwas-catalog-eur-hybrid/maf-filter-exemptions.tsv
+  # The 27 included Analyses with a +-2.2250738585072014e-308 placeholder
+  # effect, excluded as effect_placeholder_rows until core refuses it (#285).
+  effect_placeholder_exclusions: resources/generators/gwas-catalog-eur-hybrid/effect-placeholder-exclusions.tsv
+
+reference_resources:
+  - resource_id: ukb-ancestry-mixture-hg38
+    kind: ancestry_mixture
+    ancestry: multi
+    super_populations: [AFR, AMR, EAS, EUR, MID, NAF, SAS]
+    genome_build: GRCh38
+    variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+    location: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
+    location_kind: external_file
+    fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+    # Canonical declaration: resources/reference-resources/ukb-ancestry-mixture-hg38/resource.yaml
+  - resource_id: canonical-trait-mapping-efo
+    kind: trait_ontology_mapping
+    location: resources/reference-resources/canonical-trait-mapping-efo
+    location_kind: tracked_directory
+    version: "3"
+
+ancestry_assignment:
+  reference_resource_id: ukb-ancestry-mixture-hg38
+  maf_floor: 0.01
+  # Method A, the full 5.8M reference scan, is retained: the 10k qc-panel-hg38
+  # failed the preregistered concordance gate (#152,
+  # docs/qc-panel-concordance-report.md).
+  extraction_panel: null
+  gates:
+    tau: 0.50
+    delta: 0.20
+    n_min: 5000
+    residual_max: 0.06
+
+effect_scale_validation:
+  maf_min: 0.01
+  maf_max: 0.5
+  dispersion_max: 0.5
+  # Source-AF-only (#152, Option 3): no reference-AF fallback is declared, so a
+  # quantitative Analysis lacking usable source AF is excluded.
+  reference_resources: []
+
+trait_ontology_mapping:
+  reference_resource_id: canonical-trait-mapping-efo
+
+runtime:
+  # Issue #150 caps this release at 64 cores; preflight refuses more.
+  cores: 64
+  min_free_gb: 50
+
+output:
+  work_root: /data/opengwasdb/work/gwas-catalog-eur-hybrid

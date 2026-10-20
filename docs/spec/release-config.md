@@ -144,7 +144,7 @@ description: >
 source_collection:
   source_collection_id: gwas-catalog-ssf
   inventory:
-    snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-10-19
+    snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-10-20
     directory: resources/inventories
 
 selection:

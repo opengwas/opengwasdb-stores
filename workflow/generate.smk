@@ -29,7 +29,7 @@ any release config, and `snapshot_id` its `source_collection.inventory.snapshot_
     snakemake --snakefile workflow/generate.smk --cores 64 \
       --config store_id=OGS-00011 \
                config=resources/generators/gwas-catalog-eur-hybrid/release-eur-hybrid-full.yaml \
-               snapshot_id=gwas-catalog-ssf-eur-hybrid-2026-10-19 \
+               snapshot_id=gwas-catalog-ssf-eur-hybrid-2026-10-20 \
                work_root=/data/opengwasdb/work/gwas-catalog-eur-hybrid \
                registry_root=stores
 

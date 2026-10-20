@@ -433,7 +433,7 @@ BUILT_IN_CHECKS: tuple[QualityCheck, ...] = (
         stage=Stage.RESOLVED,
         measures=(
             "rows whose effect is the +/-2.2e-308 placeholder, from the reviewed "
-            "source.effect_placeholder_exclusions listing until core counts them"
+            "release_policy.effect_placeholder_exclusions listing until core counts them"
         ),
         evaluate=_effect_placeholder_rows,
         reasons=("effect_placeholder_rows",),

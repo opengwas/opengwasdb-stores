@@ -319,7 +319,7 @@ therefore also carry `source_reader_capability` = `opengwasdb.gwas-ssf`. The
 Phase B candidate generator writes that column on every row.
 
 For the Phase B GWAS Catalog EUR Hybrid candidate generator, a separate optional
-`source.imputation_score_declarations` TSV supplies explicit, independently
+`release_policy.imputation_score_declarations` TSV supplies explicit, independently
 sourced per-Analysis score semantics to the **resolver input**. Its exact
 headers are `analysis_id`, `imputation_score_column`,
 `imputation_score_kind`, `imputation_score_provenance`; kinds are
@@ -338,7 +338,7 @@ entirely.
 The MAF floor is a `defaults.maf_threshold` release decision applied per
 Analysis: an Analysis is exempt (and emits `NaN`) when its source metadata
 YAML's `genotyping_technology` list is non-empty and every technology is in
-`source.maf_filter_exempt_genotyping_technologies`; missing technology
+`release_policy.maf_filter_exempt_genotyping_technologies`; missing technology
 metadata is never an exemption. The resolver manifest carries the derived
 `maf_threshold` per Analysis and the resolver record's `maf_state` plus its
 fingerprint binding decide the emitted candidate value, exactly as for INFO.
@@ -808,7 +808,7 @@ The `<check>` column pairs follow the registry's order. The built-in checks are:
 | Check | Kind | Stage | Measures | Default threshold | Fails when | Reasons |
 |---|---|---|---|---|---|---|
 | `build_eligible_rows` | exclusion | `resolved` | the record's `diagnostics.build_eligible_rows` (rows with a finite effect and positive standard error, after any INFO and MAF floor); `unmeasured` when absent, `invalid` when not a non-negative integer | `1` (minimum rows) | fewer rows than the threshold | `no_build_eligible_rows` |
-| `effect_placeholder_rows` | exclusion | `resolved` | the reviewed `source.effect_placeholder_exclusions` listing, because OpenGWASDB does not count placeholder rows yet (ADR 0036, clarified by #285); `_measured` is the listing's reason, or `not_listed` | none | the Analysis is listed | `effect_placeholder_rows` |
+| `effect_placeholder_rows` | exclusion | `resolved` | the reviewed `release_policy.effect_placeholder_exclusions` listing, because OpenGWASDB does not count placeholder rows yet (ADR 0036, clarified by #285); `_measured` is the listing's reason, or `not_listed` | none | the Analysis is listed | `effect_placeholder_rows` |
 | `eaf_orientation` | exclusion | `ancestry_read` | the record's `ancestry.eaf_orientation`, `gate_reason` and `eaf_orientation_r`; `passed` and `unverified` pass, no outcome is `unmeasured`, a value outside the vocabulary `invalid` | none | `eaf_orientation = failed` or `gate_reason = eaf_orientation` | `orientation_failure` |
 | `assigned_ancestry` | exclusion | `selection` | the record's `ancestry.assigned_ancestry` against the Selection's super-population (from `source.ancestry_group`, today `EUR`) | none | no assignment, or not a super-population code (`ancestry_unassigned`); a different super-population (`ancestry_not_eur`) | `ancestry_unassigned`, `ancestry_not_eur` |
 | `phenotype_sd` | exclusion | `target_ancestry` | the record's `phenotype_sd` status, reason and estimate; `not_applicable` for `log_or`/`log_hazard`; a non-numeric estimate is `invalid` | none | not a positive finite estimate | `sd_no_qualifying_evidence`, `sd_no_reference_resource_for_ancestry`, `sd_no_usable_sample_size`, `sd_failed` |
