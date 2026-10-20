@@ -86,7 +86,7 @@ The workflow that turns an accepted Release Bundle into a built, validated and p
 _Avoid_: Phase A, release pipeline, build phase
 
 **Release Bundle**:
-The Store Registry directory `stores/<store-id>/` that Manifest Generation and Store Release Build meet at, and the only thing they share: `release.yaml` (identity, lineage, Release Status and provenance), `build.yaml` (the Build Recipe), `analyses.tsv` (the Release Manifest), `validation.yaml` (the Validation Record), and sidecars. Manifest Generation emits it as a candidate, a human accepts it, and Store Release Build consumes it. A candidate and an accepted Release Bundle are the same thing at different Release Statuses.
+The Store Registry directory `stores/<store-id>/` that Manifest Generation and Store Release Build meet at, and the only thing they share: `release.yaml` (identity, lineage, Release Status and provenance), `build.yaml` (the Build Recipe), `analyses.tsv` (the Release Manifest), `validation.yaml` (the Validation Record), sidecars, and, for a Source Collection read through a Column Map, that map (in `column_maps/`, checksummed by the Build Recipe). Manifest Generation emits it as a candidate, a human accepts it, and Store Release Build consumes it. A candidate and an accepted Release Bundle are the same thing at different Release Statuses.
 _Avoid_: Release Manifest Candidate, candidate bundle (as a separate kind), release directory
 
 **Release Manifest**:
