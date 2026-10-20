@@ -1746,8 +1746,14 @@ def build_resolution_receipt(
     argv: Sequence[str],
     settings_digest: str,
     index: Mapping[str, Any],
+    override: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Bind a successful resolver run to its contract and the records it kept.
+
+    ``override`` is the executable that ran in place of the pinned
+    ``opengwasdb`` (its ``path`` and ``sha256``), or ``None``: the
+    verification-only ``--resolver`` flag (#287), recorded so a receipt made by
+    another resolver is never mistaken for the pinned one's.
 
     ``records`` names, in manifest order, each Analysis's kept Resolution Record
     in the Source Collection's resolution area: its fingerprint digest, its
@@ -1785,6 +1791,7 @@ def build_resolution_receipt(
             "settings_digest": settings_digest,
             "opengwasdb_version": index_version,
             "opengwasdb_git_hash": index_git_hash,
+            "override": dict(override) if override is not None else None,
         },
         "contract": contract,
         "resolution_area": str(area.root),

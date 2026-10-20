@@ -930,6 +930,16 @@ owns the process pool, the single genome-scale reference load, and the atomic,
 fingerprint-aware per-Analysis checkpoints. The registry pins that resolver by
 immutable commit in `pixi.toml` rather than vendoring it (ADR 0023).
 
+**`--resolver` is verification-only.** The hidden flag runs another resolver
+executable in place of the pinned one: the hermetic tests' fake resolver, or
+the resolver a past run's records were made with. The OGS-00011 regeneration
+(#287) used it to resume records whose fingerprints carry opengwasdb `a0656c0`
+while the pin is `4e92256`, which would otherwise re-resolve every Analysis. The
+receipt records the override (`resolver.override`: the executable's `path` and
+`sha256`, beside the version and git hash its index reported), and `emit`
+refuses such a receipt into the repository's own `stores/`: a verification run
+emits into a temporary `--registry-root`.
+
 **Resolution Records are kept per Source Collection (#284, ADR 0036).** A
 Resolution Record belongs to the Analysis, not to a Store Release, so a Trial
 Store Release, a full release and each ancestry split of one collection share
@@ -1043,7 +1053,9 @@ invocation the `resolve` stage therefore atomically writes
 - `manifest_sha256` and `analysis_ids`: the resolver manifest's checksum and
   the Selection's Analyses in manifest order;
 - `resolver`: the actual `opengwasdb resolve-analyses` argv, the settings
-  digest, and the opengwasdb version and git hash its index reported;
+  digest, the opengwasdb version and git hash its index reported, and
+  `override`: null, or the `path` and `sha256` of a `--resolver` executable
+  that ran instead of the pinned one;
 - `contract`: the registry-recomputable slice of the resolution contract
   (declared gates, MAF floor, reader capability, extraction panel, ancestry
   reference/group-map and reference-AF resource content fingerprints, and the

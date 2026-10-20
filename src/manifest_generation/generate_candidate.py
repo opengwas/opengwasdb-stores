@@ -141,6 +141,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     # Refused, not ignored: an operator who passes it expects it to mean something.
     parser.add_argument("--resume", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--stage", choices=STAGES + ("all",), default="all")
+    # Verification-only (docs/spec/store-release-workflow.md): run another
+    # resolver executable, such as the one a past run's records were resolved
+    # with (the OGS-00011 regeneration, #287). The receipt records it, and emit
+    # refuses such a receipt into the repository's own registry.
     parser.add_argument("--resolver", default=DEFAULT_RESOLVER_BIN, help=argparse.SUPPRESS)
     parser.add_argument("--repo-root", default=str(REPO_ROOT))
     parser.add_argument("--registry-root", help="registry stores/ directory (default: <repo>/stores)")
@@ -322,12 +326,40 @@ def stage_resolve(pipeline: Pipeline, manifest: list) -> None:
             argv=argv,
             settings_digest=settings_digest,
             index=index,
+            override=resolver_override(pipeline.args.resolver),
         )
         write_resolution_receipt(pipeline.receipt_path, receipt)
     print(
         f"Resolution receipt: {pipeline.receipt_path} ({len(records)} records kept in "
         f"{area.root})"
     )
+
+
+def resolver_override(resolver: str) -> dict[str, str] | None:
+    """The receipt's record of a ``--resolver`` override: the executable's path and sha256."""
+    if resolver == DEFAULT_RESOLVER_BIN:
+        return None
+    path = Path(shutil.which(resolver) or resolver)
+    if not path.is_file():
+        raise CandidateError(f"--resolver {resolver!r} is not an executable file")
+    return {"path": str(path), "sha256": sha256_file(path)}
+
+
+def refuse_overridden_resolver(receipt: dict, *, registry_root: Path, repo_root: Path) -> None:
+    """Refuse a receipt another resolver made from the repository's own registry.
+
+    ``--resolver`` exists for verification runs into a temporary registry; a
+    candidate in ``stores/`` is decided by the pinned resolver (ADR 0032).
+    """
+    override = (receipt.get("resolver") or {}).get("override")
+    if override is None:
+        return
+    if Path(registry_root).resolve() == (Path(repo_root) / "stores").resolve():
+        raise CandidateError(
+            f"the resolution receipt was made by --resolver {override.get('path')!r}, not the "
+            "pinned opengwasdb: it is verification-only and may not emit into the "
+            f"repository's registry {registry_root}; emit into a temporary --registry-root"
+        )
 
 
 def stage_verify(pipeline: Pipeline, manifest: list) -> tuple[list, dict]:
@@ -480,6 +512,11 @@ def write_rendered(candidate: CandidateBundle, directory: Path) -> None:
 
 
 def stage_emit(pipeline: Pipeline, candidate: CandidateBundle, tables: CandidateTables) -> Path:
+    refuse_overridden_resolver(
+        read_resolution_receipt(pipeline.receipt_path),
+        registry_root=pipeline.registry_root,
+        repo_root=pipeline.repo_root,
+    )
     emitted = emit(candidate, pipeline.registry_root)
     print(
         f"Candidate {pipeline.store_id} emitted to {emitted} "

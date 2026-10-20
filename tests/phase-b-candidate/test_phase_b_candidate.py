@@ -3146,6 +3146,30 @@ class EntryPointStageTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("names no source_collection.connectors", result.stderr)
 
+    def test_an_overridden_resolver_is_recorded_and_kept_out_of_the_repositorys_registry(
+        self,
+    ) -> None:
+        """--resolver is verification-only: its receipts never reach stores/ (#287 review)."""
+        self.stage("freeze")
+        self.stage("resolve")
+        receipt = _receipt_of(self.fixture)
+        override = receipt["resolver"]["override"]
+        self.assertEqual(override["path"], str(FAKE_RESOLVER))
+        self.assertEqual(override["sha256"], _sha256_bytes(FAKE_RESOLVER.read_bytes()))
+        # Into a temporary registry, as every verification run emits: allowed.
+        generate_candidate.refuse_overridden_resolver(
+            receipt, registry_root=self.fixture.registry_root, repo_root=REPO_ROOT
+        )
+        # Into the repository's own registry: refused before anything is written.
+        with self.assertRaisesRegex(CandidateError, "--resolver"):
+            generate_candidate.refuse_overridden_resolver(
+                receipt, registry_root=REPO_ROOT / "stores", repo_root=REPO_ROOT
+            )
+        pinned = {**receipt, "resolver": {**receipt["resolver"], "override": None}}
+        generate_candidate.refuse_overridden_resolver(
+            pinned, registry_root=REPO_ROOT / "stores", repo_root=REPO_ROOT
+        )
+
     def test_a_legacy_config_is_refused_by_the_entry_point(self) -> None:
         result = _run_cli(
             self.fixture,
