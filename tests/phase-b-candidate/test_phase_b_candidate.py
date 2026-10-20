@@ -3170,6 +3170,49 @@ class EntryPointStageTests(unittest.TestCase):
             pinned, registry_root=REPO_ROOT / "stores", repo_root=REPO_ROOT
         )
 
+    def test_a_receipt_without_the_override_marker_is_kept_out_of_the_repositorys_registry(
+        self,
+    ) -> None:
+        """A receipt from before the marker, or with it stripped, proves no pinned resolver."""
+        markerless = {"resolver": {"argv": ["opengwasdb", "resolve-analyses"]}}
+        with self.assertRaisesRegex(CandidateError, "re-run the resolve stage"):
+            generate_candidate.refuse_overridden_resolver(
+                markerless, registry_root=REPO_ROOT / "stores", repo_root=REPO_ROOT
+            )
+        # A temporary registry may still take it, for verification.
+        generate_candidate.refuse_overridden_resolver(
+            markerless, registry_root=self.fixture.registry_root, repo_root=REPO_ROOT
+        )
+
+    def test_a_relative_resolver_is_resolved_once_for_running_and_recording(self) -> None:
+        """The path recorded is the path run, whatever the caller's working directory."""
+        elsewhere = self.fixture.root / "elsewhere"
+        (elsewhere / "bin").mkdir(parents=True)
+        shutil.copy2(FAKE_RESOLVER, elsewhere / "bin" / "resolver")
+        previous = Path.cwd()
+        os.chdir(elsewhere)
+        try:
+            args = generate_candidate.parse_args(
+                [STORE_ID, "--config", str(self.fixture.config_path), "--resolver", "bin/resolver"]
+            )
+        finally:
+            os.chdir(previous)
+        absolute = str(elsewhere / "bin" / "resolver")
+        self.assertEqual(args.resolver, absolute)
+        self.assertEqual(generate_candidate.resolver_override(args.resolver)["path"], absolute)
+        pipeline = generate_candidate.Pipeline(args, REPO_ROOT, "test")
+        argv = candidate_workflow.resolver_argv(
+            resolver_bin=pipeline.args.resolver,
+            manifest_path=Path("analyses.tsv"),
+            records_dir=Path("records"),
+            config=pipeline.config,
+            cores=1,
+        )
+        self.assertEqual(argv[0], absolute)
+        # The pinned resolver is still found on PATH, by name.
+        pinned = generate_candidate.parse_args([STORE_ID, "--config", str(self.fixture.config_path)])
+        self.assertEqual(pinned.resolver, "opengwasdb")
+
     def test_a_legacy_config_is_refused_by_the_entry_point(self) -> None:
         result = _run_cli(
             self.fixture,

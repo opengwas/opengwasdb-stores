@@ -938,7 +938,12 @@ while the pin is `4e92256`, which would otherwise re-resolve every Analysis. The
 receipt records the override (`resolver.override`: the executable's `path` and
 `sha256`, beside the version and git hash its index reported), and `emit`
 refuses such a receipt into the repository's own `stores/`: a verification run
-emits into a temporary `--registry-root`.
+emits into a temporary `--registry-root`. A receipt into `stores/` must record
+`resolver.override: null`; one without the key -- written before #287, or
+stripped of it -- is refused there too, and re-running the `resolve` stage
+rewrites it while reusing every matching record. A relative `--resolver` path
+is resolved once, against the caller's working directory, and that absolute
+path is both the one run and the one recorded.
 
 **Resolution Records are kept per Source Collection (#284, ADR 0036).** A
 Resolution Record belongs to the Analysis, not to a Store Release, so a Trial

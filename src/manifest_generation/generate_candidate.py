@@ -64,6 +64,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 from dataclasses import replace
@@ -158,6 +159,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--created-at", help=argparse.SUPPRESS)
     parser.add_argument("--frozen-at", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.resolver != DEFAULT_RESOLVER_BIN:
+        # Resolved once, here, against the caller's working directory: the
+        # resolve stage runs it from the repository root, and the receipt
+        # records it, so both must be this one absolute path.
+        found = shutil.which(args.resolver) if os.sep not in args.resolver else args.resolver
+        if found is None or not Path(found).is_file():
+            parser.error(f"--resolver {args.resolver!r} is not an executable file")
+        args.resolver = str(Path(found).resolve())
     if args.resume:
         parser.error(
             "--resume is no longer an option: reuse is automatic (#284). Every run reuses "
@@ -339,9 +348,12 @@ def resolver_override(resolver: str) -> dict[str, str] | None:
     """The receipt's record of a ``--resolver`` override: the executable's path and sha256."""
     if resolver == DEFAULT_RESOLVER_BIN:
         return None
-    path = Path(shutil.which(resolver) or resolver)
-    if not path.is_file():
-        raise CandidateError(f"--resolver {resolver!r} is not an executable file")
+    path = Path(resolver)
+    if not path.is_absolute() or not path.is_file():
+        raise CandidateError(
+            f"--resolver {resolver!r} is not an absolute path to an executable file; "
+            "parse_args resolves it"
+        )
     return {"path": str(path), "sha256": sha256_file(path)}
 
 
@@ -349,12 +361,24 @@ def refuse_overridden_resolver(receipt: dict, *, registry_root: Path, repo_root:
     """Refuse a receipt another resolver made from the repository's own registry.
 
     ``--resolver`` exists for verification runs into a temporary registry; a
-    candidate in ``stores/`` is decided by the pinned resolver (ADR 0032).
+    candidate in ``stores/`` is decided by the pinned resolver (ADR 0032). A
+    receipt into ``stores/`` must therefore say so: ``resolver.override`` null.
+    One without the key, written before #287 or stripped of it, is refused too.
     """
-    override = (receipt.get("resolver") or {}).get("override")
-    if override is None:
-        return
-    if Path(registry_root).resolve() == (Path(repo_root) / "stores").resolve():
+    if Path(registry_root).resolve() != (Path(repo_root) / "stores").resolve():
+        return  # A temporary registry: verification may use any resolver.
+    resolver = receipt.get("resolver")
+    if not isinstance(resolver, dict) or "override" not in resolver:
+        # Written before the marker existed, or stripped of it: nothing shows
+        # the pinned resolver made it.
+        raise CandidateError(
+            "the resolution receipt does not record whether --resolver overrode the pinned "
+            "opengwasdb (resolver.override), so it may not emit into the repository's "
+            f"registry {registry_root}; re-run the resolve stage, which reuses every "
+            "matching record and rewrites the receipt"
+        )
+    override = resolver["override"]
+    if override is not None:
         raise CandidateError(
             f"the resolution receipt was made by --resolver {override.get('path')!r}, not the "
             "pinned opengwasdb: it is verification-only and may not emit into the "
