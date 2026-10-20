@@ -311,6 +311,10 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
             "trust_source_ancestry_without_af": lambda d: d["release_policy"].update(
                 trust_source_ancestry_without_af="yes"
             ),
+            # Only a MAF request makes the record count rows with no frequency.
+            "defaults.maf_threshold": lambda d: d["release_policy"].update(
+                trust_source_ancestry_without_af=True
+            ),
             "cores": lambda d: d.update(runtime={"cores": 0}),
             "source_collection_id": lambda d: d["source_collection"].update(
                 source_collection_id="a/b"

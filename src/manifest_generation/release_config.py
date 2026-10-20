@@ -433,6 +433,12 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
         raise ReleaseConfigError(
             f"{where}.trust_source_ancestry_without_af must be a boolean (true or false)"
         )
+    if trust_source and maf_threshold is None:
+        raise ReleaseConfigError(
+            f"{where}.trust_source_ancestry_without_af needs a defaults.maf_threshold (0 "
+            "filters nothing): only under a MAF request does the Resolution Record count the "
+            "rows with no allele frequency, the evidence that a source has none (#287)"
+        )
     technologies = policy.get("maf_filter_exempt_genotyping_technologies")
     if technologies is None:
         technologies = ()

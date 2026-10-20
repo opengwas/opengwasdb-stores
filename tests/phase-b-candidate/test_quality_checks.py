@@ -804,8 +804,32 @@ class SourceTrustedAncestryWithoutAfTests(unittest.TestCase):
     def no_af_record() -> dict:
         record = _synthetic_resolver_record(assigned_ancestry=None, gate_reason="overlap")
         record["ancestry"]["af_overlap"] = 0
-        record["diagnostics"].update(ancestry_sites=0, ancestry_reference_rows_matched=1500)
+        record["diagnostics"].update(
+            ancestry_sites=0, ancestry_reference_rows_matched=1500,
+            maf_state="disabled", canonical_rows_observed=2000, maf_rows_missing=2000,
+        )
         return record
+
+    def test_frequencies_the_fit_could_not_read_are_not_absent_frequencies(self) -> None:
+        """Palindromic-only, or unusable-SE, sites: no ancestry site, but frequencies (#287 review)."""
+        unreadable = self.no_af_record()
+        unreadable["diagnostics"]["maf_rows_missing"] = 0
+        outcome, finding = self.decide(self.opted_in, unreadable)
+        self.assertEqual(outcome.exclusion_reason, "ancestry_unassigned")
+        self.assertIs(finding.result, Result.FAILED)
+        self.assertNotIn("source_superpopulation", finding.measured)
+        some = self.no_af_record()
+        some["diagnostics"]["maf_rows_missing"] = 1999
+        outcome, _ = self.decide(self.opted_in, some)
+        self.assertEqual(outcome.exclusion_reason, "ancestry_unassigned")
+
+    def test_without_a_maf_request_the_record_proves_no_absence(self) -> None:
+        """The resolver counts rows without a frequency only under a MAF request."""
+        unrequested = self.no_af_record()
+        unrequested["diagnostics"].update(maf_state="unavailable", maf_rows_missing=0)
+        outcome, finding = self.decide(self.opted_in, unrequested)
+        self.assertEqual(outcome.exclusion_reason, "ancestry_unassigned")
+        self.assertIs(finding.result, Result.FAILED)
 
     def test_opted_in_a_no_af_analysis_takes_the_source_super_population(self) -> None:
         outcome, finding = self.decide(self.opted_in, self.no_af_record())

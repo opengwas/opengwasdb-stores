@@ -79,14 +79,17 @@ The rules that make this hold:
 
   *Clarified by #287:* a source with no allele frequencies, such as Sun 2018,
   is still resolved. When its Resolution Record shows ancestry unmeasurable
-  for that reason -- rows on the ancestry reference, not one with a frequency
-  -- a release config may opt in (`release_policy.trust_source_ancestry_without_af`)
+  for that reason -- under a MAF request, every row read counted without a
+  frequency (`maf_rows_missing` equal to `canonical_rows_observed`), and no
+  ancestry site -- a release config may opt in (`release_policy.trust_source_ancestry_without_af`)
   to take the Source Metadata Table's `source_superpopulation` as Assigned
   Ancestry, with Ancestry Assignment Method `source_trusted_no_af`. Each such
   Analysis is a warning-level `assigned_ancestry` Quality Check result, in
   `validation.yaml` and the Quality Check sidecar. Without the opt-in it is
   excluded as `ancestry_unassigned`. A measured ancestry never takes the
-  source label, and a measured disagreement remains an exclusion.
+  source label, and a measured disagreement remains an exclusion; so does a
+  source whose frequencies the fit could not read (palindromic sites only,
+  unusable standard errors), which has frequencies rather than none.
 - **A Resolution Record belongs to the Analysis.** It is kept once per Source
   Collection, keyed by the resolver's fingerprint, and reused by every
   Selection. Each bundle's resolution receipt names the records it used.

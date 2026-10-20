@@ -331,21 +331,42 @@ def _eaf_orientation(subject: Subject, _threshold: None) -> Finding:
     return Finding(Result.UNMEASURED, measured)
 
 
-def no_allele_frequency(record: Mapping[str, Any] | None) -> int | None:
-    """The reference-matched row count when the record shows a source with no allele frequency.
+#: The resolver ``maf_state`` values under which it reads the frequency column
+#: and counts every row with no usable frequency (``maf_rows_missing``).
+#: ``unavailable`` -- no MAF request -- counts nothing, so it proves nothing.
+MAF_STATES_COUNTING_MISSING: frozenset[str] = frozenset({"disabled", "filtered"})
 
-    The resolver counts the source rows on the ancestry reference
-    (``ancestry_reference_rows_matched``) and the reference sites the source
-    gave a usable frequency at (``ancestry_sites``). Rows on the reference but
-    not one site with a frequency is a source with no allele frequencies, such
-    as Sun 2018's: its ancestry is unmeasurable rather than measured and
-    gated. ``None`` otherwise -- including a record without these diagnostics.
+
+def no_allele_frequency(record: Mapping[str, Any] | None) -> int | None:
+    """The row count when the record shows a source with no allele frequency, else ``None``.
+
+    Under a MAF request (``maf_state`` ``disabled`` or ``filtered``; a
+    ``defaults.maf_threshold`` of 0 filters nothing), the resolver counts the
+    rows whose frequency is missing, non-finite, or 0 or 1
+    (``maf_rows_missing``) among the rows it observed
+    (``canonical_rows_observed``). Every observed row without one, and no
+    ancestry site read, is a source with no allele frequencies, such as Sun
+    2018's. A source whose frequencies the fit could not read -- palindromic
+    sites only, unusable standard errors at the reference sites -- also has no
+    ancestry site, but its frequencies are counted present, so it is a measured
+    failure, never an absence (#287 review). Without a MAF request the record
+    says nothing about frequencies, and this returns ``None``.
     """
     diagnostics = record_section(record, "diagnostics")
+    state = diagnostics.get("maf_state")
+    observed = diagnostics.get("canonical_rows_observed")
+    missing = diagnostics.get("maf_rows_missing")
     sites = diagnostics.get("ancestry_sites")
-    matched = diagnostics.get("ancestry_reference_rows_matched")
-    if type(sites) is int and sites == 0 and type(matched) is int and matched > 0:
-        return matched
+    if (
+        state in MAF_STATES_COUNTING_MISSING
+        and type(observed) is int
+        and observed > 0
+        and type(missing) is int
+        and missing == observed
+        and type(sites) is int
+        and sites == 0
+    ):
+        return observed
     return None
 
 
@@ -359,7 +380,8 @@ def _assigned_ancestry(subject: Subject, _threshold: None) -> Finding:
     Selection's ancestry).
 
     #287's decision: when the record shows ancestry unmeasurable because the
-    source has no allele frequencies (:func:`no_allele_frequency`) and the
+    source has no allele frequencies (:func:`no_allele_frequency`: every row
+    counted without one, under a MAF request) and the
     release opts in (``release_policy.trust_source_ancestry_without_af``), the
     Source Metadata Table's ``source_superpopulation`` stands in, recorded as a
     ``warning`` when it is the Selection's. A measured ancestry -- assigned, or
@@ -372,19 +394,19 @@ def _assigned_ancestry(subject: Subject, _threshold: None) -> Finding:
     gate_reason = str(ancestry.get("gate_reason") or "").strip()
     measured = f"assigned_ancestry={assigned or 'none'} gate_reason={gate_reason or 'none'}"
     if not assigned:
-        matched = no_allele_frequency(subject.record)
-        if matched is None:
+        observed = no_allele_frequency(subject.record)
+        if observed is None:
             return Finding(
                 Result.FAILED, measured, "ancestry_unassigned", f"gate_reason={gate_reason or 'none'}"
             )
         source = subject.source_superpopulation
         measured += (
-            f" ancestry_sites=0 ancestry_reference_rows_matched={matched} "
+            f" ancestry_sites=0 maf_rows_missing={observed} of {observed} "
             f"source_superpopulation={source or 'none'}"
         )
         unmeasurable = (
-            f"no allele frequency at any of {matched} rows on the ancestry reference, so "
-            "ancestry is unmeasurable"
+            f"no allele frequency on any of the {observed} rows read, so ancestry is "
+            "unmeasurable"
         )
         if not subject.trust_source_ancestry_without_af:
             return Finding(
@@ -906,6 +928,7 @@ __all__ = [
     "evaluate",
     "exclusion_categories",
     "first_exclusion",
+    "MAF_STATES_COUNTING_MISSING",
     "no_allele_frequency",
     "parse_overrides",
     "receipt_contract",

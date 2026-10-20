@@ -3560,13 +3560,69 @@ def _real_ssf_body_without_af(analysis_id: str) -> bytes:
     return gzip.compress("".join(lines).encode("utf-8"), mtime=0)
 
 
+#: Where the reference's palindromic (A/T) sites start: a source with
+#: frequencies only there gives the ancestry fit nothing to read (#287 review).
+_PALINDROMIC_START = 5000
+
+
+def _real_ssf_body_palindromic_with_af(analysis_id: str) -> bytes:
+    """Frequencies on every row, but only at palindromic reference sites (#287 review)."""
+    lines = [
+        "chromosome\tbase_pair_location\teffect_allele\tother_allele\tbeta\t"
+        "standard_error\teffect_allele_frequency\n"
+    ]
+    for index in range(_PANEL_VARIANTS):
+        frequency = _panel_frequency(index, 0)
+        lines.append(f"1\t{_PALINDROMIC_START + index}\tA\tT\t0.01\t0.02\t{frequency:.6g}\n")
+    return gzip.compress("".join(lines).encode("utf-8"), mtime=0)
+
+
+def _real_ssf_body_af_without_usable_se(analysis_id: str) -> bytes:
+    """Frequencies on every row; the panel rows' standard errors are unusable (#287 review).
+
+    The rows off the panel are build-eligible, so the Analysis is not excluded
+    for having no association; the fit still reads no frequency.
+    """
+    lines = [
+        "chromosome\tbase_pair_location\teffect_allele\tother_allele\tbeta\t"
+        "standard_error\teffect_allele_frequency\n"
+    ]
+    for index in range(_PANEL_VARIANTS):
+        frequency = _panel_frequency(index, 0)
+        lines.append(f"1\t{1000 + index}\tA\tC\t0.01\tNA\t{frequency:.6g}\n")
+        lines.append(f"1\t{9000 + index}\tA\tC\t0.01\t0.02\t{frequency:.6g}\n")
+    return gzip.compress("".join(lines).encode("utf-8"), mtime=0)
+
+
+#: The no-AF fixture's bodies: two frequency-bearing sources the fit reads
+#: nothing from, and sources with no frequency at all.
+_FREQUENCY_BEARING_BODIES = {
+    "GCST90000001": _real_ssf_body_palindromic_with_af,
+    "GCST90000002": _real_ssf_body_af_without_usable_se,
+}
+
+
+def _no_af_fixture_body(analysis_id: str) -> bytes:
+    return _FREQUENCY_BEARING_BODIES.get(analysis_id, _real_ssf_body_without_af)(analysis_id)
+
+
 def _write_real_reference(fixture: Fixture) -> None:
-    """A tiny ancestry-mixture reference over the panel the real bodies cover."""
+    """A tiny ancestry-mixture reference over the panel the real bodies cover.
+
+    The A/C sites at 1000+ are the panel the fit reads; the A/T sites at
+    ``_PALINDROMIC_START``+ are on the reference too, but palindromic, so the
+    fit never reads a frequency there.
+    """
     reference = fixture.root / "reference"
     header = ["alid", "chromosome", "position", "effect_allele", "other_allele", "rsid"]
     rows = ["\t".join([*header, *_PANEL_GROUPS])]
     for index in range(_PANEL_VARIANTS):
         cells = [f"1:{1000 + index}:A:C", "1", str(1000 + index), "A", "C", f"rs{index}"]
+        cells += [f"{_panel_frequency(index, g):.6g}" for g in range(len(_PANEL_GROUPS))]
+        rows.append("\t".join(cells))
+    for index in range(_PANEL_VARIANTS):
+        position = _PALINDROMIC_START + index
+        cells = [f"1:{position}:A:T", "1", str(position), "A", "T", f"rsp{index}"]
         cells += [f"{_panel_frequency(index, g):.6g}" for g in range(len(_PANEL_GROUPS))]
         rows.append("\t".join(cells))
     (reference / "ref_freqs.tsv.gz").write_bytes(
@@ -3622,10 +3678,13 @@ class RealResolverNoAlleleFrequencyTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory(prefix="real-resolver-no-af-")
-        self.fixture = FixtureBuilder(
-            Path(self._tmp.name), bodies=_real_ssf_body_without_af
-        ).build()
+        self.fixture = FixtureBuilder(Path(self._tmp.name), bodies=_no_af_fixture_body).build()
         _write_real_reference(self.fixture)
+        # A MAF request makes the resolver count the rows with no usable
+        # frequency (maf_rows_missing); 0 filters nothing (#287 review).
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["defaults"]["maf_threshold"] = 0
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
 
     def tearDown(self) -> None:
         self._tmp.cleanup()
@@ -3647,16 +3706,27 @@ class RealResolverNoAlleleFrequencyTests(unittest.TestCase):
         validation = yaml.safe_load((bundle_dir / "validation.yaml").read_text())
         return analyses, checks, validation
 
-    def test_the_record_shows_ancestry_sites_but_no_frequency(self) -> None:
+    def test_the_record_reports_every_row_without_a_frequency(self) -> None:
         result = _run_cli(self.fixture, "--stage", "resolve", resolver=REAL_RESOLVER)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         for analysis_id, _, _, _, _, _, _ in READY_ANALYSES:
             record = json.loads(_kept_record(self.fixture, analysis_id).read_text())
+            diagnostics = record["diagnostics"]
             with self.subTest(analysis_id=analysis_id):
                 self.assertEqual(record["status"], "success")
                 self.assertIsNone(record["ancestry"]["assigned_ancestry"])
-                self.assertEqual(record["diagnostics"]["ancestry_sites"], 0)
-                self.assertGreater(record["diagnostics"]["ancestry_reference_rows_matched"], 0)
+                # Every one of them looks alike to the ancestry fit: rows on the
+                # reference, not one frequency read...
+                self.assertEqual(diagnostics["ancestry_sites"], 0)
+                self.assertGreater(diagnostics["ancestry_reference_rows_matched"], 0)
+                self.assertEqual(diagnostics["maf_state"], "disabled")
+                # ...and only the missing-frequency count tells them apart.
+                if analysis_id in _FREQUENCY_BEARING_BODIES:
+                    self.assertEqual(diagnostics["maf_rows_missing"], 0)
+                else:
+                    self.assertEqual(
+                        diagnostics["maf_rows_missing"], diagnostics["canonical_rows_observed"]
+                    )
 
     def test_opted_in_the_source_super_population_is_assigned_with_a_warning(self) -> None:
         self.opt_in()
@@ -3673,11 +3743,19 @@ class RealResolverNoAlleleFrequencyTests(unittest.TestCase):
                               checks[analysis_id]["assigned_ancestry_measured"])
         # A quantitative source with no frequency still has no phenotype SD.
         self.assertEqual(
-            analyses["GCST90000002"]["inclusion_reason"].split(":")[1].strip(),
+            analyses["GCST90000003"]["inclusion_reason"].split(":")[1].strip(),
             "sd_no_qualifying_evidence",
         )
+        # Sources with frequencies the fit could not read never take the label.
+        for analysis_id in _FREQUENCY_BEARING_BODIES:
+            with self.subTest(analysis_id=analysis_id):
+                self.assertEqual(checks[analysis_id]["exclusion_reason"], "ancestry_unassigned")
+                self.assertEqual(checks[analysis_id]["assigned_ancestry"], "failed")
+                self.assertNotEqual(
+                    analyses[analysis_id]["ancestry_assignment_method"], "source_trusted_no_af"
+                )
         summary = validation["quality_checks"]["assigned_ancestry"]
-        self.assertEqual(summary["results"]["warning"], 9)
+        self.assertEqual(summary["results"]["warning"], 7)
         self.assertEqual(summary["warned"], 2)
         self.assertTrue(
             any("source_trusted_no_af" in warning for warning in validation["warnings"]),
