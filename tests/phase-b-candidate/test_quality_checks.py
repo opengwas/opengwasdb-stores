@@ -55,6 +55,7 @@ from manifest_generation.source_inventory import PreflightConfigError, read_inve
 from test_phase_b_candidate import (  # sibling suite's fixture helpers
     REPO_ROOT,
     STORE_ID,
+    TRAIT_ONTOLOGY_PROVENANCE,
     FixtureBuilder,
     _read_tsv,
     _run_cli,
@@ -408,7 +409,8 @@ class QualityCheckTests(unittest.TestCase):
         with quality_checks.registered(self._made_up_warning()):
             _, outcomes, tables = self._policy()
             validation = render_validation_yaml(
-                tables=tables, index_summary={}, validated_at="now", validator_name="test"
+                tables=tables, index_summary={}, validated_at="now", validator_name="test",
+                trait_ontology_mapping=TRAIT_ONTOLOGY_PROVENANCE,
             )
         self.assertNotIn("made_up_rows_read", [check.name for check in quality_checks.checks()])
 
@@ -435,7 +437,7 @@ class QualityCheckTests(unittest.TestCase):
             "made_up_rows_read",
             " ".join(render_validation_yaml(
                 tables=before_tables, index_summary={}, validated_at="now",
-                validator_name="test",
+                validator_name="test", trait_ontology_mapping=TRAIT_ONTOLOGY_PROVENANCE,
             )["warnings"]),
         )
 
@@ -537,7 +539,8 @@ class QualityCheckTests(unittest.TestCase):
         self.assertEqual(sd_zero["phenotype_sd_measured"], "status=estimated reason=none sd=0.0")
 
         validation = render_validation_yaml(
-            tables=tables, index_summary={}, validated_at="now", validator_name="test"
+            tables=tables, index_summary={}, validated_at="now", validator_name="test",
+            trait_ontology_mapping=TRAIT_ONTOLOGY_PROVENANCE,
         )
         self.assertEqual(validation["reports"]["quality_checks"], "sidecars/quality_checks.tsv")
         build_eligible = validation["quality_checks"]["build_eligible_rows"]
@@ -698,10 +701,10 @@ class QualityCheckTests(unittest.TestCase):
         run_root = self.fixture.work_root / STORE_ID / "resolver"
         _, failures = verify_records(
             derive_resolver_manifest(rows, config, metadata),
-            run_root / "records",
             config=config,
             manifest_path=run_root / "analyses.tsv",
             receipt_path=run_root / RECEIPT_FILENAME,
+            index_path=run_root / "index.json",
         )
         return failures
 

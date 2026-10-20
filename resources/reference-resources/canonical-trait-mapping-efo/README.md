@@ -13,7 +13,13 @@ only ones the resolver reads: `trait_label`, `trait_ontology_id`,
 `trait_ontology_label`. A generator looks up a row's own trait label against
 `trait_label` using an **exact match** on the normalised (trimmed,
 lowercased) string — no fuzzy or semantic matching. See
-`resources/generators/lib/metadata_resolvers/canonical_trait_table.R`.
+`src/manifest_generation/trait_ontology_mapping.py`, Manifest Generation's
+shared step (#286), and
+`resources/generators/lib/metadata_resolvers/canonical_trait_table.R`, which
+the R generators use until they retire. The shared step refuses a malformed
+row (a blank lookup value, a non-CURIE or gene-shaped term, an authority-name
+label, or a label listed twice) and records this table's `version` and sha256
+with every bundle it maps.
 
 `trait_ontology_label` is the human-readable label of the ontology term that
 `trait_ontology_id` identifies — for example `carnitine measurement`

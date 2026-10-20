@@ -184,6 +184,64 @@ _TRAIT_ONTOLOGY_AUTHORITY_LABELS: frozenset[str] = frozenset(
     {"ensembl", "hgnc", "entrez", "entrezgene", "entrez gene", "ncbigene", "uniprot"}
 )
 
+# A ``trait_ontology_id`` holds one CURIE, or several joined by exactly ", " in
+# the source's order when the source maps the Trait to more than one term
+# (GWAS Catalog's ``MAPPED_TRAIT_URI``, #286). Each term is a CURIE --
+# ``EFO:0004839``, ``OBA:VT0001253``, ``Orphanet:101960`` -- never a URI.
+TRAIT_ONTOLOGY_ID_SEPARATOR: str = ", "
+_TRAIT_ONTOLOGY_CURIE: re.Pattern[str] = re.compile(
+    r"[A-Za-z][A-Za-z0-9._-]*:[A-Za-z0-9][A-Za-z0-9._-]*"
+)
+
+# Accepted Store Releases emitted before #286 with ``trait_ontology_id`` values
+# that are not CURIEs: OGS-00011 carries GWAS Catalog's raw EFO/ORDO URIs and
+# half-converted lists. An accepted bundle is never rewritten, so its values
+# are tolerated by name and disclosed on check()'s second channel (#142); every
+# other bundle is held to the CURIE form.
+LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES: frozenset[str] = frozenset({"OGS-00011"})
+
+
+def trait_ontology_id_terms(value: str) -> list[str]:
+    """The terms of a ``trait_ontology_id`` value, in order; empty for a blank value.
+
+    The one split rule (#286): split on every comma and strip each part, so a
+    malformed list (``A,B``, padding, an empty term) still yields its terms for
+    the guards. Whether the value is in canonical form is a separate question:
+    :func:`is_canonical_trait_ontology_id`.
+    """
+    return [part.strip() for part in value.split(",")] if value else []
+
+
+def is_trait_ontology_curie(term: str) -> bool:
+    """Whether one ``trait_ontology_id`` term is a CURIE."""
+    return _TRAIT_ONTOLOGY_CURIE.fullmatch(term) is not None
+
+
+def is_canonical_trait_ontology_id(value: str) -> bool:
+    """Whether ``value`` is blank, one CURIE, or CURIEs joined by exactly ``", "``."""
+    terms = trait_ontology_id_terms(value)
+    return all(map(is_trait_ontology_curie, terms)) and (
+        TRAIT_ONTOLOGY_ID_SEPARATOR.join(terms) == value
+    )
+
+
+def is_gene_shaped_trait_ontology_id(value: str) -> bool:
+    """Whether any term of ``value`` is a gene or protein identifier (#141).
+
+    Every term is checked, so a gene identifier cannot hide behind an ontology
+    term in a list (#286).
+    """
+    return any(_GENE_SHAPED_TRAIT_ONTOLOGY_ID.match(term) for term in trait_ontology_id_terms(value))
+
+
+def is_authority_name_trait_ontology_label(label: str) -> bool:
+    """Whether ``label`` names an identifier authority rather than a Trait (#141).
+
+    The label is checked whole, as #141 defines it, and never split: a term's
+    own label may contain a comma (``osteoarthritis, hip``).
+    """
+    return label.strip().lower() in _TRAIT_ONTOLOGY_AUTHORITY_LABELS
+
 # Store-level descriptive metadata that is derived from the membership table.
 # Names intentionally match their source columns: in particular, ``context``
 # is not renamed to ``assay`` because the Analysis contract has no assay field.
@@ -1016,25 +1074,45 @@ def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
     # A Trait Ontology Mapping is an ontology term plus its trait label. It is
     # never a gene identifier with an authority name standing in for the label:
     # that asserts a gene is the Trait (issue #141). Empty is the correct
-    # answer where no acceptable term exists.
+    # answer where no acceptable term exists. Each term of a list is checked,
+    # and each term must be a CURIE (#286).
     if "trait_ontology_id" in table.fieldnames:
+        tolerate_non_curie = bundle.store_id in LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES
+        tolerated_non_curie = 0
         for row in table.rows:
             analysis_id = row.get("analysis_id") or "<unknown analysis_id>"
-            ontology_id = (row.get("trait_ontology_id") or "").strip()
-            if ontology_id and _GENE_SHAPED_TRAIT_ONTOLOGY_ID.match(ontology_id):
+            ontology_id = row.get("trait_ontology_id") or ""
+            if ontology_id and is_gene_shaped_trait_ontology_id(ontology_id):
                 errors.append(
                     f"analysis {analysis_id!r} has gene-shaped trait_ontology_id "
                     f"{ontology_id!r}; trait_ontology_id must be an ontology term "
                     "(or empty), never a gene or protein identifier"
                 )
-            ontology_label = (row.get("trait_ontology_label") or "").strip().lower()
-            if ontology_label in _TRAIT_ONTOLOGY_AUTHORITY_LABELS:
+            elif not is_canonical_trait_ontology_id(ontology_id):
+                if tolerate_non_curie:
+                    tolerated_non_curie += 1
+                else:
+                    errors.append(
+                        f"analysis {analysis_id!r} has trait_ontology_id {ontology_id!r}, "
+                        "which is not a CURIE or a list of CURIEs joined by "
+                        f"{TRAIT_ONTOLOGY_ID_SEPARATOR!r}"
+                    )
+            if is_authority_name_trait_ontology_label(row.get("trait_ontology_label") or ""):
                 errors.append(
                     f"analysis {analysis_id!r} has trait_ontology_label "
                     f"{row.get('trait_ontology_label')!r}, which names an identifier "
                     "authority rather than a Trait; use the trait label or leave it "
                     "empty"
                 )
+        if tolerated_non_curie:
+            tolerated.append(
+                ToleratedGap(
+                    store_id=bundle.store_id,
+                    count=tolerated_non_curie,
+                    detail="non-CURIE trait_ontology_id values",
+                    citation="#286",
+                )
+            )
 
     # Assigned Ancestry is the registry-normalised super-population code, never a
     # free-text Source Ancestry Label. Empty is the one valid way to record an
@@ -1321,6 +1399,7 @@ __all__ = [
     "Bundle",
     "CheckResult",
     "LEGACY_BLANK_ANALYSIS_RELEASES",
+    "LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES",
     "LEGAL_STATUS_TRANSITIONS",
     "QUALITY_CHECKS_SIDECAR",
     "QUALITY_CHECK_LEADING_COLUMNS",
@@ -1329,18 +1408,24 @@ __all__ = [
     "NotBuildableError",
     "RELEASE_REQUIRED_KEYS",
     "SUPERPOPULATIONS",
+    "TRAIT_ONTOLOGY_ID_SEPARATOR",
     "ToleratedGap",
     "VALIDATED_RECORD_STATUSES",
     "VALID_STATUSES",
     "build_refusal",
     "check",
+    "is_authority_name_trait_ontology_label",
     "is_buildable",
+    "is_canonical_trait_ontology_id",
+    "is_gene_shaped_trait_ontology_id",
     "is_legal_status_transition",
+    "is_trait_ontology_curie",
     "load",
     "membership_ids",
     "partition_buildable",
     "partition_membership",
     "refuse_unbuildable",
     "summarise",
+    "trait_ontology_id_terms",
     "validate_status_transition",
 ]

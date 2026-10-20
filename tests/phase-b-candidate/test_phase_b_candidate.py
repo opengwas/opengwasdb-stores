@@ -23,7 +23,13 @@ Covered contracts:
    bundle passes bundle.check();
 9. the operator entry point binds the frozen inventory, the #152 policy and the
    executed command log into release.yaml, and never writes anything but a
-   candidate.
+   candidate;
+10. Resolution Records are kept once per Source Collection and reused by every
+    Selection (#284): a Trial Store Release and a full release resolve each
+    shared Analysis once; only a changed file, reference or setting
+    re-resolves; each receipt names exactly its records and verification
+    catches a missing, stale or edited one; a second run over a locked
+    collection area is refused.
 
 Run from the repository root:
     python3 tests/phase-b-candidate/test_phase_b_candidate.py
@@ -32,6 +38,7 @@ Run from the repository root:
 from __future__ import annotations
 
 import csv
+import gzip
 import hashlib
 import io
 import json
@@ -40,6 +47,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -69,6 +77,8 @@ from manifest_generation.candidate_workflow import (  # noqa: E402
     info_score_emission,
     load_candidate_configuration,
     maf_threshold_emission,
+    candidate_source_traits,
+    map_candidate_trait_ontologies,
     parse_maf_filter_exempt_technologies,
     parse_maf_threshold,
     parse_store_composition,
@@ -84,9 +94,29 @@ from manifest_generation.candidate_workflow import (  # noqa: E402
     validate_candidate_analyses,
     verify_records,
 )
+from manifest_generation.freeze import write_frozen_inventory  # noqa: E402
+from manifest_generation.freeze import freeze as freeze_connectors  # noqa: E402
+from manifest_generation.selection import parse_selection  # noqa: E402
+from manifest_generation.trait_ontology_mapping import (  # noqa: E402
+    SourceTrait,
+    TraitOntologyMapping,
+    TraitOntologyMappingMethod,
+    load_canonical_trait_mapping_table,
+)
+from manifest_generation import generate_candidate  # noqa: E402
+from manifest_generation.resolution_area import (  # noqa: E402
+    DEFAULT_RESOLUTION_ROOT,
+    RESOLUTION_ROOT_ENV_VAR,
+    KeptRecord,
+    ResolutionArea,
+    ResolutionAreaError,
+    ResolutionAreaLocked,
+    resolution_root,
+)
 from manifest_generation.source_inventory import (  # noqa: E402
     ACQUISITION_MANIFEST_COLUMNS,
     AcquisitionPass,
+    PreflightConfigError,
     SourceInventoryRow,
     build_snapshot,
     read_candidate_selection,
@@ -146,6 +176,23 @@ EXPECTED_EXCLUDED = {
 
 META_TEMPLATE = "gwas_id: {analysis_id}\ngenome_assembly: GRCh38\nis_harmonised: true\ncoordinate_system: 1-based\n"
 
+# A fixture Canonical Trait Mapping Table (#286): the candidate tests never read
+# the tracked one, so curating it cannot change them.
+TRAIT_TABLE_RESOURCE_ID = "canonical-trait-mapping-efo"
+TRAIT_TABLE_TEXT = (
+    "trait_label\ttrait_ontology_id\ttrait_ontology_label\n"
+    "weight\tEFO:0004338\tbody weight\n"
+)
+#: sha256 of TRAIT_TABLE_TEXT.
+TRAIT_TABLE_SHA256 = "92a1eabaf92b3821219cc8e52c83245c3e93efaa29cf4ebbf7b05cc5724d14de"
+#: A trait_ontology_mapping block for tests that render validation.yaml for other reasons.
+TRAIT_ONTOLOGY_PROVENANCE = {
+    "canonical_trait_mapping_table": None,
+    "method_counts": {"source_provided": 0, "canonical_table_lookup": 0, "unmapped": 0},
+    "source_id_without_label": 0,
+    "rejected_source_terms": [],
+}
+
 
 @dataclass
 class Fixture:
@@ -156,6 +203,8 @@ class Fixture:
     outcomes_path: Path
     registry_root: Path
     work_root: Path
+    trait_table_dir: Path
+    resolution_root: Path
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -165,7 +214,10 @@ def _sha256_bytes(data: bytes) -> str:
 class FixtureBuilder:
     """Build one self-consistent fixture tree in a temporary directory."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, bodies=None) -> None:
+        #: Optional ``analysis_id -> bytes`` for the mirror's source files; the
+        #: default is a placeholder body only the fake resolver can read.
+        self.bodies = bodies
         self.root = root
         self.mirror = root / "mirror"
         self.mirror.mkdir(parents=True, exist_ok=True)
@@ -193,7 +245,11 @@ class FixtureBuilder:
             row["sample_size"] = sample_size
             row["status"] = readiness
             if readiness in {"ok", "already_present"}:
-                body = (f"source-body-{content}\n" * (1 + ord(content[0]) % 3)).encode()
+                body = (
+                    self.bodies(analysis_id)
+                    if self.bodies is not None
+                    else (f"source-body-{content}\n" * (1 + ord(content[0]) % 3)).encode()
+                )
                 data_path = self.mirror / f"{analysis_id}.h.tsv.gz"
                 data_path.write_bytes(body)
                 meta_path = self.mirror / f"{analysis_id}.h.tsv.gz-meta.yaml"
@@ -361,6 +417,15 @@ class FixtureBuilder:
         outcomes_path = self.root / "outcomes.json"
         outcomes_path.write_text(json.dumps(OUTCOMES), encoding="utf-8")
 
+        trait_table_dir = self.root / "resources" / "reference-resources" / TRAIT_TABLE_RESOURCE_ID
+        trait_table_dir.mkdir(parents=True)
+        (trait_table_dir / "resource.yaml").write_text(
+            f"resource_id: {TRAIT_TABLE_RESOURCE_ID}\nkind: trait_ontology_mapping\nversion: 1\n"
+            f"location: resources/reference-resources/{TRAIT_TABLE_RESOURCE_ID}/mapping.tsv\n"
+            "location_kind: tracked_file\n",
+            encoding="utf-8",
+        )
+        (trait_table_dir / "mapping.tsv").write_text(TRAIT_TABLE_TEXT, encoding="utf-8")
         return Fixture(
             root=self.root,
             config_path=config_path,
@@ -369,6 +434,8 @@ class FixtureBuilder:
             outcomes_path=outcomes_path,
             registry_root=registry_root,
             work_root=work_root,
+            trait_table_dir=trait_table_dir,
+            resolution_root=self.root / "resolution",
         )
 
 
@@ -388,6 +455,45 @@ def _fingerprint_digest(fingerprints: dict) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def _receipt_of(fixture: Fixture) -> dict:
+    return json.loads((fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME).read_text())
+
+
+def _checkpoint(fixture: Fixture) -> Path:
+    """The resolver records directory the candidate's run resolved into (#284)."""
+    receipt = _receipt_of(fixture)
+    return (
+        Path(receipt["resolution_area"]) / "checkpoint" / receipt["resolver"]["settings_digest"]
+    )
+
+
+def _kept_record(fixture: Fixture, analysis_id: str) -> Path:
+    """The kept Resolution Record the candidate's receipt names for one Analysis."""
+    receipt = _receipt_of(fixture)
+    return Path(receipt["resolution_area"]) / receipt["records"][analysis_id]["record"]
+
+
+def _forge_kept_record(fixture: Fixture, analysis_id: str, edit) -> None:
+    """Edit a kept record *and* re-bind the receipt to its new checksum.
+
+    A plain edit is caught by the record checksum first; forging the checksum
+    too shows the record-level checks still hold behind it.
+    """
+    receipt_path = fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME
+    receipt = json.loads(receipt_path.read_text())
+    entry = receipt["records"][analysis_id]
+    area = Path(receipt["resolution_area"])
+    record = json.loads((area / entry["record"]).read_text())
+    edit(record)
+    data = json.dumps(record, indent=2, sort_keys=True).encode("utf-8")
+    entry["record_sha256"] = hashlib.sha256(data).hexdigest()
+    entry["record"] = (
+        f"records/{analysis_id}/{entry['fingerprint_digest']}/{entry['record_sha256']}.json"
+    )
+    (area / entry["record"]).write_bytes(data)
+    receipt_path.write_text(json.dumps(receipt, indent=2))
+
+
 def _two_resolver_rows() -> list[ResolverRow]:
     """Two minimal resolver rows for unit-level accounting tests."""
     return [
@@ -398,36 +504,46 @@ def _two_resolver_rows() -> list[ResolverRow]:
     ]
 
 
-def _run_cli(
+def _cli_invocation(
     fixture: Fixture,
     *args: str,
     cores: int = 1,
-    resume: bool = False,
     outcomes: Path | None = None,
     fail_after: int | None = None,
     registry_root: Path | None = None,
     work_root: Path | None = None,
-) -> subprocess.CompletedProcess:
+    resolution_root: Path | None = None,
+    store_id: str = STORE_ID,
+    config_path: Path | None = None,
+    resolved_log: Path | None = None,
+    resolver: str | Path = FAKE_RESOLVER,
+    extra_env: dict[str, str] | None = None,
+) -> tuple[list[str], dict[str, str]]:
+    """The entry point's argv and environment for one test run."""
     command = [
         sys.executable,
         *CLI,
-        STORE_ID,
+        store_id,
         "--config",
-        str(fixture.config_path),
+        str(config_path or fixture.config_path),
         "--cores",
         str(cores),
         "--resolver",
-        str(FAKE_RESOLVER),
+        str(resolver),
         "--repo-root",
         str(REPO_ROOT),
         "--registry-root",
         str(registry_root or fixture.registry_root),
         "--work-root",
         str(work_root or fixture.work_root),
+        "--canonical-trait-mapping-table",
+        str(fixture.trait_table_dir),
+        # Never the deployment default on /data: every test resolves into its
+        # own temporary resolution root.
+        "--resolution-root",
+        str(resolution_root or fixture.resolution_root),
+        *args,
     ]
-    if resume:
-        command.append("--resume")
-    command.extend(args)
     # The fake resolver is exec'd through its shebang, so put this interpreter's
     # directory first on PATH: it then runs under the same environment (and the
     # same installed opengwasdb) as the registry process.
@@ -436,9 +552,17 @@ def _run_cli(
         **os.environ,
         "PATH": interpreter_dir + os.pathsep + os.environ.get("PATH", ""),
         "FAKE_RESOLVER_OUTCOMES": str(outcomes or fixture.outcomes_path),
+        **(extra_env or {}),
     }
     if fail_after is not None:
         env["FAKE_RESOLVER_FAIL_AFTER"] = str(fail_after)
+    if resolved_log is not None:
+        env["FAKE_RESOLVER_LOG"] = str(resolved_log)
+    return command, env
+
+
+def _run_cli(fixture: Fixture, *args: str, **kwargs) -> subprocess.CompletedProcess:
+    command, env = _cli_invocation(fixture, *args, **kwargs)
     return subprocess.run(
         command, cwd=str(REPO_ROOT), env=env, capture_output=True, text=True, check=False
     )
@@ -487,14 +611,14 @@ def _synthetic_candidate_metadata(
     return CandidateMetadata(
         analysis_id="GCST90000001",
         source_label="Trait",
-        trait_ontology_label="",
-        trait_ontology_id="",
-        trait_ontology_mapping_method="unmapped",
+        source_trait_ontology_id="",
+        source_trait_ontology_label="",
         publication_pmid="12345678",
         first_author="Author",
         n_cases=n_cases,
         n_controls=n_controls,
         sample_size=sample_size,
+        trait_ontology=TraitOntologyMapping("", "", TraitOntologyMappingMethod.UNMAPPED),
     )
 
 
@@ -990,7 +1114,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertIn("maf_threshold", RESOLVER_MANIFEST_COLUMNS)
         manifest = _read_tsv(run_root / "analyses.tsv")
         self.assertEqual({row["maf_threshold"] for row in manifest}, {"0.005"})
-        record = json.loads((run_root / "records" / "GCST90000001.json").read_text())
+        record = json.loads(_kept_record(self.fixture, "GCST90000001").read_text())
         self.assertEqual(
             record["fingerprints"]["resolution_config"]["maf_threshold"], 0.005
         )
@@ -1007,14 +1131,17 @@ class CandidateWorkflowTests(unittest.TestCase):
         self._set_maf_threshold(0.005)
         result = _run_cli(self.fixture)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        run_root = self.fixture.work_root / STORE_ID / "resolver"
-        record_path = run_root / "records" / "GCST90000001.json"
+        def _drop(record: dict) -> None:
+            del record["fingerprints"]["resolution_config"]['maf_threshold']
+            record["fingerprints"]["fingerprint_digest"] = _fingerprint_digest(
+                record["fingerprints"]
+            )
+
+        record_path = _checkpoint(self.fixture) / "GCST90000001.json"
         record = json.loads(record_path.read_text())
-        del record["fingerprints"]["resolution_config"]["maf_threshold"]
-        record["fingerprints"]["fingerprint_digest"] = _fingerprint_digest(
-            record["fingerprints"]
-        )
+        _drop(record)
         record_path.write_text(json.dumps(record))
+        _forge_kept_record(self.fixture, "GCST90000001", _drop)
         inventory = read_inventory(self.fixture.inventory_path)
         metadata = read_candidate_metadata(
             self.fixture.candidates_path,
@@ -1025,7 +1152,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
             metadata,
         )
-        _, failures = account_records(manifest, run_root / "records")
+        _, failures = account_records(manifest, _checkpoint(self.fixture))
         self.assertTrue(
             any("resolution_config.maf_threshold" in error for error in failures), failures
         )
@@ -1242,7 +1369,7 @@ class CandidateWorkflowTests(unittest.TestCase):
                          "provider specification: INFO is imputation quality")
         self.assertEqual(by_id["GCST90000001"]["info_score_threshold"], "NaN")
         self.assertEqual(by_id["GCST90000001"]["imputation_score_column"], "")
-        record = json.loads((run_root / "records" / f"{analysis_id}.json").read_text())
+        record = json.loads(_kept_record(self.fixture, analysis_id).read_text())
         self.assertEqual(record["fingerprints"]["resolution_config"]["imputation_score_column"],
                          "imputation_INFO")
         receipt = read_resolution_receipt(run_root / RECEIPT_FILENAME)
@@ -1278,20 +1405,25 @@ class CandidateWorkflowTests(unittest.TestCase):
         }])
         result = _run_cli(self.fixture)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        run_root = self.fixture.work_root / STORE_ID / "resolver"
-        record_path = run_root / "records" / f"{analysis_id}.json"
+        # Both the checkpoint record a fresh run accounts and the kept record a
+        # later emit reads lose the key.
+        def _drop(record: dict) -> None:
+            del record["fingerprints"]["resolution_config"]['imputation_score_kind']
+            record["fingerprints"]["fingerprint_digest"] = _fingerprint_digest(
+                record["fingerprints"]
+            )
+
+        record_path = _checkpoint(self.fixture) / f"{analysis_id}.json"
         record = json.loads(record_path.read_text())
-        del record["fingerprints"]["resolution_config"]["imputation_score_kind"]
-        record["fingerprints"]["fingerprint_digest"] = _fingerprint_digest(
-            record["fingerprints"]
-        )
+        _drop(record)
         record_path.write_text(json.dumps(record))
+        _forge_kept_record(self.fixture, analysis_id, _drop)
         inventory = read_inventory(self.fixture.inventory_path)
         metadata = read_candidate_metadata(self.fixture.candidates_path,
                                            (row.analysis_id for row in inventory if row.ready))
         manifest = derive_resolver_manifest(inventory, load_candidate_configuration(
             self.fixture.config_path, REPO_ROOT), metadata)
-        _, failures = account_records(manifest, run_root / "records")
+        _, failures = account_records(manifest, _checkpoint(self.fixture))
         self.assertTrue(any("resolution_config.imputation_score_kind" in error
                             for error in failures), failures)
         stale = _run_cli(self.fixture, "--stage", "emit")
@@ -1337,28 +1469,30 @@ class CandidateWorkflowTests(unittest.TestCase):
         single_root.mkdir()
         multi_root.mkdir()
         one = _run_cli(
-            self.fixture, cores=1, registry_root=single_root, work_root=self.fixture.root / "work-1"
+            self.fixture, cores=1, registry_root=single_root, work_root=self.fixture.root / "work-1",
+            resolution_root=self.fixture.root / "resolution-1",
         )
         self.assertEqual(one.returncode, 0, one.stderr)
         four = _run_cli(
-            self.fixture, cores=4, registry_root=multi_root, work_root=self.fixture.root / "work-4"
+            self.fixture, cores=4, registry_root=multi_root, work_root=self.fixture.root / "work-4",
+            resolution_root=self.fixture.root / "resolution-4",
         )
         self.assertEqual(four.returncode, 0, four.stderr)
         self.assertEqual(_candidate_tables_bytes(single_root), _candidate_tables_bytes(multi_root))
 
     def test_resume_reuses_records_and_reproduces_bytes(self) -> None:
-        first = _run_cli(self.fixture, resume=False)
+        first = _run_cli(self.fixture)
         self.assertEqual(first.returncode, 0, first.stderr)
         before = _candidate_tables_bytes(self.fixture.registry_root)
 
-        second = _run_cli(self.fixture, resume=True)
+        second = _run_cli(self.fixture)
         self.assertEqual(second.returncode, 0, second.stderr)
         self.assertIn("--resume", second.stdout)
         after = _candidate_tables_bytes(self.fixture.registry_root)
         self.assertEqual(before, after)
 
         index = json.loads(
-            (self.fixture.work_root / STORE_ID / "resolver/records/index.json").read_text()
+            (self.fixture.work_root / STORE_ID / "resolver/index.json").read_text()
         )
         self.assertGreater(index["n_resumed"], 0)
 
@@ -1366,7 +1500,8 @@ class CandidateWorkflowTests(unittest.TestCase):
         ok_root = self.fixture.root / "stores-ok"
         ok_root.mkdir()
         ok = _run_cli(
-            self.fixture, registry_root=ok_root, work_root=self.fixture.root / "work-ok"
+            self.fixture, registry_root=ok_root, work_root=self.fixture.root / "work-ok",
+            resolution_root=self.fixture.root / "resolution-ok",
         )
         self.assertEqual(ok.returncode, 0, ok.stderr)
         expected = _candidate_tables_bytes(ok_root)
@@ -1378,6 +1513,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             self.fixture,
             registry_root=resume_root,
             work_root=resume_work,
+            resolution_root=self.fixture.root / "resolution-resume",
             fail_after=3,
         )
         self.assertNotEqual(killed.returncode, 0)
@@ -1385,14 +1521,14 @@ class CandidateWorkflowTests(unittest.TestCase):
 
         resumed = _run_cli(
             self.fixture,
-            resume=True,
             registry_root=resume_root,
             work_root=resume_work,
+            resolution_root=self.fixture.root / "resolution-resume",
         )
         self.assertEqual(resumed.returncode, 0, resumed.stderr)
         self.assertEqual(_candidate_tables_bytes(resume_root), expected)
         index = json.loads(
-            (resume_work / STORE_ID / "resolver/records/index.json").read_text()
+            (resume_work / STORE_ID / "resolver/index.json").read_text()
         )
         self.assertEqual(index["n_resumed"], 3)
 
@@ -1421,6 +1557,11 @@ class CandidateWorkflowTests(unittest.TestCase):
         before = _candidate_tables_bytes(self.fixture.registry_root)
         release_before = (self.fixture.registry_root / STORE_ID / "release.yaml").read_bytes()
 
+        # A changed gate forces every Analysis to be re-resolved, so the
+        # interruption lands mid-run rather than among reused records.
+        document = yaml.safe_load(self.fixture.config_path.read_text(encoding="utf-8"))
+        document["ancestry_assignment"]["gates"]["tau"] = 0.6
+        self.fixture.config_path.write_text(yaml.safe_dump(document, sort_keys=False))
         interrupted = _run_cli(self.fixture, fail_after=2)
         self.assertNotEqual(interrupted.returncode, 0)
         self.assertIn("resolver exited", interrupted.stderr)
@@ -1437,42 +1578,236 @@ class CandidateWorkflowTests(unittest.TestCase):
 
     # -- accounting ------------------------------------------------------------
 
+    # -- Trait Ontology Mapping (#286) -------------------------------------------
+
+    def _rewrite_candidate_traits(self, traits: dict[str, tuple[str, str, str]]) -> None:
+        """Set (DISEASE.TRAIT, MAPPED_TRAIT_URI, MAPPED_TRAIT) for some Analyses."""
+        path = self.fixture.candidates_path
+        with path.open(newline="", encoding="utf-8") as fh:
+            reader = csv.DictReader(fh, delimiter="\t")
+            columns = list(reader.fieldnames or [])
+            rows = list(reader)
+        for row in rows:
+            if row["STUDY.ACCESSION"] in traits:
+                label, uri, term_label = traits[row["STUDY.ACCESSION"]]
+                row.update({"DISEASE.TRAIT": label, "MAPPED_TRAIT_URI": uri, "MAPPED_TRAIT": term_label})
+        _write_tsv(path, columns, rows)
+
+    def test_emitted_trait_columns_come_from_the_trait_ontology_mapping_step(self) -> None:
+        self._rewrite_candidate_traits(
+            {
+                "GCST90000001": (
+                    "Trait GCST90000001",
+                    "http://www.ebi.ac.uk/efo/EFO_0004340, http://purl.obolibrary.org/obo/MONDO_0005148",
+                    "body mass index, type 2 diabetes mellitus",
+                ),
+                "GCST90000002": ("Weight", "", ""),
+                "GCST90000003": ("Trait GCST90000003", "", ""),
+                "GCST90000004": (
+                    "Trait GCST90000004",
+                    "http://www.orpha.net/ORDO/Orphanet_101960",
+                    "genetic chronic primary adrenal insufficiency",
+                ),
+            }
+        )
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        bundle_dir = self.fixture.registry_root / STORE_ID
+        by_id = {row["analysis_id"]: row for row in _read_tsv(bundle_dir / "analyses.tsv")}
+
+        def trait(analysis_id: str) -> tuple[str, str, str]:
+            row = by_id[analysis_id]
+            return (
+                row["trait_ontology_id"],
+                row["trait_ontology_label"],
+                row["trait_ontology_mapping_method"],
+            )
+
+        self.assertEqual(
+            trait("GCST90000001"),
+            (
+                "EFO:0004340, MONDO:0005148",
+                "body mass index, type 2 diabetes mellitus",
+                "source_provided",
+            ),
+        )
+        self.assertEqual(trait("GCST90000002"), ("EFO:0004338", "body weight", "canonical_table_lookup"))
+        self.assertEqual(trait("GCST90000003"), ("", "", "unmapped"))
+        self.assertEqual(
+            trait("GCST90000004"),
+            ("Orphanet:101960", "genetic chronic primary adrenal insufficiency", "source_provided"),
+        )
+        self.assertEqual(
+            trait("GCST90000005"), ("MONDO:0005148", "mapped GCST90000005", "source_provided")
+        )
+
+        validation = yaml.safe_load((bundle_dir / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(
+            validation["trait_ontology_mapping"],
+            {
+                "canonical_trait_mapping_table": {
+                    "resource_id": TRAIT_TABLE_RESOURCE_ID,
+                    "version": 1,
+                    "location": f"resources/reference-resources/{TRAIT_TABLE_RESOURCE_ID}/mapping.tsv",
+                    "sha256": TRAIT_TABLE_SHA256,
+                    "rows": 1,
+                },
+                "method_counts": {
+                    "source_provided": len(READY_ANALYSES) - 2,
+                    "canonical_table_lookup": 1,
+                    "unmapped": 1,
+                },
+                "source_id_without_label": 0,
+                "rejected_source_terms": [],
+            },
+        )
+
+    def test_trait_ontology_mapping_runs_after_verification(self) -> None:
+        """An unknown source form does not block resolution; it fails the emit, by name."""
+        self._rewrite_candidate_traits(
+            {"GCST90000002": ("Trait", "https://example.org/trait/7", "a trait")}
+        )
+        resolved = _run_cli(self.fixture, "--stage", "resolve")
+        self.assertEqual(resolved.returncode, 0, resolved.stderr)
+        emitted = self._run_emit_only()
+        self.assertNotEqual(emitted.returncode, 0)
+        self.assertIn("GCST90000002", emitted.stderr)
+        self.assertIn("'https://example.org/trait/7'", emitted.stderr)
+        self.assertFalse((self.fixture.registry_root / STORE_ID).exists())
+
+    def test_a_row_without_a_trait_ontology_mapping_is_refused(self) -> None:
+        row = _synthetic_inventory_row()
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        unmapped = replace(_synthetic_candidate_metadata(), trait_ontology=None)
+        outcomes = apply_release_policy(
+            [row], config, {row.analysis_id: unmapped}, {row.analysis_id: _synthetic_resolver_record()},
+        )
+        with self.assertRaisesRegex(CandidateError, "Trait Ontology Mapping"):
+            build_candidate_tables(
+                inventory_rows=[row], outcomes=outcomes, config=config, index_summary={}
+            )
+
+    def _write_frozen_connectors(self, traits: dict[str, tuple[str, str, str]]) -> Path:
+        """A #283 freeze whose Source Metadata Table carries ``traits``; its provenance path."""
+        out = self.fixture.root / "frozen"
+        out.mkdir()
+        table = out / "source-metadata.tsv"
+        table.write_text(
+            "source_analysis_id\tsource_trait_label\tsource_trait_ontology_id\t"
+            "source_trait_ontology_label\n"
+            + "".join(f"{key}\t{label}\t{uri}\t{term}\n" for key, (label, uri, term) in traits.items()),
+            encoding="utf-8",
+        )
+        manifest = out / "acquisition-manifest.tsv"
+        lines = ["source_analysis_id\tstatus\tlocation\tbytes\tsha256"]
+        for key in traits:
+            data = out / f"{key}.tsv.gz"
+            data.write_bytes(key.encode())
+            lines.append(f"{key}\tok\t{data}\t{len(key)}\t{hashlib.sha256(key.encode()).hexdigest()}")
+        manifest.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        frozen = freeze_connectors(
+            snapshot_id="trait-snapshot",
+            source_collection_id="gwas-catalog-ssf",
+            metadata_table=table,
+            acquisition_manifest=manifest,
+            selection=parse_selection({"all": True}),
+            frozen_at="2026-10-16T12:00:00Z",
+        )
+        provenance = out / "snapshot" / "trait-snapshot.meta.yaml"
+        write_frozen_inventory(frozen, out / "snapshot" / "trait-snapshot.tsv", provenance)
+        return provenance
+
+    def _candidate_metadata(self) -> dict:
+        rows = read_inventory(self.fixture.inventory_path)
+        return read_candidate_metadata(
+            self.fixture.candidates_path, [row.analysis_id for row in rows if row.ready]
+        )
+
+    def test_the_source_term_comes_from_the_frozen_source_metadata_table(self) -> None:
+        """#286: with a #283 freeze, the step reads the Source Metadata Table, not the candidate table."""
+        metadata = self._candidate_metadata()
+        traits = {key: (f"Trait {key}", "", "") for key in metadata}
+        traits["GCST90000001"] = ("Weight", "http://www.ebi.ac.uk/efo/EFO_0004340", "body mass index")
+        traits["GCST90000002"] = ("weight", "", "")
+        sources = candidate_source_traits(self._write_frozen_connectors(traits), metadata)
+        self.assertEqual(
+            {source.analysis_id: source for source in sources}["GCST90000001"],
+            SourceTrait("GCST90000001", "Weight", "http://www.ebi.ac.uk/efo/EFO_0004340", "body mass index"),
+        )
+        mapped, _ = map_candidate_trait_ontologies(
+            metadata, sources, load_canonical_trait_mapping_table(self.fixture.trait_table_dir)
+        )
+        self.assertEqual(
+            {key: (m.trait_ontology.trait_ontology_id, m.trait_ontology.method) for key, m in mapped.items()
+             if key in ("GCST90000001", "GCST90000002", "GCST90000003")},
+            {
+                "GCST90000001": ("EFO:0004340", "source_provided"),
+                "GCST90000002": ("EFO:0004338", "canonical_table_lookup"),
+                # The candidate table maps this one to MONDO:0005148; the
+                # Source Metadata Table does not, and it is the source.
+                "GCST90000003": ("", "unmapped"),
+            },
+        )
+
+    def test_without_a_frozen_table_the_candidate_table_is_the_legacy_source(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        metadata = self._candidate_metadata()
+        sources = candidate_source_traits(config.base.inventory_provenance_path, metadata)
+        self.assertEqual(
+            {source.analysis_id: source for source in sources}["GCST90000001"],
+            SourceTrait(
+                "GCST90000001", "Trait GCST90000001",
+                "http://purl.obolibrary.org/obo/MONDO_0005148", "mapped GCST90000001",
+            ),
+        )
+
+    def test_an_analysis_the_frozen_table_does_not_intend_is_refused(self) -> None:
+        metadata = self._candidate_metadata()
+        provenance = self._write_frozen_connectors({"GCST90000001": ("Weight", "", "")})
+        with self.assertRaisesRegex(CandidateError, "GCST90000002"):
+            candidate_source_traits(provenance, metadata)
+
+    def test_the_sources_must_be_exactly_the_analyses(self) -> None:
+        metadata = self._candidate_metadata()
+        table = load_canonical_trait_mapping_table(self.fixture.trait_table_dir)
+        with self.assertRaisesRegex(CandidateError, "GCST90000002"):
+            map_candidate_trait_ontologies(
+                metadata, [SourceTrait("GCST90000001", "x", "", "")], table
+            )
+
     def _run_emit_only(self) -> subprocess.CompletedProcess:
         return _run_cli(self.fixture, "--stage", "emit")
 
     def test_missing_record_fails_before_replacement(self) -> None:
         self.assertEqual(_run_cli(self.fixture).returncode, 0)
         before = _candidate_tables_bytes(self.fixture.registry_root)
-        records = self.fixture.work_root / STORE_ID / "resolver/records"
-        (records / "GCST90000002.json").unlink()
+        _kept_record(self.fixture, "GCST90000002").unlink()
         result = self._run_emit_only()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("missing", result.stderr)
         self.assertEqual(_candidate_tables_bytes(self.fixture.registry_root), before)
 
-    def test_extra_record_fails_before_replacement(self) -> None:
+    def test_another_selections_record_in_the_checkpoint_is_not_a_failure(self) -> None:
+        # The checkpoint is shared by every Selection of the collection (#284);
+        # a receipt naming a record outside its manifest is what fails
+        # (SharedResolutionRecordsTests).
         self.assertEqual(_run_cli(self.fixture).returncode, 0)
-        records = self.fixture.work_root / STORE_ID / "resolver/records"
-        (records / "GCST99999999.json").write_text("{}", encoding="utf-8")
+        (_checkpoint(self.fixture) / "GCST99999999.json").write_text("{}", encoding="utf-8")
         result = self._run_emit_only()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("extra resolver record", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_record_schema_version_mismatch_fails_before_replacement(self) -> None:
         self.assertEqual(_run_cli(self.fixture).returncode, 0)
-        records = self.fixture.work_root / STORE_ID / "resolver/records"
-        record_path = records / "GCST90000001.json"
-        record = json.loads(record_path.read_text())
-        record["record_schema_version"] = 2
-        record_path.write_text(json.dumps(record), encoding="utf-8")
+        _forge_kept_record(
+            self.fixture, "GCST90000001", lambda r: r.__setitem__("record_schema_version", 2)
+        )
         result = self._run_emit_only()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("record_schema_version", result.stderr)
 
     def test_index_schema_version_mismatch_fails_before_replacement(self) -> None:
         self.assertEqual(_run_cli(self.fixture).returncode, 0)
-        records = self.fixture.work_root / STORE_ID / "resolver/records"
-        index_path = records / "index.json"
+        index_path = self.fixture.work_root / STORE_ID / "resolver/index.json"
         index = json.loads(index_path.read_text())
         index["record_schema_version"] = 2
         index_path.write_text(json.dumps(index), encoding="utf-8")
@@ -1528,12 +1863,16 @@ class CandidateWorkflowTests(unittest.TestCase):
         receipt = json.loads(
             (self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME).read_text()
         )
-        records = self.fixture.work_root / STORE_ID / "resolver/records"
+        self.assertEqual(list(receipt["records"]), receipt["analysis_ids"])
         for analysis_id in receipt["analysis_ids"]:
-            record = json.loads((records / f"{analysis_id}.json").read_text())
+            record_path = _kept_record(self.fixture, analysis_id)
+            record = json.loads(record_path.read_text())
+            entry = receipt["records"][analysis_id]
             self.assertEqual(
-                receipt["record_digests"][analysis_id],
-                record["fingerprints"]["fingerprint_digest"],
+                entry["fingerprint_digest"], record["fingerprints"]["fingerprint_digest"]
+            )
+            self.assertEqual(
+                entry["record_sha256"], hashlib.sha256(record_path.read_bytes()).hexdigest()
             )
         self.assertIn("resolve-analyses", " ".join(receipt["resolver"]["argv"]))
 
@@ -1542,8 +1881,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         # and recompute a *valid* self-digest. The record is internally
         # consistent, so only the receipt can reject it.
         self._resolved_candidate()
-        records = self.fixture.work_root / STORE_ID / "resolver/records"
-        record_path = records / "GCST90000001.json"
+        record_path = _kept_record(self.fixture, "GCST90000001")
         record = json.loads(record_path.read_text())
         record["fingerprints"]["resolution_config"]["gates"]["tau"] = 0.99
         record["fingerprints"]["resolution_config"]["evidence_sample"] = 123
@@ -1573,10 +1911,10 @@ class CandidateWorkflowTests(unittest.TestCase):
         ):
             _, failures = verify_records(
                 manifest,
-                run_root / "records",
                 config=config,
                 manifest_path=run_root / "analyses.tsv",
                 receipt_path=run_root / RECEIPT_FILENAME,
+                index_path=run_root / "index.json",
             )
         self.assertTrue(
             any("opengwasdb_resolver_sha256" in failure for failure in failures), failures
@@ -1584,11 +1922,11 @@ class CandidateWorkflowTests(unittest.TestCase):
 
     def test_stale_record_fails_before_replacement(self) -> None:
         self.assertEqual(_run_cli(self.fixture).returncode, 0)
-        records = self.fixture.work_root / STORE_ID / "resolver/records"
-        record_path = records / "GCST90000001.json"
-        record = json.loads(record_path.read_text())
-        record["fingerprints"]["source_recorded_sha256"] = "0" * 64
-        record_path.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
+        _forge_kept_record(
+            self.fixture,
+            "GCST90000001",
+            lambda r: r["fingerprints"].__setitem__("source_recorded_sha256", "0" * 64),
+        )
         result = self._run_emit_only()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("fingerprint", result.stderr)
@@ -1620,11 +1958,12 @@ class CandidateWorkflowTests(unittest.TestCase):
             _, failures = account_records(rows, records)
             self.assertTrue(any("duplicate analysis_id" in failure for failure in failures))
 
-            # an extra record the manifest does not account for
+            # A record the manifest does not name is another Selection's: the
+            # checkpoint is shared by the collection (#284).
             (records / "index.json").write_text(json.dumps(base_index))
             (records / "GCST99999999.json").write_text("{}")
             _, failures = account_records(rows, records)
-            self.assertTrue(any("extra resolver record" in failure for failure in failures))
+            self.assertFalse(any("GCST99999999" in failure for failure in failures), failures)
 
     def test_account_records_rejects_incompatible_schema_versions(self) -> None:
         rows = _two_resolver_rows()[:1]
@@ -1666,11 +2005,11 @@ class CandidateWorkflowTests(unittest.TestCase):
     def test_read_resolution_receipt_rejects_incompatible_schema_versions(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / RECEIPT_FILENAME
-            path.write_text(json.dumps({"receipt_schema_version": 2}))
+            path.write_text(json.dumps({"receipt_schema_version": 3}))
             with self.assertRaises(CandidateError):
                 read_resolution_receipt(path)
             path.write_text(
-                json.dumps({"receipt_schema_version": 1, "record_schema_version": 9})
+                json.dumps({"receipt_schema_version": 2, "record_schema_version": 9})
             )
             with self.assertRaises(CandidateError):
                 read_resolution_receipt(path)
@@ -1687,7 +2026,6 @@ class CandidateWorkflowTests(unittest.TestCase):
             records_dir=Path("/tmp/records"),
             config=config,
             cores=64,
-            resume=True,
         )
         self.assertEqual(argv[:2], ["opengwasdb", "resolve-analyses"])
         for flag in (
@@ -1733,14 +2071,19 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertEqual(run.returncode, 0, run.stderr)
         records, failures = verify_records(
             manifest,
-            self.fixture.work_root / STORE_ID / "resolver/records",
             config=config,
             manifest_path=self.fixture.work_root / STORE_ID / "resolver/analyses.tsv",
             receipt_path=self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME,
+            index_path=self.fixture.work_root / STORE_ID / "resolver/index.json",
         )
         self.assertEqual(failures, [])
         index = json.loads(
-            (self.fixture.work_root / STORE_ID / "resolver/records/index.json").read_text()
+            (self.fixture.work_root / STORE_ID / "resolver/index.json").read_text()
+        )
+        metadata, _ = map_candidate_trait_ontologies(
+            metadata,
+            candidate_source_traits(config.base.inventory_provenance_path, metadata),
+            load_canonical_trait_mapping_table(self.fixture.trait_table_dir),
         )
         outcomes = apply_release_policy(
             rows, config, metadata, {record["analysis_id"]: record for record in records}
@@ -1771,10 +2114,25 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertEqual(tables.ancestry_check, "passed_with_warnings")
         self.assertEqual(tables.sd_check, "passed_with_warnings")
 
-    def test_high_projected_overflow_blocks_candidate_publication(self) -> None:
+    def _declare_variant_reference(self) -> None:
+        """Declare a Variant Reference that exists, as the resolver needs it to."""
+        axis = self.fixture.root / "reference" / "axis.gz"
+        axis.write_bytes(b"fixture variant reference\n")
         config = yaml.safe_load(self.fixture.config_path.read_text())
-        config["build"]["options"]["variant-reference"] = "/axis.gz"
+        config["build"]["options"]["variant-reference"] = str(axis)
         self.fixture.config_path.write_text(yaml.safe_dump(config))
+
+    def test_a_missing_resolver_settings_file_is_refused_before_resolving(self) -> None:
+        config = yaml.safe_load(self.fixture.config_path.read_text())
+        config["build"]["options"]["variant-reference"] = str(self.fixture.root / "absent.gz")
+        self.fixture.config_path.write_text(yaml.safe_dump(config))
+        run = _run_cli(self.fixture)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn("--variant-reference", run.stderr)
+        self.assertNotIn("Traceback", run.stderr)
+
+    def test_high_projected_overflow_blocks_candidate_publication(self) -> None:
+        self._declare_variant_reference()
         outcomes = json.loads(self.fixture.outcomes_path.read_text())
         outcomes["GCST90000001"]["variant_reference_rows_matched"] = 0
         self.fixture.outcomes_path.write_text(json.dumps(outcomes))
@@ -1788,9 +2146,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         # OGS-00011's blocker: 476 successful records with zero build-eligible
         # rows refused the candidate through the overlap gate. They now carry
         # one audited exclusion reason and the overlap gate never sees them.
-        config = yaml.safe_load(self.fixture.config_path.read_text())
-        config["build"]["options"]["variant-reference"] = "/axis.gz"
-        self.fixture.config_path.write_text(yaml.safe_dump(config))
+        self._declare_variant_reference()
         self._set_outcome("GCST90000001", build_eligible_rows=0)
         self._set_outcome("GCST90000001", build_eligible_rows_on_variant_reference=0)
         self._set_outcome("GCST90000001", build_eligible_rows_off_variant_reference=0)
@@ -1852,7 +2208,8 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertEqual([row["variant_reference_rate"] for row in overlap], ["1", "0"])
         self.assertEqual([row["rows_scanned"] for row in overlap], ["100", "100"])
         validation = render_validation_yaml(
-            tables=tables, index_summary={}, validated_at="now", validator_name="test"
+            tables=tables, index_summary={}, validated_at="now", validator_name="test",
+            trait_ontology_mapping=TRAIT_ONTOLOGY_PROVENANCE,
         )
         self.assertEqual(validation["checks"]["reference_overlap"], "failed")
         self.assertEqual(validation["reference_overlap"]["projected_off_reference_share"], 0.5)
@@ -1899,7 +2256,8 @@ class CandidateWorkflowTests(unittest.TestCase):
         )
         self.assertEqual([row["build_eligible_rate"] for row in overlap], ["0.8", "0"])
         validation = render_validation_yaml(
-            tables=tables, index_summary={}, validated_at="now", validator_name="test"
+            tables=tables, index_summary={}, validated_at="now", validator_name="test",
+            trait_ontology_mapping=TRAIT_ONTOLOGY_PROVENANCE,
         )
         summary = validation["reference_overlap"]
         self.assertEqual(summary["projected_off_reference_basis"], "build_eligible_rows")
@@ -2397,6 +2755,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             index_summary={},
             validated_at="now",
             validator_name="test",
+            trait_ontology_mapping=TRAIT_ONTOLOGY_PROVENANCE,
         )
         self.assertEqual(validation["store_composition"], dict(tables.store_composition))
         release = render_release_yaml(
@@ -2473,7 +2832,8 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertEqual([row["build_eligible_rows"] for row in overlap], ["50", "0"])
         self.assertEqual([row["exclude_from_build"] for row in overlap], ["", "true"])
         validation = render_validation_yaml(
-            tables=tables, index_summary={}, validated_at="now", validator_name="test"
+            tables=tables, index_summary={}, validated_at="now", validator_name="test",
+            trait_ontology_mapping=TRAIT_ONTOLOGY_PROVENANCE,
         )
         self.assertEqual(validation["checks"]["reference_overlap"], "passed")
         self.assertEqual(validation["errors"], [])
@@ -2651,6 +3011,582 @@ class SharedVocabularyTests(unittest.TestCase):
         from manifest_generation import generation_rules
 
         self.assertIs(candidate_workflow.INFO_SCORE_KINDS, generation_rules.INFO_SCORE_KINDS)
+
+
+# ---------------------------------------------------------------------------
+# Resolution Records kept once per Source Collection, reused by every Selection
+# (#284, ADR 0036). ``FAKE_RESOLVER_LOG`` records which Analyses a run actually
+# resolved, as opposed to resumed.
+# ---------------------------------------------------------------------------
+
+COLLECTION_ID = "gwas-catalog-ssf"
+TRIAL_STORE_ID = "OGS-99002"
+READY_IDS = [row[0] for row in READY_ANALYSES]
+#: Every outcome in the trial Selection is a success, so nothing in it is
+#: re-run as a controlled failure would be.
+TRIAL_IDS = ["GCST90000001", "GCST90000002", "GCST90000004"]
+
+
+class SharedResolutionRecordsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="resolution-records-")
+        self.fixture: Fixture = FixtureBuilder(Path(self._tmp.name)).build()
+        self.area = ResolutionArea.for_collection(self.fixture.resolution_root, COLLECTION_ID)
+        self._runs = 0
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    # -- helpers ---------------------------------------------------------------
+
+    def _all_success_outcomes(self) -> Path:
+        path = self.fixture.root / "all-success.json"
+        path.write_text("{}", encoding="utf-8")
+        return path
+
+    def _trial_config(self, analysis_ids: list[str]) -> Path:
+        """A second Selection over the same Source Collection: a Trial Store Release."""
+        root = self.fixture.root
+        keep = set(analysis_ids)
+        acquisition = [
+            row for row in _read_tsv(root / "acq" / "base.tsv") if row["analysis_id"] in keep
+        ]
+        passes = []
+        for role, name in (("base", "trial-base.tsv"), ("retry_transient", "trial-retry.tsv")):
+            path = root / "acq" / name
+            _write_tsv(path, ACQUISITION_MANIFEST_COLUMNS, acquisition)
+            passes.append(AcquisitionPass(role=role, path=path))
+        candidates = _read_tsv(self.fixture.candidates_path)
+        trial_candidates = root / "trial-candidates.tsv"
+        _write_tsv(
+            trial_candidates,
+            list(candidates[0]),
+            [row for row in candidates if row["STUDY.ACCESSION"] in keep],
+        )
+        snapshot = build_snapshot(
+            snapshot_id="fixture-trial",
+            source_collection_id=COLLECTION_ID,
+            store_key=STORE_KEY,
+            ancestry_group="European",
+            manifests=passes,
+            candidates=read_candidate_selection(trial_candidates, STORE_KEY),
+            frozen_at="2026-09-21T00:00:00Z",
+        )
+        inventory = root / "inventory" / "fixture-trial.tsv"
+        provenance = root / "inventory" / "fixture-trial.meta.yaml"
+        write_snapshot(snapshot, inventory, provenance)
+
+        document = yaml.safe_load(self.fixture.config_path.read_text(encoding="utf-8"))
+        document["label"] = "fixture-trial"
+        document["source"]["candidates"] = str(trial_candidates)
+        document["source"]["inventory"] = {
+            "snapshot_id": "fixture-trial",
+            "path": str(inventory),
+            "provenance_path": str(provenance),
+            "freeze_inputs": [
+                {"role": p.role, "path": str(p.path)} for p in passes
+            ],
+        }
+        config_path = root / "config-trial.yaml"
+        config_path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+        return config_path
+
+    def _run(self, *args: str, **kwargs):
+        """Run the entry point; return (result, the Analyses this run resolved)."""
+        self._runs += 1
+        log = self.fixture.root / f"resolved-{self._runs}.log"
+        result = _run_cli(self.fixture, *args, resolved_log=log, **kwargs)
+        resolved = log.read_text(encoding="utf-8").split() if log.exists() else []
+        return result, sorted(resolved)
+
+    def _receipt(self, store_id: str = STORE_ID) -> dict:
+        path = self.fixture.work_root / store_id / "resolver" / RECEIPT_FILENAME
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def _set_gate(self, name: str, value: float) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text(encoding="utf-8"))
+        document["ancestry_assignment"]["gates"][name] = value
+        self.fixture.config_path.write_text(
+            yaml.safe_dump(document, sort_keys=False), encoding="utf-8"
+        )
+
+    def _assert_names_kept_records(self, receipt: dict, expected_ids: list[str]) -> None:
+        self.assertEqual(receipt["analysis_ids"], expected_ids)
+        self.assertEqual(list(receipt["records"]), expected_ids)
+        self.assertEqual(receipt["resolution_area"], str(self.area.root))
+        for analysis_id, entry in receipt["records"].items():
+            path = self.area.root / entry["record"]
+            self.assertTrue(path.is_file(), path)
+            self.assertEqual(path, self.area.record_path(
+                KeptRecord(analysis_id, entry["fingerprint_digest"], entry["record_sha256"])
+            ))
+            data = path.read_bytes()
+            self.assertEqual(hashlib.sha256(data).hexdigest(), entry["record_sha256"])
+            record = json.loads(data)
+            self.assertEqual(record["analysis_id"], analysis_id)
+            self.assertEqual(
+                record["fingerprints"]["fingerprint_digest"], entry["fingerprint_digest"]
+            )
+
+    def _assert_emit_fails(self, expected: str) -> None:
+        before = _candidate_tables_bytes(self.fixture.registry_root)
+        result, _ = self._run("--stage", "emit")
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn(expected, result.stderr)
+        self.assertEqual(_candidate_tables_bytes(self.fixture.registry_root), before)
+
+    # -- 1. two Selections over one collection ---------------------------------
+
+    def test_trial_then_full_release_resolve_each_shared_analysis_once(self) -> None:
+        trial, resolved = self._run(
+            store_id=TRIAL_STORE_ID, config_path=self._trial_config(TRIAL_IDS)
+        )
+        self.assertEqual(trial.returncode, 0, trial.stderr)
+        self.assertEqual(resolved, TRIAL_IDS)
+
+        full, resolved = self._run()
+        self.assertEqual(full.returncode, 0, full.stderr)
+        self.assertEqual(resolved, sorted(set(READY_IDS) - set(TRIAL_IDS)))
+
+        trial_receipt = self._receipt(TRIAL_STORE_ID)
+        full_receipt = self._receipt()
+        self._assert_names_kept_records(trial_receipt, TRIAL_IDS)
+        self._assert_names_kept_records(full_receipt, READY_IDS)
+        # The shared Analyses' records are the same records, not re-measurements.
+        for analysis_id in TRIAL_IDS:
+            self.assertEqual(
+                trial_receipt["records"][analysis_id], full_receipt["records"][analysis_id]
+            )
+
+        # Both candidates still verify and re-emit from their own receipts.
+        for store_id, config in (
+            (TRIAL_STORE_ID, self.fixture.root / "config-trial.yaml"),
+            (STORE_ID, self.fixture.config_path),
+        ):
+            again, resolved = self._run("--stage", "emit", store_id=store_id, config_path=config)
+            self.assertEqual(again.returncode, 0, again.stderr)
+            self.assertEqual(resolved, [])
+
+    def test_a_selection_under_its_own_settings_is_never_re_resolved(self) -> None:
+        # Trial under settings A, the full release under settings B, then the
+        # trial again under A: the B run must not evict the trial's records.
+        outcomes = self._all_success_outcomes()
+        trial_config = self._trial_config(TRIAL_IDS)
+        trial, resolved = self._run(
+            store_id=TRIAL_STORE_ID, config_path=trial_config, outcomes=outcomes
+        )
+        self.assertEqual(trial.returncode, 0, trial.stderr)
+        self.assertEqual(resolved, TRIAL_IDS)
+        first = self._receipt(TRIAL_STORE_ID)
+
+        self._set_gate("tau", 0.6)
+        full, resolved = self._run(outcomes=outcomes)
+        self.assertEqual(full.returncode, 0, full.stderr)
+        self.assertEqual(resolved, READY_IDS)
+        self.assertNotEqual(
+            self._receipt()["resolver"]["settings_digest"], first["resolver"]["settings_digest"]
+        )
+
+        again, resolved = self._run(
+            store_id=TRIAL_STORE_ID, config_path=trial_config, outcomes=outcomes
+        )
+        self.assertEqual(again.returncode, 0, again.stderr)
+        self.assertEqual(resolved, [])
+        # The same records, byte for byte: the fake's metrics differ on every
+        # resolution, so a re-resolution would have changed every checksum.
+        self.assertEqual(self._receipt(TRIAL_STORE_ID)["records"], first["records"])
+
+    def test_re_resolving_under_one_fingerprint_changes_the_record_checksum(self) -> None:
+        # The premise of the test above: a record resolved again is a new record.
+        outcomes = self._all_success_outcomes()
+        self.assertEqual(self._run(outcomes=outcomes)[0].returncode, 0)
+        first = self._receipt()["records"]
+        shutil.rmtree(self.area.root / "checkpoint")
+        result, resolved = self._run(outcomes=outcomes)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(resolved, READY_IDS)
+        for analysis_id, entry in self._receipt()["records"].items():
+            self.assertEqual(entry["fingerprint_digest"], first[analysis_id]["fingerprint_digest"])
+            self.assertNotEqual(entry["record_sha256"], first[analysis_id]["record_sha256"])
+
+    def test_the_work_root_holds_no_records(self) -> None:
+        result, _ = self._run()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        run_root = self.fixture.work_root / STORE_ID / "resolver"
+        self.assertFalse((run_root / "records").exists())
+        self.assertEqual(
+            sorted(p.name for p in run_root.iterdir()),
+            sorted(["analyses.tsv", "index.json", "resolve.log", RECEIPT_FILENAME]),
+        )
+        # The resolver's own records directory is the collection's checkpoint for
+        # these resolver settings.
+        receipt = self._receipt()
+        checkpoint = self.area.checkpoint_dir(receipt["resolver"]["settings_digest"])
+        self.assertEqual(checkpoint.parent, self.area.root / "checkpoint")
+        self.assertIn(str(checkpoint), receipt["resolver"]["argv"])
+
+    # -- 2. reuse and invalidation ---------------------------------------------
+
+    def test_an_unchanged_run_re_resolves_nothing(self) -> None:
+        outcomes = self._all_success_outcomes()
+        first, resolved = self._run(outcomes=outcomes)
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(resolved, READY_IDS)
+        receipt = self._receipt()
+
+        second, resolved = self._run(outcomes=outcomes)
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertEqual(resolved, [])
+        self.assertEqual(self._receipt()["records"], receipt["records"])
+
+    def test_a_changed_file_re_resolves_only_its_analysis(self) -> None:
+        outcomes = self._all_success_outcomes()
+        self.assertEqual(self._run(outcomes=outcomes)[0].returncode, 0)
+        before = self._receipt()["records"]
+
+        source = self.fixture.root / "mirror" / "GCST90000003.h.tsv.gz"
+        stat = source.stat()
+        os.utime(source, ns=(stat.st_atime_ns, stat.st_mtime_ns + 10_000_000_000))
+        result, resolved = self._run(outcomes=outcomes)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(resolved, ["GCST90000003"])
+        after = self._receipt()["records"]
+        self.assertNotEqual(
+            after["GCST90000003"]["fingerprint_digest"],
+            before["GCST90000003"]["fingerprint_digest"],
+        )
+        self.assertEqual(
+            {k: v for k, v in after.items() if k != "GCST90000003"},
+            {k: v for k, v in before.items() if k != "GCST90000003"},
+        )
+
+    def test_a_changed_reference_re_resolves_and_keeps_the_old_records(self) -> None:
+        outcomes = self._all_success_outcomes()
+        self.assertEqual(self._run(outcomes=outcomes)[0].returncode, 0)
+        before = self._receipt()["records"]
+
+        reference = self.fixture.root / "reference" / "ref_freqs.tsv.gz"
+        reference.write_bytes(reference.read_bytes() + b"# a new reference build\n")
+        result, resolved = self._run(outcomes=outcomes)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(resolved, READY_IDS)
+        after = self._receipt()["records"]
+        for analysis_id in READY_IDS:
+            self.assertNotEqual(
+                after[analysis_id]["fingerprint_digest"], before[analysis_id]["fingerprint_digest"]
+            )
+            # A record is kept, never overwritten: the old receipt's still exist.
+            self.assertTrue((self.area.root / before[analysis_id]["record"]).is_file())
+
+    def test_a_changed_setting_re_resolves_every_analysis(self) -> None:
+        outcomes = self._all_success_outcomes()
+        self.assertEqual(self._run(outcomes=outcomes)[0].returncode, 0)
+        self._set_gate("tau", 0.6)
+        result, resolved = self._run(outcomes=outcomes)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(resolved, READY_IDS)
+        # ... and the run after it, unchanged again, re-resolves nothing.
+        result, resolved = self._run(outcomes=outcomes)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(resolved, [])
+
+    # -- 3. a receipt names exactly its records, and verification holds --------
+
+    def test_a_missing_record_fails_verification(self) -> None:
+        self.assertEqual(self._run()[0].returncode, 0)
+        entry = self._receipt()["records"]["GCST90000002"]
+        (self.area.root / entry["record"]).unlink()
+        self._assert_emit_fails("missing")
+
+    def test_a_stale_record_fails_verification(self) -> None:
+        # The source changed after its record was kept: the record's fingerprint
+        # no longer matches the file, so the candidate cannot be emitted from it.
+        self.assertEqual(self._run()[0].returncode, 0)
+        source = self.fixture.root / "mirror" / "GCST90000001.h.tsv.gz"
+        stat = source.stat()
+        os.utime(source, ns=(stat.st_atime_ns, stat.st_mtime_ns + 10_000_000_000))
+        self._assert_emit_fails("re-run resolution")
+
+    def test_an_edited_record_fails_verification_by_its_checksum(self) -> None:
+        self.assertEqual(self._run()[0].returncode, 0)
+        path = self.area.root / self._receipt()["records"]["GCST90000001"]["record"]
+        record = json.loads(path.read_text(encoding="utf-8"))
+        record["fingerprints"]["resolution_config"]["gates"]["tau"] = 0.99
+        record["fingerprints"]["fingerprint_digest"] = _fingerprint_digest(record["fingerprints"])
+        path.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
+        self._assert_emit_fails("record_sha256")
+
+    def test_a_receipt_naming_a_record_outside_its_selection_fails(self) -> None:
+        trial = self._run(store_id=TRIAL_STORE_ID, config_path=self._trial_config(TRIAL_IDS))[0]
+        self.assertEqual(trial.returncode, 0, trial.stderr)
+        self.assertEqual(self._run()[0].returncode, 0)
+        full = self._receipt()["records"]
+
+        receipt_path = self.fixture.work_root / TRIAL_STORE_ID / "resolver" / RECEIPT_FILENAME
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["records"]["GCST90000003"] = full["GCST90000003"]
+        receipt_path.write_text(json.dumps(receipt, indent=2), encoding="utf-8")
+        result, _ = self._run(
+            "--stage", "emit",
+            store_id=TRIAL_STORE_ID,
+            config_path=self.fixture.root / "config-trial.yaml",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("outside", result.stderr)
+
+    def _edit_receipt(self, edit) -> None:
+        path = self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+        edit(receipt)
+        path.write_text(json.dumps(receipt), encoding="utf-8")
+
+    def test_a_receipt_without_a_resolution_area_is_refused(self) -> None:
+        self.assertEqual(self._run()[0].returncode, 0)
+        self._edit_receipt(lambda r: r.__setitem__("resolution_area", None))
+        self._assert_emit_fails("resolution_area")
+        self._edit_receipt(lambda r: r.pop("resolution_area"))
+        self._assert_emit_fails("resolution_area")
+
+    def test_a_receipt_with_an_unknown_key_is_refused(self) -> None:
+        self.assertEqual(self._run()[0].returncode, 0)
+        self._edit_receipt(lambda r: r.__setitem__("note", "hand-added"))
+        self._assert_emit_fails("unknown key")
+
+    def test_a_record_entry_with_an_unknown_key_is_refused(self) -> None:
+        self.assertEqual(self._run()[0].returncode, 0)
+        self._edit_receipt(
+            lambda r: r["records"]["GCST90000001"].__setitem__("reused", True)
+        )
+        self._assert_emit_fails("GCST90000001")
+
+    def test_a_historical_receipt_is_refused_by_name(self) -> None:
+        self.assertEqual(self._run()[0].returncode, 0)
+        receipt_path = self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["receipt_schema_version"] = 1
+        receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+        self._assert_emit_fails("historical")
+
+    # -- 5. concurrency --------------------------------------------------------
+
+    def test_a_second_run_over_a_locked_collection_area_is_refused(self) -> None:
+        with self.area.exclusive("a concurrent test run"):
+            result, resolved = self._run()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("locked", result.stderr)
+        self.assertIn("a concurrent test run", result.stderr)
+        self.assertEqual(resolved, [])
+        self.assertFalse((self.fixture.registry_root / STORE_ID).exists())
+        self.assertEqual(list((self.area.root / "checkpoint").rglob("*.json")), [])
+        # Once the lock is released the same run proceeds.
+        result, _ = self._run()
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_killed_run_leaves_the_lock_with_its_running_resolver(self) -> None:
+        pause = self.fixture.root / "resolver-paused"
+        command, env = _cli_invocation(
+            self.fixture, extra_env={"FAKE_RESOLVER_PAUSE_FILE": str(pause)}
+        )
+        parent = subprocess.Popen(
+            command, cwd=str(REPO_ROOT), env=env,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        try:
+            deadline = time.monotonic() + 60
+            while not (pause.exists() and pause.read_text().strip()):
+                self.assertLess(time.monotonic(), deadline, "the resolver never started")
+                self.assertIsNone(parent.poll(), "the run exited before resolving")
+                time.sleep(0.05)
+            resolver_pid = int(pause.read_text())
+            parent.kill()
+            parent.wait()
+            # The run is gone but its resolver is still writing: no second run.
+            with self.assertRaises(ResolutionAreaLocked):
+                with self.area.exclusive("a second run"):
+                    pass
+        finally:
+            pause.unlink(missing_ok=True)
+            if parent.poll() is None:
+                parent.kill()
+                parent.wait()
+        deadline = time.monotonic() + 60
+        while _pid_alive(resolver_pid):
+            self.assertLess(time.monotonic(), deadline, "the resolver never finished")
+            time.sleep(0.05)
+        with self.area.exclusive("after the resolver finished"):
+            pass
+
+    def test_resume_is_refused_because_reuse_is_automatic(self) -> None:
+        result, resolved = self._run("--resume")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("reuse is automatic", result.stderr)
+        self.assertEqual(resolved, [])
+
+    def test_keeping_a_record_never_replaces_different_bytes(self) -> None:
+        self.assertEqual(self._run()[0].returncode, 0)
+        receipt = self._receipt()
+        entry = receipt["records"]["GCST90000001"]
+        kept = self.area.root / entry["record"]
+        kept.write_bytes(kept.read_bytes() + b" ")
+        checkpoint = self.area.checkpoint_dir(receipt["resolver"]["settings_digest"])
+        with self.assertRaisesRegex(ResolutionAreaError, "differ"):
+            self.area.keep(checkpoint, "GCST90000001")
+
+    def test_verifying_a_resolved_candidate_needs_no_lock(self) -> None:
+        self.assertEqual(self._run()[0].returncode, 0)
+        with self.area.exclusive("another Selection resolving"):
+            result, resolved = self._run("--stage", "emit")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(resolved, [])
+
+    def test_the_lock_is_exclusive(self) -> None:
+        with self.area.exclusive("first"):
+            with self.assertRaises(ResolutionAreaLocked) as raised:
+                with self.area.exclusive("second"):
+                    pass
+            self.assertIn("first", str(raised.exception))
+        with self.area.exclusive("third"):
+            pass
+
+
+#: The pinned resolver, installed in this environment; absent, the test skips.
+REAL_RESOLVER = Path(sys.executable).resolve().parent / "opengwasdb"
+_PANEL_GROUPS = ("North-West Europe", "West Africa", "East Asia")
+_PANEL_SUPERPOPS = {"North-West Europe": "EUR", "West Africa": "AFR", "East Asia": "EAS"}
+_PANEL_VARIANTS = 60
+
+
+def _panel_frequency(index: int, group: int) -> float:
+    return 0.1 + 0.8 * (((index * 37 + group * 11) % 97) / 97)
+
+
+def _real_ssf_body(analysis_id: str) -> bytes:
+    """A tiny GWAS-SSF file the real resolver reads, with EUR-like frequencies."""
+    seed = int(analysis_id[-2:])
+    lines = [
+        "chromosome\tbase_pair_location\teffect_allele\tother_allele\tbeta\t"
+        "standard_error\teffect_allele_frequency\n"
+    ]
+    for index in range(_PANEL_VARIANTS):
+        frequency = _panel_frequency(index, 0)
+        beta = 0.01 * (((index + seed) % 7) - 3)
+        lines.append(f"1\t{1000 + index}\tA\tC\t{beta:.4g}\t0.02\t{frequency:.6g}\n")
+    return gzip.compress("".join(lines).encode("utf-8"), mtime=0)
+
+
+@unittest.skipUnless(REAL_RESOLVER.is_file(), "the pinned opengwasdb resolver is not installed")
+class RealResolverReuseTests(unittest.TestCase):
+    """The pinned `opengwasdb resolve-analyses` reuses a Resolution Area's records (#284)."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="real-resolver-")
+        self.fixture = FixtureBuilder(Path(self._tmp.name), bodies=_real_ssf_body).build()
+        reference = self.fixture.root / "reference"
+        header = ["alid", "chromosome", "position", "effect_allele", "other_allele", "rsid"]
+        rows = ["\t".join([*header, *_PANEL_GROUPS])]
+        for index in range(_PANEL_VARIANTS):
+            cells = [f"1:{1000 + index}:A:C", "1", str(1000 + index), "A", "C", f"rs{index}"]
+            cells += [f"{_panel_frequency(index, g):.6g}" for g in range(len(_PANEL_GROUPS))]
+            rows.append("\t".join(cells))
+        (reference / "ref_freqs.tsv.gz").write_bytes(
+            gzip.compress(("\n".join(rows) + "\n").encode("utf-8"), mtime=0)
+        )
+        (reference / "ancestry_groups.tsv").write_text(
+            "group\tsuper_pop\n"
+            + "".join(f"{g}\t{_PANEL_SUPERPOPS[g]}\n" for g in _PANEL_GROUPS),
+            encoding="utf-8",
+        )
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_an_unchanged_second_run_resumes_every_record(self) -> None:
+        receipts = []
+        indexes = []
+        for _ in range(2):
+            result = _run_cli(self.fixture, "--stage", "resolve", resolver=REAL_RESOLVER)
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            run_root = self.fixture.work_root / STORE_ID / "resolver"
+            receipts.append(json.loads((run_root / RECEIPT_FILENAME).read_text()))
+            indexes.append(json.loads((run_root / "index.json").read_text()))
+        n = len(READY_ANALYSES)
+        self.assertEqual(indexes[0]["n_total"], n)
+        self.assertEqual(indexes[0]["n_success"], n, indexes[0])
+        self.assertEqual(indexes[0]["n_resumed"], 0)
+        self.assertEqual(indexes[1]["n_resumed"], n)
+        self.assertEqual(receipts[1]["records"], receipts[0]["records"])
+
+
+class ResolutionRootTests(unittest.TestCase):
+    """Where the shared area lives: a deployment root, resolved like the Artifact Root.
+
+    The flag, then ``OPENGWASDB_RESOLUTION_ROOT``, then ``ogstores.yaml``'s
+    ``resolution_root``, then the built-in default. A release config cannot
+    name it, so two configs over one collection cannot get two areas.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="resolution-root-")
+        self.root = Path(self._tmp.name)
+        self.fixture = FixtureBuilder(self.root / "fixture").build()
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_precedence_flag_env_repo_config_default(self) -> None:
+        repo = self.root / "repo"
+        repo.mkdir()
+        self.assertEqual(resolution_root(env={}, repo_root=repo), DEFAULT_RESOLUTION_ROOT)
+        (repo / "ogstores.yaml").write_text("resolution_root: /from/config\n", encoding="utf-8")
+        self.assertEqual(resolution_root(env={}, repo_root=repo), Path("/from/config"))
+        env = {RESOLUTION_ROOT_ENV_VAR: "/from/env"}
+        self.assertEqual(resolution_root(env=env, repo_root=repo), Path("/from/env"))
+        self.assertEqual(
+            resolution_root("/from/flag", env=env, repo_root=repo), Path("/from/flag")
+        )
+
+    def test_a_malformed_repo_config_value_is_refused(self) -> None:
+        repo = self.root / "repo"
+        repo.mkdir()
+        for text in ("resolution_root: ''\n", "resolution_root: relative/path\n", "- a list\n"):
+            (repo / "ogstores.yaml").write_text(text, encoding="utf-8")
+            with self.assertRaises(ResolutionAreaError):
+                resolution_root(env={}, repo_root=repo)
+
+    def test_the_tracked_repo_config_names_the_production_root(self) -> None:
+        self.assertEqual(
+            resolution_root(env={}, repo_root=REPO_ROOT), Path("/data/opengwasdb/work/resolution")
+        )
+
+    def test_the_pipeline_resolves_the_area_from_the_deployment_root(self) -> None:
+        args = generate_candidate.parse_args(
+            [STORE_ID, "--config", str(self.fixture.config_path),
+             "--resolution-root", str(self.root / "flag")]
+        )
+        pipeline = generate_candidate.Pipeline(args, REPO_ROOT, "test")
+        self.assertEqual(pipeline.resolution_area.root, self.root / "flag" / COLLECTION_ID)
+
+    def test_a_release_config_cannot_name_the_resolution_root(self) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text(encoding="utf-8"))
+        document["output"]["resolution_root"] = str(self.root / "from-config")
+        self.fixture.config_path.write_text(yaml.safe_dump(document), encoding="utf-8")
+        with self.assertRaisesRegex(PreflightConfigError, "deployment"):
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+
+    def test_a_collection_id_that_is_not_one_path_segment_is_refused(self) -> None:
+        for bad in ("", "..", "a/b", ".hidden"):
+            with self.assertRaises(ValueError):
+                ResolutionArea.for_collection(self.root, bad)
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    # A zombie is finished; only its reaping is left.
+    stat = Path(f"/proc/{pid}/stat")
+    return not (stat.exists() and stat.read_text().split(")")[-1].split()[0] == "Z")
 
 
 if __name__ == "__main__":

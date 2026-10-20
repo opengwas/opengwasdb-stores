@@ -97,12 +97,11 @@ runs any candidate-workflow config:
 ```sh
 pixi run generate-candidate OGS-00011 \
   --config resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
-  --cores 64 \
-  --resume
+  --cores 64
 ```
 
 See `resources/generators/gwas-catalog-eur-hybrid/README.md` for the stage
-(`--stage`), resume, finalise and human-review details. `workflow/generate.smk` wires the same stages as an optional coarse DAG
+(`--stage`), reuse, emit and human-review details. `workflow/generate.smk` wires the same stages as an optional coarse DAG
 for a future multi-release batch:
 
 ```sh
@@ -116,4 +115,9 @@ snakemake --snakefile workflow/generate.smk --cores 64 \
 
 The per-Analysis pool and checkpoints stay inside the resolver
 (`opengwasdb resolve-analyses`), so the DAG never loads a genome-scale reference
-once per Analysis.
+once per Analysis. Its records are kept in the Source Collection's Resolution
+Area under the resolution root (`resolution_root=<dir>`, default
+`OPENGWASDB_RESOLUTION_ROOT`, else `ogstores.yaml`) and shared by every
+Selection (#284); every run reuses them, so there is no resume switch. The
+`resolve` rule's output is the Work Root's resolution receipt. Store Release
+Build never reads the Resolution Area.

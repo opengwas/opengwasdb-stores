@@ -32,15 +32,16 @@ alignment or SD — those stay OpenGWASDB's and are exercised upstream.
 4. **Every selected Analysis is accounted** — one ancestry row and one
    SD-estimation row per selected Analysis; the 6,035-row-style inventory
    evidence stays distinct from membership.
-5. **Accounting failures fail finalisation before replacement** — missing, extra,
+5. **Accounting failures stop emit before replacement** — missing,
    duplicate and incompatible-`record_schema_version` records (unit and
-   end-to-end).
+   end-to-end). Another Selection's record in the shared checkpoint is not a
+   failure.
 6. **The resolution receipt closes the stale-record hole** — the receipt binds
-   the contract and every record digest; changing a gate, the ancestry reference
+   the contract and every kept record's digest and checksum; changing a gate, the ancestry reference
    or fine-group map content, the resolver revision, or forging an
    internally-consistent record with a recomputed self-digest all make
    `verify`/`emit` fail and preserve a prior candidate.
-   A missing receipt is rejected too. (`--cores` and `--resume` deliberately do
+   A missing receipt is rejected too. (`--cores` and the resolution root deliberately do
    not change the contract.)
 7. **Resume reuses unchanged records** and reproduces byte-identical tables and
    sidecars.
@@ -80,6 +81,40 @@ alignment or SD — those stay OpenGWASDB's and are exercised upstream.
 14. **One vocabulary** — the workflow takes the super-population codes from
     the contract (`ogstores.bundle`) and the imputation score kinds from
     Manifest Generation's rules (`generation_rules`), never its own copy (#250).
+
+`SharedResolutionRecordsTests` and `ResolutionRootTests` cover Resolution Records kept per Source
+Collection (#284, ADR 0036):
+
+14. **Selections share records** — a Trial Store Release and then a full release
+    over one collection resolve each shared Analysis once, and each receipt
+    names exactly its Selection's records; the Work Root holds none.
+15. **Reuse and invalidation** — an unchanged run re-resolves nothing; a changed
+    source file re-resolves only its Analysis; a changed reference or gate
+    re-resolves every Analysis, and the records an earlier receipt named are
+    still kept.
+16. **Verification** — a missing, stale (source changed) or edited kept record,
+    a receipt naming a record outside its Selection, and a historical
+    (`receipt_schema_version` 1) receipt all fail `emit`.
+17. **Concurrency** — a run over a locked collection area is refused and writes
+    nothing; verifying a resolved candidate needs no lock.
+18. **The resolution root** — a deployment setting: `--resolution-root`, then
+    `OPENGWASDB_RESOLUTION_ROOT`, then `ogstores.yaml`'s `resolution_root`, then
+    the built-in default. A release config naming `output.resolution_root` is
+    refused.
+19. **Settings never evict** — a trial under one set of settings, the full
+    release under another, then the trial again re-resolves nothing and names
+    the same record checksums. A killed run's resolver keeps the area locked
+    until it exits, and `--resume` is refused because reuse is automatic.
+20. **The real resolver** — `RealResolverReuseTests` runs the pinned
+    `opengwasdb resolve-analyses` on a tiny synthetic panel and GWAS-SSF
+    sources: a second unchanged run resumes every record and the receipt names
+    the same records (skipped when the resolver is not installed).
+
+`fixtures/fake_resolver.py` hashes the ancestry reference and group map as the
+real resolver does (failing if either is missing), re-runs `controlled_failure`
+records under `--resume`, writes run-dependent metrics so a re-resolution
+changes a record's checksum, appends each Analysis it actually resolves to
+`FAKE_RESOLVER_LOG`, and can be held mid-run through `FAKE_RESOLVER_PAUSE_FILE`.
 
 ## Running the suite
 

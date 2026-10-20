@@ -201,8 +201,20 @@ Manifest Generation (ADRs 0035 and 0036), installed editable like
 (`candidate_workflow.py`), its entry point (`generate_candidate.py`, run as
 `pixi run generate-candidate` or `python3 -m manifest_generation.generate_candidate`),
 Source Inventory freeze and preflight (`source_inventory.py`, `inventory.py`),
-the one emitter (`emit.py`), Manifest Generation's rules
-(`generation_rules.py`) and the helpers they share.
+the Resolution Area where Resolution Records are kept once per Source
+Collection (`resolution_area.py`), the one emitter (`emit.py`), Manifest
+Generation's rules (`generation_rules.py`) and the helpers they share.
+
+A candidate run's working files are in two places outside Git. The Work Root,
+`<output.work_root>/<store-id>/`, is one Store Release's: its preflight report,
+resolver manifest, log, resolver index and resolution receipt. The Resolution
+Area, `<resolution-root>/<source_collection_id>/`, is the Source Collection's:
+every Selection resolves into it and reuses its records, and each receipt names
+the records its bundle was decided from. The resolution root is deployment
+configuration, resolved in the Artifact Root's order: the run's
+`--resolution-root`, then `OPENGWASDB_RESOLUTION_ROOT`, then `ogstores.yaml`'s
+`resolution_root`, then the built-in default. Store Release Build reads neither
+(`tests/packaging/test_boundary.py`).
 
 `providers/<provider>/` holds one Source Provider's connector code, each an
 importable subpackage: acquisition and download scripts, metadata adapters,
@@ -348,8 +360,9 @@ runner of its own and runs everything else with `--skip-exclusive`.
 contract. It returns a list of every registry-side error it can find (an empty
 list means valid) and never raises for invalid bundle content. The returned
 list also carries a second channel, `.tolerated`, naming the suppressions the
-#134 legacy exemption (and a bundle Store Release Build will not build)
-deliberately tolerate -- with
+#134 legacy exemption, the #286 exemption for OGS-00011's non-CURIE
+`trait_ontology_id` values (an accepted bundle is never rewritten), and a
+bundle Store Release Build will not build deliberately tolerate -- with
 their count and citation -- so a caller can surface the gap rather than read a
 clean `[]` that silently erased it (issue #142). It reads only
 files inside Release Bundles, plus a parent bundle when resolving

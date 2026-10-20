@@ -73,6 +73,10 @@ _Avoid_: metadata resolution (fetching source metadata is not resolution)
 What Analysis Resolution measured for one Analysis's source file under one set of references and settings. It belongs to the Analysis, kept once per Source Collection, not to a Store Release: every Selection that takes the Analysis reuses a matching record, and a changed file, reference or setting makes a new one. Each candidate Release Bundle names the records its decisions came from.
 _Avoid_: resolver output, QC report
 
+**Resolution Area**:
+Where a Source Collection's Resolution Records are kept, `<resolution-root>/<source_collection_id>/`: shared by every Selection of the collection, resolved into by one run at a time, and never read by Store Release Build. Its kept records are write-once; a candidate's resolution receipt names the ones it used. The resolution root is deployment configuration, like the Artifact Root, never a release config value.
+_Avoid_: shared records dir, resolver cache
+
 **Quality Check**:
 A named release-policy test of one measurement of an Analysis, from its Resolution Record except where OpenGWASDB does not measure it yet (then a reviewed listing), against a threshold or, for a status, the values it accepts, with its consequence fixed when the check is defined: an exclusion (the Analysis stays in the Release Manifest as an `exclude_from_build` audit row with the check's reason) or a warning (the Analysis stays in and the finding is recorded). OpenGWASDB measures; Manifest Generation holds the threshold, a shared default a release may override and records, and records every Analysis's measurement whether it passes or not. An exclusion decides membership, so Quality Checks run before the Release Bundle exists; checks on a built Store are Store Release Build's validation and cannot change membership. Release policy that tests no measurement, such as a missing Resolution Record, is not a Quality Check.
 _Avoid_: QC panel (a variant extraction panel, not a check), validation (of a built Store)
@@ -158,7 +162,7 @@ The deployment-configured directory under which every Store Release's Release Ar
 _Avoid_: output directory, data root
 
 **Work Root**:
-Where a Manifest Generator keeps its working files for one Store Release, `<artifact-root>/<store-id>/generate` (`paths.generation_dir`). A legacy generator's working bundle lives there and is emitted from there; Store Release Build never reads it.
+Where Manifest Generation keeps its working files for one Store Release: for the shared candidate workflow, `<output.work_root>/<store-id>/` (its preflight report, resolver manifest, log, the run's resolver index and resolution receipt); for a legacy generator, `<artifact-root>/<store-id>/generate` (`paths.generation_dir`), where its working bundle lives and is emitted from. Resolution Records are not kept here but in the Resolution Area. Store Release Build never reads a Work Root.
 _Avoid_: release directory, families/ release dir
 
 **Release Lineage**:

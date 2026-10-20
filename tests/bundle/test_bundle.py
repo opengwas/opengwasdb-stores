@@ -514,11 +514,107 @@ class TestBundleContract(unittest.TestCase):
             label_errors,
         )
 
+        # A list is checked term by term: a gene identifier is not hidden by
+        # following an ontology term (#286). A label is checked whole, as #141
+        # defines it, because a term's own label may contain a comma.
+        listed_gene = self.make_bundle(
+            store_id="OGS-00094",
+            analyses=analyses_with(
+                "EFO:0020109, ENSEMBL:ENSG00000128245",
+                "14-3-3 protein family measurement, 14-3-3 protein eta",
+            ),
+        )
+        listed_gene_errors = bundle.check(listed_gene, registry_root=self.tmp_dir)
+        record_check()
+        self.assertTrue(
+            any("gene-shaped trait_ontology_id" in e for e in listed_gene_errors),
+            listed_gene_errors,
+        )
+        record_check()
+        self.assertEqual(
+            bundle.trait_ontology_id_terms(" EFO:1 ,EFO:2, , MONDO:3"),
+            ["EFO:1", "EFO:2", "", "MONDO:3"],
+        )
+        self.assertEqual(bundle.trait_ontology_id_terms(""), [])
+        self.assertFalse(
+            bundle.is_authority_name_trait_ontology_label("body mass index, Ensembl")
+        )
+        self.assertTrue(bundle.is_authority_name_trait_ontology_label(" Ensembl "))
+
         ok = self.make_bundle(
             store_id="OGS-00093",
             analyses=analyses_with("EFO:0020109", "14-3-3 protein family measurement"),
         )
         self.assertEqual(bundle.check(ok, registry_root=self.tmp_dir), [])
+
+    def _trait_ontology_bundle(self, store_id: str, ontology_id: str, label: str) -> bundle.Bundle:
+        return self.make_bundle(
+            store_id=store_id,
+            analyses=(
+                "analysis_id\tstored_effect_scale\tsample_size_kind\t"
+                "sample_size_scope\tsample_size\toriginal_effect_scale\t"
+                "original_sd_method\tassigned_ancestry\t"
+                "ancestry_assignment_method\tchecksum\tchecksum_algorithm\t"
+                "source_file\ttrait_ontology_id\ttrait_ontology_label\n"
+                "FIXTURE_1\tsd\ttotal\tanalysis_level\t1000\tsd\t"
+                "declared_standardised\tEUR\taf_assigned\t"
+                f"{'a' * 64}\tsha256\t/data/source/fixture.tsv\t{ontology_id}\t{label}\n"
+            ),
+        )
+
+    def test_trait_ontology_id_is_a_curie_or_a_list_of_curies(self) -> None:
+        """#286: each term of trait_ontology_id is a CURIE; a list is ", "-joined."""
+        for number, ontology_id in enumerate(
+            (
+                "EFO:0004839",
+                "Orphanet:101960",
+                "OBA:VT0001253",
+                "MONDO:0005150, EFO:1001492, MONDO:0005417",
+            )
+        ):
+            with self.subTest(ontology_id=ontology_id):
+                ok = self._trait_ontology_bundle(f"OGS-0010{number}", ontology_id, "a trait")
+                record_check()
+                self.assertEqual(bundle.check(ok, registry_root=self.tmp_dir), [])
+
+        for number, ontology_id in enumerate(
+            (
+                "http://www.ebi.ac.uk/efo/EFO_0004839",
+                "http://purl.obolibrary.org/obo/MONDO_0005148",
+                "MONDO:0005150, http://www.ebi.ac.uk/efo/EFO_1001492",
+                "EFO:0004471,EFO:0004340",
+                "EFO:0004471, ",
+                "EFO_0004471",
+            )
+        ):
+            with self.subTest(ontology_id=ontology_id):
+                bad = self._trait_ontology_bundle(f"OGS-0011{number}", ontology_id, "a trait")
+                result = bundle.check(bad, registry_root=self.tmp_dir)
+                record_check()
+                self.assertTrue(
+                    any("is not a CURIE" in error for error in result), (ontology_id, result)
+                )
+                self.assertEqual(list(result.tolerated), [])
+
+    def test_ogs_00011_raw_uris_are_tolerated_and_disclosed(self) -> None:
+        """#286: OGS-00011 was accepted with raw URIs; they are tolerated, never rewritten.
+
+        The tolerance is scoped to that one release by name, like #134's, and is
+        reported on check()'s second channel with its count (#142).
+        """
+        self.assertEqual(
+            bundle.LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES, frozenset({"OGS-00011"})
+        )
+        registry = REPO_ROOT / "stores"
+        result = bundle.check(
+            bundle.load("OGS-00011", registry_root=registry), registry_root=registry
+        )
+        record_check()
+        self.assertEqual(result, [], result)
+        gaps = [gap for gap in result.tolerated if gap.citation == "#286"]
+        self.assertEqual(len(gaps), 1, result.tolerated)
+        self.assertEqual(gaps[0].count, 2972)
+        self.assertEqual(gaps[0].detail, "non-CURIE trait_ontology_id values")
 
     def test_one_pass_accumulates_independent_errors(self) -> None:
         checked = self.make_bundle()
