@@ -100,6 +100,7 @@ adapter never writes a collection-wide fact into the table (#283).
 |---|---:|---|
 | `selection_superpopulation` | Yes | The super-population code (`AFR` `AMR` `EAS` `EUR` `MID` `NAF` `SAS`) the Selection expects. The `assigned_ancestry` Quality Check tests each Assigned Ancestry against it; it never moves an Analysis (ADR 0036). |
 | `store_composition.require_maf_filtered` | No | The Store Composition Rule (ADR 0033). Needs a positive `defaults.maf_threshold`. |
+| `trust_source_ancestry_without_af` | No | `true` opts in to #287's decision for sources with no allele frequencies (Sun 2018): an Analysis whose Resolution Record shows ancestry unmeasurable for that reason takes its Source Metadata Table `source_superpopulation` as Assigned Ancestry (`source_trusted_no_af`), a warning-level `assigned_ancestry` result. Default `false`: such an Analysis is `ancestry_unassigned`. A measured ancestry never takes the source label. |
 | `imputation_score_declarations` | No | The reviewed per-Analysis INFO score declarations (#175). |
 | `maf_filter_exempt_genotyping_technologies` | No | Technologies exempt from the MAF floor (#176). |
 | `maf_filter_exempt_analyses` | No | The reviewed per-Analysis MAF-floor exemptions (#176). |

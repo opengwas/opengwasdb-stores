@@ -411,7 +411,15 @@ class CandidateConfiguration:
     #: #285): check name -> parsed threshold. Empty means every check uses its
     #: shared default. Recorded in the resolution receipt and validation.yaml.
     quality_check_overrides: Mapping[str, Any] = field(default_factory=dict)
+    #: ``release_policy.trust_source_ancestry_without_af`` (#287): an Analysis
+    #: whose record shows no allele frequency takes the Source Metadata Table's
+    #: super-population as Assigned Ancestry (``source_trusted_no_af``).
+    trust_source_ancestry_without_af: bool = False
 
+
+#: The Ancestry Assignment Method of an Analysis whose source has no allele
+#: frequencies and whose release trusts its source super-population (#287).
+SOURCE_TRUSTED_NO_AF: str = "source_trusted_no_af"
 
 #: The reader a release uses when its Build Recipe names none.
 DEFAULT_SOURCE_READER_CAPABILITY: str = "opengwasdb.gwas-ssf"
@@ -464,6 +472,7 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         indexed_subsets=base.indexed_subsets,
         indexed_subsets_opt_out=base.indexed_subsets_opt_out,
         quality_check_overrides=dict(base.quality_check_overrides),
+        trust_source_ancestry_without_af=base.trust_source_ancestry_without_af,
     )
 
 
@@ -2035,6 +2044,8 @@ def _decide(
             stored_effect_scale=stored_effect_scale,
             selection_ancestry=config.target_ancestry,
             effect_placeholder_reason=config.effect_placeholder_exclusions.get(row.analysis_id),
+            source_superpopulation=resolved.source_superpopulation,
+            trust_source_ancestry_without_af=config.trust_source_ancestry_without_af,
         ),
         config.quality_check_overrides,
     )
@@ -2115,6 +2126,16 @@ def _decide(
         if assigned in SUPERPOPULATIONS:
             return excluded_by(failed, assigned=assigned, method="af_assigned")
         return excluded_by(failed)
+    # A warning-level Assigned Ancestry result is #287's source-trusted
+    # assignment: the record shows no allele frequency and the release trusts
+    # the Source Metadata Table's super-population, which the check has
+    # already tested against the Selection's.
+    method = "af_assigned"
+    if any(
+        finding.name == "assigned_ancestry" and finding.result is quality_checks.Result.WARNING
+        for finding in findings
+    ):
+        assigned, method = resolved.source_superpopulation, SOURCE_TRUSTED_NO_AF
 
     # From here the Analysis has the Selection's ancestry; the only remaining
     # question is whether its effects are on the release's scale.
@@ -2124,13 +2145,13 @@ def _decide(
             reason="missing_case_control_counts",
             detail=f"n_cases={n_cases or 'empty'} n_controls={n_controls or 'empty'}",
             assigned=assigned,
-            method="af_assigned",
+            method=method,
         )
 
     # Slot TARGET_ANCESTRY: the phenotype SD.
     failed = quality_checks.first_exclusion(findings, Stage.TARGET_ANCESTRY)
     if failed is not None:
-        return excluded_by(failed, assigned=assigned, method="af_assigned")
+        return excluded_by(failed, assigned=assigned, method=method)
 
     # Nothing excluded it, so every exclusion check must have tested it.
     quality_checks.require_measured(findings, row.analysis_id)
@@ -2138,7 +2159,7 @@ def _decide(
         return make(
             included=True,
             assigned=assigned,
-            method="af_assigned",
+            method=method,
             original_sd="",
             sd_method="binary_trait",
         )
@@ -2147,7 +2168,7 @@ def _decide(
     return make(
         included=True,
         assigned=assigned,
-        method="af_assigned",
+        method=method,
         original_sd=format_sidecar_float(float(estimate["sd"])),
         sd_method=str(estimate.get("method") or tier.original_sd_method),
     )
@@ -2765,7 +2786,20 @@ def _derive_checks(
         + exclusion_counts.get("ancestry_not_eur", 0)
         + exclusion_counts.get("orientation_failure", 0)
     )
-    ancestry_check = "passed" if ancestry_problem == 0 else "passed_with_warnings"
+    source_trusted = sum(
+        1
+        for outcome in outcomes
+        if outcome.included and outcome.ancestry_assignment_method == SOURCE_TRUSTED_NO_AF
+    )
+    ancestry_check = (
+        "passed" if ancestry_problem == 0 and source_trusted == 0 else "passed_with_warnings"
+    )
+    if source_trusted:
+        warnings.append(
+            f"{source_trusted} included Analysis/Analyses carry no allele frequencies, so their "
+            "Assigned Ancestry is the Source Metadata Table's super-population "
+            f"({SOURCE_TRUSTED_NO_AF}, #287); see sidecars/quality_checks.tsv"
+        )
     if ancestry_problem:
         warnings.append(
             f"{ancestry_problem} Analysis/Analyses excluded by ancestry policy "
@@ -3123,6 +3157,7 @@ __all__ = [
     "RESOLVER_MANIFEST_COLUMNS",
     "SD_ESTIMATION_SIDECAR_COLUMNS",
     "SOURCE_READINESS_COLUMNS",
+    "SOURCE_TRUSTED_NO_AF",
     "SUPERPOPULATIONS",
     "SUPPORTED_RECORD_SCHEMA_VERSION",
     "AnalysisOutcome",

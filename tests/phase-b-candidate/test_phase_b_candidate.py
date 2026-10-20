@@ -3550,6 +3550,35 @@ def _real_ssf_body(analysis_id: str) -> bytes:
     return gzip.compress("".join(lines).encode("utf-8"), mtime=0)
 
 
+def _real_ssf_body_without_af(analysis_id: str) -> bytes:
+    """The same tiny GWAS-SSF file with no allele-frequency column (Sun 2018's shape)."""
+    seed = int(analysis_id[-2:])
+    lines = ["chromosome\tbase_pair_location\teffect_allele\tother_allele\tbeta\tstandard_error\n"]
+    for index in range(_PANEL_VARIANTS):
+        beta = 0.01 * (((index + seed) % 7) - 3)
+        lines.append(f"1\t{1000 + index}\tA\tC\t{beta:.4g}\t0.02\n")
+    return gzip.compress("".join(lines).encode("utf-8"), mtime=0)
+
+
+def _write_real_reference(fixture: Fixture) -> None:
+    """A tiny ancestry-mixture reference over the panel the real bodies cover."""
+    reference = fixture.root / "reference"
+    header = ["alid", "chromosome", "position", "effect_allele", "other_allele", "rsid"]
+    rows = ["\t".join([*header, *_PANEL_GROUPS])]
+    for index in range(_PANEL_VARIANTS):
+        cells = [f"1:{1000 + index}:A:C", "1", str(1000 + index), "A", "C", f"rs{index}"]
+        cells += [f"{_panel_frequency(index, g):.6g}" for g in range(len(_PANEL_GROUPS))]
+        rows.append("\t".join(cells))
+    (reference / "ref_freqs.tsv.gz").write_bytes(
+        gzip.compress(("\n".join(rows) + "\n").encode("utf-8"), mtime=0)
+    )
+    (reference / "ancestry_groups.tsv").write_text(
+        "group\tsuper_pop\n"
+        + "".join(f"{g}\t{_PANEL_SUPERPOPS[g]}\n" for g in _PANEL_GROUPS),
+        encoding="utf-8",
+    )
+
+
 @unittest.skipUnless(REAL_RESOLVER.is_file(), "the pinned opengwasdb resolver is not installed")
 class RealResolverReuseTests(unittest.TestCase):
     """The pinned `opengwasdb resolve-analyses` reuses a Resolution Area's records (#284)."""
@@ -3557,21 +3586,7 @@ class RealResolverReuseTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory(prefix="real-resolver-")
         self.fixture = FixtureBuilder(Path(self._tmp.name), bodies=_real_ssf_body).build()
-        reference = self.fixture.root / "reference"
-        header = ["alid", "chromosome", "position", "effect_allele", "other_allele", "rsid"]
-        rows = ["\t".join([*header, *_PANEL_GROUPS])]
-        for index in range(_PANEL_VARIANTS):
-            cells = [f"1:{1000 + index}:A:C", "1", str(1000 + index), "A", "C", f"rs{index}"]
-            cells += [f"{_panel_frequency(index, g):.6g}" for g in range(len(_PANEL_GROUPS))]
-            rows.append("\t".join(cells))
-        (reference / "ref_freqs.tsv.gz").write_bytes(
-            gzip.compress(("\n".join(rows) + "\n").encode("utf-8"), mtime=0)
-        )
-        (reference / "ancestry_groups.tsv").write_text(
-            "group\tsuper_pop\n"
-            + "".join(f"{g}\t{_PANEL_SUPERPOPS[g]}\n" for g in _PANEL_GROUPS),
-            encoding="utf-8",
-        )
+        _write_real_reference(self.fixture)
 
     def tearDown(self) -> None:
         self._tmp.cleanup()
@@ -3591,6 +3606,91 @@ class RealResolverReuseTests(unittest.TestCase):
         self.assertEqual(indexes[0]["n_resumed"], 0)
         self.assertEqual(indexes[1]["n_resumed"], n)
         self.assertEqual(receipts[1]["records"], receipts[0]["records"])
+
+
+@unittest.skipUnless(REAL_RESOLVER.is_file(), "the pinned opengwasdb resolver is not installed")
+class RealResolverNoAlleleFrequencyTests(unittest.TestCase):
+    """Sources with no allele frequencies, such as Sun 2018 (#287's decision).
+
+    Every Analysis is still resolved. The pinned resolver records a source with
+    no frequencies as rows matched to the ancestry reference that contributed no
+    frequency at all (``ancestry_sites`` 0); a release config that opts in takes
+    the Source Metadata Table's ``source_superpopulation`` as Assigned Ancestry
+    for such an Analysis, as ``source_trusted_no_af``, with a warning-level
+    ``assigned_ancestry`` result. Without the opt-in it is ``ancestry_unassigned``.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="real-resolver-no-af-")
+        self.fixture = FixtureBuilder(
+            Path(self._tmp.name), bodies=_real_ssf_body_without_af
+        ).build()
+        _write_real_reference(self.fixture)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def opt_in(self) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["release_policy"]["trust_source_ancestry_without_af"] = True
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+
+    def emitted(self) -> tuple[dict, dict, dict]:
+        result = _run_cli(self.fixture, resolver=REAL_RESOLVER)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        bundle_dir = self.fixture.registry_root / STORE_ID
+        analyses = {row["analysis_id"]: row for row in _read_tsv(bundle_dir / "analyses.tsv")}
+        checks = {
+            row["analysis_id"]: row
+            for row in _read_tsv(bundle_dir / "sidecars" / "quality_checks.tsv")
+        }
+        validation = yaml.safe_load((bundle_dir / "validation.yaml").read_text())
+        return analyses, checks, validation
+
+    def test_the_record_shows_ancestry_sites_but_no_frequency(self) -> None:
+        result = _run_cli(self.fixture, "--stage", "resolve", resolver=REAL_RESOLVER)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        for analysis_id, _, _, _, _, _, _ in READY_ANALYSES:
+            record = json.loads(_kept_record(self.fixture, analysis_id).read_text())
+            with self.subTest(analysis_id=analysis_id):
+                self.assertEqual(record["status"], "success")
+                self.assertIsNone(record["ancestry"]["assigned_ancestry"])
+                self.assertEqual(record["diagnostics"]["ancestry_sites"], 0)
+                self.assertGreater(record["diagnostics"]["ancestry_reference_rows_matched"], 0)
+
+    def test_opted_in_the_source_super_population_is_assigned_with_a_warning(self) -> None:
+        self.opt_in()
+        analyses, checks, validation = self.emitted()
+        # Case-control with counts: in, on the source's super-population.
+        for analysis_id in ("GCST90000004", "GCST90000005"):
+            with self.subTest(analysis_id=analysis_id):
+                row = analyses[analysis_id]
+                self.assertEqual(row["exclude_from_build"], "")
+                self.assertEqual(row["assigned_ancestry"], "EUR")
+                self.assertEqual(row["ancestry_assignment_method"], "source_trusted_no_af")
+                self.assertEqual(checks[analysis_id]["assigned_ancestry"], "warning")
+                self.assertIn("source_superpopulation=EUR",
+                              checks[analysis_id]["assigned_ancestry_measured"])
+        # A quantitative source with no frequency still has no phenotype SD.
+        self.assertEqual(
+            analyses["GCST90000002"]["inclusion_reason"].split(":")[1].strip(),
+            "sd_no_qualifying_evidence",
+        )
+        summary = validation["quality_checks"]["assigned_ancestry"]
+        self.assertEqual(summary["results"]["warning"], 9)
+        self.assertEqual(summary["warned"], 2)
+        self.assertTrue(
+            any("source_trusted_no_af" in warning for warning in validation["warnings"]),
+            validation["warnings"],
+        )
+
+    def test_without_the_opt_in_they_are_excluded_as_ancestry_unassigned(self) -> None:
+        analyses, checks, _ = self.emitted()
+        for analysis_id in ("GCST90000004", "GCST90000005"):
+            with self.subTest(analysis_id=analysis_id):
+                self.assertEqual(analyses[analysis_id]["exclude_from_build"], "true")
+                self.assertEqual(checks[analysis_id]["exclusion_reason"], "ancestry_unassigned")
+                self.assertEqual(checks[analysis_id]["assigned_ancestry"], "failed")
 
 
 class ResolutionRootTests(unittest.TestCase):

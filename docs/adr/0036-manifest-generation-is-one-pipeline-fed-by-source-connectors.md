@@ -76,6 +76,17 @@ The rules that make this hold:
   Store Releases is several Selections. Assigned Ancestry never moves an
   Analysis into another Store Release; a disagreement with the Selection is a
   Quality Check.
+
+  *Clarified by #287:* a source with no allele frequencies, such as Sun 2018,
+  is still resolved. When its Resolution Record shows ancestry unmeasurable
+  for that reason -- rows on the ancestry reference, not one with a frequency
+  -- a release config may opt in (`release_policy.trust_source_ancestry_without_af`)
+  to take the Source Metadata Table's `source_superpopulation` as Assigned
+  Ancestry, with Ancestry Assignment Method `source_trusted_no_af`. Each such
+  Analysis is a warning-level `assigned_ancestry` Quality Check result, in
+  `validation.yaml` and the Quality Check sidecar. Without the opt-in it is
+  excluded as `ancestry_unassigned`. A measured ancestry never takes the
+  source label, and a measured disagreement remains an exclusion.
 - **A Resolution Record belongs to the Analysis.** It is kept once per Source
   Collection, keyed by the resolver's fingerprint, and reused by every
   Selection. Each bundle's resolution receipt names the records it used.

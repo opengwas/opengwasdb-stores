@@ -129,6 +129,7 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
         self.assertIsNone(config.maf_threshold)
         self.assertEqual(config.selection_superpopulation, "EUR")
         self.assertFalse(config.require_maf_filtered)
+        self.assertFalse(config.trust_source_ancestry_without_af)
         self.assertEqual(config.quality_check_overrides, {})
         self.assertEqual(
             config.canonical_trait_mapping_table,
@@ -162,6 +163,7 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
             )
             document["release_policy"].update(
                 store_composition={"require_maf_filtered": True},
+                trust_source_ancestry_without_af=True,
                 maf_filter_exempt_genotyping_technologies=["Whole genome sequencing"],
             )
             document["quality_checks"] = {"build_eligible_rows": 5}
@@ -182,6 +184,7 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
         self.assertEqual(config.maf_threshold, "0.005")
         self.assertEqual(config.info_score_threshold, "0.8")
         self.assertTrue(config.require_maf_filtered)
+        self.assertTrue(config.trust_source_ancestry_without_af)
         self.assertEqual(config.quality_check_overrides, {"build_eligible_rows": 5})
         self.assertEqual(config.ancestry_gates["n_min"], 200)
         self.assertEqual(config.cores, 8)
@@ -304,6 +307,9 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
             "quality_checks": lambda d: d.update(quality_checks={"no_such_check": 1}),
             "require_maf_filtered": lambda d: d["release_policy"].update(
                 store_composition={"require_maf_filtered": True}
+            ),
+            "trust_source_ancestry_without_af": lambda d: d["release_policy"].update(
+                trust_source_ancestry_without_af="yes"
             ),
             "cores": lambda d: d.update(runtime={"cores": 0}),
             "source_collection_id": lambda d: d["source_collection"].update(

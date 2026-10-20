@@ -137,6 +137,9 @@ class ReleaseConfig:
     maf_threshold: str | None
     selection_superpopulation: str
     require_maf_filtered: bool
+    #: #287: an Analysis whose Resolution Record shows no allele frequency takes
+    #: the Source Metadata Table's super-population as Assigned Ancestry.
+    trust_source_ancestry_without_af: bool
     imputation_score_declarations: Path | None
     maf_filter_exempt_genotyping_technologies: tuple[str, ...]
     maf_filter_exempt_analyses_path: Path | None
@@ -203,7 +206,7 @@ TEXT_DEFAULTS = ("source_genome_build", "license", "publication_doi", "consortiu
 METHOD_TIER_KEYS = ("stored_effect_scale", "original_effect_scale", "original_sd_method",
                     "sample_size_kind")
 RELEASE_POLICY_OPTIONAL = (
-    "store_composition", "imputation_score_declarations",
+    "store_composition", "trust_source_ancestry_without_af", "imputation_score_declarations",
     "maf_filter_exempt_genotyping_technologies", "maf_filter_exempt_analyses",
     "effect_placeholder_exclusions",
 )
@@ -425,6 +428,11 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
                 "defaults.maf_threshold; with no floor (or a disabled floor of 0) no Analysis "
                 "can be MAF-filtered (#203)"
             )
+    trust_source = policy.get("trust_source_ancestry_without_af", False)
+    if not isinstance(trust_source, bool):
+        raise ReleaseConfigError(
+            f"{where}.trust_source_ancestry_without_af must be a boolean (true or false)"
+        )
     technologies = policy.get("maf_filter_exempt_genotyping_technologies")
     if technologies is None:
         technologies = ()
@@ -548,6 +556,7 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
         maf_threshold=maf_threshold,
         selection_superpopulation=selection_superpopulation,
         require_maf_filtered=require_maf_filtered,
+        trust_source_ancestry_without_af=trust_source,
         imputation_score_declarations=_optional_path(
             policy, "imputation_score_declarations", _where(path, "release_policy"), repo_root
         ),

@@ -218,7 +218,7 @@ The ancestry or population label supplied by the upstream Source Collection and 
 _Avoid_: assigned ancestry
 
 **Assigned Ancestry**:
-The registry-normalised ancestry label used for store inclusion checks, grouping, and ancestry-specific build choices. It never moves an Analysis into a different Store Release: a Store's Selection decides which Analyses it considers, and a disagreement between Assigned Ancestry and that Selection is a Quality Check. It is one controlled vocabulary on every Analysis — one of the ancestry mixture's super-population codes (AFR, AMR, EAS, EUR, MID, NAF, SAS) or empty when unassigned — so a free-text Source Ancestry Label such as European is never stored here.
+The registry-normalised ancestry label used for store inclusion checks, grouping, and ancestry-specific build choices. It never moves an Analysis into a different Store Release: a Store's Selection decides which Analyses it considers, and a disagreement between Assigned Ancestry and that Selection is a Quality Check. It is one controlled vocabulary on every Analysis — one of the ancestry mixture's super-population codes (AFR, AMR, EAS, EUR, MID, NAF, SAS) or empty when unassigned — so a free-text Source Ancestry Label such as European is never stored here. It is measured from allele frequencies; only when an Analysis's Resolution Record shows its source has none may a release that opts in take the Source Metadata Table's super-population instead, as `source_trusted_no_af` with a warning-level Quality Check result, and a measured ancestry never takes the source's label.
 _Avoid_: source ancestry label
 
 **Ancestry Assignment Method**:
