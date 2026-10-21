@@ -68,6 +68,15 @@ OPTIONAL_COLUMNS: tuple[str, ...] = (
     "consortium",
     "license",
     "store_key",
+    # The Store's own Analysis identity, for a Source Collection whose ids differ
+    # from its source's (#288): ``analysis_id`` names the Analysis in the bundle
+    # (`finngen-r13-<phenocode>`, namespaced because a bare phenocode is not
+    # unique across sources), and ``analysis_group_id`` groups it. Absent means
+    # the pipeline's defaults: ``source_analysis_id``, and the release config's
+    # collection-wide ``analysis_group_id``. Resolution stays keyed by
+    # ``source_analysis_id``; these two are what the bundle reports.
+    "analysis_id",
+    "analysis_group_id",
     # Target annotation for an Analysis of one molecular target (Sun 2018's
     # SomaScan proteins): the assay, the gene it measures and that gene's span.
     "target_assay_id",
@@ -145,6 +154,14 @@ def load_source_metadata_table(path: Path) -> SourceMetadataTable:
     repeated = duplicate_values(row["source_analysis_id"] for _, row in numbered if row["source_analysis_id"])
     if repeated:
         problems.append(f"duplicate source_analysis_id: {', '.join(repeated)}")
+    # The Store's Analysis ids must be unique when a table declares them: two
+    # rows sharing one is a bundle ``bundle.check()`` refuses, so refuse the
+    # table it would be rendered from (#288).
+    repeated_store_ids = duplicate_values(
+        row["analysis_id"] for _, row in numbered if row.get("analysis_id")
+    )
+    if repeated_store_ids:
+        problems.append(f"duplicate analysis_id: {', '.join(repeated_store_ids)}")
     if problems:
         raise_problems(SourceMetadataTableError, f"Source Metadata Table {path}", problems)
     rows = tuple(row for _, row in numbered)

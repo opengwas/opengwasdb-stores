@@ -62,6 +62,8 @@ value -- never zero and never a default.
 | `publication_doi`, `first_author`, `consortium` | No | text | Publication Metadata. |
 | `license` | No | text | Source License, when the source states it per Analysis. A collection-wide licence is the release config's default instead. |
 | `store_key` | No | text | A provider-side curation's proposed Store grouping (GWAS Catalog: `ebi-studies.r`'s `store_key`). Present so a Selection can name it. |
+| `analysis_id` | No | unique | The Store's Analysis ID, when it is not the source's (#288). Becomes `analyses.tsv`'s `analysis_id` and the id the sidecars name; blank means `source_analysis_id`. Resolution, the resolver manifest and the Resolution Records are always keyed by `source_analysis_id`, so declaring this renames nothing the resolver reads. A Source Collection whose ids are namespaced because a bare source id is not unique across sources declares its namespace here (FinnGen: `finngen-r13-<phenocode>`). Two rows declaring one value are refused: `bundle.check()` would refuse the bundle they render. |
+| `analysis_group_id` | No | text | The Analysis's Store grouping (`analyses.tsv`'s `analysis_group_id`), when it is per Analysis (#288). Blank means the release config's collection-wide `defaults.analysis_group_id`. FinnGen groups by its provider manifest's `category`. |
 | `target_assay_id` | No | text | Target annotation for an Analysis of one molecular target: the assay identifier (Sun 2018: the SomaScan SeqId, `5227-60`). |
 | `target_symbol` | No | text | The target's gene symbol (`PDK1`). |
 | `target_ensembl_gene_id` | No | `ENSG` + 11 digits, optional `.version` | The target's Ensembl gene. |
@@ -70,6 +72,12 @@ value -- never zero and never a default.
 
 The target columns are annotation, never a Trait Ontology Mapping: a gene is
 not the Trait (issue #141).
+
+The two Store-identity columns are the only ones that do not reach the frozen
+Source Inventory: the inventory, the resolver manifest and the Resolution
+Records are keyed by `source_analysis_id`, and the bundle's `analyses.tsv` and
+its sidecars report the declared identity instead (#288). Both are optional,
+so a collection that declares neither keeps the pipeline's defaults.
 
 ### The GWAS Catalog adapter
 
@@ -134,6 +142,8 @@ its classification exactly:
 | Provider column | Canonical column |
 |---|---|
 | `phenocode` | `source_analysis_id`, and `source_trait_id` |
+| `phenocode` | `analysis_id`, as `finngen-r13-<phenocode>` |
+| `category` | `analysis_group_id` |
 | `phenotype` | `source_trait_label` |
 | `category`, `num_cases`, `num_controls` | `study_design`, `sample_size`, `n_cases`, `n_controls` |
 | -- (`Finnish` for every endpoint) | `source_ancestry_label`, and its `source_label_map.tsv` translation as `source_superpopulation` |

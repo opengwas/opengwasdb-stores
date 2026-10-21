@@ -43,6 +43,12 @@ refused by name rather than left blank. Padding is trimmed, as the GWAS
 Catalog adapter trims it, and a value the canonical loader refuses removes the
 written table so the adapter never leaves one behind for freeze.
 
+The Store's Analysis identity is written too, because FinnGen's is not the
+pipeline's default: ``analysis_id`` is ``finngen-r13-<phenocode>`` (a bare
+phenocode is not unique across sources) and ``analysis_group_id`` is the
+provider manifest's ``category``. Both are optional canonical columns, so a
+Source Collection that needs neither keeps the pipeline's defaults.
+
 Usage:
     python3 -m manifest_generation.providers.finngen.source_metadata_adapter \\
         --manifest /data/opengwasdb/raw/finngen-r13/releases/r13-full/manifest/finngen_R13_manifest.tsv \\
@@ -83,6 +89,8 @@ ADAPTER_INPUT_COLUMNS: tuple[str, ...] = (
 #: The canonical columns the adapter writes.
 OUTPUT_COLUMNS: tuple[str, ...] = (
     "source_analysis_id",
+    "analysis_id",
+    "analysis_group_id",
     "source_trait_label",
     "source_trait_id",
     "source_ancestry_label",
@@ -98,6 +106,10 @@ QUANTITATIVE_CATEGORY = "Quantitative endpoints"
 
 #: FinnGen's Source Ancestry Label for every endpoint; the tracked map holds the code.
 FINNGEN_SOURCE_ANCESTRY_LABEL = "Finnish"
+
+#: The Store's Analysis id namespace: a bare phenocode is not unique across
+#: sources, so every FinnGen Analysis is ``finngen-r13-<phenocode>`` (#288).
+FINNGEN_ANALYSIS_ID_PREFIX = "finngen-r13"
 
 
 class AdapterError(InventoryError):
@@ -198,6 +210,10 @@ def _convert_row(
 
     row = {
         "source_analysis_id": phenocode,
+        # The Store's identity, which OGS-00017's committed bundle already uses:
+        # the namespaced id, and the provider manifest's category as the group.
+        "analysis_id": f"{FINNGEN_ANALYSIS_ID_PREFIX}-{phenocode}" if phenocode else "",
+        "analysis_group_id": category,
         "source_trait_label": text("phenotype"),
         "source_trait_id": phenocode,
         "source_ancestry_label": ancestry_label,

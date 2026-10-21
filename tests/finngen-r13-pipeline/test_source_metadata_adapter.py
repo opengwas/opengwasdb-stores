@@ -26,12 +26,17 @@ from manifest_generation.providers.finngen.source_metadata_adapter import (
     AdapterError,
     convert_manifest,
 )
-from manifest_generation.source_metadata_table import load_source_metadata_table
+from manifest_generation.source_metadata_table import (
+    SourceMetadataTableError,
+    load_source_metadata_table,
+)
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "finngen_R13_manifest.tsv"
 
 COLUMNS = (
     "source_analysis_id",
+    "analysis_id",
+    "analysis_group_id",
     "source_trait_label",
     "source_trait_id",
     "source_ancestry_label",
@@ -87,6 +92,8 @@ class FinnGenSourceMetadataAdapterTest(unittest.TestCase):
             {column: row[column] for column in COLUMNS},
             {
                 "source_analysis_id": "BMI_IRN",
+                "analysis_id": "finngen-r13-BMI_IRN",
+                "analysis_group_id": "Quantitative endpoints",
                 "source_trait_label": "Body mass index, inverse-rank normalized",
                 "source_trait_id": "BMI_IRN",
                 "source_ancestry_label": "Finnish",
@@ -104,6 +111,8 @@ class FinnGenSourceMetadataAdapterTest(unittest.TestCase):
             {column: row[column] for column in COLUMNS},
             {
                 "source_analysis_id": "AB1_ACTINOMYCOSIS",
+                "analysis_id": "finngen-r13-AB1_ACTINOMYCOSIS",
+                "analysis_group_id": "I Certain infectious and parasitic diseases (AB1_)",
                 "source_trait_label": "Actinomycosis",
                 "source_trait_id": "AB1_ACTINOMYCOSIS",
                 "source_ancestry_label": "Finnish",
@@ -179,6 +188,37 @@ class FinnGenSourceMetadataAdapterTest(unittest.TestCase):
         self.assertIn("Finnish", str(raised.exception))
         self.assertIn("map it or list it as imprecise", str(raised.exception))
         self.assertFalse((self.tmp / "source-metadata.tsv").exists())
+
+    def test_every_row_carries_the_namespaced_store_id_and_its_category(self) -> None:
+        """The Store's identity is FinnGen's: ``finngen-r13-<phenocode>``, grouped
+        by the manifest's own ``category`` (#288). Both are literal here because
+        OGS-00017's committed bundle names exactly these values."""
+        table = self.convert()
+        self.assertEqual(
+            [(row["analysis_id"], row["analysis_group_id"]) for row in table.rows],
+            [
+                ("finngen-r13-BMI_IRN", "Quantitative endpoints"),
+                ("finngen-r13-HEIGHT_IRN", "Quantitative endpoints"),
+                ("finngen-r13-AB1_ACTINOMYCOSIS",
+                 "I Certain infectious and parasitic diseases (AB1_)"),
+                ("finngen-r13-M13_ARTHROPATHIES",
+                 "XIII Diseases of the musculoskeletal system and connective tissue (M13_)"),
+                ("finngen-r13-Q_RNS_CTRL", "Quantitative endpoints"),
+            ],
+        )
+
+    def test_a_repeated_store_analysis_id_is_refused(self) -> None:
+        """The Store's ids must be unique even when two source ids differ."""
+        out = self.tmp / "source-metadata.tsv"
+        out.write_text(
+            "source_analysis_id\tanalysis_id\tanalysis_group_id\tstudy_design\n"
+            "AB1_X\tfinngen-r13-SAME\tGroup\tcase-control\n"
+            "AB1_Y\tfinngen-r13-SAME\tGroup\tcase-control\n",
+            encoding="utf-8",
+        )
+        with self.assertRaises(SourceMetadataTableError) as raised:
+            load_source_metadata_table(out)
+        self.assertIn("finngen-r13-SAME", str(raised.exception))
 
 
 if __name__ == "__main__":

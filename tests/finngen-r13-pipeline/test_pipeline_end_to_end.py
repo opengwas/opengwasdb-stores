@@ -47,6 +47,13 @@ ANALYSES = [
     ("M13_ARTHROPATHIES", "Arthropathies", "500", "400000"),
     ("RX_STATIN", "Statin purchases", "200000", "200000"),
 ]
+#: The provider manifest's ``category``, which the adapter carries as the Store's
+#: ``analysis_group_id`` (#288).
+CATEGORIES = {
+    "AB1_ACTINOMYCOSIS": "I Certain infectious and parasitic diseases (AB1_)",
+    "M13_ARTHROPATHIES": "XIII Diseases of the musculoskeletal system and connective tissue (M13_)",
+    "RX_STATIN": "XIX Injury, poisoning and certain other consequences of external causes (S19_)",
+}
 TRAIT_TABLE_TEXT = (
     "trait_label\ttrait_ontology_id\ttrait_ontology_label\n"
     "weight\tEFO:0004338\tbody weight\n"
@@ -116,6 +123,8 @@ class FinnGenEndToEndTest(unittest.TestCase):
             })
             table_rows.append({
                 "source_analysis_id": phenocode,
+                "analysis_id": f"finngen-r13-{phenocode}",
+                "analysis_group_id": CATEGORIES[phenocode],
                 "source_trait_label": phenotype,
                 "source_trait_id": phenocode,
                 "source_ancestry_label": "Finnish",
@@ -126,7 +135,8 @@ class FinnGenEndToEndTest(unittest.TestCase):
                 "n_controls": n_controls,
             })
         table_header = [
-            "source_analysis_id", "source_trait_label", "source_trait_id",
+            "source_analysis_id", "analysis_id", "analysis_group_id",
+            "source_trait_label", "source_trait_id",
             "source_ancestry_label", "source_superpopulation", "study_design",
             "sample_size", "n_cases", "n_controls",
         ]
@@ -261,6 +271,16 @@ class FinnGenEndToEndTest(unittest.TestCase):
         analyses = self.stage._read_tsv(bundle_dir / "analyses.tsv")
         self.assertEqual([row["source_analysis_id"] for row in analyses],
                          [phenocode for phenocode, *_ in ANALYSES])
+        # The Store's Analysis identity is the connector's, not the resolver's
+        # key: a namespaced id and the provider manifest's category (#288).
+        self.assertEqual(
+            [row["analysis_id"] for row in analyses],
+            [f"finngen-r13-{phenocode}" for phenocode, *_ in ANALYSES],
+        )
+        self.assertEqual(
+            [row["analysis_group_id"] for row in analyses],
+            [CATEGORIES[phenocode] for phenocode, *_ in ANALYSES],
+        )
         for row in analyses:
             self.assertEqual(row["exclude_from_build"], "")
             self.assertEqual(row["source_reader_capability"], "opengwasdb.finngen-r13")
