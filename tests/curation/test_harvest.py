@@ -306,7 +306,7 @@ class TestHarvest(unittest.TestCase):
 
     def test_same_label_different_id_is_two_pairs(self) -> None:
         manifest = make_bundle(
-            self.td, "gwas-catalog-eur-hybrid", "releases", "rel",
+            self.td, "stores", "OGS-99007",
             rows=[
                 {"source_label": "Parkinson's disease", "trait_ontology_id": "MONDO:0005180",
                  "trait_ontology_label": "Parkinson disease",
@@ -321,7 +321,7 @@ class TestHarvest(unittest.TestCase):
 
     def test_obsolete_flag_is_or_across_occurrences(self) -> None:
         manifest = make_bundle(
-            self.td, "pqtl-interval-2018", "releases", "rel",
+            self.td, "stores", "OGS-99008",
             rows=[
                 {"source_label": "Legacy trait", "trait_ontology_id": "EFO:9999001",
                  "trait_ontology_label": "legacy obsolete trait",
@@ -338,7 +338,7 @@ class TestHarvest(unittest.TestCase):
 
     def test_obsolete_replacement_is_recorded_as_an_equivalent(self) -> None:
         manifest = make_bundle(
-            self.td, "pqtl-interval-2018", "releases", "rel",
+            self.td, "stores", "OGS-99008",
             rows=[
                 {"source_label": "Legacy trait", "trait_ontology_id": "EFO:9999001",
                  "trait_ontology_label": "legacy obsolete trait",
@@ -356,7 +356,7 @@ class TestHarvest(unittest.TestCase):
 
     def test_ordered_by_stratum_then_label(self) -> None:
         hybrid = make_bundle(
-            self.td, "gwas-catalog-eur-hybrid", "releases", "rel",
+            self.td, "stores", "OGS-99007",
             rows=[
                 {"source_label": "Zeta disease", "trait_ontology_id": "MONDO:1",
                  "trait_ontology_label": "zeta", "trait_ontology_mapping_method": "source_provided"},
@@ -365,7 +365,7 @@ class TestHarvest(unittest.TestCase):
             ],
         )
         other = make_bundle(
-            self.td, "misc-family", "releases", "rel",
+            self.td, "stores", "OGS-99009",
             rows=[
                 {"source_label": "Other trait", "trait_ontology_id": "EFO:9",
                  "trait_ontology_label": "other", "trait_ontology_mapping_method": "source_provided"},
@@ -415,7 +415,7 @@ class TestCli(unittest.TestCase):
 
         write_index(build_index_from_obo(self.obo_path, "efo/vfixture"), self.index_path)
         self.manifest = make_bundle(
-            self.td, "metabolome-plasma-2023", "releases", "rel",
+            self.td, "stores", "OGS-99010",
             rows=[
                 {"source_label": "Carnitine levels", "trait_ontology_id": "EFO:0010469",
                  "trait_ontology_label": "carnitine measurement",

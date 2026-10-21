@@ -37,6 +37,7 @@ from curation.gap_scan import (
     MissingManifestError,
     MissingTraitLabelColumnError,
     QueueEntry,
+    UnsupportedManifestLocationError,
     derive_store_family,
     format_queue_tsv,
     normalize_trait_label,
@@ -166,13 +167,38 @@ class TestScanManifest(unittest.TestCase):
         )
         self.assertEqual(derive_store_family(manifest), "declared-family")
 
-    def test_store_family_falls_back_to_bundle_directory(self) -> None:
-        """A working bundle outside the registry attributes to its directory name."""
+    def test_store_family_ignores_an_earlier_stores_directory_in_the_path(self) -> None:
+        """Only the bundle's own directory attributes it, never an ancestor.
+
+        A checkout at `<root>/home/stores/repo/stores/OGS-99001/` must resolve
+        to OGS-99001: taking the first `stores` component would attribute the
+        Manifest to `repo` and merge every release under it into one bucket.
+        """
+        manifest = make_bundle(
+            self.td, "home", "stores", "repo", "stores", "OGS-99001",
+            rows=[{"source_label": "X", "trait_ontology_mapping_method": "unmapped"}],
+        )
+        self.assertEqual(derive_store_family(manifest), "OGS-99001")
+
+    def test_a_bundle_outside_the_registry_is_refused_by_name(self) -> None:
+        """A working bundle has no Store Release id, so it is refused, loudly."""
         manifest = make_bundle(
             self.td, "work", "OGS-00099",
             rows=[{"source_label": "X", "trait_ontology_mapping_method": "unmapped"}],
         )
-        self.assertEqual(derive_store_family(manifest), "OGS-00099")
+        with self.assertRaises(UnsupportedManifestLocationError) as caught:
+            derive_store_family(manifest)
+        self.assertIn("OGS-00099", str(caught.exception))
+        self.assertIn("stores/", str(caught.exception))
+
+    def test_a_directory_under_stores_without_a_store_id_is_refused(self) -> None:
+        manifest = make_bundle(
+            self.td, "stores", "not-a-store-id",
+            rows=[{"source_label": "X", "trait_ontology_mapping_method": "unmapped"}],
+        )
+        with self.assertRaises(UnsupportedManifestLocationError) as caught:
+            derive_store_family(manifest)
+        self.assertIn("not-a-store-id", str(caught.exception))
 
     def test_missing_mapping_column_is_skipped_not_an_error(self) -> None:
         manifest = make_bundle(

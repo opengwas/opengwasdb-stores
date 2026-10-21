@@ -10,8 +10,11 @@ keeps the historical ``curation-round`` entry point: it wires the stages into
 one call, returns the same :class:`CurationRoundResult` a caller has always
 used, and stops after ``reduce`` when the round is incomplete.
 
-The default Manifest is the committed ukb-b Dense observed VCF release, whose
-~2,500 free-text field labels are the whole reason the pipeline exists.
+The default Manifest is the registered ukb-b Dense observed Store Release,
+whose ~2,000 free-text field labels are the whole reason the pipeline exists. It
+is a Release Bundle under `stores/` because attribution needs one (#252); the
+2,514-row declared Selection is a Source Inventory input, not a bundle, and is
+not attributable to a Store Release.
 
 CLI
 ---
@@ -53,15 +56,11 @@ from curation.ontology import IndexFormatError, load_index
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[1]
 
-#: The committed ukb-b declared Selection, a Release Manifest-shaped table of the
-#: 2,514 Analyses this pipeline was built to curate. It lives with the Source
-#: Inventory it declares (#252).
-DEFAULT_UKB_B_MANIFEST: Path = (
-    REPO_ROOT
-    / "resources"
-    / "inventories"
-    / "ukb-b-restored-2026-10-11.declared-selection.tsv"
-)
+#: The registered ukb-b Dense observed Release Bundle: the corpus this pipeline
+#: was built to curate. It is a bundle, not the 2,514-row declared Selection,
+#: because a Manifest is attributed by the `stores/<store-id>/` it sits in
+#: (#252; ``curation.gap_scan.derive_store_family``).
+DEFAULT_UKB_B_MANIFEST: Path = REPO_ROOT / "stores" / "OGS-00009" / "analyses.tsv"
 
 DEFAULT_RESOURCE_DIR: Path = promotion.DEFAULT_RESOURCE_DIR
 

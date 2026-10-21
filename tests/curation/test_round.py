@@ -220,8 +220,8 @@ class RoundTestCase(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
-    def manifest(self, family: str, rows: list[dict[str, str]]) -> Path:
-        path = self.base / "stores" / family / "analyses.tsv"
+    def manifest(self, store_id: str, rows: list[dict[str, str]]) -> Path:
+        path = self.base / "stores" / store_id / "analyses.tsv"
         write_table(path, ANALYSES_COLUMNS, rows)
         return path
 
@@ -231,7 +231,7 @@ class RoundTestCase(unittest.TestCase):
             path,
             ["trait_label", "occurrence_count", "store_families"],
             [
-                {"trait_label": label, "occurrence_count": "1", "store_families": "fam"}
+                {"trait_label": label, "occurrence_count": "1", "store_families": "OGS-99004"}
                 for label in labels
             ],
         )
@@ -294,7 +294,7 @@ class RoundTestCase(unittest.TestCase):
 class RoundInitTest(RoundTestCase):
     def test_writes_pins_and_snapshots_the_mapping_table(self) -> None:
         manifest = self.manifest(
-            "fam",
+            "OGS-99004",
             [
                 {
                     "analysis_id": "1",
@@ -314,14 +314,14 @@ class RoundInitTest(RoundTestCase):
         self.assertEqual(rows, [])
 
     def test_rerun_with_same_pins_is_a_noop(self) -> None:
-        manifest = self.manifest("fam", [])
+        manifest = self.manifest("OGS-99004", [])
         first = self.init_round(manifests=[manifest])
         second = self.init_round(manifests=[manifest])
         self.assertEqual(first.created_at, second.created_at)
         self.assertEqual(first.core_signature(), second.core_signature())
 
     def test_rerun_with_different_pins_is_refused(self) -> None:
-        manifest = self.manifest("fam", [])
+        manifest = self.manifest("OGS-99004", [])
         self.init_round(manifests=[manifest])
         other = self.base / "other.index.json"
         write_index(build_index_from_obo(self.obo, "efo/v9.99.0"), other)
@@ -333,7 +333,7 @@ class RoundInitTest(RoundTestCase):
             self.init_round()
         with self.assertRaises(round_mod.RoundConfigError):
             self.init_round(
-                manifests=[self.manifest("fam", [])],
+                manifests=[self.manifest("OGS-99004", [])],
                 queue_tsv=self.queue_tsv(["x"]),
             )
 
@@ -1191,7 +1191,7 @@ class CoverageTest(RoundTestCase):
             [{"trait_label": BMI_LABEL}],
         )
         manifest = self.manifest(
-            "fam-a",
+            "OGS-99001",
             [
                 {
                     "analysis_id": "1",
@@ -1216,7 +1216,7 @@ class CoverageTest(RoundTestCase):
         self.assertEqual(report.rows_added, 0)
         self.assertEqual(report.analyses_resolved, 0)
         # The after state still resolves BMI from the pre-existing row.
-        family = report.family("fam-a")
+        family = report.family("OGS-99001")
         assert family is not None
         self.assertEqual(family.unmapped_before, 2)
         self.assertEqual(family.unmapped_after, 1)
@@ -1249,7 +1249,7 @@ class CoverageTest(RoundTestCase):
         self.assertEqual(report.review_queue_size, 1)
 
     def test_missing_reconciliation_is_refused(self) -> None:
-        manifest = self.manifest("fam-a", [])
+        manifest = self.manifest("OGS-99001", [])
         self.init_round(manifests=[manifest])
         with self.assertRaises(round_mod.RoundStateError):
             round_mod.run_coverage(self.round_dir)

@@ -37,10 +37,14 @@ Store Family attribution
 The Store Family tier was retired (ADR 0028), so no single field names it today.
 `derive_store_family` resolves the family for each Manifest with a documented
 precedence: a `store_family_id` (or legacy `family`) in a sibling `release.yaml`
-wins; otherwise a bundle inside the Store Registry is attributed to its Store
-Release id, `stores/<store-id>/` being the one home for a Release Bundle
-(#252); otherwise the bundle directory's own name. The value is only ever an
-attribution label for the queue -- it does not restate a retired registry tier.
+wins; otherwise the bundle's own Store Release id, which requires the Manifest
+to sit in `stores/<store-id>/`, the one home for a Release Bundle (#252).
+There is no fallback. A Manifest anywhere else -- a work root, a retired
+family-first shape, a `stores/` directory whose name is not an `OGS-` id -- is
+refused by name rather than attributed to a directory that means nothing in
+this vocabulary, because a guessed label silently merges distinct releases into
+one attribution bucket. The value is only ever an attribution label for the
+queue -- it does not restate a retired registry tier.
 """
 
 from __future__ import annotations
@@ -48,6 +52,7 @@ from __future__ import annotations
 import argparse
 import csv
 import os
+import re
 import sys
 import time
 from collections import defaultdict
@@ -61,6 +66,8 @@ ANALYSES_FILENAME: str = "analyses.tsv"
 RELEASE_FILENAME: str = "release.yaml"
 #: The Store Registry: the one home for a Release Bundle (#252, ADR 0022).
 STORES_DIRNAME: str = "stores"
+#: A Store Release id, the whole of it (`OGS-00042`, ADR 0022).
+STORE_ID_PATTERN: re.Pattern[str] = re.compile(r"\AOGS-\d{5}\Z")
 
 MAPPING_METHOD_COLUMN: str = "trait_ontology_mapping_method"
 UNMAPPED: str = "unmapped"
@@ -92,6 +99,17 @@ class MalformedRowError(GapScanError):
 
     A short row would otherwise have its missing trait-label fields invented as
     blanks and quietly dropped from the queue, under-counting the work.
+    """
+
+
+class UnsupportedManifestLocationError(GapScanError):
+    """Raised when a Manifest is not inside a registrable Release Bundle.
+
+    Attribution is either declared, in a sibling `release.yaml`, or read from
+    the bundle's own Store Release id. A Manifest in any other shape has no
+    attribution this vocabulary can express, and guessing one (a working-bundle
+    directory name, an earlier `stores` path component) merges distinct
+    releases into one bucket.
     """
 
 
@@ -159,21 +177,32 @@ def _store_family_from_release_yaml(release_path: Path) -> str | None:
     return None
 
 
-def _store_release_from_path(bundle_dir: Path) -> str | None:
-    """The Store Release id of a `stores/<store-id>/` bundle, if recognisable."""
-    parts = bundle_dir.parts
-    for index in range(len(parts) - 1):
-        if parts[index] == STORES_DIRNAME:
-            return parts[index + 1] or None
-    return None
+def _store_release_from_path(bundle_dir: Path) -> str:
+    """The Store Release id of a `stores/<store-id>/` bundle, or a refusal.
+
+    Only the bundle directory itself -- the parent of the Manifest -- is
+    considered. Looking for *any* `stores` component in the path would let a
+    checkout at `/home/stores/repo/stores/OGS-99001/` be attributed to `repo`,
+    and an earlier component naming a real registry would misattribute every
+    bundle under it to the same release.
+    """
+    if STORE_ID_PATTERN.match(bundle_dir.name) and bundle_dir.parent.name == STORES_DIRNAME:
+        return bundle_dir.name
+    raise UnsupportedManifestLocationError(
+        f"{bundle_dir} is not a registered Release Bundle: a Manifest is "
+        f"attributed by the directory it sits in, which must be "
+        f"{STORES_DIRNAME}/<store-id>/ with the id matching "
+        f"{STORE_ID_PATTERN.pattern}, or by an explicit "
+        f"`store_family_id`/`family` in its own `{RELEASE_FILENAME}`"
+    )
 
 
 def derive_store_family(manifest_path: Path | str) -> str:
     """Attribute a Manifest to a Store Family for the queue's `store_families`.
 
     Precedence: explicit `store_family_id`/`family` in a sibling `release.yaml`;
-    the Store Release id of a bundle under `stores/`; else the bundle
-    directory's own name.
+    else the Store Release id of the `stores/<store-id>/` bundle the Manifest
+    sits in. Anything else raises `UnsupportedManifestLocationError`.
     """
     manifest = resolve_manifest_path(manifest_path)
     bundle_dir = manifest.parent
@@ -182,11 +211,7 @@ def derive_store_family(manifest_path: Path | str) -> str:
     if from_metadata:
         return from_metadata
 
-    from_registry = _store_release_from_path(bundle_dir)
-    if from_registry:
-        return from_registry
-
-    return bundle_dir.name or str(bundle_dir)
+    return _store_release_from_path(bundle_dir)
 
 
 def read_analyses(manifest: Path | str) -> tuple[list[str], list[dict[str, str]]]:
