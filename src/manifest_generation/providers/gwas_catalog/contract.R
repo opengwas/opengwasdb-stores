@@ -3,6 +3,11 @@
 # (resolve_gwas_catalog_ssf_metadata(), resolve_opengwas_api_metadata(), ...)
 # returns the same seven-column shape; this builds the `unresolved` case so
 # each resolver doesn't repeat that shape by hand.
+#
+# It lives beside gwas_catalog_ssf.R, the resolver that outlives the legacy R
+# generators (ADR 0038). The legacy FinnGen and OpenGWAS resolvers in
+# resources/generators/lib/metadata_resolvers/ source it from here, by this one
+# path, until #288 and #289 retire them.
 
 suppressPackageStartupMessages(library(data.table))
 

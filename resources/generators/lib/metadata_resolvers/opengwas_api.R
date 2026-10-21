@@ -22,11 +22,11 @@
 # remains a secondary fallback for datasets with no usable `unit` value.
 #
 # Conforms to the resolver contract established by
-# resources/generators/lib/metadata_resolvers/gwas_catalog_ssf.R (issue #48): one
+# src/manifest_generation/providers/gwas_catalog/gwas_catalog_ssf.R (issue #48): one
 # resolved record per Analysis, resolution_status always explicit.
 
 suppressPackageStartupMessages(library(data.table))
-source("resources/generators/lib/metadata_resolvers/contract.R")
+source("src/manifest_generation/providers/gwas_catalog/contract.R")
 
 # Maps the OpenGWAS API's free-text `unit` field to this resolver's
 # controlled stored_effect_scale vocabulary. Returns NA (not a guess) when

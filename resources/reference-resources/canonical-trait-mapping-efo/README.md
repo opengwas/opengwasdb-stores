@@ -31,7 +31,7 @@ semantics the committed Release Manifests use (see
 A miss is not an error: the resolver returns `trait_ontology_mapping_method =
 unmapped` and leaves `trait_ontology_id`/`trait_ontology_label` blank, per
 this registry's "never silently default" convention for resolvers (see
-`resources/generators/lib/metadata_resolvers/contract.R` for the precedent this
+`src/manifest_generation/providers/gwas_catalog/contract.R` for the precedent this
 follows).
 
 ## Provenance columns

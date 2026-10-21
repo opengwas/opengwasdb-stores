@@ -90,10 +90,11 @@ Three rules keep it true:
   has moved to the home above. The Reference Resource build and verify
   scripts and the SomaScan target generators are in
   `tools/reference-resources/<resource>/`.
-- Two R helpers have no retiring ticket. GWAS Catalog's `ebi-studies.r`, in
-  `providers/gwas_catalog/`, still sources `lib/metadata_resolvers/gwas_catalog_ssf.R`
-  and its `contract.R`. They stay listed until that script stops sourcing
-  them.
+- GWAS Catalog's sample-size resolver (`gwas_catalog_ssf.R`) and the resolver
+  contract it sources (`contract.R`) moved beside `ebi-studies.r` in
+  `providers/gwas_catalog/`: they are live GWAS Catalog code, and no ticket
+  retires them. The legacy FinnGen and OpenGWAS resolvers source `contract.R`
+  from there until #288 and #289 retire them.
 - Nothing was re-frozen. The only moved file named in frozen provenance is
   `materialise-gwas-ssf-ragged.R`, in the Chen 2023 inventory's
   `reformat_tool` lineage. Generation reads that field as text and never

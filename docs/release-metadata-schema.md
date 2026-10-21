@@ -1135,7 +1135,7 @@ agnostic to which provider it is talking to.
 
 Three implementations exist:
 
-- `resources/generators/lib/metadata_resolvers/gwas_catalog_ssf.R`
+- `src/manifest_generation/providers/gwas_catalog/gwas_catalog_ssf.R`
   (`resolve_gwas_catalog_ssf_metadata()`) resolves GWAS Catalog's free-text
   "INITIAL SAMPLE SIZE" study field: a study whose parsed components include any
   `cases`/`controls` counts resolves as `case_control` with

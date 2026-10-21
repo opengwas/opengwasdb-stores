@@ -49,13 +49,6 @@ LEGACY_R_GENERATORS: dict[str, str] = {
     "resources/generators/lib/emit_registry.R": BOTH,
     "resources/generators/lib/indexed_subsets.R": BOTH,
     "resources/generators/lib/schema_validate.R": BOTH,
-    # GWAS Catalog's ebi-studies.r (providers/gwas_catalog) still sources
-    # these two, so no stage-2 ticket retires them; they go when that script
-    # stops sourcing them.
-    "resources/generators/lib/metadata_resolvers/contract.R":
-        f"{BOTH}; also sourced by gwas_catalog_ssf.R",
-    "resources/generators/lib/metadata_resolvers/gwas_catalog_ssf.R":
-        "none yet: sourced by providers/gwas_catalog/ebi-studies.r (#317)",
 }
 
 

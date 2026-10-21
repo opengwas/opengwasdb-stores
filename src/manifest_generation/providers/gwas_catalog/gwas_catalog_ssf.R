@@ -5,7 +5,7 @@
 # Catalog's own study-level metadata (the "INITIAL SAMPLE SIZE" free-text
 # field), never from the harmonised summary-statistics file itself.
 #
-# Extracted from src/manifest_generation/providers/gwas_catalog/ebi-studies.r's original inline
+# Extracted from ebi-studies.r's original inline
 # parse_sample_size()/summarise_sample_size() so the same detection logic is
 # independently testable and reusable outside store-candidate categorisation.
 # Deliberately depends only on base R + data.table (not tidyverse): callers
@@ -13,7 +13,7 @@
 # `reporting` feature tidyverse lives in.
 
 suppressPackageStartupMessages(library(data.table))
-source("resources/generators/lib/metadata_resolvers/contract.R")
+source("src/manifest_generation/providers/gwas_catalog/contract.R")
 
 # Splits one GWAS Catalog "INITIAL SAMPLE SIZE" string into its labelled
 # components, e.g. "10,007 cases, 474,591 controls" -> two rows tagged
