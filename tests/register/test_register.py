@@ -4,8 +4,9 @@
 Verifies the central contracts of ADR 0022 and ADR 0023:
 1. `validation.yaml` is written atomically only by `register`; failed runs leave any previous
    `validation.yaml` completely intact.
-2. Observed measurements (format_version, n_variants, n_analyses, n_associations, store_bytes,
-   build_elapsed_s, validate_status) are harvested from step records.
+2. Observed measurements (format_version, n_variants, n_analyses, n_associations,
+   association_coverage, reference_assembly, store_bytes, build_elapsed_s, validate_status)
+   are harvested from step records, an unreported key as null (#322).
 3. Argv drift check fails and names the exact difference when executed argv differs from plan.
    Staging normalization applies (store.opengwasdb.partial -> store.opengwasdb).
 4. `complete-dense-resume` is accepted as a legitimate divergence for planned `complete-dense`
@@ -285,7 +286,6 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
             "format_version": "1.0",
             "n_variants": 12500,
             "n_analyses": 50,
-            "n_associations": 625000,
         }) + "\n"
         build_rec["elapsed_seconds"] = 10.5
         run._write_record_atomically(build_rec, build_rec_p)
@@ -296,10 +296,85 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
         self.assertEqual(obs["format_version"], "1.0")
         self.assertEqual(obs["n_variants"], 12500)
         self.assertEqual(obs["n_analyses"], 50)
-        self.assertEqual(obs["n_associations"], 625000)
+        self.assertIsNone(
+            obs["n_associations"],
+            "a Dense build that reports no association count records null, never "
+            "n_variants x n_analyses: matrix cells are not associations (#322)",
+        )
         self.assertIsNone(obs["store_bytes"], "no step reports a Store size")
         self.assertEqual(obs["validate_status"], "passed")
         self.assertGreater(obs["build_elapsed_s"], 10.0)
+
+    def test_a_reported_association_count_is_recorded_as_reported(self) -> None:
+        """n_associations is the builder's reported count, not a value register derives (#322)."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00058")
+        rec_p = paths.record_path(b.store_id, "build", root=artifact_root)
+        rec = json.loads(rec_p.read_text(encoding="utf-8"))
+        rec["stdout"] = json.dumps({
+            "n_variants": 12500,
+            "n_analyses": 50,
+            "n_associations": 424242,
+        }) + "\n"
+        run._write_record_atomically(rec, rec_p)
+
+        written = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+
+        self.assertEqual(written["observed"]["n_associations"], 424242)
+
+    def test_association_coverage_and_reference_assembly_come_from_the_build_report(self) -> None:
+        """Both come from the producing step's stdout JSON, under the keys register reads (#322)."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00059")
+        rec_p = paths.record_path(b.store_id, "build", root=artifact_root)
+        rec = json.loads(rec_p.read_text(encoding="utf-8"))
+        rec["stdout"] = json.dumps({
+            "n_variants": 1000,
+            "n_analyses": 2,
+            "association_coverage": "cis",
+            "reference_assembly": "GRCh38",
+        }) + "\n"
+        run._write_record_atomically(rec, rec_p)
+
+        written = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+
+        self.assertEqual(written["observed"]["association_coverage"], "cis")
+        self.assertEqual(written["observed"]["reference_assembly"], "GRCh38")
+
+    def test_the_completion_step_reports_association_coverage_and_reference_assembly(self) -> None:
+        """A completion command's stdout JSON is read the same way a build's is (#322)."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(
+            self.td,
+            "OGS-00060",
+            completion_state="reference_completed",
+            command="complete-dense",
+            derived_from="OGS-00042",
+        )
+        rec_p = paths.record_path(b.store_id, "complete", root=artifact_root)
+        rec = json.loads(rec_p.read_text(encoding="utf-8"))
+        rec["stdout"] = json.dumps({
+            "n_variants": 1000,
+            "n_analyses": 2,
+            "n_associations": 7,
+            "association_coverage": "full_gwas",
+            "reference_assembly": "GRCh37",
+        }) + "\n"
+        run._write_record_atomically(rec, rec_p)
+
+        written = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+
+        self.assertEqual(written["observed"]["association_coverage"], "full_gwas")
+        self.assertEqual(written["observed"]["reference_assembly"], "GRCh37")
+        self.assertEqual(written["observed"]["n_associations"], 7)
+
+    def test_unreported_association_coverage_and_reference_assembly_are_null(self) -> None:
+        """A key the producing step does not print is recorded as null, present rather than omitted."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00061")
+
+        written = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+
+        self.assertIn("association_coverage", written["observed"])
+        self.assertIn("reference_assembly", written["observed"])
+        self.assertIsNone(written["observed"]["association_coverage"])
+        self.assertIsNone(written["observed"]["reference_assembly"])
 
     def test_written_record_matches_the_documented_register_shape(self) -> None:
         """The written validation.yaml carries exactly the canonical register keys (issue #135).

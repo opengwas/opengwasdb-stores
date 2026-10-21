@@ -401,7 +401,13 @@ two renderings cannot drift (ADRs 0022, 0030).
 `opengwasdb validate` verdict, compares each record's executed argv against
 `plan()`'s planned argv, harvests the observed measurements, and publishes the
 staged Store. It is the only writer of `validation.yaml` (issues #119, #135;
-ADR 0023). Publication is one recoverable transaction: `publication.json` is
+ADR 0023). The observed measurements are read from the `build` or `complete`
+step's stdout JSON under the keys opengwasdb prints there: `format_version`,
+`n_variants`, `n_analyses`, `n_associations`, `association_coverage` and
+`reference_assembly`. A key the step does not print is recorded as `null`;
+nothing is read from the Store or its `manifest.json`, and `register` never
+derives `n_associations` from `n_variants × n_analyses`, which counts matrix
+cells rather than associations (#322). Publication is one recoverable transaction: `publication.json` is
 written first, and `complete_publication()` finishes it, now or after a crash
 (see Safety, #195).
 
@@ -798,7 +804,7 @@ The field-by-field format is defined once in
 [`docs/release-metadata-schema.md`](../release-metadata-schema.md#validationyaml);
 this section records only how the workflow produces it.
 
-Assembled by `register` from the step records: the JSON each build command already prints, plus `opengwasdb validate`'s verdict.
+Assembled by `register` from the step records: the JSON each build command already prints, plus `opengwasdb validate`'s verdict. `n_associations`, `association_coverage` and `reference_assembly` come from that JSON under exactly those keys, with the same precedence `n_variants` and `n_analyses` use; a key opengwasdb does not print is `null`, never a derived value or one read from the Store (#322). Until opengwasdb prints the two coverage keys they are `null` in every new record; committed records written before #322 do not carry them and are not rewritten (#326 re-registers).
 
 The verdict is read from `opengwasdb validate --format json`, which the planned validate step requests (opengwasdb#175). It prints one object, `{"ok", "errors", "warnings"}`, and the record follows from it exactly:
 - `status` and `checks.store` are `failed` when `ok` is false, `passed_with_warnings` when `warnings` is non-empty, and `passed` otherwise;
