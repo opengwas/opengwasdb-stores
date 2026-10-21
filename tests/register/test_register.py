@@ -869,6 +869,31 @@ class TestPublicationTransaction(unittest.TestCase):
         register.remove_publication_marker(b.store_id, artifact_root)
         self.assert_replaced(b, artifact_root, old_record)
 
+    def test_completing_an_already_written_publication_leaves_its_files_untouched(self) -> None:
+        """A second `complete_publication` writes neither file: their mtimes stay put (#303).
+
+        The entry point finishes a release's deferred publication after
+        Snakemake's last job, and that pass rewrites `validation.yaml` and
+        `records/register.json`. Bumping their mtimes makes the record look
+        newer than the job that consumed it, so the next run reschedules that
+        job, and #195 then refuses a run over an already published Store. The
+        bytes are already there; writing them again buys nothing.
+        """
+        b, stores_root, artifact_root, _ = self.staged_replacement("OGS-00503")
+        register_release(b, registry_root=stores_root, artifact_root=artifact_root, force=True, finalize=False)
+
+        validation_p = b.root / "validation.yaml"
+        register_p = paths.record_path(b.store_id, "register", root=artifact_root)
+        before = {p: (p.stat().st_mtime_ns, p.read_bytes()) for p in (validation_p, register_p)}
+
+        # The marker still stands, so this is the entry point's pass after the
+        # register job, made again on a publication that is already written.
+        register.complete_publication(b.store_id, artifact_root, finalize=False)
+
+        for p, (mtime, payload) in before.items():
+            self.assertEqual(p.read_bytes(), payload, f"{p.name} holds different bytes")
+            self.assertEqual(p.stat().st_mtime_ns, mtime, f"{p.name} was rewritten by an identical write")
+
     def test_an_impossible_state_is_raised_and_the_marker_kept(self) -> None:
         b, stores_root, artifact_root, _ = self.staged_replacement("OGS-00500")
         self.assertEqual(self.kill_register_at("store-set-aside", b, stores_root, artifact_root), 137)
