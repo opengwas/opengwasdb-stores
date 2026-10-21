@@ -57,6 +57,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import functools
 import hashlib
 import sys
 from dataclasses import dataclass
@@ -320,6 +321,28 @@ def render_provenance_yaml(
     return yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100, allow_unicode=True)
 
 
+@functools.lru_cache(maxsize=64)
+def _parsed_provenance(path: Path, mtime_ns: int, size: int) -> Mapping[str, Any]:
+    """A provenance sidecar, parsed once per file identity.
+
+    A snapshot's provenance is immutable and can be large: the dbGaP MVP sidecars
+    list every selected file's reformat lineage. Keying the cache on the file's
+    mtime and size means a rewritten sidecar is always re-read.
+    """
+    del mtime_ns, size  # part of the cache key only
+    return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+
+
+def load_provenance(provenance_path: Path) -> Mapping[str, Any]:
+    """A frozen snapshot's provenance document, cached by the file's identity."""
+    path = Path(provenance_path)
+    try:
+        stat = path.stat()
+    except OSError as exc:
+        raise FreezeError(f"frozen Source Inventory provenance not found: {path}") from exc
+    return _parsed_provenance(path, stat.st_mtime_ns, stat.st_size)
+
+
 def load_frozen_connectors(provenance_path: Path) -> tuple[SourceMetadataTable, AcquisitionManifest]:
     """Load the connector files a freeze wrote, after checking each against its recorded sha256.
 
@@ -330,7 +353,7 @@ def load_frozen_connectors(provenance_path: Path) -> tuple[SourceMetadataTable, 
     provenance_path = Path(provenance_path)
     if not provenance_path.is_file():
         raise FreezeError(f"frozen Source Inventory provenance not found: {provenance_path}")
-    document = yaml.safe_load(provenance_path.read_text(encoding="utf-8"))
+    document = load_provenance(provenance_path)
     paths: list[Path] = []
     for key in ("source_metadata_table", "acquisition_manifest"):
         try:
@@ -394,7 +417,7 @@ def load_collection_intent(provenance_path: Path) -> CollectionIntent:
     provenance_path = Path(provenance_path)
     if not provenance_path.is_file():
         raise FreezeError(f"frozen Source Inventory provenance not found: {provenance_path}")
-    document = yaml.safe_load(provenance_path.read_text(encoding="utf-8")) or {}
+    document = load_provenance(provenance_path) or {}
     paths: list[Path] = []
     for key in ("source_metadata_table", "acquisition_manifest"):
         try:

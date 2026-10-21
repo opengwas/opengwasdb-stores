@@ -11,18 +11,22 @@ Run from the repository root:
 """
 from __future__ import annotations
 
+import contextlib
 import csv
 import hashlib
+import io
 import json
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 
 import yaml
 
 from manifest_generation.acquisition_manifest import ACQUISITION_MANIFEST
+from manifest_generation import inventory
 from manifest_generation.connector_tsv import write_connector
 from manifest_generation.inventory import freeze_release
 from manifest_generation.release_config import load_release_config
@@ -150,27 +154,32 @@ class CommandPreflightTests(unittest.TestCase):
     row no Selection takes, which no ``expect_rows`` bound can catch.
     """
 
-    def setUp(self) -> None:
-        self.tmp = tempfile.TemporaryDirectory(prefix="dbgap-partition-cli-")
-        self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
-        self.config_path = end_to_end.build(self.root)
-        self.document = yaml.safe_load(self.config_path.read_text(encoding="utf-8"))
-        self.table = Path(self.document["source_collection"]["connectors"]["source_metadata_table"])
-        self.acquisition = Path(
-            self.document["source_collection"]["connectors"]["acquisition_manifest"]
+    @classmethod
+    def setUpClass(cls) -> None:
+        """One fixture collection and three frozen Selections for the whole class."""
+        cls.tmp = tempfile.TemporaryDirectory(prefix="dbgap-partition-cli-")
+        cls.root = Path(cls.tmp.name)
+        cls.config_path = end_to_end.build(cls.root)
+        cls.document = yaml.safe_load(cls.config_path.read_text(encoding="utf-8"))
+        cls.table = Path(cls.document["source_collection"]["connectors"]["source_metadata_table"])
+        cls.acquisition = Path(
+            cls.document["source_collection"]["connectors"]["acquisition_manifest"]
         )
-        self.add_bucket("GCST90001003", "dense__pmid-39024449__Multi-ancestry")
-        self.configs = {
-            name: self.write_config(name, [analysis_id])
+        cls.add_bucket(cls, "GCST90001003", "dense__pmid-39024449__Multi-ancestry")
+        cls.configs = {
+            name: cls.write_config(cls, name, [analysis_id])
             for name, analysis_id in (
                 ("one", "GCST90001001"),
                 ("two", "GCST90001002"),
                 ("three", "GCST90001003"),
             )
         }
-        for path in self.configs.values():
+        for path in cls.configs.values():
             freeze_release(load_release_config(path, end_to_end.REPO_ROOT))
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.tmp.cleanup()
 
     def add_bucket(self, analysis_id: str, store_key: str) -> None:
         """A further bucket of the collection: a converted file and its two connector rows."""
@@ -221,20 +230,28 @@ class CommandPreflightTests(unittest.TestCase):
         path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
         return path
 
-    def preflight(self, *names: str) -> subprocess.CompletedProcess:
-        command = [
-            sys.executable, "-m", "manifest_generation.inventory",
-            "--repo-root", str(end_to_end.REPO_ROOT), "preflight",
-        ]
+    def arguments(self, *names: str) -> list[str]:
+        command = ["--repo-root", str(end_to_end.REPO_ROOT), "preflight"]
         for name in names:
             command += ["--config", str(self.configs[name])]
-        command += ["--work-root", str(self.root / "work")]
+        return command + ["--work-root", str(self.root / "work")]
+
+    def preflight(self, *names: str) -> types.SimpleNamespace:
+        """Run the command in-process: the CLI path, without a second interpreter per case."""
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            code = inventory.main(self.arguments(*names))
+        return types.SimpleNamespace(returncode=code, stdout=stdout.getvalue(), stderr=stderr.getvalue())
+
+    def preflight_as_command(self, *names: str) -> subprocess.CompletedProcess:
+        """One subprocess run, so the command seam itself is covered too."""
         return subprocess.run(
-            command, cwd=str(end_to_end.REPO_ROOT), capture_output=True, text=True, check=False
+            [sys.executable, "-m", "manifest_generation.inventory", *self.arguments(*names)],
+            cwd=str(end_to_end.REPO_ROOT), capture_output=True, text=True, check=False,
         )
 
     def test_three_selections_that_part_the_collection_pass(self) -> None:
-        result = self.preflight("one", "two", "three")
+        result = self.preflight_as_command("one", "two", "three")
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertIn("Selections partition", result.stdout)
 
@@ -247,9 +264,14 @@ class CommandPreflightTests(unittest.TestCase):
 
     def test_a_collection_row_no_selection_takes_fails_by_name(self) -> None:
         """No expect_rows bound can see an added row: only the collection's intent can."""
+        saved = {path: path.read_bytes() for path in (self.table, self.acquisition)}
+        provenance_path = self.root / "inventory" / "fixture-mvp-one.meta.yaml"
+        saved[provenance_path] = provenance_path.read_bytes()
+        self.addCleanup(
+            lambda: [path.write_bytes(data) for path, data in saved.items()]
+        )
         self.add_bucket("GCST90001004", "dense__pmid-39024449__East-Asian")
         # The collection's recorded intent is the table as it now is.
-        provenance_path = self.root / "inventory" / "fixture-mvp-one.meta.yaml"
         provenance = yaml.safe_load(provenance_path.read_text(encoding="utf-8"))
         for key, path in (
             ("source_metadata_table", self.table),

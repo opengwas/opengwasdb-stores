@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import copy
 import csv
+import functools
 import tempfile
 import unittest
 from pathlib import Path
@@ -466,6 +467,28 @@ def shipped_release_configs() -> list[Path]:
     return sorted(GENERATORS.glob("*/release-*.yaml"))
 
 
+@functools.cache
+def shipped_provenance(path: Path) -> dict:
+    """A shipped snapshot's provenance, parsed once per process (#290 review).
+
+    Five dbGaP snapshots each list the reformat lineage of their whole
+    collection, so parsing them per test made this suite twice as slow. It goes
+    through the shared loader, so the tests and ``read_analysis_metadata`` share
+    one parse per snapshot.
+    """
+    from manifest_generation.freeze import load_provenance
+
+    return load_provenance(Path(path))
+
+
+@functools.cache
+def shipped_frozen_connectors(path: Path):
+    """A shipped snapshot's frozen connectors, parsed and checksummed once (#290 review)."""
+    from manifest_generation.freeze import load_frozen_connectors
+
+    return load_frozen_connectors(Path(path))
+
+
 def bundle_analyses(store_id: str) -> list[str]:
     with (REPO_ROOT / "stores" / store_id / "analyses.tsv").open(encoding="utf-8") as fh:
         return [row["analysis_id"] for row in csv.DictReader(fh, delimiter="\t")]
@@ -480,7 +503,7 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         for path in configs:
             with self.subTest(config=path.name):
                 config = load_release_config(path, REPO_ROOT)
-                provenance = yaml.safe_load(config.inventory_provenance_path.read_text(encoding="utf-8"))
+                provenance = shipped_provenance(config.inventory_provenance_path)
                 self.assertEqual(
                     frozen_for_release_problems(provenance, config.inventory_provenance_path, config),
                     [],
@@ -497,12 +520,12 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         lineage) still has the sha256 the freeze recorded; the frozen subsets
         beside the inventory are checked by ``load_frozen_connectors``.
         """
-        from manifest_generation.freeze import load_frozen_connectors, original_path
+        from manifest_generation.freeze import original_path
 
         scratch = ("/tmp/", "/data/opengwasdb/work/")
         for path in shipped_release_configs():
             config = load_release_config(path, REPO_ROOT)
-            provenance = yaml.safe_load(config.inventory_provenance_path.read_text(encoding="utf-8"))
+            provenance = shipped_provenance(config.inventory_provenance_path)
             recorded = [
                 provenance["source_metadata_table"]["original"],
                 provenance["acquisition_manifest"]["original"],
@@ -518,7 +541,7 @@ class ShippedReleaseConfigTests(unittest.TestCase):
                     original = original_path(entry["path"])
                     if original.is_file():
                         self.assertEqual(sha256_file(original), entry["sha256"])
-            table, manifest = load_frozen_connectors(config.inventory_provenance_path)
+            table, manifest = shipped_frozen_connectors(config.inventory_provenance_path)
             self.assertEqual(len(table.rows), provenance["rows"])
             self.assertEqual(len(manifest.entries), provenance["rows"])
 
@@ -555,7 +578,7 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         for path in shipped_release_configs():
             config = load_release_config(path, REPO_ROOT)
             provenance_path = config.inventory_provenance_path
-            provenance = yaml.safe_load(provenance_path.read_text(encoding="utf-8"))
+            provenance = shipped_provenance(provenance_path)
             lineage = {"provenance": provenance, "frozen manifest": tsv(
                 provenance_path.parent / provenance["acquisition_manifest"]["frozen"]["path"]
             )}
@@ -630,7 +653,7 @@ class ShippedReleaseConfigTests(unittest.TestCase):
             with self.subTest(config=path.name):
                 config = load_candidate_configuration(path, REPO_ROOT)
                 provenance_path = config.base.inventory_provenance_path
-                provenance = yaml.safe_load(provenance_path.read_text(encoding="utf-8"))
+                provenance = shipped_provenance(provenance_path)
                 if not original_path(provenance["source_metadata_table"]["original"]["path"]).is_file():
                     self.skipTest("the collection's Source Metadata Table is not on this host")
                 rows = read_inventory(config.base.inventory_path)
