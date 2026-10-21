@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""The FinnGen R13 metadata adapter: provider manifest -> Source Metadata Table (#288).
+
+The provider manifest is five rows of the real ``finngen_R13_manifest.tsv``
+shape (``phenocode``, ``phenotype``, ``category``, ``num_cases``,
+``num_controls``, ``path_https``), chosen for the endpoint classes the R
+resolver distinguished: the inverse-rank-normalised quantitative endpoints
+(``category`` is ``Quantitative endpoints``, whose ``num_cases`` is the total N
+and whose ``num_controls`` is the source's ``0``), ordinary case-control
+endpoints, and the two rows that contradict themselves and must be refused
+rather than dropped.
+
+Run from the repository root:
+    python3 tests/finngen-r13-pipeline/test_source_metadata_adapter.py
+"""
+
+from __future__ import annotations
+
+import tempfile
+import unittest
+from pathlib import Path
+
+import csv
+
+from manifest_generation.providers.finngen.source_metadata_adapter import (
+    AdapterError,
+    convert_manifest,
+)
+from manifest_generation.source_metadata_table import load_source_metadata_table
+
+FIXTURE = Path(__file__).resolve().parent / "fixtures" / "finngen_R13_manifest.tsv"
+
+COLUMNS = (
+    "source_analysis_id",
+    "source_trait_label",
+    "source_trait_id",
+    "source_ancestry_label",
+    "source_superpopulation",
+    "study_design",
+    "sample_size",
+    "n_cases",
+    "n_controls",
+)
+
+
+class FinnGenSourceMetadataAdapterTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def convert(self, source: Path = FIXTURE):
+        out = self.tmp / "source-metadata.tsv"
+        convert_manifest(source, out)
+        return load_source_metadata_table(out)
+
+    def manifest(self, rows: list[dict[str, str]]) -> Path:
+        """Write a provider manifest with ``rows`` over the fixture's columns."""
+        path = self.tmp / "manifest.tsv"
+        columns = ["phenocode", "phenotype", "category", "num_cases", "num_controls",
+                   "path_bucket", "path_https"]
+        with path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=columns, delimiter="\t", lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(rows)
+        return path
+
+    def test_fixture_exercises_its_endpoint_classes(self) -> None:
+        text = FIXTURE.read_text(encoding="utf-8")
+        self.assertEqual(text.count("Quantitative endpoints"), 3)
+        self.assertIn("Quantitative endpoints \t", text)  # an upstream padded category
+        self.assertIn("Arthropathies \t", text)  # an upstream padded trait label
+
+    def test_every_endpoint_becomes_one_canonical_row_in_manifest_order(self) -> None:
+        table = self.convert()
+        self.assertEqual(
+            table.analysis_ids,
+            ("BMI_IRN", "HEIGHT_IRN", "AB1_ACTINOMYCOSIS", "M13_ARTHROPATHIES", "Q_RNS_CTRL"),
+        )
+        self.assertNotIn("phenocode", table.columns)
+
+    def test_a_quantitative_endpoint_carries_its_total_never_case_counts(self) -> None:
+        row = self.convert().row("BMI_IRN")
+        self.assertEqual(
+            {column: row[column] for column in COLUMNS},
+            {
+                "source_analysis_id": "BMI_IRN",
+                "source_trait_label": "Body mass index, inverse-rank normalized",
+                "source_trait_id": "BMI_IRN",
+                "source_ancestry_label": "Finnish",
+                "source_superpopulation": "EUR",
+                "study_design": "quantitative",
+                "sample_size": "362216",
+                "n_cases": "",
+                "n_controls": "",
+            },
+        )
+
+    def test_a_case_control_endpoint_carries_both_counts_and_their_sum(self) -> None:
+        row = self.convert().row("AB1_ACTINOMYCOSIS")
+        self.assertEqual(
+            {column: row[column] for column in COLUMNS},
+            {
+                "source_analysis_id": "AB1_ACTINOMYCOSIS",
+                "source_trait_label": "Actinomycosis",
+                "source_trait_id": "AB1_ACTINOMYCOSIS",
+                "source_ancestry_label": "Finnish",
+                "source_superpopulation": "EUR",
+                "study_design": "case-control",
+                "sample_size": "433889",
+                "n_cases": "132",
+                "n_controls": "433757",
+            },
+        )
+
+    def test_a_quantitative_endpoint_ignores_upstream_controls_and_padded_category(self) -> None:
+        table = self.convert()
+        for analysis_id in ("HEIGHT_IRN", "Q_RNS_CTRL"):
+            with self.subTest(analysis_id=analysis_id):
+                row = table.row(analysis_id)
+                self.assertEqual(row["study_design"], "quantitative")
+                self.assertEqual(row["n_cases"], "")
+                self.assertEqual(row["n_controls"], "")
+
+    def test_padded_text_is_trimmed(self) -> None:
+        row = self.convert().row("M13_ARTHROPATHIES")
+        self.assertEqual(row["source_trait_label"], "Arthropathies")
+
+    def test_a_quantitative_endpoint_without_a_case_total_is_refused(self) -> None:
+        path = self.manifest([{
+            "phenocode": "BMI_IRN", "phenotype": "Body mass index",
+            "category": "Quantitative endpoints", "num_cases": "0", "num_controls": "0",
+            "path_bucket": "gs://bucket/x.gz", "path_https": "https://example.invalid/x.gz",
+        }])
+        with self.assertRaises(AdapterError) as raised:
+            self.convert(path)
+        self.assertIn("BMI_IRN", str(raised.exception))
+        self.assertFalse((self.tmp / "source-metadata.tsv").exists())
+
+    def test_a_case_control_endpoint_without_positive_counts_is_refused(self) -> None:
+        for num_cases, num_controls in (("100", "0"), ("0", "100")):
+            with self.subTest(num_cases=num_cases, num_controls=num_controls):
+                path = self.manifest([{
+                    "phenocode": "M13_ARTHROPATHIES", "phenotype": "Arthropathies",
+                    "category": "XIII Diseases", "num_cases": num_cases,
+                    "num_controls": num_controls,
+                    "path_bucket": "gs://bucket/x.gz", "path_https": "https://example.invalid/x.gz",
+                }])
+                with self.assertRaises(AdapterError) as raised:
+                    self.convert(path)
+                self.assertIn("M13_ARTHROPATHIES", str(raised.exception))
+
+    def test_a_manifest_missing_a_column_is_refused_by_name(self) -> None:
+        path = self.tmp / "manifest.tsv"
+        path.write_text("phenocode\tphenotype\tcategory\nBMI_IRN\tBody mass index\tQuantitative endpoints\n",
+                        encoding="utf-8")
+        with self.assertRaises(AdapterError) as raised:
+            self.convert(path)
+        self.assertIn("num_cases", str(raised.exception))
+
+    def test_the_written_table_is_what_the_canonical_loader_accepts(self) -> None:
+        table = self.convert()
+        self.assertEqual(table.sha256, load_source_metadata_table(table.path).sha256)
+
+    def test_an_untranslated_ancestry_label_is_refused_rather_than_left_blank(self) -> None:
+        """`Finnish` is in the tracked map; a map without it must refuse, not blank."""
+        resource = (self.tmp / "resources" / "reference-resources" / "ukb-ancestry-mixture-hg38")
+        resource.mkdir(parents=True)
+        (resource / "source_label_map.tsv").write_text(
+            "source_label\tsuper_population\nEuropean\tEUR\n", encoding="utf-8"
+        )
+        (resource / "source_label_imprecise.tsv").write_text(
+            "source_label\treason\n", encoding="utf-8"
+        )
+        with self.assertRaises(AdapterError) as raised:
+            convert_manifest(FIXTURE, self.tmp / "source-metadata.tsv", repo_root=self.tmp)
+        self.assertIn("Finnish", str(raised.exception))
+        self.assertIn("map it or list it as imprecise", str(raised.exception))
+        self.assertFalse((self.tmp / "source-metadata.tsv").exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

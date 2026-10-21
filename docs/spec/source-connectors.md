@@ -122,6 +122,54 @@ GCST000028          Type 2 diabetes     European               EUR              
 GCST90006908        Anti-human herpes…  European               EUR                     quantitative  8735                             33204752          hybrid__European
 ```
 
+### The FinnGen adapter
+
+`src/manifest_generation/providers/finngen/source_metadata_adapter.py` converts
+FinnGen's published `finngen_R13_manifest.tsv` -- one row per endpoint, with
+`phenocode`, `phenotype`, `category`, `num_cases`, `num_controls` -- into the
+canonical table (#288). It replaces the retired R metadata resolver
+(`resources/generators/lib/metadata_resolvers/finngen_manifest.R`), and keeps
+its classification exactly:
+
+| Provider column | Canonical column |
+|---|---|
+| `phenocode` | `source_analysis_id`, and `source_trait_id` |
+| `phenotype` | `source_trait_label` |
+| `category`, `num_cases`, `num_controls` | `study_design`, `sample_size`, `n_cases`, `n_controls` |
+| -- (`Finnish` for every endpoint) | `source_ancestry_label`, and its `source_label_map.tsv` translation as `source_superpopulation` |
+
+Its translations, and only these:
+
+- **Endpoint classification.** `category` equal to `Quantitative endpoints`
+  (trimmed, case-insensitively) is a `quantitative` endpoint whose total
+  `sample_size` is `num_cases`; the inverse-rank-normalised traits are
+  standardised over the whole cohort, so any `num_controls` upstream reports on
+  such a row is not a case count and is not carried. Any other category with a
+  positive `num_cases` and a positive `num_controls` is `case-control`, with
+  both counts and their sum as `sample_size`. Anything else -- a quantitative
+  endpoint with no positive `num_cases`, any other endpoint without both
+  positive counts, a non-numeric count -- is refused by phenocode, so an
+  endpoint the manifest cannot describe honestly fails the adapter rather than
+  shrinking the release.
+- **No declared effect scale.** The provider manifest has none, so the release
+  config's `defaults.by_study_design` tiers decide `stored_effect_scale`, and
+  the quantitative tier says `declared_standardised` for the IRN traits.
+- **Collection-wide facts** -- the GRCh38 build, the FinnGen public-data
+  licence and the FinnGen consortium -- are not written; the release config's
+  defaults supply them (#287).
+- **Padding** is trimmed, as the GWAS Catalog adapter trims it.
+- **The Source Ancestry Label** `Finnish` is carried verbatim and translated
+  through the tracked map, so `source_superpopulation` is `EUR`; a map without
+  that label refuses it by name rather than leaving the cell blank.
+
+Example:
+
+```text
+source_analysis_id  source_trait_label                    source_trait_id     source_ancestry_label  source_superpopulation  study_design    sample_size  n_cases  n_controls
+BMI_IRN             Body mass index, inverse-rank norm…   BMI_IRN             Finnish                EUR                     quantitative    362216
+AB1_ACTINOMYCOSIS   Actinomycosis                         AB1_ACTINOMYCOSIS   Finnish                EUR                     case-control    433889       132      433757
+```
+
 ## Acquisition Manifest
 
 What acquisition produced for a Source Collection: one row per Analysis it
