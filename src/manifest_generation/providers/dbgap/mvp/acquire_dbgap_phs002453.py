@@ -66,7 +66,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TextIO
+from typing import Mapping, TextIO
 
 import yaml
 
@@ -761,6 +761,9 @@ def load_analysis(
     if trait_type not in ("binary trait", "quantitative trait"):
         raise AcquisitionError(f"{path}: unrecognised phenotypic trait type {info[METADATA_TRAIT_TYPE]!r}")
     sample_size, n_cases, n_controls = parse_sample_size(info[METADATA_SAMPLE_SIZE], path)
+    # The mapping writes the candidate table's convention: 0 stands for "the
+    # study has no such count" (a quantitative study). The adapter and this
+    # manifest generator read a 0 there as absence, never as a count (#290).
     return Analysis(
         member=member,
         stem=stem,
@@ -771,8 +774,8 @@ def load_analysis(
         description=info.get(METADATA_DESCRIPTION, ""),
         trait_type="binary" if trait_type == "binary trait" else "quantitative",
         sample_size=sample_size,
-        n_cases=n_cases,
-        n_controls=n_controls,
+        n_cases=n_cases or 0,
+        n_controls=n_controls or 0,
     )
 
 
@@ -1244,11 +1247,73 @@ def command_convert(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
+#: The module a converted dbGaP file is rewritten by, as lineage records it.
+REFORMAT_TOOL_MODULE = "manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453"
+
+
+def reformat_tool() -> str:
+    """The rewrite tool and its version: this module's name and its own sha256 (#290 review)."""
+    script = Path(__file__).resolve()
+    return f"{REFORMAT_TOOL_MODULE} sha256:{sha256_file(script)}"
+
+
+def reformat_lineage(
+    mapping: dict[str, str],
+    *,
+    tars_dir: Path,
+    extracted: Path,
+    original_sha256: str,
+    original_size: int,
+) -> dict[str, str]:
+    """The tar member a converted file was rewritten from, and what changed it.
+
+    A dbGaP member is one file inside a published tar, so its location is
+    ``<tar path>#<member>``: the tar the deposit published and the member
+    inside it. The checksum is the extracted member's own sha256 -- the tar
+    itself is deleted after extraction, so its recorded md5 identifies the
+    container rather than these bytes (ADR 0036's reformatting rule, #290).
+    """
+    tar = mapping.get("tar", "")
+    member = mapping.get("member", "")
+    if not tar or not member:
+        raise AcquisitionError(
+            f"{mapping.get('analysis_id', '?')}: the mapping names no tar/member, so the "
+            "rewritten file has no original to record"
+        )
+    original = extracted / member
+    if not original.is_file():
+        raise AcquisitionError(
+            f"{mapping['analysis_id']}: the extracted original {original} is gone, so the "
+            "rewritten file has no durable original identity to record"
+        )
+    actual = original.stat().st_size
+    if actual != original_size:
+        raise AcquisitionError(
+            f"{mapping['analysis_id']}: the deposited member is {original_size} bytes, but "
+            f"{original} is {actual}; it changed after extraction"
+        )
+    return {
+        "original_location": f"{tars_dir / tar}#{member}",
+        "original_sha256": original_sha256,
+        "reformat_tool": reformat_tool(),
+        "original_bytes": str(original_size),
+    }
+
+
+def member_sizes(out: Path) -> dict[str, int]:
+    """``member -> size`` from the deposit's tables of contents (empty when absent)."""
+    try:
+        return {member: size for member, (_tar, size) in load_toc(out).items()}
+    except (DbgapError, OSError):
+        return {}
+
+
 def manifest_row(
     mapping: dict[str, str],
     data_root: Path,
     recorded: dict[str, dict[str, str]] | None,
     digest: str | None,
+    lineage: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
     """One shared Acquisition Manifest row for one mapped Analysis (#290).
 
@@ -1294,6 +1359,8 @@ def manifest_row(
     if yaml_path.is_file() and yaml_path.stat().st_size > 0:
         row["sidecar_location"] = str(yaml_path)
         row["sidecar_bytes"] = str(yaml_path.stat().st_size)
+    if lineage is not None:
+        row.update(lineage)
     return row
 
 
@@ -1372,8 +1439,53 @@ def command_manifest(args: argparse.Namespace) -> int:
         if row.get("sha256"):
             digests[analysis_id] = row["sha256"]
 
+    # The original identity of every file acquisition rewrote (#290 review): the
+    # tar member it came from, and that member's own sha256. The tar itself is
+    # deleted after extraction, so the extracted member is the durable original.
+    tars_dir = out / "GIA" / "tars"
+    extracted = out / "GIA" / "extracted"
+    sizes = member_sizes(out)
+    ready_rows = [
+        row for row in mapping
+        if row["analysis_id"] in digests
+    ]
+    original_digests: dict[str, str] = {}
+    originals = {row["analysis_id"]: extracted / row["member"] for row in ready_rows}
+    missing = sorted(
+        analysis_id for analysis_id, path in originals.items() if not path.is_file()
+    )
+    if missing:
+        raise AcquisitionError(
+            f"{len(missing)} rewritten file(s) have no durable original to record: "
+            + ", ".join(missing[:10])
+            + (" ..." if len(missing) > 10 else "")
+        )
+    with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
+        futures = {
+            pool.submit(sha256_file, path): analysis_id
+            for analysis_id, path in originals.items()
+        }
+        for future in as_completed(futures):
+            original_digests[futures[future]] = future.result()
+    lineage_by_id: dict[str, dict[str, str]] = {}
+    for row in ready_rows:
+        analysis_id = row["analysis_id"]
+        size = originals[analysis_id].stat().st_size
+        recorded_size = sizes.get(row["member"])
+        if recorded_size is not None and recorded_size != size:
+            raise AcquisitionError(
+                f"{analysis_id}: the table of contents records {recorded_size} bytes for "
+                f"{row['member']}, but the extracted member is {size}"
+            )
+        lineage_by_id[analysis_id] = reformat_lineage(
+            row, tars_dir=tars_dir, extracted=extracted,
+            original_sha256=original_digests[analysis_id], original_size=size,
+        )
     rows = [
-        manifest_row(row, data_root, recorded.get(row["analysis_id"]), digests.get(row["analysis_id"]))
+        manifest_row(
+            row, data_root, recorded.get(row["analysis_id"]), digests.get(row["analysis_id"]),
+            lineage_by_id.get(row["analysis_id"]),
+        )
         for row in mapping
     ]
     manifest_path = Path(args.manifest) if args.manifest else out / "acquisition-manifest.tsv"

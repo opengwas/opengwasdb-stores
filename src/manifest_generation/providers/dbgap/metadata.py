@@ -117,8 +117,13 @@ def parse_metadata(path: Path) -> dict[str, str]:
     return info
 
 
-def parse_sample_size(text: str, path: Path) -> tuple[int, int, int]:
-    """``(N, cases, controls)`` from ``Total Sample Size=N[; Cases=a; Controls=b]``."""
+def parse_sample_size(text: str, path: Path) -> tuple[int, int | None, int | None]:
+    """``(N, cases, controls)`` from ``Total Sample Size=N[; Cases=a; Controls=b]``.
+
+    A count the deposit does not record is ``None``, never a zero: a zero count
+    is not an absence, and a caller that needs one must refuse rather than
+    invent it (#290 review).
+    """
     total = re.search(r"Total Sample Size\s*=\s*(\d+)", text)
     if total is None:
         raise DbgapError(f"{path}: cannot parse sample size from {text!r}")
@@ -126,8 +131,8 @@ def parse_sample_size(text: str, path: Path) -> tuple[int, int, int]:
     controls = re.search(r"Controls\s*=\s*(\d+)", text)
     return (
         int(total.group(1)),
-        int(cases.group(1)) if cases else 0,
-        int(controls.group(1)) if controls else 0,
+        int(cases.group(1)) if cases else None,
+        int(controls.group(1)) if controls else None,
     )
 
 

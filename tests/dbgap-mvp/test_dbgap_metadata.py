@@ -123,7 +123,8 @@ class MetadataTests(unittest.TestCase):
             parse_sample_size("Total Sample Size=438595; Cases=5583; Controls=433012", path),
             (438595, 5583, 433012),
         )
-        self.assertEqual(parse_sample_size("Total Sample Size=338640", path), (338640, 0, 0))
+        # A count the deposit does not record is absence, never a zero (#290 review).
+        self.assertEqual(parse_sample_size("Total Sample Size=338640", path), (338640, None, None))
 
     def test_sample_size_that_cannot_be_read_is_refused(self) -> None:
         path = self.metadata([])

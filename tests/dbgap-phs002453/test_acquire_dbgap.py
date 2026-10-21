@@ -582,6 +582,46 @@ class AcquisitionTest(unittest.TestCase):
         self.assertEqual(rows["GCST90479999"]["status"], "data_absent_upstream")
         self.assertTrue(rows["GCST90479999"]["error"].startswith("not converted:"))
 
+    def test_12_manifest_records_the_tar_member_each_file_was_rewritten_from(self) -> None:
+        """A rewritten file names its original: the tar, the member, and the best checksum (#290 review)."""
+        self.ensure_mapping_and_conversion()
+        result = run(self.root, "manifest", "--mapping", str(self.root / "mapping.tsv"))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        rows = {row["source_analysis_id"]: row for row in self.rows(self.root / "acquisition-manifest.tsv")}
+        member_name = f"{INNER}/MVP_R4.1000G_AGR.A1C_Min_INT.EUR.GIA.dbGaP.txt.gz"
+        original = self.root / "GIA" / "extracted" / member_name
+        ready = rows["GCST90475097"]
+        self.assertEqual(
+            ready["original_location"],
+            f"{self.root / 'GIA' / 'tars' / TAR}#{member_name}",
+        )
+        self.assertEqual(
+            ready["original_sha256"], hashlib.sha256(original.read_bytes()).hexdigest()
+        )
+        self.assertEqual(ready["original_bytes"], str(original.stat().st_size))
+        script = REPO_ROOT / "src/manifest_generation/providers/dbgap/mvp/acquire_dbgap_phs002453.py"
+        self.assertEqual(
+            ready["reformat_tool"],
+            "manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 "
+            f"sha256:{hashlib.sha256(script.read_bytes()).hexdigest()}",
+        )
+        # An explained absence carries no lineage: there is no file to trace.
+        self.assertEqual(rows["GCST90479999"]["original_location"], "")
+        # The shared loader accepts the lineage it wrote.
+        load_acquisition_manifest(self.root / "acquisition-manifest.tsv")
+
+    def test_13_manifest_refuses_a_rewritten_file_whose_original_is_gone(self) -> None:
+        """No durable original identity means stop, not invent one (#290 review)."""
+        self.ensure_mapping_and_conversion()
+        original = self.root / "GIA" / "extracted" / f"{INNER}/MVP_R4.1000G_AGR.A1C_Min_INT.EUR.GIA.dbGaP.txt.gz"
+        hidden = original.with_name(original.name + ".hidden")
+        original.rename(hidden)
+        self.addCleanup(hidden.rename, original)
+        result = run(self.root, "manifest", "--mapping", str(self.root / "mapping.tsv"))
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("no durable original", result.stderr)
+        self.assertIn("GCST90475097", result.stderr)
+
     def test_12_manifest_is_accepted_by_the_shared_freeze(self) -> None:
         self.ensure_mapping_and_conversion()
         path = self.root / "acquisition-manifest.tsv"

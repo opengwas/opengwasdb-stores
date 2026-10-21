@@ -172,6 +172,62 @@ class SourceMetadataAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(AdapterError, "sample size"):
             convert_mapping(self.mapping, self.extracted, self.out)
 
+    def edit_metadata(self, analysis_id: str, old: str, new: str) -> None:
+        """Rewrite one fixture metadata value, finding its file by analysis id."""
+        for path in (self.extracted / INNER).glob("*.dbGaP.metadata.txt"):
+            text = path.read_text(encoding="utf-8")
+            if old in text:
+                path.write_text(text.replace(old, new), encoding="utf-8")
+                return
+        raise AssertionError(f"no metadata file holds {old!r} for {analysis_id}")
+
+    def edit_mapping(self, analysis_id: str, column: str, value: str) -> None:
+        with self.mapping.open(newline="", encoding="utf-8") as handle:
+            reader = csv.DictReader(handle, delimiter="\t")
+            rows = list(reader)
+        (row,) = [row for row in rows if row["analysis_id"] == analysis_id]
+        row[column] = value
+        with self.mapping.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(rows[0]), delimiter="\t", lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(rows)
+
+    def test_case_control_metadata_without_counts_is_refused(self) -> None:
+        """A missing case count is absence, never a fabricated zero (#290 review)."""
+        self.edit_metadata(
+            "GCST90000003",
+            "Sample size\tTotal Sample Size=438595; Cases=5583; Controls=433012",
+            "Sample size\tTotal Sample Size=438595",
+        )
+        with self.assertRaisesRegex(AdapterError, "records no case/control counts"):
+            self.convert()
+        self.assertFalse(self.out.exists(), "a refused conversion writes no table")
+
+    def test_a_quantitative_metadata_count_is_refused(self) -> None:
+        self.edit_metadata(
+            "GCST90000001",
+            "Sample size\tTotal Sample Size=338640",
+            "Sample size\tTotal Sample Size=338640; Cases=10; Controls=338630",
+        )
+        with self.assertRaisesRegex(AdapterError, "quantitative"):
+            self.convert()
+
+    def test_a_quantitative_mapping_count_is_refused(self) -> None:
+        self.edit_mapping("GCST90000001", "n_cases", "10")
+        with self.assertRaisesRegex(AdapterError, "quantitative"):
+            self.convert()
+
+    def test_a_case_control_count_disagreement_is_refused(self) -> None:
+        self.edit_mapping("GCST90000003", "n_cases", "5584")
+        with self.assertRaisesRegex(AdapterError, "case count 5583"):
+            self.convert()
+
+    def test_a_case_control_mapping_that_records_no_counts_is_refused(self) -> None:
+        """A case-control mapping's 0 is not a count it can corroborate (#290 review)."""
+        self.edit_mapping("GCST90000003", "n_cases", "0")
+        with self.assertRaisesRegex(AdapterError, "mapping records no case/control counts"):
+            self.convert()
+
     def test_a_member_named_with_an_unknown_ancestry_is_refused(self) -> None:
         rows = []
         with self.mapping.open(newline="", encoding="utf-8") as handle:

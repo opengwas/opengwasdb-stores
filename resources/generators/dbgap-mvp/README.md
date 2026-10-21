@@ -8,6 +8,13 @@ connectors/source-metadata-table.tsv    the dbGaP MVP metadata adapter's output
 connectors/acquisition-manifest.tsv     the acquisition's shared Acquisition Manifest
 ```
 
+Every ready manifest row also carries the reformatting lineage ADR 0036 requires:
+`original_location` names the published tar and the member inside it
+(`<tar path>#<member>`), `original_sha256` and `original_bytes` are the extracted
+member's own, and `reformat_tool` names the module that rewrote it with its
+digest. A rewritten file whose extracted original is gone is refused rather than
+given an invented identity.
+
 The adapter is `manifest_generation.providers.dbgap.mvp.source_metadata_adapter`;
 it joins the acquisition's `mapping.tsv` with the deposit's
 `*.dbGaP.metadata.txt`. It writes the **post-split** `store_key`
@@ -30,7 +37,7 @@ metadata parsing both the acquisition and adapter use.
 `expect_rows` is the retired partition's bound count, now a check on the
 Selection (#290): freeze refuses a different number and preflight re-checks the
 frozen inventory. The frozen snapshots are
-`resources/inventories/dbgap-phs002453-{eur,afr,amr,eas,meta}-2026-10-21.*`.
+`resources/inventories/dbgap-phs002453-{eur,afr,amr,eas,meta}-2026-10-21b.*`.
 
 All five configs regenerate as **comparison-only** candidates into a temporary
 registry; OGS-00012–16 are accepted and are never replaced.
@@ -66,8 +73,17 @@ now reproduce the committed membership exactly, with no exclusion:
 | OGS-00016 | 1,691 | 1,691 |
 
 `analyses.tsv` carries the pipeline's 42 columns instead of the committed 20–21
-(it drops none), and the bundle gains `sidecars/`, `source_snapshot` and the
-`validation.yaml` contract. The first regeneration also excluded 596
+(none dropped), and the bundle gains `sidecars/`, `source_snapshot` and the
+`validation.yaml` contract. Two existing columns also change, and only these:
+`analysis_index` is written in the frozen inventory's order (ascending
+accession) rather than the retired generator's bucket order, so 1,663 / 1,364 /
+1,050 / 231 / 1,688 rows sit at a different position -- it is positional and
+rewritten on every read (`opengwasdb` reassigns it from the row's position, and
+the build manifest re-densifies it), so nothing keys on its value; and
+`source_ancestry_label` carries the provider's public label (`European`,
+`African`, `Hispanic or Latin American`, `East Asian`) instead of the
+super-population code, which is now `assigned_ancestry`'s job as
+[the spec](../../../docs/spec/source-connectors.md) says. The first regeneration also excluded 596
 `scale_already_declared` rows, which #300's declared-scale rule now makes
 `not_applicable`.
 

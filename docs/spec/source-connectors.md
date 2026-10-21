@@ -153,10 +153,15 @@ Collection's; a later dataset shares only `providers/dbgap/metadata.py`.
 super-population, so its `source_superpopulation` is blank and it never maps
 to one. The adapter writes the post-split `store_key` rather than the legacy
 candidate key that folded META into the European bucket, so five Selections
-can each name one bucket on a canonical column. A deposit value that disagrees
-with the mapping, an unknown ancestry in a member name, and a quantitative
-study's `0`/`0` case counts are refused or written as absence, as the GWAS
-Catalog adapter does (#133, #290).
+can each name one bucket on a canonical column.
+
+Counts are validated by study design and absence is never a zero (#290 review):
+a case-control Analysis must record both counts in the deposit and in the
+mapping, and the two must agree; a quantitative Analysis must record neither,
+and a non-zero count there is refused. A count the deposit does not record is
+absent -- `n_cases`/`n_controls` stay blank -- never written as `0`. Every other
+deposit value that disagrees with the mapping is refused, and so is an unknown
+ancestry in a member name, as the GWAS Catalog adapter does (#133, #290).
 
 ### SomaScan target annotation
 
@@ -319,6 +324,16 @@ would have had. `--recorded-manifests` lets it reuse the sha256 the
 acquisition recorded while converting, re-checking each file's size, so a
 metadata-only reproduction does not re-read the corpus; without it the writer
 hashes the files itself.
+
+Every ready row carries the reformatting lineage ADR 0036 requires (#290
+review). The original is a member of a published tar, so `original_location` is
+`<tar path>#<member>`; `original_sha256` and `original_bytes` are the extracted
+member's own, cross-checked against the deposit's table of contents (the tar
+itself is deleted after extraction, so only its recorded md5 survives, and it
+identifies the container rather than these bytes); and `reformat_tool` is
+`manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:<the
+module's own digest>`. A rewritten file whose extracted original is gone is
+refused by name rather than given an invented identity.
 
 ## Selection
 

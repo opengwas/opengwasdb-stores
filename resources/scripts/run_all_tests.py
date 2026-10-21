@@ -138,6 +138,11 @@ SUITE_COST: dict[str, float] = {
     "ld-panel-eigendecomposition": 2.0,
     "dbgap-mvp/end-to-end": 3.0,
     "dbgap-mvp/ancestry-policy": 2.0,
+    # Two subprocess preflights over a frozen fixture collection (#290 review).
+    "dbgap-mvp/selection-partition": 7.0,
+    # The five dbGaP snapshots' provenance sidecars list each file's reformat
+    # lineage, so this suite parses ~6k YAML entries twice (#290).
+    "release-config": 21.0,
 }
 
 THREAD_ENV: dict[str, str] = {

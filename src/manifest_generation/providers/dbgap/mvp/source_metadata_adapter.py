@@ -197,6 +197,80 @@ def convert_mapping(
         raise
 
 
+def _mapping_count(raw: Mapping[str, str], column: str) -> int | None:
+    """A count the mapping records, or ``None`` when it records none.
+
+    The mapping writes the candidate table's convention: ``0`` (or a blank)
+    stands for "no such count", which is absence, not a measured zero (#290).
+    """
+    text = (raw.get(column) or "").strip()
+    if not text or text == "0":
+        return None
+    try:
+        count = int(text)
+    except ValueError as exc:
+        raise AdapterError(f"mapping {column} {text!r} is not a whole number") from exc
+    if count < 0:
+        raise AdapterError(f"mapping {column} {text!r} is negative")
+    return count
+
+
+def _validated_counts(
+    study_design: str,
+    n_cases: int | None,
+    n_controls: int | None,
+    raw: Mapping[str, str],
+    metadata_path: Path,
+) -> tuple[int | None, int | None]:
+    """The Analysis's case/control counts, validated by study design (#290 review).
+
+    A case-control Analysis needs both, from the deposit and from the mapping,
+    and the two must agree; a quantitative Analysis carries neither. An absent
+    count is never turned into a zero, and a zero is never read as a count.
+    """
+    mapping_cases = _mapping_count(raw, "n_cases")
+    mapping_controls = _mapping_count(raw, "n_controls")
+    if study_design == "case-control":
+        if n_cases is None or n_controls is None:
+            missing = ", ".join(
+                name for name, value in (("Cases", n_cases), ("Controls", n_controls)) if value is None
+            )
+            raise AdapterError(
+                f"{metadata_path}: a case-control study records no case/control counts "
+                f"(missing: {missing}); a count is never assumed"
+            )
+        if n_cases <= 0 or n_controls <= 0:
+            raise AdapterError(
+                f"{metadata_path}: a case-control study needs positive case and control counts, "
+                f"not Cases={n_cases} Controls={n_controls}"
+            )
+        if mapping_cases is None or mapping_controls is None:
+            raise AdapterError(
+                "the mapping records no case/control counts for a case-control study; the "
+                f"deposit records Cases={n_cases} Controls={n_controls}"
+            )
+        if mapping_cases != n_cases:
+            raise AdapterError(
+                f"case count {n_cases} disagrees with the mapping's {raw['n_cases']!r}"
+            )
+        if mapping_controls != n_controls:
+            raise AdapterError(
+                f"control count {n_controls} disagrees with the mapping's {raw['n_controls']!r}"
+            )
+        return n_cases, n_controls
+    if n_cases is not None or n_controls is not None:
+        raise AdapterError(
+            f"{metadata_path}: a quantitative study records case/control counts "
+            f"(Cases={n_cases} Controls={n_controls}); they belong to a case-control study only"
+        )
+    if mapping_cases is not None or mapping_controls is not None:
+        raise AdapterError(
+            "the mapping records case/control counts for a quantitative study "
+            f"(n_cases={raw['n_cases']!r}, n_controls={raw['n_controls']!r})"
+        )
+    return None, None
+
+
 def _convert_row(
     raw: Mapping[str, str],
     extracted: Path,
@@ -238,12 +312,7 @@ def _convert_row(
         raise AdapterError(
             f"sample size {sample_size} disagrees with the mapping's {raw['sample_size']!r}"
         )
-    if raw["n_cases"] and raw["n_cases"] != "0" and int(raw["n_cases"]) != n_cases:
-        raise AdapterError(f"case count {n_cases} disagrees with the mapping's {raw['n_cases']!r}")
-    if raw["n_controls"] and raw["n_controls"] != "0" and int(raw["n_controls"]) != n_controls:
-        raise AdapterError(
-            f"control count {n_controls} disagrees with the mapping's {raw['n_controls']!r}"
-        )
+    n_cases, n_controls = _validated_counts(study_design, n_cases, n_controls, raw, metadata_path)
 
     label = SOURCE_ANCESTRY_LABEL[ancestry]
     try:
