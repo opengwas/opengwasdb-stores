@@ -1,0 +1,18 @@
+store_id: OGS-00022
+layout: dense
+completion_state: reference_completed
+complete:
+  command: complete-dense
+  options:
+    ld-panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+    ancestry: EUR
+    n-workers: 32
+post:
+  top_hits: false
+  overview: true
+  rho: true
+
+# This Store Release declares no Indexed Variant Subset (#209): none was built
+# against it and no evidence records one. An explicit empty list is the
+# reviewable statement that separates "declared none" from "not migrated".
+indexed_subsets: []

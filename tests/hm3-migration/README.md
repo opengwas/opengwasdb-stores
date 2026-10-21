@@ -66,12 +66,8 @@ pixi run python resources/scripts/audit_indexed_subsets.py
 pixi run python tests/hm3-migration/test_hm3_migration.py
 ```
 
-## Scope limitation
+## Scope
 
-The unmigrated `families/*/releases/*` bundles are **not** audited. They use the
-retired family-first schema (`store_family_id`, `store_layout`,
-`builder.entrypoint`) that `bundle.check()` and `plan()` reject, carry no
-`OGS-` id, and are not planned by the workflow. stores#211 is registry-only;
-those bundles get an `indexed_subsets` declaration when they are migrated to
-`stores/<store-id>/`, which is separate work (ADR 0028). The audit prints this
-limitation so an empty failure list is not mistaken for coverage of them.
+Every registered Release Bundle under `stores/` is audited: since #252 that is
+the only home for Release Bundles. The audit prints its scope, so an empty
+failure list cannot be mistaken for coverage of bundles nobody registered.

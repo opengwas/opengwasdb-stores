@@ -1,0 +1,11 @@
+n_manifest: 1038
+n_admitted: 1038
+n_excluded: 0
+n_analyses: 1038
+first_author: Chen Y
+publication_pmid: '36635386'
+tissue: plasma
+context: metabolomics
+assigned_ancestry: EAS
+sample_size: 51-104
+source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/

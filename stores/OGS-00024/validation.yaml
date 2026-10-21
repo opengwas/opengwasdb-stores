@@ -1,0 +1,18 @@
+status: passed
+validated_at: '2026-08-18T20:00:00Z'
+validator:
+  name: opengwasdb validate
+  version: opengwasdb@553aee3a5ef32ac4f23ffed142808807cf350fd7
+checks:
+  schema: passed
+  files: passed
+  reader_smoke_test: not_run
+  ancestry: not_run
+  effect_scale: not_run
+  sd_estimation: not_run
+  sparse_regions: not_run
+reports: []
+warnings:
+  - "Inherited from eur-hybrid-quant-pilot-10: opengwasdb#86 (metadata drops) and opengwasdb-stores#71 (SD-estimator sampling workaround). Unresolved upstream, unaffected by completion."
+  - "First build attempt against this LD panel failed validate_store with a disjoint-partition violation (opengwasdb#99); this bundle records the re-run after the fix (opengwasdb@553aee3), which passes."
+errors: []

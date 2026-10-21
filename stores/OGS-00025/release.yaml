@@ -1,0 +1,36 @@
+store_id: OGS-00025
+label: 2023-chen-full-african
+access_posture: public
+status: built
+derived_from: null
+created_at: '2026-08-04T06:59:51Z'
+accepted_at: null
+source_snapshot_id: gwas-catalog-v1.0.3.1-r2026-07-10
+description: |
+  Full African-ancestry slice of the Chen et al. 2023 plasma metabolome atlas (PMID 36635386): every candidate analysis for this ancestry, no cap, as a single-ancestry no-cis ragged GWAS-SSF release.
+generator:
+  version: sha256:d48e94f4170c4e91a8713c2891d4da46399ae53fed26867c2a40d86cc72b2dfe
+  commands:
+    - Rscript resources/generators/gwas-ssf-ragged/generate.R --config=families/metabolome-plasma-2023/generators/config-african.yaml --mode=emit
+notes: |
+  Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), scaled up per-ancestry (issue #31's "run the whole thing" follow-on): single-ancestry selection (ancestry_group: African, matching the candidates table's own store_key partitioning) rather than the pilot's mixed-ancestry-plus-AF-assignment approach, since each store here is already known single-ancestry from the source label. ancestry_assignment stays enabled with the fixed QC panel (issue #28/#29/#30) as a source/AF mislabel QC check, not for splitting.
+
+  Built (opengwasdb#100/#101 fixes; opengwasdb@1ecfd1e): 1,034 analyses, 7,067,555 variants, 31,986,793 associations. 22 duplicate (analysis, variant) pairs had conflicting z-scores across two source rows and were dropped entirely for those cells (opengwasdb#101) -- see validation.yaml's warning. Reference completion is currently blocked: complete_ragged_store only enumerates LD blocks via a cis window (trait_chr/trait_bp), which this no-gene-target family has none of, so completion is a no-op (opengwasdb#102). No Reference-Completed sibling exists yet.
+
+  Release Erratum (issue #133, applied here during the #252 migration): the
+  quantitative Analyses stored `n_cases` and `n_controls` as 0 where the counts
+  are not applicable (`sample_size_kind: total`). Those cells are now empty, since
+  absence is distinct from zero; `source_ancestry_label` keeps the source's own
+  "African", and `assigned_ancestry` already held the super-population
+  code. No Store artifact was rebuilt or rewritten.
+
+  Migration (#252): migrated from the retired family-first
+  `metabolome-plasma-2023/2023-chen-full-african` layout to OGS-00025, in the current bundle
+  schema (`store_id`, `label`, `derived_from`; `build.yaml` with a `build` block).
+  Its 1,034-Analysis Release Manifest, `built` Release Status and
+  Validation Record are the ones the Store was released with; nothing was rebuilt,
+  revalidated or rewritten. `derived_from` is null: the Chen ancestry slices are
+  siblings of one Source Collection, not children of one another. The recorded
+  generator command is the one that ran, path included, even though that config
+  path went with the directory; the generator's configs are now read from
+  `resources/generators/metabolome-plasma-2023/`.

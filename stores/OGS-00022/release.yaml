@@ -1,0 +1,48 @@
+store_id: OGS-00022
+label: r13-pilot-20-completed
+access_posture: public
+status: validated
+derived_from: OGS-00003
+created_at: '2026-08-18T16:58:59Z'
+accepted_at: '2026-08-18T16:58:59Z'
+source_snapshot_id: finngen-r13-manifest-2026-05-12
+source_snapshot:
+  manifest_url: https://storage.googleapis.com/finngen-public-data-r13/summary_stats/finngen_R13_manifest.tsv
+  manifest_sha256: c9caafa9b98ee5ef050a705766bd1c451fc2154fb8e81b069022012a2f75ae20
+  manifest_size_bytes: 820805
+  manifest_etag: a70f4ecb57acf7c23e8f5d71be11d936
+  manifest_last_modified: '2026-05-12T12:48:15Z'
+description: |
+  Reference-Completed sibling of r13-pilot-20: the same 20-Analysis Dense Observed-Only FinnGen R13 Store, reference-completed against the real HGDP+1kGP hg38 EUR LD panel via opengwasdb's complete_dense_store(). Proves the Dense Reference-Completion pipeline end to end with real data, satisfying opengwasdb#89's "at least one Reference-Completed Dense release" checklist item.
+generator:
+  version: opengwasdb@553aee3a5ef32ac4f23ffed142808807cf350fd7
+  commands:
+    - opengwasdb complete-dense /data/opengwasdb/finngen-r13/releases/r13-pilot-20/store.opengwasdb /data/opengwasdb/finngen-r13/releases/r13-pilot-20/store-completed.opengwasdb --ld-panel /data/opengwasdb/reference/hgdp1kgp-hg38/panel --ancestry EUR --n-workers 32
+notes: |
+  Ancestry caveat: FinnGen R13 is a Finnish-founder-population cohort with no FIN-specific LD reference panel available in this registry (the HGDP+1kGP hg38 panel ships continental EUR/AFR/EAS/SAS only). Completed against EUR as the nearest available approximation -- a deliberate, explicit choice, not a silent default. Any downstream use of this release's imputed cells for fine-mapping or LD-sensitive analysis should account for the Finnish population's known long-range LD and allele-frequency drift from broad continental EUR.
+
+  Every one of the 20 Analyses' assigned_ancestry matched EUR/European in this run, so no Analysis was silently skipped by the ancestry-match filter (opengwasdb#98, a related but distinct string-normalisation gap in the filter's own matching logic, filed separately -- observed and worked around in this build, not fixed in code here).
+
+  From the built manifest's completion provenance: 23,792,347 total variants across the completed union (2,561,732 newly added by the LD panel beyond the 21,230,615-variant build panel), 53,293,883 imputed cells, 177,267 imputation-failures, 24,445 left off-panel-missing. `opengwasdb validate` reports valid. Inherits r13-pilot-20's known caveat (pilot_report.md): finngen-r13-HEIGHT_IRN fails empirical effect-scale validation (implied SD 0.665 vs declared-standardised) -- unresolved upstream, carried through completion unchanged.
+
+  A Dense Rho Matrix (20x20 pairwise genetic-correlation) was also built for this completed store (`opengwasdb build-dense-rho`), covering opengwasdb#89's Dense Rho Matrix example-store gap for Reference-Completed releases.
+
+  Migration (#252): this Release Bundle was migrated from the retired family-first
+  `finngen-r13/r13-pilot-20-completed` layout to OGS-00022, in the current bundle
+  schema (`store_id`, `label`, `derived_from`; `build.yaml` with a `complete`
+  block). Its Release Manifest, its `validated` Release Status, its Validation
+  Record and the recorded completion command are the ones the Store was released
+  with; nothing was rebuilt, revalidated or rewritten.
+
+  Lineage (#252): `derived_from: OGS-00003` names the Observed-Only Store this one
+  was completed from, and the membership still proves it -- these 20
+  `analysis_id`s are exactly the membership OGS-00003 was registered with at the
+  time (git `6f63a12`). OGS-00003's registry record has since been re-registered
+  with 10 of those 20 Analyses (`stores/OGS-00003/analyses.tsv`, commit
+  `5b1ec9a`), so that id today describes a strict subset of what this child was
+  built from. The id is still the honest join key -- one Store Release, and this
+  child carries all 20 rows with their source checksums -- but a reader comparing
+  the two bundles must not infer this child was completed from OGS-00003's current
+  10-Analysis table. Whether OGS-00003 is restored to the 20-Analysis pilot or
+  stays a 10-Analysis re-registration is a separate registry question, not part of
+  this migration.

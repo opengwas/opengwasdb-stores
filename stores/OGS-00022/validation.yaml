@@ -1,0 +1,18 @@
+status: passed
+validated_at: '2026-08-18T20:00:00Z'
+validator:
+  name: opengwasdb validate
+  version: opengwasdb@553aee3a5ef32ac4f23ffed142808807cf350fd7
+checks:
+  schema: passed
+  files: passed
+  reader_smoke_test: not_run
+  ancestry: not_run
+  effect_scale: not_run
+  sd_estimation: not_run
+  sparse_regions: not_run
+reports: []
+warnings:
+  - "Inherited from r13-pilot-20: finngen-r13-HEIGHT_IRN fails empirical effect-scale validation (implied SD 0.665 vs declared-standardised). Unresolved upstream; not introduced or affected by reference completion."
+  - "Ancestry approximation: completed against EUR (nearest available continental panel), not a Finnish-specific LD reference. See release.yaml notes."
+errors: []
