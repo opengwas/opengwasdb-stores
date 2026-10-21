@@ -49,6 +49,10 @@ from ogstores.plan import BUILD_PHASE, plan
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
+# The completion states a Store can be published in, the only values the
+# register-written `observed.completion_state` may take (#307, ADR 0037).
+PUBLISHED_COMPLETION_STATES: tuple[str, ...] = ("observed_only", "reference_completed")
+
 COLUMNS: tuple[str, ...] = (
     "store_id",
     "label",
@@ -151,15 +155,21 @@ def render_stores_row(
     # wrote at publication. Never from build.yaml's declaration, which under
     # single-id completion reads `reference_completed` while the Observed-Only
     # Store is what is published. A record written before #307 carries no such
-    # field, so the row falls back to the declared state -- which is the
-    # published state for an Observed-Only Store and for a two-id child -- and
-    # renders exactly as it did before.
-    recorded_completion_state = obs.get("completion_state")
-    completion_state = (
-        recorded_completion_state
-        if isinstance(recorded_completion_state, str) and recorded_completion_state
-        else declared_completion_state
-    )
+    # key, so the row falls back to the declared state -- which is the published
+    # state for an Observed-Only Store and for a two-id child -- and renders
+    # exactly as it did before. A record that carries the key must carry a
+    # documented state: anything else is refused rather than published.
+    if "completion_state" in obs:
+        recorded_completion_state = obs["completion_state"]
+        if recorded_completion_state not in PUBLISHED_COMPLETION_STATES:
+            raise ValueError(
+                f"{store_id}: validation.yaml records observed.completion_state "
+                f"{recorded_completion_state!r}, not one of the documented states "
+                f"{sorted(PUBLISHED_COMPLETION_STATES)}"
+            )
+        completion_state = str(recorded_completion_state)
+    else:
+        completion_state = declared_completion_state
 
     format_version = obs.get("format_version")
     format_version_str = str(format_version) if format_version else ""

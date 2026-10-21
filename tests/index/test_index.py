@@ -532,6 +532,20 @@ class TestPublishedCompletionState(unittest.TestCase):
         )
         self.assertIn("/art/OGS-00041/work/analyses.tsv", row["build_command"])
 
+    def test_an_undocumented_published_state_is_refused(self) -> None:
+        """A record's state is published only when it is one `register` documents.
+
+        Falling back to the declaration would hide a new writer's bad value
+        behind a plausible one, which is the wrong answer this project refuses.
+        """
+        b = self.single_id_bundle(
+            dict(OBSERVED_ONLY_MEASUREMENTS, completion_state="reference_pending")
+        )
+        with self.assertRaises(ValueError) as ctx:
+            render_stores_row(b, artifact_root="/art")
+        self.assertIn("observed.completion_state", str(ctx.exception))
+        self.assertIn("reference_pending", str(ctx.exception))
+
     def test_a_legacy_two_id_row_renders_exactly_as_before(self) -> None:
         """A record written before #307 carries no published state; the row is unchanged."""
         self.assertNotIn("completion_state", OBSERVED_ONLY_MEASUREMENTS)
