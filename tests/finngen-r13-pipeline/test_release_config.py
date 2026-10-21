@@ -27,7 +27,7 @@ from manifest_generation.selection import select
 from manifest_generation.source_metadata_table import load_source_metadata_table
 
 CONFIG = REPO_ROOT / "resources/generators/finngen-r13/release-r13-full.yaml"
-SNAPSHOT_ID = "finngen-r13-full-2026-10-21"
+SNAPSHOT_ID = "finngen-r13-full-2026-10-22"
 #: The frozen Source Metadata Table, which the config's provenance names.
 FROZEN_TABLE = REPO_ROOT / "resources/inventories" / f"{SNAPSHOT_ID}.source-metadata.tsv"
 PROVENANCE = REPO_ROOT / "resources/inventories" / f"{SNAPSHOT_ID}.meta.yaml"

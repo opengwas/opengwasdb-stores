@@ -13,10 +13,15 @@ FinnGen is a Source Collection (ADR 0036) fed to the one pipeline in
 Both connectors write the shared formats specified in
 `docs/spec/source-connectors.md`, from the pinned public endpoint manifest
 `finngen_R13_manifest.tsv` (2,754 endpoints: three inverse-rank-normalised
-quantitative endpoints and every case-control endpoint). The resulting
-connector files and the frozen Source Inventory live with the data they
-describe, in `/data/opengwasdb/raw/finngen-r13/connectors/2026-10-21/` and
-`resources/inventories/`.
+quantitative endpoints and every case-control endpoint). The connector files
+and the frozen Source Inventory live with the data they describe, under
+`/data/opengwasdb/raw/finngen-r13/connectors/` and `resources/inventories/`:
+the acquisition pass of `2026-10-21`, and the Source Metadata Table re-derived
+from it on `2026-10-22` with the Store-identity columns. **A pass directory is
+never rewritten.** A changed connector is a new pass directory and a re-freeze
+under a new snapshot id, which is why the two connector files here come from
+different passes: the acquisition evidence did not change, the adapter's output
+did.
 
 The Source Metadata Table also carries the Store's Analysis identity, in the
 two optional columns `analysis_id` (`finngen-r13-<phenocode>`: a bare phenocode
@@ -100,9 +105,9 @@ generator stays the only working FinnGen path until step 4 passes.
 
 ### What the comparison run establishes
 
-The comparison run in `/data/opengwasdb/work/288-MVXoxt` (and, after the
-identity work, `/data/opengwasdb/work/288-r2-*`) reconciles the collection
-completely; only Analysis Resolution is missing.
+The comparison runs in `/data/opengwasdb/work/288-MVXoxt` (before the identity
+work) and `/data/opengwasdb/work/288-r3-*` (the frozen `2026-10-22` snapshot)
+reconcile the collection completely; only Analysis Resolution is missing.
 
 - **Files.** 2,754 Analyses and 2,754 files in the release's `source/`
   directory: 0 unmatched by name, 0 size mismatches and 0 checksum mismatches.

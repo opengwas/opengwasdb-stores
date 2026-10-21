@@ -20,8 +20,11 @@
 #     endpoint manifest and the files in
 #     /data/opengwasdb/raw/finngen-r13/releases/r13-full/source.
 # Both connector files and the Acquisition Manifest's pass lineage are kept,
-# read-only, in /data/opengwasdb/raw/finngen-r13/connectors/2026-10-21/. A new
-# acquisition or a changed Selection is a re-freeze under a new snapshot id.
+# read-only, under /data/opengwasdb/raw/finngen-r13/connectors/: the 2026-10-21
+# acquisition pass, and the Source Metadata Table re-derived from it on
+# 2026-10-22 with the Store-identity columns (#288). A new acquisition, a
+# changed Selection or a changed connector is a re-freeze under a new snapshot
+# id in a new pass directory -- never a rewrite of a frozen pass.
 
 release_config_version: 1
 
@@ -45,10 +48,10 @@ notes: >
 source_collection:
   source_collection_id: finngen-r13
   connectors:
-    source_metadata_table: /data/opengwasdb/raw/finngen-r13/connectors/2026-10-21/finngen-r13.source-metadata.tsv
+    source_metadata_table: /data/opengwasdb/raw/finngen-r13/connectors/2026-10-22/finngen-r13.source-metadata.tsv
     acquisition_manifest: /data/opengwasdb/raw/finngen-r13/connectors/2026-10-21/finngen-r13-full.acquisition-manifest.tsv
   inventory:
-    snapshot_id: finngen-r13-full-2026-10-21
+    snapshot_id: finngen-r13-full-2026-10-22
     directory: resources/inventories
 
 selection:
