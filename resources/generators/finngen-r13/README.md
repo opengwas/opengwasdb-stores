@@ -50,6 +50,30 @@ A regeneration is a **comparison** run: emit into a temporary registry
 (`--registry-root`) and diff against `stores/OGS-00017`, exactly as #287 did
 for OGS-00011. Do not emit over `stores/OGS-00017`.
 
+### Resolution gap (blocking, #207 / #281 in opengwasdb)
+
+The pinned `opengwasdb` (`4e92256`) cannot resolve this collection yet. Its
+one-pass resolver reads only a reader that streams source metrics
+(`MetricsReader.stream_metric_chunks`), and `FinnGenR13Reader` offers
+`stream_associations`/`stream_variants`/`extract_at_sites` only, so every
+endpoint comes back as a controlled failure:
+
+```text
+TypeError: FinnGenR13Reader cannot stream source metrics; the one-pass
+resolver reads tabular sources only (issue #207)
+```
+
+ADR 0036 is explicit that a Source Collection whose format OpenGWASDB cannot
+yet resolve waits rather than entering a bundle on declared values, so the
+pipeline's `render` stage excludes all 2,754 endpoints as `resolution_failed`
+and the emitted candidate has no members. The connectors, the freeze and the
+preflight are unaffected and were verified against the committed bundle; only
+Analysis Resolution is missing. The routes forward are OpenGWASDB's: give
+`FinnGenR13Reader` the `MetricsReader` contract, or land the Column Map reader
+of opengwasdb#281 (whose `ColumnMapReader` already streams metrics and whose
+built-in `finngen-r13` map reproduces this reader's rules) together with the
+Release Bundle's Column Map (#292).
+
 Every endpoint is resolved, without exception: the pipeline reads no declared
 ancestry or effect scale. The quantitative IRN endpoints' method tier declares
 `declared_standardised` (they are standardised over the whole cohort by
