@@ -145,6 +145,23 @@ def indexed_subset_step_name(name: str) -> str:
 # must provide valid required values or fail check().
 LEGACY_BLANK_ANALYSIS_RELEASES: frozenset[str] = frozenset({"OGS-00001", "OGS-00002"})
 
+# Legacy Trial Store Releases whose ``analysis_id`` predates the rule below
+# (issue #319). OGS-00001 and OGS-00002 carry eQTLGen's ``<probe>::<tissue>``
+# ids, and an accepted bundle is not edited (ADR 0004), so they keep them and
+# disclose the gap instead. Strictly scoped to those two: a rebuilt or any new
+# ragged-BESD release -- the 19,250-Analysis eQTLGen build among them -- names
+# its Analyses by bare probe id and must satisfy the rule.
+LEGACY_ANALYSIS_ID_RELEASES: frozenset[str] = frozenset({"OGS-00001", "OGS-00002"})
+
+# The catalogue names an Analysis ``<store_id>:<analysis_id>``, and a client
+# splits that on ``:`` to get its two parts. ``analysis_id`` is also the
+# filename of the resolver's per-Analysis record, and ``:`` is not legal in a
+# Windows filename. The registry owns this guard because the pinned
+# ``opengwasdb.model.analyses.validate_analyses()`` accepts any string in the
+# column (ADR 0017); retire it in favour of the upstream validator if
+# OpenGWASDB ever adopts the rule (issue #319).
+_ANALYSIS_ID_RE: re.Pattern[str] = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]*\Z")
+
 # The controlled vocabulary for ``assigned_ancestry``: the seven super-population
 # codes the ancestry-mixture Reference Resource assigns (see
 # resources/reference-resources/ukb-ancestry-mixture-hg38/resource.yaml and
@@ -1026,6 +1043,52 @@ def _check_validation(bundle: Bundle) -> list[str]:
     return errors
 
 
+def _check_analysis_ids(
+    bundle: Bundle, table: opengwasdb_analyses.AnalysesTable
+) -> tuple[list[str], list[ToleratedGap]]:
+    """Every row's ``analysis_id`` must be one path segment (issue #319).
+
+    Callers split ``<store_id>:<analysis_id>`` on ``:``, so the value may not
+    contain it -- nor anything else that would make the id two segments or no
+    filename: a space, ``/``, or a leading ``.``/``-``. Every row of the Release
+    Manifest is judged, excluded ones included, because an excluded Analysis is
+    still named by the catalogue. The value is judged exactly as
+    ``read_analyses`` returned it, never stripped or coerced, so an id padded
+    with whitespace cannot pass here and then fail a client's split.
+
+    OGS-00001 and OGS-00002 keep their ``<probe>::<tissue>`` ids, which an
+    accepted bundle may not be edited to remove (ADR 0004), so their
+    non-conforming values are disclosed on ``check()``'s second channel -- one
+    record for the release, counting them -- rather than reported as errors.
+    """
+    if "analysis_id" not in table.fieldnames:
+        # The shared schema already reports the missing required column; a
+        # per-row echo of it here would only be noise.
+        return [], []
+    offending: list[tuple[int, str | None]] = []
+    for number, row in enumerate(table.rows, start=1):
+        value = row.get("analysis_id")
+        if not isinstance(value, str) or _ANALYSIS_ID_RE.fullmatch(value) is None:
+            offending.append((number, value))
+    if not offending:
+        return [], []
+    if bundle.store_id in LEGACY_ANALYSIS_ID_RELEASES:
+        return [], [
+            ToleratedGap(
+                store_id=bundle.store_id,
+                count=len(offending),
+                detail="analysis_id values containing ':'",
+                citation="#319",
+            )
+        ]
+    return [
+        f"analysis_id {value!r} on analyses.tsv row {number} is not one path "
+        "segment; an Analysis is addressed as <store_id>:<analysis_id>, split on "
+        f"':', so analysis_id must match {_ANALYSIS_ID_RE.pattern}"
+        for number, value in offending
+    ], []
+
+
 def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
     from opengwasdb.model import analyses as opengwasdb_analyses
     errors: list[str] = []
@@ -1046,6 +1109,10 @@ def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
                 f"Store Release {bundle.store_id} analyses.tsv contains retired "
                 f"Analysis column {column!r}"
             )
+
+    analysis_id_errors, analysis_id_tolerated = _check_analysis_ids(bundle, table)
+    errors.extend(analysis_id_errors)
+    tolerated.extend(analysis_id_tolerated)
 
     # A Trait Ontology Mapping is an ontology term plus its trait label. It is
     # never a gene identifier with an authority name standing in for the label:
@@ -1354,6 +1421,7 @@ __all__ = [
     "BUILD_REQUIRED_KEYS",
     "Bundle",
     "CheckResult",
+    "LEGACY_ANALYSIS_ID_RELEASES",
     "LEGACY_BLANK_ANALYSIS_RELEASES",
     "LEGAL_STATUS_TRANSITIONS",
     "QUALITY_CHECKS_SIDECAR",

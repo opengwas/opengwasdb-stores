@@ -377,10 +377,11 @@ def render_stores_md(
             "## Tolerated gaps",
             "",
             "These bundles pass the Release Bundle gate only because a named "
-            "exemption tolerates known-missing required Analysis values. The "
-            "values are genuinely unavailable and left blank rather than "
-            "fabricated (issue #134); the tolerance is the visible remainder, "
-            "not a clean pass.",
+            "exemption tolerates a known gap. A required Analysis value that is "
+            "unavailable is left blank rather than fabricated (issue #134); an "
+            "Analysis named with eQTLGen's `<probe>::<tissue>` id keeps it, because "
+            "an accepted bundle is not edited (issue #319). The tolerance is the "
+            "visible remainder, not a clean pass.",
             "",
             "| Store ID | Tolerated gap |",
             "|:---|:---|",

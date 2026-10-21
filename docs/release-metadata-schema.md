@@ -242,7 +242,11 @@ releases `OGS-00001` and `OGS-00002` may leave required Analysis values blank
 `bundle.check()` **rejects** any column named by the pinned upstream
 `RETIRED_ANALYSIS_COLUMNS` list: `phenotype_id`, `phenotype_label`, `trait_id`,
 `gene_id`, `gene_name`. The upstream schema is the single retired-column
-contract; the registry does not keep its own copy. A Trait Ontology Mapping
+contract; the registry does not keep its own copy. It also **rejects** any
+`analysis_id` outside `^[A-Za-z0-9][A-Za-z0-9._-]*$`, because the catalogue
+addresses an Analysis `<store_id>:<analysis_id>` and a client must be able to
+split that on `:` into its two parts (issue #319; see "Legacy `analysis_id`
+values" below). A Trait Ontology Mapping
 carries an ontology term and its trait label, never a gene identifier with an
 authority name standing in for the label: gene/target identity is annotation
 (`analysis_label` for a single-target Analysis; `trait_chr`/`trait_bp` and the
@@ -254,7 +258,7 @@ and the matching authority name in `trait_ontology_label` (issue #141).
 
 | Field | Required | Description |
 |---|---:|---|
-| `analysis_id` | Yes | Stable registry Analysis ID. Usually source-derived unless the source lacks stable IDs. |
+| `analysis_id` | Yes | Stable registry Analysis ID. Usually source-derived unless the source lacks stable IDs. It is one path segment matching `^[A-Za-z0-9][A-Za-z0-9._-]*$`: the catalogue names an Analysis `<store_id>:<analysis_id>`, so the value must never contain `:`, and it is also the filename of the resolver's per-Analysis record (issue #319). |
 | `source_analysis_id` | No | Upstream analysis identifier, such as a GCST accession or OpenGWAS ID, when the Source Collection provides one. |
 | `source_label` | Yes | Upstream trait or phenotype label preserved as source provenance. Registry-only; kept separate from `analysis_label` even when both hold the same source text. |
 | `analysis_label` | Yes | Free-text, non-unique display label for the Analysis, carried into the built store. Typically the same source text as `source_label`; for a single-target gene-centric Analysis it is the resolved gene symbol, and for an aggregate assay it is the SomaScan SeqId, SomaLogic's stable assay identifier (issue #141). |
@@ -404,6 +408,20 @@ Two deliberate exemptions exist, both narrow:
 This is a known integrity gap, tracked by open issue #134, not an equivalent
 alternative to the per-Analysis checksums and source identity enforced for other
 formats.
+
+### Legacy `analysis_id` values (issue #319)
+
+`bundle.check()` fails a row whose `analysis_id` is not one path segment, and
+names the row. `OGS-00001` and `OGS-00002` are exempt: they carry eQTLGen's
+`<probe>::<tissue>` ids (`ENSG00000175445::whole_blood`), which an accepted
+bundle may not be edited to remove (ADR 0004), so `check()` discloses the count
+as a tolerated gap cited `#319` instead of reporting it as an error. The
+exemption is scoped to exactly those two named releases. Every other release —
+including any future eQTLGen or other ragged-BESD build, which names its
+Analyses by bare probe id and records the tissue in the `tissue` column — must
+satisfy the pattern. Retire the guard in favour of
+`opengwasdb.model.analyses.validate_analyses()` if OpenGWASDB ever validates the
+column (ADR 0017).
 
 ## `build.yaml`
 
