@@ -139,7 +139,9 @@ file for that Analysis -- an explained absence (see Freeze).
 | `source_url` | No | Where the file was fetched from. Becomes `data_url`. |
 | `sidecar_location`, `sidecar_url`, `sidecar_bytes` | No | A per-Analysis metadata file acquisition fetched with it (GWAS-SSF `-meta.yaml`). Become `yaml_file`, `yaml_url`, `yaml_bytes`. |
 | `error` | No | The acquisition error, when there was one. |
-| `original_location`, `original_sha256`, `reformat_tool` | No; all three or none | Lineage of a file acquisition reformatted because no reader or Column Map could read the provider's original -- splitting one file into one per Analysis, say: the original's path and sha256 and the tool, with its version, that reformatted it. Only on a ready row. |
+| `original_location`, `original_sha256`, `reformat_tool` | No; all three or none | Lineage of a file acquisition changed: the original's path and sha256 and the tool, with its version, that changed it. Only on a ready row. Acquisition changes a file in two cases: a structural change no reader or Column Map can cope with, such as splitting one file into one per Analysis, and filtering it to a release's region policy (#300, below). |
+| `original_bytes` | No; only with lineage | The original's size. It stands in for `original_sha256` only for an original filtered before acquisition checksummed it, and since deleted: Chen 2023's files, filtered by the retired R generator, whose `filter_summary.tsv` recorded each original's size and no checksum. |
+| `region_policy` | No; only with lineage | The region policy a region-filtered file was filtered to: one JSON object with sorted keys and no spaces, naming `region_policy_id` and `association_coverage` (`signals_only` or `cis_plus_signals`), the flanks and p-value thresholds, the QC panel's `resource_id` and `sha256`, and for a cis policy the `target` span used. |
 
 A duplicate `source_analysis_id` is refused, and so is a file -- a `location`
 or `sidecar_location` -- claimed by two rows.
@@ -148,6 +150,37 @@ or `sidecar_location` -- claimed by two rows.
 share, such as eQTLGen's BESD file set, cannot be recorded today: it is refused
 as a duplicate file. #291 extends the manifest when eQTLGen moves onto the
 pipeline.
+
+### Region-filtered acquisition
+
+A release whose config declares a `region_policy` ([release config](release-config.md#region_policy))
+is acquired filtered, for scale (ADR 0036, clarified by #300), by
+`manifest_generation.region_filtered_acquisition`. It reads the Acquisition Manifest of the downloaded originals, checks each
+original's sha256 against it, filters the original with the shared region
+filter (`manifest_generation.region_filter`) into `<out-dir>/<id>.filtered.tsv.gz`,
+records the filtered file's location, size and sha256 with its lineage
+(`original_location`, `original_sha256`, `reformat_tool`, `region_policy`), and
+syncs the manifest. Only then does it delete the original: a failure to record
+leaves the original in place. An Analysis the originals' manifest records as
+unavailable stays an explained absence, and a re-run resumes without filtering a
+recorded Analysis again. A cis policy refuses the run if an Analysis has no
+target span in the Source Metadata Table.
+
+The filter is the retired R `gwas-ssf-ragged` generator's, reproduced row for
+row: every row within `cis_flank_bp` of the target (cis only); every row within
+`trans_flank_bp` of a row outside the cis window with `p_value <= significant_p`,
+the flanks merged; of the other rows with `significant_p < p_value <= suggestive_p`,
+the strongest first, each kept only when every lead already kept on its
+chromosome is more than `suggestive_lead_min_distance_bp` away (equal p-values in
+file order); and every row at a QC-panel position, whatever its p-value, so
+Analysis Resolution can still measure ancestry and phenotype SD. A row with no
+position or p-value is dropped. Kept rows are the source's own lines, with its
+header: the filter selects and never reformats.
+
+`<manifest-stem>.meta.yaml` records the run: the originals' manifest and its
+sha256, the filter tool, the policy, and each filtered file's counts
+(`input_rows`, `retained_rows`, `cis_rows`, `significant_trans_regions`,
+`significant_trans_rows`, `suggestive_leads`, `qc_panel_rows`).
 
 ### Pass lineage
 

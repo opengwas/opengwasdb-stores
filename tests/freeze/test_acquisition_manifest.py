@@ -6,7 +6,9 @@ Collection: per file, its location, size and checksum, and for a file
 acquisition had to reformat, the original it came from with that original's
 checksum and the tool that changed it. It records availability, never intent.
 A valid manifest loads; a missing field, or a lineage entry without its
-original checksum or tool, is refused.
+original checksum or tool, is refused. A region-filtered file (#300) adds the
+region policy it was filtered to; a file filtered before its original was
+checksummed records the original's size instead of its sha256.
 
 Run from the repository root:
     python3 tests/freeze/test_acquisition_manifest.py
@@ -33,7 +35,7 @@ SHA_ORIGINAL = "c" * 64
 HEADER = (
     "source_analysis_id", "status", "location", "bytes", "sha256", "source_url",
     "sidecar_location", "sidecar_url", "sidecar_bytes", "error",
-    "original_location", "original_sha256", "reformat_tool",
+    "original_location", "original_sha256", "reformat_tool", "original_bytes", "region_policy",
 )
 
 READY = {
@@ -62,6 +64,19 @@ REFORMATTED = {
     "original_location": "/mirror/original/all-analyses.tsv.gz",
     "original_sha256": SHA_ORIGINAL,
     "reformat_tool": "split-by-analysis 1.2.0",
+}
+#: A file acquisition filtered to a release's region policy, then deleted the original (#300).
+FILTERED = {
+    "source_analysis_id": "A4",
+    "status": "ok",
+    "location": "/mirror/filtered/A4.filtered.tsv.gz",
+    "bytes": "40",
+    "sha256": "d" * 64,
+    "original_location": "/mirror/A4.h.tsv.gz",
+    "original_sha256": "e" * 64,
+    "reformat_tool": "manifest_generation.region_filter sha256:" + "f" * 64,
+    "region_policy": '{"association_coverage":"signals_only",'
+                     '"region_policy_id":"sig-trans-1mb_suggestive-leads","trans_flank_bp":1000000}',
 }
 
 
@@ -165,6 +180,36 @@ class AcquisitionManifestTest(unittest.TestCase):
     def test_lineage_on_a_file_acquisition_did_not_produce_is_refused(self) -> None:
         unavailable = dict(REFORMATTED, status="data_failed", location="", bytes="", sha256="")
         self.assertRefused([unavailable], "lineage", "A3")
+
+    # -- region-filtered files (#300) ----------------------------------------
+
+    def test_a_region_filtered_file_records_the_policy_it_was_filtered_to(self) -> None:
+        lineage = load_acquisition_manifest(write_manifest(self.tmp, [FILTERED])).entry("A4").lineage
+        self.assertEqual(
+            lineage.region_policy,
+            {"association_coverage": "signals_only",
+             "region_policy_id": "sig-trans-1mb_suggestive-leads", "trans_flank_bp": 1000000},
+        )
+        self.assertEqual(lineage.as_dict()["region_policy"]["trans_flank_bp"], 1000000)
+
+    def test_a_region_policy_that_is_not_a_policy_is_refused(self) -> None:
+        self.assertRefused([dict(FILTERED, region_policy="sig-trans")], "region_policy", "not JSON")
+        self.assertRefused([dict(FILTERED, region_policy="[1]")], "not a JSON object")
+        self.assertRefused(
+            [dict(FILTERED, region_policy='{"region_policy_id":"x","association_coverage":"cis"}')],
+            "association_coverage", "'cis'",
+        )
+        self.assertRefused(
+            [dict(FILTERED, region_policy='{"association_coverage":"signals_only"}')],
+            "region_policy_id",
+        )
+
+    def test_an_original_filtered_before_it_was_checksummed_records_its_size(self) -> None:
+        legacy = dict(FILTERED, original_sha256="", original_bytes="404189760")
+        lineage = load_acquisition_manifest(write_manifest(self.tmp, [legacy])).entry("A4").lineage
+        self.assertEqual((lineage.original_sha256, lineage.original_bytes), ("", 404189760))
+        self.assertRefused([dict(FILTERED, original_sha256="")], "original_sha256", "A4")
+        self.assertRefused([dict(legacy, original_bytes="4e8")], "original_bytes")
 
     # -- refusals: duplicates -------------------------------------------------
 
