@@ -1,5 +1,12 @@
 # Restored UKB successors: identity, completion-panel and qualification plan (#219)
 
+> **Superseded in part (#312, 2026-10-21).** The panel declaration proposed
+> below is active as
+> [`resources/reference-resources/ukb-hg38-eur-ld/resource.yaml`](../resources/reference-resources/ukb-hg38-eur-ld/resource.yaml),
+> through the `EUR -> ukb` alias now at `/data/opengwasdb/reference/ld/EUR`;
+> `resources/generators/ukb-b/proposed-ld-resource.yaml` is retired. The rest
+> of this page is the plan as #219 recorded it.
+
 Owner decisions cited:
 <https://github.com/opengwas/opengwasdb-stores/issues/219#issuecomment-6132878514>
 (the 2,514 replacement + production UKB EUR panel path) and

@@ -1,0 +1,64 @@
+resource_id: ukb-hg38-eur-ld
+label: UK Biobank hg38 EUR LD reference panel (49,766 UKB EUR; eigendecomposition)
+kind: ld_panel
+ancestry: EUR
+genome_build: GRCh38
+variant_id_convention: chr:pos_ref_alt
+allele_columns:
+  effect: EA
+  other: OA
+  freq: EAF
+# `opengwasdb complete-dense --ld-panel <location> --ancestry <ancestry_dir>`
+# reads blocks from `<location>/<ancestry_dir>/<chr>/` and filters Analyses by
+# the same `--ancestry` string, so the canonical directory must be named for
+# the ancestry the Analyses carry (`EUR`). The panel is on disk as `ukb`; the
+# relative symlink `EUR -> ukb` at the root supplies the canonical name without
+# moving or copying it (#219, activated by #312).
+location: /data/opengwasdb/reference/ld
+location_kind: external_directory
+ancestry_dir: EUR
+physical_directory: ukb
+ld:
+  representation: eigendecomposition
+  block_file: structural_ld_blocks_lookup.tsv
+  n_blocks: 1357
+source:
+  cohort: UK Biobank (imputed genotypes, RAP)
+  n_individuals: 49766
+  variant_inclusion: MAF >= 0.005
+  generator: MRCIEU/ukb-rap-utils scripts/ld_matrix
+description: >
+  The owner-approved production EUR LD Reference Panel for reference completion
+  of EUR-assigned Analyses (#219, #312), as it is on this host. Laid out as
+  `<chr>/<start>-<end>` blocks under `ukb/`; each block carries a `.tsv` variant
+  table (`CHR SNP OA EA EAF BP`) and a `.ldeig.npz` eigendecomposition
+  (`values`, `vectors`), which is what completion consumes, beside a `.afreq`,
+  an `.ldeig.rds` and optional `.unphased.vcor1.gz` LD matrices it does not
+  read.
+status: available
+notes: >
+  Owner approval: issue #219 comment 6132878514 chose this panel for UKB-B
+  completion, and the #312 decision (2026-10-21) completes OGS-00009 against it
+  through the `EUR -> ukb` alias. That alias was created on 2026-10-21 for #312;
+  nothing else under the root changed.
+
+  Verified read-only, by directory and file metadata and one representative
+  block (#219, `/data/opengwasdb/work/epic232/219/ld-panel-verification-2026-10-12.json`):
+  22 chromosome directories and 1,357 blocks, each with a `.tsv`, `.ldeig.npz`
+  and `.afreq`. Block `1/101384499-103762931` has 9,633 variants, with `values`
+  (9633,) and `vectors` (9633, 250) in its `.npz`, matching the TSV. On
+  2026-10-21 (#312) `check_panel_has_chromosomes` and `list_all_blocks` found
+  the same 22 chromosomes and 1,357 blocks through
+  `/data/opengwasdb/reference/ld/EUR`, and `derive_impute_analysis_ids`
+  matched every EUR-assigned Analysis at `--ancestry EUR`.
+
+  Gaps kept from #219, not waived: GRCh38 rests on spot evidence (841 of the
+  representative block's 9,633 ALIDs match the maintained HapMap3 GRCh38 list
+  on position and alleles) and on the `ld_reference_panel_hg38` source path in
+  the block logs, not a whole-panel audit; per-block integrity beyond that one
+  block is unverified and nothing was hashed; NPZ/TSV agreement is
+  dimensional, not an identity check of SNP order or alleles.
+
+  `gpm-hg38-eur-ld` declares the same cohort's panel at the generation host's
+  `/local-scratch/projects/genotype-phenotype-map/data/ld_reference_panel_hg38`,
+  which is absent here.
