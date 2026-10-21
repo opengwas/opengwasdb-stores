@@ -139,6 +139,17 @@ def compute_fingerprints(row: dict, options: dict) -> dict:
         "source_recorded_bytes": size_bytes,
         "source_file_bytes": file_bytes,
         "source_file_mtime_ns": file_mtime_ns,
+        # Both builds, as the real resolver fingerprints them: a record measured
+        # under one is not resumed under another (opengwasdb#277). The pipeline
+        # passes no chain file.
+        "assembly": {
+            "source_build": row.get("source_genome_build"),
+            "reference_build": options["reference_build"],
+            "chain_file": None,
+            "chain_sha256": None,
+            "chain_bytes": None,
+            "chain_mtime_ns": None,
+        },
         "opengwasdb_version": TOOL_VERSION,
         "opengwasdb_git_hash": "testgithash",
         "ancestry_reference_id": Path(str(options.get("ancestry_reference", "reference"))).name,
@@ -150,7 +161,6 @@ def compute_fingerprints(row: dict, options: dict) -> dict:
         "ancestry_groups_sha256": _required_sha256(
             options.get("ancestry_groups"), "--ancestry-groups"
         ),
-        "reference_build": options["reference_build"],
         "extraction_panel_sha256": None,
         "extraction_panel_variants": None,
         "af_references": [],

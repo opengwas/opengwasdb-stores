@@ -125,10 +125,11 @@ fields. A run resolved once by the pipeline resumes everything afterwards (EAS:
 
 ## After #292 part 2
 
-When OpenGWASDB's Column Map reader lands (#292 part 2), MVP should declare a
-Column Map over dbGaP's own GIA files and delete the GWAS-SSF rewrite in the
-acquisition. This is a note, not part of #290: the current release configs read
-the acquisition's GWAS-SSF mirror because it is what the existing
+The pinned `opengwasdb` already has the Column Map reader (opengwasdb#281). When
+the pipeline integrates it (#292 part 2), MVP should declare a Column Map over
+dbGaP's own GIA files and delete the GWAS-SSF rewrite in the acquisition. This
+is a note, not part of #290: the current release configs read the
+acquisition's GWAS-SSF mirror because it is what the existing
 `opengwasdb.gwas-ssf` reader opens.
 
 ## Running

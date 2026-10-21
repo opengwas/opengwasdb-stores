@@ -3711,6 +3711,25 @@ class SharedResolutionRecordsTests(unittest.TestCase):
 
         self._assert_emit_fails("ancestry_reference_sha256")
 
+    def test_a_changed_declared_source_build_re_resolves_not_resumes(self) -> None:
+        """A record measured under one source build is not reused under another (opengwasdb#277)."""
+        outcomes = self._all_success_outcomes()
+        self.assertEqual(self._run(outcomes=outcomes)[0].returncode, 0)
+        digest = self._receipt()["resolver"]["settings_digest"]
+
+        # The table declares no build, so each Analysis's is the default: this
+        # changes every one, and no resolver setting. Only `resolve` runs, as
+        # preflight refuses a build the fixture's sidecars contradict.
+        document = yaml.safe_load(self.fixture.config_path.read_text(encoding="utf-8"))
+        document["defaults"]["source_genome_build"] = "GRCh37"
+        self.fixture.config_path.write_text(
+            yaml.safe_dump(document, sort_keys=False), encoding="utf-8"
+        )
+        result, resolved = self._run("--stage", "resolve", outcomes=outcomes)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(resolved, READY_IDS)
+        self.assertEqual(self._receipt()["resolver"]["settings_digest"], digest)
+
     def test_a_changed_setting_re_resolves_every_analysis(self) -> None:
         outcomes = self._all_success_outcomes()
         self.assertEqual(self._run(outcomes=outcomes)[0].returncode, 0)
