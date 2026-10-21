@@ -3,7 +3,7 @@ label: ukb-b-full
 access_posture: public
 status: candidate
 derived_from: null
-created_at: '2026-10-21T21:28:51Z'
+created_at: '2026-10-21T22:10:54Z'
 accepted_at: null
 source_snapshot_id: ukb-b-restored-2026-10-11
 source_snapshot:
@@ -17,7 +17,7 @@ source_snapshot:
   n_buildable: 2514
 generator:
   name: manifest_generation.providers.ukb_b.generate_candidate
-  version: sha256:76100db5bd5968ded3ac7755199ec63862c17fe09adbaed13fc544a30b4c98a6
+  version: sha256:ac268dfcb42d96ff4cb85e3fb425835df173427590f3cdbcf58d8d096af44077
   commands:
   - python3 -m manifest_generation.providers.ukb_b.generate_candidate OGS-00009
 description: Full dense Store Release of all 2,514 UK Biobank (ukb-b) GWAS-VCF Analyses declared in the
@@ -33,4 +33,5 @@ notes: 'Membership is the frozen Source Inventory ukb-b-restored-2026-10-11: 2,5
   recorded opengwas-api-r2026-08-10 resolution on every one of the 2,511 rows it covered and supplies
   the three rows it had left unresolved. Ancestry is the provider''s own population label (source_fallback),
   not an AF-based assignment; the ukb-b VCFs do carry FORMAT/AF, so the historical source_trusted_no_af
-  value is not reproduced.'
+  value is not reproduced. The owner accepted these source labels (all EUR) for this build, with no AF
+  assignment first (#312, 2026-10-21).'

@@ -38,9 +38,12 @@ description: >
 status: available
 notes: >
   Owner approval: issue #219 comment 6132878514 chose this panel for UKB-B
-  completion, and the #312 decision (2026-10-21) completes OGS-00009 against it
-  through the `EUR -> ukb` alias. That alias was created on 2026-10-21 for #312;
-  nothing else under the root changed.
+  completion, and the #312 owner decision of 2026-10-21
+  (https://github.com/opengwas/opengwasdb-stores/issues/312#issuecomment-6326686714)
+  completes OGS-00009 against it through the `EUR -> ukb` alias. That decision
+  is what the UKB-B config records as `qualification: qualified`; #219 kept
+  approval apart from qualification, and the gaps below still stand. The alias
+  was created on 2026-10-21 for #312; nothing else under the root changed.
 
   Verified read-only, by directory and file metadata and one representative
   block (#219, `/data/opengwasdb/work/epic232/219/ld-panel-verification-2026-10-12.json`):
@@ -57,8 +60,11 @@ notes: >
   on position and alleles) and on the `ld_reference_panel_hg38` source path in
   the block logs, not a whole-panel audit; per-block integrity beyond that one
   block is unverified and nothing was hashed; NPZ/TSV agreement is
-  dimensional, not an identity check of SNP order or alleles.
+  dimensional, not an identity check of SNP order or alleles;
+  `structural_ld_blocks_lookup.tsv`, declared above as `block_file`, was read
+  only for its header and row count (610,314 per-SNP rows, not 1,357 blocks),
+  so how it relates to the blocks is unqualified.
 
   `gpm-hg38-eur-ld` declares the same cohort's panel at the generation host's
   `/local-scratch/projects/genotype-phenotype-map/data/ld_reference_panel_hg38`,
-  which is absent here.
+  which is absent here; reconciling the two is follow-up #335.

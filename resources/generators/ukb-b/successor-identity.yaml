@@ -48,8 +48,9 @@ acceptance: none-implied
 production_build: not-run
 notes: >
   Ancestry in the bundle is the provider's population label (source_fallback,
-  EUR), not an AF-based assignment. The panel's qualification is the owner's
-  approval (#219, #312) on read-only layout evidence; the gaps #219 recorded
-  are kept in the ukb-hg38-eur-ld resource notes. The pre-#312 plan, with
+  EUR), not an AF-based assignment; the owner accepted it for this build, with
+  no AF assignment first (#312, 2026-10-21). The panel's qualification is the
+  owner's approval (#219, #312) on read-only layout evidence; the gaps #219
+  recorded are kept in the ukb-hg38-eur-ld resource notes. The pre-#312 plan, with
   OGS-00030/31 as successors, is in git history and in
   docs/ukb-restored-successors-plan.md.

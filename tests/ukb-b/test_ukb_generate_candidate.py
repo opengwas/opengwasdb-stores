@@ -767,6 +767,13 @@ class TestRegisteredOGS00009(unittest.TestCase):
         self.assertEqual(option(complete.argv, "--ancestry"), self.declaration["ancestry_dir"])
         self.assertEqual(option(complete.argv, "--ancestry"), "EUR")
 
+    def test_ogs00009_records_its_qualified_active_reference(self) -> None:
+        validation = yaml.safe_load((REPO_ROOT / "stores" / "OGS-00009" / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(
+            validation["acceptance"]["completion_reference"],
+            {**self.config["completion_reference"], "blocked": False},
+        )
+
     def test_the_retired_ids_have_no_bundle(self) -> None:
         for retired in sorted(RETIRED_STORE_IDS):
             self.assertFalse((REPO_ROOT / "stores" / retired).exists(), retired)
