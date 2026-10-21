@@ -114,9 +114,11 @@ EXAMPLE-0001	Example trait	Example trait	/data/opengwasdb/example/source.tsv.gz	
 
 That covers every column this document marks Yes. A `candidate` release needs
 no `validation.yaml`; a `built` or `validated` release does (see
-[`validation.yaml`](#validationyaml)). A `reference_completed` release must also
-declare `derived_from: OGS-00042` in `release.yaml` and use a `complete` block
-instead of `build`.
+[`validation.yaml`](#validationyaml)). A `reference_completed` release either
+completes its own Store under its id, and declares both a `build` and a
+`complete` block (ADR 0037), or is a two-id child that declares
+`derived_from: OGS-00042` in `release.yaml` and a `complete` block instead of
+`build` (ADR 0007).
 
 ## Pipeline stages
 
@@ -157,7 +159,7 @@ published artifact path is now a pure function of the identifier.
 | `label` | Yes | Source-natural display name; provenance, never an identifier (ADR 0022). |
 | `access_posture` | No | Declared availability category: `public`, `controlled`, or `embargoed`. The one store-level fact the retired Store Family tier genuinely declared (ADR 0028); every committed bundle declares it, but it is descriptive rather than structurally required. |
 | `status` | Yes | Registry lifecycle state: `candidate`, `accepted`, `built`, `validated`, `superseded`, or `withdrawn`. |
-| `derived_from` | No | Parent `store_id` when this release derives from another release. Required for a Reference-Completed release, and the parent must be a registered Release Bundle. |
+| `derived_from` | No | Parent `store_id` when this release derives from another release, and the parent must be a registered Release Bundle. A two-id Reference-Completed release names its Observed-Only parent here (ADR 0007); a Reference-Completed release without it completes its own Store (ADR 0037). |
 | `created_at` | Yes | Timestamp when the candidate bundle was generated. |
 | `accepted_at` | No | Timestamp when the bundle was accepted as the release input record. |
 | `source_snapshot_id` | Yes | Dated or provider-native source snapshot used for this release, for example a GWAS Catalog studies-table release date. |
@@ -410,7 +412,7 @@ registry fact or an `opengwasdb` flag. It does not record *where* artifacts land
 | `store_id` | Yes | Must equal the bundle's `store_id` and its directory name. |
 | `layout` | Yes | `dense`, `ragged`, or `hybrid`. |
 | `completion_state` | Yes | `observed_only` or `reference_completed`. |
-| `build` | Yes for `observed_only` | The observed-only build block. |
+| `build` | Yes for `observed_only`, and for `reference_completed` without `derived_from` | The observed-only build block. A single-id Reference-Completed release builds and publishes its Observed-Only Store with it first (ADR 0037). |
 | `complete` | Yes for `reference_completed` | The completion block. |
 | `build.command` / `complete.command` | Yes | An `opengwasdb` CLI subcommand; never a Python import path. Supported values are keyed by phase in `plan.COMMANDS`: `build-dense-vcf`, `build-hybrid`, `build-ragged-ssf`, `build-ragged-besd`; `complete-dense`, `complete-hybrid`, `complete-ragged`. |
 | `build.options` / `complete.options` | No | `opengwasdb` flag names passed through verbatim; see "The passthrough rule". |
@@ -443,9 +445,41 @@ post:
   overview: true
 ```
 
-A Reference-Completed release is the same file with a `complete` block instead
-of `build`. It carries no parent path: the parent is `release.yaml`'s
-`derived_from`, and its artifact path is a pure function of that ID.
+A Reference-Completed release completes its own Store under its id (ADR 0037).
+It declares both blocks and has no `derived_from`: the `build` block builds and
+publishes the Observed-Only Store, exactly as the same file would as
+`observed_only`, and the `complete` block then completes that published Store
+and replaces it. The completion's source is the id's own Store path, so the
+recipe names no Store path at all. Only Dense releases are planned this way,
+because the Observed-View Check covers only Dense Stores so far.
+
+```yaml
+store_id: OGS-00043
+layout: dense
+completion_state: reference_completed
+build:
+  command: build-dense-vcf
+  options:
+    source-reader-capability: opengwasdb.finngen-r13
+    source-assembly: hg38
+complete:
+  command: complete-dense
+  options:
+    ld-panel: /data/opengwasdb/reference/ld/hgdp1kgp-hg38
+    ancestry: EUR
+    n-workers: 16
+post:
+  top_hits: true
+  overview: true
+```
+
+`post` applies to both phases. `complete-dense` builds the Top-Hit Index
+inline, so the completion phase plans no separate `top_hits` step.
+
+A two-id Reference-Completed release, from before ADR 0037, is the same file
+with a `complete` block instead of `build`. It carries no parent path: the
+parent is `release.yaml`'s `derived_from`, and its artifact path is a pure
+function of that ID. Existing two-id bundles (OGS-00002, OGS-00010) stay valid.
 
 ```yaml
 store_id: OGS-00043

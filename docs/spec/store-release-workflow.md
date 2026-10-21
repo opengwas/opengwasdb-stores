@@ -65,7 +65,7 @@ store_id: OGS-00042
 label: r13-pilot-20                 # source-natural display name; not an identifier
 access_posture: public
 status: built                       # candidate|accepted|built|validated|superseded|withdrawn
-derived_from: ~                     # the parent's store_id for a completed release
+derived_from: ~                     # a two-id completed child's parent (ADR 0007); none when a release completes its own Store
 created_at: '2026-08-18T08:51:59Z'
 source_snapshot_id: finngen-r13-manifest-2026-05-12
 generator:                          # how the bundle was produced (Phase B)
@@ -141,12 +141,18 @@ omits them, and a recipe that states either key still wins. `top_hits` and
 `overview.html` and defaulting it on would re-enable a step the planner then
 refuses (ADR 0027, issue #128).
 
-A Reference-Completed release is the same file with a `complete` block instead of `build`. It carries no parent path: the parent is `release.yaml`'s `derived_from`, and its artifact path is a pure function of that ID.
+A Reference-Completed release completes its own Store under its id (ADR 0037). It is the same file plus a `complete` block, with `completion_state: reference_completed` and no `derived_from`: the `build` block builds and publishes the Observed-Only Store, and the `complete` block then completes that published Store and replaces it. The recipe names no Store path, because completion's source is the id's own Store path. `bundle.check()` requires both blocks of such a bundle and names the one that is missing. `plan()` plans it only for a Dense layout (`plan.py` below).
 
 ```yaml
 store_id: OGS-00043
 layout: dense
 completion_state: reference_completed
+
+build:
+  command: build-dense-vcf
+  options:
+    source-reader-capability: opengwasdb.finngen-r13
+    source-assembly: hg38
 
 complete:
   command: complete-dense
@@ -155,6 +161,8 @@ complete:
     ancestry: EUR
     n-workers: 16
 ```
+
+A two-id Reference-Completed child, the form from before ADR 0037, has a `complete` block instead of `build`, and its parent is `release.yaml`'s `derived_from`, whose artifact path is a pure function of that ID. Existing two-id bundles (OGS-00002, OGS-00010) stay valid; nothing new should take that form.
 
 ### Artifact root comes from configuration
 
@@ -250,8 +258,9 @@ def summarise(bundle: Bundle) -> dict[str, str | int]: ...
 
 `check` covers registry-side facts only: required identity and provenance keys,
 `store_id` matches the directory name and both YAML documents, ID format,
-declared bundle files exist, checksum syntax, `derived_from` resolves to a
-registered Store Release, Release Status vocabulary and optional transitions,
+declared bundle files exist, checksum syntax, a `derived_from` resolves to a
+registered Store Release, a `reference_completed` bundle without one declares
+both its `build` and `complete` blocks, Release Status vocabulary and optional transitions,
 and `analyses.tsv` parses via `opengwasdb.model.analyses.read_analyses`. It
 delegates the Analysis schema rather than reimplementing it, including rejecting
 every column named by the pinned upstream `RETIRED_ANALYSIS_COLUMNS` list. Two
@@ -306,10 +315,12 @@ unchanged.
 ```python
 @dataclass(frozen=True)
 class Step:
-    name: str               # build|complete|top-hits|rho|overview|validate
+    name: str               # build|complete|top-hits|rho|overview|validate, or completion-<step>
     argv: list[str]
     inputs: list[Path]
     outputs: list[Path]
+    phase: str = "build"    # "completion" for the second phase of a single-id release
+    published_store_arg: int | None = None  # argv index naming the id's published Store
 
 def plan(bundle: Bundle, artifact_root: Path | str | None = None) -> list[Step]: ...
 ```
@@ -339,6 +350,13 @@ It reads `build.yaml` and `release.yaml` and nothing else: no I/O beyond path co
 A Build Recipe may also declare an optional `variant_reference` pre-build stage for the Dense-VCF and Hybrid builders (issue #145). `plan()` then prepends an `extract-variant-reference` Step and appends the artifact to the build step's inputs. The declared destination must equal the build step's `--variant-reference` option -- the one bounded, syntactic exception to ADR 0023's never-interpret rule -- but whether the artifact already exists is a runtime fact the executor decides when the step runs, never the planner (ADR 0031, issue #147).
 
 A Build Recipe may declare optional named `indexed_subsets` (stores #209). `plan()` then emits one `build-indexed-subset` Step per declaration, in declaration order, after the Store and its inline index steps exist and before `overview` and `validate`. Each Step is an ordinary `Step`, so `run.py` gives it the usual durable `records/indexed-subset-<name>.json`. `plan()` resolves nothing: the declaration records the maintained `resource_id`, the concrete `variant_list` path and the `reference_assembly`, and the release entry point verifies the maintained resource and the runtime capability before a build. A Ragged release rejects any declaration rather than silently dropping it. See "Indexed Variant Subsets" below and [ADR 0034](../adr/0034-indexed-variant-subsets-in-release-planning.md).
+
+A `reference_completed` release with no `derived_from` completes its own Store under its id (ADR 0037), and `plan()` returns two phases, build then completion:
+
+- **Build phase:** exactly what the same bundle plans as `observed_only` without its `complete` block: the same step names, argv and record names, ending in `register`. This is what lets a Store built before the bundle gained its `complete` block be completed without a rebuild (#305).
+- **Completion phase:** `complete`, then the declared post steps in their usual order, then `completion-validate`, ending in `completion-register`. `complete` reads the id's published Store and writes the id's Store path. Both are the same canonical token, so the Step's `published_store_arg` names the argument that is the published Store. `complete` passes `--release-id <id>-completed` and no `--store-id`: the completed manifest inherits its `store_id`, the id, from its source (opengwasdb ADR 0011). The completion command builds the Top-Hit Index inline, so `post.top_hits` plans no completion-phase step; `rho`, `overview` and each declared Indexed Variant Subset do, as `completion-rho`, `completion-overview` and `completion-indexed-subset-<name>`.
+
+Every completion-phase record name differs from every build-phase one, so both phases' records stay in `records/` once the completed Store replaces the Observed-Only Store. The first step keeps the name `complete`, so `register` still accepts a `complete-dense-resume` substitution for it. Only a Dense release is planned this way: `plan()` refuses another layout, naming it and ADR 0037, because the Observed-View Check that gates the replacement compares only Dense Stores so far. A two-id child (`derived_from`) plans exactly as before. The golden is `tests/plan/golden/OGS-00003-single-id-completed.json`: OGS-00003's recipe with a `complete` block, whose build phase is OGS-00003's own golden.
 
 This is the entire adapter layer. It replaces `workflow/phase.py`, `workflow/model.py`, `release_plan.py`, `release_manifest.py`, `metadata_resolution.py` and `catalogue_coverage.py` (~4,100 lines on PR #105).
 
@@ -480,9 +498,9 @@ Dependency wiring only, per ADR 0023. It contains no source column name, no mani
 build_manifest ──> build ──> top_hits ──> rho ──> indexed-subset-<name> ──> overview ──> validate ──> register
 ```
 
-`build_manifest` is the derived build manifest's rule (ADR 0025). It runs before every observed-only build command, because `plan()` names the manifest it writes as the build step's first input. A Reference-Completed release substitutes `complete` for `build` and takes the supported tail; completion consumes only a parent Store, so it depends on no manifest step.
+`build_manifest` is the derived build manifest's rule (ADR 0025). It runs before every observed-only build command, because `plan()` names the manifest it writes as the build step's first input. A two-id Reference-Completed child substitutes `complete` for `build` and takes the supported tail; completion consumes only a parent Store, so it depends on no manifest step.
 
-Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. A declared `indexed_subsets` list inserts one `build-indexed-subset` Step per declaration between those inline index steps and `overview`/`validate`, so overview reports the subsets and validation audits them. `rho` defaults off and `validate` defaults on, so a Build Recipe names only the steps it chooses differently (ADR 0027, issue #128). A Reference-Completed release substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
+Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. A declared `indexed_subsets` list inserts one `build-indexed-subset` Step per declaration between those inline index steps and `overview`/`validate`, so overview reports the subsets and validation audits them. `rho` defaults off and `validate` defaults on, so a Build Recipe names only the steps it chooses differently (ADR 0027, issue #128). A two-id Reference-Completed child substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
 
 ### Indexed Variant Subsets
 
@@ -578,7 +596,7 @@ the core helper propagates it, and the report does not downgrade it to
 `missing`, because a broken index reported as absent is a wrong answer that
 looks like a right one.
 
-**Lineage ordering is why the DAG spans every store rather than one.** A Reference-Completed release declares its parent's `register` record as an input, resolved from `release.yaml`'s `derived_from`. A per-release workflow driven by a batch loop would have to sequence parents before children by hand, and would get it wrong. Here it is a declared edge.
+**Lineage ordering is why the DAG spans every store rather than one.** A two-id Reference-Completed child declares its parent's `register` record as an input, resolved from `release.yaml`'s `derived_from`. A per-release workflow driven by a batch loop would have to sequence parents before children by hand, and would get it wrong. Here it is a declared edge.
 
 Resumption is Snakemake's, over the record files. `complete-dense` additionally owns a checkpoint directory and a separate `complete-dense-resume` entry point, but the workflow does not yet select it: a resume must be invoked by hand, and `register` accepts the substitution when it sees it. Wiring this into the workflow needs a decision about how a resume participates in the `.partial` staging transaction, which `rewrite_argv_for_staging` currently rejects.
 

@@ -87,12 +87,16 @@ def assert_steps_match_golden(
     with open(golden_path, "r", encoding="utf-8") as f:
         golden_raw = json.load(f)
 
+    # A single-id release's completion-phase Steps also carry their phase and
+    # the argument that names the published Store (ADR 0037); every other
+    # golden omits both and takes the Step defaults.
     expected_steps = [
         Step(
             name=item["name"],
             argv=item["argv"],
             inputs=[Path(p) for p in item["inputs"]],
             outputs=[Path(p) for p in item["outputs"]],
+            **{key: item[key] for key in ("phase", "published_store_arg") if key in item},
         )
         for item in golden_raw
     ]
@@ -1124,7 +1128,7 @@ class TestPlanReferenceCompleted(unittest.TestCase):
         self.assertEqual(complete_step.outputs, [Path("/custom/artifact/root/OGS-00088/store.opengwasdb")])
 
     def test_missing_derived_from_rejected(self) -> None:
-        """Reference-completed bundle missing derived_from in release.yaml raises ValueError."""
+        """A Ragged reference-completed bundle without derived_from is refused at planning."""
         for missing_val in (None, ""):
             bundle_no_parent = Bundle(
                 store_id="OGS-00088",
@@ -1144,10 +1148,13 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                 },
                 analyses_path=Path("stores/OGS-00088/analyses.tsv"),
             )
+            # Without a parent it is a single-id release, which completes its
+            # own Store, and only a Dense one is planned (ADR 0037).
             with self.assertRaises(ValueError) as ctx:
                 plan(bundle_no_parent)
             record_check()
-            self.assertIn("missing required 'derived_from'", str(ctx.exception))
+            self.assertIn("'ragged'", str(ctx.exception))
+            self.assertIn("ADR 0037", str(ctx.exception))
 
     def test_malformed_derived_from_rejected(self) -> None:
         """Reference-completed bundle with malformed derived_from raises ValueError."""
@@ -1570,6 +1577,107 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                 steps = plan(b)
                 record_check()
                 self.assertGreater(len(steps), 0, f"{sid} produced steps when host paths are absent")
+
+
+class TestPlanSingleIdReferenceCompleted(unittest.TestCase):
+    """A reference-completed release without `derived_from` plans two phases under one id (ADR 0037).
+
+    The fixture is OGS-00003's committed recipe gaining a `complete` block,
+    which is the one amendment ADR 0037 allows. Its build phase must be
+    exactly what OGS-00003 plans today, because that is what lets a Store
+    built before single-id completion be completed without a rebuild.
+    """
+
+    GOLDEN = REPO_ROOT / "tests" / "plan" / "golden" / "OGS-00003-single-id-completed.json"
+    STORE = "/data/opengwasdb/stores/OGS-00003/store.opengwasdb"
+    COMPLETE_BLOCK = {
+        "command": "complete-dense",
+        "options": {
+            "ld-panel": "/data/opengwasdb/reference/ld/hgdp1kgp-hg38",
+            "ancestry": "EUR",
+            "n-workers": 16,
+        },
+    }
+
+    def completed(self, layout: str = "dense", **build: object) -> Bundle:
+        observed = load("OGS-00003")
+        return Bundle(
+            store_id=observed.store_id,
+            root=observed.root,
+            release=observed.release,
+            build={
+                **observed.build,
+                "layout": layout,
+                "completion_state": "reference_completed",
+                "complete": self.COMPLETE_BLOCK,
+                **build,
+            },
+            analyses_path=observed.analyses_path,
+        )
+
+    def test_both_phases_match_the_golden(self) -> None:
+        """Build phase as today, then complete, the declared post steps and validate, renamed."""
+        steps = plan(self.completed())
+        assert_steps_match_golden(self, steps, self.GOLDEN)
+
+        complete = next(s for s in steps if s.name == "complete")
+        record_check()
+        # The source is the id's own published Store and the destination its
+        # Store path: the same canonical path, told apart by its argument.
+        self.assertEqual(complete.argv[2:4], [self.STORE, self.STORE])
+        self.assertEqual(complete.published_store_arg, 2)
+        self.assertEqual(complete.inputs, [Path(self.STORE)])
+        self.assertNotIn("--store-id", complete.argv)
+        self.assertEqual(complete.argv[complete.argv.index("--release-id") + 1], "OGS-00003-completed")
+
+        build_names = {s.name for s in steps if s.phase == "build"}
+        completion_names = [s.name for s in steps if s.phase == "completion"]
+        self.assertEqual(
+            completion_names,
+            ["complete", "completion-indexed-subset-hm3", "completion-overview", "completion-validate"],
+        )
+        self.assertFalse(build_names & set(completion_names), "every record name belongs to one phase")
+
+        for step in steps:
+            validate_step_argv_against_cli(self, step)
+
+    def test_the_build_phase_is_the_observed_only_plan(self) -> None:
+        """The build phase is OGS-00003's own golden plan, step for step (ADR 0037, #305)."""
+        steps = plan(self.completed())
+        assert_steps_match_golden(
+            self,
+            [s for s in steps if s.phase == "build"],
+            REPO_ROOT / "tests" / "plan" / "golden" / "OGS-00003.json",
+        )
+
+    def test_rho_is_planned_in_both_phases(self) -> None:
+        """A declared Rho Matrix is built on the Observed-Only Store and again on the completed one."""
+        steps = plan(self.completed(post={"top_hits": True, "rho": True, "overview": False}))
+        record_check()
+        self.assertEqual(
+            [s.name for s in steps],
+            [
+                "build", "top-hits", "rho", "indexed-subset-hm3", "validate",
+                "complete", "completion-rho", "completion-indexed-subset-hm3", "completion-validate",
+            ],
+        )
+        rho = next(s for s in steps if s.name == "completion-rho")
+        self.assertEqual(rho.argv, ["opengwasdb", "build-dense-rho", self.STORE])
+
+    def test_a_layout_other_than_dense_is_refused(self) -> None:
+        """The Observed-View Check supports only Dense Stores, so nothing else is planned (ADR 0037)."""
+        for layout, command in (("hybrid", "complete-hybrid"), ("ragged", "complete-ragged")):
+            with self.subTest(layout=layout):
+                bundle_obj = self.completed(
+                    layout,
+                    complete={**self.COMPLETE_BLOCK, "command": command},
+                    post={"top_hits": False, "overview": False},
+                )
+                with self.assertRaises(ValueError) as ctx:
+                    plan(bundle_obj)
+                record_check()
+                self.assertIn(repr(layout), str(ctx.exception))
+                self.assertIn("ADR 0037", str(ctx.exception))
 
 
 class TestBuildManifestSeam(unittest.TestCase):
