@@ -428,7 +428,7 @@ Use the Pixi environments pinned by this repository:
 ```bash
 pixi run env-check
 pixi run bundle-check
-pixi run catalog                 # the Analysis Catalog; see docs/spec/analysis-catalog.md
+pixi run -e dev catalog          # the Analysis Catalog and its summary.html; see docs/spec/analysis-catalog.md
 pixi run test
 pixi run test-python
 pixi run test-r

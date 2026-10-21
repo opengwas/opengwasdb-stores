@@ -414,7 +414,8 @@ docs = { cmd = "bash tools/build-site.sh" }
 # renders only beta-scale-estimation.qmd, which is fully self-contained (no
 # external data reads), so it is safe to run from a bare checkout — this is
 # what CI uses as its documentation smoke test.
-docs-smoke = { cmd = "quarto render docs/reports/beta-scale-estimation.qmd --to html" }
+catalog-summary-smoke = { cmd = "python3 tests/catalog/smoke_summary.py" }
+docs-smoke = { cmd = "quarto render docs/reports/beta-scale-estimation.qmd --to html", depends-on = ["catalog-summary-smoke"] }
 
 [feature.ld-panel.tasks]
 ld-acquire = { cmd = "python3 tools/ld-panel/acquire_hgdp1kgp.py" }

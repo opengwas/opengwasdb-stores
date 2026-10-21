@@ -35,6 +35,15 @@ REQUIRED_COLUMNS = (
 )
 
 
+def skip_summary(version_dir: Path) -> None:
+    """The renderer of every test but the smoke render: the summary needs Quarto."""
+
+
+def build_catalog(registry: Path, root: Path, **kwargs: Any) -> catalog_build.BuildResult:
+    kwargs.setdefault("renderer", skip_summary)
+    return catalog_build.build_catalog(registry, root, **kwargs)
+
+
 def analysis_row(analysis_id: str, **extra: str) -> dict[str, str]:
     row = {
         "analysis_id": analysis_id,
@@ -145,7 +154,7 @@ class TempDirCase(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def build(self) -> catalog_build.BuildResult:
-        return catalog_build.build_catalog(self.registry, self.root)
+        return build_catalog(self.registry, self.root)
 
     def versions(self) -> list[str]:
         return sorted(p.name for p in (self.root / "catalog" / "versions").iterdir())
@@ -182,7 +191,7 @@ class ServingPolicyTest(unittest.TestCase):
         (registry / "OGS-00016" / "release.yaml").write_text("store_id: OGS-00016\n", encoding="utf-8")
         write_bundle(registry, "OGS-00017", release={"access_posture": None})
         (registry / "by-label").mkdir()
-        catalog_build.build_catalog(registry, cls.root)
+        build_catalog(registry, cls.root)
         cls.selection = {
             store: (decision, reason)
             for store, decision, reason in query(cls.root, "SELECT store_id, decision, reason FROM selection")
@@ -318,7 +327,7 @@ class AnalysesTest(unittest.TestCase):
         ])
         write_bundle(registry, "OGS-00002", rows=[analysis_row("X1", tissue="liver", trait_bp="12345")])
         write_bundle(registry, "OGS-00003", status="candidate", validation=False)
-        catalog_build.build_catalog(registry, cls.root)
+        build_catalog(registry, cls.root)
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -595,6 +604,58 @@ class EmptyCatalogTest(TempDirCase):
         self.assertEqual(query(self.root, "SELECT COUNT(*) FROM selection"), [(0,)])
 
 
+class SummaryRenderTest(TempDirCase):
+    """The summary report is rendered into the new version before `current` moves (#325).
+
+    The renderer is injected, so these need no Quarto; the real one is exercised by
+    `tests/catalog/smoke_summary.py` (`pixi run docs-smoke`).
+    """
+
+    def build_with(self, renderer) -> catalog_build.BuildResult:
+        return build_catalog(self.registry, self.root, renderer=renderer)
+
+    def test_a_new_version_has_its_summary_before_current_moves(self) -> None:
+        write_bundle(self.registry, "OGS-00001")
+        seen = []
+
+        def renderer(version_dir: Path) -> None:
+            seen.append((version_dir.name, catalog_publish.current_target(self.root)))
+            self.assertTrue((version_dir / "catalog.sqlite").is_file())
+            (version_dir / "summary.html").write_text("<html>summary</html>", encoding="utf-8")
+
+        result = self.build_with(renderer)
+        self.assertEqual(len(seen), 1)
+        self.assertTrue(seen[0][0].endswith(".partial"))
+        self.assertIsNone(seen[0][1])
+        self.assertEqual((self.root / "catalog" / "current" / "summary.html").read_text(), "<html>summary</html>")
+        self.assertEqual(self.current(), f"versions/{result.version}")
+
+    def test_a_failed_render_fails_the_rebuild_and_leaves_current(self) -> None:
+        write_bundle(self.registry, "OGS-00001")
+        first = self.build_with(lambda d: (d / "summary.html").write_text("first"))
+        write_bundle(self.registry, "OGS-00001", rows=[analysis_row("A1"), analysis_row("A3")])
+
+        def failing(version_dir: Path) -> None:
+            raise catalog_build.CatalogError("quarto exploded")
+
+        with self.assertRaises(catalog_build.CatalogError):
+            self.build_with(failing)
+        self.assertEqual(self.current(), f"versions/{first.version}")
+        self.assertEqual(self.versions(), [first.version])
+        # The next run builds the version afresh rather than trusting a leftover.
+        second = self.build_with(lambda d: (d / "summary.html").write_text("second"))
+        self.assertNotEqual(second.version, first.version)
+        self.assertEqual((self.root / "catalog" / "current" / "summary.html").read_text(), "second")
+
+    def test_a_no_op_rebuild_renders_nothing(self) -> None:
+        write_bundle(self.registry, "OGS-00001")
+        self.build_with(lambda d: (d / "summary.html").write_text("x"))
+        calls = []
+        again = self.build_with(calls.append)
+        self.assertFalse(again.published)
+        self.assertEqual(calls, [])
+
+
 class NeverOpensAStoreTest(TempDirCase):
     def test_an_unreadable_store_directory_does_not_stop_the_build(self) -> None:
         write_bundle(self.registry, "OGS-00001")
@@ -714,7 +775,7 @@ class FeaturesTest(unittest.TestCase):
         write_bundle(registry, "OGS-00005", status="superseded", release={"trial": True, "superseded_by": "OGS-00001"},
                      rows=[analysis_row("T1")])
         write_bundle(registry, "OGS-00006", status="withdrawn", n_analyses=9)
-        catalog_build.build_catalog(registry, cls.root)
+        build_catalog(registry, cls.root)
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -892,7 +953,7 @@ class SearchIntegrityTest(unittest.TestCase):
         write_bundle(registry, "OGS-00003", status="superseded", release={"superseded_by": "OGS-00004"},
                      rows=[analysis_row("S1", analysis_label="Old alpha")])
         write_bundle(registry, "OGS-00004", rows=[analysis_row("B1", analysis_label="Kept beta")])
-        catalog_build.build_catalog(registry, cls.root)
+        build_catalog(registry, cls.root)
 
     @classmethod
     def tearDownClass(cls) -> None:

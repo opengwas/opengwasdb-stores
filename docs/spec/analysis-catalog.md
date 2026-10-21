@@ -104,7 +104,21 @@ The columns and their types are `src/analysis_catalog/columns.py`.
   (`NULL` outside git), `builder_version`, and `serving_policy` (the rules above,
   as a JSON list).
 
-The summary report is #325.
+### Summary report (#325)
+
+Each new version carries `summary.html`, rendered from
+`docs/reports/analysis-catalog-summary.qmd` after the version's other files are
+written and before `current` moves. A render failure fails the rebuild: the
+`.partial` version is removed and `current` stays. A no-op rebuild renders
+nothing. The report opens `catalog.sqlite` read-only and reads the version's
+`changes.tsv`; it recomputes nothing from the bundles. A total over Stores is
+`unknown (k of n Stores report it)` whenever any listed Store has a `NULL`, and
+is never a partial sum. An empty catalog renders and says so.
+
+Rendering needs Quarto and R beside the builder, so the operator runs
+`pixi run -e dev catalog` (the default environment has no reporting feature).
+`pixi run -e dev docs-smoke` renders the report against a fixture catalog
+(`tests/catalog/smoke_summary.py`).
 
 ### Listing, types, counts, search and indexes (#324)
 
