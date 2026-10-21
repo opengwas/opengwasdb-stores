@@ -1634,7 +1634,20 @@ class TestPlanSingleIdReferenceCompleted(unittest.TestCase):
         completion_names = [s.name for s in steps if s.phase == "completion"]
         self.assertEqual(
             completion_names,
-            ["complete", "completion-indexed-subset-hm3", "completion-overview", "completion-validate"],
+            [
+                "complete", "completion-indexed-subset-hm3", "completion-overview", "completion-validate",
+                "completion-observed-view-check",
+            ],
+        )
+        check = steps[-1]
+        # The published Store is the first argument and is left alone by staging;
+        # the staged Store is the second, the same canonical path.
+        self.assertEqual(check.argv[2:4], [self.STORE, self.STORE])
+        self.assertEqual(check.published_store_arg, 2)
+        self.assertEqual(check.argv[check.argv.index("--seed") + 1], "20261021")
+        self.assertEqual(
+            check.argv[check.argv.index("--output") + 1],
+            "/data/opengwasdb/stores/OGS-00003/work/observed-view-check.json",
         )
         self.assertFalse(build_names & set(completion_names), "every record name belongs to one phase")
 
@@ -1659,6 +1672,7 @@ class TestPlanSingleIdReferenceCompleted(unittest.TestCase):
             [
                 "build", "top-hits", "rho", "indexed-subset-hm3", "validate",
                 "complete", "completion-rho", "completion-indexed-subset-hm3", "completion-validate",
+                "completion-observed-view-check",
             ],
         )
         rho = next(s for s in steps if s.name == "completion-rho")
@@ -2450,6 +2464,7 @@ def main() -> None:
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanHybrid))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanRagged))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanReferenceCompleted))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanSingleIdReferenceCompleted))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestBuildManifestSeam))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestArtifactRootConfiguration))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPostDefaults))

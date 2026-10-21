@@ -6,20 +6,25 @@ Covers the ticket-specific contracts with small fixtures:
 1. The metadata partition is exact, disjoint and reconciles the legacy European
    bucket as EUR + META.
 2. META is emitted observed-only: no ``derived_from`` and no completion block.
-3. A lineage-linked completed child is emitted only for a qualified reference;
-   a ``hold`` reference produces a plan, not a bundle.
-4. Every emitted observed Store is ``status: accepted`` (dev-buildable, #247)
-   and carries an ``accepted_at``; a completion child stays ``status: candidate``
-   while its reference is pending/blocked. Human acceptance stays explicitly
-   pending in every ``validation.yaml`` and there is no build/validation
-   evidence.
+3. One bundle per Store id (#308, ADR 0037). A qualified, active reference puts
+   both the ``build`` and the ``complete`` block in that one bundle; a pending,
+   on-hold or blocked reference leaves the observed bundle exactly as it was and
+   records a completion definition keyed to the same id.
+4. Every emitted bundle is ``status: accepted`` (dev-buildable, #247) and carries
+   an ``accepted_at``. Human acceptance stays explicitly pending in every
+   ``validation.yaml`` and there is no build/validation evidence.
 5. Missing or extra resolution rows fail closed.
 """
 
 from __future__ import annotations
 
 import csv
+import io
 import json
+import re
+import subprocess
+import sys
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
@@ -28,8 +33,21 @@ import yaml
 
 from manifest_generation.providers.dbgap.mvp import generate_candidate as gen
 from manifest_generation.providers.dbgap.mvp import partition
+from ogstores import bundle as bundle_module
+from ogstores import plan as plan_module
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+#: The tree before #308 landed. Seam 2 pins today's observed bundle against the
+#: bytes this revision emits from the same fixture, so the pinned values come
+#: from the base code and never from the code under test.
+BASE_REVISION = "d4f620f"
+
+CREATED_AT = "2026-10-13T00:00:00+00:00"
+
+#: The ids reserved for ADR 0007 two-id completion. Retired unused by #308; no
+#: emit may mention them again.
+RETIRED_COMPLETED_IDS = ("OGS-00018", "OGS-00019", "OGS-00020", "OGS-00021")
 
 # Fixture membership: small, but the shape mirrors the real buckets.
 MEMBERS = {
@@ -41,12 +59,14 @@ MEMBERS = {
 }
 EXPECTED = {bucket: len(ids) for bucket, ids in MEMBERS.items()}
 
+#: ``observed id``, ``assigned ancestry``, ``source ancestry label``,
+#: ``reference qualification``, ``suggested LD panel``.
 FIXTURE_STORES = {
-    "EUR": ("OGS-00012", "OGS-00018", "EUR", "European", "pending", "/fixture/ld"),
-    "AFR": ("OGS-00013", "OGS-00019", "AFR", "African", "pending", "/fixture/ld"),
-    "AMR": ("OGS-00014", "OGS-00020", "AMR", "Hispanic or Latin American", "hold", None),
-    "EAS": ("OGS-00015", "OGS-00021", "EAS", "East Asian", "pending", "/fixture/ld"),
-    "META": ("OGS-00016", None, None, "META", "not_applicable", None),
+    "EUR": ("OGS-00012", "EUR", "European", "pending", "/fixture/ld"),
+    "AFR": ("OGS-00013", "AFR", "African", "pending", "/fixture/ld"),
+    "AMR": ("OGS-00014", "AMR", "Hispanic or Latin American", "hold", None),
+    "EAS": ("OGS-00015", "EAS", "East Asian", "pending", "/fixture/ld"),
+    "META": ("OGS-00016", None, "META", "not_applicable", None),
 }
 
 PLANNED_MANIFEST = {
@@ -173,10 +193,9 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
     )
 
     stores = {}
-    for ancestry, (observed, completed, assigned, label_ancestry, qualification, suggested) in FIXTURE_STORES.items():
+    for ancestry, (observed, assigned, label_ancestry, qualification, suggested) in FIXTURE_STORES.items():
         stores[ancestry] = {
             "observed_store_id": observed,
-            "completed_store_id": completed,
             "candidate_store_key": partition.STORE_KEY_BY_ANCESTRY[ancestry],
             "label": f"mvp-{ancestry.lower()}",
             "assigned_ancestry": assigned,
@@ -284,6 +303,132 @@ def make_fixture(tmp: Path) -> tuple[Path, Path, Path]:
     return mapping_path, resolution_path, config_path
 
 
+def emit_with_the_base_generator(
+    tmp: Path, config_path: Path, mapping: Path, resolution: Path, out_dir: Path
+) -> Path:
+    """Emit this fixture with the generator as it stood before #308.
+
+    Only ``--write-goldens`` calls this; the test suite never reads the base tree.
+    The bytes come from that code, never from the code under test: `git archive`
+    unpacks ``BASE_REVISION``, and running the generator with ``-m`` from that
+    tree's own ``src/`` imports its ``manifest_generation`` and its ``ogstores``
+    rather than this checkout's installed packages.
+    """
+    archive = tmp / "base"
+    archive.mkdir()
+    # Only ``src/`` is needed, and the full archive is ~180 MB of committed
+    # Stores and reports. `pixi.toml` and an empty `stores/` satisfy the
+    # package's "installed from a checkout" guard; the generator reads neither.
+    try:
+        tarball = subprocess.run(
+            ["git", "archive", BASE_REVISION, "src", "pixi.toml"],
+            cwd=REPO_ROOT,
+            check=True,
+            capture_output=True,
+        ).stdout
+    except subprocess.CalledProcessError as exc:
+        raise AssertionError(
+            f"cannot read the base tree {BASE_REVISION}: {exc.stderr.decode().strip()}. "
+            "Regenerating the goldens needs that commit in the clone (a shallow "
+            "checkout must fetch full history)."
+        ) from exc
+    with tarfile.open(fileobj=io.BytesIO(tarball)) as tar:
+        tar.extractall(archive, filter="data")
+    (archive / "stores").mkdir()
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "manifest_generation.providers.dbgap.mvp.generate_candidate",
+            "emit",
+            "--config",
+            str(config_path),
+            "--mapping",
+            str(mapping),
+            "--resolution",
+            str(resolution),
+            "--out-dir",
+            str(out_dir),
+            "--created-at",
+            CREATED_AT,
+        ],
+        cwd=archive / "src",
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise AssertionError(f"the base generator failed: {result.stderr}")
+    return out_dir
+
+
+#: The five observed Store ids this fixture emits, whatever their reference says.
+OBSERVED_IDS: tuple[str, ...] = ("OGS-00012", "OGS-00013", "OGS-00014", "OGS-00015", "OGS-00016")
+
+#: The bundle files seam 2 pins byte for byte.
+PINNED_FILES: tuple[str, ...] = ("release.yaml", "build.yaml", "analyses.tsv")
+
+#: What the base code emits for this fixture, committed so the suite needs no
+#: git history and no network. See `fixtures/observed-bundles/README.md`.
+GOLDEN_ROOT: Path = Path(__file__).resolve().parent / "fixtures" / "observed-bundles"
+
+#: Digests the fixture's random temp directory feeds into, because each hashes a
+#: tree keyed by absolute paths (or is a receipt over one). Everything else in
+#: `release.yaml` is a byte the code chose, and `build.yaml` and `analyses.tsv`
+#: hold no such digest at all.
+FIXTURE_DEPENDENT_DIGESTS: tuple[str, ...] = (
+    "output_metadata_content_sha256",
+    "metadata_receipt_sha256",
+    "metadata_fingerprint_sha256",
+    "source_metadata_snapshot_sha256",
+    "resolution_sha256",
+    "planned_manifest_sha256",
+)
+
+
+def normalise_golden(text: str, fixture: Path) -> str:
+    """Replace what the fixture's random temp directory decides with placeholders."""
+    text = text.replace(str(fixture), "{fixture}")
+    for key in FIXTURE_DEPENDENT_DIGESTS:
+        text = re.sub(
+            rf"^(\s*{key}: )[0-9a-f]{{64}}$", rf"\1{{fixture-digest}}", text, flags=re.MULTILINE
+        )
+    return text
+
+
+def write_goldens() -> list[Path]:
+    """Emit the observed bundles from `BASE_REVISION` and write the seam-2 goldens.
+
+    Run by hand when the fixture changes; the suite never reads the base tree:
+
+        pixi run -e dev python3 tests/dbgap-mvp/test_generate_candidate.py --write-goldens
+    """
+    with tempfile.TemporaryDirectory() as td:
+        fixture = Path(td)
+        mapping, resolution, config_path = make_fixture(fixture)
+        out = emit_with_the_base_generator(
+            fixture, config_path, mapping, resolution, fixture / "base-out"
+        )
+        written = []
+        for store_id in OBSERVED_IDS:
+            for name in PINNED_FILES:
+                destination = GOLDEN_ROOT / store_id / name
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text(
+                    normalise_golden((out / store_id / name).read_text(encoding="utf-8"), fixture),
+                    encoding="utf-8",
+                )
+                written.append(destination)
+        return written
+
+
+def phase_names(steps) -> dict[str, list[str]]:
+    """Every step's name, grouped by the phase it says it belongs to."""
+    phases: dict[str, list[str]] = {}
+    for step in steps:
+        phases.setdefault(step.phase, []).append(step.name)
+    return phases
+
+
 class TestPartition(unittest.TestCase):
     def setUp(self) -> None:
         self.td = tempfile.TemporaryDirectory()
@@ -314,7 +459,9 @@ class TestPartition(unittest.TestCase):
             partition.validate_partition(grouped, expected={**EXPECTED, "EUR": 4})
 
 
-class TestCandidateEmission(unittest.TestCase):
+class FixtureEmissionTestCase(unittest.TestCase):
+    """A temp-dir fixture config, and what an emit of it writes (#221)."""
+
     def setUp(self) -> None:
         self.td = tempfile.TemporaryDirectory()
         self.tmp = Path(self.td.name)
@@ -323,14 +470,48 @@ class TestCandidateEmission(unittest.TestCase):
         self.meta = self.tmp / "meta"
         self.out = self.tmp / "out"
 
+    def tearDown(self) -> None:
+        self.td.cleanup()
+
+    def emit(self, **kwargs) -> dict:
+        return gen.run_emit(
+            self.config,
+            self.mapping,
+            self.resolution,
+            self.out,
+            created_at=CREATED_AT,
+            **kwargs,
+        )
+
+    def qualify(self, ancestry: str, *, panel: str | None = "/fixture/ld", **changes) -> None:
+        """Make one fixture reference qualified and active, as an owner decision would."""
+        reference = self.config["stores"][ancestry]["completion_reference"]
+        reference.update(
+            {"qualification": "qualified", "activation": "active", "suggested_ld_panel": panel, **changes}
+        )
+
+    def document(self, store_id: str, name: str) -> dict:
+        return yaml.safe_load((self.out / store_id / name).read_text(encoding="utf-8"))
+
+    def bundle_directories(self) -> list[str]:
+        return sorted(path.name for path in self.out.iterdir() if path.is_dir())
+
+    def completion_plan_files(self) -> list[str]:
+        return sorted(path.name for path in self.out.glob("*.completion-plan.yaml"))
+
+    def emitted_text(self) -> str:
+        """Every emitted file's text, for a claim that a name appears nowhere."""
+        return "\n".join(
+            path.read_text(encoding="utf-8") for path in sorted(self.out.rglob("*")) if path.is_file()
+        )
+
+
+class TestCandidateEmission(FixtureEmissionTestCase):
     def _sidecar(self, analysis_id: str) -> Path:
         return next((self.meta / "gwas-ssf").glob(f"*/{analysis_id}/{analysis_id}.tsv.gz-meta.yaml"))
 
     def _data(self, analysis_id: str) -> Path:
         return next((self.meta / "gwas-ssf").glob(f"*/{analysis_id}/{analysis_id}.tsv.gz"))
-
-    def tearDown(self) -> None:
-        self.td.cleanup()
 
     def test_plan_mode_validates_and_writes_partition_only(self) -> None:
         plan = gen.run_plan(self.config, self.mapping, self.out)
@@ -340,64 +521,50 @@ class TestCandidateEmission(unittest.TestCase):
         self.assertFalse((self.out / "OGS-00012").exists())
 
     def test_emit_observed_accepted_but_science_pending(self) -> None:
-        result = gen.run_emit(
-            self.config,
-            self.mapping,
-            self.resolution,
-            self.out,
-            created_at="2026-10-13T00:00:00+00:00",
-        )
-        self.assertEqual(
-            set(result["emitted"]),
-            {"EUR", "AFR", "AMR", "EAS", "META", "EUR-completed", "AFR-completed", "EAS-completed"},
-        )
+        result = self.emit()
+        self.assertEqual(set(result["emitted"]), set(MEMBERS))
         self.assertEqual(sorted(result["checked"]), sorted(result["emitted"].values()))
 
         # META is observed-only: no parent and no completion recipe. It is
         # `accepted` only so the dev release workflow may build it (#247).
-        meta_release = yaml.safe_load((self.out / "OGS-00016" / "release.yaml").read_text())
+        meta_release = self.document("OGS-00016", "release.yaml")
         self.assertEqual(meta_release["status"], "accepted")
-        self.assertEqual(meta_release["accepted_at"], "2026-10-13T00:00:00+00:00")
+        self.assertEqual(meta_release["accepted_at"], CREATED_AT)
         self.assertIn("not scientific release acceptance", meta_release["notes"])
         self.assertIsNone(meta_release["derived_from"])
         # The observed bundle is buildable; the human acceptance stays pending.
         meta_bundle = gen.bundle_module.load("OGS-00016", registry_root=self.out)
         self.assertTrue(gen.bundle_module.is_buildable(meta_bundle))
-        meta_validation = yaml.safe_load(
-            (self.out / "OGS-00016" / "validation.yaml").read_text()
-        )
+        meta_validation = self.document("OGS-00016", "validation.yaml")
         self.assertEqual(
             meta_validation["acceptance"]["human_acceptance"], "pending"
         )
-        meta_build = yaml.safe_load((self.out / "OGS-00016" / "build.yaml").read_text())
+        meta_build = self.document("OGS-00016", "build.yaml")
         self.assertEqual(meta_build["completion_state"], "observed_only")
         self.assertNotIn("complete", meta_build)
 
-        # EUR completed definition is lineage-linked and carries the suggested
-        # panel, but its reference stays pending/blocked (never promoted) and the
-        # definition is NOT buildable (#247).
-        eur_child_release = yaml.safe_load((self.out / "OGS-00018" / "release.yaml").read_text())
-        self.assertEqual(eur_child_release["derived_from"], "OGS-00012")
-        self.assertEqual(eur_child_release["status"], "candidate")
-        eur_child = gen.bundle_module.load("OGS-00018", registry_root=self.out)
-        self.assertFalse(gen.bundle_module.is_buildable(eur_child))
-        _, refusals = gen.bundle_module.partition_buildable(
-            [
-                gen.bundle_module.load(sid, registry_root=self.out)
-                for sid in result["emitted"].values()
-            ]
+        # EUR's reference is only pending: its bundle stays observed-only and
+        # buildable, and the completion recipe is a receipt under the same id
+        # (ADR 0037). No second id is minted (#308).
+        eur_release = self.document("OGS-00012", "release.yaml")
+        self.assertIsNone(eur_release["derived_from"])
+        self.assertEqual(eur_release["status"], "accepted")
+        eur_build = self.document("OGS-00012", "build.yaml")
+        self.assertEqual(eur_build["completion_state"], "observed_only")
+        self.assertNotIn("complete", eur_build)
+        self.assertTrue(
+            gen.bundle_module.is_buildable(
+                gen.bundle_module.load("OGS-00012", registry_root=self.out)
+            )
         )
-        self.assertTrue(any("OGS-00018" in refusal for refusal in refusals))
-        eur_child_build = yaml.safe_load((self.out / "OGS-00018" / "build.yaml").read_text())
-        self.assertEqual(eur_child_build["completion_state"], "reference_completed")
-        self.assertIn("complete", eur_child_build)
-        self.assertEqual(
-            eur_child_build["complete"]["options"]["ld-panel"], "/fixture/ld"
+        eur_definition = yaml.safe_load(
+            (self.out / "OGS-00012.completion-plan.yaml").read_text(encoding="utf-8")
         )
+        self.assertEqual(eur_definition["store_id"], "OGS-00012")
+        self.assertFalse((self.out / "OGS-00018").exists())
 
-        # AMR has no suggested reference: a pending definition, not a bundle.
-        self.assertFalse((self.out / "OGS-00020").exists())
-        amr_plan = yaml.safe_load((self.out / "OGS-00020.completion-plan.yaml").read_text())
+        # AMR has no declared reference: a pending definition, not a completion.
+        amr_plan = yaml.safe_load((self.out / "OGS-00014.completion-plan.yaml").read_text())
         self.assertEqual(amr_plan["status"], "pending")
         self.assertTrue(amr_plan["blocked"])
         self.assertEqual(amr_plan["human_acceptance"], "pending")
@@ -406,31 +573,28 @@ class TestCandidateEmission(unittest.TestCase):
 
     def test_available_reference_does_not_promote_qualification(self) -> None:
         """A declared `available` reference is not a qualification or science pass."""
-        gen.run_emit(
-            self.config, self.mapping, self.resolution, self.out, created_at="2026-10-13T00:00:00+00:00"
+        self.emit()
+        # A pending reference keeps the observed bundle free of any completion
+        # claim; the declared reference is only recorded beside it.
+        observed = self.document("OGS-00012", "validation.yaml")
+        self.assertNotIn("completion_reference", observed["acceptance"])
+        definition = yaml.safe_load(
+            (self.out / "OGS-00012.completion-plan.yaml").read_text(encoding="utf-8")
         )
-        validation = yaml.safe_load((self.out / "OGS-00018" / "validation.yaml").read_text())
-        reference = validation["acceptance"]["completion_reference"]
+        reference = definition["reference"]
         self.assertEqual(reference["declared_status"], "available")
         self.assertEqual(reference["qualification"], "pending")
         self.assertEqual(reference["activation"], "pending")
-        self.assertTrue(reference["blocked"])
+        self.assertTrue(definition["blocked"])
         # Nothing in the emitted tree may claim the reference is qualified.
-        text = "\n".join(
-            path.read_text(encoding="utf-8")
-            for path in sorted(self.out.rglob("*"))
-            if path.is_file()
-        )
-        self.assertNotIn("qualified", text.replace("not qualified", ""))
+        self.assertNotIn("qualified", self.emitted_text().replace("not qualified", ""))
 
     def test_missing_reference_still_emits_pending_definition(self) -> None:
-        gen.run_emit(
-            self.config, self.mapping, self.resolution, self.out, created_at="2026-10-13T00:00:00+00:00"
-        )
-        definition = yaml.safe_load((self.out / "OGS-00020.completion-plan.yaml").read_text())
+        self.emit()
+        definition = yaml.safe_load((self.out / "OGS-00014.completion-plan.yaml").read_text())
         self.assertEqual(definition["human_acceptance"], "pending")
         self.assertTrue(definition["blocked"])
-        self.assertFalse((self.out / "OGS-00020").exists())
+        self.assertEqual(definition["store_id"], "OGS-00014")
 
     def test_planned_manifest_membership_crosscheck(self) -> None:
         counts = gen.read_planned_manifests(self.config)
@@ -452,12 +616,25 @@ class TestCandidateEmission(unittest.TestCase):
         definitions = yaml.safe_load(path.read_text())
         self.assertEqual(definitions["status"], "provisional-draft")
         self.assertFalse(definitions["owner_ordering_approved"])
-        for bucket in definitions["stores"].values():
+        for ancestry, bucket in definitions["stores"].items():
             self.assertFalse(bucket["observed"]["in_stores"])
             self.assertEqual(bucket["observed"]["acceptance"], "pending")
-            if bucket["completed"] is not None:
-                self.assertEqual(bucket["completed"]["human_acceptance"], "pending")
-                self.assertTrue(bucket["completed"]["blocked"])
+            if ancestry == "META":
+                # Observed-only by policy: no completion definition at all.
+                self.assertIsNone(bucket["completed"])
+                continue
+            completion = bucket["completed"]
+            # The definition belongs to the observed Store id (ADR 0037): no
+            # second id and no parent (#308).
+            self.assertEqual(completion["store_id"], bucket["observed"]["store_id"])
+            self.assertNotIn("derived_from", completion)
+            self.assertEqual(completion["role"], "completion-definition")
+            self.assertFalse(completion["declared"])
+            self.assertEqual(completion["human_acceptance"], "pending")
+            self.assertTrue(completion["blocked"])
+        retired = json.dumps(definitions)
+        for completed_id in RETIRED_COMPLETED_IDS:
+            self.assertNotIn(completed_id, retired)
 
     def test_acceptance_is_pending_and_not_verified(self) -> None:
         gen.run_emit(
@@ -856,6 +1033,235 @@ class TestCandidateEmission(unittest.TestCase):
             )
 
 
+class TestOneBundlePerStore(FixtureEmissionTestCase):
+    """#308: reference completion replaces its Store, so one id gets one bundle.
+
+    ADR 0037 supersedes ADR 0007's second, ``derived_from``-linked completed id.
+    The generator therefore never mints a completed id: a qualified reference
+    puts both phases in the observed id's bundle, and a pending one leaves that
+    bundle exactly as it was with a recorded completion definition beside it.
+    """
+
+    def test_a_qualified_reference_emits_one_bundle_under_the_observed_id(self) -> None:
+        self.qualify("EUR")
+
+        # The contract for this shape lands in #304; the bytes are what this
+        # ticket owes, so they are asserted before the contract can check them.
+        result = self.emit(check=False)
+
+        self.assertEqual(set(result["emitted"]), set(MEMBERS))
+        self.assertEqual(result["emitted"]["EUR"], "OGS-00012")
+        self.assertEqual(
+            self.bundle_directories(),
+            ["OGS-00012", "OGS-00013", "OGS-00014", "OGS-00015", "OGS-00016"],
+        )
+        release = self.document("OGS-00012", "release.yaml")
+        self.assertIsNone(release["derived_from"])
+        self.assertEqual(release["status"], "accepted")
+        self.assertEqual(release["accepted_at"], CREATED_AT)
+        build = self.document("OGS-00012", "build.yaml")
+        self.assertEqual(build["completion_state"], "reference_completed")
+        self.assertEqual(build["post"], {"top_hits": True, "overview": True})
+        self.assertEqual(build["build"]["command"], "build-dense-vcf")
+        self.assertEqual(build["complete"]["command"], "complete-dense")
+        self.assertEqual(
+            build["complete"]["options"], {"ancestry": "EUR", "ld-panel": "/fixture/ld"}
+        )
+        validation = self.document("OGS-00012", "validation.yaml")
+        self.assertEqual(
+            validation["acceptance"]["completion_reference"]["activation"], "active"
+        )
+        # The bundle declares completion, so no separate definition is written.
+        self.assertEqual(
+            self.completion_plan_files(),
+            [
+                "OGS-00013.completion-plan.yaml",
+                "OGS-00014.completion-plan.yaml",
+                "OGS-00015.completion-plan.yaml",
+            ],
+        )
+        # The other Stores are untouched: observed-only, no completion block.
+        for store_id in ("OGS-00013", "OGS-00014", "OGS-00015", "OGS-00016"):
+            build = self.document(store_id, "build.yaml")
+            self.assertEqual(build["completion_state"], "observed_only", store_id)
+            self.assertNotIn("complete", build, store_id)
+
+    def test_a_qualified_reference_without_a_declared_panel_is_refused(self) -> None:
+        self.qualify("EUR", panel=None)
+
+        with self.assertRaisesRegex(gen.CandidateError, "ld-panel"):
+            self.emit(check=False)
+
+        # Nothing is left behind: a recipe is validated before any write.
+        self.assertFalse(self.out.exists())
+
+    def test_a_pending_reference_emits_todays_observed_bundles_byte_for_byte(self) -> None:
+        # The goldens are what `d4f620f` emitted from this same fixture
+        # (`--write-goldens`); the fixture's random temp directory and the six
+        # digests that hash it are placeholders, so every other byte is pinned.
+        # The generator's command line reads the planned manifests itself, so
+        # compare like with like.
+        self.emit(manifest_counts=gen.read_planned_manifests(self.config))
+
+        for store_id in OBSERVED_IDS:
+            for name in PINNED_FILES:
+                emitted = normalise_golden(
+                    (self.out / store_id / name).read_text(encoding="utf-8"), self.tmp
+                )
+                golden = (GOLDEN_ROOT / store_id / name).read_text(encoding="utf-8")
+                self.assertEqual(
+                    emitted, golden, f"{store_id}/{name} differs from the base code's bytes"
+                )
+        # The completion definition now belongs to the observed id.
+        self.assertEqual(
+            self.completion_plan_files(),
+            [
+                "OGS-00012.completion-plan.yaml",
+                "OGS-00013.completion-plan.yaml",
+                "OGS-00014.completion-plan.yaml",
+                "OGS-00015.completion-plan.yaml",
+            ],
+        )
+        definition = yaml.safe_load(
+            (self.out / "OGS-00012.completion-plan.yaml").read_text(encoding="utf-8")
+        )
+        self.assertEqual(definition["store_id"], "OGS-00012")
+        self.assertNotIn("derived_from", definition)
+        self.assertEqual(definition["status"], "pending")
+        self.assertTrue(definition["blocked"])
+        self.assertEqual(definition["human_acceptance"], "pending")
+        self.assertEqual(definition["reference"]["qualification"], "pending")
+        self.assertEqual(definition["reference"]["activation"], "pending")
+        self.assertIn("Do not execute", definition["note"])
+        # No bundle claims a completion while its reference is pending.
+        for store_id in self.bundle_directories():
+            self.assertNotIn(
+                "complete",
+                self.document(store_id, "build.yaml"),
+                f"{store_id} declares a completion its reference does not qualify",
+            )
+
+    def test_only_the_observed_ids_are_emitted_and_nothing_is_overwritten(self) -> None:
+        result = self.emit()
+
+        self.assertEqual(
+            sorted(result["emitted"].values()),
+            ["OGS-00012", "OGS-00013", "OGS-00014", "OGS-00015", "OGS-00016"],
+        )
+        emitted_text = self.emitted_text()
+        for retired in RETIRED_COMPLETED_IDS:
+            self.assertNotIn(retired, emitted_text, f"{retired} is retired and never reused")
+        before = {
+            path: path.read_bytes() for path in sorted(self.out.rglob("*")) if path.is_file()
+        }
+
+        with self.assertRaisesRegex(gen.CandidateError, "refusing to overwrite"):
+            self.emit()
+
+        self.assertEqual(
+            {path: path.read_bytes() for path in sorted(self.out.rglob("*")) if path.is_file()},
+            before,
+        )
+
+    def test_a_config_that_still_declares_a_completed_id_is_refused(self) -> None:
+        config = yaml.safe_load(self.config_path.read_text(encoding="utf-8"))
+        config["stores"]["EUR"]["completed_store_id"] = "OGS-00018"
+        retired = self.tmp / "retired.yaml"
+        retired.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+
+        with self.assertRaisesRegex(gen.CandidateError, "ADR 0037"):
+            gen.load_config(retired)
+        with self.assertRaisesRegex(gen.CandidateError, "ADR 0037"):
+            gen.run_emit(config, self.mapping, self.resolution, self.out, created_at=CREATED_AT)
+        self.assertFalse(self.out.exists())
+
+    def test_the_tracked_config_declares_no_completed_store_id(self) -> None:
+        path = REPO_ROOT / "resources" / "generators" / "dbgap-mvp" / "config-candidate.yaml"
+        tracked = gen.load_config(path)
+
+        for ancestry, store in tracked["stores"].items():
+            self.assertNotIn("completed_store_id", store, ancestry)
+        allocation = RETIRED_COMPLETED_IDS[0]
+        self.assertIn(allocation, path.read_text(encoding="utf-8"))
+
+    def test_a_reference_that_is_not_qualified_is_blocked_however_its_activation_reads(
+        self,
+    ) -> None:
+        """Blocking is the whole eligibility rule, not activation alone (#308 review)."""
+        reference = self.config["stores"]["EUR"]["completion_reference"]
+        reference.update({"qualification": "pending", "activation": "active"})
+
+        self.emit()
+
+        definition = yaml.safe_load(
+            (self.out / "OGS-00012.completion-plan.yaml").read_text(encoding="utf-8")
+        )
+        self.assertTrue(definition["blocked"])
+        self.assertNotIn("complete", self.document("OGS-00012", "build.yaml"))
+        tracked = gen.render_candidate_definitions(self.config)["stores"]["EUR"]["completed"]
+        self.assertTrue(tracked["blocked"])
+        self.assertFalse(tracked["declared"])
+
+    def test_a_reference_with_no_resource_is_blocked_however_its_activation_reads(self) -> None:
+        reference = self.config["stores"]["EUR"]["completion_reference"]
+        reference.update(
+            {"resource_id": None, "qualification": "qualified", "activation": "active"}
+        )
+
+        self.emit()
+
+        definition = yaml.safe_load(
+            (self.out / "OGS-00012.completion-plan.yaml").read_text(encoding="utf-8")
+        )
+        self.assertTrue(definition["blocked"])
+        tracked = gen.render_candidate_definitions(self.config)["stores"]["EUR"]["completed"]
+        self.assertTrue(tracked["blocked"])
+        self.assertFalse(tracked["declared"])
+
+    def test_the_plan_names_the_completion_state_each_store_will_declare(self) -> None:
+        plan = gen.run_plan(self.config, self.mapping, self.out)
+
+        self.assertNotIn("completed_store_id", plan["stores"]["EUR"])
+        self.assertEqual(plan["stores"]["EUR"]["completion_state"], "observed_only")
+        self.assertEqual(plan["stores"]["META"]["completion_state"], "observed_only")
+
+        self.qualify("EUR")
+        planned = gen.run_plan(self.config, self.mapping, self.tmp / "qualified")
+        self.assertEqual(planned["stores"]["EUR"]["completion_state"], "reference_completed")
+
+    def test_the_single_id_bundle_passes_the_contract_and_plans_both_phases(self) -> None:
+        """#308's last check, against #304's contract and its real plan."""
+        self.qualify("EUR")
+        self.emit(check=False)
+
+        self.assertEqual(gen.check_bundle(self.out / "OGS-00012", self.out), [])
+        loaded = bundle_module.load("OGS-00012", registry_root=self.out)
+        # #304 returns one list: the build phase, then the completion phase.
+        steps = plan_module.plan(loaded, artifact_root=self.tmp / "artifacts")
+
+        # The fixture declares `post: {top_hits, overview}`, and `validate` is
+        # the planner's post default. The build phase is `build` and those post
+        # steps; the completion phase is `complete` and the completion-named
+        # copies of them. `complete-dense` builds top hits inline (ADR 0037), so
+        # there is no `completion-top-hits`.
+        self.assertEqual(
+            phase_names(steps),
+            {
+                "build": ["build", "top-hits", "overview", "validate"],
+                "completion": [
+                    "complete", "completion-overview", "completion-validate", "completion-observed-view-check",
+                ],
+            },
+        )
+        # The build phase runs to completion before the completion phase starts.
+        self.assertEqual(
+            [step.phase for step in steps],
+            ["build"] * 4 + ["completion"] * 4,
+        )
+        complete = next(step for step in steps if step.name == "complete")
+        self.assertEqual(complete.argv[:2], ["opengwasdb", "complete-dense"])
+
+
 class TestSafeWrite(unittest.TestCase):
     """The shared safe-write helper refuses aliases and out-of-root targets."""
 
@@ -894,4 +1300,8 @@ class TestSafeWrite(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    if "--write-goldens" in sys.argv[1:]:
+        for path in write_goldens():
+            print(path.relative_to(REPO_ROOT))
+    else:
+        unittest.main()

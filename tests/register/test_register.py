@@ -1012,7 +1012,8 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
         """`build_elapsed_s` sums every step's elapsed seconds, the build phase's too.
 
         Each fixture record took 5 s: `build`, `overview` and `validate`, then
-        `complete`, `completion-overview` and `completion-validate`.
+        `complete`, `completion-overview`, `completion-validate` and
+        `completion-observed-view-check`.
         """
         b, stores_root, artifact_root = self.built_and_completed()
         self.publish_build_phase(b, stores_root, artifact_root)
@@ -1025,7 +1026,7 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
             artifact_root=artifact_root,
             phase="completion",
         )
-        self.assertEqual(written["observed"]["build_elapsed_s"], 30.0)
+        self.assertEqual(written["observed"]["build_elapsed_s"], 35.0)
 
     def test_a_replacement_in_the_same_second_takes_its_own_stamp(self) -> None:
         """A forced run's build phase may archive at the same second; completion's stamp is still new."""

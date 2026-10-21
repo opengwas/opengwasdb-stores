@@ -2154,6 +2154,80 @@ class TestVariantReferenceExecution(unittest.TestCase):
         record_check()
 
 
+class TestObservedViewCheckFailureMessage(unittest.TestCase):
+    """What the operator reads when the Observed-View Check does not pass (#306, ADR 0037)."""
+
+    VERDICT_PATH = "/artifacts/OGS-00111/work/observed-view-check.json"
+
+    def message(self, exit_code: int, stdout: str, stderr: str = "") -> str:
+        step = Step(
+            name="completion-observed-view-check",
+            argv=["opengwasdb", "check-observed-view", "/s", "/s", "--output", self.VERDICT_PATH],
+            inputs=[],
+            outputs=[],
+        )
+        return run.observed_view_check_failure(step, "OGS-00111", step.argv, exit_code, stdout, stderr)
+
+    def verdict(self, **overrides: Any) -> str:
+        verdict: dict[str, Any] = {
+            "axis": {"parent_rows_unmapped": 0, "order_preserved": True},
+            "analyses": {"n_parent": 1, "n_child": 1, "identical": True},
+            "totals": {"z_mismatch": 3},
+            "failures": ["z_mismatch"],
+            **overrides,
+        }
+        return json.dumps(verdict, indent=2) + "\n"
+
+    def test_a_mismatch_names_its_counters_and_the_verdict(self) -> None:
+        message = self.message(1, self.verdict())
+        record_check()
+        self.assertIn("z_mismatch=3", message)
+        self.assertIn(self.VERDICT_PATH, message)
+
+    def test_duplicated_stdout_reads_its_first_verdict(self) -> None:
+        message = self.message(1, self.verdict() * 2)
+        record_check()
+        self.assertIn("z_mismatch=3", message)
+        self.assertNotIn("unreadable", message)
+
+    def test_an_unreadable_verdict_is_said_so_with_the_path_and_the_start_of_stdout(self) -> None:
+        for label, stdout in (
+            ("malformed", "this is not json"),
+            ("truncated", self.verdict()[:40]),
+            ("empty", ""),
+            ("no totals", json.dumps({"failures": ["z_mismatch"]})),
+        ):
+            with self.subTest(label):
+                message = self.message(1, stdout, "boom")
+                record_check()
+                self.assertIn("verdict unreadable", message)
+                self.assertIn(self.VERDICT_PATH, message)
+                self.assertIn(repr(stdout[:200]), message)
+                self.assertIn("boom", message)
+
+    def test_axis_failures_name_their_counts(self) -> None:
+        message = self.message(
+            1,
+            self.verdict(
+                axis={"parent_rows_unmapped": 7, "order_preserved": False},
+                analyses={"n_parent": 2, "n_child": 3, "identical": False},
+                failures=["parent_rows_unmapped", "order_not_preserved", "analyses_mismatch"],
+            ),
+        )
+        record_check()
+        self.assertIn("parent_rows_unmapped=7", message)
+        self.assertIn("order_preserved=false", message)
+        self.assertIn("analyses_identical=false", message)
+        self.assertIn(self.VERDICT_PATH, message)
+
+    def test_exit_2_is_a_refusal_with_stderr_and_the_path(self) -> None:
+        message = self.message(2, "", "error: refused: not Dense")
+        record_check()
+        self.assertIn("refused", message)
+        self.assertIn("error: refused: not Dense", message)
+        self.assertIn(self.VERDICT_PATH, message)
+
+
 def main() -> None:
     suite = unittest.TestSuite()
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestStepClassificationAndArgvRewrite))
@@ -2167,6 +2241,7 @@ def main() -> None:
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestCompletingAPublishedObservedOnlyStore))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestResumingAnInterruptedCompletion))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestProvenanceAndSequentialPlan))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestObservedViewCheckFailureMessage))
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     if not result.wasSuccessful():

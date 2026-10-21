@@ -95,6 +95,7 @@ from ogstores.plan import (
     BUILD_PHASE,
     COMPLETION_PHASE,
     COMPLETION_STEP_PREFIX,
+    OBSERVED_VIEW_CHECK_STEP,
     REGISTER_STEPS,
     Step,
     completion_step_name,
@@ -114,6 +115,7 @@ VALID_STEP_NAMES: frozenset[str] = frozenset({
     "overview",
     "validate",
     *(completion_step_name(name) for name in ("rho", "overview", "validate")),
+    OBSERVED_VIEW_CHECK_STEP,
     *REGISTER_STEPS.values(),
     "unknown",
 })
@@ -1716,12 +1718,73 @@ def execute_step(
         )
 
     if not success and check:
-        raise StepExecutionError(
-            f"Step {step.name!r} for {store_id} failed with exit code {exit_code}:\n{stderr_captured}",
-            result,
-        )
+        if step.name == OBSERVED_VIEW_CHECK_STEP:
+            message = observed_view_check_failure(
+                step, store_id, executed_argv, exit_code, stdout_captured or "", stderr_captured or ""
+            )
+        else:
+            message = f"Step {step.name!r} for {store_id} failed with exit code {exit_code}:\n{stderr_captured}"
+        raise StepExecutionError(message, result)
 
     return result
+
+
+def _observed_view_failure_counts(verdict: Mapping[str, Any]) -> str:
+    """Each name in a verdict's `failures`, with its count where the verdict holds one.
+
+    A counter is in `totals`. The three axis and Analyses failures carry
+    theirs elsewhere: `axis.parent_rows_unmapped`, `axis.order_preserved` and
+    `analyses.identical`.
+    """
+    totals, axis, analyses = verdict["totals"], verdict["axis"], verdict["analyses"]
+    named: list[str] = []
+    for name in verdict["failures"]:
+        if name in totals:
+            named.append(f"{name}={totals[name]}")
+        elif name == "parent_rows_unmapped":
+            named.append(f"parent_rows_unmapped={axis['parent_rows_unmapped']}")
+        elif name == "order_not_preserved":
+            named.append(f"order_preserved={str(axis['order_preserved']).lower()}")
+        elif name == "analyses_mismatch":
+            named.append(
+                f"analyses_identical={str(analyses['identical']).lower()} "
+                f"(n_parent={analyses['n_parent']}, n_child={analyses['n_child']})"
+            )
+        else:
+            named.append(name)
+    return ", ".join(named)
+
+
+def observed_view_check_failure(
+    step: Step, store_id: str, argv: list[str], exit_code: int, stdout: str, stderr: str
+) -> str:
+    """What the operator reads when the Observed-View Check does not pass (ADR 0037).
+
+    Every message names where the verdict is kept. Exit 1 is a mismatch: the
+    command printed its verdict, so the message names the failing counters
+    with their counts. Exit 2 is a refusal, which prints no verdict: it is
+    reported as one, with the command's stderr. A verdict that cannot be read
+    from stdout is said to be unreadable, with the reason and the start of
+    stdout, never replaced by a generic failure.
+    """
+    where = f"Step {step.name!r} for {store_id}"
+    output = argv[argv.index("--output") + 1] if "--output" in argv else "(no --output)"
+    if exit_code == 2:
+        return f"{where} was refused by {step.argv[1]} (exit 2); verdict: {output}\n{stderr}"
+    try:
+        # The first object: a step that exits non-zero has its output captured twice.
+        verdict, _ = json.JSONDecoder().raw_decode(stdout.lstrip())
+        failing = _observed_view_failure_counts(verdict)
+    except (ValueError, KeyError, TypeError) as exc:
+        return (
+            f"{where} failed with exit code {exit_code}; verdict unreadable: {exc!r}; "
+            f"verdict: {output}; stdout begins {stdout[:200]!r}\n{stderr}"
+        )
+    return (
+        f"{where} found the completed Store differs from the published one in what was observed "
+        f"(exit {exit_code}); failing counters: {failing or 'none named'}; verdict: {output}\n"
+        f"Nothing was published and the published Store is as it was.\n{stderr}"
+    )
 
 
 def run_step(

@@ -39,6 +39,11 @@ Test suite for the committed Validation Records (issue #135), governed by
    documented value: `variant_reference` (`provided` or `extracted`, issue #148)
    and `resumed` (`true`). OGS-00005's recipe names a variant reference, so its
    record carries `variant_reference: provided`.
+8. **The published Store's completion state** (issue #307, ADR 0037):
+   `observed.completion_state` is `observed_only` for a build phase and
+   `reference_completed` for a completion phase or a two-id child: the phase
+   that was published, never `build.yaml`'s declaration. The records committed
+   before the field was written do not carry it and are not migrated.
 
 The format is defined once in
 [`docs/release-metadata-schema.md`](../../docs/release-metadata-schema.md#validationyaml).

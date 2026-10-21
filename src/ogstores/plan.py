@@ -49,8 +49,9 @@ A `reference_completed` release with no `derived_from` completes its own
 Store under its id (ADR 0037). `plan()` returns two phases: the build phase,
 exactly what the same bundle plans as `observed_only`, then the completion
 phase, `complete` from the id's published Store into its staged Store
-followed by the declared post steps under `completion-` record names. Only a
-Dense release is planned this way. A two-id child (`derived_from`) plans as
+followed by the declared post steps under `completion-` record names, and
+last the Observed-View Check, which gates the replacement of the published
+Store. Only a Dense release is planned this way. A two-id child (`derived_from`) plans as
 before.
 
 This is the only place in the repository that knows how to invoke
@@ -273,6 +274,17 @@ COMPLETED_RELEASE_SUFFIX: str = "-completed"
 # Only the layouts the Observed-View Check can compare complete their own
 # Store; the others keep needing a two-id child (ADR 0037).
 SINGLE_ID_COMPLETION_LAYOUTS: frozenset[str] = frozenset({"dense"})
+# The Observed-View Check compares the published Store with the staged
+# completed one before the completion phase publishes (ADR 0037, Decision 2).
+# Its seed is one fixed default for every release, the ADR's benchmark seed,
+# so each verdict is reproducible from its record; it is not a `build.yaml`
+# option. The verdict is written under the release's work directory, not in
+# `records/`, and the step's record holds it as the command's stdout.
+OBSERVED_VIEW_CHECK_COMMAND: str = "check-observed-view"
+OBSERVED_VIEW_CHECK_STEP: str = "completion-observed-view-check"
+OBSERVED_VIEW_CHECK_SEED: int = 20261021
+OBSERVED_VIEW_CHECK_N_RANDOM: int = 1000
+OBSERVED_VIEW_VERDICT_FILENAME: str = "observed-view-check.json"
 
 
 def completion_step_name(name: str) -> str:
@@ -826,9 +838,32 @@ def _completion_phase(bundle: Bundle, root: Path) -> list[Step]:
         _post_steps(store_p, post, spec),
         _indexed_subset_steps(store_p, indexed_subset_declarations(bundle)),
     )
-    return [complete] + [
-        replace(step, name=completion_step_name(step.name), phase=COMPLETION_PHASE)
-        for step in post_steps
+    check = Step(
+        name=OBSERVED_VIEW_CHECK_STEP,
+        argv=[
+            "opengwasdb",
+            OBSERVED_VIEW_CHECK_COMMAND,
+            str(store_p),
+            str(store_p),
+            "--seed",
+            str(OBSERVED_VIEW_CHECK_SEED),
+            "--n-random",
+            str(OBSERVED_VIEW_CHECK_N_RANDOM),
+            "--output",
+            str(paths.work_dir(bundle.store_id, root=root) / OBSERVED_VIEW_VERDICT_FILENAME),
+        ],
+        inputs=[store_p],
+        outputs=[],
+        phase=COMPLETION_PHASE,
+        published_store_arg=2,
+    )
+    return [
+        complete,
+        *(
+            replace(step, name=completion_step_name(step.name), phase=COMPLETION_PHASE)
+            for step in post_steps
+        ),
+        check,
     ]
 
 
@@ -840,6 +875,11 @@ __all__ = [
     "COMPLETION_STEP_PREFIX",
     "DEFAULT_COMMANDS",
     "INDEXED_SUBSET_COMMAND",
+    "OBSERVED_VIEW_CHECK_COMMAND",
+    "OBSERVED_VIEW_CHECK_N_RANDOM",
+    "OBSERVED_VIEW_CHECK_SEED",
+    "OBSERVED_VIEW_CHECK_STEP",
+    "OBSERVED_VIEW_VERDICT_FILENAME",
     "POST_DEFAULTS",
     "REGISTER_STEPS",
     "SINGLE_ID_COMPLETION_LAYOUTS",

@@ -354,7 +354,9 @@ A Build Recipe may declare optional named `indexed_subsets` (stores #209). `plan
 A `reference_completed` release with no `derived_from` completes its own Store under its id (ADR 0037), and `plan()` returns two phases, build then completion:
 
 - **Build phase:** exactly what the same bundle plans as `observed_only` without its `complete` block: the same step names, argv and record names, ending in `register`. This is what lets a Store built before the bundle gained its `complete` block be completed without a rebuild (#305).
-- **Completion phase:** `complete`, then the declared post steps in their usual order, then `completion-validate`, ending in `completion-register`. `complete` reads the id's published Store and writes the id's Store path. Both are the same canonical token, so the Step's `published_store_arg` names the argument that is the published Store. `complete` passes `--release-id <id>-completed` and no `--store-id`: the completed manifest inherits its `store_id`, the id, from its source (opengwasdb ADR 0011). The completion command builds the Top-Hit Index inline, so `post.top_hits` plans no completion-phase step; `rho`, `overview` and each declared Indexed Variant Subset do, as `completion-rho`, `completion-overview` and `completion-indexed-subset-<name>`.
+- **Completion phase:** `complete`, then the declared post steps in their usual order, then `completion-validate`, then `completion-observed-view-check`, ending in `completion-register`. `complete` reads the id's published Store and writes the id's Store path. Both are the same canonical token, so the Step's `published_store_arg` names the argument that is the published Store. `complete` passes `--release-id <id>-completed` and no `--store-id`: the completed manifest inherits its `store_id`, the id, from its source (opengwasdb ADR 0011). The completion command builds the Top-Hit Index inline, so `post.top_hits` plans no completion-phase step; `rho`, `overview` and each declared Indexed Variant Subset do, as `completion-rho`, `completion-overview` and `completion-indexed-subset-<name>`.
+
+`completion-observed-view-check` is the Observed-View Check (opengwasdb `check-observed-view`, [ADR 0037](../adr/0037-reference-completion-replaces-its-store.md) Decision 2): `opengwasdb check-observed-view <published Store> <staged Store> --seed 20261021 --n-random 1000 --output <work dir>/observed-view-check.json`. Its first Store argument is the published one (`published_store_arg` 2), which staging leaves alone, and the second the staged one, rewritten to `.partial`. The seed is one fixed default for every release, the ADR's benchmark seed; there is no `build.yaml` option for it. The verdict is the command's stdout, so it is the step's record; the same JSON is written to `work/observed-view-check.json`, not to `records/`. A non-zero exit fails the step, so `completion-register` never runs and the Observed-Only Store is not touched: exit 1 (a mismatch) is reported with the failing counters and their counts and the path of the verdict, exit 2 (a refusal, which prints no verdict) as a refusal with the command's stderr. Every such message names the verdict's path, `<artifact root>/<id>/work/observed-view-check.json`; the counts include the axis ones (`parent_rows_unmapped`, `order_preserved`, `analyses_identical`), and a stdout that holds no decodable verdict is reported as "verdict unreadable" with the reason and the start of stdout. Snakemake removes a failed job's record by contract, so a failed check leaves no record: its verdict is that file, and the fixed seed makes it exactly reproducible from the same staged Store. The evidence of a swap is the passing check's record. A runtime without the command refuses a release that completes its own Store before anything is written (`resources.verify_observed_view_check_for_releases`, called from the entry point's dry run and run and from the Snakefile's `onstart`, as the Indexed Variant Subset guard is), naming the command and the runtime pin.
 
 Every completion-phase record name differs from every build-phase one, so both phases' records stay in `records/` once the completed Store replaces the Observed-Only Store. The first step keeps the name `complete`, so `register` still accepts a `complete-dense-resume` substitution for it. Only a Dense release is planned this way: `plan()` refuses another layout, naming it and ADR 0037, because the Observed-View Check that gates the replacement compares only Dense Stores so far. A two-id child (`derived_from`) plans exactly as before. The golden is `tests/plan/golden/OGS-00003-single-id-completed.json`: OGS-00003's recipe with a `complete` block, whose build phase is OGS-00003's own golden.
 
@@ -532,7 +534,7 @@ build_manifest ──> build ──> top_hits ──> rho ──> indexed-subset
 A release that completes its own Store (ADR 0037) runs both phases in one run. Its build phase is the chain above. Its completion phase then starts from the build phase's `register` record, because it completes the Store that phase published:
 
 ```text
-register ──> complete ──> completion-rho ──> completion-indexed-subset-<name> ──> completion-overview ──> completion-validate ──> completion-register
+register ──> complete ──> completion-rho ──> completion-indexed-subset-<name> ──> completion-overview ──> completion-validate ──> completion-observed-view-check ──> completion-register
 ```
 
 Completion-phase steps share the `step` rule, under their own `{step}` values. `completion-register` is a rule of its own, `completion_register`, which calls `register_release(..., phase="completion")`. `all` and the id's target alias depend on that record, so naming the id runs both phases. The existing rules' bodies, and the inputs of every build-phase job, are exactly what they were before ADR 0037. Snakemake's default rerun triggers compare a rule's code and a job's input set with what it recorded, so a Store built before then is not rescheduled when its bundle gains a `complete` block (#305).
@@ -700,6 +702,21 @@ observed  format_version  n_variants  n_associations  store_bytes
 `n_analyses` is admitted membership; `n_manifest` and `n_excluded` keep the
 excluded manifest rows visible (issue #217).
 
+`completion_state` is the completion state of the Store users can query, not
+the bundle's declaration (issue #307, ADR 0037). `register` records it as
+`observed.completion_state` at publication, so a release that completes its own
+Store reads `observed_only` while completion runs and `reference_completed`
+after the swap. A Validation Record written before that field carries none: the
+column then keeps the declared value, which is the state an Observed-Only
+release's or a two-id child's Store was published in, except for a release that
+completes its own Store, whose earlier publication can only have been the
+Observed-Only one, so its row reports `observed_only`. Where the published state
+is `observed_only` and the bundle declares `reference_completed`, `STORES.md`
+marks the cell `observed_only (completion pending)`; `stores.tsv` keeps the bare
+state so a machine reader still sees a documented value. A record whose state
+contradicts its bundle otherwise -- an Observed-Only Store under a two-id
+child's id -- is refused rather than published.
+
 `store_uri` is a pure function of the identifier (`<artifact-root>/<store-id>/store.opengwasdb`, ADRs 0022 and 0030). The one-time migration-note fallback that previously preferred a legacy family-first path is removed (issue #137), so the published location is where a Store must live, resolved from deployment configuration, never a stale note.
 
 ### Readiness reconciliation (issue #217)
@@ -712,7 +729,11 @@ membership, observed build, built membership, Reference Completion, the
 required format-0.2.0 `by_variant` index, the optional HM3 Indexed Variant
 Subset, Store validation, registration, format/runtime, lineage and warnings.
 `missing` and `unknown` are not passes, and a candidate-generation record is
-reported as a gap in Store validation rather than as a clean verdict.
+reported as a gap in Store validation rather than as a clean verdict. The
+interim single-id state -- `reference_completed` declared while the
+Observed-Only Store is published -- is reported as that declared order of
+business on the Reference Completion, format/runtime and observed-build
+channels, never as a mismatched artifact (issue #307, ADR 0037).
 
 The manifest count is a *selection*, not intended membership: an authoritative
 Source Inventory is reported separately and stays `unknown` where none is
