@@ -116,20 +116,26 @@ SUITES: list[Suite] = discover_suites(REPO_ROOT / "tests", r_suites=R_SUITES, sp
 # host). CI gives each of them a runner of its own (`--list-release-stack`).
 RELEASE_STACK_SUITES: tuple[str, ...] = ("workflow", "release-faults/boundaries", "release-faults/interrupts")
 
-# The suites whose tests each run in a process of their own, side by side,
+# The suites whose tests are spread over several processes, side by side,
 # because together they take far longer than their slowest test. A
 # release-stack test costs a fixture-scale release or more (15-25s, nearly all
 # of it process start-up: Snakemake re-reads the Snakefile for every job, and
 # every step starts the `opengwasdb` CLI); `phase-b-candidate` is 74 tests of
-# 1-4s. A process repeats its file's `setUpModule` or `setUpClass` fixture,
-# which costs CPU, not wall clock.
-PER_TEST_SUITES: frozenset[str] = frozenset({*RELEASE_STACK_SUITES, "phase-b-candidate"})
+# 1-4s.
+#
+# Each process repeats its file's `setUpModule` and the `setUpClass` of every
+# class it runs a test of, so there are only as many as there are jobs (see
+# `shards`). One process per test on a 4-core CI runner took `workflow` from
+# 264s to 567s: its class fixtures, repeated per test, took its CPU time from
+# 264s to 2235s.
+SHARDED_SUITES: frozenset[str] = frozenset({*RELEASE_STACK_SUITES, "phase-b-candidate"})
 
 # Rough cost in seconds of one process, used only to start the long ones first
 # so they overlap with the short ones instead of starting last and running
-# alone. For a suite in `PER_TEST_SUITES` it is the cost of one of its tests,
-# with its fixture. Wrong values cost a little wall clock, never correctness;
-# unlisted suites are assumed short.
+# alone. For a suite in `SHARDED_SUITES` it is the cost of one of its tests,
+# with its fixture, and a process costs that per test it runs. Wrong values
+# cost a little wall clock, never correctness; unlisted suites are assumed
+# short.
 SUITE_COST: dict[str, float] = {
     "release-faults/boundaries": 45.0,
     "release-faults/interrupts": 45.0,
@@ -168,8 +174,10 @@ THREAD_ENV: dict[str, str] = {
 }
 
 # Most processes wait on their own subprocesses, one at a time, so one per core
-# is about right. The cap leaves a shared host's other cores to other work.
-DEFAULT_JOBS: int = min(48, os.cpu_count() or 1)
+# is about right. The cap leaves a shared host's other cores to other work; at
+# 64, `workflow` runs one process per test (74s for every suite, against 90s
+# at 48 on the 224-core host).
+DEFAULT_JOBS: int = min(64, os.cpu_count() or 1)
 
 # The id of every test a script would run with the given arguments, one per
 # line, without running any: unittest itself selects them, so `-k` and test
@@ -207,19 +215,36 @@ def list_tests(script: list[str]) -> list[str]:
     return result.stdout.split()
 
 
-def jobs_for(label: str, script: list[str]) -> list[tuple[str, list[str]]]:
-    """The processes that run one suite: (test id or "", command).
+def shards(tests: list[str], count: int) -> list[list[str]]:
+    """`tests`, in order, cut into `count` runs whose sizes differ by at most one.
 
-    A suite in `PER_TEST_SUITES` runs as one process per test; every other
-    suite is one process. One that selects no test is refused, so a stale `-k`
-    in `SPLITS` cannot pass by running nothing.
+    Runs of the listed order keep a class's tests together, so a class's
+    `setUpClass` is repeated only where a cut falls inside it.
     """
-    if label not in PER_TEST_SUITES:
-        return [("", script)]
+    size, extra = divmod(len(tests), count)
+    runs: list[list[str]] = []
+    start = 0
+    for n in range(count):
+        end = start + size + (1 if n < extra else 0)
+        runs.append(tests[start:end])
+        start = end
+    return runs
+
+
+def jobs_for(label: str, script: list[str], jobs: int) -> list[tuple[list[str], list[str]]]:
+    """The processes that run one suite: (the tests it names, command).
+
+    A suite in `SHARDED_SUITES` runs as up to `jobs` processes, one per test
+    while there are no more tests than that; every other suite is one process,
+    naming no test. One that selects no test is refused, so a stale `-k` in
+    `SPLITS` cannot pass by running nothing.
+    """
+    if label not in SHARDED_SUITES:
+        return [([], script)]
     tests = list_tests(script)
     if not tests:
         raise RuntimeError(f"{' '.join(script)} selects no tests")
-    return [(test, [script[0], test]) for test in tests]
+    return [(run, [script[0], *run]) for run in shards(tests, min(jobs, len(tests)))]
 
 
 def run_job(label: str, kind: str, script: list[str]) -> tuple[bool, float, str]:
@@ -328,16 +353,16 @@ def main() -> int:
 
     # Each suite's processes, and the outcome of each once it has run.
     pending: dict[str, int] = {}
-    outcomes: dict[str, list[tuple[str, bool, float, str]]] = {label: [] for label, _, _ in suites}
-    queue: list[tuple[str, str, str, list[str]]] = []
+    outcomes: dict[str, list[tuple[list[str], bool, float, str]]] = {label: [] for label, _, _ in suites}
+    queue: list[tuple[str, str, list[str], list[str]]] = []
     for label, kind, script in suites:
         try:
-            parts = jobs_for(label, script)
+            parts = jobs_for(label, script, jobs)
         except RuntimeError as exc:
-            outcomes[label].append(("", False, 0.0, str(exc)))
+            outcomes[label].append(([], False, 0.0, str(exc)))
             continue
         pending[label] = len(parts)
-        queue.extend((label, kind, test, command) for test, command in parts)
+        queue.extend((label, kind, tests, command) for tests, command in parts)
 
     def report(label: str) -> None:
         ok = all(passed for _, passed, _, _ in outcomes[label])
@@ -354,15 +379,15 @@ def main() -> int:
     # rather than starting last and running alone. Wall clock is then bounded
     # by the slowest single process rather than by their sum.
     print(f"running {len(suites)} suites as {len(queue)} processes, {jobs} at a time\n")
-    queue.sort(key=lambda job: -SUITE_COST.get(job[0], 1.0))
+    queue.sort(key=lambda job: -SUITE_COST.get(job[0], 1.0) * max(1, len(job[2])))
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         futures = {
-            pool.submit(run_job, label, kind, command): (label, test)
-            for label, kind, test, command in queue
+            pool.submit(run_job, label, kind, command): (label, tests)
+            for label, kind, tests, command in queue
         }
         for future in as_completed(futures):
-            label, test = futures[future]
-            outcomes[label].append((test, *future.result()))
+            label, tests = futures[future]
+            outcomes[label].append((tests, *future.result()))
             pending[label] -= 1
             if pending[label] == 0:
                 report(label)
@@ -371,11 +396,12 @@ def main() -> int:
 
     failed = [label for label, _, _ in suites if not all(passed for _, passed, _, _ in outcomes[label])]
     for label in failed:
-        for test, passed, _, output in outcomes[label]:
+        for tests, passed, _, output in outcomes[label]:
             if passed:
                 continue
             print("=" * 60)
-            print(f"FAILED: {label}{f' ({test})' if test else ''}")
+            more = f" and {len(tests) - 1} more" if len(tests) > 1 else ""
+            print(f"FAILED: {label}{f' ({tests[0]}{more})' if tests else ''}")
             print(output.rstrip())
 
     print("=" * 60)
