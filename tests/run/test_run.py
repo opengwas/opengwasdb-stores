@@ -74,7 +74,7 @@ from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-from ogstores import _pdeath_supervisor, bundle, paths, plan, run
+from ogstores import _pdeath_supervisor, bundle, paths, plan, release, run
 from ogstores.bundle import Bundle
 from ogstores.plan import Step
 from ogstores.run import (
@@ -1457,6 +1457,268 @@ class TestForcedRunGuard(unittest.TestCase):
         record_check()
 
 
+class TestCompletingAPublishedObservedOnlyStore(unittest.TestCase):
+    """Completion-phase jobs over the id's own published Observed-Only Store are no rebuild (#305, ADR 0037).
+
+    What is published is read from records and bundles, never from the Store
+    (ADR 0023): the build phase's `records/register.json` without
+    `records/completion-register.json` says the Observed-Only Store is
+    published and not yet completed. A job is the record it writes.
+    """
+
+    STORE_ID = "OGS-00110"
+    STAMP = "20261021T090000Z"
+    # The #195 refusal exactly as it read before #305, which must not change.
+    REFUSAL = (
+        "Refusing to run: these releases are already published, and this run would "
+        "rebuild them, rewriting their work/ and records/:\n  {store_id}: {store}\n"
+        "Nothing was written. To replace one, name its id as a target and add "
+        "`--config force=1`; the replaced Store, its records and its validation.yaml "
+        "are archived under replaced/<UTC>/ beside it (#195)."
+    )
+    COMPLETION_JOBS = ("complete", "completion-validate", "completion-register")
+
+    def setUp(self) -> None:
+        self.test_dir = tempfile.TemporaryDirectory()
+        self.registry = Path(self.test_dir.name) / "stores"
+        self.root = Path(self.test_dir.name) / "artifacts"
+
+    def tearDown(self) -> None:
+        self.test_dir.cleanup()
+
+    def write_bundle(self, store_id: str, *, derived_from: str | None = None, complete: bool = True) -> None:
+        """A Dense bundle: single-id completed, two-id child (`derived_from`) or Observed-Only."""
+        import yaml
+
+        bundle_dir = self.registry / store_id
+        bundle_dir.mkdir(parents=True)
+        release = {"store_id": store_id, "status": "accepted", "derived_from": derived_from}
+        build: dict[str, Any] = {
+            "store_id": store_id,
+            "layout": "dense",
+            "completion_state": "reference_completed" if complete else "observed_only",
+            "post": {"top_hits": False, "overview": False, "validate": True},
+        }
+        if derived_from is None:
+            build["build"] = {"command": "build-dense-vcf", "options": {"source-assembly": "hg38"}}
+        if complete:
+            build["complete"] = {"command": "complete-dense", "options": {"ld-panel": "/panel", "ancestry": "EUR"}}
+        (bundle_dir / "release.yaml").write_text(yaml.safe_dump(release), encoding="utf-8")
+        (bundle_dir / "build.yaml").write_text(yaml.safe_dump(build), encoding="utf-8")
+
+    def publish(self, store_id: str, *records: str) -> None:
+        """A published Store and the named records beside it."""
+        paths.store_path(store_id, root=self.root).mkdir(parents=True)
+        records_dir = paths.records_dir(store_id, root=self.root)
+        records_dir.mkdir(parents=True)
+        for name in records:
+            (records_dir / f"{name}.json").write_text(json.dumps({"step": name}) + "\n", encoding="utf-8")
+
+    def jobs(self, *records: str | None, store_id: str = STORE_ID) -> list[tuple[Path, str, str | None]]:
+        return [(self.root, store_id, record) for record in records]
+
+    def refusal(self, store_id: str = STORE_ID) -> str:
+        return self.REFUSAL.format(store_id=store_id, store=paths.store_path(store_id, root=self.root))
+
+    def test_completion_phase_jobs_over_the_published_observed_only_store_run_unforced(self) -> None:
+        self.write_bundle(self.STORE_ID)
+        self.publish(self.STORE_ID, "build", "validate", "register")
+        jobs = self.jobs(*self.COMPLETION_JOBS)
+        scheduled = [(self.root, self.STORE_ID)]
+
+        completing = run.completing_own_stores(jobs, registry_root=self.registry)
+
+        self.assertEqual(completing, frozenset({self.STORE_ID}))
+        run.refuse_rebuilding_published_releases(scheduled, completing=completing)
+        self.assertEqual(run.prepare_release_run(scheduled, completing=completing, stamp=self.STAMP), [])
+        self.assertEqual(run.pending_force_snapshots(self.STORE_ID, self.root), [], "no snapshot is taken")
+        record_check()
+
+    def test_a_build_phase_job_over_the_published_store_is_still_refused_unchanged(self) -> None:
+        """`build_manifest` (no record), a build-phase step and the build phase's register are each a rebuild."""
+        self.write_bundle(self.STORE_ID)
+        self.publish(self.STORE_ID, "build", "validate", "register")
+        scheduled = [(self.root, self.STORE_ID)]
+
+        for build_phase_job in (None, "build", "validate", "register"):
+            with self.subTest(job=build_phase_job):
+                completing = run.completing_own_stores(
+                    self.jobs(*self.COMPLETION_JOBS, build_phase_job), registry_root=self.registry
+                )
+                self.assertEqual(completing, frozenset())
+                with self.assertRaises(StoreExistsError) as ctx:
+                    run.refuse_rebuilding_published_releases(scheduled, completing=completing)
+                self.assertEqual(str(ctx.exception), self.refusal())
+        record_check()
+
+    def test_the_records_of_a_dry_run_are_read_by_the_jobs_parser_and_fail_closed(self) -> None:
+        """The entry point reads each job's record from the dry run, or refuses to guess."""
+        sample = (
+            "rule step:\n    wildcards: root=/AR, store_id=OGS-00110, step=complete\n"
+            "rule completion_register:\n    wildcards: root=/AR, store_id=OGS-00110\n"
+            "localrule build_manifest:\n    wildcards: root=/AR, store_id=OGS-00110\n"
+        )
+        self.assertEqual(
+            release.scheduled_records(sample),
+            [("/AR", "OGS-00110", None), ("/AR", "OGS-00110", "complete"), ("/AR", "OGS-00110", "completion-register")],
+        )
+        with self.assertRaises(RuntimeError):
+            release.scheduled_records("rule completion_register:\n    jobid: 1\n    wildcards: root=/AR\n")
+        record_check()
+
+    def test_only_an_observed_only_store_its_own_release_published_is_completed(self) -> None:
+        """No completion over a completed Store, over a Store with no register record, or for a two-id child."""
+        self.write_bundle(self.STORE_ID)
+        self.write_bundle("OGS-00111")
+        self.write_bundle("OGS-00109", complete=False)
+        self.write_bundle("OGS-00112", derived_from="OGS-00109")
+        self.publish(self.STORE_ID, "build", "validate", "register", "complete", "completion-validate", "completion-register")
+        self.publish("OGS-00111", "build", "validate")
+        self.publish("OGS-00112", "complete", "validate", "register")
+        jobs = [
+            *self.jobs(*self.COMPLETION_JOBS),
+            *self.jobs(*self.COMPLETION_JOBS, store_id="OGS-00111"),
+            *self.jobs("complete", store_id="OGS-00112"),
+        ]
+
+        self.assertEqual(run.completing_own_stores(jobs, registry_root=self.registry), frozenset())
+        record_check()
+
+    def test_a_forced_run_discards_an_interrupted_completions_checkpoint(self) -> None:
+        """A forced run rebuilds both phases, so it never resumes the old completion; an unforced one may."""
+        self.write_bundle(self.STORE_ID)
+        self.publish(self.STORE_ID, "build", "validate", "register")
+        checkpoint = paths.store_dir(self.STORE_ID, root=self.root) / ".store.opengwasdb.partial.checkpoint"
+        (checkpoint / "blocks").mkdir(parents=True)
+        (checkpoint / "build_params.json").write_text("{}\n", encoding="utf-8")
+        started = paths.completion_start_path(self.STORE_ID, root=self.root)
+        started.parent.mkdir(parents=True)
+        started.write_text('{"planned_argv": []}\n', encoding="utf-8")
+        scheduled = [(self.root, self.STORE_ID)]
+
+        run.prepare_release_run(scheduled, completing=frozenset({self.STORE_ID}), stamp=self.STAMP)
+        self.assertTrue(checkpoint.is_dir(), "an unforced run keeps the checkpoint to resume")
+        self.assertTrue(started.is_file())
+
+        run.prepare_release_run(scheduled, forced=frozenset({self.STORE_ID}), stamp=self.STAMP)
+        self.assertFalse(checkpoint.exists(), "a forced run discards it")
+        self.assertFalse(started.exists(), "and the record of the plan that started it")
+        record_check()
+
+
+class TestResumingAnInterruptedCompletion(unittest.TestCase):
+    """`complete` resumes the checkpoint an interrupted `complete-dense` left, only from the plan that made it (#305).
+
+    Before a fresh `complete-dense` starts, `execute_step` records the step's
+    planned argv beside the release's work. A checkpoint is resumed with
+    `complete-dense-resume` only when that record names the argv planned now.
+    These tests run a fake `opengwasdb` that writes down how it was called.
+    """
+
+    STORE_ID = "OGS-00110"
+
+    def setUp(self) -> None:
+        self.test_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.test_dir.name)
+        self.store = paths.store_path(self.STORE_ID, root=self.root)
+        self.store.mkdir(parents=True)
+        self.checkpoint = paths.store_dir(self.STORE_ID, root=self.root) / ".store.opengwasdb.partial.checkpoint"
+        self.evidence = self.root / "called.json"
+        self.interrupt = self.root / "interrupt"
+        self.fake = self.root / "opengwasdb"
+        # Told to be interrupted, it writes its checkpoint, as `complete-dense`
+        # does before its long work, and exits as SIGINT would leave it.
+        self.fake.write_text(
+            f"#!{sys.executable}\n"
+            "import json, sys\n"
+            "from pathlib import Path\n"
+            f"started = sorted(str(p) for p in Path({str(paths.work_dir(self.STORE_ID, root=self.root))!r}).glob('*'))\n"
+            f"if Path({str(self.interrupt)!r}).exists():\n"
+            f"    Path({str(self.checkpoint)!r}).mkdir()\n"
+            "    raise SystemExit(130)\n"
+            f"Path({str(self.evidence)!r}).write_text(json.dumps({{'argv': sys.argv[1:], 'work': started}}))\n"
+            f"Path({str(paths.partial_store_path(self.STORE_ID, root=self.root))!r}).mkdir(exist_ok=True)\n",
+            encoding="utf-8",
+        )
+        self.fake.chmod(0o755)
+
+    def tearDown(self) -> None:
+        self.test_dir.cleanup()
+
+    def complete(self, *options: str) -> Step:
+        return Step(
+            name="complete",
+            argv=[str(self.fake), "complete-dense", str(self.store), str(self.store), "--release-id", "X", *options],
+            inputs=[self.store],
+            outputs=[self.store],
+            phase=plan.COMPLETION_PHASE,
+            published_store_arg=2,
+        )
+
+    def interrupted(self, started_by: Step | None) -> None:
+        """A checkpoint an interrupted completion left: started from `started_by`, or by nothing this workflow ran."""
+        if started_by is None:
+            self.checkpoint.mkdir()
+            return
+        self.interrupt.touch()
+        with self.assertRaises(StepExecutionError):
+            execute_step(started_by, self.STORE_ID, artifact_root=self.root, resume=True)
+        self.interrupt.unlink()
+        self.assertTrue(self.checkpoint.is_dir())
+
+    def called(self) -> list[str] | None:
+        return json.loads(self.evidence.read_text())["argv"] if self.evidence.exists() else None
+
+    def test_a_fresh_completion_records_its_plan_before_it_starts(self) -> None:
+        execute_step(self.complete("--min-cor", "0.5"), self.STORE_ID, artifact_root=self.root, resume=True)
+
+        called = json.loads(self.evidence.read_text())
+        self.assertEqual(called["argv"][0], "complete-dense")
+        self.assertEqual(len(called["work"]), 1, "the plan is recorded before the command starts")
+        record_check()
+
+    def test_a_checkpoint_started_from_the_same_plan_is_resumed(self) -> None:
+        step = self.complete("--min-cor", "0.5", "--n-workers", "4")
+        self.interrupted(started_by=step)
+
+        execute_step(step, self.STORE_ID, artifact_root=self.root, resume=True)
+
+        self.assertEqual(self.called(), ["complete-dense-resume", str(self.checkpoint), "--n-workers", "4"])
+        record_check()
+
+    def test_a_checkpoint_started_from_another_plan_is_refused_naming_the_difference(self) -> None:
+        self.interrupted(started_by=self.complete("--min-cor", "0.0"))
+
+        with self.assertRaises(ValueError) as ctx:
+            execute_step(self.complete("--min-cor", "0.5"), self.STORE_ID, artifact_root=self.root, resume=True)
+
+        self.assertIn("`--min-cor 0.0` became `--min-cor 0.5`", str(ctx.exception))
+        self.assertIsNone(self.called(), "nothing ran")
+        self.assertTrue(self.checkpoint.is_dir())
+        record_check()
+
+    def test_a_checkpoint_this_workflow_did_not_start_is_refused(self) -> None:
+        self.interrupted(started_by=None)
+
+        with self.assertRaises(ValueError) as ctx:
+            execute_step(self.complete(), self.STORE_ID, artifact_root=self.root, resume=True)
+
+        self.assertIn("--config force=1", str(ctx.exception))
+        self.assertIsNone(self.called(), "nothing ran")
+        self.assertTrue(self.checkpoint.is_dir())
+        record_check()
+
+    def test_an_unforced_run_never_discards_a_checkpoint(self) -> None:
+        """A planned `--overwrite`, which would discard the checkpoint, still resumes it or is refused."""
+        step = self.complete("--overwrite")
+        self.interrupted(started_by=step)
+
+        execute_step(step, self.STORE_ID, artifact_root=self.root, resume=True)
+
+        self.assertEqual(self.called(), ["complete-dense-resume", str(self.checkpoint)])
+        record_check()
+
+
 class TestProvenanceAndSequentialPlan(unittest.TestCase):
     """Test provenance derivation bound to executable environment, tripwires, resumption, and sequential execution."""
 
@@ -1976,6 +2238,8 @@ def main() -> None:
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestCommandExecClassification))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPublicationRollbackAndCrashRecovery))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestForcedRunGuard))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestCompletingAPublishedObservedOnlyStore))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestResumingAnInterruptedCompletion))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestProvenanceAndSequentialPlan))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestObservedViewCheckFailureMessage))
     runner = unittest.TextTestRunner(verbosity=2)
