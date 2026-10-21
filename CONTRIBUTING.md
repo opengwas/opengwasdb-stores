@@ -80,7 +80,48 @@ feat/<name>          a feature branch, in the primary checkout
 ticket/<n>-<slug>    one ticket's work, in its own worktree
 ```
 
+### Where they live
+
+Worktrees live under `/data/opengwasdb/work/worktrees/<name>`, not `/home` or
+`/tmp`: everything this project writes goes under `/data/opengwasdb`. Set
+`TMPDIR` and `PIXI_CACHE_DIR` on `/data` too:
+
+```sh
+export TMPDIR=/data/opengwasdb/work/tmp PIXI_CACHE_DIR=/data/opengwasdb/work/pixi-cache
+git worktree add /data/opengwasdb/work/worktrees/<name> -b ticket/<n>-<slug> origin/dev
+```
+
+With the cache on the same filesystem as the worktrees, pixi reflinks or
+hardlinks each environment from it, so a worktree's environment costs little
+and `pixi install` is quick.
+
 ### Cleaning up
+
+After a branch merges, remove its worktree. In bulk, let the command do it:
+
+```sh
+pixi run -e dev worktree-prune             # dry run: one line per worktree, and why
+pixi run -e dev worktree-prune --sizes     # ... with each .pixi size
+pixi run -e dev worktree-prune --apply     # remove the removable ones
+```
+
+It fetches `origin` first (`--no-fetch` skips that) and removes a worktree only
+if it is not the primary checkout or the one you run it from, is not locked, has
+HEAD merged into `origin/dev` or `origin/main` (an ancestor, or squash-merged:
+`git cherry` shows nothing left), has no tracked changes and no untracked files,
+and has no running process using it: a cwd, an executable, or a command-line
+word under its path. Everything else is kept, with the reason. It never deletes
+a branch, and it exits non-zero only on errors, not because something was kept.
+
+Two limits. The process scan reads `/proc`. A process whose cwd and executable
+it cannot read (another user's, or a privilege-separated one such as an `sshd`
+session) is checked by its command line only, so a worktree that only such a
+process has as its cwd is not noticed; a process of yours whose command line it
+cannot read keeps every worktree. And an **ignored** file that cannot be
+regenerated (a scratch note in a `.gitignore`d directory, a local `.env`) is not
+detected: it goes with the worktree. Move such files out first.
+
+The commands it runs are these, by hand:
 
 ```sh
 git worktree list                 # every view, and what it has checked out
