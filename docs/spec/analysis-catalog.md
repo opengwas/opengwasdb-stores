@@ -41,12 +41,17 @@ one decision and a reason, in `selection`. The first rule that applies decides:
 | 2 | `trial: true` | `excluded` | `Trial Store Release` |
 | 3 | Access Posture `embargoed` | `excluded` | `Access Posture is embargoed` |
 | 4 | status `candidate`, `accepted`, `built` | `excluded` | `Release Status is <status>, not validated` |
-| 5 | status `superseded`, `withdrawn` | `placeholder`, after rules 7 to 9 | `Release Status is <status>: kept as placeholder rows, not listed` |
+| 5 | status `superseded`, `withdrawn`, and the Validation Record's status is not `passed` or `passed_with_warnings`, or it has no `observed.n_analyses` | `excluded` | `retired before validation` |
 | 6 | `validated`, Access Posture neither `public` nor `controlled` | `refused` | `Access Posture is <value>; a listed Store is public or controlled` |
-| 7 | `validated` or a placeholder, `observed.n_analyses` missing or not an integer | `refused` | `Validation Record has no integer observed.n_analyses` |
-| 8 | `validated` or a placeholder, admitted Release Manifest count differs from it | `refused` | `Release Manifest admits <n> Analyses but the Validation Record's observed.n_analyses is <m>` |
-| 9 | `validated` or a placeholder, a manifest value its column cannot hold | `refused` | `analyses.tsv row '<analysis_id>': <column> '<value>' is not an integer` (or `a finite number`) |
-| 10 | `validated`, otherwise | `listed` | `Release Status is validated, Access Posture is <public or controlled>` |
+| 7 | `validated`, `superseded` or `withdrawn`, `observed.n_analyses` not an integer | `refused` | `Validation Record has no integer observed.n_analyses` |
+| 8 | the admitted Release Manifest count differs from `observed.n_analyses` | `refused` | `Release Manifest admits <n> Analyses but the Validation Record's observed.n_analyses is <m>` |
+| 9 | a manifest or Validation Record value its column cannot hold exactly, or `check()` passed the Store only by tolerating `:` in an `analysis_id` (#319) | `refused` | `analyses.tsv row '<analysis_id>': <column> '<value>' is not an integer` (or `a finite number`, and so on), or `bundle.check() tolerates analysis_id values containing ':' for this release (#319), but an Analysis is named <store_id>:<analysis_id>` |
+| 10 | `superseded` or `withdrawn`, otherwise | `placeholder` | `Release Status is <status>: kept as placeholder rows, not listed` |
+| 11 | `validated`, otherwise | `listed` | `Release Status is validated, Access Posture is <public or controlled>` |
+
+The table is `analysis_catalog.policy.RULES` in order, which `decide` implements,
+`catalog_meta.serving_policy` records, `report.md` quotes when nothing is listed,
+and `tests/catalog/test_catalog.py` checks this table and ADR 0039's list against.
 
 - A refused Store does not stop the build; the other Stores are decided on
   their own.
@@ -55,6 +60,15 @@ one decision and a reason, in `selection`. The first rule that applies decides:
   (rules 7 to 9), and a failure refuses it, so a refused retired Store is not
   resolvable. A retired Trial Store Release or `embargoed` Store is excluded by
   rules 2 and 3 first, and never becomes a placeholder.
+- A retired release that never passed validation was never served, so it is
+  excluded (rule 5), not refused, and has no rows. That is every retired release
+  whose Validation Record is missing, not `passed` or `passed_with_warnings`, or
+  has no `observed.n_analyses`: `check()` does not require a record of a retired
+  release, and a candidate or accepted one that was retired has null counts.
+- `check()` reads `superseded_by` only on a `superseded` release (it refuses it
+  on any other status), so the catalog reads it through `Bundle.superseded_by` and
+  has no rule of its own for a withdrawn one.
+- A `n_associations` below `0` refuses the Store, as `register` refuses it.
 - The one exception is the schema's own absence marker: a literal `NaN` in
   `info_score_threshold` ("unavailable") or `maf_threshold` ("no MAF filter")
   is `NULL` (`docs/release-metadata-schema.md`), distinct from `0`, which stays
@@ -74,8 +88,8 @@ The columns and their types are `src/analysis_catalog/columns.py`.
 
 - **`stores`**: one row per **listed or placeholder** Store Release, with the
   columns of epic #313. `superseded_by` is the successor's Store id for a
-  superseded Store and `NULL` for a withdrawn one (whatever its `release.yaml`
-  says). A Store that is excluded or refused has no row, so nothing excluded is
+  superseded Store and `NULL` for a withdrawn one (`check()` refuses a
+  `superseded_by` on any other status). A Store that is excluded or refused has no row, so nothing excluded is
   discoverable here; `selection` is where it is accounted for.
   Facts come from `release.yaml` (`label`, `description`, `status`,
   `superseded_by`, `access_posture`, `source_snapshot_id`, `accepted_at`,
@@ -137,7 +151,7 @@ once at build (`analysis_catalog.policy.outcome_type`, `trait_class` and
 `ancestry_category`):
 
 - `outcome_type`: `binary` when `sample_size_kind` is `case_control` or
-  `stored_effect_scale` is `log_or` (the owner's ruling on #324), so
+  `stored_effect_scale` is `log_or` (#324), so
   (`sd`, `case_control`) and (`log_hazard`, `case_control`) are binary;
   `continuous` for (`sd`, `total`); `NULL` otherwise, including a blank and
   `effective` or `variant_level` without a binary scale. Never a guess.

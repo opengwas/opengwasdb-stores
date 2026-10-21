@@ -27,18 +27,41 @@ REFUSED = "refused"
 SERVED_POSTURES = ("public", "controlled")
 UNSERVED_STATUSES = ("candidate", "accepted", "built")
 RETIRED_STATUSES = ("superseded", "withdrawn")
+# `check()` tolerates ':' in an analysis_id for the two legacy releases, citing this issue.
+TOLERATED_ANALYSIS_ID_CITATION = "#319"
 
-# Recorded in `catalog_meta` and hashed into the version.
-POLICY: tuple[str, ...] = (
-    "1. bundle.check() fails: refused, with the errors",
-    "2. Trial Store Release: excluded",
-    "3. Access Posture embargoed: excluded",
-    "4. Release Status candidate, accepted or built: excluded",
-    "5. Release Status superseded or withdrawn: placeholder rows, after the count and type checks of rule 6",
-    "6. Release Status validated: listed with its Access Posture (public or controlled), "
-    "unless the admitted Release Manifest count differs from the Validation Record's "
-    "observed.n_analyses or that count is missing: refused",
+
+
+@dataclass(frozen=True)
+class Rule:
+    fact: str
+    decision: str
+
+    def __str__(self) -> str:
+        return f"{self.fact}: {self.decision}"
+
+
+# The one definition of the serving policy, in the order it applies: the first
+# rule that matches decides. `decide` implements it, `catalog_meta.serving_policy`
+# records it, the report quotes it, and the spec and ADR 0039 list it.
+RULES: tuple[Rule, ...] = (
+    Rule("bundle.check() returns errors", REFUSED),
+    Rule("Trial Store Release", EXCLUDED),
+    Rule("Access Posture is embargoed", EXCLUDED),
+    Rule("Release Status is candidate, accepted or built", EXCLUDED),
+    Rule("Release Status is superseded or withdrawn, and the Validation Record is not passed or "
+         "passed_with_warnings with an n_analyses", EXCLUDED),
+    Rule("Release Status is validated, and Access Posture is neither public nor controlled", REFUSED),
+    Rule("Release Status is validated, superseded or withdrawn, and observed.n_analyses is "
+         "not an integer", REFUSED),
+    Rule("the admitted Release Manifest count differs from observed.n_analyses", REFUSED),
+    Rule("a manifest or Validation Record value cannot be stored exactly, or an analysis_id "
+         "contains ':' (tolerated by check() only under #319)", REFUSED),
+    Rule("Release Status is superseded or withdrawn", PLACEHOLDER),
+    Rule("Release Status is validated", LISTED),
 )
+# Recorded in `catalog_meta` and hashed into the version.
+POLICY: tuple[str, ...] = tuple(f"{n}. {rule}" for n, rule in enumerate(RULES, start=1))
 
 
 # SQLite INTEGER is a signed 64-bit value; a larger one fails at insert.
@@ -67,12 +90,12 @@ class Decision:
 
 
 def decide(bundle: release_bundle.Bundle, registry: Path) -> Decision:
-    """Apply the serving policy to one registered Release Bundle."""
+    """Apply the serving policy (`RULES`, in order) to one registered Release Bundle."""
     store_id = bundle.store_id
     # `check()` first: `Bundle.trial` raises on a malformed `trial`.
-    errors = release_bundle.check(bundle, registry_root=registry)
-    if errors:
-        return Decision(store_id, REFUSED, "bundle.check() failed: " + "; ".join(errors))
+    result = release_bundle.check(bundle, registry_root=registry)
+    if result:
+        return Decision(store_id, REFUSED, "bundle.check() failed: " + "; ".join(result))
     if bundle.trial:
         return Decision(store_id, EXCLUDED, "Trial Store Release")
     posture = bundle.release.get("access_posture")
@@ -81,17 +104,32 @@ def decide(bundle: release_bundle.Bundle, registry: Path) -> Decision:
     status = bundle.status
     if status in UNSERVED_STATUSES:
         return Decision(store_id, EXCLUDED, f"Release Status is {status}, not validated")
+    observed = _mapping((bundle.validation or {}).get("observed"))
+    if status in RETIRED_STATUSES and not _was_validated(bundle, observed):
+        return Decision(store_id, EXCLUDED, "retired before validation")
+    # check() admits only the six Release Statuses, so this one is `validated`
+    # or retired after validation.
+    if status == "validated" and posture not in SERVED_POSTURES:
+        return Decision(store_id, REFUSED, f"Access Posture is {posture}; a listed Store is public or controlled")
     if status in RETIRED_STATUSES:
         return _admit(
-            bundle, PLACEHOLDER, f"Release Status is {status}: kept as placeholder rows, not listed"
+            bundle, result, PLACEHOLDER, f"Release Status is {status}: kept as placeholder rows, not listed"
         )
-    # check() admits only the six Release Statuses, so this one is `validated`.
-    if posture not in SERVED_POSTURES:
-        return Decision(store_id, REFUSED, f"Access Posture is {posture}; a listed Store is public or controlled")
-    return _admit(bundle, LISTED, f"Release Status is validated, Access Posture is {posture}")
+    return _admit(bundle, result, LISTED, f"Release Status is validated, Access Posture is {posture}")
 
 
-def _admit(bundle: release_bundle.Bundle, decision: str, reason: str) -> Decision:
+def _was_validated(bundle: release_bundle.Bundle, observed: Mapping[str, Any]) -> bool:
+    """Whether the release was served: a passing Validation Record that counts its Analyses."""
+    record = bundle.validation or {}
+    return (
+        record.get("status") in release_bundle.VALIDATED_RECORD_STATUSES
+        and observed.get("n_analyses") is not None
+    )
+
+
+def _admit(
+    bundle: release_bundle.Bundle, result: release_bundle.CheckResult, decision: str, reason: str
+) -> Decision:
     """Read a Store's rows as `decision` (listed or placeholder), or refuse it.
 
     A placeholder passes the same count and type checks as a listed Store.
@@ -112,6 +150,13 @@ def _admit(bundle: release_bundle.Bundle, decision: str, reason: str) -> Decisio
             f"Release Manifest admits {len(admitted)} Analyses but the Validation Record's "
             f"observed.n_analyses is {expected}",
         )
+    for gap in result.tolerated:
+        if gap.citation == TOLERATED_ANALYSIS_ID_CITATION:
+            return Decision(
+                store_id, REFUSED,
+                f"bundle.check() tolerates {gap.detail} for this release ({gap.citation}), "
+                "but an Analysis is named <store_id>:<analysis_id>",
+            )
     try:
         rows = tuple(_analysis_row(bundle, row, decision == LISTED) for row in admitted)
         store = _store_row(bundle, observed)
@@ -132,8 +177,7 @@ def _store_row(bundle: release_bundle.Bundle, observed: Mapping[str, Any]) -> tu
         "label": release.get("label"),
         "description": release.get("description"),
         "status": bundle.status,
-        # A withdrawn Store has no successor, whatever the file says.
-        "superseded_by": None if bundle.status == "withdrawn" else release.get("superseded_by"),
+        "superseded_by": bundle.superseded_by,
         "access_posture": release.get("access_posture"),
         "layout": bundle.layout,
         "completion_state": bundle.completion_state,
@@ -157,6 +201,8 @@ def _store_row(bundle: release_bundle.Bundle, observed: Mapping[str, Any]) -> tu
         if value is not None and kind.startswith("INTEGER"):
             if isinstance(value, bool) or not isinstance(value, int) or not INT64_MIN <= value <= INT64_MAX:
                 raise RefusedRow(f"Validation Record: {column} {value!r} is not an integer SQLite can store")
+            if column == "n_associations" and value < 0:
+                raise RefusedRow(f"Validation Record: {column} {value!r} is not a non-negative integer")
         elif value is not None:
             value = str(value)
         row.append(value)
@@ -167,7 +213,7 @@ def outcome_type(stored_effect_scale: str | None, sample_size_kind: str | None) 
     """`binary`, `continuous` or None.
 
     Binary when `sample_size_kind` is `case_control` or `stored_effect_scale` is
-    `log_or` (the owner's ruling on #324): an `sd` effect with case counts is a
+    `log_or` (#324): an `sd` effect with case counts is a
     binary trait stored in SD units. Continuous for `sd` with `total`. None for
     every other pair, including a blank, rather than a guess.
     """
@@ -193,8 +239,6 @@ def trait_class(context: str | None, tissue: str | None, trait_chr: str | None) 
 
 def _analysis_row(bundle: release_bundle.Bundle, row: Mapping[str, str], listed: bool) -> tuple:
     analysis_id = (row.get("analysis_id") or "").strip()
-    if ":" in analysis_id:
-        raise RefusedRow(f"analyses.tsv row {analysis_id!r}: analysis_id contains ':' (#319)")
     values = {
         column: _typed(analysis_id, column, kind, row.get(column))
         for column, kind in MANIFEST_COLUMNS.items()

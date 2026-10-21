@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import csv
 import gzip
+import json
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -27,6 +29,11 @@ import yaml
 
 from analysis_catalog import build as catalog_build
 from analysis_catalog import publish as catalog_publish
+from analysis_catalog.policy import POLICY
+from ogstores import paths
+
+SPEC = paths.REPO_ROOT / "docs" / "spec" / "analysis-catalog.md"
+ADR = paths.REPO_ROOT / "docs" / "adr" / "0039-analysis-catalog.md"
 
 REQUIRED_COLUMNS = (
     "analysis_id", "stored_effect_scale", "sample_size_kind", "sample_size_scope",
@@ -74,6 +81,7 @@ def write_bundle(
     rows: list[dict[str, str]] | None = None,
     validation: bool = True,
     observed_extra: dict[str, Any] | None = None,
+    validation_status: str = "passed",
 ) -> None:
     root = registry / store_id
     root.mkdir(parents=True, exist_ok=True)
@@ -107,7 +115,7 @@ def write_bundle(
             observed["n_analyses"] = admitted if n_analyses == "match" else n_analyses
         observed.update(observed_extra or {})
         (root / "validation.yaml").write_text(yaml.safe_dump({
-            "status": "passed",
+            "status": validation_status,
             "validated_at": "2026-10-01T00:00:00Z",
             "build_environment": {"opengwasdb_version": "0.3.0"},
             "observed": observed,
@@ -191,6 +199,17 @@ class ServingPolicyTest(unittest.TestCase):
         write_bundle(registry, "OGS-00016")
         (registry / "OGS-00016" / "release.yaml").write_text("store_id: OGS-00016\n", encoding="utf-8")
         write_bundle(registry, "OGS-00017", release={"access_posture": None})
+        write_bundle(registry, "OGS-00018", status="superseded", validation=False,
+                     release={"superseded_by": "OGS-00001"})
+        write_bundle(registry, "OGS-00019", status="withdrawn", validation=False)
+        write_bundle(registry, "OGS-00020", status="withdrawn", validation_status="failed")
+        write_bundle(registry, "OGS-00021", status="superseded", validation_status="passed_with_warnings",
+                     release={"superseded_by": "OGS-00001"})
+        write_bundle(registry, "OGS-00022", status="withdrawn", release={"superseded_by": "OGS-00001"})
+        write_bundle(registry, "OGS-00023", observed_extra={"n_associations": -5})
+        write_bundle(registry, "OGS-00024", observed_extra={"n_associations": 0})
+        write_bundle(registry, "OGS-00025", status="superseded", n_analyses="absent",
+                     release={"superseded_by": "OGS-00001"})
         (registry / "by-label").mkdir()
         build_catalog(registry, cls.root)
         cls.selection = {
@@ -206,7 +225,7 @@ class ServingPolicyTest(unittest.TestCase):
         return self.selection[store_id]
 
     def test_every_registered_store_release_has_one_decision(self) -> None:
-        self.assertEqual(sorted(self.selection), [f"OGS-{n:05d}" for n in range(1, 18)])
+        self.assertEqual(sorted(self.selection), [f"OGS-{n:05d}" for n in range(1, 26)])
 
     def test_a_validated_public_store_is_listed(self) -> None:
         self.assertEqual(
@@ -221,7 +240,7 @@ class ServingPolicyTest(unittest.TestCase):
         )
         self.assertEqual(
             query(self.root, "SELECT store_id, access_posture FROM stores WHERE status = 'validated' ORDER BY store_id"),
-            [("OGS-00001", "public"), ("OGS-00002", "controlled")],
+            [("OGS-00001", "public"), ("OGS-00002", "controlled"), ("OGS-00024", "public")],
         )
 
     def test_a_trial_store_release_is_excluded(self) -> None:
@@ -244,6 +263,34 @@ class ServingPolicyTest(unittest.TestCase):
             self.decision("OGS-00009"),
             ("placeholder", "Release Status is withdrawn: kept as placeholder rows, not listed"),
         )
+
+    def test_a_retired_store_that_never_passed_validation_is_excluded_not_refused(self) -> None:
+        for store_id in ("OGS-00018", "OGS-00019", "OGS-00020", "OGS-00025"):
+            with self.subTest(store_id=store_id):
+                self.assertEqual(self.decision(store_id), ("excluded", "retired before validation"))
+        self.assertEqual(
+            query(self.root, "SELECT COUNT(*) FROM analyses WHERE store_id IN "
+                             "('OGS-00018', 'OGS-00019', 'OGS-00020', 'OGS-00025')"),
+            [(0,)],
+        )
+
+    def test_a_retired_store_with_a_warned_validation_record_is_a_placeholder(self) -> None:
+        self.assertEqual(
+            self.decision("OGS-00021"),
+            ("placeholder", "Release Status is superseded: kept as placeholder rows, not listed"),
+        )
+
+    def test_a_withdrawn_store_that_names_a_successor_fails_check(self) -> None:
+        decision, reason = self.decision("OGS-00022")
+        self.assertEqual(decision, "refused")
+        self.assertTrue(reason.startswith("bundle.check() failed: "), reason)
+
+    def test_a_negative_association_count_is_refused_and_zero_is_not(self) -> None:
+        self.assertEqual(
+            self.decision("OGS-00023"),
+            ("refused", "Validation Record: n_associations -5 is not a non-negative integer"),
+        )
+        self.assertEqual(self.decision("OGS-00024")[0], "listed")
 
     def test_a_count_that_disagrees_with_the_validation_record_is_refused(self) -> None:
         self.assertEqual(
@@ -293,6 +340,10 @@ class ServingPolicyTest(unittest.TestCase):
                  "2026-10-01T00:00:00Z", "0.3.0"),
                 ("OGS-00009", "label-OGS-00009", "withdrawn", "dense", "observed_only", 2, 5000, None,
                  "2026-10-01T00:00:00Z", "0.3.0"),
+                ("OGS-00021", "label-OGS-00021", "superseded", "dense", "observed_only", 2, 5000, None,
+                 "2026-10-01T00:00:00Z", "0.3.0"),
+                ("OGS-00024", "label-OGS-00024", "validated", "dense", "observed_only", 2, 5000, 0,
+                 "2026-10-01T00:00:00Z", "0.3.0"),
             ],
         )
 
@@ -308,7 +359,24 @@ class ServingPolicyTest(unittest.TestCase):
         self.assertEqual(sorted(meta), ["builder_version", "built_at", "registry_commit", "serving_policy", "version"])
         self.assertEqual(meta["version"], os.path.basename(os.readlink(self.root / "catalog" / "current")))
         self.assertIsNone(meta["registry_commit"])
-        self.assertIn("embargoed", meta["serving_policy"])
+        self.assertEqual(json.loads(meta["serving_policy"]), list(POLICY))
+
+    def test_the_recorded_policy_is_the_specs_table_in_order(self) -> None:
+        rows = [
+            [cell.strip() for cell in line.strip("|\n").split("|")]
+            for line in SPEC.read_text(encoding="utf-8").splitlines()
+            if re.match(r"\| \d+ \|", line)
+        ]
+        self.assertEqual([int(row[0]) for row in rows], list(range(1, len(POLICY) + 1)))
+        self.assertEqual(
+            [row[2].strip("`") for row in rows], [rule.split(": ")[-1] for rule in POLICY],
+        )
+        adr = ADR.read_text(encoding="utf-8")
+        self.assertEqual(
+            [int(n) for n in re.findall(r"^(\d+)\. \*\*", adr.split("**Serving policy.**")[1].split("**Schema")[0], re.M)],
+            list(range(1, len(POLICY) + 1)),
+        )
+
 
 
 class AnalysesTest(unittest.TestCase):
@@ -522,6 +590,24 @@ class VersionsTest(TempDirCase):
         (stale / "junk").write_text("left by a crashed build")
         self.build()
         self.assertEqual(self.versions(), [probe.version])
+
+
+class ToleratedLegacyIdTest(TempDirCase):
+    """`check()` tolerates ':' in the analysis_id of two legacy releases (#319); the catalog does not."""
+
+    def test_a_store_that_check_passes_only_by_tolerating_319_is_refused_with_that_reason(self) -> None:
+        write_bundle(self.registry, "OGS-00002", rows=[analysis_row("probe::liver"), analysis_row("A2")])
+        result = self.build()
+        self.assertEqual([(d.decision, d.reason) for d in result.decisions], [(
+            "refused",
+            "bundle.check() tolerates analysis_id values containing ':' for this release (#319), "
+            "but an Analysis is named <store_id>:<analysis_id>",
+        )])
+        self.assertEqual(query(self.root, "SELECT COUNT(*) FROM analyses"), [(0,)])
+
+    def test_a_clean_legacy_store_is_listed(self) -> None:
+        write_bundle(self.registry, "OGS-00002")
+        self.assertEqual(self.build().decisions[0].decision, "listed")
 
 
 class UnrepresentableValuesTest(TempDirCase):
@@ -1018,7 +1104,7 @@ class SearchIntegrityTest(unittest.TestCase):
 
 SORTABLE_COLUMNS = (
     "id", "store_id", "analysis_label", "trait_ontology_label", "assigned_ancestry", "tissue",
-    "stored_effect_scale", "sample_size",
+    "stored_effect_scale", "sample_size", "ancestry_category", "outcome_type", "trait_class",
 )
 
 

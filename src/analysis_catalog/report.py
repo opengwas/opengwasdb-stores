@@ -14,7 +14,7 @@ from pathlib import Path
 
 from analysis_catalog import BUILDER_VERSION
 from analysis_catalog.columns import ANALYSIS_COLUMNS
-from analysis_catalog.policy import EXCLUDED, LISTED, PLACEHOLDER, REFUSED, Decision
+from analysis_catalog.policy import EXCLUDED, LISTED, PLACEHOLDER, POLICY, REFUSED, Decision
 
 # A rebuild after a big Store arrives could add millions of ids. `changes.tsv`
 # holds every one; the report shows counts and this many of each.
@@ -141,8 +141,9 @@ def render(
         lines += [
             f"No Store Release is listed: {len(decisions)} registered, 0 listed, "
             f"{counts[PLACEHOLDER]} placeholder, {counts[EXCLUDED]} excluded, {counts[REFUSED]} refused. "
-            "A Store Release is listed only when it is `validated`, not a Trial Store Release, not "
-            "`embargoed`, and its Release Manifest count matches its Validation Record.",
+            "The serving policy applies these rules in order, and the first that matches decides:",
+            "",
+            *(f"- {_cell(rule)}" for rule in POLICY),
             "",
         ]
     lines += ["| Store | Decision | Reason |", "|---|---|---|"]
