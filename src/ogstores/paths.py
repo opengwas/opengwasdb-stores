@@ -14,6 +14,7 @@ with no registry lookup.
                                 with `exclude_from_build` rows removed
         work/analyses.exclusions.json   audit sidecar naming the dropped rows
         records/<step>.json     one per executed step
+        tmp/                    a step's temporary files (TMPDIR), removed by the step
         store.opengwasdb        the Store Release
         store.opengwasdb.partial    transient; renamed into place on success
     <artifact-root>/by-label/   generated symlinks
@@ -152,6 +153,23 @@ def generation_dir(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> P
 def work_dir(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
     """Directory for checkpoints and scratch files: `<root>/<store_id>/work`."""
     return store_dir(store_id, root=root) / "work"
+
+
+def tmp_dir(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
+    """Where a release's steps put temporary files: `<root>/<store_id>/tmp`.
+
+    Beside the Store, so a step's spill never lands on the root filesystem
+    (`/tmp`) and a rename out of it stays on one filesystem. It is apart from
+    the state the workflow reads back (`work/`, `records/`, the completion
+    checkpoint `<store>/.store.opengwasdb.partial.checkpoint`), because a step
+    owns what it spills there (#312).
+    """
+    return store_dir(store_id, root=root) / "tmp"
+
+
+def entry_point_tmp_dir(root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
+    """Where the release entry point's own Snakemake run puts temporary files: `<root>/.tmp`."""
+    return Path(root) / ".tmp"
 
 
 def build_manifest_path(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:

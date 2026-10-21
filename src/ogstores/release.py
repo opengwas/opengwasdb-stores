@@ -315,7 +315,7 @@ def resolve_targets(inv: Invocation, registry_root: Path) -> tuple[list[str], li
     return [b.store_id for b in buildable], left_out
 
 
-def _cleanup_metadata(inv: Invocation, files: Iterable[Path]) -> None:
+def _cleanup_metadata(inv: Invocation, files: Iterable[Path], *, root: Path) -> None:
     """Clear Snakemake's marks that a killed job left these outputs incomplete.
 
     Snakemake's own `--cleanup-metadata` is the supported way to do it. When
@@ -330,7 +330,9 @@ def _cleanup_metadata(inv: Invocation, files: Iterable[Path]) -> None:
         ]
         if inv.config:
             argv += ["--config", *(f"{key}={value}" for key, value in inv.config.items())]
-        result = subprocess.run(argv, cwd=snakemake_directory(), capture_output=True, text=True)
+        result = subprocess.run(
+            argv, cwd=snakemake_directory(), env=snakemake_env(root), capture_output=True, text=True
+        )
         output = result.stdout + result.stderr
         if result.returncode != 0 and "because the metadata was not present" not in output:
             raise RuntimeError(f"Could not clear Snakemake's metadata for {path}:\n{output}")
@@ -342,7 +344,7 @@ def _cleanup_register_metadata(inv: Invocation, store_id: str, root: Path, regis
     That is `records/register.json`, or `records/completion-register.json` for
     the completion phase of a release that completes its own Store (ADR 0037).
     """
-    _cleanup_metadata(inv, [paths.record_path(store_id, register_step, root=root)])
+    _cleanup_metadata(inv, [paths.record_path(store_id, register_step, root=root)], root=root)
 
 
 def resolve_snapshot(inv: Invocation, store_id: str, root: Path, action: str) -> str:
@@ -369,7 +371,7 @@ def resolve_snapshot(inv: Invocation, store_id: str, root: Path, action: str) ->
         run.restore_force_snapshot(snapshot)
     else:
         shutil.rmtree(snapshot)
-    _cleanup_metadata(inv, release_outputs(store_id, root))
+    _cleanup_metadata(inv, release_outputs(store_id, root), root=root)
     return (
         f"release: {'restored' if action == 'restore' else 'deleted'} {snapshot} and cleared "
         f"Snakemake's incomplete marks for {store_id}. If Snakemake now reports the working "
@@ -534,7 +536,7 @@ def settle(inv: Invocation, scheduled: list[tuple[str, str]], snapshots: list[Pa
     run.settle_force_snapshots(snapshots, succeeded=succeeded)
     for snapshot in restored:
         store_id, root = snapshot.parent.name, snapshot.parent.parent
-        _cleanup_metadata(inv, release_outputs(store_id, root))
+        _cleanup_metadata(inv, release_outputs(store_id, root), root=root)
         print(f"release: restored the records of {store_id} from {snapshot.name}")
 
 
@@ -607,8 +609,27 @@ def _stop_snakemake(proc: subprocess.Popen, grace: float = 2.0) -> None:
                 pass
 
 
+def snakemake_env(
+    root: Path, extra_env: dict[str, str] | None = None, *, create: bool = True
+) -> dict[str, str]:
+    """The environment of every Snakemake run: ours, with temp files on the artifact root, not `/tmp` (#312).
+
+    A dry run writes nothing, so it creates nothing: it uses `.tmp` if it is
+    there, else the nearest existing directory above it, which is on the
+    artifact root's filesystem. A directory that does not exist would send
+    Snakemake's `tempfile` probe, and its `tmpdir` resource, back to `/tmp`.
+    """
+    tmp = paths.entry_point_tmp_dir(root)
+    if create:
+        tmp.mkdir(parents=True, exist_ok=True)
+    else:
+        while not tmp.is_dir():
+            tmp = tmp.parent
+    return {**os.environ, **dict.fromkeys(run.TEMP_VARIABLES, str(tmp)), **(extra_env or {})}
+
+
 def _run_snakemake(
-    argv: list[str], lock_fds: tuple[int, ...], extra_env: dict[str, str] | None = None
+    argv: list[str], lock_fds: tuple[int, ...], extra_env: dict[str, str] | None = None, *, root: Path
 ) -> tuple[int, int | None]:
     """Run Snakemake under the parent-death supervisor; return its exit code and any interrupt.
 
@@ -623,7 +644,7 @@ def _run_snakemake(
     """
     liveness_read, liveness_write = os.pipe()
     status_read, status_write = os.pipe()
-    env = {**os.environ, run.ENTRY_POINT_PID_ENV: str(os.getpid()), **(extra_env or {})}
+    env = snakemake_env(root, {run.ENTRY_POINT_PID_ENV: str(os.getpid()), **(extra_env or {})})
     proc = subprocess.Popen(
         run._supervised_command(argv, liveness_read, status_write),
         cwd=snakemake_directory(),
@@ -660,7 +681,8 @@ def _run_snakemake(
 def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> int:
     """Show the plan and what the guard would do, writing nothing."""
     result = subprocess.run(
-        snakemake_argv(inv, dry_run=True), cwd=snakemake_directory(), capture_output=True, text=True
+        snakemake_argv(inv, dry_run=True), cwd=snakemake_directory(), env=snakemake_env(root, create=False),
+        capture_output=True, text=True
     )
     sys.stdout.write(result.stdout)
     sys.stderr.write(result.stderr)
@@ -800,7 +822,8 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     run.refuse_pending_force_snapshots([(root, store_id) for store_id in requested])
 
     plan = subprocess.run(
-        snakemake_argv(inv, dry_run=True), cwd=snakemake_directory(), capture_output=True, text=True
+        snakemake_argv(inv, dry_run=True), cwd=snakemake_directory(), env=snakemake_env(root, create=False),
+        capture_output=True, text=True
     )
     if plan.returncode != 0:
         sys.stdout.write(plan.stdout)
@@ -856,6 +879,7 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
                 snakemake_argv(inv, dry_run=False, extra_config={"release_run": stamp}),
                 locks.fds(),
                 extra_env={runtime.VERIFIED_RUNTIME_ENV: identity.handoff()},
+                root=root,
             )
         except (KeyboardInterrupt, _Interrupted) as exc:
             # Interrupted before Snakemake started: any snapshot this run took is
