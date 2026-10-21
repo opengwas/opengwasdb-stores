@@ -199,6 +199,16 @@ GCST000028          ok                              /data/…/17463246-GCST00002
 GCST000803          missing_remote_harmonised_yaml
 ```
 
+The dbGaP MVP acquisition
+(`src/manifest_generation/providers/dbgap/mvp/acquire_dbgap_phs002453.py`,
+`manifest`) writes one manifest for the whole Source Collection, not one per
+candidate store key (#290). A mapped Analysis whose converted file is absent
+is an explained absence with status `data_absent_upstream` and the path it
+would have had. `--recorded-manifests` lets it reuse the sha256 the
+acquisition recorded while converting, re-checking each file's size, so a
+metadata-only reproduction does not re-read the corpus; without it the writer
+hashes the files itself.
+
 ## Selection
 
 A release config declares exactly one form in its `selection` block:

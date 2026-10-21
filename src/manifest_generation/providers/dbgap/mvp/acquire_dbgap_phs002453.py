@@ -40,10 +40,12 @@ Subcommands, in order:
     rather than guessing.
 
 ``manifest``
-    Write one acquisition manifest per candidate-table ``store_key`` with EBI's
-    raw-pass manifest columns, ``status=ok`` and the data file's sha256 for
-    converted files.  The manifests are consumed by
-    ``manifest_generation.source_inventory``.
+    Write the Source Collection's one shared Acquisition Manifest (#290): one
+    row per mapped Analysis with its location, size, sha256 and optional
+    metadata sidecar, or a non-ready status and the reason there is no file.
+    The acquisition's own per-store download manifests may supply the recorded
+    sha256 (``--recorded-manifests``), so a metadata-only reproduction does not
+    re-read the corpus.
 
 Usage (see ``README.md`` next to this module)::
 
@@ -69,6 +71,12 @@ from typing import TextIO
 import yaml
 
 from manifest_generation import REPO_ROOT
+from manifest_generation.acquisition_manifest import (
+    ACQUISITION_MANIFEST,
+    load_acquisition_manifest,
+)
+from manifest_generation.connector_tsv import write_connector
+from manifest_generation.source_inventory import READY_STATUSES
 from manifest_generation.providers.dbgap.metadata import (
     DbgapError as AcquisitionError,
     TarResult,
@@ -110,11 +118,9 @@ CANDIDATE_ANCESTRY = {
 #: identified by ``ancestry_fraction < 1`` and only *labelled* Multi-ancestry.
 META_ANCESTRY_LABEL = "Multi-ancestry"
 
-#: Manifest columns: exactly the ones ``download_ebi_gwas_catalog_raw.py``
-#: writes, because the frozen Source Inventory reads the same schema.  The
-#: first fourteen are ``source_inventory.ACQUISITION_MANIFEST_COLUMNS``'s
-#: required set (``seconds`` is dropped there deliberately: per-run timing is
-#: not a release fact).
+#: The per-store download-manifest columns the ``refresh`` command still merges.
+#: The shared Acquisition Manifest is ``acquisition_manifest.COLUMNS``; these
+#: are the acquisition's own record of what it converted, not the connector.
 MANIFEST_COLUMNS: tuple[str, ...] = (
     "analysis_id", "publication_pmid", "trait", "study_design", "sample_size",
     "harmonised_status", "status", "data_url", "yaml_url", "data_file", "yaml_file",
@@ -1239,96 +1245,144 @@ def command_convert(args: argparse.Namespace) -> int:
 
 
 def manifest_row(
-    candidate: Candidate, mapping: dict[str, str] | None, data_digest: str, path: Path, yaml_path: Path
+    mapping: dict[str, str],
+    data_root: Path,
+    recorded: dict[str, dict[str, str]] | None,
+    digest: str | None,
 ) -> dict[str, str]:
-    row = {name: "" for name in MANIFEST_COLUMNS}
-    canonical_trait = (mapping or {}).get("analyzed_variable") or candidate.trait
-    canonical_sample_size = (mapping or {}).get("sample_size") or str(candidate.sample_size)
-    row.update({
-        "analysis_id": candidate.analysis_id,
-        "publication_pmid": PUBMED_ID,
-        # Canonical label/size follow the owner decision (#220, 2026-10-11):
-        # dbGaP is authoritative.  The Catalog counterpart lives in mapping.tsv
-        # and, where it differs, in the converted sidecar's catalog_metadata.
-        "trait": canonical_trait,
-        "study_design": candidate.study_design,
-        "sample_size": canonical_sample_size,
-        # The dbGaP pass is not preceded by a harmonised pass on this mirror, so
-        # there is no harmonised status to report; EBI's raw manifest carries the
-        # other pass's fact here, and an empty value is the honest analogue.
-        "harmonised_status": "",
-    })
-    row["data_file"] = str(path)
-    row["yaml_file"] = str(yaml_path)
-    row["data_url"] = f"{DBGAP_BASE}/{mapping['tar']}" if mapping and mapping.get("tar") else ""
-    if path.is_file() and path.stat().st_size > 0 and yaml_path.is_file():
-        row.update({
-            "status": "ok",
-            "data_bytes": str(path.stat().st_size),
-            "yaml_bytes": str(yaml_path.stat().st_size),
-            "sha256": data_digest,
-            "genome_assembly": "GRCh38",
-            "file_type": "GWAS-SSF v1.0",
-            "is_harmonised": "false",
-        })
-    else:
-        # Not a transfer failure: this Analysis has no converted file yet.  The
-        # frozen Source Inventory classifies any non-ready status as a
-        # non-member, so an incomplete conversion shows up as a missing Analysis
-        # rather than as a usable one.
-        row["status"] = "error"
+    """One shared Acquisition Manifest row for one mapped Analysis (#290).
+
+    ``recorded`` is the acquisition's own per-store download manifest row when
+    there is one: it carries the sha256 the acquisition computed while it
+    converted the file, so a metadata-only reproduction need not re-read 4 TB.
+    The recorded size is re-checked against disk, and a recorded non-ready
+    status is carried rather than turned into a usable file.
+    """
+    analysis_id = mapping["analysis_id"]
+    directory = data_root / "gwas-ssf" / bucket_of(analysis_id) / analysis_id
+    path = directory / f"{analysis_id}.tsv.gz"
+    yaml_path = directory / f"{analysis_id}.tsv.gz-meta.yaml"
+    row = {name: "" for name in ACQUISITION_MANIFEST.columns}
+    row["source_analysis_id"] = analysis_id
+    row["source_url"] = f"{DBGAP_BASE}/{mapping['tar']}" if mapping.get("tar") else ""
+
+    if recorded and recorded.get("status") and recorded["status"] not in READY_STATUSES:
+        row["status"] = recorded["status"]
+        row["error"] = recorded.get("error", "")
+        return row
+    if not path.is_file() or path.stat().st_size == 0:
+        # An explained absence: this Analysis has no converted file yet, so the
+        # Source Inventory keeps a non-ready row for it and it never becomes a
+        # release member. The status names the reason rather than "error".
+        row["status"] = "data_absent_upstream"
         row["error"] = f"not converted: {path}"
+        return row
+    if digest is None:
+        raise AcquisitionError(f"no sha256 for {analysis_id}; cannot write a ready manifest row")
+    recorded_bytes = (recorded or {}).get("data_bytes")
+    if recorded_bytes and int(recorded_bytes) != path.stat().st_size:
+        raise AcquisitionError(
+            f"{analysis_id}: recorded data_bytes {recorded_bytes} is not the file's size "
+            f"{path.stat().st_size}; re-convert before recording it"
+        )
+    row.update({
+        "status": "ok",
+        "location": str(path),
+        "bytes": str(path.stat().st_size),
+        "sha256": digest,
+    })
+    if yaml_path.is_file() and yaml_path.stat().st_size > 0:
+        row["sidecar_location"] = str(yaml_path)
+        row["sidecar_bytes"] = str(yaml_path.stat().st_size)
     return row
 
 
+def read_mapping_rows(path: Path) -> list[dict[str, str]]:
+    """The acquisition mapping's rows, requiring the columns a manifest needs."""
+    if not path.is_file():
+        raise AcquisitionError(f"mapping not found: {path}")
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        missing = [column for column in ("analysis_id", "member", "tar") if column not in (reader.fieldnames or [])]
+        if missing:
+            raise AcquisitionError(f"{path} is missing column(s): {', '.join(missing)}")
+        rows = [dict(row) for row in reader]
+    if not rows:
+        raise AcquisitionError(f"mapping is empty: {path}")
+    return rows
+
+
+def read_recorded_manifests(directory: Path) -> dict[str, dict[str, str]]:
+    """``analysis_id -> row`` from the acquisition's per-store download manifests."""
+    recorded: dict[str, dict[str, str]] = {}
+    for path in sorted(directory.glob("*-download-manifest.tsv")):
+        for row in read_tsv(path):
+            analysis_id = row.get("analysis_id", "")
+            if not analysis_id:
+                raise AcquisitionError(f"{path}: a recorded manifest row has no analysis_id")
+            if analysis_id in recorded:
+                raise AcquisitionError(f"{analysis_id} is recorded in more than one download manifest")
+            recorded[analysis_id] = row
+    return recorded
+
+
 def command_manifest(args: argparse.Namespace) -> int:
+    """Write the Source Collection's one shared Acquisition Manifest (#290)."""
     out = Path(args.out)
-    candidates = read_candidates(Path(args.candidates))
-    if not candidates:
-        raise SystemExit("manifest: no candidate rows")
     mapping_path = Path(args.mapping) if args.mapping else out / "mapping.tsv"
-    mapping = {row["analysis_id"]: row for row in read_tsv(mapping_path)} if mapping_path.is_file() else {}
-    selected = selected_values(args.analysis)
-    if selected:
-        candidates = [c for c in candidates if c.analysis_id in selected]
+    data_root = Path(args.data_root) if args.data_root else out
+    mapping = read_mapping_rows(mapping_path)
+    if args.analysis:
+        wanted = set(args.analysis)
+        mapping = [row for row in mapping if row["analysis_id"] in wanted]
     if args.limit:
-        candidates = candidates[: args.limit]
-    if not candidates:
-        raise SystemExit("manifest: nothing selected")
+        mapping = mapping[: args.limit]
+    if not mapping:
+        raise AcquisitionError("manifest: nothing selected")
+    recorded: dict[str, dict[str, str]] = {}
+    if args.recorded_manifests:
+        recorded = read_recorded_manifests(Path(args.recorded_manifests))
+        unknown = sorted(set(recorded) - {row["analysis_id"] for row in mapping})
+        if unknown and not (args.analysis or args.limit):
+            raise AcquisitionError(
+                f"recorded manifests name Analysis/Analyses the mapping does not: {', '.join(unknown[:10])}"
+            )
 
-    # The checksum is the release fact the freeze records, so it is computed
-    # here from the materialised bytes rather than carried over from conversion.
+    # The checksum is the release fact freeze records. It is the acquisition's
+    # own recorded digest when there is one; otherwise it is computed here from
+    # the materialised bytes.
     digests: dict[str, str] = {}
-    with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
-        futures = {}
-        for candidate in candidates:
-            path = out / "gwas-ssf" / bucket_of(candidate.analysis_id) / candidate.analysis_id / f"{candidate.analysis_id}.tsv.gz"
-            if path.is_file() and path.stat().st_size > 0:
-                futures[pool.submit(sha256_file, path)] = candidate.analysis_id
-        for future in as_completed(futures):
-            digests[futures[future]] = future.result()
+    missing_recorded = [
+        row["analysis_id"] for row in mapping
+        if row["analysis_id"] not in recorded
+        and (data_root / "gwas-ssf" / bucket_of(row["analysis_id"]) / row["analysis_id"] / f"{row['analysis_id']}.tsv.gz").is_file()
+    ]
+    if missing_recorded:
+        with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
+            futures = {
+                pool.submit(
+                    sha256_file,
+                    data_root / "gwas-ssf" / bucket_of(analysis_id) / analysis_id / f"{analysis_id}.tsv.gz",
+                ): analysis_id
+                for analysis_id in missing_recorded
+            }
+            for future in as_completed(futures):
+                digests[futures[future]] = future.result()
+    for analysis_id, row in recorded.items():
+        if row.get("sha256"):
+            digests[analysis_id] = row["sha256"]
 
-    by_store: dict[str, list[Candidate]] = {}
-    for candidate in candidates:
-        by_store.setdefault(candidate.store_key, []).append(candidate)
-
-    status = 0
-    manifest_dir = Path(args.manifest_dir) if args.manifest_dir else out / "manifests"
-    for store_key, group in sorted(by_store.items()):
-        rows: list[dict[str, str]] = []
-        for candidate in sorted(group, key=lambda c: c.analysis_id):
-            directory = out / "gwas-ssf" / bucket_of(candidate.analysis_id) / candidate.analysis_id
-            path = directory / f"{candidate.analysis_id}.tsv.gz"
-            yaml_path = directory / f"{candidate.analysis_id}.tsv.gz-meta.yaml"
-            rows.append(manifest_row(candidate, mapping.get(candidate.analysis_id), digests.get(candidate.analysis_id, ""), path, yaml_path))
-        slug = store_key.replace("__", "-")
-        manifest_path = manifest_dir / f"{slug}-download-manifest.tsv"
-        write_tsv(manifest_path, MANIFEST_COLUMNS, rows)
-        ready = sum(1 for row in rows if row["status"] == "ok")
-        print(f"manifest: {store_key}: {ready}/{len(rows)} ok -> {manifest_path}")
-        if ready != len(rows):
-            status = 1
-    return 0 if (args.allow_partial or selected or args.limit) else status
+    rows = [
+        manifest_row(row, data_root, recorded.get(row["analysis_id"]), digests.get(row["analysis_id"]))
+        for row in mapping
+    ]
+    manifest_path = Path(args.manifest) if args.manifest else out / "acquisition-manifest.tsv"
+    write_connector(manifest_path, ACQUISITION_MANIFEST, ACQUISITION_MANIFEST.columns, rows)
+    loaded = load_acquisition_manifest(manifest_path)
+    print(
+        f"manifest: {len(loaded.entries)} rows ({loaded.readiness_counts}) -> {manifest_path}"
+    )
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -1799,14 +1853,19 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     convert.add_argument("--force", action="store_true")
     convert.set_defaults(func=command_convert)
 
-    manifest = subparsers.add_parser("manifest", help="write one acquisition manifest per store_key")
-    manifest.add_argument("--candidates", default=DEFAULT_CANDIDATES)
+    manifest = subparsers.add_parser(
+        "manifest", help="write the Source Collection's one shared Acquisition Manifest"
+    )
     manifest.add_argument("--mapping", help="mapping TSV (default: <out>/mapping.tsv)")
-    manifest.add_argument("--manifest-dir", help="default: <out>/manifests")
+    manifest.add_argument("--data-root", help="root of the converted gwas-ssf tree (default: <out>)")
+    manifest.add_argument(
+        "--recorded-manifests",
+        help="the acquisition's per-store download manifests, whose sha256 values are reused",
+    )
+    manifest.add_argument("--manifest", help="output TSV (default: <out>/acquisition-manifest.tsv)")
     manifest.add_argument("--jobs", type=int, default=8)
     manifest.add_argument("--analysis", action="append")
     manifest.add_argument("--limit", type=int)
-    manifest.add_argument("--allow-partial", action="store_true")
     manifest.set_defaults(func=command_manifest)
 
     refresh = subparsers.add_parser(

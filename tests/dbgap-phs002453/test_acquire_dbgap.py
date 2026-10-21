@@ -44,15 +44,12 @@ from manifest_generation.freeze import freeze, write_frozen_inventory
 from manifest_generation.providers.gwas_catalog.source_metadata_adapter import (
     convert_candidate_table,
 )
-from manifest_generation.providers.gwas_catalog.write_acquisition_manifest import (
-    write_from_passes,
+from manifest_generation.acquisition_manifest import (
+    ACQUISITION_MANIFEST,
+    load_acquisition_manifest,
 )
 from manifest_generation.selection import parse_selection
-from manifest_generation.source_inventory import (
-    ACQUISITION_MANIFEST_COLUMNS,
-    AcquisitionPass,
-    read_acquisition_pass,
-)
+
 
 TAR = "phs002453.MVP_R4.1000G_AGR.GIA.Fixture.analysis-PI.MULTI.tar"
 INNER = "MVP_R4.1000G_AGR.GIA.Fixture"
@@ -293,6 +290,16 @@ class AcquisitionTest(unittest.TestCase):
 
     def data(self, accession: str) -> Path:
         return self.data_from(self.root, accession)
+
+    def ensure_mapping_and_conversion(self) -> None:
+        if not (self.root / "GIA" / "extracted" / INNER).is_dir():
+            result = run(self.root, "extract")
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        if not (self.root / "mapping.tsv").is_file():
+            result = run(self.root, "map", "--candidates", str(self.candidates), "--allow-partial")
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        if not list((self.root / "gwas-ssf").glob("*/GCST90475097/*.tsv.gz")):
+            run(self.root, "convert", "--candidates", str(self.candidates), "--jobs", "4")
 
     def data_from(self, root: Path, accession: str) -> Path:
         bucket = root / "gwas-ssf"
@@ -552,52 +559,52 @@ class AcquisitionTest(unittest.TestCase):
             [{"sample_ancestry_category": ["Multi-ancestry"], "sample_size": 542276}],
         )
 
-    # -- manifest ---------------------------------------------------------
+    # -- acquisition manifest ---------------------------------------------
 
-    def test_11_manifest_has_the_ebi_columns_and_sha256(self) -> None:
-        result = run(self.root, "manifest", "--candidates", str(self.candidates))
-        self.assertEqual(result.returncode, 1, result.stdout)  # GCST90479999 has no converted file
-        path = self.root / "manifests" / f"{STORE_KEY.replace('__', '-')}-download-manifest.tsv"
+    def test_11_manifest_has_the_shared_columns_and_sha256(self) -> None:
+        self.ensure_mapping_and_conversion()
+        result = run(self.root, "manifest", "--mapping", str(self.root / "mapping.tsv"))
+        # The bogus member never converted; that is an explained absence, not a
+        # failure of the manifest itself.
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        path = self.root / "acquisition-manifest.tsv"
         self.assertTrue(path.is_file(), result.stdout + result.stderr)
-        rows = {row["analysis_id"]: row for row in self.rows(path)}
+        rows = {row["source_analysis_id"]: row for row in self.rows(path)}
         with path.open(encoding="utf-8") as handle:
-            self.assertEqual(handle.readline().rstrip("\n"), "\t".join(ACQUIRE.MANIFEST_COLUMNS))
-        self.assertEqual(
-            ACQUIRE.MANIFEST_COLUMNS,
-            ("analysis_id", "publication_pmid", "trait", "study_design", "sample_size",
-             "harmonised_status", "status", "data_url", "yaml_url", "data_file", "yaml_file",
-             "data_bytes", "yaml_bytes", "sha256", "genome_assembly", "file_type",
-             "is_harmonised", "seconds", "error"),
-        )
-        self.assertTrue(set(ACQUISITION_MANIFEST_COLUMNS).issubset(ACQUIRE.MANIFEST_COLUMNS))
+            self.assertEqual(handle.readline().rstrip("\n"), "\t".join(ACQUISITION_MANIFEST.columns))
         ready = rows["GCST90475097"]
         self.assertEqual(ready["status"], "ok")
         self.assertEqual(ready["sha256"], hashlib.sha256(self.data("GCST90475097").read_bytes()).hexdigest())
-        self.assertEqual(ready["data_bytes"], str(self.data("GCST90475097").stat().st_size))
-        self.assertEqual(ready["genome_assembly"], "GRCh38")
-        self.assertEqual(ready["file_type"], "GWAS-SSF v1.0")
-        self.assertEqual(ready["is_harmonised"], "false")
-        self.assertEqual(ready["data_url"], f"https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs002453/analyses/GIA/{TAR}")
-        self.assertEqual(rows["GCST90479999"]["status"], "error")
+        self.assertEqual(ready["location"], str(self.data("GCST90475097")))
+        self.assertEqual(ready["bytes"], str(self.data("GCST90475097").stat().st_size))
+        self.assertEqual(ready["sidecar_location"], str(self.data("GCST90475097").with_name("GCST90475097.tsv.gz-meta.yaml")))
+        self.assertEqual(ready["source_url"], f"https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs002453/analyses/GIA/{TAR}")
+        self.assertEqual(rows["GCST90479999"]["status"], "data_absent_upstream")
         self.assertTrue(rows["GCST90479999"]["error"].startswith("not converted:"))
 
-    def test_12_manifest_is_accepted_by_the_source_inventory(self) -> None:
-        path = self.root / "manifests" / f"{STORE_KEY.replace('__', '-')}-download-manifest.tsv"
-        rows = read_acquisition_pass(path)
-        self.assertEqual(len(rows), 3)
-        self.assertIn("GCST90479999", {row["analysis_id"] for row in rows if row["status"] != "ok"})
+    def test_12_manifest_is_accepted_by_the_shared_freeze(self) -> None:
+        self.ensure_mapping_and_conversion()
+        path = self.root / "acquisition-manifest.tsv"
+        manifest = load_acquisition_manifest(path)
+        self.assertEqual(len(manifest.entries), 4)
+        self.assertEqual(manifest.readiness_counts, {"data_absent_upstream": 1, "ok": 3})
 
-        # Its consumer is the shared freeze (#283, #287): the pass becomes the
-        # Acquisition Manifest, the candidate table the Source Metadata Table.
+        # Its consumer is the shared freeze (#283): the mapping becomes the
+        # Source Metadata Table through the dbGaP adapter, and the manifest is
+        # the Acquisition Manifest.
+        from manifest_generation.providers.dbgap.mvp.source_metadata_adapter import (
+            convert_mapping,
+        )
+
         table = self.root / "source-metadata.tsv"
-        convert_candidate_table(self.candidates, table, repo_root=REPO_ROOT)
-        manifest = self.root / "acquisition-manifest.tsv"
-        write_from_passes([AcquisitionPass(role="dbgap-phs002453", path=path)], manifest)
+        convert_mapping(
+            self.root / "mapping.tsv", self.root / "GIA" / "extracted", table, repo_root=REPO_ROOT
+        )
         frozen = freeze(
             snapshot_id="test-dbgap-phs002453",
             source_collection_id="test-source-collection",
             metadata_table=table,
-            acquisition_manifest=manifest,
+            acquisition_manifest=path,
             selection=parse_selection({"where": {"store_key": STORE_KEY}}),
         )
         self.assertEqual(len(frozen.rows), 3)
@@ -607,15 +614,18 @@ class AcquisitionTest(unittest.TestCase):
         write_frozen_inventory(frozen, self.root / "inventory.tsv", self.root / "inventory.meta.yaml")
         self.assertTrue((self.root / "inventory.tsv").is_file())
 
-    def test_13_manifest_covers_each_store_key(self) -> None:
-        result = run(
-            self.root, "manifest", "--candidates", str(self.candidates),
-            "--analysis", "GCST90475097,GCST90477833,GCST90479504",
-        )
+    def test_13_manifest_is_one_file_for_the_collection(self) -> None:
+        self.ensure_mapping_and_conversion()
+        result = run(self.root, "manifest", "--mapping", str(self.root / "mapping.tsv"))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        meta = self.root / "manifests" / f"{META_STORE_KEY.replace('__', '-')}-download-manifest.tsv"
-        self.assertTrue(meta.is_file())
-        self.assertEqual([row["analysis_id"] for row in self.rows(meta)], ["GCST90479504"])
+        manifest = load_acquisition_manifest(self.root / "acquisition-manifest.tsv")
+        self.assertEqual(
+            {entry.source_analysis_id for entry in manifest.entries},
+            {"GCST90475097", "GCST90477833", "GCST90479504", "GCST90479999"},
+        )
+        # No per-store keyed manifests: one file records the collection.
+        self.assertEqual(list(self.root.glob("*-download-manifest.tsv")), [])
+        self.assertEqual(list((self.root / "manifests").glob("*")), [])
 
     # -- helpers ----------------------------------------------------------
 
@@ -747,12 +757,10 @@ class KeyDiscrepancyTests(unittest.TestCase):
             ["Hemoglobin A1c (HbA1c, minimum, inv-norm transformed)"],
         )
 
-        result = run(self.root, "manifest", "--candidates", str(self.mismatched), "--analysis", "GCST90475097")
+        result = run(self.root, "manifest", "--mapping", str(self.root / "mapping.tsv"), "--analysis", "GCST90475097")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        manifest = self.root / "manifests" / "dense-pmid-39024449-European-download-manifest.tsv"
-        rows = {row["analysis_id"]: row for row in self.rows(manifest)}
-        self.assertEqual(rows["GCST90475097"]["sample_size"], "338640")
-        self.assertEqual(rows["GCST90475097"]["trait"], "hemoglobin A1c (HbA1c, minimum, inv-norm transformed)")
+        manifest = load_acquisition_manifest(self.root / "acquisition-manifest.tsv")
+        self.assertTrue(manifest.entry("GCST90475097").ready)
 
     def test_stale_ledger_entry_fails_loudly(self) -> None:
         # With the original candidate table the keys agree, so the ledger entry
