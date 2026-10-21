@@ -12,7 +12,7 @@ Responsibilities:
      is accepted and recorded as `resumed: true` in `validation.yaml`.
 3. Harvests observed measurements from step records:
    `format_version`, `n_variants`, `n_analyses`, `n_associations`, `store_bytes`,
-   `build_elapsed_s`, and `validate_status`.
+   `build_elapsed_s`, `completion_state`, and `validate_status`.
    The verdict, `checks`, `warnings` and `errors` are this run's alone: they come
    from `opengwasdb validate --format json`, and nothing is carried from the
    Validation Record being replaced (#195). A candidate's Phase B evidence is
@@ -44,7 +44,15 @@ import yaml
 
 from ogstores import bundle, paths, run
 from ogstores.bundle import Bundle
-from ogstores.plan import Step, plan
+from ogstores.plan import (
+    BUILD_PHASE,
+    COMPLETION_PHASE,
+    OBSERVED_VIEW_CHECK_STEP,
+    REGISTER_STEPS,
+    Step,
+    completion_step_name,
+    plan,
+)
 
 # The Validation Record shape `register` writes. Every record it writes carries
 # every `OBSERVED_FIELDS` and `BUILD_ENVIRONMENT_FIELDS` key, with a measurement
@@ -62,6 +70,12 @@ OBSERVED_FIELDS: tuple[str, ...] = (
     "store_bytes",
     "build_elapsed_s",
     "validate_status",
+    # The completion state of the Store this publication published (#307,
+    # ADR 0037). It follows the phase, not the bundle's declaration: the build
+    # phase of a single-id release publishes an Observed-Only Store. Records
+    # written before #307 do not carry it and are not migrated; the master list
+    # reports their bundle's declared state instead.
+    "completion_state",
 )
 BUILD_ENVIRONMENT_FIELDS: tuple[str, ...] = (
     "opengwasdb_version",
@@ -97,6 +111,12 @@ class ArgvDriftError(RegisterError, ValueError):
 
 class ValidateVerdictError(RegisterError, ValueError):
     """Raised when the validate step's record carries no `--format json` verdict."""
+
+    pass
+
+
+class ObservedViewCheckError(RegisterError):
+    """Raised when a completion phase's Observed-View Check record does not show a pass."""
 
     pass
 
@@ -169,6 +189,20 @@ def check_argv_drift(
         and executed_argv[1] == "complete-dense-resume"
     ):
         return True, True
+
+    # A completion-phase step names the published Store it reads with the same
+    # canonical token as its staged destination (ADR 0037). Only the
+    # destination may be staged: normalising every `.partial` token back
+    # would pass a step that read its own staged Store.
+    published = planned_step.published_store_arg
+    if published is not None and executed_argv[published:published + 1] != planned_argv[published:published + 1]:
+        executed_token = executed_argv[published] if published < len(executed_argv) else None
+        raise ArgvDriftError(
+            f"Step {planned_step.name!r} for {store_id} must read the published Store "
+            f"{planned_argv[published]!r} as argument {published}, but executed {executed_token!r}.\n"
+            f"  Planned:  {' '.join(planned_argv)}\n"
+            f"  Executed: {' '.join(executed_argv)}"
+        )
 
     norm_executed = normalize_executed_argv_for_staging(
         executed_argv,
@@ -282,6 +316,39 @@ def validate_verdict(validate_record: dict[str, Any] | None) -> tuple[str, list[
     return "passed", warnings, errors
 
 
+def require_passing_observed_view_check(
+    store_id: str, check_record: dict[str, Any] | None, record_p: Path
+) -> None:
+    """Refuse a completion phase whose Observed-View Check record shows no pass (ADR 0037, #309).
+
+    The completion phase deletes the Store it replaces, so it goes ahead only
+    on a pass its record shows, beside the requirement that every planned
+    step succeeded. The verdict is the first JSON object on the record's
+    stdout, as `opengwasdb check-observed-view` prints it
+    (`run.first_json_object`). No record, stdout that does not start with an
+    object, and any `passed` but `true` are each refused.
+    """
+
+    def refuse(reason: str) -> ObservedViewCheckError:
+        return ObservedViewCheckError(
+            f"Cannot register the completion phase of {store_id}: the Observed-View Check record "
+            f"{record_p} {reason}. Nothing was changed; the published Store stands."
+        )
+
+    if check_record is None:
+        raise refuse("is missing")
+    stdout = check_record.get("stdout")
+    try:
+        verdict = run.first_json_object(stdout if isinstance(stdout, str) else "")
+    except ValueError as exc:
+        raise refuse(f"holds no verdict on its stdout ({exc})") from exc
+    if "passed" not in verdict:
+        raise refuse("has a verdict with no `passed`")
+    if verdict["passed"] is not True:
+        failures = verdict.get("failures")
+        raise refuse(f"does not show a pass: passed: {json.dumps(verdict['passed'])} (failures: {failures!r})")
+
+
 def committed_revision(path: Path | str) -> str | None:
     """The commit `path` was last changed in, or None when the file is not that commit's.
 
@@ -365,6 +432,32 @@ def acceptance_evidence(
     return copy.deepcopy(dict(carried)) if isinstance(carried, Mapping) else None
 
 
+def _validate_step(planned_steps: list[Step]) -> str:
+    """The name of the validate step whose verdict a phase's Validation Record carries."""
+    if planned_steps and planned_steps[0].phase == COMPLETION_PHASE:
+        return completion_step_name("validate")
+    return "validate"
+
+
+def published_completion_state(bundle_obj: Bundle, phase: str) -> str:
+    """The completion state of the Store a phase's publication publishes (#307, ADR 0037).
+
+    The phase being published, never the bundle's declaration: under single-id
+    completion a bundle declares `reference_completed` while its build phase
+    publishes the Observed-Only Store, which is what users can query until the
+    swap. A build phase publishes an Observed-Only Store by definition; a
+    completion phase publishes a completed one; a two-id child's single phase
+    is planned as a completion and publishes a completed Store (ADR 0007), so
+    it reports the declaration the planner already acted on. This reads the
+    plan and the bundle, never a Store (ADR 0023).
+    """
+    if phase == COMPLETION_PHASE:
+        return "reference_completed"
+    if bundle_obj.completes_own_store:
+        return "observed_only"
+    return bundle_obj.completion_state or ""
+
+
 def harvest_observed_measurements(
     planned_steps: list[Step],
     step_records: dict[str, dict[str, Any]],
@@ -372,11 +465,17 @@ def harvest_observed_measurements(
     *,
     is_resumed: bool = False,
     manifest_path: Path | None = None,
+    earlier_records: Mapping[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Harvest observed measurements from step records without opening any Store (ADR 0023)."""
+    """Harvest observed measurements from step records without opening any Store (ADR 0023).
+
+    `earlier_records` are the records of the release's phases before this
+    one: a completion phase's build phase (ADR 0037). Only the elapsed total
+    counts them, so `build_elapsed_s` is every step of the release.
+    """
     total_elapsed = sum(
         float(rec.get("elapsed_seconds", 0.0))
-        for rec in step_records.values()
+        for rec in [*(earlier_records or {}).values(), *step_records.values()]
     )
 
     # Only a step that printed it can report the format version; none is
@@ -386,7 +485,7 @@ def harvest_observed_measurements(
     n_analyses: int | None = None
     n_associations: int | None = None
     store_bytes: int | None = None
-    validate_status, _, _ = validate_verdict(step_records.get("validate"))
+    validate_status, _, _ = validate_verdict(step_records.get(_validate_step(planned_steps)))
 
     # 1. Harvest from build or complete record
     producing_step = next((s.name for s in planned_steps if s.name in ("build", "complete")), None)
@@ -439,6 +538,9 @@ def harvest_observed_measurements(
         "store_bytes": store_bytes,
         "build_elapsed_s": round(total_elapsed, 3),
         "validate_status": validate_status,
+        "completion_state": published_completion_state(
+            bundle_obj, planned_steps[0].phase if planned_steps else BUILD_PHASE
+        ),
     }
 
     # Variant-reference provenance (issue #148). A declared pre-stage records
@@ -451,9 +553,10 @@ def harvest_observed_measurements(
         observed["variant_reference"] = (
             "provided" if variant_reference_record.get("skipped") is True else "extracted"
         )
-    else:
-        phase = "complete" if bundle_obj.completion_state == "reference_completed" else "build"
-        phase_options = (bundle_obj.build.get(phase) or {}).get("options") or {}
+    elif producing_step is not None:
+        # The block that produced this Store: `build` or `complete`, which for a
+        # release completing its own Store depends on the phase (ADR 0037).
+        phase_options = (bundle_obj.build.get(producing_step) or {}).get("options") or {}
         if "variant-reference" in phase_options:
             observed["variant_reference"] = "provided"
 
@@ -478,13 +581,17 @@ def _write_yaml_atomically(data: dict[str, Any], dest_path: Path) -> None:
 
 # The durable steps of a publication, in order: a crash between any two leaves
 # a state `complete_publication` recognises and finishes (#195). Tests inject a
-# crash at each through `run.fault_boundary`.
+# crash at each through `run.fault_boundary`. A replaced Store is either
+# archived (`old-store-archived`) or, by a completion phase, deleted: part-way
+# through (`old-store-deleting`), then wholly (`old-store-deleted`) (#309).
 PUBLICATION_BOUNDARIES: tuple[str, ...] = (
     "publication-started",
     "marker-written",
     "store-set-aside",
     "store-published",
     "old-store-archived",
+    "old-store-deleting",
+    "old-store-deleted",
     "old-records-archived",
     "old-record-archived",
     "record-written",
@@ -495,12 +602,17 @@ _MARKER_KEYS: frozenset[str] = frozenset({
     "store_id",
     "archive",
     "snapshot",
+    "replaced_store",
     "bundle_validation",
     "previous_validation",
     "validation_yaml",
     "register_record",
     "written_at",
 })
+# What becomes of the Store a publication replaces (`replaced_store`): a
+# forced run archives it, and a completion phase deletes it (ADR 0037, #309).
+ARCHIVE_REPLACED_STORE = "archive"
+DELETE_REPLACED_STORE = "delete"
 
 
 def _dump_yaml(data: dict[str, Any]) -> str:
@@ -508,7 +620,19 @@ def _dump_yaml(data: dict[str, Any]) -> str:
 
 
 def _write_text_atomically(text: str, dest_path: Path) -> None:
-    """Atomically write text to dest_path using a temporary file and os.replace."""
+    """Atomically write text to dest_path using a temporary file and os.replace.
+
+    A file that already holds exactly `text` is left alone. Its mtime is
+    evidence: a record rewritten with identical bytes looks newer than the job
+    that consumed it, and Snakemake then reschedules that job (#303). Atomic
+    writes mean an existing file holds either the previous content or the new
+    one, never a half-written mix, so this comparison never sees a torn file.
+    """
+    try:
+        if dest_path.read_bytes() == text.encode("utf-8"):
+            return
+    except OSError:
+        pass
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = dest_path.with_name(f".{dest_path.name}.tmp.{os.getpid()}.{time.time_ns()}")
     with open(temp_path, "w", encoding="utf-8") as f:
@@ -519,8 +643,33 @@ def _write_text_atomically(text: str, dest_path: Path) -> None:
     run._fsync_dir(dest_path.parent)
 
 
+def _record_already_written(record_p: Path, record_data: dict[str, Any]) -> bool:
+    """Whether `record_p` already holds exactly `record_data`.
+
+    The same argument as `_write_text_atomically`: an identical rewrite would
+    only bump the record's mtime, and a step record's mtime is what tells
+    Snakemake whether the job that consumed it is still up to date (#303).
+    """
+    try:
+        return json.loads(record_p.read_text(encoding="utf-8")) == record_data
+    except (OSError, ValueError):
+        return False
+
+
 def _exists(path: Path) -> bool:
     return os.path.lexists(path)
+
+
+def _delete_tree(path: Path) -> None:
+    """Remove a replaced Store from its deletion name, from wherever a crash stopped it (#309)."""
+    for n, entry in enumerate(sorted(path.iterdir())):
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+        if n == 0:
+            run.fault_boundary("old-store-deleting")
+    path.rmdir()
 
 
 def _load_marker(store_id: str, root: Path) -> dict[str, Any] | None:
@@ -531,8 +680,17 @@ def _load_marker(store_id: str, root: Path) -> dict[str, Any] | None:
         marker = json.loads(marker_p.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise PublicationError(f"Cannot read the pending publication {marker_p}: {exc}") from exc
-    if not isinstance(marker, dict) or set(marker) != _MARKER_KEYS or marker.get("store_id") != store_id:
+    # Two shapes are markers: this one, and the one written before #309, which
+    # has no `replaced_store`. A crash may have left the older one, and it
+    # meant what it still means: a replaced Store is archived.
+    if (
+        not isinstance(marker, dict)
+        or set(marker) not in (_MARKER_KEYS, _MARKER_KEYS - {"replaced_store"})
+        or marker.get("store_id") != store_id
+    ):
         raise PublicationError(f"{marker_p} is not a publication marker for {store_id}")
+    if "replaced_store" not in marker:
+        marker["replaced_store"] = None if marker["archive"] is None else ARCHIVE_REPLACED_STORE
     store_dir_p = paths.store_dir(store_id, root=root)
     archive, snapshot = marker["archive"], marker["snapshot"]
     if archive is not None and Path(archive).parent != store_dir_p / paths.REPLACED_DIRNAME:
@@ -543,6 +701,99 @@ def _load_marker(store_id: str, root: Path) -> dict[str, Any] | None:
     ):
         raise PublicationError(f"{marker_p} names a snapshot outside {store_dir_p}: {snapshot}")
     return marker
+
+
+def publication_register_step(marker: Mapping[str, Any]) -> str:
+    """The register record a publication writes: `register`, or a completion phase's (ADR 0037)."""
+    record = marker.get("register_record")
+    step = record.get("step") if isinstance(record, Mapping) else None
+    if step not in REGISTER_STEPS.values():
+        raise PublicationError(
+            f"The publication of {marker.get('store_id')} writes no register record of a phase: {step!r}"
+        )
+    return str(step)
+
+
+def finish_build_phase_publication(store_id: str, root: Path | str) -> bool:
+    """Finish the build phase's deferred publication before the completion phase stages (ADR 0037).
+
+    Under the entry point a register job leaves `publication.json` for the
+    entry point to remove once Snakemake has recorded that job complete
+    (#195). A release that completes its own Store builds, publishes and
+    completes it in one run, so its first completion-phase step starts while
+    the build phase's marker still stands. It must not stage the completed
+    Store beside it: a staged Store beside a pending first publication is a
+    state `complete_publication` refuses, after a crash as much as now.
+
+    The step that calls this runs only once Snakemake has recorded the build
+    phase's register job complete: it consumes `records/register.json`, and
+    Snakemake runs no job over an output it still marks incomplete. So
+    finishing the publication here, marker last, is what the entry point's
+    settlement would do. A pending publication of any other phase is not this
+    function's to finish and is refused. Returns whether one was finished.
+    """
+    resolved_root = Path(root)
+    marker = _load_marker(store_id, resolved_root)
+    if marker is None:
+        return False
+    if publication_register_step(marker) != REGISTER_STEPS[BUILD_PHASE]:
+        raise run.PublicationPendingError(
+            f"Cannot complete {store_id}: the publication "
+            f"{paths.publication_marker(store_id, root=resolved_root)} has not finished; "
+            "`pixi run release` completes it first"
+        )
+    complete_publication(store_id, resolved_root)
+    return True
+
+
+def forced_completion(release_run: str | None, store_id: str, root: Path | str) -> bool:
+    """Whether the entry-point run `release_run` forced the release whose completion phase registers (#309).
+
+    A forced run's completion phase archives the Store it replaces, as every
+    forced replacement does, where an unforced one deletes it. The entry point
+    forces a release through its records snapshot (`run.forced_by_transaction`),
+    but the build phase's publication has moved that snapshot into its archive,
+    `replaced/<release_run>/`, by then. So it is the build phase's register
+    record, which names that archive, that says the run was forced. A null
+    `replaced_archive`, or another run's archive, means it was not.
+
+    So does a record with no `replaced_archive` at all. The field arrived with
+    #195, and `register` has written it ever since, so such a record was
+    written by a run before #195; and a forced run reruns the build phase and
+    rewrites `register.json`, so this run did not force it. Every Store
+    published before #195 has such a record, and completing one under its own
+    id (#305) meets it. A record that exists but is not a readable JSON object,
+    or whose `replaced_archive` is neither text nor null, is refused rather
+    than read as unforced, which would delete what a forced run archives.
+    `run.load_record` reads an unreadable record as a missing one, so the
+    record is read here.
+    """
+    if not release_run:
+        return False
+    record_p = paths.record_path(store_id, REGISTER_STEPS[BUILD_PHASE], root=root)
+    if not _exists(record_p):
+        # Nothing published to replace: `register_release` refuses that itself.
+        return False
+    try:
+        record = json.loads(record_p.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise RegisterError(
+            f"Cannot tell whether the run {release_run} forced {store_id}: the build phase's register "
+            f"record {record_p} cannot be read: {exc}. Nothing was changed."
+        ) from exc
+    if not isinstance(record, dict):
+        raise RegisterError(
+            f"Cannot tell whether the run {release_run} forced {store_id}: the build phase's register "
+            f"record {record_p} is not a JSON object. Nothing was changed."
+        )
+    replaced_archive = record.get("replaced_archive")
+    if not isinstance(replaced_archive, (str, type(None))):
+        raise RegisterError(
+            f"Cannot tell whether the run {release_run} forced {store_id}: the build phase's register "
+            f"record {record_p} has `replaced_archive` {replaced_archive!r}, not an archive path or null. "
+            "Nothing was changed."
+        )
+    return replaced_archive == str(paths.replaced_dir(store_id, release_run, root=root))
 
 
 def remove_publication_marker(store_id: str, root: Path | str) -> None:
@@ -565,12 +816,21 @@ def complete_publication(
     marker is removed last, only when everything below agrees:
 
     1. The staged Store is published. For a replacement, the old Store is first
-       set aside as `.backup`, and after the swap it is renamed into the
-       archive, never deleted.
+       set aside as `.backup`. After the swap a forced run renames it into the
+       archive. A completion phase deletes it (ADR 0037, #309): it renames it
+       into the archive under a deletion name, then removes that tree. The
+       marker's `replaced_store` says which, and a marker written before #309,
+       which lacks it, archives.
     2. For a replacement, the run's records snapshot moves into the archive as
-       `records/`, and the replaced Validation Record is written there.
-    3. The new `validation.yaml` and `records/register.json` are written from
-       the marker.
+       `records/`, and the replaced Validation Record is written there. A
+       completion phase takes no snapshot (ADR 0037): the release it replaces
+       is its own build phase's, whose records stay in `records/`, and a copy
+       of that release's `records/register.json` joins the archive instead.
+       When it deleted the Store, so does a copy of the passing
+       `records/completion-observed-view-check.json` that let it.
+    3. The new `validation.yaml` and the phase's register record
+       (`records/register.json`, or `records/completion-register.json`) are
+       written from the marker.
     4. With `finalize`, the marker is removed. The entry point passes False and
        removes it itself, after Snakemake has finished the register job and
        any mark that a killed job left `register.json` incomplete is cleared.
@@ -584,6 +844,7 @@ def complete_publication(
     marker = _load_marker(store_id, resolved_root)
     if marker is None:
         return None
+    register_step = publication_register_step(marker)
     marker_p = paths.publication_marker(store_id, root=resolved_root)
     store_p = paths.store_path(store_id, root=resolved_root)
     partial_p = paths.partial_store_path(store_id, root=resolved_root)
@@ -608,8 +869,15 @@ def complete_publication(
             raise stuck("a Store and a staged Store both exist, but nothing is being replaced")
     else:
         archive = Path(marker["archive"])
-        archived_store = archive / store_p.name
-        if _exists(archived_store):
+        deleting = marker["replaced_store"] == DELETE_REPLACED_STORE
+        # A Store to delete moves into the archive under a deletion name, in
+        # one rename, as a Store to archive moves in under its own. Removing
+        # the tree is not atomic, so the name marks one half-deleted. The
+        # archive exists from that rename on, so an archive with neither the
+        # tree nor a `.backup` means the deletion is done.
+        archived_store = archive / (f"{store_p.name}.deleting" if deleting else store_p.name)
+        deleted = deleting and _exists(archive) and not _exists(archived_store) and not _exists(backup_p)
+        if _exists(archived_store) or deleted:
             if _exists(backup_p):
                 raise stuck(f"both {archived_store} and {backup_p} exist")
             if not _exists(store_p):
@@ -631,25 +899,59 @@ def complete_publication(
             backup_p.rename(archived_store)
             run._fsync_dir(archive)
             run._fsync_dir(store_dir_p)
-            run.fault_boundary("old-store-archived")
+            if not deleting:
+                run.fault_boundary("old-store-archived")
+        if deleting and _exists(archived_store):
+            _delete_tree(archived_store)
+            run._fsync_dir(archive)
+            run.fault_boundary("old-store-deleted")
 
         snapshot = Path(marker["snapshot"]) if marker["snapshot"] else None
         if snapshot is not None and _exists(snapshot):
             run.archive_force_snapshot(snapshot, archive)
             run.fault_boundary("old-records-archived")
+        if register_step != REGISTER_STEPS[BUILD_PHASE]:
+            # The replaced release's register record, and for a deleted Store
+            # the passing verdict that let it go.
+            kept = [(REGISTER_STEPS[BUILD_PHASE], "the register record of the release being replaced")]
+            if deleting:
+                kept.append((OBSERVED_VIEW_CHECK_STEP, "the Observed-View Check record that let it be deleted"))
+            for step, what in kept:
+                record_p = paths.record_path(store_id, step, root=resolved_root)
+                archived_record = archive / "records" / record_p.name
+                if not _exists(archived_record):
+                    if not _exists(record_p):
+                        raise stuck(f"{what}, {record_p}, is missing")
+                    _write_text_atomically(record_p.read_text(encoding="utf-8"), archived_record)
+                    run.fault_boundary("old-records-archived")
         if marker["previous_validation"] is not None and not _exists(archive / "validation.yaml"):
             _write_text_atomically(marker["previous_validation"], archive / "validation.yaml")
             run.fault_boundary("old-record-archived")
 
     _write_text_atomically(marker["validation_yaml"], Path(marker["bundle_validation"]))
     run.fault_boundary("record-written")
-    run._write_record_atomically(
-        marker["register_record"], paths.record_path(store_id, "register", root=resolved_root)
-    )
+    register_record_p = paths.record_path(store_id, register_step, root=resolved_root)
+    if not _record_already_written(register_record_p, marker["register_record"]):
+        run._write_record_atomically(marker["register_record"], register_record_p)
     run.fault_boundary("register-record-written")
     if finalize:
         remove_publication_marker(store_id, resolved_root)
     return marker
+
+
+def _unused_stamp(store_id: str, root: Path) -> str:
+    """This second's UTC stamp, or it suffixed `-2`, `-3`, ... when that archive exists.
+
+    A forced run of a release that completes its own Store replaces it twice,
+    in its build phase and then in its completion phase, and both may fall in
+    one second (#304).
+    """
+    stamp = run.utc_stamp()
+    candidate, n = stamp, 1
+    while _exists(paths.replaced_dir(store_id, candidate, root=root)):
+        n += 1
+        candidate = f"{stamp}-{n}"
+    return candidate
 
 
 def register_release(
@@ -661,6 +963,7 @@ def register_release(
     publish: bool = True,
     acceptance_commit: str | None = None,
     finalize: bool = True,
+    phase: str = BUILD_PHASE,
 ) -> dict[str, Any]:
     """Assemble validation.yaml, verify executed vs planned argv, publish store, and record register.json.
 
@@ -669,11 +972,20 @@ def register_release(
         registry_root: Optional registry root path (default: stores/).
         artifact_root: Optional artifact root path override.
         force: If True, permit replacing an existing final Store during terminal publication.
+            The replaced Store is archived; a completion phase passed it, as a
+            forced run's is, archives rather than deletes (#309).
         publish: If True, atomically publish staging store (.partial -> final store).
         acceptance_commit: The commit of the bundle's current validation.yaml
             (`committed_revision`), recorded when that is a candidate record.
         finalize: If False, leave `publication.json` for the caller to remove.
             The entry point does so once Snakemake has finished this job (#195).
+        phase: The phase to register. A release that completes its own Store
+            registers its `build` phase, then its `completion` phase, which
+            replaces the Store the first published without `force`, takes no
+            records snapshot, deletes the Store it replaced once the new one
+            is in place, and writes `records/completion-register.json`
+            (ADR 0037, #309). It registers only over a passing Observed-View
+            Check.
 
     Returns:
         dict containing the assembled validation.yaml data.
@@ -682,6 +994,7 @@ def register_release(
         StepFailedError: If a step record indicates a failed step.
         ArgvDriftError: If executed argv differs from planned argv.
         ValidateVerdictError: If the validate record carries no `--format json` verdict.
+        ObservedViewCheckError: If a completion phase's check record shows no pass.
     """
     if isinstance(bundle_input, str):
         b = bundle.load(bundle_input, registry_root=registry_root)
@@ -696,6 +1009,10 @@ def register_release(
         Path(artifact_root) if artifact_root is not None else paths.artifact_root()
     )
 
+    if phase not in REGISTER_STEPS:
+        raise ValueError(f"Unknown phase {phase!r}; expected one of {sorted(REGISTER_STEPS)}")
+    register_step = REGISTER_STEPS[phase]
+
     marker_p = paths.publication_marker(store_id, root=resolved_root)
     if _exists(marker_p):
         raise run.PublicationPendingError(
@@ -703,12 +1020,14 @@ def register_release(
             "`pixi run release` completes it first"
         )
 
-    planned_steps = plan(b, artifact_root=resolved_root)
+    planned = plan(b, artifact_root=resolved_root)
+    planned_steps = [step for step in planned if step.phase == phase]
+    if not planned_steps:
+        raise RegisterError(f"Cannot register {store_id}: its plan has no {phase} phase")
     step_records: dict[str, dict[str, Any]] = {}
     any_resumed = False
 
-    # 1. Load and verify each planned step's record and check argv drift
-    for step in planned_steps:
+    def required_record(step: Step) -> dict[str, Any]:
         rec = run.load_record(store_id, step.name, root=resolved_root)
         if rec is None:
             rec_p = paths.record_path(store_id, step.name, root=resolved_root)
@@ -716,6 +1035,17 @@ def register_release(
                 f"Cannot register release {store_id}: missing required execution record for "
                 f"step {step.name!r} at {rec_p}"
             )
+        return rec
+
+    # The steps of the phases before this one, which their own register
+    # verified; the release's elapsed total counts them (ADR 0037).
+    earlier_records = {
+        step.name: required_record(step) for step in planned[: planned.index(planned_steps[0])]
+    }
+
+    # 1. Load and verify each planned step's record and check argv drift
+    for step in planned_steps:
+        rec = required_record(step)
         if not rec.get("success") or rec.get("exit_code") != 0:
             raise StepFailedError(
                 f"Cannot register release {store_id}: step {step.name!r} failed with "
@@ -726,9 +1056,16 @@ def register_release(
         if is_resumed:
             any_resumed = True
         step_records[step.name] = rec
+    if phase == COMPLETION_PHASE:
+        require_passing_observed_view_check(
+            store_id,
+            step_records.get(OBSERVED_VIEW_CHECK_STEP),
+            paths.record_path(store_id, OBSERVED_VIEW_CHECK_STEP, root=resolved_root),
+        )
 
     # 2. This run's verdict and findings, then its observed measurements
-    val_status, val_warnings, val_errors = validate_verdict(step_records.get("validate"))
+    validate_step = _validate_step(planned_steps)
+    val_status, val_warnings, val_errors = validate_verdict(step_records.get(validate_step))
     acceptance = acceptance_evidence(b.validation, commit=acceptance_commit)
     observed = harvest_observed_measurements(
         planned_steps,
@@ -736,6 +1073,7 @@ def register_release(
         b,
         is_resumed=any_resumed,
         manifest_path=paths.build_manifest_path(store_id, root=resolved_root),
+        earlier_records=earlier_records,
     )
 
     # 3. Assemble validation.yaml dictionary
@@ -778,17 +1116,40 @@ def register_release(
     # finishes the job; nothing below raises before the marker without leaving
     # the published release as it was.
     val_yaml_path = b.root / "validation.yaml"
-    reg_rec_p = paths.record_path(store_id, "register", root=resolved_root)
+    reg_rec_p = paths.record_path(store_id, register_step, root=resolved_root)
     partial_p = paths.partial_store_path(store_id, root=resolved_root)
     target_p = paths.store_path(store_id, root=resolved_root)
     staged = publish and partial_p.is_dir()
     replacing = staged and _exists(target_p)
-    if replacing and not force:
+    # The completion phase exists to replace the Store its build phase
+    # published, so that replacement is no rebuild and takes no `force`.
+    if replacing and not force and phase == BUILD_PHASE:
         raise run.StoreExistsError(f"Target store already exists at {target_p}. Set force=True to replace.")
 
     archive: Path | None = None
     snapshot: Path | None = None
+    replaced_store: str | None = None
     if replacing:
+        # The completion phase deletes the Store it replaces: the completed
+        # Store holds everything it held (ADR 0037, Decision 3). A forced run
+        # archives it, in either phase (#309).
+        replaced_store = (
+            DELETE_REPLACED_STORE if phase == COMPLETION_PHASE and not force else ARCHIVE_REPLACED_STORE
+        )
+    if replacing and phase == COMPLETION_PHASE:
+        # No records snapshot: the completion phase's records never overwrite
+        # the build phase's, so a failed completion leaves them standing, and
+        # its own part-finished records with them. The archive takes its own
+        # stamp, and the register record of the release it replaces is copied
+        # into it.
+        replaced_register = paths.record_path(store_id, REGISTER_STEPS[BUILD_PHASE], root=resolved_root)
+        if not replaced_register.is_file():
+            raise RegisterError(
+                f"Cannot replace {store_id}: the Store it completes has no register record at {replaced_register}"
+            )
+        archive = paths.replaced_dir(store_id, _unused_stamp(store_id, resolved_root), root=resolved_root)
+        validation_data["replaced"] = {"archive": str(archive), "replaced_at": now_iso}
+    elif replacing:
         # Replacing archives the old release under replaced/<stamp>/, with the
         # stamp of the forced run's records snapshot, so the two name each other.
         snapshots = run.pending_force_snapshots(store_id, resolved_root)
@@ -811,7 +1172,7 @@ def register_release(
 
     input_record_paths = [str(paths.record_path(store_id, s.name, root=resolved_root)) for s in planned_steps]
     register_result = {
-        "step": "register",
+        "step": register_step,
         "store_id": store_id,
         "exit_code": 0,
         "success": True,
@@ -834,16 +1195,17 @@ def register_release(
 
     if staged:
         run._preflight_paths(store_id, resolved_root)
-        val_rec = step_records.get("validate")
+        val_rec = step_records.get(validate_step)
         if not val_rec or not val_rec.get("success") or val_rec.get("exit_code") != 0:
             raise RegisterError(
-                f"Cannot publish {store_id}: missing successful 'validate' record in records/."
+                f"Cannot publish {store_id}: missing successful {validate_step!r} record in records/."
             )
         run.fault_boundary("publication-started")
         marker = {
             "store_id": store_id,
             "archive": str(archive) if archive else None,
             "snapshot": str(snapshot) if snapshot else None,
+            "replaced_store": replaced_store,
             "bundle_validation": str(val_yaml_path.resolve()),
             "previous_validation": (
                 val_yaml_path.read_text(encoding="utf-8") if replacing and val_yaml_path.is_file() else None
@@ -870,6 +1232,7 @@ __all__ = [
     "VALIDATOR_NAME",
     "ArgvDriftError",
     "MissingRecordError",
+    "ObservedViewCheckError",
     "PUBLICATION_BOUNDARIES",
     "PublicationError",
     "RegisterError",
@@ -879,10 +1242,14 @@ __all__ = [
     "check_argv_drift",
     "committed_revision",
     "complete_publication",
+    "finish_build_phase_publication",
+    "forced_completion",
     "harvest_observed_measurements",
     "normalize_executed_argv_for_staging",
     "normalize_executed_argv_for_variant_reference",
+    "publication_register_step",
     "register_release",
     "remove_publication_marker",
+    "require_passing_observed_view_check",
     "validate_verdict",
 ]

@@ -101,6 +101,9 @@ resolver measures overlap against).
 `context` are release-wide facts: an Analysis whose Source Metadata Table row
 carries a value keeps it, and one whose cell is blank takes the default. A metadata
 adapter never writes a collection-wide fact into the table (#283).
+Each Analysis's `source_genome_build`, taken this way, is also the build its
+resolver manifest row declares; the resolver is never given a `--source-build`
+fallback (opengwasdb#277).
 
 ### `release_policy`
 
@@ -149,7 +152,10 @@ refused. Three blocks use them, by id:
 
 - `ancestry_assignment.reference_resource_id` (required) names the ancestry
   mixture the resolver measures against: an `ancestry_mixture` resource, with a
-  `fine_group_map`.
+  `fine_group_map`. The resolver's `--reference-build` is the `genome_build` of
+  that resource's declaration, `resources/reference-resources/<id>/resource.yaml`,
+  not of this entry; a missing declaration or `genome_build` is refused, because
+  the resolver never guesses a build (opengwasdb#277).
   `maf_floor` (default 0.01), `extraction_panel` (default none) and `gates`
   (`tau` 0.50, `delta` 0.20, `n_min` 5000, `residual_max` 0.06) are passed to
   the resolver as written.

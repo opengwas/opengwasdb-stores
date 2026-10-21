@@ -35,7 +35,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-from ogstores import runtime  # noqa: E402
+from ogstores import resources, runtime  # noqa: E402
 
 n_checks = 0
 
@@ -126,6 +126,7 @@ class RuntimeGuardTestCase(unittest.TestCase):
         completion: bool = False,
         derived_from: str | None = None,
         indexed_subset: bool = False,
+        single_id: bool = False,
     ) -> None:
         bundle_root = self.registry / store_id
         bundle_root.mkdir(parents=True, exist_ok=True)
@@ -144,12 +145,14 @@ class RuntimeGuardTestCase(unittest.TestCase):
             "completion_state": "reference_completed" if completion else "observed_only",
             "post": {"top_hits": not completion, "rho": False, "overview": True},
         }
-        if completion:
+        if completion or single_id:
             build["complete"] = {
                 "command": "complete-dense",
                 "options": {"ld-panel": "/p", "ancestry": "EUR"},
             }
-        else:
+        if single_id:
+            build["completion_state"] = "reference_completed"
+        if not completion:
             build["build"] = {"command": "build-dense-vcf", "options": {}}
         if indexed_subset:
             build["indexed_subsets"] = [
@@ -548,6 +551,51 @@ class RuntimeGuardTestCase(unittest.TestCase):
             )
         record_check()
         self.assertIn("exited 3", str(ctx.exception))
+
+    # --- Observed-View Check capability (#306) ----------------------------
+
+    def _stub(self, name: str, *, exit_code: int) -> Path:
+        stub = self.tmp / name
+        stub.write_text(f"#!/bin/sh\nexit {exit_code}\n", encoding="utf-8")
+        stub.chmod(0o755)
+        return stub
+
+    def test_a_single_id_completion_on_a_runtime_without_the_command_is_refused(self) -> None:
+        self._write_bundle("OGS-00090", single_id=True)
+        without_command = self._stub("without-command", exit_code=2)
+        before = sorted(self.tmp.rglob("*"))
+        with self.assertRaises(resources.ObservedViewCheckRuntimeError) as ctx:
+            resources.verify_observed_view_check_for_releases(
+                [(str(self.artifact_root), "OGS-00090")],
+                registry_root=self.registry,
+                executable=str(without_command),
+            )
+        record_check()
+        message = str(ctx.exception)
+        self.assertIn("check-observed-view", message)
+        self.assertIn(runtime.PINNED_OPENGWASDB_REVISION[:8], message)
+        self.assertIn("OGS-00090", message)
+        self.assertEqual(sorted(self.tmp.rglob("*")), before, "a refusal writes nothing")
+
+    def test_a_runtime_with_the_command_passes(self) -> None:
+        self._write_bundle("OGS-00090", single_id=True)
+        resources.verify_observed_view_check_for_releases(
+            [(str(self.artifact_root), "OGS-00090")],
+            registry_root=self.registry,
+            executable=str(self._stub("with-command", exit_code=0)),
+        )
+        record_check()
+
+    def test_a_plan_with_no_completion_phase_is_not_gated(self) -> None:
+        """An Observed-Only release and a two-id child need no Observed-View Check."""
+        self._write_bundle("OGS-00090")
+        self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090")
+        resources.verify_observed_view_check_for_releases(
+            [(str(self.artifact_root), "OGS-00090"), (str(self.artifact_root), "OGS-00091")],
+            registry_root=self.registry,
+            executable="/definitely/missing",
+        )
+        record_check()
 
 
 class ScheduledJobsParserTestCase(unittest.TestCase):

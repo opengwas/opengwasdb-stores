@@ -26,6 +26,12 @@ killed job, and that differs between them only in whether the publication
 marker exists and whether the job's output, `records/register.json`, has been
 written. One boundary of each kind is crashed here.
 
+One case more kills a release that completes its own Store (ADR 0037)
+part-way through its completion phase's deletion of the Store it replaced
+(`old-store-deleting`, #309), and the next run finishes it. That release is a
+copy of the published one whose bundle gained a `complete` block (#305), so
+its run is the completion phase alone.
+
 Each boundary has its own directories, so Snakemake's metadata for one cannot
 make another look up to date.
 
@@ -45,12 +51,14 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from typing import Any
 
 import yaml
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import test_workflow  # noqa: E402
 from ogstores import paths, register, release, run  # noqa: E402
 from test_workflow import (  # noqa: E402
     SNAKEFILE_PATH,
@@ -256,7 +264,7 @@ class TestEveryBoundaryThroughTheEntryPoint(PublishedReleaseFixture):
                 find_snakemake_cmd()
                 + ["--snakefile", str(SNAKEFILE_PATH), "--unlock", "--config",
                    f"registry_root={stores}", f"artifact_root={artifacts}"],
-                cwd=REPO_ROOT, capture_output=True, text=True,
+                cwd=release.snakemake_directory(), capture_output=True, text=True,
             )
             self.assertEqual(unlock.returncode, 0, unlock.stdout + unlock.stderr)
             res = release_run(force=True)
@@ -272,6 +280,73 @@ class TestEveryBoundaryThroughTheEntryPoint(PublishedReleaseFixture):
         again = release_run()
         self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
         self.assertIn("nothing to be done", again.stdout)
+
+
+    def test_a_single_id_completion_killed_mid_deletion_is_finished_by_the_next_run(self) -> None:
+        """A whole-stack SIGKILL with the replaced Observed-Only Store half deleted; the next run finishes (#309).
+
+        The completion phase's register publishes the completed Store, then
+        deletes the Store it replaced. The next entry-point run finishes the
+        deletion and the publication, and the run after it executes no job.
+        This is the one end-to-end deletion case: the register suite crashes
+        the transaction at every deletion boundary.
+
+        The release is a copy of the published one, its bundle amended to
+        complete its own Store (#305): the killed run is an unforced
+        completion phase over the published Observed-Only Store, which
+        deletes it as a fresh single-id run does, with no build phase first.
+        """
+        boundary = "old-store-deleting"
+        self.assertIn(boundary, register.PUBLICATION_BOUNDARIES)
+        sid = STORE_ID
+        stores, artifacts = self.published_copy(aged=False)
+        test_workflow.amend_to_complete_own_store(
+            stores, sid, ld_panel=test_workflow.create_signal_ld_panel(stores.parent / "ld-panel")
+        )
+
+        killed = run_release(
+            [sid], registry_root=stores, artifact_root=artifacts,
+            env={run.KILL_GROUP_AT_ENV: boundary}, new_session=True,
+        )
+        self.assertEqual(killed.returncode, -9, f"no kill at {boundary}:\n{killed.stdout}\n{killed.stderr}")
+        store_p = paths.store_path(sid, root=artifacts)
+        marker = json.loads(paths.publication_marker(sid, root=artifacts).read_text(encoding="utf-8"))
+        self.assertEqual(marker["register_record"]["step"], "completion-register")
+        manifest = json.loads((store_p / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["completion_state"], "reference_completed", "the completed Store is published")
+        (half_deleted,) = (paths.store_dir(sid, root=artifacts) / "replaced").glob("*/store.opengwasdb.deleting")
+        self.assertTrue(any(half_deleted.iterdir()), "killed part-way through the deletion")
+        self.assertFalse(paths.record_path(sid, "completion-register", root=artifacts).exists())
+
+        res = run_release([sid], registry_root=stores, artifact_root=artifacts)
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self.assertIn(f"completed the interrupted publication of {sid}", res.stdout)
+        self.assertIn("nothing to be done", res.stdout)
+
+        archive = half_deleted.parent
+        self.assertEqual(sorted(p.name for p in archive.iterdir()), ["records", "validation.yaml"])
+        self.assertEqual(
+            sorted(p.name for p in (archive / "records").iterdir()),
+            ["completion-observed-view-check.json", "register.json"],
+        )
+        written = yaml.safe_load((stores / sid / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(written["observed"]["completion_state"], "reference_completed")
+        self.assertEqual(written["replaced"]["archive"], str(archive))
+        completion_register = json.loads(paths.record_path(sid, "completion-register", root=artifacts).read_text())
+        self.assertEqual(completion_register["replaced_archive"], str(archive))
+        for leftover in (
+            paths.publication_marker(sid, root=artifacts),
+            paths.backup_store_path(sid, root=artifacts),
+            paths.partial_store_path(sid, root=artifacts),
+        ):
+            self.assertFalse(leftover.exists(), leftover)
+
+        records = paths.records_dir(sid, root=artifacts)
+        before = {p: p.stat().st_mtime_ns for p in records.glob("*.json")}
+        again = run_release([sid], registry_root=stores, artifact_root=artifacts)
+        self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
+        self.assertIn("nothing to be done", again.stdout)
+        self.assertEqual({p: p.stat().st_mtime_ns for p in records.glob("*.json")}, before)
 
 
 class TestLiveAndInterruptedRuns(PublishedReleaseFixture):
@@ -422,6 +497,133 @@ class TestLiveAndInterruptedRuns(PublishedReleaseFixture):
         a forced run then replaces the release: each forced run is a whole release.
         """
         self.check_interrupt("all", signal.SIGTERM, force_again=True)
+
+
+class TestLiveAndInterruptedRunsOfACompletion(PublishedReleaseFixture):
+    """An interrupted completion leaves the Observed-Only Store published, and the next run resumes (#305).
+
+    The module's published release gains a `complete` block (ADR 0037), and an
+    unforced run completes it. The case interrupts that completion twice and
+    lets a third run finish: Ctrl-C mid-`complete`, then, in the run that
+    resumes it, SIGTERM to every process mid-`completion-validate`. Refusing
+    a checkpoint started from another plan, or by nothing this workflow ran,
+    is `tests/run`'s to show.
+
+    `complete-dense` is held mid-run without a test hook in either repository.
+    The panel block's eigendecomposition is a FIFO, so the command writes its
+    checkpoint and then blocks on reading the block, until the test puts the
+    real file back. A post step is paused at its `<step>-started` point.
+    """
+
+    def amended_copy(self) -> tuple[Path, Path, Path, Path]:
+        """A copy of the published release whose bundle gained a `complete` block, its panel block held."""
+        stores, artifacts = self.published_copy(aged=False)
+        panel = test_workflow.create_signal_ld_panel(stores.parent / "ld-panel")
+        test_workflow.amend_to_complete_own_store(stores, STORE_ID, ld_panel=panel)
+        block = next((panel / "EUR" / "1").glob("*.ldeig.npz"))
+        held = block.with_name(f"{block.name}.held")
+        block.rename(held)
+        os.mkfifo(block)
+        return stores, artifacts, block, held
+
+    def start_run(
+        self, stores: Path, artifacts: Path, *, pause_at: str | None = None
+    ) -> tuple[subprocess.Popen, Path, Path]:
+        """Start an unforced run in its own session; wait until it is mid-`complete` or at `pause_at`."""
+        pause = stores.parent / "paused"
+        log = stores.parent / f"run-{time.monotonic_ns()}.log"
+        handle = log.open("w")
+        self.addCleanup(handle.close)
+        env = {**os.environ, run.PAUSE_AT_ENV: pause_at or "", run.PAUSE_FILE_ENV: str(pause)}
+        proc = subprocess.Popen(
+            release_argv([STORE_ID], registry_root=stores, artifact_root=artifacts),
+            cwd=REPO_ROOT, stdout=handle, stderr=subprocess.STDOUT, env=env, start_new_session=True,
+        )
+        self.addCleanup(lambda: proc.poll() is None and os.killpg(proc.pid, signal.SIGKILL))
+        reached = pause if pause_at else self.checkpoint(artifacts) / "build_params.json"
+        deadline = time.monotonic() + 300
+        while not reached.exists():
+            if proc.poll() is not None:
+                self.fail(f"the run ended before {reached.name}:\n{log.read_text()}")
+            if time.monotonic() > deadline:
+                self.fail(f"the run never reached {reached.name}:\n{log.read_text()}")
+            time.sleep(0.2)
+        return proc, pause, log
+
+    def checkpoint(self, artifacts: Path) -> Path:
+        """Where `complete-dense` keeps the checkpoint of the staged Store it writes."""
+        return paths.store_dir(STORE_ID, root=artifacts) / ".store.opengwasdb.partial.checkpoint"
+
+    def interrupt(self, proc: subprocess.Popen, pause: Path, log: Path, deliver: str) -> None:
+        if deliver == "ctrl-c":
+            os.killpg(proc.pid, signal.SIGINT)
+            signum = signal.SIGINT
+        else:
+            # SIGTERM to every process of the run, found through the paused job.
+            os.killpg(os.getpgid(int(pause.read_text(encoding="utf-8").strip())), signal.SIGTERM)
+            os.killpg(proc.pid, signal.SIGTERM)
+            signum = signal.SIGTERM
+        self.assertEqual(proc.wait(timeout=600), 128 + signum, log.read_text())
+
+    def assert_observed_only_store_stands(self, artifacts: Path, before: dict[str, Any]) -> None:
+        """The Observed-Only Store is published and untouched, and so are the build phase's records."""
+        store_p = paths.store_path(STORE_ID, root=artifacts)
+        self.assertEqual((store_p / "manifest.json").read_bytes(), before["manifest"])
+        records = records_of(paths.records_dir(STORE_ID, root=artifacts))
+        self.assertEqual({name: records[name] for name in before["records"]}, before["records"])
+        self.assertEqual(before["validation_p"].read_bytes(), before["validation"])
+        self.assertFalse(paths.publication_marker(STORE_ID, root=artifacts).exists())
+        self.assertFalse((paths.store_dir(STORE_ID, root=artifacts) / "replaced").exists())
+        self.assertNotIn("completion-register.json", records)
+
+    def test_ctrl_c_mid_complete_then_sigterm_to_every_process_mid_post_step(self) -> None:
+        stores, artifacts, block, held = self.amended_copy()
+        before = {
+            "manifest": (paths.store_path(STORE_ID, root=artifacts) / "manifest.json").read_bytes(),
+            "records": records_of(paths.records_dir(STORE_ID, root=artifacts)),
+            "validation_p": stores / STORE_ID / "validation.yaml",
+            "validation": (stores / STORE_ID / "validation.yaml").read_bytes(),
+        }
+        checkpoint = self.checkpoint(artifacts)
+
+        # 1. Interrupted mid-`complete`: its checkpoint is written, the command is blocked.
+        proc, pause, log = self.start_run(stores, artifacts)
+        self.interrupt(proc, pause, log, "ctrl-c")
+        self.assert_observed_only_store_stands(artifacts, before)
+        self.assertTrue(checkpoint.is_dir(), "the interrupted completion's checkpoint is kept")
+        self.assertTrue(paths.completion_start_path(STORE_ID, root=artifacts).is_file(), "so is the plan it started from")
+        block.unlink()
+        held.rename(block)
+
+        # 2. The next unforced run resumes `complete` from its checkpoint, and is
+        # interrupted in turn once `completion-validate` has started.
+        proc, pause, log = self.start_run(stores, artifacts, pause_at="completion-validate-started")
+        self.interrupt(proc, pause, log, "all")
+        self.assert_observed_only_store_stands(artifacts, before)
+        complete_p = paths.record_path(STORE_ID, "complete", root=artifacts)
+        complete = json.loads(complete_p.read_text(encoding="utf-8"))
+        self.assertTrue(complete["success"], complete)
+        self.assertEqual(complete["argv"], ["opengwasdb", "complete-dense-resume", str(checkpoint)])
+        self.assertFalse(checkpoint.exists(), "a finished resume removes its checkpoint")
+        completed = (complete_p.stat().st_mtime_ns, complete_p.read_bytes())
+
+        # 3. The next unforced run resumes from `completion-validate` and publishes.
+        res = run_release([STORE_ID], registry_root=stores, artifact_root=artifacts)
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self.assertEqual((complete_p.stat().st_mtime_ns, complete_p.read_bytes()), completed, "`complete` ran once")
+        manifest_doc = json.loads((paths.store_path(STORE_ID, root=artifacts) / "manifest.json").read_text())
+        self.assertEqual(manifest_doc["completion_state"], "reference_completed")
+        written = yaml.safe_load(before["validation_p"].read_text(encoding="utf-8"))
+        self.assertTrue(written["observed"]["resumed"], "the Validation Record says the completion resumed")
+        # The swap deleted the Observed-Only Store and archived the records of
+        # the release it replaced (#309).
+        archives = sorted((paths.store_dir(STORE_ID, root=artifacts) / "replaced").iterdir())
+        self.assertEqual(len(archives), 1, archives)
+        self.assertNotIn("store.opengwasdb", {p.name for p in archives[0].iterdir()})
+        self.assertEqual((archives[0] / "records" / "register.json").read_bytes(), before["records"]["register.json"][1])
+        self.assertEqual((archives[0] / "validation.yaml").read_bytes(), before["validation"])
+        for name, recorded in before["records"].items():
+            self.assertEqual(records_of(paths.records_dir(STORE_ID, root=artifacts))[name], recorded, name)
 
 
 def _case(boundary: str):

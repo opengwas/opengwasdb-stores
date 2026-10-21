@@ -62,9 +62,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-from ogstores import bundle, paths, register, resources, run, runtime
+from ogstores import amendment, bundle, paths, register, resources, run, runtime
 
 SNAKEFILE: Path = paths.REPO_ROOT / "workflow" / "Snakefile"
+
+# Test-only: the directory Snakemake runs in, and so keeps its `.snakemake/`
+# locks and metadata in, instead of the repository root. Every Snakemake run
+# deletes that whole lock directory when it exits, and `--unlock` clears every
+# lock in it, so test processes running side by side each need their own.
+SNAKEMAKE_DIRECTORY_ENV: str = "OGSTORES_TEST_SNAKEMAKE_DIRECTORY"
 
 # Configuration only the entry point may set.
 RESERVED_CONFIG_KEYS: frozenset[str] = frozenset({"release_run"})
@@ -106,7 +112,7 @@ SNAPSHOT_RESOLUTIONS: frozenset[str] = frozenset({"restore", "delete"})
 
 _TARGET = re.compile(r"\AOGS-\d{5}\Z|\Aall\Z")
 _WILDCARDS = re.compile(r"^\s*wildcards:\s*(?P<body>.*)$")
-_RELEASE_JOB = re.compile(r"^\s*(?:local)?rule (?:step|register|build_manifest):\s*$")
+_RELEASE_JOB = re.compile(r"^\s*(?:local)?rule (?P<rule>step|register|completion_register|build_manifest):\s*$")
 
 
 class UsageError(ValueError):
@@ -194,6 +200,11 @@ def _cores(value: str) -> str:
     return value
 
 
+def snakemake_directory() -> Path:
+    """The directory every Snakemake run starts in: the repository root, unless a test names another."""
+    return Path(os.environ.get(SNAKEMAKE_DIRECTORY_ENV) or paths.REPO_ROOT)
+
+
 def snakemake_argv(
     inv: Invocation, *, dry_run: bool, extra_config: dict[str, str] | None = None
 ) -> list[str]:
@@ -213,34 +224,59 @@ def snakemake_argv(
     return argv
 
 
-def scheduled_jobs(dry_run_output: str) -> list[tuple[str, str, str | None]]:
-    """The (artifact root, store_id, step) of every job a Snakemake dry run scheduled.
+def _scheduled(dry_run_output: str) -> list[tuple[str, str, str, str | None]]:
+    """The (rule, artifact root, store_id, step) of every release job a Snakemake dry run scheduled.
 
-    Every step, register and build_manifest job prints its wildcards, so a job
-    block without one means the output is not what this parser expects, and
-    that fails loudly rather than under-reporting what the run will touch.
-    `step` is `None` for a job with no `step` wildcard (`build_manifest`,
-    `register`). The runtime guard needs the step to tell a real parent rebuild
-    from an enhancement-only job on the same Store (#218).
+    Every step, register, completion_register and build_manifest job prints
+    its wildcards after its rule line, so a job block without them means the
+    output is not what this parser expects, and that fails loudly rather than
+    under-reporting what the run will touch. `step` is `None` for a job with
+    no `step` wildcard (`build_manifest`, `register`, `completion_register`).
     """
-    found: list[tuple[str, str, str | None]] = []
+    found: list[tuple[str, str, str, str | None]] = []
     jobs = 0
+    rule: str | None = None
     for line in dry_run_output.splitlines():
-        if _RELEASE_JOB.match(line):
+        job = _RELEASE_JOB.match(line)
+        if job:
             jobs += 1
+            rule = job["rule"]
         match = _WILDCARDS.match(line)
         if not match:
             continue
         fields = dict(part.split("=", 1) for part in match["body"].split(", ") if "=" in part)
         if "root" in fields and "store_id" in fields:
-            step = fields.get("step")
-            found.append((fields["root"], fields["store_id"], step))
+            found.append((rule or "", fields["root"], fields["store_id"], fields.get("step")))
+            rule = None
     if len(found) != jobs:
         raise RuntimeError(
             f"The dry run listed {jobs} release job(s) but the wildcards of {len(found)}; "
             "refusing to guess what the run would touch"
         )
-    return sorted(set(found), key=lambda job: (job[0], job[1], job[2] or ""))
+    return found
+
+
+def scheduled_jobs(dry_run_output: str) -> list[tuple[str, str, str | None]]:
+    """The (artifact root, store_id, step) of every job a Snakemake dry run scheduled.
+
+    The runtime guard needs the step to tell a real parent rebuild from an
+    enhancement-only job on the same Store (#218).
+    """
+    jobs = {(root, store_id, step) for _rule, root, store_id, step in _scheduled(dry_run_output)}
+    return sorted(jobs, key=lambda job: (job[0], job[1], job[2] or ""))
+
+
+def scheduled_records(dry_run_output: str) -> list[tuple[str, str, str | None]]:
+    """The (artifact root, store_id, record) of every job a Snakemake dry run scheduled.
+
+    `record` is the record the job writes (`run.job_record`), None for
+    `build_manifest`, so the preflight can tell a completion-phase job from a
+    build-phase one (#305).
+    """
+    records = {
+        (root, store_id, run.job_record(rule, step)) for rule, root, store_id, step in _scheduled(dry_run_output)
+    }
+    return sorted(records, key=lambda job: (job[0], job[1], job[2] or ""))
 
 
 def scheduled_releases(dry_run_output: str) -> list[tuple[str, str]]:
@@ -294,15 +330,19 @@ def _cleanup_metadata(inv: Invocation, files: Iterable[Path]) -> None:
         ]
         if inv.config:
             argv += ["--config", *(f"{key}={value}" for key, value in inv.config.items())]
-        result = subprocess.run(argv, cwd=paths.REPO_ROOT, capture_output=True, text=True)
+        result = subprocess.run(argv, cwd=snakemake_directory(), capture_output=True, text=True)
         output = result.stdout + result.stderr
         if result.returncode != 0 and "because the metadata was not present" not in output:
             raise RuntimeError(f"Could not clear Snakemake's metadata for {path}:\n{output}")
 
 
-def _cleanup_register_metadata(inv: Invocation, store_id: str, root: Path) -> None:
-    """`complete_publication` has just written `records/register.json`, so it is complete."""
-    _cleanup_metadata(inv, [paths.record_path(store_id, "register", root=root)])
+def _cleanup_register_metadata(inv: Invocation, store_id: str, root: Path, register_step: str) -> None:
+    """`complete_publication` has just written the phase's register record, so it is complete.
+
+    That is `records/register.json`, or `records/completion-register.json` for
+    the completion phase of a release that completes its own Store (ADR 0037).
+    """
+    _cleanup_metadata(inv, [paths.record_path(store_id, register_step, root=root)])
 
 
 def resolve_snapshot(inv: Invocation, store_id: str, root: Path, action: str) -> str:
@@ -343,15 +383,16 @@ def finish_publication(inv: Invocation, store_id: str, root: Path | str) -> bool
 
     `complete_publication` brings the Store and archive into line and rewrites
     the two records the marker holds (identical, after a register job that ran
-    to the end). Then Snakemake's
-    incomplete mark on `records/register.json`, which a killed job leaves, is
-    cleared, and only then is `publication.json` removed. A crash anywhere in
-    here leaves the marker, so the next run repeats this function. Returns
-    whether a publication was pending.
+    to the end). Then Snakemake's incomplete mark on the register record the
+    marker names, which a killed job leaves, is cleared, and only then is
+    `publication.json` removed. A crash anywhere in here leaves the marker, so
+    the next run repeats this function. Returns whether a publication was
+    pending.
     """
-    if register.complete_publication(store_id, root, finalize=False) is None:
+    marker = register.complete_publication(store_id, root, finalize=False)
+    if marker is None:
         return False
-    _cleanup_register_metadata(inv, store_id, Path(root))
+    _cleanup_register_metadata(inv, store_id, Path(root), register.publication_register_step(marker))
     run.fault_boundary("metadata-cleaned")
     register.remove_publication_marker(store_id, root)
     return True
@@ -439,6 +480,11 @@ def lock_holder(store_id: str, root: Path | str) -> str | None:
         return None
     finally:
         os.close(fd)
+
+
+def held_by_live_runs(registry_root: Path, root: Path | str) -> frozenset[str]:
+    """The registered releases whose lock a live run holds; it reads, never writes."""
+    return frozenset(store_id for store_id in registered_ids(registry_root) if lock_holder(store_id, root) is not None)
 
 
 def release_outputs(store_id: str, root: Path | str) -> list[Path]:
@@ -580,7 +626,7 @@ def _run_snakemake(
     env = {**os.environ, run.ENTRY_POINT_PID_ENV: str(os.getpid()), **(extra_env or {})}
     proc = subprocess.Popen(
         run._supervised_command(argv, liveness_read, status_write),
-        cwd=paths.REPO_ROOT,
+        cwd=snakemake_directory(),
         env=env,
         start_new_session=True,
         pass_fds=(liveness_read, status_write, *lock_fds),
@@ -614,7 +660,7 @@ def _run_snakemake(
 def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> int:
     """Show the plan and what the guard would do, writing nothing."""
     result = subprocess.run(
-        snakemake_argv(inv, dry_run=True), cwd=paths.REPO_ROOT, capture_output=True, text=True
+        snakemake_argv(inv, dry_run=True), cwd=snakemake_directory(), capture_output=True, text=True
     )
     sys.stdout.write(result.stdout)
     sys.stderr.write(result.stderr)
@@ -623,11 +669,27 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
     scheduled = scheduled_releases(result.stdout + result.stderr)
     jobs = scheduled_jobs(result.stdout + result.stderr)
     try:
-        _, left_out = resolve_targets(inv, registry_root)
+        requested, left_out = resolve_targets(inv, registry_root)
         bundle.refuse_unbuildable(_bundles(registry_root, (store_id for _, store_id in scheduled)))
     except bundle.NotBuildableError as exc:
         print(f"release-dry: the real run would refuse:\n{exc}")
         return result.returncode
+    try:
+        unchecked = amendment.refuse_changed_bundles(
+            requested,
+            registry_root=registry_root,
+            artifact_root=root,
+            forced=run.forced_releases(force, inv.targets),
+            held=held_by_live_runs(registry_root, root),
+        )
+    except amendment.AmendmentError as exc:
+        print(f"release-dry: the real run would refuse:\n{exc}")
+        return result.returncode
+    for store_id in sorted(unchecked):
+        print(
+            f"release-dry: {store_id} is held by another run, so its bundle is not checked here; "
+            "the real run checks it once it holds the release's lock"
+        )
     for refusal in left_out:
         print(f"release-dry: left out of `all`: {refusal}")
     busy = {}
@@ -656,7 +718,13 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
     forced = run.forced_releases(force, inv.targets)
     try:
         run.refuse_pending_force_snapshots(idle)
-        run.refuse_rebuilding_published_releases(idle, forced=forced)
+        run.refuse_rebuilding_published_releases(
+            idle,
+            forced=forced,
+            completing=run.completing_own_stores(
+                scheduled_records(result.stdout + result.stderr), registry_root=registry_root
+            ),
+        )
     except (run.ForceSnapshotPendingError, run.StoreExistsError) as exc:
         print(f"release-dry: the real run would refuse:\n{exc}")
         return result.returncode
@@ -674,11 +742,16 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
         )
     except (resources.IndexedSubsetRuntimeError, resources.ReferenceResourceError) as exc:
         print(f"release-dry: the real run would refuse:\n{exc}")
+    try:
+        resources.verify_observed_view_check_for_releases(idle, registry_root=registry_root)
+    except resources.ObservedViewCheckRuntimeError as exc:
+        print(f"release-dry: the real run would refuse:\n{exc}")
     return result.returncode
 
 
 GUARD_ERRORS: tuple[type[BaseException], ...] = (
     bundle.NotBuildableError,
+    amendment.AmendmentError,
     ReleaseInProgressError,
     run.StoreExistsError,
     run.ForceSnapshotPendingError,
@@ -686,6 +759,7 @@ GUARD_ERRORS: tuple[type[BaseException], ...] = (
     register.PublicationError,
     runtime.RuntimeGuardError,
     resources.IndexedSubsetRuntimeError,
+    resources.ObservedViewCheckRuntimeError,
     resources.ReferenceResourceError,
     UsageError,
 )
@@ -698,8 +772,27 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     requested, left_out = resolve_targets(inv, registry_root)
     for refusal in left_out:
         print(f"release: left out of `all`: {refusal}")
-    for store_id in sorted(requested):
+    # So is a bundle that no longer plans the Store it published, beyond the
+    # one amendment ADR 0037 allows, gaining a `complete` block (#305). One
+    # another live run holds has records that run may be rewriting: it is
+    # checked once this run holds its lock, before any job, or the run is
+    # refused as in progress.
+    held = amendment.refuse_changed_bundles(
+        requested,
+        registry_root=registry_root,
+        artifact_root=root,
+        forced=run.forced_releases(force, inv.targets),
+        held=held_by_live_runs(registry_root, root),
+    )
+    for store_id in sorted({*requested, *held}):
         locks.acquire(store_id)
+    amendment.refuse_changed_bundles(
+        held,
+        registry_root=registry_root,
+        artifact_root=root,
+        forced=run.forced_releases(force, inv.targets),
+        parents=False,
+    )
     for message in recover_releases(inv, registry_root, root, locks):
         print(message)
     # A leftover snapshot is refused before the dry run, so an operator sees the
@@ -707,7 +800,7 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     run.refuse_pending_force_snapshots([(root, store_id) for store_id in requested])
 
     plan = subprocess.run(
-        snakemake_argv(inv, dry_run=True), cwd=paths.REPO_ROOT, capture_output=True, text=True
+        snakemake_argv(inv, dry_run=True), cwd=snakemake_directory(), capture_output=True, text=True
     )
     if plan.returncode != 0:
         sys.stdout.write(plan.stdout)
@@ -737,6 +830,9 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     resources.verify_indexed_subsets_for_releases(
         scheduled, registry_root=registry_root, repo_root=paths.REPO_ROOT
     )
+    # A release that completes its own Store gates its swap on the Observed-View
+    # Check, which the resolved runtime must provide (#306).
+    resources.verify_observed_view_check_for_releases(scheduled, registry_root=registry_root)
 
     stamp = run.utc_stamp()
     snapshots: list[Path] = []
@@ -746,7 +842,12 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     try:
         try:
             snapshots = run.prepare_release_run(
-                scheduled, forced=run.forced_releases(force, inv.targets), stamp=stamp
+                scheduled,
+                forced=run.forced_releases(force, inv.targets),
+                stamp=stamp,
+                completing=run.completing_own_stores(
+                    scheduled_records(plan.stdout + plan.stderr), registry_root=registry_root
+                ),
             )
             run.fault_boundary("snapshots-taken")
             # The hand-off spares the Snakefile's `onstart` check from probing
@@ -828,10 +929,12 @@ __all__ = [
     "ReleaseLocks",
     "RESERVED_CONFIG_KEYS",
     "SNAKEFILE",
+    "SNAKEMAKE_DIRECTORY_ENV",
     "UNSAFE_OPTIONS",
     "SNAPSHOT_RESOLUTIONS",
     "UsageError",
     "finish_publication",
+    "held_by_live_runs",
     "lock_holder",
     "main",
     "parse_invocation",
@@ -841,7 +944,9 @@ __all__ = [
     "resolve_targets",
     "resolve_snapshot",
     "scheduled_jobs",
+    "scheduled_records",
     "scheduled_releases",
     "settle",
     "snakemake_argv",
+    "snakemake_directory",
 ]

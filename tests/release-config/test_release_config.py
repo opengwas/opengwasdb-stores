@@ -621,14 +621,18 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         self.assertEqual(config.target_ancestry, "EUR")
         self.assertEqual(len(config.effect_placeholder_exclusions), 27)
         self.assertEqual(set(config.maf_filter_exempt_analyses), {"GCST90428462", "GCST90428463"})
-        # The resolver is passed exactly the settings OGS-00011 was resolved
-        # under, so its Resolution Records are reused rather than re-measured.
+        # The resolver is passed the settings OGS-00011 was resolved under, plus
+        # the Ancestry Reference Panel's declared build, which the pinned
+        # resolver requires since opengwasdb#277 and the recorded command
+        # predates.
         release = yaml.safe_load((REPO_ROOT / "stores/OGS-00011/release.yaml").read_text())
         resolved = next(
             command for command in release["generator"]["commands"]
             if command.startswith("opengwasdb resolve-analyses")
         ).split()
         settings = resolved[4:resolved.index("--n-workers")]
+        groups = settings.index("--ancestry-groups") + 2
+        settings[groups:groups] = ["--reference-build", "GRCh38"]
         self.assertEqual(resolver_settings(config), settings)
 
     def test_every_shipped_config_prepares_its_resolver_manifest(self) -> None:

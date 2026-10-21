@@ -7,9 +7,9 @@ having individual test scripts search for a sibling `../opengwasdb/.venv`.
   pixi run test              # every suite
   pixi run test-python       # only the Python suites
   pixi run test-r            # only the R suites
-  pixi run test --suite workflow       # named suites only (repeatable)
-  pixi run test --skip-exclusive       # all but the suites that run alone
-  pixi run test --list-exclusive       # those suites, as JSON, for CI's matrix
+  pixi run test --suite workflow          # named suites only (repeatable)
+  pixi run test --skip-release-stack      # all but the suites CI runs on runners of their own
+  pixi run test --list-release-stack      # those suites, as JSON, for CI's matrix
 
 Suites are data-only, network-free, and safe to run in CI; they are distinct
 from the data-intensive LD-panel acquisition/materialization tasks.
@@ -21,6 +21,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -28,7 +29,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 Suite = tuple[str, str, list[str]]  # (label, kind, command relative to REPO_ROOT)
-# A Python file run as named halves: file -> [(label, extra arguments)].
+# A Python file run as named parts: file -> [(label, extra arguments)].
 Splits = dict[str, list[tuple[str, list[str]]]]
 
 # R suites are listed: discovery finds only Python ones (#257).
@@ -45,7 +46,7 @@ R_SUITES: list[Suite] = [
     ("schema-validation", "r", ["tests/schema-validation/run_tests.R"]),
 ]
 
-# A Python suite CI runs as separate halves, each on a runner of its own.
+# A Python suite CI runs as separate parts, each on a runner of its own.
 SPLITS: Splits = {
     "tests/workflow/test_release_faults.py": [
         ("release-faults/boundaries", ["-k", "TestEveryBoundaryThroughTheEntryPoint"]),
@@ -69,7 +70,7 @@ def discover_suites(tests_root: Path, *, r_suites: list[Suite], splits: Splits) 
     is a `run_tests.py`, or when the file is named after the directory
     (`workflow/test_workflow.py`); otherwise `<directory>/<file>`, without
     `test_` and with `-` for `_`. A name an R suite already has falls back to
-    the `<directory>/<file>` form. A file in `splits` runs as its named halves
+    the `<directory>/<file>` form. A file in `splits` runs as its named parts
     instead. Two suites with one name are refused rather than one hiding the
     other.
     """
@@ -102,41 +103,46 @@ def discover_suites(tests_root: Path, *, r_suites: list[Suite], splits: Splits) 
 SUITES: list[Suite] = discover_suites(REPO_ROOT / "tests", r_suites=R_SUITES, splits=SPLITS)
 
 
-# Most suites get single-threaded BLAS. A suite that imports numpy, scipy or
-# opengwasdb otherwise spins up a thread pool per process: importing the Analysis
-# model alone measured 0.3s of wall clock against 17s of user time, and with
-# suites running concurrently that contention costs far more than the threads win.
-#
-# The exception is a suite that does real numerical work rather than just
-# importing the libraries. Pinning `workflow`, which builds fixture-scale Stores
-# through opengwasdb for real, took it from 43s to 122s. Measure before adding
-# to this set: for every other suite here, pinning is free.
-#
-# `release-faults` (#195) runs alone too, and after `workflow`, never beside it:
-# it SIGKILLs whole Snakemake runs and then runs `snakemake --unlock`, which
-# clears every lock in the shared `.snakemake/` directory. Any Snakemake run
-# also removes that whole directory of locks when it exits. CI gives each of
-# these suites a runner, and so a checkout and `.snakemake/`, of its own
-# (`--list-exclusive`).
-EXCLUSIVE_ORDER: tuple[str, ...] = ("workflow", "release-faults/boundaries", "release-faults/interrupts")
-THREADED_SUITES: frozenset[str] = frozenset(EXCLUSIVE_ORDER)
+# The suites that build Stores through the whole release stack. They used to
+# run alone, one after another, for two reasons that no longer hold. Each
+# process now has its own Snakemake working directory (see `run_job`), so a
+# `snakemake --unlock`, or a run exiting, no longer clears another's locks. And
+# they do not need the machine to themselves: with BLAS pinned to one thread, a
+# fixture-scale `workflow` test measured the same wall clock (25.8s against
+# 23.5s) on a twelfth of the CPU (48s of user time against 601s, on a 224-core
+# host). CI gives each of them a runner of its own (`--list-release-stack`).
+RELEASE_STACK_SUITES: tuple[str, ...] = ("workflow", "release-faults/boundaries", "release-faults/interrupts")
 
-# Rough per-suite cost in seconds, used only to schedule the long suites first
-# so they overlap with the short ones instead of starting last and running alone.
-# Wrong values cost a little wall clock, never correctness; unlisted suites are
-# assumed short.
+# The suites whose tests each run in a process of their own, side by side,
+# because together they take far longer than their slowest test. A
+# release-stack test costs a fixture-scale release or more (15-25s, nearly all
+# of it process start-up: Snakemake re-reads the Snakefile for every job, and
+# every step starts the `opengwasdb` CLI); `phase-b-candidate` is 74 tests of
+# 1-4s. A process repeats its file's `setUpModule` or `setUpClass` fixture,
+# which costs CPU, not wall clock.
+PER_TEST_SUITES: frozenset[str] = frozenset({*RELEASE_STACK_SUITES, "phase-b-candidate"})
+
+# Rough cost in seconds of one process, used only to start the long ones first
+# so they overlap with the short ones instead of starting last and running
+# alone. For a suite in `PER_TEST_SUITES` it is the cost of one of its tests,
+# with its fixture. Wrong values cost a little wall clock, never correctness;
+# unlisted suites are assumed short.
 SUITE_COST: dict[str, float] = {
-    "workflow": 45.0,
+    "release-faults/boundaries": 45.0,
+    "release-faults/interrupts": 45.0,
+    "workflow": 30.0,
+    "phase-b-candidate": 3.0,
+    "schema-validation": 12.0,
+    "finngen-r13-pilot": 7.0,
+    "opengwas-gwas-vcf-dense": 6.5,
+    "emit-registry (R)": 5.5,
     "run": 5.0,
     "materialise-gwas-ssf-ragged": 4.0,
-    "schema-validation": 4.0,
-    "plan": 2.5,
+    "plan": 3.0,
     "readiness": 3.0,
     "migration/id-reorder": 1.0,
     # The #252 guard walks every tracked file and re-checks six bundles.
     "migration/families-retired": 6.0,
-    "opengwas-gwas-vcf-dense": 2.5,
-    "finngen-r13-pilot": 2.5,
     "ld-panel-eigendecomposition": 2.0,
     "dbgap-mvp/end-to-end": 3.0,
     "dbgap-mvp/ancestry-policy": 2.0,
@@ -147,6 +153,11 @@ SUITE_COST: dict[str, float] = {
     "release-config": 9.0,
 }
 
+# Every suite gets single-threaded BLAS. A process that imports numpy, scipy
+# or opengwasdb otherwise starts a thread per core: importing the Analysis
+# model alone measured 0.3s of wall clock against 17s of user time, and with
+# suites running side by side that contention costs far more than the threads
+# win. No suite here does enough numerical work to gain from them.
 THREAD_ENV: dict[str, str] = {
     "OMP_NUM_THREADS": "1",
     "OPENBLAS_NUM_THREADS": "1",
@@ -155,14 +166,71 @@ THREAD_ENV: dict[str, str] = {
     "VECLIB_MAXIMUM_THREADS": "1",
 }
 
-DEFAULT_JOBS: int = min(8, os.cpu_count() or 1)
+# Most processes wait on their own subprocesses, one at a time, so one per core
+# is about right. The cap leaves a shared host's other cores to other work.
+DEFAULT_JOBS: int = min(48, os.cpu_count() or 1)
+
+# The id of every test a script would run with the given arguments, one per
+# line, without running any: unittest itself selects them, so `-k` and test
+# names mean exactly what they mean to the script.
+_LIST_TESTS: str = """
+import os, runpy, sys, types, unittest
+
+path, *args = sys.argv[1:]
+sys.path.insert(0, os.path.dirname(os.path.abspath(path)))
+module = types.ModuleType("__listed__")
+module.__dict__.update(runpy.run_path(path, run_name="__listed__"))
 
 
-def run_suite(label: str, kind: str, script: list[str]) -> tuple[bool, float, str]:
-    """Run one suite to completion, returning its verdict, elapsed time and output.
+class Lister:
+    def run(self, test):
+        if isinstance(test, unittest.TestSuite):
+            for each in test:
+                self.run(each)
+        else:
+            print(f"{type(test).__qualname__}.{test._testMethodName}")
 
-    Output is captured rather than streamed because suites run concurrently and
-    interleaved output is unreadable. It is printed for failures only.
+
+unittest.main(module=module, argv=[path, *args], testRunner=Lister(), exit=False)
+"""
+
+
+def list_tests(script: list[str]) -> list[str]:
+    """`Class.test` for every test `script` (a file and its arguments) would run."""
+    result = subprocess.run(
+        [sys.executable, "-c", _LIST_TESTS, *script],
+        cwd=REPO_ROOT, capture_output=True, text=True, env={**os.environ, **THREAD_ENV},
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"could not list the tests of {' '.join(script)}:\n{result.stdout}{result.stderr}")
+    return result.stdout.split()
+
+
+def jobs_for(label: str, script: list[str]) -> list[tuple[str, list[str]]]:
+    """The processes that run one suite: (test id or "", command).
+
+    A suite in `PER_TEST_SUITES` runs as one process per test; every other
+    suite is one process. One that selects no test is refused, so a stale `-k`
+    in `SPLITS` cannot pass by running nothing.
+    """
+    if label not in PER_TEST_SUITES:
+        return [("", script)]
+    tests = list_tests(script)
+    if not tests:
+        raise RuntimeError(f"{' '.join(script)} selects no tests")
+    return [(test, [script[0], test]) for test in tests]
+
+
+def run_job(label: str, kind: str, script: list[str]) -> tuple[bool, float, str]:
+    """Run one process to completion, returning its verdict, elapsed time and output.
+
+    Output is captured rather than streamed because processes run concurrently
+    and interleaved output is unreadable. It is printed for failures only.
+
+    Every process gets a Snakemake working directory of its own, where every
+    Snakemake run it starts keeps its `.snakemake/` locks and metadata, instead
+    of sharing the checkout's. A Snakemake run deletes that whole lock
+    directory when it exits, and `--unlock` clears every lock in it.
     """
     if kind == "python":
         cmd = [sys.executable, *script]
@@ -174,15 +242,21 @@ def run_suite(label: str, kind: str, script: list[str]) -> tuple[bool, float, st
     else:
         raise ValueError(f"unknown suite kind: {kind}")
 
-    env = dict(os.environ) if label in THREADED_SUITES else {**os.environ, **THREAD_ENV}
+    from ogstores.release import SNAKEMAKE_DIRECTORY_ENV
+
+    snakemake_directory = tempfile.mkdtemp(prefix="ogstores-test-snakemake-")
+    env = {**os.environ, **THREAD_ENV, SNAKEMAKE_DIRECTORY_ENV: snakemake_directory}
     start = time.monotonic()
-    result = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True, env=env)
+    try:
+        result = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True, env=env)
+    finally:
+        shutil.rmtree(snakemake_directory, ignore_errors=True)
     elapsed = time.monotonic() - start
     return result.returncode == 0, elapsed, result.stdout + result.stderr
 
 
 USAGE: str = (
-    "[--only python|r] [--suite LABEL]... [--skip-exclusive] [--list-exclusive] [--jobs N]"
+    "[--only python|r] [--suite LABEL]... [--skip-release-stack] [--list-release-stack] [--jobs N]"
 )
 
 
@@ -209,7 +283,7 @@ def foreign_install() -> str | None:
 def main() -> int:
     only: str | None = None
     named: list[str] = []
-    skip_exclusive = False
+    skip_release_stack = False
     jobs: int = DEFAULT_JOBS
 
     args = sys.argv[1:]
@@ -219,10 +293,10 @@ def main() -> int:
             only = args.pop(0)
         elif flag == "--suite" and args:
             named.append(args.pop(0))
-        elif flag == "--skip-exclusive":
-            skip_exclusive = True
-        elif flag == "--list-exclusive":
-            print(json.dumps(list(EXCLUSIVE_ORDER)))
+        elif flag == "--skip-release-stack":
+            skip_release_stack = True
+        elif flag == "--list-release-stack":
+            print(json.dumps(list(RELEASE_STACK_SUITES)))
             return 0
         elif flag == "--jobs" and args:
             jobs = max(1, int(args.pop(0)))
@@ -243,66 +317,72 @@ def main() -> int:
         s for s in SUITES
         if (only is None or s[1] == only)
         and (not named or s[0] in named)
-        and not (skip_exclusive and s[0] in THREADED_SUITES)
+        and not (skip_release_stack and s[0] in RELEASE_STACK_SUITES)
     ]
     if not suites:
         print("no suites match the selection", file=sys.stderr)
         return 2
 
-    # Suites are independent processes over their own fixtures, so they run
-    # concurrently. Wall clock is then bounded by the slowest single suite
-    # rather than by their sum.
-    # Two groups, because they want opposite things from the machine. The many
-    # short suites are mostly process startup, so they run concurrently. A
-    # threaded suite does real numerical work and wants every core: running
-    # `workflow` alongside seven others took it from 43s to 145s, which is
-    # slower than simply giving it the machine to itself.
-    shared = [s for s in suites if s[0] not in THREADED_SUITES]
-    exclusive = sorted((s for s in suites if s[0] in THREADED_SUITES), key=lambda s: EXCLUSIVE_ORDER.index(s[0]))
-
-    results: list[tuple[str, bool, float, str]] = []
-
-    def record(label: str, outcome: tuple[bool, float, str]) -> None:
-        ok, elapsed, output = outcome
-        print(f"  {'PASS' if ok else 'FAIL':4s}  {label}  ({elapsed:.1f}s)", flush=True)
-        results.append((label, ok, elapsed, output))
-
     started = time.monotonic()
 
-    if shared:
-        print(f"running {len(shared)} suites, {jobs} at a time\n")
-        # Longest first, so a slow suite overlaps with the short ones rather
-        # than starting last and running alone.
-        order = sorted(shared, key=lambda s: -SUITE_COST.get(s[0], 1.0))
-        with ThreadPoolExecutor(max_workers=jobs) as pool:
-            futures = {
-                pool.submit(run_suite, label, kind, script): label
-                for label, kind, script in order
-            }
-            for future in as_completed(futures):
-                record(futures[future], future.result())
+    # Each suite's processes, and the outcome of each once it has run.
+    pending: dict[str, int] = {}
+    outcomes: dict[str, list[tuple[str, bool, float, str]]] = {label: [] for label, _, _ in suites}
+    queue: list[tuple[str, str, str, list[str]]] = []
+    for label, kind, script in suites:
+        try:
+            parts = jobs_for(label, script)
+        except RuntimeError as exc:
+            outcomes[label].append(("", False, 0.0, str(exc)))
+            continue
+        pending[label] = len(parts)
+        queue.extend((label, kind, test, command) for test, command in parts)
 
-    for label, kind, script in exclusive:
-        print(f"\nrunning {label} with the machine to itself\n")
-        record(label, run_suite(label, kind, script))
+    def report(label: str) -> None:
+        ok = all(passed for _, passed, _, _ in outcomes[label])
+        longest = max((elapsed for _, _, elapsed, _ in outcomes[label]), default=0.0)
+        across = f", {len(outcomes[label])} processes" if len(outcomes[label]) > 1 else ""
+        print(f"  {'PASS' if ok else 'FAIL':4s}  {label}  ({longest:.1f}s{across})", flush=True)
+
+    for label in outcomes:
+        if label not in pending:
+            report(label)
+
+    # Processes are independent over their own fixtures, so they run
+    # concurrently, longest first, so a slow one overlaps with the short ones
+    # rather than starting last and running alone. Wall clock is then bounded
+    # by the slowest single process rather than by their sum.
+    print(f"running {len(suites)} suites as {len(queue)} processes, {jobs} at a time\n")
+    queue.sort(key=lambda job: -SUITE_COST.get(job[0], 1.0))
+    with ThreadPoolExecutor(max_workers=jobs) as pool:
+        futures = {
+            pool.submit(run_job, label, kind, command): (label, test)
+            for label, kind, test, command in queue
+        }
+        for future in as_completed(futures):
+            label, test = futures[future]
+            outcomes[label].append((test, *future.result()))
+            pending[label] -= 1
+            if pending[label] == 0:
+                report(label)
 
     wall = time.monotonic() - started
 
-    order = {label: n for n, (label, _, _) in enumerate(suites)}
-    results.sort(key=lambda r: order[r[0]])
-    failed = [(label, output) for label, ok, _, output in results if not ok]
-
-    for label, output in failed:
-        print("=" * 60)
-        print(f"FAILED: {label}")
-        print(output.rstrip())
+    failed = [label for label, _, _ in suites if not all(passed for _, passed, _, _ in outcomes[label])]
+    for label in failed:
+        for test, passed, _, output in outcomes[label]:
+            if passed:
+                continue
+            print("=" * 60)
+            print(f"FAILED: {label}{f' ({test})' if test else ''}")
+            print(output.rstrip())
 
     print("=" * 60)
-    for label, ok, elapsed, _ in results:
-        print(f"  {'PASS' if ok else 'FAIL':4s}  {label}  ({elapsed:.1f}s)")
-    serial = sum(elapsed for _, _, elapsed, _ in results)
+    for label, _, _ in suites:
+        report(label)
+    serial = sum(elapsed for results in outcomes.values() for _, _, elapsed, _ in results)
     print(
-        f"{len(results) - len(failed)}/{len(results)} suites passed "
+        f"{len(suites) - len(failed)}/{len(suites)} suites passed "
         f"in {wall:.1f}s wall ({serial:.1f}s serial)"
     )
 

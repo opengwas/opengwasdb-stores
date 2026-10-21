@@ -397,31 +397,59 @@ def _registration_channel(entry: Mapping[str, Any]) -> Channel:
     return Channel(EvidenceState.HISTORICAL, f"host-side registration: {detail}")
 
 
-def _completion_channel(bundle_obj: Bundle, entry: Mapping[str, Any]) -> Channel:
+def recorded_completion_state(bundle_obj: Bundle) -> str:
+    """The completion state the bundle's Validation Record recorded for its published Store.
+
+    `register` writes `observed.completion_state` at publication (#307,
+    ADR 0037), so a record written after that field names the Store users could
+    query when it was written. An older record carries none, and `""` is
+    returned rather than the bundle's declaration, which is a different fact.
+    """
+    observed = (bundle_obj.validation or {}).get("observed")
+    value = observed.get("completion_state") if isinstance(observed, Mapping) else None
+    return value if isinstance(value, str) else ""
+
+
+def _completion_channel(
+    bundle_obj: Bundle, entry: Mapping[str, Any], published_state: str = ""
+) -> Channel:
     completion = bundle_obj.completion_state or ""
     if completion != "reference_completed":
         return Channel(EvidenceState.NOT_APPLICABLE, f"completion_state={completion!r}")
     complete = bundle_obj.build.get("complete") or {}
     options = complete.get("options") if isinstance(complete, Mapping) else None
     ancestry = options.get("ancestry") if isinstance(options, Mapping) else None
-    if not bundle_obj.derived_from:
-        return Channel(
-            EvidenceState.FAIL,
-            "reference_completed release has no derived_from parent",
-        )
+    # With no `derived_from`, the release completes its own Store (ADR 0037).
+    source = bundle_obj.derived_from or bundle_obj.store_id
     if not ancestry:
         return Channel(
             EvidenceState.MISSING,
             "reference completion declares no ancestry; reference appropriateness unproven",
         )
+    if bundle_module.is_completion_pending(bundle_obj, published_state):
+        if entry.get("completion_verified") is True:
+            return Channel(
+                EvidenceState.FAIL,
+                f"the evidence ledger records reference completion from {source!r} "
+                f"against ancestry {ancestry!r} as verified, but the published "
+                "Store is the Observed-Only Store; one of the two is wrong",
+            )
+        # The completion has not replaced the Store yet, which is the documented
+        # order of business rather than missing evidence: it is on its way.
+        return Channel(
+            EvidenceState.PASS,
+            f"reference completion from {source!r} against ancestry {ancestry!r} "
+            "is declared and has not replaced the Store yet: the Observed-Only "
+            "Store it completes is what is published (ADR 0037)",
+        )
     if entry.get("completion_verified") is True:
         return Channel(
             EvidenceState.PASS,
-            f"reference completion from {bundle_obj.derived_from!r} against "
+            f"reference completion from {source!r} against "
             f"ancestry {ancestry!r} verified against the published artifact",
         )
     detail = (
-        f"recipe completes from {bundle_obj.derived_from!r} with ancestry "
+        f"recipe completes from {source!r} with ancestry "
         f"{ancestry!r}; completion is configured but not verified against the "
         "published artifact"
     )
@@ -435,7 +463,13 @@ def _observed_build_channel(
     bundle_obj: Bundle,
     built: BuiltEvidence,
 ) -> Channel:
-    if (bundle_obj.completion_state or "") == "reference_completed":
+    """The observed-only build the release publishes before any completion runs.
+
+    A two-id child takes its observed parent's build, so this channel does not
+    apply to it (ADR 0007). A release that completes its own Store builds and
+    publishes the Observed-Only Store itself, so the channel does (ADR 0037).
+    """
+    if (bundle_obj.completion_state or "") == "reference_completed" and not bundle_obj.completes_own_store:
         return Channel(
             EvidenceState.NOT_APPLICABLE,
             "Reference-Completed release takes its observed parent's build",
@@ -532,16 +566,24 @@ def _format_runtime_channel(
             f"(format={fmt or 'absent'}, layout={layout or 'absent'}, "
             f"completion={completion or 'absent'}); not a verified read",
         )
+    detail = (
+        f"opengwasdb info: format {fmt}, layout {layout}, completion {completion}"
+    )
     mismatches: list[str] = []
     if layout != (bundle_obj.layout or ""):
         mismatches.append(f"layout {layout!r} != bundle {bundle_obj.layout!r}")
     if completion != (bundle_obj.completion_state or ""):
-        mismatches.append(
-            f"completion {completion!r} != bundle {bundle_obj.completion_state!r}"
-        )
-    detail = (
-        f"opengwasdb info: format {fmt}, layout {layout}, completion {completion}"
-    )
+        if bundle_module.is_completion_pending(bundle_obj, completion):
+            # The order of business under single-id completion, not a mismatch:
+            # the Observed-Only Store is what is published until the swap.
+            detail += (
+                "; the Observed-Only Store is published while reference "
+                "completion runs, as declared (ADR 0037)"
+            )
+        else:
+            mismatches.append(
+                f"completion {completion!r} != bundle {bundle_obj.completion_state!r}"
+            )
     if mismatches:
         return Channel(EvidenceState.FAIL, detail + "; " + "; ".join(mismatches))
     return Channel(EvidenceState.PASS, detail)
@@ -905,6 +947,13 @@ def reconcile_release(
         built = BuiltEvidence(state, int(ledger_built), baseline_ref, detail)
 
     committed = _committed_validation(bundle_obj)
+    # The Store users can query: as the supported `info` read reports it, else as
+    # the bundle's Validation Record recorded it at publication (#307). The live
+    # read wins where it exists; neither is the bundle's declaration.
+    published_state = (
+        str((info or {}).get("completion_state") or "")
+        or recorded_completion_state(bundle_obj)
+    )
     channels: dict[str, Channel] = {
         "release_status": _status_channel(bundle_obj),
         "source_acquisition": _acquisition_channel(bundle_obj, entry),
@@ -913,7 +962,7 @@ def reconcile_release(
         "built_membership": _built_membership_channel(
             membership, built_ids, built_delta, built, built_runtime
         ),
-        "reference_completion": _completion_channel(bundle_obj, entry),
+        "reference_completion": _completion_channel(bundle_obj, entry, published_state),
         "required_variant_index": _required_index_channel(bundle_obj, info, entry),
         "format_migration": _format_migration_channel(bundle_obj, info, entry),
         "optional_hm3": _hm3_channel(bundle_obj, entry),

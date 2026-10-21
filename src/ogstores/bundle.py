@@ -304,11 +304,6 @@ COLUMN_MAP_BINDING_KEYS: tuple[str, ...] = ("name", "sha256", "file")
 #: Where a bundle carries the map it binds: ``column_maps/<file>``.
 COLUMN_MAPS_DIR: str = "column_maps"
 COLUMN_MAP_SUFFIX: str = ".toml"
-#: A copy of OpenGWASDB's ``BUILTIN_COLUMN_MAPS``, the maps a bundle names
-#: without carrying. The pinned opengwasdb (4e92256) predates them, so there is
-#: nothing to import yet. #292 part 2's pin bump replaces this with an import
-#: from ``opengwasdb.readers.column_map``; a bundle test fails once that exists.
-BUILTIN_COLUMN_MAPS: frozenset[str] = frozenset({"finngen-r13", "gwas-ssf"})
 #: Lower-case, as ``hashlib`` writes it, so the binding compares byte for byte
 #: with the Resolution Record's fingerprint.
 _SHA256_RE: re.Pattern[str] = re.compile(r"\A[0-9a-f]{64}\Z")
@@ -405,6 +400,17 @@ class Bundle:
         return self.release.get("derived_from")
 
     @property
+    def completes_own_store(self) -> bool:
+        """Whether this release completes its own published Store under its id (ADR 0037).
+
+        A `reference_completed` release with no `derived_from` is published
+        twice: its build phase publishes the Observed-Only Store, and its
+        completion phase replaces it. With `derived_from` it is a two-id child
+        of that parent (ADR 0007), as before.
+        """
+        return self.completion_state == "reference_completed" and not self.derived_from
+
+    @property
     def validation_path(self) -> Path | None:
         path = self.root / "validation.yaml"
         return path if path.is_file() else None
@@ -412,6 +418,20 @@ class Bundle:
 
 class NotBuildableError(ValueError):
     """The release workflow was asked to build a bundle its Release Status does not allow (#247)."""
+
+
+def is_completion_pending(bundle: Bundle, published: str | None) -> bool:
+    """Whether `published` is the Observed-Only Store this release's completion has not replaced yet.
+
+    One predicate for every reader of the published completion state: the
+    master list marks such a row "completion pending" and readiness reports it
+    as the declared order of business (issue #307). Only a release that
+    completes its own Store publishes an Observed-Only Store under the id it
+    will complete; a two-id child publishes only its completed Store, so for it
+    the same pair is a contradiction and not a pending completion (ADR 0007,
+    ADR 0037).
+    """
+    return bundle.completes_own_store and published == "observed_only"
 
 
 def is_buildable(bundle: Bundle) -> bool:
@@ -949,7 +969,21 @@ def _check_build(bundle: Bundle) -> list[str]:
 
     block_name = "complete" if completion_state == "reference_completed" else "build"
     block = build.get(block_name)
-    if completion_state in {"observed_only", "reference_completed"}:
+    release = bundle.release if isinstance(bundle.release, Mapping) else {}
+    if completion_state == "reference_completed" and not release.get("derived_from"):
+        # One id, published twice (ADR 0037): the build phase publishes the
+        # Observed-Only Store that the completion phase then completes.
+        for name in ("build", "complete"):
+            phase_block = build.get(name)
+            if not isinstance(phase_block, Mapping):
+                errors.append(
+                    f"build.yaml for a reference_completed release with no derived_from "
+                    f"must declare a {name!r} mapping: it builds and publishes its own "
+                    "Observed-Only Store, then completes it (ADR 0037)"
+                )
+            elif _is_missing(phase_block, "command"):
+                errors.append(f"build.yaml {name} block is missing required key: 'command'")
+    elif completion_state in {"observed_only", "reference_completed"}:
         if not isinstance(block, Mapping):
             errors.append(
                 f"build.yaml for {completion_state} release must declare "
@@ -996,16 +1030,11 @@ def _check_lineage(
     bundle: Bundle, registry_root: Path | str | None
 ) -> list[str]:
     release = bundle.release if isinstance(bundle.release, Mapping) else {}
-    build = bundle.build if isinstance(bundle.build, Mapping) else {}
     parent_id = release.get("derived_from")
-    completion_state = build.get("completion_state")
     errors: list[str] = []
 
-    if completion_state == "reference_completed" and not parent_id:
-        return [
-            "reference_completed release requires non-empty derived_from "
-            "pointing to a parent Store Release"
-        ]
+    # A reference_completed release without derived_from completes its own
+    # Store (ADR 0037); `_check_build` requires both of its phases' blocks.
     if parent_id in (None, ""):
         return errors
     if not is_valid_store_id(parent_id):
@@ -1509,14 +1538,34 @@ def _column_map_binding(build: Mapping[str, Any]) -> tuple[ColumnMapBinding | No
             f"{where} file {file!r} must be a file name in {COLUMN_MAPS_DIR}/ matching "
             f"{INDEXED_SUBSET_NAME_RE.pattern}, with no '..', ending {COLUMN_MAP_SUFFIX}"
         )
-    if file is None and isinstance(name, str) and name not in BUILTIN_COLUMN_MAPS:
-        errors.append(
-            f"{where} {name!r} names no built-in map and carries no file; a carried "
-            f"map needs file, and the built-ins are {sorted(BUILTIN_COLUMN_MAPS)}"
-        )
+    if file is None and isinstance(name, str):
+        builtins = _builtin_column_maps()
+        packaged = builtins.get(name)
+        if packaged is None:
+            errors.append(
+                f"{where} {name!r} names no built-in map and carries no file; a carried "
+                f"map needs file, and the built-ins are {sorted(builtins)}"
+            )
+        elif isinstance(sha256, str) and _SHA256_RE.fullmatch(sha256) and sha256 != packaged:
+            errors.append(
+                f"{where} sha256 {sha256} is not built-in Column Map {name!r}'s: the "
+                f"pinned opengwasdb ships it with sha256 {packaged}"
+            )
     if errors:
         return None, errors
     return ColumnMapBinding(name=name, sha256=sha256, file=file), []
+
+
+@functools.cache
+def _builtin_column_maps() -> dict[str, str]:
+    """OpenGWASDB's built-in Column Maps by name, each with the sha256 of the file it ships.
+
+    Imported when a binding names a built-in, not with this module: importing
+    the package takes over a second, and every Snakemake job imports this one.
+    """
+    from opengwasdb.readers.column_map import BUILTIN_COLUMN_MAPS, load_column_map
+
+    return {name: load_column_map(name).sha256 for name in BUILTIN_COLUMN_MAPS}
 
 
 def _column_map_reference_errors(
@@ -1633,8 +1682,8 @@ def _check_column_map(
 
     The map is checked shallowly: readable TOML with ``column_map_version`` and
     a ``name`` equal to the binding's. Its full validation is OpenGWASDB's, at
-    resolution and build. A built-in's sha256 cannot be checked against the
-    pinned package yet, which the result discloses as a tolerated gap.
+    resolution and build. A built-in's sha256 is checked against the map file
+    the pinned package ships.
     """
     build = bundle.build if isinstance(bundle.build, Mapping) else {}
     binding_declared = COLUMN_MAP_KEY in build
@@ -1649,20 +1698,7 @@ def _check_column_map(
     if rows is not None:
         errors += _column_map_reference_errors(build, rows, binding_declared)
     errors += _carried_column_map_errors(bundle, build, binding)
-    tolerated: list[ToleratedGap] = []
-    if binding is not None and binding.file is None:
-        tolerated.append(
-            ToleratedGap(
-                store_id=bundle.store_id,
-                count=1,
-                detail=(
-                    f"unverified sha256 of built-in Column Map {binding.name!r}: the "
-                    "pinned opengwasdb has no built-in maps to check it against"
-                ),
-                citation="#292 part 2",
-            )
-        )
-    return errors, tolerated
+    return errors, []
 
 
 def check(
@@ -1714,7 +1750,6 @@ def check(
 __all__ = [
     "BUILDABLE_STATUSES",
     "BUILD_REQUIRED_KEYS",
-    "BUILTIN_COLUMN_MAPS",
     "COLUMN_MAPS_DIR",
     "COLUMN_MAP_BINDING_KEYS",
     "COLUMN_MAP_CAPABILITY",
@@ -1744,6 +1779,7 @@ __all__ = [
     "is_authority_name_trait_ontology_label",
     "is_buildable",
     "is_canonical_trait_ontology_id",
+    "is_completion_pending",
     "is_gene_shaped_trait_ontology_id",
     "is_legal_status_transition",
     "is_trait_ontology_curie",

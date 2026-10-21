@@ -111,6 +111,17 @@ another checkout's (`pixi run --manifest-path <other>/pixi.toml -e dev python3
 to run this checkout's tests under an environment installed from elsewhere, or
 with nothing installed.
 
+One test is a deliberate exception. The workflow suite's pre-#304 test
+(`TestWorkflowCompletingAStoreBuiltBefore304`, #305) builds a Store with the
+workflow as it was at an earlier revision. It runs that revision from a `git
+archive`, with the archive's own `src/` ahead of the editable install on
+`PYTHONPATH`, so the old code, not this checkout's, really runs. It exists
+because a Store built by older code must still be completable without a
+rebuild. Installing the old revision instead would cost minutes on every CI
+run, for no extra fidelity. The exception covers that archived revision
+only: this checkout's own code and tests always import from the installed
+package.
+
 ## Repository boundaries
 
 The repository tracks small, reviewable definitions and evidence:
@@ -434,9 +445,13 @@ Repository code imports from the installed package: nothing inserts the
 repository root or `src/` into `sys.path` or hands them to a subprocess
 through `PYTHONPATH`. `tests/packaging` enforces both rules.
 
-`pixi run test --list-exclusive` names the suites that build Stores through the
-whole release stack and so run alone, after the rest. CI gives each of them a
-runner of its own and runs everything else with `--skip-exclusive`.
+Every suite runs side by side with the rest, with single-threaded BLAS and a
+Snakemake working directory of its own (`OGSTORES_TEST_SNAKEMAKE_DIRECTORY`),
+so no test touches the checkout's `.snakemake/`. The slowest suites
+(`PER_TEST_SUITES` in the runner) run as one process per test. `pixi run test
+--list-release-stack` names the suites that build Stores through the whole
+release stack. CI gives each of them a runner of its own and runs everything
+else with `--skip-release-stack`.
 
 `bundle.check(bundle, registry_root=...)` is the executable Release Bundle
 contract. It returns a list of every registry-side error it can find (an empty

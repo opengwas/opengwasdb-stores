@@ -68,6 +68,28 @@ by #290"):
 `config-candidate.yaml` and `candidates.yaml` are the retired #221 generator's
 historical plan.
 
+## One id per Store (ADR 0037, #308)
+
+Reference completion replaces a Store's Observed-Only Store under the same id,
+so a Store never gets a second, `derived_from`-linked completed id. Each release
+config emits one bundle under its one Store id, and the pipeline mints no
+completed id. The release-config loader refuses a `completed_store_id`, a
+`stores` block, a `complete` block or a `derived_from` as unknown keys.
+
+`OGS-00018`–`OGS-00021` were reserved for ADR 0007's two-id completion of EUR,
+AFR, AMR and EAS (one "lineage-linked completed" id each). ADR 0037 retires them
+unused: no Store is allocated those ids, and none is ever reused. They appear
+here, and in `config-candidate.yaml`'s comment, only as that record.
+
+All five configs are `completion_state: observed_only`, and the pipeline does
+not emit a reference-completed bundle. No MVP reference is qualified and active
+today: each `completion_reference` in `config-candidate.yaml` is pending, on
+hold or blocked. Once one is, its published Observed-Only Store is completed on
+the Store Release Build side: the accepted bundle gains a `complete` block, the
+one amendment ADR 0037 allows (#305), and the run completes that Store under its
+own id. The retired generator's `<observed id>.completion-plan.yaml` receipt has
+no pipeline equivalent.
+
 ## Regeneration against the committed bundles
 
 Re-rendered from the reused pre-#284 records on 2026-10-21, all five Selections
@@ -103,10 +125,11 @@ fields. A run resolved once by the pipeline resumes everything afterwards (EAS:
 
 ## After #292 part 2
 
-When OpenGWASDB's Column Map reader lands (#292 part 2), MVP should declare a
-Column Map over dbGaP's own GIA files and delete the GWAS-SSF rewrite in the
-acquisition. This is a note, not part of #290: the current release configs read
-the acquisition's GWAS-SSF mirror because it is what the existing
+The pinned `opengwasdb` already has the Column Map reader (opengwasdb#281). When
+the pipeline integrates it (#292 part 2), MVP should declare a Column Map over
+dbGaP's own GIA files and delete the GWAS-SSF rewrite in the acquisition. This
+is a note, not part of #290: the current release configs read the
+acquisition's GWAS-SSF mirror because it is what the existing
 `opengwasdb.gwas-ssf` reader opens.
 
 ## Running

@@ -59,11 +59,11 @@ Covered by `tests/bundle/test_bundle.py`:
   - `column-map` in either `options` block.
 
   Every defect is reported in one pass. A built-in (`gwas-ssf`, `finngen-r13`)
-  is bound without `file` and reported as a tolerated gap (its sha256 is
-  unverifiable before the pin bump). A test fails once opengwasdb ships
-  built-in maps, retiring the copied list. A bundle on a dedicated reader needs
-  neither binding nor file. The map is checked only as TOML with
-  `column_map_version` and a matching `name`; OpenGWASDB validates the rest.
+  is bound without `file`, and its sha256 must be that of the map file the
+  pinned opengwasdb ships; another value is refused, naming both. A bundle on
+  a dedicated reader needs neither binding nor file. The map is checked only as
+  TOML with `column_map_version` and a matching `name`; OpenGWASDB validates
+  the rest.
 - Artifact-root separation: `artifacts` is neither required nor allowed in a
   Build Recipe; `paths.artifact_root()` owns deployment placement.
 - `check()` and `load()` open no Store.

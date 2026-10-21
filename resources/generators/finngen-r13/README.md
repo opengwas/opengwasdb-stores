@@ -64,7 +64,8 @@ for OGS-00011. Do not emit over `stores/OGS-00017`.
 
 ### Resolution gap (blocking, #207 / #281 in opengwasdb)
 
-The pinned `opengwasdb` (`4e92256`) cannot resolve this collection yet. Its
+The pinned `opengwasdb` ([`docs/runtime.md`](../../../docs/runtime.md)) cannot
+resolve this collection through its FinnGen reader. Its
 one-pass resolver reads only a reader that streams source metrics
 (`MetricsReader.stream_metric_chunks`), and `FinnGenR13Reader` offers
 `stream_associations`/`stream_variants`/`extract_at_sites` only, so every
@@ -80,18 +81,20 @@ yet resolve waits rather than entering a bundle on declared values, so the
 pipeline's `render` stage excludes all 2,754 endpoints as `resolution_failed`
 and the emitted candidate has no members. The connectors, the freeze and the
 preflight are unaffected and were verified against the committed bundle; only
-Analysis Resolution is missing. The routes forward are OpenGWASDB's: give
-`FinnGenR13Reader` the `MetricsReader` contract, or land the Column Map reader
-of opengwasdb#281 (whose `ColumnMapReader` already streams metrics and whose
-built-in `finngen-r13` map reproduces this reader's rules) together with the
-Release Bundle's Column Map (#292).
+Analysis Resolution is missing. The routes forward: give `FinnGenR13Reader`
+the `MetricsReader` contract, or read the collection through the Column Map
+reader of opengwasdb#281, now in the pin (its `ColumnMapReader` streams
+metrics and its built-in `finngen-r13` map reproduces this reader's rules),
+once the Release Bundle carries the Column Map (#292).
 
 ### The path to acceptance criterion 1
 
 This is the standing route, recorded so nobody re-derives it:
 
-1. the `opengwasdb` pin moves past dev's head (after #222), so the resolver
-   in the environment can read source metrics through a Column Map;
+1. the `opengwasdb` pin carries opengwasdb#281's Column Map reader, so the
+   resolver in the environment can read source metrics through a Column Map.
+   The pin #311 took (`docs/runtime.md`) already does: its `ColumnMapReader`
+   streams metrics and ships the built-in `finngen-r13` map;
 2. #292 part 2 lands the Release Bundle's Column Map declaration;
 3. this release's rows then declare `source_reader_capability =
    opengwasdb.column-map` with the built-in `finngen-r13` map, in

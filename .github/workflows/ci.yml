@@ -7,19 +7,19 @@ on:
 
 jobs:
   # The suites that build Stores through the whole release stack each get a
-  # runner of their own, in parallel with everything else. One runner would run
-  # them one after another: they share the checkout's `.snakemake/`, which any
-  # Snakemake run clears of locks when it exits. The list lives in
-  # run_all_tests.py, so a new such suite cannot be left out of CI.
+  # runner of their own, in parallel with everything else, and run one test
+  # per core there. They are most of the suite's CPU time, so one runner would
+  # take several times as long. The list lives in run_all_tests.py, so a new
+  # such suite cannot be left out of CI.
   plan:
-    name: list the suites that run alone
+    name: list the release-stack suites
     runs-on: ubuntu-latest
     outputs:
-      exclusive: ${{ steps.list.outputs.exclusive }}
+      release_stack: ${{ steps.list.outputs.release_stack }}
     steps:
       - uses: actions/checkout@v4
       - id: list
-        run: echo "exclusive=$(python3 tests/run_all_tests.py --list-exclusive)" >> "$GITHUB_OUTPUT"
+        run: echo "release_stack=$(python3 tests/run_all_tests.py --list-release-stack)" >> "$GITHUB_OUTPUT"
 
   test:
     name: pixi test + docs smoke test
@@ -39,8 +39,8 @@ jobs:
       - name: Report resolved tool/package versions
         run: pixi run --environment dev env-check
 
-      - name: Run the lightweight test suites, except those that run alone
-        run: pixi run --environment dev test --skip-exclusive
+      - name: Run the lightweight test suites, except the release-stack ones
+        run: pixi run --environment dev test --skip-release-stack
 
       - name: Check every Release Bundle
         run: pixi run --environment dev bundle-check
@@ -60,16 +60,20 @@ jobs:
       - name: Documentation smoke test
         run: pixi run --environment dev docs-smoke
 
-  exclusive:
+  release-stack:
     name: ${{ matrix.suite }}
     needs: plan
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        suite: ${{ fromJSON(needs.plan.outputs.exclusive) }}
+        suite: ${{ fromJSON(needs.plan.outputs.release_stack) }}
     steps:
+      # Full history: the workflow suite builds a Store with the workflow as it
+      # was at an earlier revision, and a shallow clone lacks it (#305).
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: prefix-dev/setup-pixi@v0.10.1
         with:

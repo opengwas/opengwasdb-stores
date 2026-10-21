@@ -7,7 +7,6 @@ import builtins
 import csv
 import hashlib
 import importlib.resources
-import importlib.util
 import os
 import shutil
 import subprocess
@@ -1306,7 +1305,6 @@ class TestBundleContract(unittest.TestCase):
         self.assertEqual(errors, [])
 
         cases = (
-            (None, "requires non-empty derived_from"),
             (child.store_id, "cannot reference itself"),
             ("bad-parent", "not a valid store_id"),
             ("OGS-00999", "unresolvable derived_from"),
@@ -1318,6 +1316,45 @@ class TestBundleContract(unittest.TestCase):
             )
             record_check()
             self.assertTrue(any(fragment in error for error in errors), errors)
+
+    def test_a_single_id_completed_release_declares_both_phases(self) -> None:
+        """No `derived_from`: the bundle builds its own Store, then completes it (ADR 0037).
+
+        Such a bundle must carry the `build` block its build phase runs and the
+        `complete` block its completion phase runs, and a refusal names the
+        one that is missing. A two-id child keeps its meaning: with
+        `derived_from` it needs only its `complete` block.
+        """
+        build_block = {"command": "build-dense-vcf", "options": {"source-assembly": "hg38"}}
+        complete_block = {"command": "complete-dense", "options": {"ld-panel": "/data/ld", "ancestry": "EUR"}}
+        single_id = self.make_bundle(
+            store_id="OGS-00103",
+            build={
+                "completion_state": "reference_completed",
+                "build": build_block,
+                "complete": complete_block,
+            },
+        )
+        record_check()
+        self.assertEqual(bundle.check(single_id, registry_root=self.tmp_dir), [])
+
+        for missing in ("build", "complete"):
+            without = {key: value for key, value in single_id.build.items() if key != missing}
+            errors = bundle.check(replace(single_id, build=without), registry_root=self.tmp_dir)
+            record_check()
+            self.assertEqual(len(errors), 1, errors)
+            self.assertIn(f"{missing!r}", errors[0])
+            self.assertIn("derived_from", errors[0])
+
+        parent = self.make_bundle(store_id="OGS-00104")
+        two_id = self.make_bundle(
+            store_id="OGS-00105",
+            release={"derived_from": parent.store_id},
+            build={"completion_state": "reference_completed", "complete": complete_block},
+        )
+        two_id = replace(two_id, build={key: value for key, value in two_id.build.items() if key != "build"})
+        record_check()
+        self.assertEqual(bundle.check(two_id, registry_root=self.tmp_dir), [])
 
     def test_besd_prefix_is_checked_as_metadata_without_being_inspected(self) -> None:
         checked = self.make_bundle(
@@ -1650,6 +1687,12 @@ class TestColumnMapContract(unittest.TestCase):
     def result(self, **kwargs: Any) -> bundle.CheckResult:
         return bundle.check(self.mapped_bundle(**kwargs), registry_root=self.tmp_dir)
 
+    @staticmethod
+    def packaged_sha256(name: str) -> str:
+        """The sha256 of the built-in map file the installed opengwasdb ships."""
+        packaged = importlib.resources.files("opengwasdb.readers").joinpath("column_maps", f"{name}.toml")
+        return hashlib.sha256(packaged.read_bytes()).hexdigest()
+
     def errors(self, **kwargs: Any) -> list[str]:
         return list(self.result(**kwargs))
 
@@ -1744,16 +1787,8 @@ class TestColumnMapContract(unittest.TestCase):
                 self.errors(row_capabilities=None, recipe_capability=capability, binding=None),
                 [],
             )
-        builtin = {"name": "gwas-ssf", "sha256": "b" * 64}
-        result = self.result(binding=builtin)
-        self.assertEqual(list(result), [])
-        record_check()
-        # Its sha256 cannot be checked against the pinned package yet, and the
-        # result says so rather than reading as clean (#142).
-        self.assertEqual(
-            [(gap.count, gap.citation) for gap in result.tolerated], [(1, "#292 part 2")]
-        )
-        self.assertIn("built-in Column Map 'gwas-ssf'", result.tolerated[0].detail)
+        builtin = {"name": "gwas-ssf", "sha256": self.packaged_sha256("gwas-ssf")}
+        self.assertEqual(self.errors(binding=builtin), [])
         record_check()
         self.assert_refused(
             "column_maps/gwas-ssf.toml is carried but not bound",
@@ -1771,18 +1806,16 @@ class TestColumnMapContract(unittest.TestCase):
         )
         record_check()
 
-    def test_builtin_names_are_a_copy_until_the_pin_bump(self) -> None:
-        """`BUILTIN_COLUMN_MAPS` copies opengwasdb's, which the pin (4e92256) predates.
-
-        When the pin bump brings `opengwasdb.readers.column_map`, this fails:
-        import `BUILTIN_COLUMN_MAPS` from there, delete the copy, and verify a
-        built-in binding's sha256 against the package (#292 part 2).
-        """
-        self.assertIsNone(importlib.util.find_spec("opengwasdb.readers.column_map"))
-        self.assertFalse(
-            importlib.resources.files("opengwasdb.readers").joinpath("column_maps").is_dir()
-        )
+    def test_a_built_in_binding_is_verified_against_the_packaged_map(self) -> None:
+        """Its sha256 is that of the map file the pinned opengwasdb ships (#292 part 2)."""
+        packaged = self.packaged_sha256("gwas-ssf")
+        result = self.result(binding={"name": "gwas-ssf", "sha256": packaged})
+        self.assertEqual((list(result), list(result.tolerated)), ([], []))
         record_check()
+        errors = self.assert_refused(
+            "built-in Column Map 'gwas-ssf'", binding={"name": "gwas-ssf", "sha256": "b" * 64}
+        )
+        self.assertTrue(any(packaged in error and "b" * 64 in error for error in errors), errors)
 
     def test_the_map_is_validated_shallowly(self) -> None:
         def bound(content: str | bytes) -> dict[str, Any]:

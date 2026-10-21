@@ -155,6 +155,43 @@ class TestLineage(EmitTestCase):
         self.assertFalse((self.registry / "OGS-00092").exists())
 
 
+class TestSingleIdCompletion(EmitTestCase):
+    """A bundle that completes its own Store: both phases, no parent (ADR 0037, #308).
+
+    Completion replaces the Store under its own id, so the emitter must accept a
+    `reference_completed` bundle that names no `derived_from` and declares both a
+    `build` and a `complete` block. The contract that accepts that shape lands in
+    #304; until then this case fails at the emit's own contract check, like the
+    dbGaP generator's equivalent.
+    """
+
+    def bundle(self, store_id: str = STORE_ID) -> emitter.CandidateBundle:
+        base = candidate(store_id=store_id)
+        return candidate(
+            store_id=store_id,
+            build={
+                **base.build,
+                "completion_state": "reference_completed",
+                "complete": {
+                    "command": "complete-dense",
+                    "options": {"ld-panel": "/ld", "ancestry": "EUR"},
+                },
+            },
+        )
+
+    def test_a_bundle_that_completes_its_own_store_is_emitted(self) -> None:
+        emitted = emitter.emit(self.bundle(), self.registry)
+
+        build = yaml.safe_load((emitted / "build.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(build["completion_state"], "reference_completed")
+        self.assertEqual(build["build"]["command"], "build-dense-vcf")
+        self.assertEqual(build["complete"]["command"], "complete-dense")
+        self.assertIsNone(self.release_yaml()["derived_from"])
+        loaded = bundle.load(STORE_ID, registry_root=self.registry)
+        self.assertEqual(list(bundle.check(loaded, registry_root=self.registry)), [])
+        self.assert_nothing_staged()
+
+
 class TestInterruptedSwap(EmitTestCase):
     def test_a_candidate_stashed_by_an_interrupted_swap_is_put_back_first(self) -> None:
         """A swap killed between its two moves leaves `stores/<id>` missing and the old candidate stashed."""

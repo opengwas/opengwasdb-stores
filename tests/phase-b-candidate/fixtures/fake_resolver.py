@@ -87,6 +87,7 @@ def parse_args(argv: list[str]) -> dict:
     flags = {
         "--ancestry-reference": "ancestry_reference",
         "--ancestry-groups": "ancestry_groups",
+        "--reference-build": "reference_build",
         "--extraction-panel": "extraction_panel",
         "--variant-reference": "variant_reference",
         "--af-reference": "af_reference",
@@ -138,6 +139,17 @@ def compute_fingerprints(row: dict, options: dict) -> dict:
         "source_recorded_bytes": size_bytes,
         "source_file_bytes": file_bytes,
         "source_file_mtime_ns": file_mtime_ns,
+        # Both builds, as the real resolver fingerprints them: a record measured
+        # under one is not resumed under another (opengwasdb#277). The pipeline
+        # passes no chain file.
+        "assembly": {
+            "source_build": row.get("source_genome_build"),
+            "reference_build": options["reference_build"],
+            "chain_file": None,
+            "chain_sha256": None,
+            "chain_bytes": None,
+            "chain_mtime_ns": None,
+        },
         "opengwasdb_version": TOOL_VERSION,
         "opengwasdb_git_hash": "testgithash",
         "ancestry_reference_id": Path(str(options.get("ancestry_reference", "reference"))).name,
@@ -363,6 +375,15 @@ def main(argv: list[str]) -> int:
     records_dir.mkdir(parents=True, exist_ok=True)
     with manifest_path.open(newline="", encoding="utf-8") as fh:
         rows = list(csv.DictReader(fh, delimiter="\t"))
+    # The real resolver takes no build on trust (opengwasdb#277): the panel's
+    # is an explicit flag, and every row declares its own.
+    if not options.get("reference_build"):
+        raise SystemExit("fake resolver: Missing option '--reference-build'")
+    for row in rows:
+        if not row.get("source_genome_build"):
+            raise SystemExit(
+                f"fake resolver: analysis {row.get('analysis_id')!r}: source_genome_build is required"
+            )
 
     outcomes_path = os.environ.get("FAKE_RESOLVER_OUTCOMES")
     outcomes: dict = {}

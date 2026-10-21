@@ -183,6 +183,25 @@ def partial_store_path(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) 
     return store_dir(store_id, root=root) / "store.opengwasdb.partial"
 
 
+def completion_checkpoint_path(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
+    """Where `complete-dense` keeps its checkpoint while it writes the staged Store (#305).
+
+    opengwasdb's own convention, `.<destination name>.checkpoint` beside the
+    destination: `<root>/<store_id>/.store.opengwasdb.partial.checkpoint`.
+    """
+    partial = partial_store_path(store_id, root=root)
+    return partial.with_name(f".{partial.name}.checkpoint")
+
+
+def completion_start_path(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
+    """The planned argv a fresh `complete-dense` was started from (#305): `<root>/<store_id>/work/complete.started.json`.
+
+    Written by this workflow before the command can write its checkpoint, so a
+    checkpoint is resumed only from the plan that made it.
+    """
+    return work_dir(store_id, root=root) / "complete.started.json"
+
+
 # A forced run's copy of the records it may replace, and where a replaced
 # release is archived. `<stamp>` is the run's UTC time, `YYYYMMDDTHHMMSSZ`;
 # one forced run uses one stamp for both, so they name each other (#195).
@@ -264,6 +283,8 @@ __all__ = [
     "build_manifest_sidecar_path",
     "by_label_dir",
     "by_label_link",
+    "completion_checkpoint_path",
+    "completion_start_path",
     "force_snapshot_path",
     "is_valid_store_id",
     "parent_store_path",

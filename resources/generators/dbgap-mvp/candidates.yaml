@@ -82,10 +82,11 @@ stores:
         command: build-dense-vcf
       in_stores: false
     completed:
-      store_id: OGS-00018
-      role: completed-definition
-      label: mvp-phs002453-eur-completed
-      derived_from: OGS-00012
+      store_id: OGS-00012
+      role: completion-definition
+      label: mvp-phs002453-eur
+      completion_state: reference_completed
+      declared: false
       status: pending
       acceptance: pending
       human_acceptance: pending
@@ -121,10 +122,11 @@ stores:
         command: build-dense-vcf
       in_stores: false
     completed:
-      store_id: OGS-00019
-      role: completed-definition
-      label: mvp-phs002453-afr-completed
-      derived_from: OGS-00013
+      store_id: OGS-00013
+      role: completion-definition
+      label: mvp-phs002453-afr
+      completion_state: reference_completed
+      declared: false
       status: pending
       acceptance: pending
       human_acceptance: pending
@@ -160,10 +162,11 @@ stores:
         command: build-dense-vcf
       in_stores: false
     completed:
-      store_id: OGS-00020
-      role: completed-definition
-      label: mvp-phs002453-amr-completed
-      derived_from: OGS-00014
+      store_id: OGS-00014
+      role: completion-definition
+      label: mvp-phs002453-amr
+      completion_state: reference_completed
+      declared: false
       status: pending
       acceptance: pending
       human_acceptance: pending
@@ -199,10 +202,11 @@ stores:
         command: build-dense-vcf
       in_stores: false
     completed:
-      store_id: OGS-00021
-      role: completed-definition
-      label: mvp-phs002453-eas-completed
-      derived_from: OGS-00015
+      store_id: OGS-00015
+      role: completion-definition
+      label: mvp-phs002453-eas
+      completion_state: reference_completed
+      declared: false
       status: pending
       acceptance: pending
       human_acceptance: pending
