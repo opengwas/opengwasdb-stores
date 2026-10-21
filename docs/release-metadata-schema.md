@@ -166,6 +166,7 @@ published artifact path is now a pure function of the identifier.
 | `status` | Yes | Registry lifecycle state: `candidate`, `accepted`, `built`, `validated`, `superseded`, or `withdrawn`. |
 | `trial` | No | Whether this is a Trial Store Release: a deliberately small Store Release used to exercise a Source Collection, Source Format or Store Layout (issue #321). Absent means `false`. Only a YAML boolean is accepted. The registry's YAML loader follows YAML 1.1, so the unquoted spellings `true`, `yes` and `on` (and `false`, `no`, `off`) are booleans; a quoted `trial: "yes"` is a string and `trial: 1` is a number, and `bundle.check()` refuses both. A reader that does not gate on `check()` refuses them too rather than reading them as `false`: the Analysis Catalog's serving policy excludes every Trial Store Release, and a coerced value would serve one. |
 | `derived_from` | No | Parent `store_id` when this release derives from another release, and the parent must be a registered Release Bundle. A two-id Reference-Completed release names its Observed-Only parent here (ADR 0007); a Reference-Completed release without it completes its own Store (ADR 0037). |
+| `superseded_by` | No | The `store_id` of the Store Release that replaced this one, which must be an `OGS-` id naming a registered Release Bundle. Required on a `superseded` release and refused on any other Release Status, because it names what a reader of the old identifier is sent to (issue #321, #323). It is a fact about the release, not a serving decision (ADR 0008). |
 | `created_at` | Yes | Timestamp when the candidate bundle was generated. |
 | `accepted_at` | No | Timestamp when the bundle was accepted as the release input record. |
 | `source_snapshot_id` | Yes | Dated or provider-native source snapshot used for this release, for example a GWAS Catalog studies-table release date. |
@@ -181,7 +182,9 @@ published artifact path is now a pure function of the identifier.
 the descriptive facts the Analysis Catalog's serving policy reads (ADR 0008) to
 a checked shape: `trial` must be a YAML boolean, and absent means `false` (a
 quoted `trial: "yes"` or a numeric `trial: 1` is refused, and `Bundle.trial`
-raises rather than answer `false`) (issue #321). Release Status
+raises rather than answer `false`); and
+`superseded_by` is present on exactly the `superseded` releases, and names a
+registered Release Bundle, like `derived_from` (issue #321). Release Status
 transitions are a separate, optional check (`validate_status_transition`): the
 legal lifecycle graph is `candidate -> accepted -> built -> validated ->
 {superseded, withdrawn}` with `withdrawn` reachable from every state. See the

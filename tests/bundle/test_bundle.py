@@ -1490,6 +1490,51 @@ class TestTrialAndSupersededBy(unittest.TestCase):
         self.assertEqual(bundle.check(trial, registry_root=self.tmp_dir), [])
         record_check()
 
+    def test_a_superseded_release_names_its_successor(self) -> None:
+        """A `superseded` release with no successor leaves a reader nowhere to go (#323)."""
+        write_bundle(self.tmp_dir, "OGS-00094")
+        orphan = write_bundle(self.tmp_dir, "OGS-00095", status="superseded")
+        errors = bundle.check(orphan, registry_root=self.tmp_dir)
+        record_check()
+        self.assertTrue(any("superseded_by" in error for error in errors), errors)
+
+    def test_superseded_by_is_only_for_a_superseded_release(self) -> None:
+        """A live release that names a successor contradicts its own Release Status."""
+        successor = write_bundle(self.tmp_dir, "OGS-00096")
+        live = write_bundle(
+            self.tmp_dir, "OGS-00097", release={"superseded_by": successor.store_id}
+        )
+        errors = bundle.check(live, registry_root=self.tmp_dir)
+        record_check()
+        self.assertTrue(any("superseded_by" in error for error in errors), errors)
+
+    def test_a_superseded_pair_passes_the_contract(self) -> None:
+        successor = write_bundle(self.tmp_dir, "OGS-00100")
+        old = write_bundle(
+            self.tmp_dir,
+            "OGS-00101",
+            status="superseded",
+            release={"superseded_by": successor.store_id},
+        )
+        self.assertEqual(old.superseded_by, successor.store_id)
+        self.assertEqual(bundle.check(old, registry_root=self.tmp_dir), [])
+        record_check()
+
+    def test_superseded_by_must_name_a_registered_release(self) -> None:
+        """A successor that is not in the registry is a dangling pointer, not a fact."""
+        for value, fragment in (
+            ("OGS-00999", "unresolvable superseded_by"),
+            ("not-a-store-id", "not a valid store_id"),
+        ):
+            old = write_bundle(
+                self.tmp_dir,
+                release={"superseded_by": value},
+                status="superseded",
+            )
+            errors = bundle.check(old, registry_root=self.tmp_dir)
+            record_check()
+            self.assertTrue(any(fragment in error for error in errors), (value, errors))
+
     # The Trial Store Releases of the committed registry, as a literal: the
     # seven releases that exercise a Source Collection, Source Format or Store
     # Layout while the generic release pipeline is developed (CONTEXT.md).
