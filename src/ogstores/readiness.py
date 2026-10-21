@@ -356,9 +356,10 @@ COMPLETE_RECORD_FIELDS: tuple[str, ...] = (
 
 
 def _validation_record_completeness(bundle_obj: Bundle, committed: Channel) -> Channel:
-    """Whether the committed Validation Record carries every measurement the catalog lists.
+    """Whether the committed Validation Record carries `COMPLETE_RECORD_FIELDS`.
 
-    Counts, coverage and assembly are recorded only as a producing step reported
+    Those are `n_analyses`, `n_variants`, `n_associations`, `association_coverage`
+    and `reference_assembly`; other `observed` fields are not checked. They are recorded only as a producing step reported
     them, and ``null`` otherwise (#322), so a record can pass validation and
     still be incomplete. The channel names exactly which measurements are null
     (#326). Only a Store validation record has an ``observed`` block to read.
