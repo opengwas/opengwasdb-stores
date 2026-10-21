@@ -143,11 +143,16 @@ plans the Store it published:
   excludes);
 - once the completion phase has published, a different `complete`.
 
-Post steps are re-runnable in-place additions, so new ones, or ones planned
-differently since, are not refused. Observed-only and two-id releases are not
-checked. `release.yaml`'s prose and provenance are left to review.
-`--config force=1` still rebuilds a named release from its bundle as it now
-stands.
+A post step is a re-runnable in-place addition, so a new post-step
+declaration passes this check, and so does a post step the planner now plans
+differently. A new declaration's job is still a build-phase job over a
+published Store, though, so the #195 guard refuses it unless the run is
+forced. Observed-only and two-id releases are not checked. A direct
+`snakemake` run refuses a changed bundle only when it schedules a job
+(`onstart`): one with nothing to schedule writes nothing, and has none of the
+entry point's recovery or settlement either. `release.yaml`'s prose and
+provenance are left to review. `--config force=1` still rebuilds a named
+release from its bundle as it now stands.
 
 ### Production Execution vs. Fixture-Scale Tests
 
