@@ -627,7 +627,7 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `observed.n_variants` | Yes | Variant count the build reported, or `null` when it was not recorded. |
 | `observed.n_associations` | Yes | Association count the build reported, or `null` when it was not recorded. |
 | `observed.store_bytes` | Yes | Store size in bytes the build reported, or `null` when it was not recorded. |
-| `observed.build_elapsed_s` | Yes | Summed step elapsed seconds, or `null` when it was not recorded. |
+| `observed.build_elapsed_s` | Yes | Summed step elapsed seconds, or `null` when it was not recorded. For a release that completes its own Store it is the steps of both phases (ADR 0037). |
 | `observed.validate_status` | Yes | The validate verdict the release-level `status` is derived from. |
 | `observed.variant_reference` | No | Variant-reference provenance (issue #148): `provided` when the artifact already existed (a skipped `variant-reference` pre-stage, or a build option naming an existing panel with no declared pre-stage, as OGS-00004/OGS-00005 do), `extracted` when the workflow ran `extract-variant-reference`, and absent when the release uses no variant reference. |
 | `checks.store` | Yes, `register` record | This run's `opengwasdb validate --format json` verdict: `failed` when `ok` is false, `passed_with_warnings` when it reported a warning, `passed` otherwise, and `not_run` when the plan has no validate step. The only check a `register`-written record carries (#195). |

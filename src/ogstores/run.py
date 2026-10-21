@@ -16,7 +16,10 @@ Staged release transaction lifecycle (ADR 0022, ADR 0023):
   behind to satisfy a later existence check.
 * Exact canonical destination rewriting: planned argv targets `store.opengwasdb`;
   `rewrite_argv_for_staging()` rewrites the single target store token/substring to
-  `store.opengwasdb.partial` during execution while preserving parent inputs.
+  `store.opengwasdb.partial` during execution while preserving parent inputs. A
+  completion-phase step of a release that completes its own Store (ADR 0037) names
+  the published Store and the staged one with the same token; the argument its Step
+  marks as the published Store (`published_store_arg`) is left as it is.
 * Rejection of invalid paths: Non-canonical equivalent tokens, embedded substrings,
   symlinks (both live and dangling), or non-directories are rejected before execution via lstat/no-follow.
 * Publication gating: Publication is permitted ONLY on the terminal 'validate' step
@@ -81,10 +84,12 @@ from ogstores.bundle import (
     Bundle,
     is_valid_indexed_subset_name,
 )
-from ogstores.plan import Step
+from ogstores.plan import COMPLETION_STEP_PREFIX, REGISTER_STEPS, Step, completion_step_name
 
 STORE_PRODUCING_STEPS: frozenset[str] = frozenset({"build", "complete"})
 VARIANT_REFERENCE_STEP: str = "variant-reference"
+# The completion phase of a release that completes its own Store names its
+# post steps and its register apart from the build phase's (ADR 0037).
 VALID_STEP_NAMES: frozenset[str] = frozenset({
     "build",
     "complete",
@@ -93,7 +98,8 @@ VALID_STEP_NAMES: frozenset[str] = frozenset({
     "rho",
     "overview",
     "validate",
-    "register",
+    *(completion_step_name(name) for name in ("rho", "overview", "validate")),
+    *REGISTER_STEPS.values(),
     "unknown",
 })
 UNAVAILABLE: str = "unavailable"
@@ -214,7 +220,8 @@ def validate_step_name(name: str) -> str:
     A fixed name must be in :data:`VALID_STEP_NAMES`. A declared Indexed Variant
     Subset (#209) is allowed as ``indexed-subset-<name>``, where ``<name>`` is a
     valid subset name; the prefix bounds the dynamic space without opening the
-    record filename to an arbitrary string.
+    record filename to an arbitrary string. A completion phase's subset step is
+    ``completion-indexed-subset-<name>`` (ADR 0037).
     """
     if not isinstance(name, str) or "/" in name or "\\" in name or ".." in name:
         raise ValueError(
@@ -224,8 +231,9 @@ def validate_step_name(name: str) -> str:
         )
     if name in VALID_STEP_NAMES:
         return name
-    if name.startswith(INDEXED_SUBSET_STEP_PREFIX):
-        subset_name = name[len(INDEXED_SUBSET_STEP_PREFIX):]
+    subset_step = name.removeprefix(COMPLETION_STEP_PREFIX)
+    if subset_step.startswith(INDEXED_SUBSET_STEP_PREFIX):
+        subset_name = subset_step[len(INDEXED_SUBSET_STEP_PREFIX):]
         if is_valid_indexed_subset_name(subset_name):
             return name
     raise ValueError(
@@ -429,6 +437,10 @@ def rewrite_argv_for_staging(
     - Rejects missing or multiple ambiguous destination tokens before execution.
     - Rejects non-canonical equivalent path tokens (relative paths, trailing slashes) before execution.
     - Preserves parent store paths and non-target arguments verbatim.
+    - Leaves the argument a completion-phase step marks as the release's own
+      published Store (`Step.published_store_arg`, ADR 0037) as it is. It is
+      the same canonical token as the destination, so it must be that token
+      exactly, and is not counted among the destinations.
     """
     validate_step_name(step.name)
     target_store = paths.store_path(store_id, root=artifact_root)
@@ -438,10 +450,22 @@ def rewrite_argv_for_staging(
     partial_str = str(partial_store)
     target_resolved = target_store.resolve()
 
+    published_arg = step.published_store_arg
+    if published_arg is not None and (
+        not 0 <= published_arg < len(step.argv) or step.argv[published_arg] != target_str
+    ):
+        raise ValueError(
+            f"Step {step.name!r} for {store_id} marks argument {published_arg} as the published "
+            f"Store it reads, but that argument is not {target_str!r}: {step.argv}"
+        )
+
     rewritten: list[str] = []
     replacement_count = 0
 
-    for token in step.argv:
+    for index, token in enumerate(step.argv):
+        if index == published_arg:
+            rewritten.append(token)
+            continue
         val = token.split("=", 1)[1] if token.startswith("-") and "=" in token else token
 
         is_equivalent = False
@@ -1195,6 +1219,13 @@ def execute_step(
 
     # 3. Preflight paths and recover any stale backup from prior crash/interruption
     _preflight_paths(store_id, resolved_root)
+    if step.published_store_arg is not None:
+        # The step reads the published Store its release's build phase has just
+        # published; that publication is finished before anything is staged
+        # beside it (ADR 0037). `register` imports this module, hence the import here.
+        from ogstores import register
+
+        register.finish_build_phase_publication(store_id, resolved_root)
     _recover_pending_backup(store_id, resolved_root)
 
     # 4. Clean up stale partial store before starting a fresh build (unless explicit resume)
