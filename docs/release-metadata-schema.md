@@ -1118,15 +1118,19 @@ Three implementations exist:
   presence only when `unit` is absent or unrecognised (issue #50: the `ukb-b`
   batch reports every trait on the SD scale, so inferring scale from
   case/control-count presence alone is wrong for that batch).
-- `resources/generators/lib/metadata_resolvers/finngen_manifest.R`
-  (`resolve_finngen_manifest_metadata()`, issue #57), for FinnGen's public
-  endpoint manifest. Binary endpoint rows carry `num_cases` and `num_controls`
-  and resolve to `log_or`/`case_control`. FinnGen encodes its
-  inverse-rank-normalised quantitative endpoints with
-  `category = Quantitative endpoints`, the total N in `num_cases`, and
-  `num_controls = 0`; those rows resolve to `sd`/`total` without
-  misrepresenting that total as a case count. Any other shape is explicit
-  `unresolved`.
+- FinnGen's public endpoint manifest used to be resolved by
+  `resources/generators/lib/metadata_resolvers/finngen_manifest.R`
+  (`resolve_finngen_manifest_metadata()`, issue #57). That resolver retired
+  with #288: its classification is now the metadata adapter's
+  (`src/manifest_generation/providers/finngen/source_metadata_adapter.py`,
+  `docs/spec/source-connectors.md`), and the release config's method tiers
+  turn `study_design` into `stored_effect_scale`/`sample_size_kind`. Binary
+  endpoint rows carry `num_cases` and `num_controls` and are `case-control`
+  (`log_or`); FinnGen encodes its inverse-rank-normalised quantitative
+  endpoints with `category = Quantitative endpoints`, the total N in
+  `num_cases`, and `num_controls = 0`, and those are `quantitative` (`sd`)
+  without misrepresenting that total as a case count. Any other shape is
+  refused by the adapter.
 
 ### Trait ontology mapping resolver
 

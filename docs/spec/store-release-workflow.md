@@ -71,7 +71,7 @@ source_snapshot_id: finngen-r13-manifest-2026-05-12
 generator:                          # how the bundle was produced (Phase B)
   version: sha256:1800b9cf...
   commands:                         # executed command log, in run order
-    - Rscript resources/generators/lib/source-formats/finngen-r13-dense/generate.R --config=resources/generators/finngen-r13/config-pilot-20.yaml --mode=emit
+    - python3 -m manifest_generation.generate_candidate OGS-00042 --config resources/generators/finngen-r13/release-r13-full.yaml --cores 32
 notes: |
   ...
 ```

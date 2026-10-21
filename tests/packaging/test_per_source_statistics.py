@@ -78,9 +78,10 @@ FORBIDDEN_SUBCOMMANDS: frozenset[str] = frozenset(
 #: Provider modules that still compute or drive these statistics, each with the
 #: ticket that moves its source onto the shared pipeline and retires it.
 EXEMPTIONS: dict[str, str] = {
-    # FinnGen R13 and ukb-b dense generators call it for AF-based ancestry and
-    # phenotype SD (resources/generators/lib/opengwas_gwas_vcf_dense.R).
-    "opengwas/annotate.py": "#288 (FinnGen), #289 (ukb-b)",
+    # The ukb-b dense generator calls it for AF-based ancestry and phenotype SD
+    # (resources/generators/lib/opengwas_gwas_vcf_dense.R); FinnGen's R
+    # generator retired with #288.
+    "opengwas/annotate.py": "#289 (ukb-b)",
     # The R GWAS-SSF Ragged/Hybrid generators (Chen 2023, Sun 2018, the
     # OGS-00004/5 pilots) call it through resources/generators/lib/ancestry.R.
     "gwas_catalog/ancestry_assign.py": "#300 (Chen and Sun as release configs; R generators deleted)",
