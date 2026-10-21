@@ -1438,8 +1438,14 @@ class TestBundleContract(unittest.TestCase):
         original_is_file = Path.is_file
         original_is_dir = Path.is_dir
 
+        # A checkout may itself live under /data/opengwasdb (work trees on the
+        # production host do), so the registry's own files are not artifacts.
+        checkout = str(REPO_ROOT) + "/"
+
         def reject_artifact(path: object) -> None:
             text = str(path)
+            if text.startswith(checkout):
+                return
             if text.startswith("/data/opengwasdb") or ".opengwasdb" in text:
                 raise AssertionError(f"artifact path inspected: {text}")
 
