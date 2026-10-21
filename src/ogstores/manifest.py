@@ -166,10 +166,63 @@ def materialise_build_manifest(
 ) -> BuildManifestResult:
     """Write the filtered build manifest and its exclusion audit sidecar.
 
+    See `_derive_build_manifest` for what is dropped and refused. Atomic on
+    both outputs.
+    """
+    result, manifest_text = _derive_build_manifest(source_path, manifest_path, sidecar_path)
+    _write_text_atomically(
+        json.dumps(result.to_dict(), indent=2, sort_keys=False) + "\n", result.sidecar_path
+    )
+    _write_text_atomically(manifest_text, result.manifest_path)
+    return result
+
+
+# Sidecar fields that name where the files lie, not what they hold. A release
+# checked out or moved elsewhere changes them without changing the manifest.
+_SIDECAR_PROVENANCE_PATHS = ("source_manifest", "build_manifest")
+
+
+def build_manifest_is_current(
+    source_path: Path | str,
+    manifest_path: Path | str,
+    sidecar_path: Path | str,
+) -> bool:
+    """Whether materialising `source_path` would give the files already on disk.
+
+    True only when both outputs exist and the manifest's bytes and the sidecar's
+    content (apart from the paths it records) equal what `materialise_build_manifest`
+    would write. Nothing is written. A source that cannot be materialised is not
+    current: the build_manifest job then runs and raises as it always has.
+    """
+    manifest, sidecar = Path(manifest_path), Path(sidecar_path)
+    if not (manifest.is_file() and sidecar.is_file()):
+        return False
+    try:
+        result, manifest_text = _derive_build_manifest(source_path, manifest, sidecar)
+        existing_manifest = manifest.read_text(encoding="utf-8")
+        existing_sidecar = json.loads(sidecar.read_text(encoding="utf-8"))
+    except (ManifestError, OSError, ValueError):
+        return False
+    if not isinstance(existing_sidecar, dict) or existing_manifest != manifest_text:
+        return False
+    wanted = result.to_dict()
+    for key in _SIDECAR_PROVENANCE_PATHS:
+        wanted.pop(key, None)
+        existing_sidecar.pop(key, None)
+    return existing_sidecar == wanted
+
+
+def _derive_build_manifest(
+    source_path: Path | str,
+    manifest_path: Path | str,
+    sidecar_path: Path | str,
+) -> tuple[BuildManifestResult, str]:
+    """Read the bundle manifest and return what would be written, writing nothing.
+
     Drops every row whose `exclude_from_build` is `true`, keeps all columns and
     row order, and re-densifies `analysis_index` to 0..n-1 over the survivors
     when that column exists. Refuses a ragged row (field count differing from the
-    header) before writing anything. Atomic on both outputs.
+    header).
     """
     source = Path(source_path)
     manifest = Path(manifest_path)
@@ -262,11 +315,7 @@ def materialise_build_manifest(
         dropped=dropped,
     )
 
-    _write_text_atomically(
-        json.dumps(result.to_dict(), indent=2, sort_keys=False) + "\n", sidecar
-    )
-    _write_text_atomically(output.getvalue(), manifest)
-    return result
+    return result, output.getvalue()
 
 
 __all__ = [
@@ -282,5 +331,6 @@ __all__ = [
     "ManifestError",
     "MissingManifestColumnError",
     "classify_exclusion",
+    "build_manifest_is_current",
     "materialise_build_manifest",
 ]
