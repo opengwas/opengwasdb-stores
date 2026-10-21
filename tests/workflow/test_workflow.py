@@ -43,9 +43,11 @@ import math
 import os
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import tomllib
 import unittest
 from pathlib import Path
@@ -59,6 +61,8 @@ from ogstores.plan import plan
 # The completed child is asserted on through opengwasdb's published query
 # facade, never on its internal arrays (#303).
 from opengwasdb.query import query_store
+# The counters whose nonzero count fails the Observed-View Check (#306).
+from opengwasdb.validation.observed_view import FAILING_COUNTERS
 
 SNAKEFILE_PATH: Path = REPO_ROOT / "workflow" / "Snakefile"
 
@@ -1411,6 +1415,45 @@ class TestWorkflowTwoIdReferenceCompletion(unittest.TestCase):
                 )
 
 
+def prepare_single_id_signal_release(root: Path, store_id: str) -> tuple[Path, Path]:
+    """A fresh release that completes its own Store, ready to run, in `root` (#304, #309).
+
+    #303's signal profile: the fixture VCF and LD panel under `root`, and a
+    Dense bundle built from that VCF with `top_hits` and `overview` off,
+    amended to complete its own Store. Returns the new `root/stores` and
+    `root/artifacts`, so every caller has directories of its own.
+    """
+    stores, artifacts = root / "stores", root / "artifacts"
+    stores.mkdir()
+    artifacts.mkdir()
+    create_dense_fixture_store(
+        stores,
+        store_id=store_id,
+        artifact_root=artifacts,
+        vcf_path=create_signal_fixture_vcf(root / "signal.vcf.gz"),
+        post_top_hits=False,
+        post_overview=False,
+    )
+    amend_to_complete_own_store(stores, store_id, ld_panel=create_signal_ld_panel(root / "ld-panel"))
+    return stores, artifacts
+
+
+def observed_view(store_p: Path, analysis_id: str) -> dict[str, tuple[float, float, float, str]]:
+    """`observed_only=True` associations of one Analysis by ALID: decoded z, se, eaf and status."""
+    q = query_store(store_p)
+    try:
+        rows = q.analysis(analysis_id, observed_only=True)
+        table = q.variants_table()
+    finally:
+        q.close()
+    return {
+        table[int(index)]["alid"]: (float(z), float(se), float(eaf), str(status))
+        for index, z, se, eaf, status in zip(
+            rows["variant_index"], rows["z"], rows["se"], rows["eaf"], rows["association_status"], strict=True
+        )
+    }
+
+
 _SINGLE_ID_COMPLETION: dict[str, Any] | None = None
 
 
@@ -1424,6 +1467,11 @@ def single_id_completion_template() -> dict[str, Any]:
     `TemporaryDirectory` that holds them. A test that may write copies
     `stores` and `artifacts`; the template is never written again.
 
+    The swap deletes the Observed-Only Store (#309), so the first run is
+    paused as `complete` starts, once the build phase has published it, and
+    its observed view is read then (`observed_before`, from `observed_view`;
+    None when the run never got there).
+
     The rerun is part of the template, not of a test, because only a rerun in
     place reads the Snakemake metadata the build recorded, and a test that
     ran it against the shared template could write to it. The same shape as
@@ -1436,23 +1484,31 @@ def single_id_completion_template() -> dict[str, Any]:
         return _SINGLE_ID_COMPLETION
 
     store_id = "OGS-00110"
+    analysis_id = f"test_analysis_{store_id}"
     temp_dir = tempfile.TemporaryDirectory()
     root = Path(temp_dir.name)
-    stores = root / "stores"
-    stores.mkdir()
-    artifacts = root / "artifacts"
-    artifacts.mkdir()
+    stores, artifacts = prepare_single_id_signal_release(root, store_id)
 
-    create_dense_fixture_store(
-        stores,
-        store_id=store_id,
-        artifact_root=artifacts,
-        vcf_path=create_signal_fixture_vcf(root / "signal.vcf.gz"),
-        post_top_hits=False,
-        post_overview=False,
-    )
-    amend_to_complete_own_store(stores, store_id, ld_panel=create_signal_ld_panel(root / "ld-panel"))
-    release_result = run_release([store_id], registry_root=stores, artifact_root=artifacts)
+    argv = release_argv([store_id], registry_root=stores, artifact_root=artifacts)
+    pause = root / "paused"
+    env = {**os.environ, run.PAUSE_AT_ENV: "complete-started", run.PAUSE_FILE_ENV: str(pause)}
+    observed_before = None
+    with (root / "release.out").open("w+") as out, (root / "release.err").open("w+") as err:
+        proc = subprocess.Popen(argv, cwd=REPO_ROOT, stdout=out, stderr=err, env=env, start_new_session=True)
+        try:
+            deadline = time.monotonic() + 600
+            while not pause.exists() and proc.poll() is None and time.monotonic() < deadline:
+                time.sleep(0.2)
+            if pause.exists():
+                observed_before = observed_view(paths.store_path(store_id, root=artifacts), analysis_id)
+            elif proc.poll() is None:
+                os.killpg(proc.pid, signal.SIGKILL)
+        finally:
+            pause.unlink(missing_ok=True)
+            returncode = proc.wait(timeout=600)
+        out.seek(0)
+        err.seek(0)
+        release_result = subprocess.CompletedProcess(argv, returncode, out.read(), err.read())
     records_before_rerun = {
         p: p.stat().st_mtime_ns for p in paths.records_dir(store_id, root=artifacts).glob("*.json")
     }
@@ -1465,8 +1521,9 @@ def single_id_completion_template() -> dict[str, Any]:
         "release_result": release_result,
         "rerun_result": rerun_result,
         "records_before_rerun": records_before_rerun,
+        "observed_before": observed_before,
         "store_id": store_id,
-        "analysis_id": f"test_analysis_{store_id}",
+        "analysis_id": analysis_id,
     }
     return _SINGLE_ID_COMPLETION
 
@@ -1505,6 +1562,7 @@ class TestWorkflowSingleIdReferenceCompletion(unittest.TestCase):
         cls.release_result = template["release_result"]
         cls.rerun_result = template["rerun_result"]
         cls.records_before_rerun: dict[Path, int] = template["records_before_rerun"]
+        cls.observed_before: dict[str, tuple[float, float, float, str]] | None = template["observed_before"]
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -1527,18 +1585,10 @@ class TestWorkflowSingleIdReferenceCompletion(unittest.TestCase):
         return json.loads((store_p / "manifest.json").read_text(encoding="utf-8"))
 
     def observed(self, store_p: Path) -> dict[str, tuple[float, float, float]]:
-        """`observed_only=True` associations by ALID: decoded z, se and eaf."""
-        q = query_store(store_p)
-        try:
-            rows = q.analysis(self.ANALYSIS_ID, observed_only=True)
-            table = q.variants_table()
-        finally:
-            q.close()
-        self.assertNotIn("imputed", set(rows["association_status"].tolist()))
-        return {
-            table[int(index)]["alid"]: (float(z), float(se), float(eaf))
-            for index, z, se, eaf in zip(rows["variant_index"], rows["z"], rows["se"], rows["eaf"], strict=True)
-        }
+        """`observed_only=True` associations by ALID: decoded z, se and eaf, none of them imputed."""
+        view = observed_view(store_p, self.ANALYSIS_ID)
+        self.assertNotIn("imputed", {status for *_, status in view.values()})
+        return {alid: (z, se, eaf) for alid, (z, se, eaf, _) in view.items()}
 
     def test_one_run_publishes_the_observed_only_store_then_the_completed_store_at_its_path(self) -> None:
         res = self.release_result
@@ -1606,29 +1656,39 @@ class TestWorkflowSingleIdReferenceCompletion(unittest.TestCase):
         self.assertEqual(manifest_doc["store_id"], self.STORE_ID)
         self.assertEqual(manifest_doc["release_id"], f"{self.STORE_ID}-completed")
 
-    def test_observed_only_returns_the_vcfs_observations(self) -> None:
-        """By ALID, the observed view is the VCF's: its positions, and z and se within one quantum.
+    def test_observed_only_returns_the_observed_only_stores_associations_unchanged(self) -> None:
+        """By ALID, z, se and eaf are exactly those of the Store it replaced, read before completion began.
 
-        The Store it replaced is deleted, so its cells are no longer here to
-        compare with. That they are unchanged bit for bit is what the passing
-        Observed-View Check, archived with the swap, says
-        (`test_the_replaced_store_is_deleted_and_its_records_are_archived`),
-        and #303's class shows it exactly for the same commands. Within one
-        quantum of the VCF literals is what keeps this from passing on a Store
-        with no observed cells.
+        The replaced Store is deleted with the swap (#309), so the template
+        reads its observed view while the run is paused as `complete` starts.
+        The comparison is exact, eaf NaN-equal: a tolerance would accept the
+        one-quantum change completion must never make. Beside it, the
+        Observed-Only Store's z and se sit within one quantum of the VCF
+        literals, so neither side can be a Store with no observed cells.
         """
         import numpy as np
         from opengwasdb.encoding.plan import DEFAULT_Z_SCALE
 
+        self.assertIsNotNone(self.observed_before, "the template never read the Observed-Only Store")
+        before = {alid: (z, se, eaf) for alid, (z, se, eaf, _) in self.observed_before.items()}
+        self.assertNotIn("imputed", {status for *_, status in self.observed_before.values()})
         completed = self.observed(paths.store_path(self.STORE_ID, root=self.artifact_root))
         expected_alids = sorted(SIGNAL_ALID[i] for i in range(len(SIGNAL_POSITIONS)) if i != SIGNAL_HELD_OUT_INDEX)
+        self.assertEqual(sorted(before), expected_alids)
         self.assertEqual(sorted(completed), expected_alids)
         z_quantum = 1.0 / DEFAULT_Z_SCALE
         se_quantum = float(np.spacing(np.float16(SIGNAL_SE)))
         for alid in expected_alids:
-            z, se, _ = completed[alid]
-            self.assertLessEqual(abs(z - SIGNAL_Z[SIGNAL_ALID.index(alid)]), z_quantum, alid)
-            self.assertLessEqual(abs(se - SIGNAL_SE), se_quantum, alid)
+            z, se, eaf = completed[alid]
+            before_z, before_se, before_eaf = before[alid]
+            self.assertEqual(z, before_z, f"z changed for {alid}")
+            self.assertEqual(se, before_se, f"se changed for {alid}")
+            self.assertTrue(
+                eaf == before_eaf or (np.isnan(eaf) and np.isnan(before_eaf)),
+                f"eaf changed for {alid}: {eaf!r} != {before_eaf!r}",
+            )
+            self.assertLessEqual(abs(before_z - SIGNAL_Z[SIGNAL_ALID.index(alid)]), z_quantum, alid)
+            self.assertLessEqual(abs(before_se - SIGNAL_SE), se_quantum, alid)
 
     def test_the_replaced_store_is_deleted_and_its_records_are_archived(self) -> None:
         """No arrays under `replaced/<stamp>/`: the replaced release's two records and the check's verdict (#309)."""
@@ -1644,7 +1704,10 @@ class TestWorkflowSingleIdReferenceCompletion(unittest.TestCase):
         self.assertEqual((archive / "records" / "register.json").read_bytes(), (rec_dir / "register.json").read_bytes())
         archived_check = archive / "records" / "completion-observed-view-check.json"
         self.assertEqual(archived_check.read_bytes(), (rec_dir / archived_check.name).read_bytes())
-        self.assertIs(json.loads(json.loads(archived_check.read_text())["stdout"])["passed"], True)
+        verdict = json.loads(json.loads(archived_check.read_text())["stdout"])
+        self.assertIs(verdict["passed"], True)
+        self.assertEqual(verdict["failures"], [])
+        self.assertEqual({name: verdict["totals"][name] for name in FAILING_COUNTERS}, dict.fromkeys(FAILING_COUNTERS, 0))
         archived_record = yaml.safe_load((archive / "validation.yaml").read_text(encoding="utf-8"))
         self.assertEqual(archived_record["observed"]["completion_state"], "observed_only")
         self.assertEqual(archived_record["observed"]["n_variants"], len(SIGNAL_POSITIONS) - 1)
@@ -1702,25 +1765,13 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
 
     def test_a_tampered_completed_store_is_refused_and_the_observed_only_store_survives(self) -> None:
         import numpy as np
-        import time
         import yaml
         from opengwasdb.encoding import DenseZPlane
         from opengwasdb.store.open import open_store
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            stores, artifacts = root / "stores", root / "artifacts"
-            stores.mkdir()
-            artifacts.mkdir()
-            create_dense_fixture_store(
-                stores,
-                store_id=self.STORE_ID,
-                artifact_root=artifacts,
-                vcf_path=create_signal_fixture_vcf(root / "signal.vcf.gz"),
-                post_top_hits=False,
-                post_overview=False,
-            )
-            amend_to_complete_own_store(stores, self.STORE_ID, ld_panel=create_signal_ld_panel(root / "ld-panel"))
+            stores, artifacts = prepare_single_id_signal_release(root, self.STORE_ID)
             pause = root / "paused"
             log = root / "run.log"
             env = {**os.environ, run.PAUSE_AT_ENV: f"{self.CHECK_STEP}-started", run.PAUSE_FILE_ENV: str(pause)}
