@@ -30,10 +30,10 @@ recorded for it is refused by Analysis and never re-hashed into a new manifest:
 a recorded checksum is identity evidence, not a field a later run may overwrite.
 
 Usage:
-    python3 -m manifest_generation.providers.finngen.acquire \\
-        --manifest /data/opengwasdb/raw/finngen-r13/releases/r13-full/manifest/finngen_R13_manifest.tsv \\
-        --source-dir /data/opengwasdb/raw/finngen-r13/releases/r13-full/source \\
-        --out /data/opengwasdb/raw/finngen-r13/connectors/<date>/finngen-r13-full.acquisition-manifest.tsv \\
+    python3 -m manifest_generation.providers.finngen.acquire \
+        --manifest /data/opengwasdb/raw/finngen-r13/releases/r13-full/manifest/finngen_R13_manifest.tsv \
+        --source-dir /data/opengwasdb/raw/finngen-r13/releases/r13-full/source \
+        --out /data/opengwasdb/raw/finngen-r13/connectors/<date>/finngen-r13-full.acquisition-manifest.tsv \
         --workers 8
 
 **Compatibility mode** (``--release-dir``), kept until the R generator retires
