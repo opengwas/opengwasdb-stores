@@ -491,6 +491,16 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         )
         from manifest_generation.source_inventory import read_inventory
 
+        # Which configs' Sources publish an imputation-score column, and so carry
+        # one into their resolver manifest: the eur-hybrid trio, whose full
+        # release declares the 704 shared declarations the pilots reuse (#287).
+        # FinnGen publishes no INFO column, so its release declares none (#288).
+        declares_scores = {
+            "release-eur-hybrid-full.yaml",
+            "release-eur-hybrid-pilot-10.yaml",
+            "release-eur-hybrid-quant-pilot-10.yaml",
+        }
+
         for path in shipped_release_configs():
             with self.subTest(config=path.name):
                 config = load_candidate_configuration(path, REPO_ROOT)
@@ -500,7 +510,8 @@ class ShippedReleaseConfigTests(unittest.TestCase):
                     self.skipTest("the collection's Source Metadata Table is not on this host")
                 rows = read_inventory(config.base.inventory_path)
                 ready = [row.analysis_id for row in rows if row.ready]
-                if len(ready) > 100:
+                carries_scores = path.name in declares_scores
+                if len(ready) > 100 and carries_scores:
                     declared = read_imputation_score_declarations(
                         config.imputation_score_declarations,
                         [row.analysis_id for row in rows],
@@ -512,7 +523,9 @@ class ShippedReleaseConfigTests(unittest.TestCase):
                 manifest = derive_resolver_manifest(rows, config, metadata)
                 self.assertEqual([row.analysis_id for row in manifest], ready)
                 # The shared table's declarations for these Analyses, and only those.
-                self.assertTrue(any(row.imputation_score_column for row in manifest))
+                self.assertEqual(
+                    any(row.imputation_score_column for row in manifest), carries_scores
+                )
 
     def test_the_pilot_configs_select_exactly_their_trial_store_releases(self) -> None:
         for name, store_id in (
