@@ -80,7 +80,7 @@ class DiscoveryTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.discover()
 
-    def test_a_release_stack_suite_runs_one_process_per_test(self) -> None:
+    def test_a_sharded_suite_runs_as_up_to_one_process_per_job(self) -> None:
         script = self.tests / "theta" / "test_theta.py"
         script.parent.mkdir(parents=True)
         script.write_text(
@@ -95,13 +95,29 @@ class DiscoveryTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            runner.jobs_for("workflow", [str(script), "-k", "B"]),
-            [("B.test_made", [str(script), "B.test_made"]), ("B.test_three", [str(script), "B.test_three"])],
+            runner.jobs_for("workflow", [str(script), "-k", "B"], jobs=8),
+            [(["B.test_made"], [str(script), "B.test_made"]), (["B.test_three"], [str(script), "B.test_three"])],
         )
-        self.assertEqual(len(runner.jobs_for("workflow", [str(script)])), 4)
-        self.assertEqual(runner.jobs_for("alpha", [str(script)]), [("", [str(script)])])
+        self.assertEqual(
+            runner.jobs_for("workflow", [str(script)], jobs=3),
+            [
+                (["A.test_one", "A.test_two"], [str(script), "A.test_one", "A.test_two"]),
+                (["B.test_made"], [str(script), "B.test_made"]),
+                (["B.test_three"], [str(script), "B.test_three"]),
+            ],
+        )
+        self.assertEqual(runner.jobs_for("alpha", [str(script)], jobs=8), [([], [str(script)])])
         with self.assertRaisesRegex(RuntimeError, "selects no tests"):
-            runner.jobs_for("workflow", [str(script), "-k", "Missing"])
+            runner.jobs_for("workflow", [str(script), "-k", "Missing"], jobs=8)
+
+    def test_shards_keep_the_listed_order_and_differ_by_at_most_one(self) -> None:
+        tests = [f"T.test_{n}" for n in range(10)]
+        for count in range(1, 11):
+            with self.subTest(count=count):
+                runs = runner.shards(tests, count)
+                self.assertEqual(len(runs), count)
+                self.assertEqual([test for run in runs for test in run], tests)
+                self.assertLessEqual(max(map(len, runs)) - min(map(len, runs)), 1)
 
     def test_a_split_suite_runs_as_its_named_halves(self) -> None:
         touch(self.tests.parent, "tests/epsilon/test_epsilon.py")
@@ -138,7 +154,7 @@ class RepositorySuitesTest(unittest.TestCase):
         self.assertEqual(
             runner.RELEASE_STACK_SUITES, ("workflow", "release-faults/boundaries", "release-faults/interrupts")
         )
-        named = set(runner.RELEASE_STACK_SUITES) | runner.PER_TEST_SUITES | set(runner.SUITE_COST)
+        named = set(runner.RELEASE_STACK_SUITES) | runner.SHARDED_SUITES | set(runner.SUITE_COST)
         self.assertEqual(named - labels, set())
 
     def test_every_test_of_a_split_file_runs_in_exactly_one_part(self) -> None:
