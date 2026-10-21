@@ -1478,15 +1478,16 @@ class TestWorkflowSingleIdReferenceCompletion(unittest.TestCase):
     One `pixi run release <id>` builds and publishes the Observed-Only Store,
     completes it from that published Store into the id's staged path,
     validates it there, and publishes the completed Store at the same path.
-    The replaced Store is archived, as a forced run archives it, under a
-    `replaced/<stamp>/` that holds its register record and Validation Record
-    too.
+    The replaced Store's arrays are deleted (#309). Its register record, its
+    Validation Record and the Observed-View Check's verdict are archived under
+    `replaced/<stamp>/`.
 
-    The Observed-Only Store is asserted on in its archive: that it is there,
-    observed-only and holding the VCF's observations, is the evidence that it
-    was published first and then replaced. The fixture is #303's signal
-    profile, whose completion `TestWorkflowTwoIdReferenceCompletion` already
-    shows to be real, so this class asserts only what one id changes.
+    The Observed-Only Store is asserted on through those archived records:
+    that its build phase published it observed-only, with the VCF's
+    observations, is the evidence that it was published first and then
+    replaced. The fixture is #303's signal profile, whose completion
+    `TestWorkflowTwoIdReferenceCompletion` already shows to be real and exact,
+    so this class asserts only what one id changes.
     """
 
     PHASE_RECORDS = [
@@ -1563,9 +1564,6 @@ class TestWorkflowSingleIdReferenceCompletion(unittest.TestCase):
         store_p = paths.store_path(self.STORE_ID, root=self.artifact_root)
 
         self.assertEqual(self.manifest(store_p)["completion_state"], "reference_completed")
-        replaced = self.archive() / "store.opengwasdb"
-        self.assertEqual(self.manifest(replaced)["completion_state"], "observed_only")
-        self.assertEqual(self.manifest(replaced)["release_id"], self.STORE_ID)
         for leftover in (
             paths.partial_store_path(self.STORE_ID, root=self.artifact_root),
             paths.backup_store_path(self.STORE_ID, root=self.artifact_root),
@@ -1608,34 +1606,47 @@ class TestWorkflowSingleIdReferenceCompletion(unittest.TestCase):
         self.assertEqual(manifest_doc["store_id"], self.STORE_ID)
         self.assertEqual(manifest_doc["release_id"], f"{self.STORE_ID}-completed")
 
-    def test_observed_only_returns_the_observed_only_stores_associations_unchanged(self) -> None:
-        """By ALID, z, se and eaf are exactly those of the Store it replaced.
+    def test_observed_only_returns_the_vcfs_observations(self) -> None:
+        """By ALID, the observed view is the VCF's: its positions, and z and se within one quantum.
 
-        That the fixture's decoded values are the VCF's, and that the held-out
-        position comes back imputed, is #303's class's to prove: the build
-        and the completion are the same commands here.
+        The Store it replaced is deleted, so its cells are no longer here to
+        compare with. That they are unchanged bit for bit is what the passing
+        Observed-View Check, archived with the swap, says
+        (`test_the_replaced_store_is_deleted_and_its_records_are_archived`),
+        and #303's class shows it exactly for the same commands. Within one
+        quantum of the VCF literals is what keeps this from passing on a Store
+        with no observed cells.
         """
         import numpy as np
+        from opengwasdb.encoding.plan import DEFAULT_Z_SCALE
 
         completed = self.observed(paths.store_path(self.STORE_ID, root=self.artifact_root))
-        replaced = self.observed(self.archive() / "store.opengwasdb")
         expected_alids = sorted(SIGNAL_ALID[i] for i in range(len(SIGNAL_POSITIONS)) if i != SIGNAL_HELD_OUT_INDEX)
-        self.assertEqual(sorted(replaced), expected_alids)
         self.assertEqual(sorted(completed), expected_alids)
+        z_quantum = 1.0 / DEFAULT_Z_SCALE
+        se_quantum = float(np.spacing(np.float16(SIGNAL_SE)))
         for alid in expected_alids:
-            z, se, eaf = completed[alid]
-            before_z, before_se, before_eaf = replaced[alid]
-            self.assertEqual(z, before_z, f"z changed for {alid}")
-            self.assertEqual(se, before_se, f"se changed for {alid}")
-            self.assertTrue(eaf == before_eaf or (np.isnan(eaf) and np.isnan(before_eaf)), alid)
+            z, se, _ = completed[alid]
+            self.assertLessEqual(abs(z - SIGNAL_Z[SIGNAL_ALID.index(alid)]), z_quantum, alid)
+            self.assertLessEqual(abs(se - SIGNAL_SE), se_quantum, alid)
 
-    def test_the_replaced_release_is_archived_and_the_build_phases_records_stay(self) -> None:
+    def test_the_replaced_store_is_deleted_and_its_records_are_archived(self) -> None:
+        """No arrays under `replaced/<stamp>/`: the replaced release's two records and the check's verdict (#309)."""
         import yaml
 
         archive = self.archive()
         rec_dir = paths.records_dir(self.STORE_ID, root=self.artifact_root)
+        self.assertEqual(sorted(p.name for p in archive.iterdir()), ["records", "validation.yaml"])
+        self.assertEqual(
+            sorted(p.name for p in (archive / "records").iterdir()),
+            ["completion-observed-view-check.json", "register.json"],
+        )
         self.assertEqual((archive / "records" / "register.json").read_bytes(), (rec_dir / "register.json").read_bytes())
+        archived_check = archive / "records" / "completion-observed-view-check.json"
+        self.assertEqual(archived_check.read_bytes(), (rec_dir / archived_check.name).read_bytes())
+        self.assertIs(json.loads(json.loads(archived_check.read_text())["stdout"])["passed"], True)
         archived_record = yaml.safe_load((archive / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(archived_record["observed"]["completion_state"], "observed_only")
         self.assertEqual(archived_record["observed"]["n_variants"], len(SIGNAL_POSITIONS) - 1)
         self.assertNotIn("replaced", archived_record)
         for step in ("build", "validate", "register"):

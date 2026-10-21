@@ -14,6 +14,8 @@ Verifies the central contracts of ADR 0022 and ADR 0023:
 6. Atomic publication: invokes `run.publish_store()` upon successful registration.
 7. Only this run's findings (#195): the verdict, checks, warnings and errors come from
    `opengwasdb validate --format json`; nothing is carried from the previous record.
+8. A completion phase deletes the Store it replaces, only over a passing Observed-View Check,
+   and archives its records and the check's verdict; a forced run archives the Store (#309).
 """
 
 from __future__ import annotations
@@ -36,7 +38,7 @@ import yaml
 
 from ogstores import bundle, manifest, paths, register, run
 from ogstores.bundle import Bundle
-from ogstores.plan import Step, plan
+from ogstores.plan import OBSERVED_VIEW_CHECK_STEP, Step, plan
 from ogstores.register import (
     ArgvDriftError,
     MissingRecordError,
@@ -47,6 +49,13 @@ from ogstores.register import (
     normalize_executed_argv_for_staging,
     register_release,
 )
+
+
+def observed_view_verdict(*, passed: bool) -> str:
+    """An Observed-View Check verdict as `opengwasdb check-observed-view` prints it: indented JSON."""
+    failures = [] if passed else ["z_mismatch"]
+    verdict = {"seed": 20261021, "totals": {"z_mismatch": 0 if passed else 3}, "failures": failures, "passed": passed}
+    return json.dumps(verdict, indent=2) + "\n"
 
 
 def create_test_bundle_and_records(
@@ -147,6 +156,8 @@ def create_test_bundle_and_records(
             elif step.name in ("validate", "completion-validate"):
                 # The shape `opengwasdb validate --format json` prints (#195).
                 stdout_payload = json.dumps({"errors": [], "ok": True, "warnings": []}) + "\n"
+            elif step.name == OBSERVED_VIEW_CHECK_STEP:
+                stdout_payload = observed_view_verdict(passed=True)
 
             rec_data = {
                 "step": step.name,
@@ -739,9 +750,9 @@ class TestForcedRegistration(unittest.TestCase):
 KILL_REGISTER_SCRIPT = """
 import sys
 from ogstores import bundle, register
-stores_root, artifact_root, store_id, force = sys.argv[1:5]
+stores_root, artifact_root, store_id, force, phase = sys.argv[1:6]
 b = bundle.load(store_id, registry_root=stores_root)
-register.register_release(b, registry_root=stores_root, artifact_root=artifact_root, force=force == "1")
+register.register_release(b, registry_root=stores_root, artifact_root=artifact_root, force=force == "1", phase=phase)
 """
 
 
@@ -749,6 +760,13 @@ class TestPublicationTransaction(unittest.TestCase):
     """A publication killed or failing at any boundary is finished by the next run (#195)."""
 
     STAMP = "20261007T090000Z"
+    # The boundaries only one kind of replacement crosses: a forced run
+    # archives the Store it replaces, and a completion phase deletes it (#309).
+    # Both cross every other boundary, so one added to the code is killed in
+    # both kinds until it is named here, and fails in the kind that never
+    # reaches it.
+    ARCHIVE_ONLY: frozenset[str] = frozenset({"old-store-archived"})
+    DELETE_ONLY: frozenset[str] = frozenset({"old-store-deleting", "old-store-deleted"})
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -757,8 +775,38 @@ class TestPublicationTransaction(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
-    def staged_replacement(self, store_id: str) -> tuple[Bundle, Path, Path, bytes]:
-        """A published release, a validated replacement staged beside it, and the forced run's snapshot."""
+    def replacements_crossing(self, boundary: str) -> list[bool]:
+        """Each kind of replacement that crosses `boundary`, as `completion`: forced (False) or completion phase (True)."""
+        return [
+            completion
+            for completion in (False, True)
+            if boundary not in (self.ARCHIVE_ONLY if completion else self.DELETE_ONLY)
+        ]
+
+    def staged_replacement(self, store_id: str, completion: bool = False) -> tuple[Bundle, Path, Path, bytes]:
+        """A published release, a validated replacement staged beside it, and the forced run's snapshot.
+
+        With `completion`, the release completes its own Store instead: its
+        build phase has published the Observed-Only Store, arrays and all, and
+        its completion phase has staged the completed one, with no snapshot
+        (ADR 0037).
+        """
+        if completion:
+            b, stores_root, artifact_root = create_test_bundle_and_records(
+                self.td / store_id,
+                store_id,
+                completion_state="reference_completed",
+                command="complete-dense",
+                options={"ld-panel": "/data/ld", "ancestry": "EUR"},
+            )
+            partial_p = paths.partial_store_path(store_id, root=artifact_root)
+            (partial_p / "version.txt").write_text("old", encoding="utf-8")
+            (partial_p / "z" / "c").mkdir(parents=True)
+            (partial_p / "z" / "c" / "0.0").write_bytes(b"old chunk")
+            register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+            partial_p.mkdir()
+            (partial_p / "version.txt").write_text("new", encoding="utf-8")
+            return bundle.load(store_id, registry_root=stores_root), stores_root, artifact_root, (b.root / "validation.yaml").read_bytes()
         b, stores_root, artifact_root = create_test_bundle_and_records(self.td / store_id, store_id)
         store_p = paths.store_path(store_id, root=artifact_root)
         store_p.mkdir()
@@ -771,18 +819,35 @@ class TestPublicationTransaction(unittest.TestCase):
         (snapshot / "build.json").write_text("old build record", encoding="utf-8")
         return bundle.load(store_id, registry_root=stores_root), stores_root, artifact_root, old_record.encode()
 
-    def assert_replaced(self, b: Bundle, artifact_root: Path, old_record: bytes) -> None:
-        """The new release is published, the old one archived whole, and nothing is left pending."""
+    def assert_replaced(self, b: Bundle, artifact_root: Path, old_record: bytes, completion: bool = False) -> None:
+        """The new release is published, the old one archived whole, and nothing is left pending.
+
+        With `completion`, the old Store is deleted instead: its archive holds
+        its register record, its Validation Record and the Observed-View
+        Check's verdict, and no arrays (#309).
+        """
         sid = b.store_id
-        archive = paths.replaced_dir(sid, self.STAMP, root=artifact_root)
         self.assertEqual((paths.store_path(sid, root=artifact_root) / "version.txt").read_text(), "new")
-        self.assertEqual((archive / "store.opengwasdb" / "version.txt").read_text(), "old")
-        self.assertEqual((archive / "records" / "build.json").read_text(), "old build record")
+        if completion:
+            archives = sorted((paths.store_dir(sid, root=artifact_root) / "replaced").iterdir())
+            self.assertEqual(len(archives), 1, archives)
+            archive = archives[0]
+            self.assertEqual(sorted(p.name for p in archive.iterdir()), ["records", "validation.yaml"])
+            kept = sorted(["register.json", f"{OBSERVED_VIEW_CHECK_STEP}.json"])
+            self.assertEqual(sorted(p.name for p in (archive / "records").iterdir()), kept)
+            for name in kept:
+                record = paths.records_dir(sid, root=artifact_root) / name
+                self.assertEqual((archive / "records" / name).read_bytes(), record.read_bytes(), name)
+        else:
+            archive = paths.replaced_dir(sid, self.STAMP, root=artifact_root)
+            self.assertEqual((archive / "store.opengwasdb" / "version.txt").read_text(), "old")
+            self.assertEqual((archive / "records" / "build.json").read_text(), "old build record")
         self.assertEqual((archive / "validation.yaml").read_bytes(), old_record)
         written = yaml.safe_load((b.root / "validation.yaml").read_text(encoding="utf-8"))
         self.assertEqual(written["replaced"]["archive"], str(archive))
         self.assertEqual(written["status"], "passed")
-        register_rec = json.loads(paths.record_path(sid, "register", root=artifact_root).read_text())
+        register_step = "completion-register" if completion else "register"
+        register_rec = json.loads(paths.record_path(sid, register_step, root=artifact_root).read_text())
         self.assertEqual(register_rec["replaced_archive"], str(archive))
         for leftover in (
             paths.publication_marker(sid, root=artifact_root),
@@ -792,47 +857,79 @@ class TestPublicationTransaction(unittest.TestCase):
         ):
             self.assertFalse(leftover.exists(), leftover)
 
-    def kill_register_at(self, boundary: str, b: Bundle, stores_root: Path, artifact_root: Path, force: bool = True) -> int:
+    def kill_register_at(
+        self, boundary: str, b: Bundle, stores_root: Path, artifact_root: Path, force: bool = True, completion: bool = False
+    ) -> int:
+        """Register `b`, or its completion phase with `completion`, killed at `boundary`."""
         env = dict(os.environ)
         env[run.KILL_AT_ENV] = boundary
+        phase = "completion" if completion else "build"
         return subprocess.run(
-            [sys.executable, "-c", KILL_REGISTER_SCRIPT, str(stores_root), str(artifact_root), b.store_id, "1" if force else "0"],
+            [sys.executable, "-c", KILL_REGISTER_SCRIPT, str(stores_root), str(artifact_root), b.store_id, "1" if force else "0", phase],
             env=env,
             capture_output=True,
             text=True,
         ).returncode
 
     def test_a_kill_after_the_marker_is_completed_by_the_next_run(self) -> None:
-        """At every boundary from the marker on, a SIGKILL-like exit is finished by complete_publication."""
+        """At every boundary from the marker on, a SIGKILL-like exit is finished by complete_publication.
+
+        A forced replacement, which archives the old Store, and a completion
+        phase's, which deletes it (#309), are each killed at every boundary
+        they cross. The run after the one that finishes finds nothing to do.
+        """
+        self.assertLessEqual(self.ARCHIVE_ONLY | self.DELETE_ONLY, set(register.PUBLICATION_BOUNDARIES))
         for boundary in register.PUBLICATION_BOUNDARIES[1:]:
-            with self.subTest(boundary=boundary):
-                b, stores_root, artifact_root, old_record = self.staged_replacement(f"OGS-{100 + register.PUBLICATION_BOUNDARIES.index(boundary):05d}")
-                self.assertEqual(self.kill_register_at(boundary, b, stores_root, artifact_root), 137)
-                if boundary != "marker-removed":
-                    self.assertTrue(paths.publication_marker(b.store_id, root=artifact_root).exists())
+            for completion in self.replacements_crossing(boundary):
+                with self.subTest(boundary=boundary, completion=completion):
+                    index = register.PUBLICATION_BOUNDARIES.index(boundary)
+                    b, stores_root, artifact_root, old_record = self.staged_replacement(
+                        f"OGS-{(600 if completion else 100) + index:05d}", completion
+                    )
+                    killed = self.kill_register_at(
+                        boundary, b, stores_root, artifact_root, force=not completion, completion=completion
+                    )
+                    self.assertEqual(killed, 137)
+                    if boundary != "marker-removed":
+                        self.assertTrue(paths.publication_marker(b.store_id, root=artifact_root).exists())
+                    if boundary == "old-store-deleting":
+                        # Killed mid-deletion: the old Store is half gone.
+                        (half_deleted,) = (paths.store_dir(b.store_id, root=artifact_root) / "replaced").glob("*/*")
+                        self.assertEqual(sorted(p.name for p in half_deleted.iterdir()), ["z"])
 
-                register.complete_publication(b.store_id, artifact_root)
+                    register.complete_publication(b.store_id, artifact_root)
 
-                self.assert_replaced(b, artifact_root, old_record)
+                    self.assert_replaced(b, artifact_root, old_record, completion)
+                    self.assertIsNone(register.complete_publication(b.store_id, artifact_root))
 
     def test_a_raise_at_any_boundary_is_completed(self) -> None:
         """An exception at every boundary from the marker on leaves a state complete_publication finishes."""
         for boundary in register.PUBLICATION_BOUNDARIES[1:-1]:
-            with self.subTest(boundary=boundary):
-                b, stores_root, artifact_root, old_record = self.staged_replacement(f"OGS-{200 + register.PUBLICATION_BOUNDARIES.index(boundary):05d}")
+            for completion in self.replacements_crossing(boundary):
+                with self.subTest(boundary=boundary, completion=completion):
+                    index = register.PUBLICATION_BOUNDARIES.index(boundary)
+                    b, stores_root, artifact_root, old_record = self.staged_replacement(
+                        f"OGS-{(700 if completion else 200) + index:05d}", completion
+                    )
 
-                def fail_at(name: str, _boundary: str = boundary) -> None:
-                    if name == _boundary:
-                        raise OSError(f"injected failure at {name}")
+                    def fail_at(name: str, _boundary: str = boundary) -> None:
+                        if name == _boundary:
+                            raise OSError(f"injected failure at {name}")
 
-                with patch.object(run, "fault_boundary", side_effect=fail_at):
-                    with self.assertRaises(OSError):
-                        register_release(b, registry_root=stores_root, artifact_root=artifact_root, force=True)
-                self.assertTrue(paths.publication_marker(b.store_id, root=artifact_root).exists())
+                    with patch.object(run, "fault_boundary", side_effect=fail_at):
+                        with self.assertRaises(OSError):
+                            register_release(
+                                b,
+                                registry_root=stores_root,
+                                artifact_root=artifact_root,
+                                force=not completion,
+                                phase="completion" if completion else "build",
+                            )
+                    self.assertTrue(paths.publication_marker(b.store_id, root=artifact_root).exists())
 
-                register.complete_publication(b.store_id, artifact_root)
+                    register.complete_publication(b.store_id, artifact_root)
 
-                self.assert_replaced(b, artifact_root, old_record)
+                    self.assert_replaced(b, artifact_root, old_record, completion)
 
     def test_a_kill_before_the_marker_leaves_the_old_release_and_its_snapshot(self) -> None:
         """Before the marker nothing is published: the old Store and record stand, and the snapshot blocks."""
@@ -865,16 +962,27 @@ class TestPublicationTransaction(unittest.TestCase):
 
     def test_under_the_entry_point_the_marker_outlives_the_register_job(self) -> None:
         """finalize=False: everything is published and written, and the marker is left for the entry point."""
-        b, stores_root, artifact_root, old_record = self.staged_replacement("OGS-00502")
+        for completion in (False, True):
+            with self.subTest(completion=completion):
+                b, stores_root, artifact_root, old_record = self.staged_replacement(
+                    "OGS-00505" if completion else "OGS-00502", completion
+                )
 
-        register_release(b, registry_root=stores_root, artifact_root=artifact_root, force=True, finalize=False)
+                register_release(
+                    b,
+                    registry_root=stores_root,
+                    artifact_root=artifact_root,
+                    force=not completion,
+                    finalize=False,
+                    phase="completion" if completion else "build",
+                )
 
-        marker = paths.publication_marker(b.store_id, root=artifact_root)
-        self.assertTrue(marker.exists())
-        register.complete_publication(b.store_id, artifact_root, finalize=False)
-        self.assertTrue(marker.exists(), "completing again without finalize keeps the marker")
-        register.remove_publication_marker(b.store_id, artifact_root)
-        self.assert_replaced(b, artifact_root, old_record)
+                marker = paths.publication_marker(b.store_id, root=artifact_root)
+                self.assertTrue(marker.exists())
+                register.complete_publication(b.store_id, artifact_root, finalize=False)
+                self.assertTrue(marker.exists(), "completing again without finalize keeps the marker")
+                register.remove_publication_marker(b.store_id, artifact_root)
+                self.assert_replaced(b, artifact_root, old_record, completion)
 
     def test_completing_an_already_written_publication_leaves_its_files_untouched(self) -> None:
         """A second `complete_publication` writes neither file: their mtimes stay put (#303).
@@ -923,9 +1031,10 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
     """A release that completes its own Store publishes it twice under one id (ADR 0037).
 
     The completion phase's register replaces the Observed-Only Store its build
-    phase published. It needs no `force`, it takes no records snapshot, and it
-    archives the replaced Store, its register record and its Validation Record
-    under a `replaced/<stamp>/` of its own.
+    phase published. It needs no `force` and takes no records snapshot. It
+    deletes the replaced Store, and archives its register record, its
+    Validation Record and the Observed-View Check's verdict under a
+    `replaced/<stamp>/` of its own (#309).
     """
 
     STORE_ID = "OGS-00071"
@@ -938,10 +1047,10 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
-    def built_and_completed(self) -> tuple[Bundle, Path, Path]:
+    def built_and_completed(self, td: Path | None = None) -> tuple[Bundle, Path, Path]:
         """Every step record of both phases, with the completed Store staged and nothing published."""
         b, stores_root, artifact_root = create_test_bundle_and_records(
-            self.td,
+            td or self.td,
             self.STORE_ID,
             completion_state="reference_completed",
             command="complete-dense",
@@ -953,16 +1062,19 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
         """The build phase's register publishes the Observed-Only Store; then completion stages its own."""
         partial = paths.partial_store_path(b.store_id, root=artifact_root)
         (partial / "version.txt").write_text("observed", encoding="utf-8")
+        (partial / "z" / "c").mkdir(parents=True)
+        (partial / "z" / "c" / "0.0").write_bytes(b"observed chunk")
         register_release(b, registry_root=stores_root, artifact_root=artifact_root)
         partial.mkdir()
         (partial / "version.txt").write_text("completed", encoding="utf-8")
         return (b.root / "validation.yaml").read_bytes()
 
-    def test_the_completion_phase_replaces_the_store_without_force(self) -> None:
+    def test_the_completion_phase_replaces_the_store_without_force_and_deletes_it(self) -> None:
         b, stores_root, artifact_root = self.built_and_completed()
         build_record = self.publish_build_phase(b, stores_root, artifact_root)
         register_p = paths.record_path(b.store_id, "register", root=artifact_root)
         build_register = register_p.read_bytes()
+        check_p = paths.record_path(b.store_id, OBSERVED_VIEW_CHECK_STEP, root=artifact_root)
         # A forced run's snapshot belongs to its build phase; completion takes none.
         snapshot = paths.force_snapshot_path(b.store_id, "20261021T110000Z", root=artifact_root)
         snapshot.mkdir()
@@ -974,10 +1086,20 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
         archive = paths.replaced_dir(b.store_id, self.STAMP, root=artifact_root)
         store_p = paths.store_path(b.store_id, root=artifact_root)
         self.assertEqual((store_p / "version.txt").read_text(), "completed")
-        self.assertEqual((archive / "store.opengwasdb" / "version.txt").read_text(), "observed")
+        # The Observed-Only Store's arrays are gone; its records and the check's verdict are kept.
+        self.assertEqual(sorted(p.name for p in archive.iterdir()), ["records", "validation.yaml"])
+        self.assertEqual(
+            sorted(p.name for p in (archive / "records").iterdir()),
+            [f"{OBSERVED_VIEW_CHECK_STEP}.json", "register.json"],
+        )
         self.assertEqual((archive / "validation.yaml").read_bytes(), build_record)
         self.assertEqual((archive / "records" / "register.json").read_bytes(), build_register)
+        self.assertEqual((archive / "records" / check_p.name).read_bytes(), check_p.read_bytes())
         self.assertEqual(register_p.read_bytes(), build_register, "the build phase's register record stays")
+        self.assertEqual(
+            sorted(p.name for p in paths.store_dir(b.store_id, root=artifact_root).iterdir()),
+            sorted(["records", "replaced", "store.opengwasdb", snapshot.name]),
+        )
         self.assertTrue(snapshot.is_dir(), "the completion phase never takes or consumes a snapshot")
 
         completion_register = json.loads(
@@ -989,6 +1111,145 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
         self.assertEqual(yaml.safe_load((b.root / "validation.yaml").read_text())["replaced"]["archive"], str(archive))
         self.assertFalse(paths.publication_marker(b.store_id, root=artifact_root).exists())
         self.assertFalse(paths.partial_store_path(b.store_id, root=artifact_root).exists())
+
+    def assert_completion_refused(self, check_stdout: str | None, reason: str) -> None:
+        """With this check record stdout (None: no record), the completion phase changes nothing (#309)."""
+        b, stores_root, artifact_root = self.built_and_completed(Path(tempfile.mkdtemp(dir=self.td)))
+        self.publish_build_phase(b, stores_root, artifact_root)
+        check_p = paths.record_path(b.store_id, OBSERVED_VIEW_CHECK_STEP, root=artifact_root)
+        if check_stdout is None:
+            check_p.unlink()
+        else:
+            check_record = json.loads(check_p.read_text())
+            check_record["stdout"] = check_stdout
+            check_p.write_text(json.dumps(check_record))
+
+        def on_disk() -> dict[Path, tuple[int, bytes]]:
+            trees = (paths.store_dir(b.store_id, root=artifact_root), b.root)
+            return {
+                p: (p.stat().st_mtime_ns, p.read_bytes() if p.is_file() else b"")
+                for tree in trees
+                for p in tree.rglob("*")
+            }
+
+        before = on_disk()
+        with self.assertRaises(RegisterError) as ctx:
+            register_release(
+                bundle.load(b.store_id, registry_root=stores_root),
+                registry_root=stores_root,
+                artifact_root=artifact_root,
+                phase="completion",
+            )
+        self.assertIn(str(check_p), str(ctx.exception))
+        self.assertIn(reason, str(ctx.exception))
+        self.assertEqual(on_disk(), before)
+        self.assertFalse(paths.publication_marker(b.store_id, root=artifact_root).exists())
+
+    def test_a_failed_observed_view_check_is_refused_before_anything_changes(self) -> None:
+        self.assert_completion_refused(observed_view_verdict(passed=False), "passed: false")
+
+    def test_an_unreadable_observed_view_verdict_is_refused_before_anything_changes(self) -> None:
+        for stdout, reason in (
+            ("", "no verdict"),
+            ("error: refused: not a Dense Store\n", "no verdict"),
+            ('{"passed": true', "no verdict"),
+            ('{"passed": "true", "failures": []}', 'passed: "true"'),
+            ('{"passed": null, "failures": []}', "passed: null"),
+            ('{"failures": []}', "no `passed`"),
+            ('[{"passed": true}]', "no verdict"),
+        ):
+            with self.subTest(stdout=stdout):
+                self.assert_completion_refused(stdout, reason)
+
+    def test_a_missing_observed_view_check_record_is_refused_before_anything_changes(self) -> None:
+        self.assert_completion_refused(None, "missing")
+
+    def test_the_first_verdict_of_a_doubled_stdout_is_the_one_read(self) -> None:
+        """`run.execute_step` can capture a step's output twice; the first object is the verdict."""
+        self.assert_completion_refused(observed_view_verdict(passed=False) + observed_view_verdict(passed=True), "passed: false")
+
+    def test_a_forced_runs_completion_phase_archives_the_store_it_replaces(self) -> None:
+        """Forced, the completion phase archives as every forced replacement does, not deletes (#309)."""
+        b, stores_root, artifact_root = self.built_and_completed()
+        build_record = self.publish_build_phase(b, stores_root, artifact_root)
+        build_register = paths.record_path(b.store_id, "register", root=artifact_root).read_bytes()
+
+        with patch.object(run, "utc_stamp", return_value=self.STAMP):
+            register_release(
+                bundle.load(b.store_id, registry_root=stores_root),
+                registry_root=stores_root,
+                artifact_root=artifact_root,
+                force=True,
+                phase="completion",
+            )
+
+        archive = paths.replaced_dir(b.store_id, self.STAMP, root=artifact_root)
+        self.assertEqual((paths.store_path(b.store_id, root=artifact_root) / "version.txt").read_text(), "completed")
+        self.assertEqual(sorted(p.name for p in archive.iterdir()), ["records", "store.opengwasdb", "validation.yaml"])
+        self.assertEqual((archive / "store.opengwasdb" / "version.txt").read_text(), "observed")
+        self.assertEqual((archive / "store.opengwasdb" / "z" / "c" / "0.0").read_bytes(), b"observed chunk")
+        self.assertEqual(sorted(p.name for p in (archive / "records").iterdir()), ["register.json"])
+        self.assertEqual((archive / "records" / "register.json").read_bytes(), build_register)
+        self.assertEqual((archive / "validation.yaml").read_bytes(), build_record)
+
+    def test_the_completion_phase_of_a_forced_entry_point_run_is_forced(self) -> None:
+        """Forced is read from the build phase's register record: that phase used up the run's snapshot (#309).
+
+        The entry point forces a release through its records snapshot, and the
+        forced build phase's publication moves that snapshot into its archive,
+        `replaced/<run stamp>/`. Its register record names that archive.
+        """
+        run_stamp, earlier_stamp = "20261021T130000Z", "20261021T100000Z"
+        b, stores_root, artifact_root = self.built_and_completed()
+        self.assertFalse(register.forced_completion(run_stamp, b.store_id, artifact_root), "nothing is published")
+        self.publish_build_phase(b, stores_root, artifact_root)
+        self.assertFalse(register.forced_completion(run_stamp, b.store_id, artifact_root), "an unforced build phase")
+
+        # A forced run of the published release: its build phase replaces the Store.
+        partial = paths.partial_store_path(b.store_id, root=artifact_root)
+        (partial / "version.txt").write_text("observed again", encoding="utf-8")
+        paths.force_snapshot_path(b.store_id, run_stamp, root=artifact_root).mkdir()
+        register_release(
+            bundle.load(b.store_id, registry_root=stores_root),
+            registry_root=stores_root,
+            artifact_root=artifact_root,
+            force=True,
+        )
+
+        self.assertTrue(register.forced_completion(run_stamp, b.store_id, artifact_root))
+        self.assertFalse(register.forced_completion(earlier_stamp, b.store_id, artifact_root), "another run")
+        self.assertFalse(register.forced_completion(None, b.store_id, artifact_root), "outside the entry point")
+
+    def test_a_marker_written_before_deletion_existed_still_archives(self) -> None:
+        """A pending marker without `replaced_store`, as a crash before #309 left it, archives the Store."""
+        b, stores_root, artifact_root = self.built_and_completed()
+        build_record = self.publish_build_phase(b, stores_root, artifact_root)
+
+        def crash_at(name: str) -> None:
+            if name == "store-published":
+                raise OSError("injected crash")
+
+        with patch.object(run, "utc_stamp", return_value=self.STAMP), patch.object(run, "fault_boundary", side_effect=crash_at):
+            with self.assertRaises(OSError):
+                register_release(
+                    bundle.load(b.store_id, registry_root=stores_root),
+                    registry_root=stores_root,
+                    artifact_root=artifact_root,
+                    phase="completion",
+                )
+        marker_p = paths.publication_marker(b.store_id, root=artifact_root)
+        marker = json.loads(marker_p.read_text())
+        self.assertEqual(marker.pop("replaced_store"), "delete")
+        marker_p.write_text(json.dumps(marker))
+
+        register.complete_publication(b.store_id, artifact_root)
+
+        archive = paths.replaced_dir(b.store_id, self.STAMP, root=artifact_root)
+        self.assertEqual((archive / "store.opengwasdb" / "version.txt").read_text(), "observed")
+        self.assertEqual(sorted(p.name for p in (archive / "records").iterdir()), ["register.json"])
+        self.assertEqual((archive / "validation.yaml").read_bytes(), build_record)
+        self.assertEqual((paths.store_path(b.store_id, root=artifact_root) / "version.txt").read_text(), "completed")
+        self.assertFalse(marker_p.exists())
 
     def test_a_completion_that_read_its_staged_store_is_drift(self) -> None:
         """The published Store `complete` reads must be in its record as planned, never staged.
@@ -1045,7 +1306,7 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
 
         self.assertEqual(sorted(p.name for p in taken.iterdir()), [])
         archive = paths.replaced_dir(b.store_id, f"{self.STAMP}-2", root=artifact_root)
-        self.assertEqual((archive / "store.opengwasdb" / "version.txt").read_text(), "observed")
+        self.assertEqual(sorted(p.name for p in archive.iterdir()), ["records", "validation.yaml"])
 
 
 class TestCommittedRevision(unittest.TestCase):
