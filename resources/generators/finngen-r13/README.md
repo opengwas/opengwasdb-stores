@@ -19,6 +19,14 @@ connector files and the frozen Source Inventory live with the data they
 describe, in `/data/opengwasdb/raw/finngen-r13/connectors/2026-10-21/` and
 `resources/inventories/`.
 
+The Source Metadata Table also carries the Store's Analysis identity, in the
+two optional columns `analysis_id` (`finngen-r13-<phenocode>`: a bare phenocode
+is not unique across sources) and `analysis_group_id` (the provider manifest's
+`category`). Nothing the resolver reads moves with them: the frozen inventory,
+the resolver manifest and the Resolution Records stay keyed by
+`source_analysis_id`, and `analyses.tsv` and its sidecars report the declared
+identity, which is what OGS-00017's committed bundle already uses (#288).
+
 ## Running it
 
 ```sh
@@ -74,10 +82,28 @@ of opengwasdb#281 (whose `ColumnMapReader` already streams metrics and whose
 built-in `finngen-r13` map reproduces this reader's rules) together with the
 Release Bundle's Column Map (#292).
 
+### The path to acceptance criterion 1
+
+This is the standing route, recorded so nobody re-derives it:
+
+1. the `opengwasdb` pin moves past dev's head (after #222), so the resolver
+   in the environment can read source metrics through a Column Map;
+2. #292 part 2 lands the Release Bundle's Column Map declaration;
+3. this release's rows then declare `source_reader_capability =
+   opengwasdb.column-map` with the built-in `finngen-r13` map, in
+   `build.options` and the resolver manifest's per-Analysis capability;
+4. re-run the OGS-00017 comparison, and reconcile membership, ancestry and
+   every `analyses.tsv` column;
+5. only then delete the R generator, which is criterion 1 itself.
+
+None of that is built here: steps 1-3 are other tickets' work, and the R
+generator stays the only working FinnGen path until step 4 passes.
+
 ### What the comparison run establishes
 
-The comparison run in `/data/opengwasdb/work/288-MVXoxt` reconciles the
-collection completely; only Analysis Resolution is missing.
+The comparison run in `/data/opengwasdb/work/288-MVXoxt` (and, after the
+identity work, `/data/opengwasdb/work/288-r2-*`) reconciles the collection
+completely; only Analysis Resolution is missing.
 
 - **Files.** 2,754 Analyses and 2,754 files in the release's `source/`
   directory: 0 unmatched by name, 0 size mismatches and 0 checksum mismatches.
@@ -88,22 +114,19 @@ collection completely; only Analysis Resolution is missing.
 - **Membership.** 2,751 case-control and 3 quantitative endpoints, all ready.
   The emitted candidate has 2,754 rows and excludes every one of them as
   `resolution_failed`, so its membership is not a FinnGen decision.
-- **`analyses.tsv`.** 28 of the 35 columns it shares with the committed bundle
-  are byte-identical, including `checksum`, `size_bytes`, `n_cases`,
-  `n_controls`, `sample_size`, both method tiers, `source_genome_build`, the
-  licence, the consortium, `source_reader_capability` and the Finnish Source
-  Ancestry Label. The differences: `source_file` (2,754) because the committed
-  bundle names the retired `/data/opengwasdb/finngen-r13/` tree;
-  `source_label` and `analysis_label` (1, `ALCODELIRIUM`) because the adapter
-  trims the manifest's trailing non-breaking space as the GWAS Catalog adapter
-  does; `analysis_id` and `analysis_group_id` (2,754 each) because the committed
-  bundle prefixes the Source Collection id and groups each Analysis by the
-  manifest's `category`, where the pipeline reads `source_analysis_id` and a
-  collection-wide default (`candidate_workflow._analyses_row`, issue #300's
-  lane); and `inclusion_reason`/`exclude_from_build` (2,754) because of the gap
-  above. The pipeline's schema adds `analysis_index`, `downloaded_file`, the
-  four `imputation_score_*` columns and `maf_threshold`, and drops the committed
-  `source_category`, whose content `analysis_group_id` carried.
+- **`analyses.tsv`.** 30 of the 35 columns it shares with the committed bundle
+  are byte-identical, including `analysis_id` and `analysis_group_id` on all
+  2,754 rows, `checksum`, `size_bytes`, `n_cases`, `n_controls`,
+  `sample_size`, both method tiers, `source_genome_build`, the licence, the
+  consortium, `source_reader_capability` and the Finnish Source Ancestry Label.
+  The differences: `source_file` (2,754) because the committed bundle names the
+  retired `/data/opengwasdb/finngen-r13/` tree; `source_label` and
+  `analysis_label` (1, `ALCODELIRIUM`) because the adapter trims the manifest's
+  trailing non-breaking space as the GWAS Catalog adapter does; and
+  `inclusion_reason`/`exclude_from_build` (2,754) because of the gap above. The
+  pipeline's schema adds `analysis_index`, `downloaded_file`, the four
+  `imputation_score_*` columns and `maf_threshold`, and drops the committed
+  `source_category`, whose content `analysis_group_id` now carries.
 - **Ancestry.** Unmeasured: every record is a controlled failure, so no row
   carries an Assigned Ancestry and the measured-EUR difference the ticket
   expects is not observable yet. The committed bundle is `unassigned` and empty
@@ -137,10 +160,12 @@ give a new Store Release.
 are kept unchanged because the committed receipts of OGS-00017 and OGS-00003
 cite them; `config-full.yaml`'s `selection: {mode: full}` and `output` block
 are the retired grammar and are refused by the release config loader
-(`docs/spec/release-config.md`). The R generator they configured
+(`docs/spec/release-config.md`). The R generator they configure
 (`resources/generators/lib/source-formats/finngen-r13-dense/generate.R`, with
 `lib/finngen_r13_pilot.R` and `lib/metadata_resolvers/finngen_manifest.R`) and
-its R test suite are deleted; #288 moved FinnGen onto the pipeline.
+its R suites are **kept**: #288 first deleted them, then restored them, because
+it is still the only path that resolves FinnGen. Its deletion lands with
+acceptance criterion 1 (see "The path to acceptance criterion 1"), not before.
 
 `assess.py` remains: it turns OGS-00003's pilot build evidence
 (`sidecars/build_report.tsv`, `sidecars/sd_estimation.tsv`, `validation.yaml`)
