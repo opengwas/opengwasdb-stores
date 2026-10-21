@@ -66,9 +66,12 @@ from ogstores.plan import (
 
 n_checks = 0
 
-#: The early registered bundles the committed-recipe checks walk. OGS-00010 is
-#: retired unused: OGS-00009 completes its own Store (#312, ADR 0037).
-EARLY_REGISTERED: tuple[str, ...] = tuple(f"OGS-{i:05d}" for i in range(1, 10))
+#: The early registered bundles the committed-recipe checks walk, less the
+#: retired ids: OGS-00010 retired when OGS-00009 came to complete its own Store
+#: (#312, ADR 0037).
+EARLY_REGISTERED: tuple[str, ...] = tuple(
+    store_id for store_id in (f"OGS-{i:05d}" for i in range(1, 11)) if store_id not in paths.RETIRED_STORE_IDS
+)
 
 
 def record_check() -> None:

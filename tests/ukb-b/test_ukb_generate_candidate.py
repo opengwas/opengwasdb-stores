@@ -20,6 +20,7 @@ Run from the repository root:
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import io
 import re
@@ -38,6 +39,7 @@ from manifest_generation.providers.ukb_b import generate_candidate as candidate
 from manifest_generation.providers.ukb_b import inventory as ukb_inventory
 from ogstores import bundle
 from ogstores import plan as plan_module
+from ogstores.paths import RETIRED_STORE_IDS
 
 INVENTORY_COLUMNS = ukb_inventory.INVENTORY_COLUMNS
 
@@ -51,11 +53,6 @@ FIXTURE_STORE_ID = "OGS-99001"
 FIXTURE_IDS = ("ukb-b-1", "ukb-b-2", "ukb-b-3")
 FIXTURE_RESOURCE_ID = "fixture-eur-ld"
 FIXTURE_LD_PANEL = "/fixture/reference/ld"
-
-#: The ids the two-id UKB-B plan used: OGS-00010 (completed child of the old
-#: OGS-00009) and the reserved successors OGS-00030/31. Retired unused by #312;
-#: ids are never reused (ADR 0022).
-RETIRED_IDS = ("OGS-00010", "OGS-00030", "OGS-00031")
 
 #: What the base code emits for the fixture, committed so the suite needs no
 #: git history and no network. See `fixtures/observed-bundle/README.md`.
@@ -286,6 +283,11 @@ def write_goldens() -> list[Path]:
             destination.write_text(normalise_golden(emitted, fixture), encoding="utf-8")
             written.append(destination)
         return written
+
+
+def strip_acceptance(text: str) -> str:
+    """`validation.yaml` without its top-level `acceptance` block, which #312 added."""
+    return re.sub(r"^acceptance:\n(?: .*\n)*", "", text, flags=re.MULTILINE)
 
 
 def phase_names(steps) -> dict[str, list[str]]:
@@ -519,8 +521,10 @@ class TestOneBundlePerStore(unittest.TestCase):
     """#312: one Store id, one bundle (ADR 0037), as #308 did for the dbGaP MVP.
 
     A qualified and active completion reference puts both phases in the
-    Store's own bundle; anything short of that emits today's observed-only
-    bundle exactly. No completed id is minted either way.
+    Store's own bundle. A declared reference short of that emits today's
+    observed-only bundle, says so on stderr and records the reference in
+    `validation.yaml`; a malformed one is refused. No completed id is minted
+    either way.
     """
 
     def setUp(self) -> None:
@@ -545,6 +549,12 @@ class TestOneBundlePerStore(unittest.TestCase):
             "activation": "active",
             **changes,
         }
+
+    def emit_capturing_stderr(self) -> str:
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            self.emit()
+        return stderr.getvalue()
 
     def document(self, name: str) -> dict:
         return yaml.safe_load((self.registry / FIXTURE_STORE_ID / name).read_text(encoding="utf-8"))
@@ -577,31 +587,85 @@ class TestOneBundlePerStore(unittest.TestCase):
             {key: value for key, value in observed.items() if key != "completion_state"},
         )
         self.assertEqual(list(build), ["store_id", "layout", "completion_state", "build", "complete", "post", "indexed_subsets"])
-        for name in ("release.yaml", "analyses.tsv", "validation.yaml"):
+        for name in ("release.yaml", "analyses.tsv"):
             self.assertEqual(self.emitted(name), self.golden(name), f"{name} differs from the base code's bytes")
+        self.assertEqual(strip_acceptance(self.emitted("validation.yaml")), self.golden("validation.yaml"))
+        self.assertEqual(
+            self.document("validation.yaml")["acceptance"],
+            {
+                "completion_reference": {
+                    "resource_id": FIXTURE_RESOURCE_ID,
+                    "qualification": "qualified",
+                    "activation": "active",
+                    "blocked": False,
+                }
+            },
+        )
         text = "".join((self.registry / FIXTURE_STORE_ID / name).read_text(encoding="utf-8") for name in PINNED_FILES)
-        for retired in RETIRED_IDS:
+        for retired in sorted(RETIRED_STORE_IDS):
             self.assertNotIn(retired, text)
         self.assertNotIn("derived_from: OGS", text)
 
-    def test_an_unqualified_reference_emits_todays_observed_bundle_byte_for_byte(self) -> None:
+    def test_no_completion_reference_emits_todays_observed_bundle_byte_for_byte(self) -> None:
+        stderr = self.emit_capturing_stderr()
+
+        for name in PINNED_FILES:
+            self.assertEqual(self.emitted(name), self.golden(name), f"{name} differs from the base code's bytes")
+        self.assertNotIn("complete", self.document("build.yaml"))
+        self.assertNotIn("completion_reference", stderr)
+        self.assertEqual(self.bundle_directories(), [FIXTURE_STORE_ID])
+
+    def test_a_reference_short_of_qualified_and_active_emits_observed_only_loudly(self) -> None:
         references = {
-            "no reference": None,
             "pending qualification": {"qualification": "pending"},
             "pending activation": {"activation": "pending"},
-            "no resource": {"resource_id": None},
+            "on hold and blocked": {"qualification": "hold", "activation": "blocked"},
         }
         for case, changes in references.items():
             with self.subTest(case):
-                self.config.pop("completion_reference", None)
-                if changes is not None:
-                    self.qualify(**changes)
-                self.emit()
+                self.qualify(**changes)
+                stderr = self.emit_capturing_stderr()
 
-                for name in PINNED_FILES:
+                for name in ("release.yaml", "build.yaml", "analyses.tsv"):
                     self.assertEqual(self.emitted(name), self.golden(name), f"{name} differs from the base code's bytes")
+                self.assertEqual(strip_acceptance(self.emitted("validation.yaml")), self.golden("validation.yaml"))
+                reference = self.config["completion_reference"]
+                self.assertEqual(
+                    self.document("validation.yaml")["acceptance"],
+                    {"completion_reference": {**reference, "blocked": True}},
+                )
                 self.assertNotIn("complete", self.document("build.yaml"))
+                for named in ("observed-only", FIXTURE_RESOURCE_ID, reference["qualification"], reference["activation"]):
+                    self.assertIn(named, stderr)
                 self.assertEqual(self.bundle_directories(), [FIXTURE_STORE_ID])
+
+    def test_a_malformed_completion_reference_is_refused(self) -> None:
+        well_formed = {"resource_id": FIXTURE_RESOURCE_ID, "qualification": "qualified", "activation": "active"}
+        cases = {
+            "not a mapping": (FIXTURE_RESOURCE_ID, "mapping"),
+            "misspelled key": (
+                {"resource_id": FIXTURE_RESOURCE_ID, "qualifcation": "qualified", "activation": "active"},
+                "qualifcation",
+            ),
+            "no resource_id": ({"qualification": "qualified", "activation": "active"}, "resource_id"),
+            "null resource_id": ({**well_formed, "resource_id": None}, "resource_id"),
+            "no activation": ({"resource_id": FIXTURE_RESOURCE_ID, "qualification": "qualified"}, "activation"),
+            "unknown qualification": ({**well_formed, "qualification": "Qualified"}, "'Qualified'"),
+            "unknown activation": ({**well_formed, "activation": "activ"}, "'activ'"),
+        }
+        for case, (reference, named) in cases.items():
+            with self.subTest(case):
+                self.config["completion_reference"] = reference
+                with self.assertRaisesRegex(candidate.CandidateError, re.escape(named)):
+                    self.emit()
+                self.assertFalse(self.registry.exists())
+
+    def test_a_misspelled_completion_reference_key_is_refused(self) -> None:
+        self.qualify()
+        self.config["completion_refrence"] = self.config.pop("completion_reference")
+        with self.assertRaisesRegex(candidate.CandidateError, "completion_refrence"):
+            self.emit()
+        self.assertFalse(self.registry.exists())
 
     def test_a_config_that_still_reserves_a_completed_id_is_refused(self) -> None:
         for key in ("completed_store_id", "planned_completed_store_id"):
@@ -704,7 +768,7 @@ class TestRegisteredOGS00009(unittest.TestCase):
         self.assertEqual(option(complete.argv, "--ancestry"), "EUR")
 
     def test_the_retired_ids_have_no_bundle(self) -> None:
-        for retired in RETIRED_IDS:
+        for retired in sorted(RETIRED_STORE_IDS):
             self.assertFalse((REPO_ROOT / "stores" / retired).exists(), retired)
 
 

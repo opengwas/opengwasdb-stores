@@ -41,6 +41,7 @@ from opengwasdb.model.manifest_columns import (
     resolve_manifest_columns,
 )
 from opengwasdb.readers import known_capabilities
+from ogstores.paths import RETIRED_STORE_IDS
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
@@ -132,8 +133,9 @@ def test_reconcile_stores() -> None:
     stores_dir = REPO_ROOT / "stores"
     verified_executable: dict[str, bool] = {}
 
-    # OGS-00010 is retired unused: OGS-00009 completes its own Store (#312).
-    early = (f"OGS-{i:05d}" for i in range(1, 11) if i != 10)
+    # The retired ids have no bundle: OGS-00010 retired when OGS-00009 came to
+    # complete its own Store (#312).
+    early = (sid for sid in (f"OGS-{i:05d}" for i in range(1, 11)) if sid not in RETIRED_STORE_IDS)
     for store_id, phase in store_phases(stores_dir, early):
         store_path = stores_dir / store_id
         check(store_path.is_dir(), f"Store directory {store_path} exists")
@@ -278,8 +280,8 @@ def test_reconcile_stores() -> None:
         elif cmd in ("complete-ragged", "complete-dense", "complete-hybrid"):
             # A two-id child completes its parent; a single-id release completes
             # the Store its own build phase, reconciled just before, published.
+            # Either must have been reconciled as executable (checked below).
             parent_id = rel_cfg.get("derived_from") or store_id
-            check(parent_id is not None, f"{store_id} derived_from is {parent_id}")
             check("ld-panel" in options, f"{store_id} {cmd} specifies ld-panel")
             check("ancestry" in options, f"{store_id} {cmd} specifies ancestry")
             # Verify ld-panel is the root panel directory, not ending with /EUR

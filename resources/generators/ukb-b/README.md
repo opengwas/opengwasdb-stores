@@ -117,10 +117,13 @@ Reference-Completed release (ADR 0037): its `completion_reference`
 (`ukb-hg38-eur-ld`) is qualified and active, so the bundle declares the
 observed `build` block and a `complete-dense` block against the panel that
 Reference Resource declares, with no `derived_from`. A reference short of
-qualified and active emits the bundle observed-only instead, and the generator
-refuses a config that still reserves a completed id (`completed_store_id`,
-`planned_completed_store_id`): OGS-00010, OGS-00030 and OGS-00031 are retired
-unused.
+qualified and active emits the bundle observed-only instead, says so on
+stderr, and records the reference and `blocked: true` under `validation.yaml`'s
+`acceptance` block. The generator refuses a malformed reference (not a mapping,
+an unknown or missing key, an unknown `qualification` or `activation`), any
+unknown config key, and a config that still reserves a completed id
+(`completed_store_id`, `planned_completed_store_id`): OGS-00010, OGS-00030 and
+OGS-00031 are retired unused (`ogstores.paths.RETIRED_STORE_IDS`).
 
 ```sh
 # The baseline #219 reconciled against was the 2,024-Analysis OGS-00009
