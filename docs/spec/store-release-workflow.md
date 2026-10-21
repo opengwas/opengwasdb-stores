@@ -264,14 +264,23 @@ registered Store Release, a `reference_completed` bundle without one declares
 both its `build` and `complete` blocks, Release Status vocabulary and optional transitions,
 and `analyses.tsv` parses via `opengwasdb.model.analyses.read_analyses`. It
 delegates the Analysis schema rather than reimplementing it, including rejecting
-every column named by the pinned upstream `RETIRED_ANALYSIS_COLUMNS` list. Two
-registry-owned vocabularies are checked on top of that delegation: every
+every column named by the pinned upstream `RETIRED_ANALYSIS_COLUMNS` list. Three
+registry-owned rules are checked on top of that delegation: every
 non-empty `assigned_ancestry` must be one of the ancestry mixture's seven
 super-population codes (a free-text Source Ancestry Label is not an Assigned
-Ancestry), and `n_cases`/`n_controls` must be blank on a non-case-control
-Analysis rather than `0` (issue #133). Both were silent-failure classes found
+Ancestry), `n_cases`/`n_controls` must be blank on a non-case-control
+Analysis rather than `0` (issue #133), and every row's `analysis_id` must match
+`^[A-Za-z0-9][A-Za-z0-9._-]*$` so that the identifier the
+[Analysis Catalog](../adr/0039-analysis-catalog.md) publishes as
+`<store_id>:<analysis_id>` always splits on `:` into two parts and the id is a
+usable filename (issue #319). Excluded
+rows are checked by the `analysis_id` rule too, since the Analysis Catalog still
+names them. All three were silent-failure classes found
 in the committed bundles; the checks make a reintroduction fail `bundle-check`
-rather than a summary. For BESD builds,
+rather than a summary. `OGS-00001` and `OGS-00002` keep their `<probe>::<tissue>`
+`analysis_id` values, which an accepted bundle may not be edited to remove
+(ADR 0004); `check` reports them as a tolerated gap cited `#319` instead, the
+same second channel the `#134` blank-value exemption uses. For BESD builds,
 the non-empty `source_snapshot.besd_prefix` introduced by `908797f` is checked
 as frozen provenance metadata, but the referenced BESD files are not inspected.
 An `artifacts` block is rejected: issue #126 made the artifact root deployment
