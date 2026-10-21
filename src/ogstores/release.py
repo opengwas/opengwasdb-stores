@@ -106,7 +106,7 @@ SNAPSHOT_RESOLUTIONS: frozenset[str] = frozenset({"restore", "delete"})
 
 _TARGET = re.compile(r"\AOGS-\d{5}\Z|\Aall\Z")
 _WILDCARDS = re.compile(r"^\s*wildcards:\s*(?P<body>.*)$")
-_RELEASE_JOB = re.compile(r"^\s*(?:local)?rule (?:step|register|build_manifest):\s*$")
+_RELEASE_JOB = re.compile(r"^\s*(?:local)?rule (?:step|register|completion_register|build_manifest):\s*$")
 
 
 class UsageError(ValueError):
@@ -216,12 +216,13 @@ def snakemake_argv(
 def scheduled_jobs(dry_run_output: str) -> list[tuple[str, str, str | None]]:
     """The (artifact root, store_id, step) of every job a Snakemake dry run scheduled.
 
-    Every step, register and build_manifest job prints its wildcards, so a job
-    block without one means the output is not what this parser expects, and
-    that fails loudly rather than under-reporting what the run will touch.
-    `step` is `None` for a job with no `step` wildcard (`build_manifest`,
-    `register`). The runtime guard needs the step to tell a real parent rebuild
-    from an enhancement-only job on the same Store (#218).
+    Every step, register, completion_register and build_manifest job prints
+    its wildcards, so a job block without one means the output is not what
+    this parser expects, and that fails loudly rather than under-reporting
+    what the run will touch. `step` is `None` for a job with no `step`
+    wildcard (`build_manifest`, `register`, `completion_register`). The
+    runtime guard needs the step to tell a real parent rebuild from an
+    enhancement-only job on the same Store (#218).
     """
     found: list[tuple[str, str, str | None]] = []
     jobs = 0
@@ -300,9 +301,13 @@ def _cleanup_metadata(inv: Invocation, files: Iterable[Path]) -> None:
             raise RuntimeError(f"Could not clear Snakemake's metadata for {path}:\n{output}")
 
 
-def _cleanup_register_metadata(inv: Invocation, store_id: str, root: Path) -> None:
-    """`complete_publication` has just written `records/register.json`, so it is complete."""
-    _cleanup_metadata(inv, [paths.record_path(store_id, "register", root=root)])
+def _cleanup_register_metadata(inv: Invocation, store_id: str, root: Path, register_step: str) -> None:
+    """`complete_publication` has just written the phase's register record, so it is complete.
+
+    That is `records/register.json`, or `records/completion-register.json` for
+    the completion phase of a release that completes its own Store (ADR 0037).
+    """
+    _cleanup_metadata(inv, [paths.record_path(store_id, register_step, root=root)])
 
 
 def resolve_snapshot(inv: Invocation, store_id: str, root: Path, action: str) -> str:
@@ -343,15 +348,16 @@ def finish_publication(inv: Invocation, store_id: str, root: Path | str) -> bool
 
     `complete_publication` brings the Store and archive into line and rewrites
     the two records the marker holds (identical, after a register job that ran
-    to the end). Then Snakemake's
-    incomplete mark on `records/register.json`, which a killed job leaves, is
-    cleared, and only then is `publication.json` removed. A crash anywhere in
-    here leaves the marker, so the next run repeats this function. Returns
-    whether a publication was pending.
+    to the end). Then Snakemake's incomplete mark on the register record the
+    marker names, which a killed job leaves, is cleared, and only then is
+    `publication.json` removed. A crash anywhere in here leaves the marker, so
+    the next run repeats this function. Returns whether a publication was
+    pending.
     """
-    if register.complete_publication(store_id, root, finalize=False) is None:
+    marker = register.complete_publication(store_id, root, finalize=False)
+    if marker is None:
         return False
-    _cleanup_register_metadata(inv, store_id, Path(root))
+    _cleanup_register_metadata(inv, store_id, Path(root), register.publication_register_step(marker))
     run.fault_boundary("metadata-cleaned")
     register.remove_publication_marker(store_id, root)
     return True

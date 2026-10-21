@@ -75,6 +75,39 @@ They refuse an unbuildable bundle as the entry point does, and the
 Snakefile's `all` target expands only to buildable bundles.
 See the specification's Safety section.
 
+### A reference-completed release is published twice under one id
+
+A Dense release whose bundle declares `completion_state: reference_completed`,
+a `build` block and a `complete` block, with no `derived_from`, completes its
+own Store (ADR 0037). One `pixi run release <ID>` does both phases, with no
+`--config force=1`:
+
+1. **Build phase:** the same steps and records as an observed-only release
+   (`build`, the declared post steps, `validate`, `register`). Its `register`
+   publishes the Observed-Only Store at `<ID>/store.opengwasdb`, so it is
+   queryable while completion runs.
+2. **Completion phase:** `complete` reads that published Store and writes
+   `<ID>/store.opengwasdb.partial`, the completion's post steps and
+   validation run there, and `completion-register` replaces the Observed-Only
+   Store with the completed one through the same publication transaction. The
+   completed Store keeps the id as its Store identity and has its own release
+   identity, `<ID>-completed`.
+
+The completion phase's records are `complete`, `completion-rho`,
+`completion-indexed-subset-<name>`, `completion-overview`,
+`completion-validate` and `completion-register`. They never overwrite the
+build phase's, and both sets stay in `records/`. The completion phase takes
+no records snapshot. Its archive, `replaced/<UTC>/` (suffixed `-2`, `-3`, …
+when that name is taken), holds the replaced Observed-Only Store, a copy of
+its `records/register.json` under `records/`, and its `validation.yaml`. The
+bundle's `validation.yaml` then describes the completed Store and names the
+archive.
+
+A failed or interrupted completion leaves the Observed-Only Store published
+and the build phase's records untouched. Resuming it without
+`--config force=1` comes with #305: until then the next run refuses, because
+the Store is published.
+
 ### Production Execution vs. Fixture-Scale Tests
 
 - **Workflow tests (`tests/workflow/`) are fixture-scale**: they exercise DAG wiring, command line composition, transaction staging (`.partial`), publication gating, and step resumption using temporary mock bundles and mock executables without requiring multi-gigabyte production data or reference panels.

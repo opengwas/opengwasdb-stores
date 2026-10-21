@@ -24,6 +24,11 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
    completes, validates and publishes the child; the held-out position comes
    back imputed, `observed_only=True` matches the source's observations, and a
    re-run executes 0 jobs.
+12. Reference completion end to end, under one id (#304, ADR 0037): one
+   entry-point run builds and publishes the Observed-Only Store, then
+   completes it into the id's staged path and publishes the completed Store
+   at the same path, archiving the replaced Store, its register record and its
+   Validation Record; a re-run executes 0 jobs.
 """
 
 from __future__ import annotations
@@ -301,6 +306,29 @@ def create_completed_child_bundle(
         yaml.safe_dump(build_yaml, f)
     shutil.copyfile(stores_dir / parent_id / "analyses.tsv", child_dir / "analyses.tsv")
     return child_dir
+
+
+def amend_to_complete_own_store(stores_dir: Path, store_id: str, *, ld_panel: Path) -> Path:
+    """Give an Observed-Only fixture bundle a `complete` block: one id, published twice (ADR 0037).
+
+    The bundle keeps its `build` block and `post` and gains what a single-id
+    Reference-Completed release adds: `completion_state: reference_completed`
+    and a `complete` block, with no `derived_from`. That is also the one
+    amendment ADR 0037 allows an accepted bundle, so the same helper serves
+    the later completion of a Store built earlier (#305). The `complete`
+    options are `create_completed_child_bundle`'s.
+    """
+    import yaml
+
+    build_yaml_p = stores_dir / store_id / "build.yaml"
+    build_yaml = yaml.safe_load(build_yaml_p.read_text(encoding="utf-8"))
+    build_yaml["completion_state"] = "reference_completed"
+    build_yaml["complete"] = {
+        "command": "complete-dense",
+        "options": {"ld-panel": str(ld_panel), "ancestry": "EUR", "min-cor": 0.0},
+    }
+    build_yaml_p.write_text(yaml.safe_dump(build_yaml), encoding="utf-8")
+    return build_yaml_p
 
 
 def create_dense_fixture_store(
@@ -1377,6 +1405,237 @@ class TestWorkflowTwoIdReferenceCompletion(unittest.TestCase):
                     mtime,
                     f"Record {rec_p.name} of {store_id} was rewritten by an idempotent re-run",
                 )
+
+
+_SINGLE_ID_COMPLETION: dict[str, Any] | None = None
+
+
+def single_id_completion_template() -> dict[str, Any]:
+    """The one single-id completed release this process builds, built on first use (#304).
+
+    One fresh entry-point run builds, publishes and completes it, and a
+    second run in place follows at once. Returns `store_id`, `analysis_id`,
+    the built `stores` and `artifacts`, both runs' results, the record
+    mtimes the second run found (`records_before_rerun`), and the
+    `TemporaryDirectory` that holds them. A test that may write copies
+    `stores` and `artifacts`; the template is never written again.
+
+    The rerun is part of the template, not of a test, because only a rerun in
+    place reads the Snakemake metadata the build recorded, and a test that
+    ran it against the shared template could write to it. The same shape as
+    `two_id_completion_template`: `top_hits` and `overview` are off, and
+    `validate` and publication stay on in both phases. Later completion
+    tickets (#305-#309) need this shape too, and copy it.
+    """
+    global _SINGLE_ID_COMPLETION
+    if _SINGLE_ID_COMPLETION is not None:
+        return _SINGLE_ID_COMPLETION
+
+    store_id = "OGS-00110"
+    temp_dir = tempfile.TemporaryDirectory()
+    root = Path(temp_dir.name)
+    stores = root / "stores"
+    stores.mkdir()
+    artifacts = root / "artifacts"
+    artifacts.mkdir()
+
+    create_dense_fixture_store(
+        stores,
+        store_id=store_id,
+        artifact_root=artifacts,
+        vcf_path=create_signal_fixture_vcf(root / "signal.vcf.gz"),
+        post_top_hits=False,
+        post_overview=False,
+    )
+    amend_to_complete_own_store(stores, store_id, ld_panel=create_signal_ld_panel(root / "ld-panel"))
+    release_result = run_release([store_id], registry_root=stores, artifact_root=artifacts)
+    records_before_rerun = {
+        p: p.stat().st_mtime_ns for p in paths.records_dir(store_id, root=artifacts).glob("*.json")
+    }
+    rerun_result = run_release([store_id], registry_root=stores, artifact_root=artifacts)
+
+    _SINGLE_ID_COMPLETION = {
+        "temp_dir": temp_dir,
+        "stores": stores,
+        "artifacts": artifacts,
+        "release_result": release_result,
+        "rerun_result": rerun_result,
+        "records_before_rerun": records_before_rerun,
+        "store_id": store_id,
+        "analysis_id": f"test_analysis_{store_id}",
+    }
+    return _SINGLE_ID_COMPLETION
+
+
+class TestWorkflowSingleIdReferenceCompletion(unittest.TestCase):
+    """Reference completion under one id, end to end through the entry point (#304, ADR 0037).
+
+    One Release Bundle declares the build and the completion of a Dense Store.
+    One `pixi run release <id>` builds and publishes the Observed-Only Store,
+    completes it from that published Store into the id's staged path,
+    validates it there, and publishes the completed Store at the same path.
+    The replaced Store is archived, as a forced run archives it, under a
+    `replaced/<stamp>/` that holds its register record and Validation Record
+    too.
+
+    The Observed-Only Store is asserted on in its archive: that it is there,
+    observed-only and holding the VCF's observations, is the evidence that it
+    was published first and then replaced. The fixture is #303's signal
+    profile, whose completion `TestWorkflowTwoIdReferenceCompletion` already
+    shows to be real, so this class asserts only what one id changes.
+    """
+
+    PHASE_RECORDS = ["build", "validate", "register", "complete", "completion-validate", "completion-register"]
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        template = single_id_completion_template()
+        cls.STORE_ID: str = template["store_id"]
+        cls.ANALYSIS_ID: str = template["analysis_id"]
+        cls.template_stores: Path = template["stores"]
+        cls.template_artifacts: Path = template["artifacts"]
+        cls.release_result = template["release_result"]
+        cls.rerun_result = template["rerun_result"]
+        cls.records_before_rerun: dict[Path, int] = template["records_before_rerun"]
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.td = Path(self.temp_dir.name)
+        self.stores_dir = self.td / "stores"
+        self.artifact_root = self.td / "artifacts"
+        shutil.copytree(self.template_stores, self.stores_dir)
+        shutil.copytree(self.template_artifacts, self.artifact_root)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def archive(self, root: Path | None = None) -> Path:
+        """The one archive the run left, the completion phase's replacement, under this test's copy or `root`."""
+        archives = sorted((paths.store_dir(self.STORE_ID, root=root or self.artifact_root) / "replaced").iterdir())
+        self.assertEqual(len(archives), 1, archives)
+        return archives[0]
+
+    def manifest(self, store_p: Path) -> dict[str, Any]:
+        return json.loads((store_p / "manifest.json").read_text(encoding="utf-8"))
+
+    def observed(self, store_p: Path) -> dict[str, tuple[float, float, float]]:
+        """`observed_only=True` associations by ALID: decoded z, se and eaf."""
+        q = query_store(store_p)
+        try:
+            rows = q.analysis(self.ANALYSIS_ID, observed_only=True)
+            table = q.variants_table()
+        finally:
+            q.close()
+        self.assertNotIn("imputed", set(rows["association_status"].tolist()))
+        return {
+            table[int(index)]["alid"]: (float(z), float(se), float(eaf))
+            for index, z, se, eaf in zip(rows["variant_index"], rows["z"], rows["se"], rows["eaf"], strict=True)
+        }
+
+    def test_one_run_publishes_the_observed_only_store_then_the_completed_store_at_its_path(self) -> None:
+        res = self.release_result
+        self.assertEqual(
+            res.returncode, 0, f"The entry point failed (exit {res.returncode}):\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}"
+        )
+        rec_dir = paths.records_dir(self.STORE_ID, root=self.artifact_root)
+        for step in self.PHASE_RECORDS:
+            data = json.loads((rec_dir / f"{step}.json").read_text(encoding="utf-8"))
+            self.assertTrue(data.get("success"), f"{step}: {data}")
+            self.assertEqual(data.get("exit_code"), 0)
+            self.assertEqual(data.get("store_id"), self.STORE_ID)
+
+        # Records name the paths the template was built at.
+        built_store = paths.store_path(self.STORE_ID, root=self.template_artifacts)
+        build_register = json.loads((rec_dir / "register.json").read_text(encoding="utf-8"))
+        completion_register = json.loads((rec_dir / "completion-register.json").read_text(encoding="utf-8"))
+        self.assertEqual(build_register["published_store"], str(built_store))
+        self.assertIsNone(build_register["replaced_archive"], "the build phase publishes first")
+        self.assertEqual(completion_register["published_store"], str(built_store))
+        self.assertEqual(completion_register["replaced_archive"], str(self.archive(self.template_artifacts)))
+
+        store_p = paths.store_path(self.STORE_ID, root=self.artifact_root)
+
+        self.assertEqual(self.manifest(store_p)["completion_state"], "reference_completed")
+        replaced = self.archive() / "store.opengwasdb"
+        self.assertEqual(self.manifest(replaced)["completion_state"], "observed_only")
+        self.assertEqual(self.manifest(replaced)["release_id"], self.STORE_ID)
+        for leftover in (
+            paths.partial_store_path(self.STORE_ID, root=self.artifact_root),
+            paths.backup_store_path(self.STORE_ID, root=self.artifact_root),
+            paths.publication_marker(self.STORE_ID, root=self.artifact_root),
+        ):
+            self.assertFalse(leftover.exists(), leftover)
+
+        # The completion read the published Store and wrote the staged one.
+        complete_argv = json.loads((rec_dir / "complete.json").read_text(encoding="utf-8"))["argv"]
+        self.assertEqual(
+            complete_argv[2:4],
+            [str(built_store), str(paths.partial_store_path(self.STORE_ID, root=self.template_artifacts))],
+        )
+
+    def test_the_completed_store_keeps_the_id_and_takes_its_own_release_id(self) -> None:
+        """Completion inherits its source's Store identity, here the id itself (opengwasdb ADR 0011)."""
+        manifest_doc = self.manifest(paths.store_path(self.STORE_ID, root=self.artifact_root))
+        self.assertEqual(manifest_doc["store_id"], self.STORE_ID)
+        self.assertEqual(manifest_doc["release_id"], f"{self.STORE_ID}-completed")
+
+    def test_observed_only_returns_the_observed_only_stores_associations_unchanged(self) -> None:
+        """By ALID, z, se and eaf are exactly those of the Store it replaced.
+
+        That the fixture's decoded values are the VCF's, and that the held-out
+        position comes back imputed, is #303's class's to prove: the build
+        and the completion are the same commands here.
+        """
+        import numpy as np
+
+        completed = self.observed(paths.store_path(self.STORE_ID, root=self.artifact_root))
+        replaced = self.observed(self.archive() / "store.opengwasdb")
+        expected_alids = sorted(SIGNAL_ALID[i] for i in range(len(SIGNAL_POSITIONS)) if i != SIGNAL_HELD_OUT_INDEX)
+        self.assertEqual(sorted(replaced), expected_alids)
+        self.assertEqual(sorted(completed), expected_alids)
+        for alid in expected_alids:
+            z, se, eaf = completed[alid]
+            before_z, before_se, before_eaf = replaced[alid]
+            self.assertEqual(z, before_z, f"z changed for {alid}")
+            self.assertEqual(se, before_se, f"se changed for {alid}")
+            self.assertTrue(eaf == before_eaf or (np.isnan(eaf) and np.isnan(before_eaf)), alid)
+
+    def test_the_replaced_release_is_archived_and_the_build_phases_records_stay(self) -> None:
+        import yaml
+
+        archive = self.archive()
+        rec_dir = paths.records_dir(self.STORE_ID, root=self.artifact_root)
+        self.assertEqual((archive / "records" / "register.json").read_bytes(), (rec_dir / "register.json").read_bytes())
+        archived_record = yaml.safe_load((archive / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(archived_record["observed"]["n_variants"], len(SIGNAL_POSITIONS) - 1)
+        self.assertNotIn("replaced", archived_record)
+        for step in ("build", "validate", "register"):
+            self.assertTrue((rec_dir / f"{step}.json").is_file(), step)
+
+    def test_validation_yaml_describes_the_completed_store(self) -> None:
+        """The completed axis is source union panel: the held-out position adds a variant."""
+        import yaml
+
+        record = yaml.safe_load((self.stores_dir / self.STORE_ID / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertIn(record["status"], ("passed", "passed_with_warnings"))
+        self.assertEqual(record["observed"]["n_variants"], len(SIGNAL_POSITIONS))
+        self.assertEqual(record["replaced"]["archive"], str(self.archive(self.template_artifacts)))
+
+    def test_a_rerun_executes_zero_jobs_in_place_and_from_a_copy(self) -> None:
+        """In place, Snakemake reads the build's own metadata; a copy has none and decides by mtime."""
+        res = self.rerun_result
+        self.assertEqual(res.returncode, 0, f"In-place rerun failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}")
+        self.assertIn("nothing to be done", res.stdout)
+        for rec_p, mtime in self.records_before_rerun.items():
+            self.assertEqual(rec_p.stat().st_mtime_ns, mtime, f"{rec_p.name} was rewritten in place")
+
+        rec_dir = paths.records_dir(self.STORE_ID, root=self.artifact_root)
+        before = {p: p.stat().st_mtime_ns for p in rec_dir.glob("*.json")}
+        res = run_release([self.STORE_ID], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+        self.assertEqual(res.returncode, 0, f"Copied rerun failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}")
+        self.assertIn("nothing to be done", res.stdout)
+        for rec_p, mtime in before.items():
+            self.assertEqual(rec_p.stat().st_mtime_ns, mtime, f"{rec_p.name} was rewritten in the copy")
 
 
 class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):

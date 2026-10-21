@@ -424,6 +424,19 @@ class TestEvidenceChannels(unittest.TestCase):
             record.channels["reference_completion"].state, EvidenceState.PASS
         )
 
+    def test_a_release_completing_its_own_store_is_not_a_failed_lineage(self) -> None:
+        """No `derived_from` is how a release completes its own Store (ADR 0037), not an error."""
+        single_id = create_mock_bundle(
+            self.stores,
+            "OGS-00034",
+            completion_state="reference_completed",
+            analyses_rows=[{"analysis_id": "a"}],
+        )
+        record = readiness.reconcile_release(single_id, {"releases": {}}, {"OGS-00034": single_id}, set())
+        channel = record.channels["reference_completion"]
+        self.assertEqual(channel.state, EvidenceState.UNKNOWN, channel.detail)
+        self.assertIn("'OGS-00034'", channel.detail)
+
     def test_store_validation_provenance_is_classified(self) -> None:
         b = create_mock_bundle(
             self.stores, "OGS-00033", validation_data=STORE_VALIDATION

@@ -65,7 +65,7 @@ store_id: OGS-00042
 label: r13-pilot-20                 # source-natural display name; not an identifier
 access_posture: public
 status: built                       # candidate|accepted|built|validated|superseded|withdrawn
-derived_from: ~                     # the parent's store_id for a completed release
+derived_from: ~                     # a two-id completed child's parent (ADR 0007); none when a release completes its own Store
 created_at: '2026-08-18T08:51:59Z'
 source_snapshot_id: finngen-r13-manifest-2026-05-12
 generator:                          # how the bundle was produced (Phase B)
@@ -141,12 +141,18 @@ omits them, and a recipe that states either key still wins. `top_hits` and
 `overview.html` and defaulting it on would re-enable a step the planner then
 refuses (ADR 0027, issue #128).
 
-A Reference-Completed release is the same file with a `complete` block instead of `build`. It carries no parent path: the parent is `release.yaml`'s `derived_from`, and its artifact path is a pure function of that ID.
+A Reference-Completed release completes its own Store under its id (ADR 0037). It is the same file plus a `complete` block, with `completion_state: reference_completed` and no `derived_from`: the `build` block builds and publishes the Observed-Only Store, and the `complete` block then completes that published Store and replaces it. The recipe names no Store path, because completion's source is the id's own Store path. `bundle.check()` requires both blocks of such a bundle and names the one that is missing. `plan()` plans it only for a Dense layout (`plan.py` below).
 
 ```yaml
 store_id: OGS-00043
 layout: dense
 completion_state: reference_completed
+
+build:
+  command: build-dense-vcf
+  options:
+    source-reader-capability: opengwasdb.finngen-r13
+    source-assembly: hg38
 
 complete:
   command: complete-dense
@@ -155,6 +161,8 @@ complete:
     ancestry: EUR
     n-workers: 16
 ```
+
+A two-id Reference-Completed child, the form from before ADR 0037, has a `complete` block instead of `build`, and its parent is `release.yaml`'s `derived_from`, whose artifact path is a pure function of that ID. Existing two-id bundles (OGS-00002, OGS-00010) stay valid; nothing new should take that form.
 
 ### Artifact root comes from configuration
 
@@ -250,8 +258,9 @@ def summarise(bundle: Bundle) -> dict[str, str | int]: ...
 
 `check` covers registry-side facts only: required identity and provenance keys,
 `store_id` matches the directory name and both YAML documents, ID format,
-declared bundle files exist, checksum syntax, `derived_from` resolves to a
-registered Store Release, Release Status vocabulary and optional transitions,
+declared bundle files exist, checksum syntax, a `derived_from` resolves to a
+registered Store Release, a `reference_completed` bundle without one declares
+both its `build` and `complete` blocks, Release Status vocabulary and optional transitions,
 and `analyses.tsv` parses via `opengwasdb.model.analyses.read_analyses`. It
 delegates the Analysis schema rather than reimplementing it, including rejecting
 every column named by the pinned upstream `RETIRED_ANALYSIS_COLUMNS` list. Two
@@ -306,10 +315,12 @@ unchanged.
 ```python
 @dataclass(frozen=True)
 class Step:
-    name: str               # build|complete|top-hits|rho|overview|validate
+    name: str               # build|complete|top-hits|rho|overview|validate, or completion-<step>
     argv: list[str]
     inputs: list[Path]
     outputs: list[Path]
+    phase: str = "build"    # "completion" for the second phase of a single-id release
+    published_store_arg: int | None = None  # argv index naming the id's published Store
 
 def plan(bundle: Bundle, artifact_root: Path | str | None = None) -> list[Step]: ...
 ```
@@ -339,6 +350,13 @@ It reads `build.yaml` and `release.yaml` and nothing else: no I/O beyond path co
 A Build Recipe may also declare an optional `variant_reference` pre-build stage for the Dense-VCF and Hybrid builders (issue #145). `plan()` then prepends an `extract-variant-reference` Step and appends the artifact to the build step's inputs. The declared destination must equal the build step's `--variant-reference` option -- the one bounded, syntactic exception to ADR 0023's never-interpret rule -- but whether the artifact already exists is a runtime fact the executor decides when the step runs, never the planner (ADR 0031, issue #147).
 
 A Build Recipe may declare optional named `indexed_subsets` (stores #209). `plan()` then emits one `build-indexed-subset` Step per declaration, in declaration order, after the Store and its inline index steps exist and before `overview` and `validate`. Each Step is an ordinary `Step`, so `run.py` gives it the usual durable `records/indexed-subset-<name>.json`. `plan()` resolves nothing: the declaration records the maintained `resource_id`, the concrete `variant_list` path and the `reference_assembly`, and the release entry point verifies the maintained resource and the runtime capability before a build. A Ragged release rejects any declaration rather than silently dropping it. See "Indexed Variant Subsets" below and [ADR 0034](../adr/0034-indexed-variant-subsets-in-release-planning.md).
+
+A `reference_completed` release with no `derived_from` completes its own Store under its id (ADR 0037), and `plan()` returns two phases, build then completion:
+
+- **Build phase:** exactly what the same bundle plans as `observed_only` without its `complete` block: the same step names, argv and record names, ending in `register`. This is what lets a Store built before the bundle gained its `complete` block be completed without a rebuild (#305).
+- **Completion phase:** `complete`, then the declared post steps in their usual order, then `completion-validate`, ending in `completion-register`. `complete` reads the id's published Store and writes the id's Store path. Both are the same canonical token, so the Step's `published_store_arg` names the argument that is the published Store. `complete` passes `--release-id <id>-completed` and no `--store-id`: the completed manifest inherits its `store_id`, the id, from its source (opengwasdb ADR 0011). The completion command builds the Top-Hit Index inline, so `post.top_hits` plans no completion-phase step; `rho`, `overview` and each declared Indexed Variant Subset do, as `completion-rho`, `completion-overview` and `completion-indexed-subset-<name>`.
+
+Every completion-phase record name differs from every build-phase one, so both phases' records stay in `records/` once the completed Store replaces the Observed-Only Store. The first step keeps the name `complete`, so `register` still accepts a `complete-dense-resume` substitution for it. Only a Dense release is planned this way: `plan()` refuses another layout, naming it and ADR 0037, because the Observed-View Check that gates the replacement compares only Dense Stores so far. A two-id child (`derived_from`) plans exactly as before. The golden is `tests/plan/golden/OGS-00003-single-id-completed.json`: OGS-00003's recipe with a `complete` block, whose build phase is OGS-00003's own golden.
 
 This is the entire adapter layer. It replaces `workflow/phase.py`, `workflow/model.py`, `release_plan.py`, `release_manifest.py`, `metadata_resolution.py` and `catalogue_coverage.py` (~4,100 lines on PR #105).
 
@@ -409,7 +427,7 @@ direct `snakemake` run. See [the release runtime](../runtime.md).
 
 **Tracked outputs are record files, not store directories.** Snakemake handles directory outputs poorly, and a half-written store must never satisfy a rule.
 
-**Staged release transaction lifecycle.** A release executes entirely against `store.opengwasdb.partial` across all steps: `build` or `complete` creates `store.opengwasdb.partial`, and every mutating post-step (`top-hits`, `rho`, `overview`) as well as `validate` operates directly on that staged `.partial` path. Only upon successful terminal validation/finalization is `store.opengwasdb.partial` published (atomically renamed) to the final `store.opengwasdb` path. If any step fails or is interrupted, `store.opengwasdb.partial` is retained for debugging or resumption, and any pre-existing final Store and `validation.yaml` remain completely untouched without needing whole-Store copying. `force=True` replacement applies only at this terminal publication moment.
+**Staged release transaction lifecycle.** A release executes entirely against `store.opengwasdb.partial` across all steps: `build` or `complete` creates `store.opengwasdb.partial`, and every mutating post-step (`top-hits`, `rho`, `overview`) as well as `validate` operates directly on that staged `.partial` path. Only upon successful terminal validation/finalization is `store.opengwasdb.partial` published (atomically renamed) to the final `store.opengwasdb` path. If any step fails or is interrupted, `store.opengwasdb.partial` is retained for debugging or resumption, and any pre-existing final Store and `validation.yaml` remain completely untouched without needing whole-Store copying. `force=True` replacement applies only at this terminal publication moment. A release that completes its own Store (ADR 0037) stages its completion the same way: `complete` reads the published `store.opengwasdb` and writes `store.opengwasdb.partial`, and its post steps run there. Its planned argv names the same canonical token twice, so `rewrite_argv_for_staging` leaves the argument the Step marks as the published Store (`published_store_arg`) alone, requires it to be that token exactly, and rewrites the one other match. Any other step with two matching tokens is still refused as ambiguous. `register`'s drift check holds the marked argument to its planned token: a record whose published-Store argument names the staged path is drift, because the step read its own staged Store.
 
 **The supported entry point** (#195, review round 1 of #196). Releases run through `pixi run release` and `pixi run release-dry`. Both are `workflow/release.py`, which runs `ogstores.release`. It wraps one Snakemake run in a guard that no Snakemake option can switch off, in five stages:
 
@@ -451,12 +469,19 @@ Force reaches only the release ids named as targets. A published release schedul
 1. For a replacement, the old Store is set aside as `.backup`.
 2. The staged Store is renamed into place.
 3. The old Store is renamed into `replaced/<UTC>/` (the snapshot's `<UTC>`).
-4. The snapshot moves into the archive as `records/`.
+4. The snapshot moves into the archive as `records/`. A completion phase has no snapshot; a copy of the replaced release's `records/register.json` is written to the archive's `records/` instead (below).
 5. The replaced Validation Record is written into the archive. It is a copy, because the bundle's file is rewritten in place, and git keeps it.
-6. The new `validation.yaml` and `records/register.json` are written.
+6. The new `validation.yaml` and the phase's register record are written: `records/register.json`, or `records/completion-register.json` for a completion phase. The marker's `register_record` names which.
 7. The marker is removed, last. Under the entry point the register job does not remove it (`finalize=False`). The entry point does, in `finish_publication`, once Snakemake has finished the job and any mark that a killed job left `register.json` incomplete is cleared with `snakemake --cleanup-metadata`. A direct `register_release()` removes its own marker.
 
 A crash between any two steps, up to and including the marker's removal, therefore leaves either the marker or a release that is already consistent with no Snakemake mark outstanding. The next entry-point run finishes a pending marker before anything else. If only the register job dies, the same run's settlement finishes it. A state that fits no step, such as neither a Store nor a staged Store, raises `PublicationError` and keeps the marker for an operator. The new record's `replaced.archive`, and `register.json`'s `replaced_archive`, say where the archive is. A first publication uses the same marker, without the archive steps.
+
+**A release that completes its own Store is published twice** (ADR 0037). Its build phase's `register` publishes the Observed-Only Store exactly as any release's does. Its completion phase's `register`, `register_release(..., phase="completion")`, then replaces that Store through the same transaction, with three differences from a forced run:
+- it needs no `force`: replacing the Store its build phase published is what it is for;
+- it takes no records snapshot. Its records are named apart from the build phase's (`plan.py` above), so a failed or interrupted completion leaves the build phase's records untouched and the Observed-Only Store published. A snapshot would be restored on failure and throw away a part-finished completion's records. Resuming an interrupted completion without `force` comes with #305: until then the #195 guard refuses the next run, because that Store is published;
+- its archive stamp is its own: this second's `<UTC>`, suffixed `-2`, `-3`, ... when that archive already exists, because a forced run replaces twice, once per phase, possibly within one second. The archive holds the replaced Store, a copy of the replaced release's `records/register.json` under `records/`, and its Validation Record. The original register record stays in `records/` with the build phase's other records.
+
+Both phases run in one entry-point run, so the completion phase starts while the build phase's marker still stands: the entry point removes it only after Snakemake's last job. The completion phase's first step, `complete`, therefore finishes that publication itself, marker last, before it stages anything (`register.finish_build_phase_publication`, called from `run.execute_step` for a step that reads the published Store). A staged Store beside a pending first publication is a state `complete_publication` refuses, so it must never arise. This is safe at that point: `complete` consumes `records/register.json`, so Snakemake has already recorded the build phase's register job complete, and no mark that it is incomplete is outstanding. A crash before the marker is removed leaves it, with nothing staged, and the next run's recovery finishes it as any other. A pending publication of the completion phase itself is refused there, as everywhere.
 
 **Before the marker, a crash leaves the old release in place.** The Store and `validation.yaml` are untouched, and the leftover snapshot makes the next run of that release refuse to start, forced or not (decided in review on 7 Oct 2026). The refusal names the snapshot and the two resolutions, which an operator chooses and the entry point carries out:
 - `pixi run release <ID> --resolve-snapshot restore` replaces `records/` with the snapshot, when the killed run had already rewritten records;
@@ -480,9 +505,17 @@ Dependency wiring only, per ADR 0023. It contains no source column name, no mani
 build_manifest ──> build ──> top_hits ──> rho ──> indexed-subset-<name> ──> overview ──> validate ──> register
 ```
 
-`build_manifest` is the derived build manifest's rule (ADR 0025). It runs before every observed-only build command, because `plan()` names the manifest it writes as the build step's first input. A Reference-Completed release substitutes `complete` for `build` and takes the supported tail; completion consumes only a parent Store, so it depends on no manifest step.
+`build_manifest` is the derived build manifest's rule (ADR 0025). It runs before every observed-only build command, because `plan()` names the manifest it writes as the build step's first input. A two-id Reference-Completed child substitutes `complete` for `build` and takes the supported tail; completion consumes only a parent Store, so it depends on no manifest step.
 
-Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. A declared `indexed_subsets` list inserts one `build-indexed-subset` Step per declaration between those inline index steps and `overview`/`validate`, so overview reports the subsets and validation audits them. `rho` defaults off and `validate` defaults on, so a Build Recipe names only the steps it chooses differently (ADR 0027, issue #128). A Reference-Completed release substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
+A release that completes its own Store (ADR 0037) runs both phases in one run. Its build phase is the chain above. Its completion phase then starts from the build phase's `register` record, because it completes the Store that phase published:
+
+```text
+register ──> complete ──> completion-rho ──> completion-indexed-subset-<name> ──> completion-overview ──> completion-validate ──> completion-register
+```
+
+Completion-phase steps share the `step` rule, under their own `{step}` values. `completion-register` is a rule of its own, `completion_register`, which calls `register_release(..., phase="completion")`. `all` and the id's target alias depend on that record, so naming the id runs both phases. The existing rules' bodies, and the inputs of every build-phase job, are exactly what they were before ADR 0037. Snakemake's default rerun triggers compare a rule's code and a job's input set with what it recorded, so a Store built before then is not rescheduled when its bundle gains a `complete` block (#305).
+
+Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. A declared `indexed_subsets` list inserts one `build-indexed-subset` Step per declaration between those inline index steps and `overview`/`validate`, so overview reports the subsets and validation audits them. `rho` defaults off and `validate` defaults on, so a Build Recipe names only the steps it chooses differently (ADR 0027, issue #128). A two-id Reference-Completed child substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
 
 ### Indexed Variant Subsets
 
@@ -578,7 +611,7 @@ the core helper propagates it, and the report does not downgrade it to
 `missing`, because a broken index reported as absent is a wrong answer that
 looks like a right one.
 
-**Lineage ordering is why the DAG spans every store rather than one.** A Reference-Completed release declares its parent's `register` record as an input, resolved from `release.yaml`'s `derived_from`. A per-release workflow driven by a batch loop would have to sequence parents before children by hand, and would get it wrong. Here it is a declared edge.
+**Lineage ordering is why the DAG spans every store rather than one.** A two-id Reference-Completed child declares its parent's `register` record as an input, resolved from `release.yaml`'s `derived_from`. A per-release workflow driven by a batch loop would have to sequence parents before children by hand, and would get it wrong. Here it is a declared edge.
 
 Resumption is Snakemake's, over the record files. `complete-dense` additionally owns a checkpoint directory and a separate `complete-dense-resume` entry point, but the workflow does not yet select it: a resume must be invoked by hand, and `register` accepts the substitution when it sees it. Wiring this into the workflow needs a decision about how a resume participates in the `.partial` staging transaction, which `rewrite_argv_for_staging` currently rejects.
 

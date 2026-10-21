@@ -44,7 +44,7 @@ import yaml
 
 from ogstores import bundle, paths, run
 from ogstores.bundle import Bundle
-from ogstores.plan import Step, plan
+from ogstores.plan import BUILD_PHASE, COMPLETION_PHASE, REGISTER_STEPS, Step, completion_step_name, plan
 
 # The Validation Record shape `register` writes. Every record it writes carries
 # every `OBSERVED_FIELDS` and `BUILD_ENVIRONMENT_FIELDS` key, with a measurement
@@ -169,6 +169,20 @@ def check_argv_drift(
         and executed_argv[1] == "complete-dense-resume"
     ):
         return True, True
+
+    # A completion-phase step names the published Store it reads with the same
+    # canonical token as its staged destination (ADR 0037). Only the
+    # destination may be staged: normalising every `.partial` token back
+    # would pass a step that read its own staged Store.
+    published = planned_step.published_store_arg
+    if published is not None and executed_argv[published:published + 1] != planned_argv[published:published + 1]:
+        executed_token = executed_argv[published] if published < len(executed_argv) else None
+        raise ArgvDriftError(
+            f"Step {planned_step.name!r} for {store_id} must read the published Store "
+            f"{planned_argv[published]!r} as argument {published}, but executed {executed_token!r}.\n"
+            f"  Planned:  {' '.join(planned_argv)}\n"
+            f"  Executed: {' '.join(executed_argv)}"
+        )
 
     norm_executed = normalize_executed_argv_for_staging(
         executed_argv,
@@ -365,6 +379,13 @@ def acceptance_evidence(
     return copy.deepcopy(dict(carried)) if isinstance(carried, Mapping) else None
 
 
+def _validate_step(planned_steps: list[Step]) -> str:
+    """The name of the validate step whose verdict a phase's Validation Record carries."""
+    if planned_steps and planned_steps[0].phase == COMPLETION_PHASE:
+        return completion_step_name("validate")
+    return "validate"
+
+
 def harvest_observed_measurements(
     planned_steps: list[Step],
     step_records: dict[str, dict[str, Any]],
@@ -372,11 +393,17 @@ def harvest_observed_measurements(
     *,
     is_resumed: bool = False,
     manifest_path: Path | None = None,
+    earlier_records: Mapping[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Harvest observed measurements from step records without opening any Store (ADR 0023)."""
+    """Harvest observed measurements from step records without opening any Store (ADR 0023).
+
+    `earlier_records` are the records of the release's phases before this
+    one: a completion phase's build phase (ADR 0037). Only the elapsed total
+    counts them, so `build_elapsed_s` is every step of the release.
+    """
     total_elapsed = sum(
         float(rec.get("elapsed_seconds", 0.0))
-        for rec in step_records.values()
+        for rec in [*(earlier_records or {}).values(), *step_records.values()]
     )
 
     # Only a step that printed it can report the format version; none is
@@ -386,7 +413,7 @@ def harvest_observed_measurements(
     n_analyses: int | None = None
     n_associations: int | None = None
     store_bytes: int | None = None
-    validate_status, _, _ = validate_verdict(step_records.get("validate"))
+    validate_status, _, _ = validate_verdict(step_records.get(_validate_step(planned_steps)))
 
     # 1. Harvest from build or complete record
     producing_step = next((s.name for s in planned_steps if s.name in ("build", "complete")), None)
@@ -451,9 +478,10 @@ def harvest_observed_measurements(
         observed["variant_reference"] = (
             "provided" if variant_reference_record.get("skipped") is True else "extracted"
         )
-    else:
-        phase = "complete" if bundle_obj.completion_state == "reference_completed" else "build"
-        phase_options = (bundle_obj.build.get(phase) or {}).get("options") or {}
+    elif producing_step is not None:
+        # The block that produced this Store: `build` or `complete`, which for a
+        # release completing its own Store depends on the phase (ADR 0037).
+        phase_options = (bundle_obj.build.get(producing_step) or {}).get("options") or {}
         if "variant-reference" in phase_options:
             observed["variant_reference"] = "provided"
 
@@ -570,6 +598,49 @@ def _load_marker(store_id: str, root: Path) -> dict[str, Any] | None:
     return marker
 
 
+def publication_register_step(marker: Mapping[str, Any]) -> str:
+    """The register record a publication writes: `register`, or a completion phase's (ADR 0037)."""
+    record = marker.get("register_record")
+    step = record.get("step") if isinstance(record, Mapping) else None
+    if step not in REGISTER_STEPS.values():
+        raise PublicationError(
+            f"The publication of {marker.get('store_id')} writes no register record of a phase: {step!r}"
+        )
+    return str(step)
+
+
+def finish_build_phase_publication(store_id: str, root: Path | str) -> bool:
+    """Finish the build phase's deferred publication before the completion phase stages (ADR 0037).
+
+    Under the entry point a register job leaves `publication.json` for the
+    entry point to remove once Snakemake has recorded that job complete
+    (#195). A release that completes its own Store builds, publishes and
+    completes it in one run, so its first completion-phase step starts while
+    the build phase's marker still stands. It must not stage the completed
+    Store beside it: a staged Store beside a pending first publication is a
+    state `complete_publication` refuses, after a crash as much as now.
+
+    The step that calls this runs only once Snakemake has recorded the build
+    phase's register job complete: it consumes `records/register.json`, and
+    Snakemake runs no job over an output it still marks incomplete. So
+    finishing the publication here, marker last, is what the entry point's
+    settlement would do. A pending publication of any other phase is not this
+    function's to finish and is refused. Returns whether one was finished.
+    """
+    resolved_root = Path(root)
+    marker = _load_marker(store_id, resolved_root)
+    if marker is None:
+        return False
+    if publication_register_step(marker) != REGISTER_STEPS[BUILD_PHASE]:
+        raise run.PublicationPendingError(
+            f"Cannot complete {store_id}: the publication "
+            f"{paths.publication_marker(store_id, root=resolved_root)} has not finished; "
+            "`pixi run release` completes it first"
+        )
+    complete_publication(store_id, resolved_root)
+    return True
+
+
 def remove_publication_marker(store_id: str, root: Path | str) -> None:
     """Remove a finished publication's marker: always the transaction's last step (#195)."""
     marker_p = paths.publication_marker(store_id, root=root)
@@ -593,9 +664,13 @@ def complete_publication(
        set aside as `.backup`, and after the swap it is renamed into the
        archive, never deleted.
     2. For a replacement, the run's records snapshot moves into the archive as
-       `records/`, and the replaced Validation Record is written there.
-    3. The new `validation.yaml` and `records/register.json` are written from
-       the marker.
+       `records/`, and the replaced Validation Record is written there. A
+       completion phase takes no snapshot (ADR 0037): the release it replaces
+       is its own build phase's, whose records stay in `records/`, and a copy
+       of that release's `records/register.json` joins the archive instead.
+    3. The new `validation.yaml` and the phase's register record
+       (`records/register.json`, or `records/completion-register.json`) are
+       written from the marker.
     4. With `finalize`, the marker is removed. The entry point passes False and
        removes it itself, after Snakemake has finished the register job and
        any mark that a killed job left `register.json` incomplete is cleared.
@@ -609,6 +684,7 @@ def complete_publication(
     marker = _load_marker(store_id, resolved_root)
     if marker is None:
         return None
+    register_step = publication_register_step(marker)
     marker_p = paths.publication_marker(store_id, root=resolved_root)
     store_p = paths.store_path(store_id, root=resolved_root)
     partial_p = paths.partial_store_path(store_id, root=resolved_root)
@@ -662,19 +738,42 @@ def complete_publication(
         if snapshot is not None and _exists(snapshot):
             run.archive_force_snapshot(snapshot, archive)
             run.fault_boundary("old-records-archived")
+        if register_step != REGISTER_STEPS[BUILD_PHASE]:
+            replaced_register = paths.record_path(store_id, REGISTER_STEPS[BUILD_PHASE], root=resolved_root)
+            archived_register = archive / "records" / replaced_register.name
+            if not _exists(archived_register):
+                if not _exists(replaced_register):
+                    raise stuck(f"the register record of the release being replaced, {replaced_register}, is missing")
+                _write_text_atomically(replaced_register.read_text(encoding="utf-8"), archived_register)
+                run.fault_boundary("old-records-archived")
         if marker["previous_validation"] is not None and not _exists(archive / "validation.yaml"):
             _write_text_atomically(marker["previous_validation"], archive / "validation.yaml")
             run.fault_boundary("old-record-archived")
 
     _write_text_atomically(marker["validation_yaml"], Path(marker["bundle_validation"]))
     run.fault_boundary("record-written")
-    register_record_p = paths.record_path(store_id, "register", root=resolved_root)
+    register_record_p = paths.record_path(store_id, register_step, root=resolved_root)
     if not _record_already_written(register_record_p, marker["register_record"]):
         run._write_record_atomically(marker["register_record"], register_record_p)
     run.fault_boundary("register-record-written")
     if finalize:
         remove_publication_marker(store_id, resolved_root)
     return marker
+
+
+def _unused_stamp(store_id: str, root: Path) -> str:
+    """This second's UTC stamp, or it suffixed `-2`, `-3`, ... when that archive exists.
+
+    A forced run of a release that completes its own Store replaces it twice,
+    in its build phase and then in its completion phase, and both may fall in
+    one second (#304).
+    """
+    stamp = run.utc_stamp()
+    candidate, n = stamp, 1
+    while _exists(paths.replaced_dir(store_id, candidate, root=root)):
+        n += 1
+        candidate = f"{stamp}-{n}"
+    return candidate
 
 
 def register_release(
@@ -686,6 +785,7 @@ def register_release(
     publish: bool = True,
     acceptance_commit: str | None = None,
     finalize: bool = True,
+    phase: str = BUILD_PHASE,
 ) -> dict[str, Any]:
     """Assemble validation.yaml, verify executed vs planned argv, publish store, and record register.json.
 
@@ -699,6 +799,11 @@ def register_release(
             (`committed_revision`), recorded when that is a candidate record.
         finalize: If False, leave `publication.json` for the caller to remove.
             The entry point does so once Snakemake has finished this job (#195).
+        phase: The phase to register. A release that completes its own Store
+            registers its `build` phase, then its `completion` phase, which
+            replaces the Store the first published without `force`, takes no
+            records snapshot, and writes `records/completion-register.json`
+            (ADR 0037).
 
     Returns:
         dict containing the assembled validation.yaml data.
@@ -721,6 +826,10 @@ def register_release(
         Path(artifact_root) if artifact_root is not None else paths.artifact_root()
     )
 
+    if phase not in REGISTER_STEPS:
+        raise ValueError(f"Unknown phase {phase!r}; expected one of {sorted(REGISTER_STEPS)}")
+    register_step = REGISTER_STEPS[phase]
+
     marker_p = paths.publication_marker(store_id, root=resolved_root)
     if _exists(marker_p):
         raise run.PublicationPendingError(
@@ -728,12 +837,14 @@ def register_release(
             "`pixi run release` completes it first"
         )
 
-    planned_steps = plan(b, artifact_root=resolved_root)
+    planned = plan(b, artifact_root=resolved_root)
+    planned_steps = [step for step in planned if step.phase == phase]
+    if not planned_steps:
+        raise RegisterError(f"Cannot register {store_id}: its plan has no {phase} phase")
     step_records: dict[str, dict[str, Any]] = {}
     any_resumed = False
 
-    # 1. Load and verify each planned step's record and check argv drift
-    for step in planned_steps:
+    def required_record(step: Step) -> dict[str, Any]:
         rec = run.load_record(store_id, step.name, root=resolved_root)
         if rec is None:
             rec_p = paths.record_path(store_id, step.name, root=resolved_root)
@@ -741,6 +852,17 @@ def register_release(
                 f"Cannot register release {store_id}: missing required execution record for "
                 f"step {step.name!r} at {rec_p}"
             )
+        return rec
+
+    # The steps of the phases before this one, which their own register
+    # verified; the release's elapsed total counts them (ADR 0037).
+    earlier_records = {
+        step.name: required_record(step) for step in planned[: planned.index(planned_steps[0])]
+    }
+
+    # 1. Load and verify each planned step's record and check argv drift
+    for step in planned_steps:
+        rec = required_record(step)
         if not rec.get("success") or rec.get("exit_code") != 0:
             raise StepFailedError(
                 f"Cannot register release {store_id}: step {step.name!r} failed with "
@@ -753,7 +875,8 @@ def register_release(
         step_records[step.name] = rec
 
     # 2. This run's verdict and findings, then its observed measurements
-    val_status, val_warnings, val_errors = validate_verdict(step_records.get("validate"))
+    validate_step = _validate_step(planned_steps)
+    val_status, val_warnings, val_errors = validate_verdict(step_records.get(validate_step))
     acceptance = acceptance_evidence(b.validation, commit=acceptance_commit)
     observed = harvest_observed_measurements(
         planned_steps,
@@ -761,6 +884,7 @@ def register_release(
         b,
         is_resumed=any_resumed,
         manifest_path=paths.build_manifest_path(store_id, root=resolved_root),
+        earlier_records=earlier_records,
     )
 
     # 3. Assemble validation.yaml dictionary
@@ -803,17 +927,32 @@ def register_release(
     # finishes the job; nothing below raises before the marker without leaving
     # the published release as it was.
     val_yaml_path = b.root / "validation.yaml"
-    reg_rec_p = paths.record_path(store_id, "register", root=resolved_root)
+    reg_rec_p = paths.record_path(store_id, register_step, root=resolved_root)
     partial_p = paths.partial_store_path(store_id, root=resolved_root)
     target_p = paths.store_path(store_id, root=resolved_root)
     staged = publish and partial_p.is_dir()
     replacing = staged and _exists(target_p)
-    if replacing and not force:
+    # The completion phase exists to replace the Store its build phase
+    # published, so that replacement is no rebuild and takes no `force`.
+    if replacing and not force and phase == BUILD_PHASE:
         raise run.StoreExistsError(f"Target store already exists at {target_p}. Set force=True to replace.")
 
     archive: Path | None = None
     snapshot: Path | None = None
-    if replacing:
+    if replacing and phase == COMPLETION_PHASE:
+        # No records snapshot: the completion phase's records never overwrite
+        # the build phase's, so a failed completion leaves them standing, and
+        # its own part-finished records with them. The archive takes its own
+        # stamp, and the register record of the release it replaces is copied
+        # into it.
+        replaced_register = paths.record_path(store_id, REGISTER_STEPS[BUILD_PHASE], root=resolved_root)
+        if not replaced_register.is_file():
+            raise RegisterError(
+                f"Cannot replace {store_id}: the Store it completes has no register record at {replaced_register}"
+            )
+        archive = paths.replaced_dir(store_id, _unused_stamp(store_id, resolved_root), root=resolved_root)
+        validation_data["replaced"] = {"archive": str(archive), "replaced_at": now_iso}
+    elif replacing:
         # Replacing archives the old release under replaced/<stamp>/, with the
         # stamp of the forced run's records snapshot, so the two name each other.
         snapshots = run.pending_force_snapshots(store_id, resolved_root)
@@ -836,7 +975,7 @@ def register_release(
 
     input_record_paths = [str(paths.record_path(store_id, s.name, root=resolved_root)) for s in planned_steps]
     register_result = {
-        "step": "register",
+        "step": register_step,
         "store_id": store_id,
         "exit_code": 0,
         "success": True,
@@ -859,10 +998,10 @@ def register_release(
 
     if staged:
         run._preflight_paths(store_id, resolved_root)
-        val_rec = step_records.get("validate")
+        val_rec = step_records.get(validate_step)
         if not val_rec or not val_rec.get("success") or val_rec.get("exit_code") != 0:
             raise RegisterError(
-                f"Cannot publish {store_id}: missing successful 'validate' record in records/."
+                f"Cannot publish {store_id}: missing successful {validate_step!r} record in records/."
             )
         run.fault_boundary("publication-started")
         marker = {
@@ -904,9 +1043,11 @@ __all__ = [
     "check_argv_drift",
     "committed_revision",
     "complete_publication",
+    "finish_build_phase_publication",
     "harvest_observed_measurements",
     "normalize_executed_argv_for_staging",
     "normalize_executed_argv_for_variant_reference",
+    "publication_register_step",
     "register_release",
     "remove_publication_marker",
     "validate_verdict",

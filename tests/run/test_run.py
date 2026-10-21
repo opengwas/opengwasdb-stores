@@ -339,6 +339,49 @@ class TestStepClassificationAndArgvRewrite(unittest.TestCase):
         self.assertIn("multiple (2) ambiguous matches", str(cm.exception))
         record_check()
 
+        # 2b. A completion-phase step names the id's published Store and its
+        # staged Store with the same canonical token (ADR 0037). Only the
+        # argument the step does not mark as the published Store is rewritten.
+        partial_store = paths.partial_store_path(store_id, root=root)
+        completion_step = Step(
+            name="complete",
+            argv=["opengwasdb", "complete-dense", str(target_store), str(target_store), "--release-id", f"{store_id}-completed"],
+            inputs=[target_store],
+            outputs=[target_store],
+            phase="completion",
+            published_store_arg=2,
+        )
+        self.assertEqual(
+            rewrite_argv_for_staging(completion_step, store_id, artifact_root=root),
+            ["opengwasdb", "complete-dense", str(target_store), str(partial_store), "--release-id", f"{store_id}-completed"],
+        )
+        record_check()
+        validate_step = Step(
+            name="completion-validate",
+            argv=["opengwasdb", "validate", str(target_store), "--format", "json"],
+            inputs=[target_store],
+            outputs=[],
+            phase="completion",
+        )
+        self.assertEqual(
+            rewrite_argv_for_staging(validate_step, store_id, artifact_root=root),
+            ["opengwasdb", "validate", str(partial_store), "--format", "json"],
+        )
+        record_check()
+        # The marked argument must be the published Store itself.
+        misplaced = Step(
+            name="complete",
+            argv=completion_step.argv,
+            inputs=[target_store],
+            outputs=[target_store],
+            phase="completion",
+            published_store_arg=4,
+        )
+        with self.assertRaises(ValueError) as cm:
+            rewrite_argv_for_staging(misplaced, store_id, artifact_root=root)
+        record_check()
+        self.assertIn("published Store", str(cm.exception))
+
         # 3. Equivalent-but-non-canonical token raises ValueError
         non_canonical_step = Step(
             name="build",

@@ -98,6 +98,9 @@ def create_test_bundle_and_records(
     }
     if completion_state == "reference_completed":
         bld_dict["complete"] = {"command": command, "options": options or {"ancestry": "EUR"}}
+        if derived_from is None:
+            # One id, published twice: the build phase comes first (ADR 0037).
+            bld_dict["build"] = {"command": "build-dense-vcf", "options": {"source-assembly": "hg38"}}
     else:
         bld_dict["build"] = {"command": command, "options": options or {"source-assembly": "hg38"}}
     if variant_reference is not None:
@@ -124,9 +127,13 @@ def create_test_bundle_and_records(
         if custom_records and step.name in custom_records:
             rec_data = custom_records[step.name]
         else:
+            # As staging runs it: every Store token but the published Store a
+            # completion step reads becomes the staged path (ADR 0037).
             executed_argv = [
-                token.replace(str(paths.store_path(store_id, root=artifact_root)), str(partial_p))
-                for token in step.argv
+                token
+                if index == step.published_store_arg
+                else token.replace(str(paths.store_path(store_id, root=artifact_root)), str(partial_p))
+                for index, token in enumerate(step.argv)
             ]
             if step.name == "variant-reference" and step.outputs:
                 staged = str(run.variant_reference_partial_path(step.outputs[0]))
@@ -137,7 +144,7 @@ def create_test_bundle_and_records(
             stdout_payload = ""
             if step.name in ("build", "complete"):
                 stdout_payload = json.dumps({"n_variants": 1000, "n_analyses": 2, "format_version": "1.0"}) + "\n"
-            elif step.name == "validate":
+            elif step.name in ("validate", "completion-validate"):
                 # The shape `opengwasdb validate --format json` prints (#195).
                 stdout_payload = json.dumps({"errors": [], "ok": True, "warnings": []}) + "\n"
 
@@ -910,6 +917,134 @@ class TestPublicationTransaction(unittest.TestCase):
 
         with self.assertRaises(run.PublicationPendingError):
             register_release(b, registry_root=stores_root, artifact_root=artifact_root, force=True)
+
+
+class TestCompletionPhaseRegistration(unittest.TestCase):
+    """A release that completes its own Store publishes it twice under one id (ADR 0037).
+
+    The completion phase's register replaces the Observed-Only Store its build
+    phase published. It needs no `force`, it takes no records snapshot, and it
+    archives the replaced Store, its register record and its Validation Record
+    under a `replaced/<stamp>/` of its own.
+    """
+
+    STORE_ID = "OGS-00071"
+    STAMP = "20261021T120000Z"
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.td = Path(self.temp_dir.name)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def built_and_completed(self) -> tuple[Bundle, Path, Path]:
+        """Every step record of both phases, with the completed Store staged and nothing published."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(
+            self.td,
+            self.STORE_ID,
+            completion_state="reference_completed",
+            command="complete-dense",
+            options={"ld-panel": "/data/ld", "ancestry": "EUR"},
+        )
+        return b, stores_root, artifact_root
+
+    def publish_build_phase(self, b: Bundle, stores_root: Path, artifact_root: Path) -> bytes:
+        """The build phase's register publishes the Observed-Only Store; then completion stages its own."""
+        partial = paths.partial_store_path(b.store_id, root=artifact_root)
+        (partial / "version.txt").write_text("observed", encoding="utf-8")
+        register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+        partial.mkdir()
+        (partial / "version.txt").write_text("completed", encoding="utf-8")
+        return (b.root / "validation.yaml").read_bytes()
+
+    def test_the_completion_phase_replaces_the_store_without_force(self) -> None:
+        b, stores_root, artifact_root = self.built_and_completed()
+        build_record = self.publish_build_phase(b, stores_root, artifact_root)
+        register_p = paths.record_path(b.store_id, "register", root=artifact_root)
+        build_register = register_p.read_bytes()
+        # A forced run's snapshot belongs to its build phase; completion takes none.
+        snapshot = paths.force_snapshot_path(b.store_id, "20261021T110000Z", root=artifact_root)
+        snapshot.mkdir()
+
+        loaded = bundle.load(b.store_id, registry_root=stores_root)
+        with patch.object(run, "utc_stamp", return_value=self.STAMP):
+            written = register_release(loaded, registry_root=stores_root, artifact_root=artifact_root, phase="completion")
+
+        archive = paths.replaced_dir(b.store_id, self.STAMP, root=artifact_root)
+        store_p = paths.store_path(b.store_id, root=artifact_root)
+        self.assertEqual((store_p / "version.txt").read_text(), "completed")
+        self.assertEqual((archive / "store.opengwasdb" / "version.txt").read_text(), "observed")
+        self.assertEqual((archive / "validation.yaml").read_bytes(), build_record)
+        self.assertEqual((archive / "records" / "register.json").read_bytes(), build_register)
+        self.assertEqual(register_p.read_bytes(), build_register, "the build phase's register record stays")
+        self.assertTrue(snapshot.is_dir(), "the completion phase never takes or consumes a snapshot")
+
+        completion_register = json.loads(
+            paths.record_path(b.store_id, "completion-register", root=artifact_root).read_text()
+        )
+        self.assertEqual(completion_register["step"], "completion-register")
+        self.assertEqual(completion_register["replaced_archive"], str(archive))
+        self.assertEqual(written["replaced"]["archive"], str(archive))
+        self.assertEqual(yaml.safe_load((b.root / "validation.yaml").read_text())["replaced"]["archive"], str(archive))
+        self.assertFalse(paths.publication_marker(b.store_id, root=artifact_root).exists())
+        self.assertFalse(paths.partial_store_path(b.store_id, root=artifact_root).exists())
+
+    def test_a_completion_that_read_its_staged_store_is_drift(self) -> None:
+        """The published Store `complete` reads must be in its record as planned, never staged.
+
+        Normalising every `.partial` token back would turn a completion that
+        read its own staged Store into its plan's argv, a wrong answer that
+        looks right. Only the destination is staged (ADR 0037).
+        """
+        b, stores_root, artifact_root = self.built_and_completed()
+        complete = next(s for s in plan(b, artifact_root=artifact_root) if s.name == "complete")
+        record = json.loads(paths.record_path(b.store_id, "complete", root=artifact_root).read_text())
+        partial = str(paths.partial_store_path(b.store_id, root=artifact_root))
+        self.assertEqual(check_argv_drift(complete, record, b.store_id, artifact_root=artifact_root), (True, False))
+
+        record["argv"][complete.published_store_arg] = partial
+        with self.assertRaises(ArgvDriftError) as ctx:
+            check_argv_drift(complete, record, b.store_id, artifact_root=artifact_root)
+        self.assertIn("published Store", str(ctx.exception))
+
+    def test_the_completed_record_times_every_step_of_the_release(self) -> None:
+        """`build_elapsed_s` sums every step's elapsed seconds, the build phase's too.
+
+        Each fixture record took 5 s: `build`, `overview` and `validate`, then
+        `complete`, `completion-overview` and `completion-validate`.
+        """
+        b, stores_root, artifact_root = self.built_and_completed()
+        self.publish_build_phase(b, stores_root, artifact_root)
+        built = yaml.safe_load((b.root / "validation.yaml").read_text())
+        self.assertEqual(built["observed"]["build_elapsed_s"], 15.0)
+
+        written = register_release(
+            bundle.load(b.store_id, registry_root=stores_root),
+            registry_root=stores_root,
+            artifact_root=artifact_root,
+            phase="completion",
+        )
+        self.assertEqual(written["observed"]["build_elapsed_s"], 30.0)
+
+    def test_a_replacement_in_the_same_second_takes_its_own_stamp(self) -> None:
+        """A forced run's build phase may archive at the same second; completion's stamp is still new."""
+        b, stores_root, artifact_root = self.built_and_completed()
+        self.publish_build_phase(b, stores_root, artifact_root)
+        taken = paths.replaced_dir(b.store_id, self.STAMP, root=artifact_root)
+        taken.mkdir(parents=True)
+
+        with patch.object(run, "utc_stamp", return_value=self.STAMP):
+            register_release(
+                bundle.load(b.store_id, registry_root=stores_root),
+                registry_root=stores_root,
+                artifact_root=artifact_root,
+                phase="completion",
+            )
+
+        self.assertEqual(sorted(p.name for p in taken.iterdir()), [])
+        archive = paths.replaced_dir(b.store_id, f"{self.STAMP}-2", root=artifact_root)
+        self.assertEqual((archive / "store.opengwasdb" / "version.txt").read_text(), "observed")
 
 
 class TestCommittedRevision(unittest.TestCase):
