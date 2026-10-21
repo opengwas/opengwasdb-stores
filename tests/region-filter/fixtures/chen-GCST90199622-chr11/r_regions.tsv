@@ -1,0 +1,20 @@
+analysis_id	region_id	region_kind	chromosome	start	end	source_genome_build	target_id	target_label	lead_variant_id	pvalue_threshold	n_variants_retained	region_policy_id
+GCST90199622	GCST90199622__sig_trans__001	significant_trans	11	116919128	118919128	GRCh38			""	5e-08	11029	sig-trans-1mb_suggestive-leads
+GCST90199622	GCST90199622__suggestive__111	suggestive_trans	11	33046200	33046200	GRCh38			rs112595250	1e-05	1	sig-trans-1mb_suggestive-leads
+GCST90199622	GCST90199622__suggestive__112	suggestive_trans	11	35895008	35895008	GRCh38			rs141338383	1e-05	1	sig-trans-1mb_suggestive-leads
+GCST90199622	GCST90199622__suggestive__113	suggestive_trans	11	49766285	49766285	GRCh38			rs554904778	1e-05	1	sig-trans-1mb_suggestive-leads
+GCST90199622	GCST90199622__suggestive__114	suggestive_trans	11	55282262	55282262	GRCh38			rs180829349	1e-05	1	sig-trans-1mb_suggestive-leads
+GCST90199622	GCST90199622__suggestive__115	suggestive_trans	11	56572212	56572212	GRCh38			rs189582027	1e-05	1	sig-trans-1mb_suggestive-leads
+GCST90199622	GCST90199622__suggestive__116	suggestive_trans	11	58655012	58655012	GRCh38			rs543582705	1e-05	1	sig-trans-1mb_suggestive-leads
+GCST90199622	GCST90199622__suggestive__117	suggestive_trans	11	59025734	59025734	GRCh38			rs184027567	1e-05	1	sig-trans-1mb_suggestive-leads
+GCST90199622	GCST90199622__suggestive__118	suggestive_trans	11	60517207	60517207	GRCh38			rs4598689	1e-05	1	sig-trans-1mb_suggestive-leads
+GCST90199622	GCST90199622__suggestive__119	suggestive_trans	11	80526229	80526229	GRCh38			rs116696281	1e-05	1	sig-trans-1mb_suggestive-leads
+GCST90199622	GCST90199622__suggestive__120	suggestive_trans	11	81339038	81339038	GRCh38			rs542047401	1e-05	1	sig-trans-1mb_suggestive-leads
+GCST90199622	GCST90199622__suggestive__121	suggestive_trans	11	81491801	81491801	GRCh38			rs73513619	1e-05	1	sig-trans-1mb_suggestive-leads
+GCST90199622	GCST90199622__suggestive__122	suggestive_trans	11	91417788	91417788	GRCh38			rs11823064	1e-05	1	sig-trans-1mb_suggestive-leads
+GCST90199622	GCST90199622__suggestive__123	suggestive_trans	11	91543395	91543395	GRCh38			rs12273887	1e-05	1	sig-trans-1mb_suggestive-leads
+GCST90199622	GCST90199622__suggestive__124	suggestive_trans	11	92673914	92673914	GRCh38			rs150923416	1e-05	1	sig-trans-1mb_suggestive-leads
+GCST90199622	GCST90199622__suggestive__125	suggestive_trans	11	102402569	102402569	GRCh38			rs142233022	1e-05	1	sig-trans-1mb_suggestive-leads
+GCST90199622	GCST90199622__suggestive__126	suggestive_trans	11	124784590	124784590	GRCh38			rs6590098	1e-05	1	sig-trans-1mb_suggestive-leads
+GCST90199622	GCST90199622__suggestive__127	suggestive_trans	11	126503288	126503288	GRCh38			rs80254820	1e-05	1	sig-trans-1mb_suggestive-leads
+GCST90199622	GCST90199622__suggestive__128	suggestive_trans	11	133125620	133125620	GRCh38			rs181702052	1e-05	1	sig-trans-1mb_suggestive-leads

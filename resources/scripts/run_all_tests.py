@@ -33,7 +33,6 @@ Splits = dict[str, list[tuple[str, list[str]]]]
 
 # R suites are listed: discovery finds only Python ones (#257).
 R_SUITES: list[Suite] = [
-    ("effect-scale-validation (R)", "r", ["tests/effect-scale-validation/run_tests.R"]),
     ("emit-registry (R)", "r", ["tests/emit-registry/run_tests.R"]),
     ("indexed-subsets-generator-defaults (R)", "r", ["tests/indexed-subsets/test_generator_defaults.R"]),
     ("finngen-r13-pilot", "r", ["tests/finngen-r13-pilot/run_tests.R"]),
@@ -42,9 +41,7 @@ R_SUITES: list[Suite] = [
     ("metadata-resolvers/opengwas-api", "r", ["tests/metadata-resolvers/opengwas-api/run_tests.R"]),
     ("metadata-resolvers/trait-ontology-mapping", "r", ["tests/metadata-resolvers/trait-ontology-mapping/run_tests.R"]),
     ("materialise-gwas-ssf-ragged", "r", ["tests/materialise-gwas-ssf-ragged/run_tests.R"]),
-    ("no-cis-region-policy", "r", ["tests/no-cis-region-policy/run_tests.R"]),
     ("opengwas-gwas-vcf-dense", "r", ["tests/opengwas-gwas-vcf-dense/run_tests.R"]),
-    ("qc-panel-retention", "r", ["tests/qc-panel-retention/run_tests.R"]),
     ("schema-validation", "r", ["tests/schema-validation/run_tests.R"]),
 ]
 
@@ -130,12 +127,9 @@ THREADED_SUITES: frozenset[str] = frozenset(EXCLUSIVE_ORDER)
 # assumed short.
 SUITE_COST: dict[str, float] = {
     "workflow": 45.0,
-    "qc-panel-retention": 6.0,
-    "effect-scale-validation (R)": 6.0,
     "run": 5.0,
     "materialise-gwas-ssf-ragged": 4.0,
     "schema-validation": 4.0,
-    "no-cis-region-policy": 3.5,
     "plan": 2.5,
     "readiness": 3.0,
     "migration": 1.0,

@@ -927,7 +927,11 @@ snapshot and `resolve` reuses every record whose fingerprint still matches.
 
 The resolver subprocess is `opengwasdb resolve-analyses` (opengwasdb#208). It
 owns the process pool, the single genome-scale reference load, and the atomic,
-fingerprint-aware per-Analysis checkpoints. The registry pins that resolver by
+fingerprint-aware per-Analysis checkpoints. It parallelises by worker
+processes, so it runs with `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`,
+`MKL_NUM_THREADS` and `NUMEXPR_NUM_THREADS` set to 1 unless the operator has set
+them: unlimited, each worker's numerical libraries start a thread per core
+(#300). The registry pins that resolver by
 immutable commit in `pixi.toml` rather than vendoring it (ADR 0023).
 
 **`--resolver` is verification-only.** The hidden flag runs another resolver
@@ -1103,7 +1107,11 @@ resolver, decides membership. A ready Analysis whose Assigned Ancestry is not
 the super-population the Selection expects (`release_policy.selection_superpopulation`,
 `EUR` for OGS-00011), is unassigned, or was gated out on an EAF
 orientation failure is excluded; a quantitative Analysis on the computable
-`estimated_from_source_maf` tier whose phenotype SD is unavailable is excluded;
+`estimated_from_source_maf` tier whose phenotype SD is unavailable is excluded,
+while one whose tier declares its scale (`declared_standardised`, Sun 2018) has
+no SD to estimate -- the resolver reports `scale_already_declared`, the
+`phenotype_sd` check is `not_applicable`, and it is included with `original_sd`
+blank (#300);
 a resolver `controlled_failure` is excluded. Each excluded row stays in
 `analyses.tsv` with `exclude_from_build: true` and a machine-checkable reason in
 `inclusion_reason`, and is explained in `sidecars/exclusions.tsv`. The
@@ -1133,6 +1141,9 @@ stores/OGS-00011/
     exclusions.tsv          # one row per excluded selected Analysis, with its reason
     reference_overlap.tsv   # one row per selected Analysis
     quality_checks.tsv      # one row per selected Analysis: every Quality Check's result
+    analysis_targets.tsv    # only when Analyses have molecular targets: one row per targeted Analysis (#300)
+    sparse_regions.tsv      # only for a region-filtered release: its filtering's plan, from acquisition (#300)
+    filter_summary.tsv      # only for a region-filtered release: one row per filtered file, from acquisition (#300)
 ```
 
 **Determinism and atomicity.** Aggregation is ordered by the frozen inventory,

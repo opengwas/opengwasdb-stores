@@ -447,6 +447,11 @@ def _assigned_ancestry(subject: Subject, _threshold: None) -> Finding:
     return Finding(Result.PASSED, measured)
 
 
+#: OpenGWASDB's phenotype-SD reason when the release's method tier declares the
+#: scale (``declared_standardised``) or takes it from the source: there is
+#: nothing to estimate (opengwasdb ``SdReason.SCALE_ALREADY_DECLARED``).
+SCALE_ALREADY_DECLARED: str = "scale_already_declared"
+
 #: OpenGWASDB's phenotype-SD reason -> the controlled exclusion reason.
 _SD_REASONS: Mapping[str, str] = {
     "no_reference_resource_for_ancestry": "sd_no_reference_resource_for_ancestry",
@@ -459,7 +464,10 @@ def _phenotype_sd(subject: Subject, _threshold: None) -> Finding:
     """OpenGWASDB's phenotype-SD estimate for a quantitative Analysis (#152).
 
     It passes only as a positive finite estimate: the builder refuses any other
-    ``original_sd``. A failure keeps OpenGWASDB's own reason.
+    ``original_sd``. A failure keeps OpenGWASDB's own reason. A scale the
+    release's method tier declares has no SD to estimate, which the resolver
+    reports as ``scale_already_declared``: the check does not apply, and the
+    Analysis is included with ``original_sd`` blank (#300, OGS-00007).
     """
     if subject.stored_effect_scale in NON_QUANTITATIVE_EFFECT_SCALES:
         return Finding(Result.NOT_APPLICABLE)
@@ -470,6 +478,8 @@ def _phenotype_sd(subject: Subject, _threshold: None) -> Finding:
     reason = str(pheno.get("reason") or "").strip()
     estimate = pheno.get("estimate")
     measured = f"status={status or 'missing'} reason={reason or 'none'}"
+    if status == "skipped" and reason == SCALE_ALREADY_DECLARED:
+        return Finding(Result.NOT_APPLICABLE, measured)
     if status == "estimated" and isinstance(estimate, Mapping) and estimate.get("sd") is not None:
         raw = estimate["sd"]
         try:
@@ -912,6 +922,7 @@ __all__ = [
     "BUILT_IN_CHECKS",
     "EAF_ORIENTATION_OUTCOMES",
     "NON_QUANTITATIVE_EFFECT_SCALES",
+    "SCALE_ALREADY_DECLARED",
     "CheckSummary",
     "Decided",
     "Finding",
