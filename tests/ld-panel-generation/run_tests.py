@@ -150,6 +150,62 @@ def test_membership_keep_format() -> None:
               "PLINK keep file must be an explicit one-column IID list")
 
 
+AMR_PILOT = ROOT / "resources/reference-resources/hgdp1kgp-hg38-ld/amr-pilot"
+
+
+def test_amr_pilot_mapping() -> None:
+    def table(path: Path) -> list[dict[str, str]]: return list(csv.DictReader(path.open(), delimiter="\t"))
+    production = {r["population"] for r in table(AMR_PILOT.parent / "populations_to_superpop.tsv")}
+    pilot = {r["population"]: r for r in table(AMR_PILOT / "populations_to_superpop.tsv")}
+    included = {p for p, r in pilot.items() if r["status"] == "included"}
+    check(set(pilot) == production, "the pilot mapping must label exactly the production populations")
+    check(included == {"CLM", "MXL", "PEL", "PUR"} and all(pilot[p]["panel"] == "AMR" for p in included),
+          "the pilot includes only the four 1kGP AMR populations")
+    check(all(pilot[p]["reason"] == "hgdp_excluded_amr_pilot"
+              for p in ("Pima", "Maya", "Karitiana", "Surui", "Colombian")),
+          "HGDP American populations must be excluded by name")
+    check(all(r["status"] == "excluded" and not r["panel"] and r["reason"]
+              for p, r in pilot.items() if p not in included), "population is neither mapped nor excluded")
+    samples = table(AMR_PILOT / "phase3-amr-samples.tsv")
+    pops = {p: sum(r["pop"] == p for r in samples) for p in included}
+    check(len({r["sample"] for r in samples}) == len(samples) == 347 and
+          pops == {"CLM": 94, "MXL": 64, "PEL": 85, "PUR": 104} and
+          all(r["super_pop"] == "AMR" for r in samples), "the Phase 3 AMR sample list changed")
+
+
+def test_amr_pilot_membership() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp); cohort = tmp / "cohort.tsv"; mapping = tmp / "mapping.tsv"
+        cohort.write_text(
+            "sample\tpopulation\tproject\tgenetic_region\thigh_quality\n"
+            "P1\tCLM\t1000 Genomes\tAMR\ttrue\n"   # Phase 3, high quality: the only member
+            "P2\tCLM\t1000 Genomes\tAMR\tfalse\n"  # Phase 3, fails high_quality
+            "X1\tCLM\t1000 Genomes\tAMR\ttrue\n"   # 30x expansion, not Phase 3
+            "H1\tMaya\tHGDP\tAMR\ttrue\n"
+            "E1\tGBR\t1000 Genomes\tEUR\ttrue\n")
+        header = "population\tpanel\tstatus\treason\tsource_regions\n"
+        mapping.write_text(header + "CLM\tAMR\tincluded\tamr_pilot_1kgp\tAMR\n"
+                           "Maya\t\texcluded\thgdp_excluded_amr_pilot\tAMR\n"
+                           "GBR\t\texcluded\toutside_amr_pilot\tEUR\n")
+        def run(samples: str, mapping: Path = mapping) -> subprocess.CompletedProcess[str]:
+            (tmp / "samples.tsv").write_text("sample\tpop\n" + samples)
+            return subprocess.run([sys.executable, str(SCRIPT.with_name("make_membership.py")),
+                "--cohort", str(cohort), "--mapping", str(mapping), "--panels", "AMR",
+                "--samples", str(tmp / "samples.tsv"), "--out", str(tmp / "out")],
+                capture_output=True, text=True)
+        result = run("P1\tCLM\nP2\tCLM\nH1\tMaya\n")
+        check(result.returncode == 0 and (tmp / "out/AMR.keep").read_text() == "#IID\nP1\n" and
+              not (tmp / "out/AFR.keep").exists() and
+              json.loads((tmp / "out/membership.json").read_text()) == {"AMR": 1},
+              "AMR membership admitted a non-Phase-3, low-quality or HGDP sample")
+        check(run("P1\tCLM\nZ9\tCLM\n").returncode != 0, "an allowlisted sample absent from the cohort must fail")
+        check(run("P1\tPUR\n").returncode != 0, "an allowlist population disagreeing with the cohort must fail")
+        eur = tmp / "eur.tsv"
+        eur.write_text(header + "CLM\tAMR\tincluded\tamr_pilot_1kgp\tAMR\nMaya\t\texcluded\tx\tAMR\n"
+                       "GBR\tEUR\tincluded\tcontinental_panel\tEUR\n")
+        check(run("P1\tCLM\n", eur).returncode != 0, "a mapping panel outside --panels must fail")
+
+
 def test_index_validation() -> None:
     calls = []
     def run(cmd, **kwargs):
@@ -198,7 +254,8 @@ def test_plink_raw_input() -> None:
 
 def main() -> None:
     test_block(); test_maf_floor(); test_canonical_effect_allele_ld_orientation()
-    test_mapping(); test_membership_keep_format(); test_index_validation(); test_compressed_pvar_input()
+    test_mapping(); test_membership_keep_format(); test_amr_pilot_mapping(); test_amr_pilot_membership()
+    test_index_validation(); test_compressed_pvar_input()
     test_plink_raw_input()
     for script in ("acquire_hgdp1kgp.py", "construct_block.py", "run_panels.py"):
         subprocess.run([sys.executable, str(SCRIPT.with_name(script)), "--help"], check=True,
