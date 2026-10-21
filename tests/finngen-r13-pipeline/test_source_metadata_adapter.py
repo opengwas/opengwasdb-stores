@@ -170,8 +170,33 @@ class FinnGenSourceMetadataAdapterTest(unittest.TestCase):
         self.assertIn("num_cases", str(raised.exception))
 
     def test_the_written_table_is_what_the_canonical_loader_accepts(self) -> None:
-        table = self.convert()
-        self.assertEqual(table.sha256, load_source_metadata_table(table.path).sha256)
+        """The gate is the real loader, and it is a gate.
+
+        The written table loads with exactly the canonical columns the adapter
+        writes, and a copy whose ``study_design`` leaves the vocabulary is
+        refused by that same loader -- so the load is not the file agreeing with
+        itself.
+        """
+        out = self.tmp / "source-metadata.tsv"
+        convert_manifest(FIXTURE, out)
+        self.assertEqual(
+            load_source_metadata_table(out).columns,
+            (
+                "source_analysis_id", "source_trait_label", "source_trait_id",
+                "source_ancestry_label", "source_superpopulation", "study_design",
+                "sample_size", "n_cases", "n_controls",
+                "analysis_id", "analysis_group_id",
+            ),
+        )
+
+        corrupted = self.tmp / "corrupted.tsv"
+        corrupted.write_text(
+            out.read_text(encoding="utf-8").replace("\tcase-control\t", "\tbinary\t", 1),
+            encoding="utf-8",
+        )
+        with self.assertRaises(SourceMetadataTableError) as raised:
+            load_source_metadata_table(corrupted)
+        self.assertIn("study_design", str(raised.exception))
 
     def test_an_untranslated_ancestry_label_is_refused_rather_than_left_blank(self) -> None:
         """`Finnish` is in the tracked map; a map without it must refuse, not blank."""
@@ -206,6 +231,24 @@ class FinnGenSourceMetadataAdapterTest(unittest.TestCase):
                 ("finngen-r13-Q_RNS_CTRL", "Quantitative endpoints"),
             ],
         )
+
+    def test_a_declared_id_that_collides_with_a_source_id_is_refused(self) -> None:
+        """Uniqueness is the *effective* Store id's, not the declared one's.
+
+        The first row declares ``SRC_B``; the second declares nothing, so its
+        Store id falls back to its own source id ``SRC_B``. Both would render as
+        ``SRC_B``, which ``bundle.check()`` refuses (#288).
+        """
+        out = self.tmp / "source-metadata.tsv"
+        out.write_text(
+            "source_analysis_id\tanalysis_id\tanalysis_group_id\tstudy_design\n"
+            "SRC_A\tSRC_B\tGroup\tcase-control\n"
+            "SRC_B\t\tGroup\tcase-control\n",
+            encoding="utf-8",
+        )
+        with self.assertRaises(SourceMetadataTableError) as raised:
+            load_source_metadata_table(out)
+        self.assertIn("SRC_B", str(raised.exception))
 
     def test_a_repeated_store_analysis_id_is_refused(self) -> None:
         """The Store's ids must be unique even when two source ids differ."""

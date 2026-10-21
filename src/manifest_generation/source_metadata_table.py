@@ -154,14 +154,18 @@ def load_source_metadata_table(path: Path) -> SourceMetadataTable:
     repeated = duplicate_values(row["source_analysis_id"] for _, row in numbered if row["source_analysis_id"])
     if repeated:
         problems.append(f"duplicate source_analysis_id: {', '.join(repeated)}")
-    # The Store's Analysis ids must be unique when a table declares them: two
-    # rows sharing one is a bundle ``bundle.check()`` refuses, so refuse the
-    # table it would be rendered from (#288).
+    # The Store's Analysis ids must be unique *as they will be used*, not only
+    # as declared: a row with no ``analysis_id`` falls back to its
+    # ``source_analysis_id``, so a declared id may collide with another row's
+    # source id -- which is a bundle ``bundle.check()`` refuses (#288).
     repeated_store_ids = duplicate_values(
-        row["analysis_id"] for _, row in numbered if row.get("analysis_id")
+        row.get("analysis_id") or row["source_analysis_id"] for _, row in numbered
     )
     if repeated_store_ids:
-        problems.append(f"duplicate analysis_id: {', '.join(repeated_store_ids)}")
+        problems.append(
+            "duplicate Store analysis_id (analysis_id, else source_analysis_id): "
+            + ", ".join(repeated_store_ids)
+        )
     if problems:
         raise_problems(SourceMetadataTableError, f"Source Metadata Table {path}", problems)
     rows = tuple(row for _, row in numbered)
