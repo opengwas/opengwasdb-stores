@@ -6,8 +6,12 @@ This context describes the planning and operational language for expected and pr
 
 **Store Registry**:
 The authoritative record of intended and produced Store Releases, including their identity, source inputs, build recipes, release lineage, and operational priority.
-OpenGWASDB's former Analysis Catalogue model is superseded by this registry boundary and by OpenGWASDB-owned store metadata carried with each built Store Release.
-_Avoid_: catalogue, service catalogue
+OpenGWASDB's former Analysis Catalogue model is superseded by this registry boundary and by OpenGWASDB-owned store metadata carried with each built Store Release. The Analysis Catalog, generated from these Release Bundles, separately lists the Analyses of served Store Releases.
+_Avoid_: catalogue, service catalogue (for this registry: it records releases, it does not list Analyses)
+
+**Analysis Catalog**:
+The cross-Store listing of every Analysis of every served Store Release, naming each one `<store_id>:<analysis_id>` so that an identifier always resolves in exactly one Store. It is generated from Release Bundles and never opens a Store, and it holds the serving decisions the registry does not make: which Store Releases are listed, kept as placeholder rows, excluded or refused, and why, with each Store's Store Layout, Association Coverage, completion state and Access Posture. How it is stored, versioned and published is recorded in ADR 0039.
+_Avoid_: store registry, service catalogue, Analysis Catalogue (OpenGWASDB's former model)
 
 **Access Posture**:
 The declared availability category for a Source Collection or Store Release, such as public, controlled, or embargoed.
