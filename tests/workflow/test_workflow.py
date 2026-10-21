@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import math
 import os
 import shlex
 import shutil
@@ -40,6 +41,10 @@ REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
 from ogstores import bundle, manifest, paths, run
 from ogstores.plan import plan
+
+# The completed child is asserted on through opengwasdb's published query
+# facade, never on its internal arrays (#303).
+from opengwasdb.query import query_store
 
 SNAKEFILE_PATH: Path = REPO_ROOT / "workflow" / "Snakefile"
 
@@ -103,6 +108,184 @@ def create_fixture_vcf(path: Path) -> Path:
     with gzip.open(path, "wt", encoding="utf-8") as f:
         f.write(content)
     return path
+
+
+# The signal fixture (#303): twelve chr1 positions, one held out of the VCF and
+# covered by the LD panel, over a smooth z profile. Kept at module level so the
+# tests and later tickets (#304-#309) can state their expected values as these
+# literals rather than reading them back out of a built Store.
+SIGNAL_POSITIONS: list[int] = [100_000 * (i + 1) for i in range(12)]
+SIGNAL_HELD_OUT_INDEX: int = 6
+SIGNAL_SE: float = 0.2
+SIGNAL_Z: list[float] = [math.sin(3 * i / 11) * 5 + i * 0.1 for i in range(12)]
+SIGNAL_ALID: list[str] = [f"1:{position}:A:G" for position in SIGNAL_POSITIONS]
+
+
+def create_signal_fixture_vcf(path: Path) -> Path:
+    """Create the 12-position signal GWAS-VCF, with one position held out (#303).
+
+    `create_fixture_vcf` above is enough to build a Store, but reference
+    completion imputes nothing against it: a block needs at least four observed
+    points, and a two-position block leaves no signal to fit. Completion tests
+    need a held-out position that genuinely comes back imputed, so they use the
+    AR(1) *signal* profile opengwasdb's own completion tests use: a smooth z
+    curve over twelve chr1 positions, SE 0.2, which projects onto a handful of
+    eigenvectors and is therefore recoverable.
+
+    One `TRAIT` sample column, as in `create_fixture_vcf`. The position at
+    `SIGNAL_HELD_OUT_INDEX` is in `SIGNAL_POSITIONS` but not in the VCF, so it
+    is observed nowhere and must be imputed from the panel.
+
+    Two details the reader forces:
+
+    - `FORMAT/EZ` is declared and written. opengwasdb's VCF reader queries `EZ`
+      unconditionally, and bcftools fails the whole query when a header does
+      not declare it; without it the build reports success and writes a Store
+      with no association cells at all.
+    - `REF=G`, `ALT=A`. The stored effect allele is the canonical `a1 = min(A, G)
+      = A`, and the reader negates z when ALT sorts above REF, so ALT=A keeps
+      every z at the value written here (opengwasdb ADR 0036) and keeps the
+      allele frequency on the same allele the panel's `EA` names.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "##fileformat=VCFv4.2\n",
+        '##FILTER=<ID=PASS,Description="All filters passed">\n',
+        '##contig=<ID=chr1,length=248956422>\n',
+        '##INFO=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">\n',
+        '##FORMAT=<ID=EZ,Number=A,Type=Float,Description="Z-score">\n',
+        '##FORMAT=<ID=ES,Number=A,Type=Float,Description="Effect size">\n',
+        '##FORMAT=<ID=SE,Number=A,Type=Float,Description="Standard error">\n',
+        '##FORMAT=<ID=LP,Number=A,Type=Float,Description="-log10(p-value)">\n',
+        '##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele frequency">\n',
+        '##FORMAT=<ID=SS,Number=A,Type=Integer,Description="Sample size">\n',
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tTRAIT\n",
+    ]
+    for i, (position, z) in enumerate(zip(SIGNAL_POSITIONS, SIGNAL_Z, strict=True)):
+        if i == SIGNAL_HELD_OUT_INDEX:
+            continue
+        es = z * SIGNAL_SE
+        lp = -math.log10(math.erfc(abs(z) / math.sqrt(2)))
+        lines.append(
+            f"chr1\t{position}\trs{i}\tG\tA\t.\tPASS\tAF=0.3\tEZ:ES:SE:LP:AF:SS\t"
+            f"{z:.6f}:{es:.6f}:{SIGNAL_SE}:{lp:.6f}:0.3:10000\n"
+        )
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        f.write("".join(lines))
+    return path
+
+
+def create_signal_ld_panel(panel_root: Path) -> Path:
+    """Write the fixture LD reference panel over `SIGNAL_POSITIONS` (#303).
+
+    One block in the flat layout opengwasdb's completion reads
+    (`<panel>/<ancestry>/<chrom>/<block>.tsv` plus `<block>.ldeig.npz`), with
+    AR(1) correlation `0.9 ** |i - j|`: its leading eigenvectors are smooth
+    basis functions, which is what lets an elastic net recover the held-out
+    position at all. The eigendecomposition is written in descending
+    eigenvalue order, as the panel contract requires, and no LD matrix is
+    written -- an eigendecomposition-only panel is the production shape
+    (opengwasdb ADR 0031).
+
+    Copy of the recipe in opengwasdb's `tests/test_dense_completion.py`
+    (`write_signal_panel`); those tests are not packaged, so it is copied rather
+    than imported.
+    """
+    import numpy as np
+
+    block_dir = panel_root / "EUR" / "1"
+    block_dir.mkdir(parents=True, exist_ok=True)
+    block = "100000-1200000"
+
+    tsv_lines = ["CHR\tSNP\tOA\tEA\tEAF\tBP"]
+    for position, alid in zip(SIGNAL_POSITIONS, SIGNAL_ALID, strict=True):
+        chrom, _pos, a1, a2 = alid.split(":")
+        tsv_lines.append(f"{chrom}\t{alid}\t{a2}\t{a1}\t0.3\t{position}")
+    (block_dir / f"{block}.tsv").write_text("\n".join(tsv_lines) + "\n", encoding="utf-8")
+
+    index = np.arange(len(SIGNAL_POSITIONS))
+    ld = 0.9 ** np.abs(index[:, None] - index[None, :])
+    values, vectors = np.linalg.eigh(ld)
+    np.savez_compressed(
+        block_dir / f"{block}.ldeig.npz",
+        values=values[::-1],
+        vectors=vectors[:, ::-1],
+    )
+    return panel_root
+
+
+def create_completed_child_bundle(
+    stores_dir: Path,
+    child_id: str = "OGS-00102",
+    *,
+    parent_id: str,
+    ld_panel: Path,
+    artifact_root: Path | None = None,
+) -> Path:
+    """Create the Reference-Completed child Release Bundle of `parent_id` under stores_dir.
+
+    Today's two-id completion: `derived_from` names the Observed-Only parent and
+    `status: accepted` lets Store Release Build take it (#247). `build.yaml`
+    carries a `complete` block instead of a `build` one, pointing `ld-panel` at
+    the panel *root* (completion resolves `<root>/<ancestry>/<chrom>/...`) with
+    `min-cor: 0.0` so a twelve-position fixture block still fits.
+
+    `post` follows what a completion supports: `top_hits` is false because
+    `complete-dense` builds the Top-Hit Index inline and the planner refuses a
+    separate step; rho is false for the same reason dense rho is optional;
+    overview and validate stay on. The bundle's `analyses.tsv` is the parent's:
+    completion keeps the parent's Analyses, and the membership table stays with
+    the release even though the completion step never reads it.
+
+    `derived_from`/`status` are the only keys the workflow reads; the rest are
+    what a real Release Bundle carries.
+    """
+    import yaml
+
+    child_dir = stores_dir / child_id
+    child_dir.mkdir(parents=True, exist_ok=True)
+    art_root_str = str(artifact_root) if artifact_root else str(paths.DEFAULT_ARTIFACT_ROOT)
+
+    release_yaml = {
+        "store_id": child_id,
+        "label": f"fixture-completed-{child_id}",
+        "status": "accepted",
+        "source_collection_id": "test-collection",
+        "association_coverage": "full_gwas",
+        "derived_from": parent_id,
+        "created_at": "2026-08-18T16:00:00Z",
+        "description": f"Fixture reference-completed store {child_id} for workflow testing",
+        "source_snapshot_id": "test-snapshot",
+        "release_kind": "pilot",
+        "generator": {"command": "test-generator"},
+    }
+    build_yaml = {
+        "store_id": child_id,
+        "layout": "dense",
+        "completion_state": "reference_completed",
+        "complete": {
+            "command": "complete-dense",
+            "options": {
+                "ld-panel": str(ld_panel),
+                "ancestry": "EUR",
+                "min-cor": 0.0,
+            },
+        },
+        "post": {
+            "top_hits": False,
+            "rho": False,
+            "overview": True,
+            "validate": True,
+        },
+        "artifacts": {"root": art_root_str},
+    }
+
+    with open(child_dir / "release.yaml", "w", encoding="utf-8") as f:
+        yaml.safe_dump(release_yaml, f)
+    with open(child_dir / "build.yaml", "w", encoding="utf-8") as f:
+        yaml.safe_dump(build_yaml, f)
+    shutil.copyfile(stores_dir / parent_id / "analyses.tsv", child_dir / "analyses.tsv")
+    return child_dir
 
 
 def create_dense_fixture_store(
@@ -887,6 +1070,268 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         self.assertEqual(res_dry.returncode, 0)
         scheduled = scheduled_targets(res_dry.stdout)
         self.assertEqual(set(scheduled), {"validate", "register", store_id})
+
+
+class TestWorkflowTwoIdReferenceCompletion(unittest.TestCase):
+    """Reference completion end to end, through the entry point (#303).
+
+    Today (ADR 0007) a Reference-Completed Store is a second Store Release
+    derived from its Observed-Only parent; ADR 0037 replaces that with one id
+    published twice. Both shapes run the same completion, so this class proves
+    the two-id shape against today's code: one entry-point invocation naming
+    only the child builds and publishes the parent, then completes, validates
+    and publishes the child under its own id.
+
+    The completion is real, not vacuous: the fixture VCF holds out one of the
+    twelve `SIGNAL_POSITIONS` that the LD panel covers, so the held-out
+    association must come back imputed. A Store that reported
+    `reference_completed` while imputing nothing would pass every weaker
+    assertion here.
+
+    The pair costs one parent build plus one completion, so `setUpClass` builds
+    it once and each test copies the result, as
+    `TestWorkflowEndToEndAndResumption` does.
+    """
+
+    PARENT_ID = "OGS-00101"
+    CHILD_ID = "OGS-00102"
+    ANALYSIS_ID = f"test_analysis_{PARENT_ID}"
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        """Build the parent and complete the child, in one entry-point run naming the child."""
+        cls._class_tmp = tempfile.TemporaryDirectory()
+        root = Path(cls._class_tmp.name)
+        cls.template_stores = root / "stores"
+        cls.template_stores.mkdir()
+        cls.template_artifacts = root / "artifacts"
+        cls.template_artifacts.mkdir()
+
+        signal_vcf = create_signal_fixture_vcf(root / "signal.vcf.gz")
+        create_dense_fixture_store(
+            cls.template_stores,
+            store_id=cls.PARENT_ID,
+            artifact_root=cls.template_artifacts,
+            vcf_path=signal_vcf,
+        )
+        ld_panel = create_signal_ld_panel(root / "ld-panel")
+        create_completed_child_bundle(
+            cls.template_stores,
+            child_id=cls.CHILD_ID,
+            parent_id=cls.PARENT_ID,
+            ld_panel=ld_panel,
+            artifact_root=cls.template_artifacts,
+        )
+        cls.release_result = run_release(
+            [cls.CHILD_ID],
+            registry_root=cls.template_stores,
+            artifact_root=cls.template_artifacts,
+        )
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._class_tmp.cleanup()
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.td = Path(self.temp_dir.name)
+        self.stores_dir = self.td / "stores"
+        self.stores_dir.mkdir()
+        self.artifact_root = self.td / "artifacts"
+        self.artifact_root.mkdir()
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def use_completed_pair(self) -> None:
+        """Copy the class's one built pair into this test's own directories."""
+        shutil.rmtree(self.stores_dir)
+        shutil.rmtree(self.artifact_root)
+        shutil.copytree(self.template_stores, self.stores_dir)
+        shutil.copytree(self.template_artifacts, self.artifact_root)
+
+    def test_one_entry_point_run_publishes_the_parent_and_the_completed_child(self) -> None:
+        """Naming only the child builds the parent, then completes, validates and publishes the child.
+
+        The completion reads a published Store, so the parent's own register
+        record has to exist first: that ordering is what naming one id buys.
+        """
+        res = self.release_result
+        self.assertEqual(
+            res.returncode,
+            0,
+            f"The entry point failed (exit {res.returncode}):\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}",
+        )
+
+        expected_steps = {
+            self.PARENT_ID: ["build", "top-hits", "overview", "validate", "register"],
+            self.CHILD_ID: ["complete", "overview", "validate", "register"],
+        }
+        for store_id, steps in expected_steps.items():
+            rec_dir = paths.records_dir(store_id, root=self.template_artifacts)
+            for step in steps:
+                rec_p = rec_dir / f"{step}.json"
+                self.assertTrue(rec_p.is_file(), f"Expected record {rec_p} does not exist")
+                data = json.loads(rec_p.read_text(encoding="utf-8"))
+                self.assertTrue(data.get("success"), f"Record {rec_p.name} reported success=False: {data}")
+                self.assertEqual(data.get("exit_code"), 0)
+                self.assertEqual(data.get("store_id"), store_id)
+
+            final_store = paths.store_path(store_id, root=self.template_artifacts)
+            self.assertTrue(final_store.is_dir(), f"Published Store not found at {final_store}")
+            self.assertFalse(
+                paths.partial_store_path(store_id, root=self.template_artifacts).exists(),
+                f"Transient partial store still exists for {store_id}",
+            )
+            val_res = subprocess.run(["opengwasdb", "validate", str(final_store)], capture_output=True, text=True)
+            self.assertEqual(
+                val_res.returncode,
+                0,
+                f"opengwasdb validate failed on {store_id}:\nSTDOUT:\n{val_res.stdout}\nSTDERR:\n{val_res.stderr}",
+            )
+
+    def test_the_child_is_a_reference_completion_that_imputes_the_held_out_position(self) -> None:
+        """The child's manifest says completed, and the held-out position comes back imputed.
+
+        `store_id` is deliberately not asserted to be the child's id. A
+        completion inherits the source manifest's `store_id` -- the parent's --
+        and only takes its own `release_id`. ADR 0037 gives the completed Store
+        the id's own Store, which is #302's job; today's two-id shape keeps the
+        parent's identity, and asserting otherwise would fail for a reason this
+        ticket does not change.
+        """
+        self.use_completed_pair()
+        child_store = paths.store_path(self.CHILD_ID, root=self.artifact_root)
+        manifest_doc = json.loads((child_store / "manifest.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(manifest_doc["completion_state"], "reference_completed")
+        self.assertEqual(manifest_doc["release_id"], self.CHILD_ID)
+        self.assertEqual(manifest_doc["store_id"], self.PARENT_ID)
+        self.assertIn("completion", manifest_doc.get("provenance") or {})
+
+        q = query_store(child_store)
+        try:
+            rows = q.analysis(self.ANALYSIS_ID)
+            alids = [q.variants_table()[int(index)]["alid"] for index in rows["variant_index"]]
+        finally:
+            q.close()
+
+        status_by_alid = dict(zip(alids, rows["association_status"].tolist(), strict=True))
+        held_out = SIGNAL_ALID[SIGNAL_HELD_OUT_INDEX]
+        self.assertIn(held_out, status_by_alid, "the held-out position must be on the completed axis")
+        self.assertEqual(
+            status_by_alid[held_out],
+            "imputed",
+            f"the held-out position came back {status_by_alid[held_out]!r}, not imputed: {status_by_alid}",
+        )
+        self.assertEqual(
+            sum(status == "observed" for status in status_by_alid.values()),
+            len(SIGNAL_POSITIONS) - 1,
+            f"exactly the VCF's observed positions should be observed: {status_by_alid}",
+        )
+
+    def test_observed_only_returns_exactly_the_vcfs_observations(self) -> None:
+        """`observed_only=True` on the child returns the VCF's eleven observed associations.
+
+        Expected values are the VCF literals `create_signal_fixture_vcf` wrote
+        (z, and `SIGNAL_SE`), not the parent Store read back through the code
+        under test: comparing the child to a parent query would pass even if
+        completion mangled both. A Dense Store keeps z as int16 at scale 1024
+        and se as float16, so the comparison carries that quantization and no
+        more.
+        """
+        self.use_completed_pair()
+        child_store = paths.store_path(self.CHILD_ID, root=self.artifact_root)
+
+        q = query_store(child_store)
+        try:
+            obs = q.analysis(self.ANALYSIS_ID, observed_only=True)
+            alids = [q.variants_table()[int(index)]["alid"] for index in obs["variant_index"]]
+        finally:
+            q.close()
+
+        observed = {
+            alid: (float(z), float(se))
+            for alid, z, se in zip(alids, obs["z"], obs["se"], strict=True)
+        }
+        expected = {
+            SIGNAL_ALID[i]: (SIGNAL_Z[i], SIGNAL_SE)
+            for i in range(len(SIGNAL_POSITIONS))
+            if i != SIGNAL_HELD_OUT_INDEX
+        }
+
+        self.assertEqual(sorted(observed), sorted(expected), "observed_only returns the observed associations only")
+        self.assertNotIn("imputed", set(obs["association_status"].tolist()))
+        for alid, (z, se) in expected.items():
+            got_z, got_se = observed[alid]
+            self.assertAlmostEqual(got_z, z, delta=1 / 1024, msg=f"z changed for {alid}")
+            self.assertAlmostEqual(got_se, se, delta=1e-3, msg=f"se changed for {alid}")
+
+    def test_a_rerun_executes_zero_jobs(self) -> None:
+        """Re-running the entry point over the published pair reports nothing to be done.
+
+        The entry point short-circuits before Snakemake when the dry run
+        schedules nothing, so neither id's records may change: "only build what
+        the bundle and its records say is missing" is what lets a completed
+        pair be re-run safely.
+
+        This runs against the class's own directories rather than a copy: see
+        `test_a_rerun_of_a_copied_artifact_root_reschedules_the_completion` for
+        why a copy cannot stand in for them today.
+        """
+        mtimes_before: dict[str, dict[Path, int]] = {}
+        for store_id in (self.PARENT_ID, self.CHILD_ID):
+            rec_dir = paths.records_dir(store_id, root=self.template_artifacts)
+            mtimes_before[store_id] = {p: p.stat().st_mtime_ns for p in rec_dir.glob("*.json")}
+            self.assertTrue(mtimes_before[store_id], f"the built pair has no records for {store_id}")
+
+        res = run_release(
+            [self.CHILD_ID],
+            registry_root=self.template_stores,
+            artifact_root=self.template_artifacts,
+        )
+
+        self.assertEqual(res.returncode, 0, f"Re-run failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}")
+        self.assertIn("nothing to be done", res.stdout)
+        for store_id, before in mtimes_before.items():
+            for rec_p, mtime in before.items():
+                self.assertEqual(
+                    rec_p.stat().st_mtime_ns,
+                    mtime,
+                    f"Record {rec_p.name} of {store_id} was rewritten by an idempotent re-run",
+                )
+
+    @unittest.expectedFailure
+    def test_a_rerun_of_a_copied_artifact_root_reschedules_the_completion(self) -> None:
+        """A copied artifact root must also report nothing to be done -- it does not (#303 finding).
+
+        The entry point finishes every release's deferred publication after
+        Snakemake's last job (`register(..., finalize=False)` in
+        `workflow/Snakefile`), and that rewrite bumps the mtime of the parent's
+        `records/register.json` -- the input the child's `complete` job
+        consumed. So the parent's register record ends up newer than the
+        child's `records/complete.json`, and by mtime alone the completion is
+        stale.
+
+        Snakemake's own provenance normally hides this: it stores the input's
+        checksum, and the deferred rewrite is byte-identical, so a rerun in the
+        directories that built the pair is a no-op (the test above). A copy has
+        no provenance for its new paths, falls back to mtime, reschedules
+        `complete`, and the published-release guard of #195 refuses the run --
+        advising `--config force=1`, which would replace an already published
+        Store.
+
+        #303 tests today's behaviour and may not change `src/` or `workflow/`,
+        so this is recorded rather than fixed. When the completion's input
+        stops going stale this becomes an unexpected success: remove the
+        marker, which is the whole point of recording it here.
+        """
+        self.use_completed_pair()
+
+        res = run_release([self.CHILD_ID], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+
+        self.assertEqual(res.returncode, 0, f"Re-run failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}")
+        self.assertIn("nothing to be done", res.stdout)
 
 
 class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):
