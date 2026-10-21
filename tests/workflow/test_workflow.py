@@ -1481,10 +1481,14 @@ def single_id_completion_template() -> dict[str, Any]:
     `TemporaryDirectory` that holds them. A test that may write copies
     `stores` and `artifacts`; the template is never written again.
 
-    The swap deletes the Observed-Only Store (#309), so the first run is
-    paused as `complete` starts, once the build phase has published it, and
-    its observed view is read then (`observed_before`, from `observed_view`;
-    None when the run never got there).
+    The first run is paused twice. As `complete` starts, once the build
+    phase has published the Observed-Only Store, its observed view is read
+    (`observed_before`, from `observed_view`), because the swap deletes that
+    Store (#309). As the Observed-View Check starts, with the completed Store
+    staged and validated, both trees are copied, mtimes kept, to
+    `check_started` (`stores`, `artifacts`), for a test that tampers with the
+    staged Store before its own run checks it. Each is None when the run
+    never got there. The snapshot is never written either: a test copies it.
 
     The rerun is part of the template, not of a test, because only a rerun in
     place reads the Snakemake metadata the build recorded, and a test that
@@ -1505,17 +1509,27 @@ def single_id_completion_template() -> dict[str, Any]:
 
     argv = release_argv([store_id], registry_root=stores, artifact_root=artifacts)
     pause = root / "paused"
-    env = {**os.environ, run.PAUSE_AT_ENV: "complete-started", run.PAUSE_FILE_ENV: str(pause)}
+    pause_points = ("complete-started", "completion-observed-view-check-started")
+    env = {**os.environ, run.PAUSE_AT_ENV: ",".join(pause_points), run.PAUSE_FILE_ENV: str(pause)}
     observed_before = None
+    check_started = None
     with (root / "release.out").open("w+") as out, (root / "release.err").open("w+") as err:
         proc = subprocess.Popen(argv, cwd=REPO_ROOT, stdout=out, stderr=err, env=env, start_new_session=True)
         try:
             deadline = time.monotonic() + 600
-            while not pause.exists() and proc.poll() is None and time.monotonic() < deadline:
-                time.sleep(0.2)
-            if pause.exists():
-                observed_before = observed_view(paths.store_path(store_id, root=artifacts), analysis_id)
-            elif proc.poll() is None:
+            for point in pause_points:
+                while not pause.exists() and proc.poll() is None and time.monotonic() < deadline:
+                    time.sleep(0.2)
+                if not pause.exists():
+                    break
+                if point == "complete-started":
+                    observed_before = observed_view(paths.store_path(store_id, root=artifacts), analysis_id)
+                else:
+                    check_started = {tree: root / "check-started" / tree for tree in ("stores", "artifacts")}
+                    shutil.copytree(stores, check_started["stores"])
+                    shutil.copytree(artifacts, check_started["artifacts"])
+                pause.unlink()
+            if proc.poll() is None and time.monotonic() >= deadline:
                 os.killpg(proc.pid, signal.SIGKILL)
         finally:
             pause.unlink(missing_ok=True)
@@ -1536,10 +1550,36 @@ def single_id_completion_template() -> dict[str, Any]:
         "rerun_result": rerun_result,
         "records_before_rerun": records_before_rerun,
         "observed_before": observed_before,
+        "check_started": check_started,
         "store_id": store_id,
         "analysis_id": analysis_id,
     }
     return _SINGLE_ID_COMPLETION
+
+
+def copy_snapshot(snapshot: dict[str, Path], *, built: dict[str, Any], into: Path) -> tuple[Path, Path]:
+    """Copy a snapshot taken mid-run into `into`, as if its release had been built there.
+
+    Returns the copy's `stores` and `artifacts`. A snapshot's records name the
+    directories its run was built in (`built["stores"]`, `built["artifacts"]`),
+    and the steps left to run check their predecessors' argv against the plan
+    under the run's own root. So each record's mention of them is rewritten to
+    the copy's, keeping its mtime, which a run on a copy decides by (#303).
+    Inputs the bundle names outside those two trees, such as the LD panel,
+    are the template's and are only read.
+    """
+    stores, artifacts = into / "stores", into / "artifacts"
+    shutil.copytree(snapshot["stores"], stores)
+    shutil.copytree(snapshot["artifacts"], artifacts)
+    moves = {str(built["stores"]): str(stores), str(built["artifacts"]): str(artifacts)}
+    for record_p in artifacts.glob("*/records/*.json"):
+        written = record_p.stat()
+        text = record_p.read_text(encoding="utf-8")
+        for old, new in moves.items():
+            text = text.replace(old, new)
+        record_p.write_text(text, encoding="utf-8")
+        os.utime(record_p, ns=(written.st_atime_ns, written.st_mtime_ns))
+    return stores, artifacts
 
 
 class TestWorkflowSingleIdReferenceCompletion(unittest.TestCase):
@@ -2257,14 +2297,23 @@ class TestWorkflowForcedRunOfACompletedSingleIdRelease(unittest.TestCase):
 class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
     """A completed Store that fails the Observed-View Check is not published (#306, ADR 0037).
 
-    The run is paused as the check starts, with the completed Store staged and
-    validated, and an observed Z of it is perturbed through opengwasdb's plane
-    `patch` API. The check then fails, `completion-register` never runs, and
-    the Observed-Only Store the build phase published is exactly as it was.
+    The release is a copy of `single_id_completion_template` as its run stood
+    when paused at the check (`check_started`, through `copy_snapshot`): the
+    Observed-Only Store published and the completed Store staged and
+    validated, its records naming the copy's paths. The copy's run
+    has only the check and `completion-register` left, and is paused as the
+    check starts. An observed Z of the staged Store is perturbed through
+    opengwasdb's plane `patch` API. The check then fails, `completion-register`
+    never runs, and the Observed-Only Store the build phase published is
+    exactly as it was.
     """
 
-    STORE_ID = "OGS-00111"
     CHECK_STEP = "completion-observed-view-check"
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.template = single_id_completion_template()
+        cls.STORE_ID: str = cls.template["store_id"]
 
     @staticmethod
     def hash_tree(root: Path) -> dict[str, str]:
@@ -2282,9 +2331,10 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
         from opengwasdb.encoding import DenseZPlane
         from opengwasdb.store.open import open_store
 
+        self.assertIsNotNone(self.template["check_started"], "the template's run never reached its check")
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            stores, artifacts = prepare_single_id_signal_release(root, self.STORE_ID)
+            stores, artifacts = copy_snapshot(self.template["check_started"], built=self.template, into=root)
             pause = root / "paused"
             log = root / "run.log"
             env = {**os.environ, run.PAUSE_AT_ENV: f"{self.CHECK_STEP}-started", run.PAUSE_FILE_ENV: str(pause)}
