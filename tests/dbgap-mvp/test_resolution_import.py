@@ -6,10 +6,13 @@ a run kept its records in its own Work Root. They are still the measurements of
 unchanged files under the current pin, so a regeneration imports them into the
 Source Collection's Resolution Area instead of re-resolving 6,022 Analyses.
 
-Importing is a gate, not a copy (#290 review): a record must belong to the
-collection's checksummed intent, its fingerprint must digest to the value it
-stores, the file identity it was resolved against must be the one the
-collection acquired, and the run's own index must name it.
+Importing is a gate, not a copy (#290 review): every record must be one the run
+can prove it wrote. The run's own `index.json` must exist and name the Analysis,
+the receipt in the run's sibling `receipt/` must corroborate that index (or bind
+each record's sha256), and the record's measurements must be the index's; its
+fingerprint must digest to the value it stores; and the file identity it was
+resolved against must be the one the collection acquired. Missing evidence is a
+refusal, never "nothing to check".
 
 Run from the repository root:
     python3 tests/dbgap-mvp/test_resolution_import.py
@@ -17,7 +20,6 @@ Run from the repository root:
 from __future__ import annotations
 
 import copy
-import csv
 import hashlib
 import json
 import tempfile
@@ -56,29 +58,59 @@ def fingerprints(analysis_id: str, *, sha256: str = SOURCE_SHA256, size: int = 1
         "source_file_bytes": size,
         "opengwasdb_version": "0.3.0",
         "opengwasdb_git_hash": "4e922566d7fa4c13a11be3637069da63e48be28c",
+        "resolution_config": {"original_sd_method": "binary_trait"},
     }
     document["fingerprint_digest"] = fingerprint_digest(document)
     return document
 
 
-def record(analysis_id: str, **overrides) -> dict:
+def record(analysis_id: str, *, ancestry: str = "EUR", **overrides) -> dict:
     document = {
         "analysis_id": analysis_id,
         "status": "success",
         "record_schema_version": 1,
-        "ancestry": {"assigned_ancestry": "EUR", "gate_reason": "ok"},
+        "ancestry": {"assigned_ancestry": ancestry, "gate_reason": "ok"},
+        "diagnostics": {"build_eligible_rows": 100},
+        "phenotype_sd": {"estimate": None, "status": "skipped", "reason": "non_case_control"},
         "fingerprints": fingerprints(analysis_id),
     }
     document.update(overrides)
     return document
 
 
-def write_records(directory: Path, records: dict[str, dict]) -> None:
-    directory.mkdir(parents=True, exist_ok=True)
-    for analysis_id, document in records.items():
-        (directory / f"{analysis_id}.json").write_text(
-            json.dumps(document, indent=2) + "\n", encoding="utf-8"
-        )
+def index_entry(document: dict) -> dict:
+    """The run's index entry for a record, as the resolver summarises it."""
+    ancestry = document.get("ancestry") or {}
+    estimate = (document.get("phenotype_sd") or {}).get("estimate") or {}
+    return {
+        "analysis_id": document["analysis_id"],
+        "assigned_ancestry": ancestry.get("assigned_ancestry"),
+        "error": None,
+        "gate_reason": ancestry.get("gate_reason"),
+        "manifest_index": 0,
+        "original_sd": estimate.get("sd"),
+        "original_sd_method": document["fingerprints"]["resolution_config"]["original_sd_method"],
+        "record_file": f"{document['analysis_id']}.json",
+        "status": document["status"],
+    }
+
+
+def _safe_index_entry(document: dict) -> dict:
+    """The run's index entry, tolerating a deliberately malformed probe record."""
+    try:
+        return index_entry(document)
+    except (KeyError, TypeError):
+        return {
+            "analysis_id": document.get("analysis_id"),
+            "assigned_ancestry": None,
+            "error": None,
+            "gate_reason": None,
+            "manifest_index": 0,
+            "original_sd": None,
+            "original_sd_method": None,
+            "record_file": f"{document.get('analysis_id')}.json",
+            "status": document.get("status"),
+        }
 
 
 class ResolutionAreaImportTests(unittest.TestCase):
@@ -86,14 +118,15 @@ class ResolutionAreaImportTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory(prefix="resolution-import-")
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
-        self.source = self.root / "old-work-root"
+        self.run_root = self.root / "old-run"
+        self.source = self.run_root / "records"
         self.analysis_ids = ["GCST90000001", "GCST90000002"]
         self.records = {analysis_id: record(analysis_id) for analysis_id in self.analysis_ids}
-        write_records(self.source, self.records)
         self.intent = self.collection_intent(self.analysis_ids)
         self.area = ResolutionArea.for_collection(self.root / "resolution", "dbgap-phs002453")
         self.checkpoint = "c" * 64
 
+    # -- fixtures ---------------------------------------------------------
     def collection_intent(self, analysis_ids: list[str]) -> CollectionIntent:
         """The collection's two checksummed connectors, over ``analysis_ids``."""
         table = self.root / "source-metadata.tsv"
@@ -133,12 +166,54 @@ class ResolutionAreaImportTests(unittest.TestCase):
             acquisition_manifest=load_acquisition_manifest(manifest),
         )
 
+    def write_run(
+        self,
+        *,
+        records: dict[str, dict] | None = None,
+        entries: list[dict] | None = None,
+        receipt: dict | None | str = "default",
+        index: bool = True,
+    ) -> None:
+        """A run's Work Root: ``records/``, its ``index.json`` and the sibling ``receipt/``.
+
+        The default receipt corroborates the index and carries the run's
+        per-record statuses; ``"default"`` builds it, ``None`` omits the receipt,
+        a mapping is written as given, and ``"none"`` writes no receipt.
+        """
+        records = self.records if records is None else records
+        self.source.mkdir(parents=True, exist_ok=True)
+        for analysis_id, document in records.items():
+            (self.source / f"{analysis_id}.json").write_text(
+                json.dumps(document, indent=2) + "\n", encoding="utf-8"
+            )
+        if not index:
+            return
+        entries = [_safe_index_entry(document) for document in records.values()] if entries is None else entries
+        document = {"record_schema_version": 1, "analyses": entries}
+        (self.source / "index.json").write_text(json.dumps(document), encoding="utf-8")
+        if receipt is None or receipt == "none":
+            return
+        if receipt == "default":
+            receipt = {
+                "records": {
+                    "index": copy.deepcopy(document),
+                    "statuses": {
+                        entry["analysis_id"]: entry["status"] for entry in entries
+                    },
+                }
+            }
+        receipt_path = self.run_root / "receipt" / "resolution-receipt.json"
+        receipt_path.parent.mkdir(parents=True, exist_ok=True)
+        receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+
     def import_records(self, **kwargs):
         return import_records(
             self.source, self.area, settings_digest=self.checkpoint, intent=self.intent, **kwargs
         )
 
+    # -- the happy path ---------------------------------------------------
     def test_records_are_copied_into_the_checkpoint_and_kept(self) -> None:
+        self.write_run()
         result = self.import_records()
         self.assertEqual(result.imported, 2)
         self.assertEqual(result.skipped, 0)
@@ -147,121 +222,139 @@ class ResolutionAreaImportTests(unittest.TestCase):
             copied = (checkpoint / f"{analysis_id}.json").read_bytes()
             self.assertEqual(copied, (self.source / f"{analysis_id}.json").read_bytes())
             kept = result.kept[analysis_id]
-            self.assertEqual(
-                self.area.read_kept(kept),
-                copied,
-            )
+            self.assertEqual(self.area.read_kept(kept), copied)
         self.assertFalse((checkpoint / "index.json").exists())
 
-    def test_import_is_idempotent_and_never_replaces_a_different_record(self) -> None:
+    def test_import_is_idempotent_and_never_replaces_a_checkpoint_record(self) -> None:
+        self.write_run()
         self.import_records()
         again = self.import_records()
         self.assertEqual((again.imported, again.skipped), (0, 2))
 
-        edited = record("GCST90000001", ancestry={"assigned_ancestry": "AFR", "gate_reason": "ok"})
-        (self.source / "GCST90000001.json").write_text(
-            json.dumps(edited, indent=2) + "\n", encoding="utf-8"
-        )
+        # A checkpoint record is write-once, whatever the source says later.
+        checkpoint = self.area.checkpoint_dir(self.checkpoint) / "GCST90000001.json"
+        checkpoint.write_text('{"analysis_id": "GCST90000001"}\n', encoding="utf-8")
         with self.assertRaisesRegex(ResolutionImportError, "different bytes"):
             self.import_records()
 
+    def test_a_receipt_that_binds_each_records_sha256_is_honoured(self) -> None:
+        """A v1 pipeline receipt binds the record bytes; a matching one imports."""
+        self.write_run(receipt="none")
+        digests = {
+            analysis_id: hashlib.sha256((self.source / f"{analysis_id}.json").read_bytes()).hexdigest()
+            for analysis_id in self.analysis_ids
+        }
+        receipt_path = self.run_root / "receipt" / "resolution-receipt.json"
+        receipt_path.parent.mkdir(parents=True, exist_ok=True)
+        receipt_path.write_text(json.dumps({"record_digests": digests}), encoding="utf-8")
+        self.assertEqual(self.import_records().imported, 2)
+
+    def test_a_record_whose_sha256_the_receipt_contradicts_is_refused(self) -> None:
+        self.write_run(receipt="none")
+        receipt_path = self.run_root / "receipt" / "resolution-receipt.json"
+        receipt_path.parent.mkdir(parents=True, exist_ok=True)
+        receipt_path.write_text(
+            json.dumps({"record_digests": {analysis_id: "d" * 64 for analysis_id in self.analysis_ids}}),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(ResolutionImportError, "record_digests|sha256"):
+            self.import_records()
+
+    # -- evidence ---------------------------------------------------------
+    def test_an_edited_measurement_the_index_contradicts_is_refused(self) -> None:
+        """The reviewer's probe: ancestry EUR -> AFR, fingerprints untouched (#290 review)."""
+        self.write_run()
+        probe = record("GCST90000001", ancestry="AFR")
+        (self.source / "GCST90000001.json").write_text(
+            json.dumps(probe, indent=2) + "\n", encoding="utf-8"
+        )
+        with self.assertRaisesRegex(ResolutionImportError, "assigned_ancestry"):
+            self.import_records()
+
+    def test_an_empty_index_is_refused(self) -> None:
+        self.write_run(entries=[])
+        with self.assertRaisesRegex(ResolutionImportError, "index"):
+            self.import_records()
+
+    def test_a_run_without_an_index_is_refused(self) -> None:
+        self.write_run(index=False)
+        with self.assertRaisesRegex(ResolutionImportError, "index"):
+            self.import_records()
+
+    def test_a_run_without_a_receipt_is_refused(self) -> None:
+        self.write_run(receipt=None)
+        with self.assertRaisesRegex(ResolutionImportError, "receipt"):
+            self.import_records()
+
+    def test_a_contradictory_sibling_receipt_is_refused(self) -> None:
+        self.write_run()
+        receipt_path = self.run_root / "receipt" / "resolution-receipt.json"
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["records"]["index"]["analyses"].reverse()
+        receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+        with self.assertRaisesRegex(ResolutionImportError, "receipt"):
+            self.import_records()
+
+    def test_a_receipt_that_corroborates_nothing_is_refused(self) -> None:
+        self.write_run(receipt={"records": {}})
+        with self.assertRaisesRegex(ResolutionImportError, "receipt"):
+            self.import_records()
+
+    def test_a_record_the_index_does_not_name_is_refused(self) -> None:
+        self.write_run(entries=[index_entry(self.records["GCST90000001"])])
+        with self.assertRaisesRegex(ResolutionImportError, "index"):
+            self.import_records()
+
+    # -- the record itself ------------------------------------------------
     def test_a_record_without_a_fingerprint_digest_is_refused(self) -> None:
         document = record("GCST90000001")
         document["fingerprints"] = {}
-        write_records(self.source, {"GCST90000001": document})
+        self.write_run(records={"GCST90000001": document}, entries=None)
         with self.assertRaisesRegex(ResolutionImportError, "fingerprint"):
             self.import_records()
 
     def test_an_unrelated_record_with_an_arbitrary_digest_is_refused(self) -> None:
-        """The reviewer's probe: an id, a schema number and 64 hex characters (#290 review)."""
+        """The reviewer's earlier probe: an id, a schema number and 64 hex characters."""
         document = {
             "analysis_id": "GCST90000001",
             "status": "success",
             "record_schema_version": 1,
             "fingerprints": {"fingerprint_digest": "a" * 64},
         }
-        write_records(self.source, {"GCST90000001": document})
+        self.write_run(records={"GCST90000001": document})
         with self.assertRaisesRegex(ResolutionImportError, "fingerprint"):
             self.import_records()
 
     def test_a_record_whose_fingerprint_was_edited_is_refused(self) -> None:
         document = record("GCST90000001")
         document["fingerprints"]["source_recorded_sha256"] = OTHER_SHA256
-        write_records(self.source, {"GCST90000001": document})
+        self.write_run(records={"GCST90000001": document})
         with self.assertRaisesRegex(ResolutionImportError, "self-digest|digest"):
             self.import_records()
 
     def test_a_record_bound_to_no_file_the_collection_acquired_is_refused(self) -> None:
-        document = record("GCST90000001", fingerprints=fingerprints("GCST90000001", sha256=OTHER_SHA256))
-        write_records(self.source, {"GCST90000001": document})
+        document = record("GCST90000001")
+        document["fingerprints"] = fingerprints("GCST90000001", sha256=OTHER_SHA256)
+        self.write_run(records={"GCST90000001": document})
         with self.assertRaisesRegex(ResolutionImportError, "acquired|source_recorded_sha256"):
             self.import_records()
 
     def test_a_record_outside_the_collection_is_refused_by_name(self) -> None:
         document = record("GCST90009999")
-        write_records(self.source, {"GCST90009999": document})
+        self.write_run(records={"GCST90009999": document})
         with self.assertRaisesRegex(
             ResolutionImportError, "GCST90009999 is not an Analysis of the Source Collection"
         ):
             self.import_records()
 
-    def test_a_record_the_runs_own_index_does_not_name_is_refused(self) -> None:
-        (self.source / "index.json").write_text(
-            json.dumps({
-                "record_schema_version": 1,
-                "analyses": [
-                    {
-                        "analysis_id": "GCST90000001",
-                        "record_file": "GCST90000001.json",
-                        "status": "success",
-                    }
-                ],
-            }),
-            encoding="utf-8",
-        )
-        with self.assertRaisesRegex(ResolutionImportError, "index"):
-            self.import_records()
-
-    def test_an_index_the_runs_receipt_contradicts_is_refused(self) -> None:
-        index = {
-            "record_schema_version": 1,
-            "analyses": [
-                {"analysis_id": analysis_id, "record_file": f"{analysis_id}.json", "status": "success"}
-                for analysis_id in self.analysis_ids
-            ],
-        }
-        (self.source / "index.json").write_text(json.dumps(index), encoding="utf-8")
-        receipt = self.source / "receipt" / "resolution-receipt.json"
-        receipt.parent.mkdir()
-        receipt.write_text(
-            json.dumps({"records": {"index": copy.deepcopy(index) | {"n_total": 99}}}),
-            encoding="utf-8",
-        )
-        with self.assertRaisesRegex(ResolutionImportError, "receipt"):
-            self.import_records()
-
-    def test_the_runs_index_and_receipt_bind_the_records_it_imports(self) -> None:
-        index = {
-            "record_schema_version": 1,
-            "analyses": [
-                {"analysis_id": analysis_id, "record_file": f"{analysis_id}.json", "status": "success"}
-                for analysis_id in self.analysis_ids
-            ],
-        }
-        (self.source / "index.json").write_text(json.dumps(index), encoding="utf-8")
-        receipt = self.source / "receipt" / "resolution-receipt.json"
-        receipt.parent.mkdir()
-        receipt.write_text(json.dumps({"records": {"index": copy.deepcopy(index)}}), encoding="utf-8")
-        result = self.import_records()
-        self.assertEqual(result.imported, 2)
-
     def test_a_record_whose_analysis_id_disagrees_with_its_file_name_is_refused(self) -> None:
         document = record("GCST90000009")
-        write_records(self.source, {"GCST90000004": document})
+        self.write_run(records={"GCST90000004": document})
         with self.assertRaisesRegex(ResolutionImportError, "analysis_id"):
             self.import_records()
 
     def test_an_analysis_filter_imports_only_that_selection(self) -> None:
+        self.write_run()
         result = self.import_records(analysis_ids={"GCST90000002"})
         self.assertEqual(result.imported, 1)
         self.assertEqual(sorted(result.kept), ["GCST90000002"])

@@ -36,6 +36,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -75,6 +76,25 @@ REQUIRED_FINGERPRINTS: tuple[str, ...] = (
 
 
 @dataclass(frozen=True)
+class RunEvidence:
+    """What a run's own record proves about the records in its Work Root.
+
+    ``entries`` are the run's ``index.json`` rows, keyed by Analysis: each names
+    the record file, its status and the measurements the run reported.
+    ``record_digests`` is the receipt's per-record sha256 (a v1 pipeline receipt
+    carries them), and ``statuses`` the receipt's per-record statuses. At least
+    one of the two must corroborate the index, and a record the index does not
+    name is not the run's.
+    """
+
+    index_path: Path
+    receipt_path: Path
+    entries: Mapping[str, Mapping[str, object]]
+    record_digests: Mapping[str, str]
+    statuses: Mapping[str, str]
+
+
+@dataclass(frozen=True)
 class ImportResult:
     """What one import did, per source directory."""
 
@@ -109,7 +129,7 @@ def import_records(
     if not source.is_dir():
         raise ResolutionImportError(f"record directory not found: {source}")
     wanted = None if analysis_ids is None else set(analysis_ids)
-    index_entries = _run_index_entries(source)
+    evidence = _run_evidence(source)
     with area.exclusive(holder):
         checkpoint = area.checkpoint_dir(settings_digest)
         checkpoint.mkdir(parents=True, exist_ok=True)
@@ -124,7 +144,8 @@ def import_records(
             data = path.read_bytes()
             document = _load_record(path, data, analysis_id, intent)
             digest = _fingerprint_digest(path, document)
-            _check_bound(path, document, analysis_id, intent, index_entries)
+            _check_bound(path, document, analysis_id, intent)
+            _check_evidence(path, data, document, evidence)
             target = checkpoint / f"{analysis_id}.json"
             if target.exists():
                 if target.read_bytes() != data:
@@ -209,16 +230,12 @@ def _check_bound(
     document: Mapping[str, object],
     analysis_id: str,
     intent: CollectionIntent,
-    index_entries: Mapping[str, Mapping[str, object]],
 ) -> None:
-    """The record's source identity and its run's index, checked against the evidence.
+    """The record's source identity, checked against what the collection acquired.
 
     The fingerprint binds the record to one file. That file must be the one the
     collection's own Acquisition Manifest acquired for this Analysis; the
-    storage checksum the resolver measured is the only per-record checksum the
-    historical runs kept, so it is what the binding is proved with. The run's
-    ``index.json`` is the other piece of evidence: a record it does not name did
-    not come from that run.
+    storage checksum the resolver measured is what the binding is proved with.
     """
     fingerprints = document["fingerprints"]
     entry = intent.acquired(analysis_id)
@@ -238,29 +255,94 @@ def _check_bound(
                 f"{path}: fingerprint {key} is {actual!r}, but the Source Collection acquired "
                 f"{expected!r}; this record was not resolved against the acquired file"
             )
-    if index_entries:
-        named = index_entries.get(analysis_id)
-        if named is None:
+
+
+def _record_measurements(document: Mapping[str, object]) -> dict[str, object]:
+    """The measurements the run's index summarises, derived from the record.
+
+    It mirrors the resolver's own resumed-summary fields, so an index entry is
+    comparable: an edited record no longer matches the run that wrote it.
+    """
+    ancestry = document.get("ancestry")
+    ancestry = ancestry if isinstance(ancestry, Mapping) else {}
+    phenotype = document.get("phenotype_sd")
+    phenotype = phenotype if isinstance(phenotype, Mapping) else {}
+    estimate = phenotype.get("estimate")
+    estimate = estimate if isinstance(estimate, Mapping) else {}
+    fingerprints = document["fingerprints"]
+    resolution = fingerprints.get("resolution_config")
+    resolution = resolution if isinstance(resolution, Mapping) else {}
+    return {
+        "assigned_ancestry": ancestry.get("assigned_ancestry") or None,
+        "gate_reason": ancestry.get("gate_reason") or None,
+        "original_sd": estimate.get("sd"),
+        "original_sd_method": resolution.get("original_sd_method"),
+        "status": document.get("status"),
+        "record_file": f"{document['analysis_id']}.json",
+    }
+
+
+def _check_evidence(
+    path: Path,
+    data: bytes,
+    document: Mapping[str, object],
+    evidence: RunEvidence,
+) -> None:
+    """Bind the record's bytes and measurements to what the run recorded (#290 review).
+
+    The run's index names the record and reports its measurements; the receipt
+    binds either that index or each record's sha256. A record whose bytes or
+    measurements disagree with them did not come from that run.
+    """
+    analysis_id = str(document["analysis_id"])
+    if evidence.record_digests:
+        recorded = evidence.record_digests.get(analysis_id)
+        if recorded is None:
             raise ResolutionImportError(
-                f"{path}: the run's index.json does not name {analysis_id}, so this record is "
-                "not the run's"
+                f"{path}: the run's receipt carries no record_digests entry for {analysis_id}, "
+                "so this record is not the run's"
             )
-        if named.get("record_file") != path.name or named.get("status") != document["status"]:
+        actual = hashlib.sha256(data).hexdigest()
+        if actual != recorded:
             raise ResolutionImportError(
-                f"{path}: the run's index.json names {named.get('record_file')!r} with status "
-                f"{named.get('status')!r}, not this record"
+                f"{path}: the record's sha256 is {actual}, but the run's receipt bound "
+                f"{recorded}; the record was edited after the run wrote it"
+            )
+    named = evidence.entries.get(analysis_id)
+    if named is None:  # pragma: no cover - _run_evidence refuses an empty index, checked again below
+        raise ResolutionImportError(
+            f"{path}: the run's index.json does not name {analysis_id}, so this record is not "
+            "the run's"
+        )
+    for key, actual in _record_measurements(document).items():
+        expected = named.get(key)
+        if actual != expected:
+            raise ResolutionImportError(
+                f"{path}: the record's {key} is {actual!r}, but the run's index.json recorded "
+                f"{expected!r}; the record was edited after the run wrote it"
+            )
+    if evidence.statuses:
+        recorded = evidence.statuses.get(analysis_id)
+        if recorded != document.get("status"):
+            raise ResolutionImportError(
+                f"{path}: the run's receipt recorded status {recorded!r} for {analysis_id}, not "
+                f"{document.get('status')!r}"
             )
 
 
-def _run_index_entries(source: Path) -> Mapping[str, Mapping[str, object]]:
-    """The analysis ids the run's own ``index.json`` names, with its receipt's agreement.
+def _run_evidence(source: Path) -> RunEvidence:
+    """The run's index and its sibling ``receipt/``, or a refusal.
 
-    An old Work Root without an index is seeded on its records' own evidence. One
-    with an index must have an index the receipt beside it records.
+    The #221 runs kept their records in a Work Root and their receipt beside it
+    (``../receipt/``), not beside the records. Both must exist and corroborate
+    each other: absence is not "nothing to check" (#290 review).
     """
     index_path = source / "index.json"
     if not index_path.is_file():
-        return {}
+        raise ResolutionImportError(
+            f"{source} has no index.json, so nothing proves which records the run wrote; a "
+            "record directory without its run's index cannot be seeded"
+        )
     try:
         index = json.loads(index_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -272,19 +354,63 @@ def _run_index_entries(source: Path) -> Mapping[str, Mapping[str, object]]:
         if not isinstance(entry, Mapping) or not isinstance(entry.get("analysis_id"), str):
             raise ResolutionImportError(f"{index_path} names an Analysis without an analysis_id")
         entries[entry["analysis_id"]] = entry
-    receipt_path = source / "receipt" / "resolution-receipt.json"
-    if receipt_path.is_file():
-        try:
-            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise ResolutionImportError(f"{receipt_path} is not a run receipt: {exc}") from exc
-        recorded = (receipt.get("records") or {}).get("index") if isinstance(receipt, dict) else None
-        if recorded != index:
-            raise ResolutionImportError(
-                f"{receipt_path} records a different index than {index_path}; this record "
-                "directory is not the one the run recorded"
-            )
-    return entries
+    if not entries:
+        raise ResolutionImportError(
+            f"{index_path} names no Analysis, so no record in {source} can be proved the run's"
+        )
+
+    receipt_path = source.parent / "receipt" / "resolution-receipt.json"
+    if not receipt_path.is_file():
+        raise ResolutionImportError(
+            f"{source}: the run's receipt {receipt_path} is missing, so the index cannot be "
+            "corroborated and nothing proves the records are the run's"
+        )
+    try:
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ResolutionImportError(f"{receipt_path} is not a run receipt: {exc}") from exc
+    if not isinstance(receipt, Mapping):
+        raise ResolutionImportError(f"{receipt_path} is not a run receipt: not a JSON mapping")
+
+    digests = receipt.get("record_digests")
+    record_digests: dict[str, str] = {}
+    if digests is not None:
+        if not isinstance(digests, Mapping):
+            raise ResolutionImportError(f"{receipt_path}: record_digests is not a mapping")
+        for analysis_id, digest in digests.items():
+            if not isinstance(digest, str) or len(digest) != 64 or any(
+                character not in "0123456789abcdef" for character in digest
+            ):
+                raise ResolutionImportError(
+                    f"{receipt_path}: record_digests[{analysis_id!r}] is not a lower-case sha256"
+                )
+            record_digests[str(analysis_id)] = digest
+
+    records = receipt.get("records")
+    recorded_index = records.get("index") if isinstance(records, Mapping) else None
+    statuses: dict[str, str] = {}
+    if isinstance(records, Mapping) and isinstance(records.get("statuses"), Mapping):
+        statuses = {
+            str(analysis_id): str(status)
+            for analysis_id, status in records["statuses"].items()
+        }
+    if recorded_index is None and not record_digests:
+        raise ResolutionImportError(
+            f"{receipt_path} records neither the run's index nor its records' digests, so it "
+            "corroborates nothing"
+        )
+    if recorded_index is not None and recorded_index != index:
+        raise ResolutionImportError(
+            f"{receipt_path} records a different index than {index_path}; this record directory "
+            "is not the one the run recorded"
+        )
+    return RunEvidence(
+        index_path=index_path,
+        receipt_path=receipt_path,
+        entries=entries,
+        record_digests=record_digests,
+        statuses=statuses,
+    )
 
 
 def _write_once(target: Path, data: bytes) -> None:
