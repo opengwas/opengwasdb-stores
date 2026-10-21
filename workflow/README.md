@@ -101,11 +101,15 @@ The completion phase's records are `complete`, `completion-rho`,
 `completion-validate`, `completion-observed-view-check` and
 `completion-register`. They never overwrite the
 build phase's, and both sets stay in `records/`. The completion phase takes
-no records snapshot. Its archive, `replaced/<UTC>/` (suffixed `-2`, `-3`, …
-when that name is taken), holds the replaced Observed-Only Store, a copy of
-its `records/register.json` under `records/`, and its `validation.yaml`. The
-bundle's `validation.yaml` then describes the completed Store and names the
-archive.
+no records snapshot. Once the completed Store is published it deletes the
+Observed-Only Store, which the completed Store contains, so the id keeps one
+copy on disk. Its archive, `replaced/<UTC>/` (suffixed `-2`, `-3`, … when that
+name is taken), holds no Store: a copy of the replaced release's
+`records/register.json` and of the passing
+`records/completion-observed-view-check.json` under `records/`, and the
+replaced `validation.yaml`. The bundle's `validation.yaml` then describes the
+completed Store and names the archive. A crash during the deletion is finished
+by the next run. A forced run archives the Store it replaces in both phases.
 
 A failed or interrupted completion leaves the Observed-Only Store published
 and the build phase's records untouched. The next `pixi run release <ID>`,

@@ -44,7 +44,15 @@ import yaml
 
 from ogstores import bundle, paths, run
 from ogstores.bundle import Bundle
-from ogstores.plan import BUILD_PHASE, COMPLETION_PHASE, REGISTER_STEPS, Step, completion_step_name, plan
+from ogstores.plan import (
+    BUILD_PHASE,
+    COMPLETION_PHASE,
+    OBSERVED_VIEW_CHECK_STEP,
+    REGISTER_STEPS,
+    Step,
+    completion_step_name,
+    plan,
+)
 
 # The Validation Record shape `register` writes. Every record it writes carries
 # every `OBSERVED_FIELDS` and `BUILD_ENVIRONMENT_FIELDS` key, with a measurement
@@ -103,6 +111,12 @@ class ArgvDriftError(RegisterError, ValueError):
 
 class ValidateVerdictError(RegisterError, ValueError):
     """Raised when the validate step's record carries no `--format json` verdict."""
+
+    pass
+
+
+class ObservedViewCheckError(RegisterError):
+    """Raised when a completion phase's Observed-View Check record does not show a pass."""
 
     pass
 
@@ -300,6 +314,42 @@ def validate_verdict(validate_record: dict[str, Any] | None) -> tuple[str, list[
     if warnings:
         return "passed_with_warnings", warnings, errors
     return "passed", warnings, errors
+
+
+def require_passing_observed_view_check(
+    store_id: str, check_record: dict[str, Any] | None, record_p: Path
+) -> None:
+    """Refuse a completion phase whose Observed-View Check record shows no pass (ADR 0037, #309).
+
+    The completion phase deletes the Store it replaces, so it goes ahead only
+    on a pass its record shows, beside the requirement that every planned
+    step succeeded. The verdict is the first JSON object on the record's
+    stdout, as `opengwasdb check-observed-view` prints it; the first, because
+    `run.execute_step` may capture a step's output twice. No record, stdout
+    that does not start with an object, and any `passed` but `true` are each
+    refused.
+    """
+
+    def refuse(reason: str) -> ObservedViewCheckError:
+        return ObservedViewCheckError(
+            f"Cannot register the completion phase of {store_id}: the Observed-View Check record "
+            f"{record_p} {reason}. Nothing was changed; the published Store stands."
+        )
+
+    if check_record is None:
+        raise refuse("is missing")
+    stdout = check_record.get("stdout")
+    try:
+        verdict, _ = json.JSONDecoder().raw_decode(stdout.lstrip() if isinstance(stdout, str) else "")
+    except ValueError as exc:
+        raise refuse(f"holds no verdict on its stdout ({exc})") from exc
+    if not isinstance(verdict, dict):
+        raise refuse(f"holds no verdict on its stdout (a JSON {type(verdict).__name__}, not an object)")
+    if "passed" not in verdict:
+        raise refuse("has a verdict with no `passed`")
+    if verdict["passed"] is not True:
+        failures = verdict.get("failures")
+        raise refuse(f"does not show a pass: passed: {json.dumps(verdict['passed'])} (failures: {failures!r})")
 
 
 def committed_revision(path: Path | str) -> str | None:
@@ -534,13 +584,17 @@ def _write_yaml_atomically(data: dict[str, Any], dest_path: Path) -> None:
 
 # The durable steps of a publication, in order: a crash between any two leaves
 # a state `complete_publication` recognises and finishes (#195). Tests inject a
-# crash at each through `run.fault_boundary`.
+# crash at each through `run.fault_boundary`. A replaced Store is either
+# archived (`old-store-archived`) or, by a completion phase, deleted: part-way
+# through (`old-store-deleting`), then wholly (`old-store-deleted`) (#309).
 PUBLICATION_BOUNDARIES: tuple[str, ...] = (
     "publication-started",
     "marker-written",
     "store-set-aside",
     "store-published",
     "old-store-archived",
+    "old-store-deleting",
+    "old-store-deleted",
     "old-records-archived",
     "old-record-archived",
     "record-written",
@@ -551,12 +605,17 @@ _MARKER_KEYS: frozenset[str] = frozenset({
     "store_id",
     "archive",
     "snapshot",
+    "replaced_store",
     "bundle_validation",
     "previous_validation",
     "validation_yaml",
     "register_record",
     "written_at",
 })
+# What becomes of the Store a publication replaces (`replaced_store`): a
+# forced run archives it, and a completion phase deletes it (ADR 0037, #309).
+ARCHIVE_REPLACED_STORE = "archive"
+DELETE_REPLACED_STORE = "delete"
 
 
 def _dump_yaml(data: dict[str, Any]) -> str:
@@ -604,6 +663,18 @@ def _exists(path: Path) -> bool:
     return os.path.lexists(path)
 
 
+def _delete_tree(path: Path) -> None:
+    """Remove a replaced Store from its deletion name, from wherever a crash stopped it (#309)."""
+    for n, entry in enumerate(sorted(path.iterdir())):
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+        if n == 0:
+            run.fault_boundary("old-store-deleting")
+    path.rmdir()
+
+
 def _load_marker(store_id: str, root: Path) -> dict[str, Any] | None:
     marker_p = paths.publication_marker(store_id, root=root)
     if not _exists(marker_p):
@@ -612,8 +683,17 @@ def _load_marker(store_id: str, root: Path) -> dict[str, Any] | None:
         marker = json.loads(marker_p.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise PublicationError(f"Cannot read the pending publication {marker_p}: {exc}") from exc
-    if not isinstance(marker, dict) or set(marker) != _MARKER_KEYS or marker.get("store_id") != store_id:
+    # Two shapes are markers: this one, and the one written before #309, which
+    # has no `replaced_store`. A crash may have left the older one, and it
+    # meant what it still means: a replaced Store is archived.
+    if (
+        not isinstance(marker, dict)
+        or set(marker) not in (_MARKER_KEYS, _MARKER_KEYS - {"replaced_store"})
+        or marker.get("store_id") != store_id
+    ):
         raise PublicationError(f"{marker_p} is not a publication marker for {store_id}")
+    if "replaced_store" not in marker:
+        marker["replaced_store"] = None if marker["archive"] is None else ARCHIVE_REPLACED_STORE
     store_dir_p = paths.store_dir(store_id, root=root)
     archive, snapshot = marker["archive"], marker["snapshot"]
     if archive is not None and Path(archive).parent != store_dir_p / paths.REPLACED_DIRNAME:
@@ -669,6 +749,43 @@ def finish_build_phase_publication(store_id: str, root: Path | str) -> bool:
     return True
 
 
+def forced_completion(release_run: str | None, store_id: str, root: Path | str) -> bool:
+    """Whether the entry-point run `release_run` forced the release whose completion phase registers (#309).
+
+    A forced run's completion phase archives the Store it replaces, as every
+    forced replacement does, where an unforced one deletes it. The entry point
+    forces a release through its records snapshot (`run.forced_by_transaction`),
+    but the build phase's publication has moved that snapshot into its archive,
+    `replaced/<release_run>/`, by then. So it is the build phase's register
+    record, which names that archive, that says the run was forced. A null
+    `replaced_archive`, or another run's archive, means it was not.
+
+    So does a record with no `replaced_archive` at all. The field arrived with
+    #195, and `register` has written it ever since, so such a record was
+    written by a run before #195; and a forced run reruns the build phase and
+    rewrites `register.json`, so this run did not force it. Every Store
+    published before #195 has such a record, and completing one under its own
+    id (#305) meets it. A `replaced_archive` that is neither text nor null is
+    refused rather than read as unforced, which would delete what a forced run
+    archives.
+    """
+    if not release_run:
+        return False
+    record = run.load_record(store_id, REGISTER_STEPS[BUILD_PHASE], root=root)
+    if record is None:
+        # Nothing published to replace: `register_release` refuses that itself.
+        return False
+    replaced_archive = record.get("replaced_archive")
+    if not isinstance(replaced_archive, (str, type(None))):
+        record_p = paths.record_path(store_id, REGISTER_STEPS[BUILD_PHASE], root=root)
+        raise RegisterError(
+            f"Cannot tell whether the run {release_run} forced {store_id}: the build phase's register "
+            f"record {record_p} has `replaced_archive` {replaced_archive!r}, not an archive path or null. "
+            "Nothing was changed."
+        )
+    return replaced_archive == str(paths.replaced_dir(store_id, release_run, root=root))
+
+
 def remove_publication_marker(store_id: str, root: Path | str) -> None:
     """Remove a finished publication's marker: always the transaction's last step (#195)."""
     marker_p = paths.publication_marker(store_id, root=root)
@@ -689,13 +806,18 @@ def complete_publication(
     marker is removed last, only when everything below agrees:
 
     1. The staged Store is published. For a replacement, the old Store is first
-       set aside as `.backup`, and after the swap it is renamed into the
-       archive, never deleted.
+       set aside as `.backup`. After the swap a forced run renames it into the
+       archive. A completion phase deletes it (ADR 0037, #309): it renames it
+       into the archive under a deletion name, then removes that tree. The
+       marker's `replaced_store` says which, and a marker written before #309,
+       which lacks it, archives.
     2. For a replacement, the run's records snapshot moves into the archive as
        `records/`, and the replaced Validation Record is written there. A
        completion phase takes no snapshot (ADR 0037): the release it replaces
        is its own build phase's, whose records stay in `records/`, and a copy
        of that release's `records/register.json` joins the archive instead.
+       When it deleted the Store, so does a copy of the passing
+       `records/completion-observed-view-check.json` that let it.
     3. The new `validation.yaml` and the phase's register record
        (`records/register.json`, or `records/completion-register.json`) are
        written from the marker.
@@ -737,8 +859,15 @@ def complete_publication(
             raise stuck("a Store and a staged Store both exist, but nothing is being replaced")
     else:
         archive = Path(marker["archive"])
-        archived_store = archive / store_p.name
-        if _exists(archived_store):
+        deleting = marker["replaced_store"] == DELETE_REPLACED_STORE
+        # A Store to delete moves into the archive under a deletion name, in
+        # one rename, as a Store to archive moves in under its own. Removing
+        # the tree is not atomic, so the name marks one half-deleted. The
+        # archive exists from that rename on, so an archive with neither the
+        # tree nor a `.backup` means the deletion is done.
+        archived_store = archive / (f"{store_p.name}.deleting" if deleting else store_p.name)
+        deleted = deleting and _exists(archive) and not _exists(archived_store) and not _exists(backup_p)
+        if _exists(archived_store) or deleted:
             if _exists(backup_p):
                 raise stuck(f"both {archived_store} and {backup_p} exist")
             if not _exists(store_p):
@@ -760,20 +889,31 @@ def complete_publication(
             backup_p.rename(archived_store)
             run._fsync_dir(archive)
             run._fsync_dir(store_dir_p)
-            run.fault_boundary("old-store-archived")
+            if not deleting:
+                run.fault_boundary("old-store-archived")
+        if deleting and _exists(archived_store):
+            _delete_tree(archived_store)
+            run._fsync_dir(archive)
+            run.fault_boundary("old-store-deleted")
 
         snapshot = Path(marker["snapshot"]) if marker["snapshot"] else None
         if snapshot is not None and _exists(snapshot):
             run.archive_force_snapshot(snapshot, archive)
             run.fault_boundary("old-records-archived")
         if register_step != REGISTER_STEPS[BUILD_PHASE]:
-            replaced_register = paths.record_path(store_id, REGISTER_STEPS[BUILD_PHASE], root=resolved_root)
-            archived_register = archive / "records" / replaced_register.name
-            if not _exists(archived_register):
-                if not _exists(replaced_register):
-                    raise stuck(f"the register record of the release being replaced, {replaced_register}, is missing")
-                _write_text_atomically(replaced_register.read_text(encoding="utf-8"), archived_register)
-                run.fault_boundary("old-records-archived")
+            # The replaced release's register record, and for a deleted Store
+            # the passing verdict that let it go.
+            kept = [(REGISTER_STEPS[BUILD_PHASE], "the register record of the release being replaced")]
+            if deleting:
+                kept.append((OBSERVED_VIEW_CHECK_STEP, "the Observed-View Check record that let it be deleted"))
+            for step, what in kept:
+                record_p = paths.record_path(store_id, step, root=resolved_root)
+                archived_record = archive / "records" / record_p.name
+                if not _exists(archived_record):
+                    if not _exists(record_p):
+                        raise stuck(f"{what}, {record_p}, is missing")
+                    _write_text_atomically(record_p.read_text(encoding="utf-8"), archived_record)
+                    run.fault_boundary("old-records-archived")
         if marker["previous_validation"] is not None and not _exists(archive / "validation.yaml"):
             _write_text_atomically(marker["previous_validation"], archive / "validation.yaml")
             run.fault_boundary("old-record-archived")
@@ -822,6 +962,8 @@ def register_release(
         registry_root: Optional registry root path (default: stores/).
         artifact_root: Optional artifact root path override.
         force: If True, permit replacing an existing final Store during terminal publication.
+            The replaced Store is archived; a completion phase passed it, as a
+            forced run's is, archives rather than deletes (#309).
         publish: If True, atomically publish staging store (.partial -> final store).
         acceptance_commit: The commit of the bundle's current validation.yaml
             (`committed_revision`), recorded when that is a candidate record.
@@ -830,8 +972,10 @@ def register_release(
         phase: The phase to register. A release that completes its own Store
             registers its `build` phase, then its `completion` phase, which
             replaces the Store the first published without `force`, takes no
-            records snapshot, and writes `records/completion-register.json`
-            (ADR 0037).
+            records snapshot, deletes the Store it replaced once the new one
+            is in place, and writes `records/completion-register.json`
+            (ADR 0037, #309). It registers only over a passing Observed-View
+            Check.
 
     Returns:
         dict containing the assembled validation.yaml data.
@@ -840,6 +984,7 @@ def register_release(
         StepFailedError: If a step record indicates a failed step.
         ArgvDriftError: If executed argv differs from planned argv.
         ValidateVerdictError: If the validate record carries no `--format json` verdict.
+        ObservedViewCheckError: If a completion phase's check record shows no pass.
     """
     if isinstance(bundle_input, str):
         b = bundle.load(bundle_input, registry_root=registry_root)
@@ -901,6 +1046,12 @@ def register_release(
         if is_resumed:
             any_resumed = True
         step_records[step.name] = rec
+    if phase == COMPLETION_PHASE:
+        require_passing_observed_view_check(
+            store_id,
+            step_records.get(OBSERVED_VIEW_CHECK_STEP),
+            paths.record_path(store_id, OBSERVED_VIEW_CHECK_STEP, root=resolved_root),
+        )
 
     # 2. This run's verdict and findings, then its observed measurements
     validate_step = _validate_step(planned_steps)
@@ -967,6 +1118,14 @@ def register_release(
 
     archive: Path | None = None
     snapshot: Path | None = None
+    replaced_store: str | None = None
+    if replacing:
+        # The completion phase deletes the Store it replaces: the completed
+        # Store holds everything it held (ADR 0037, Decision 3). A forced run
+        # archives it, in either phase (#309).
+        replaced_store = (
+            DELETE_REPLACED_STORE if phase == COMPLETION_PHASE and not force else ARCHIVE_REPLACED_STORE
+        )
     if replacing and phase == COMPLETION_PHASE:
         # No records snapshot: the completion phase's records never overwrite
         # the build phase's, so a failed completion leaves them standing, and
@@ -1036,6 +1195,7 @@ def register_release(
             "store_id": store_id,
             "archive": str(archive) if archive else None,
             "snapshot": str(snapshot) if snapshot else None,
+            "replaced_store": replaced_store,
             "bundle_validation": str(val_yaml_path.resolve()),
             "previous_validation": (
                 val_yaml_path.read_text(encoding="utf-8") if replacing and val_yaml_path.is_file() else None
@@ -1062,6 +1222,7 @@ __all__ = [
     "VALIDATOR_NAME",
     "ArgvDriftError",
     "MissingRecordError",
+    "ObservedViewCheckError",
     "PUBLICATION_BOUNDARIES",
     "PublicationError",
     "RegisterError",
@@ -1072,11 +1233,13 @@ __all__ = [
     "committed_revision",
     "complete_publication",
     "finish_build_phase_publication",
+    "forced_completion",
     "harvest_observed_measurements",
     "normalize_executed_argv_for_staging",
     "normalize_executed_argv_for_variant_reference",
     "publication_register_step",
     "register_release",
     "remove_publication_marker",
+    "require_passing_observed_view_check",
     "validate_verdict",
 ]
