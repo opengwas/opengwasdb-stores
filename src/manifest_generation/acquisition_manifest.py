@@ -8,9 +8,15 @@ Analysis it tried and could not acquire, with a non-ready ``status`` and the
 explained absence from a silent one. The manifest never records intent; the
 Source Metadata Table does.
 
-One row per Analysis means one file per Analysis. A file several Analyses
-share -- eQTLGen's BESD file set -- cannot be recorded yet and is refused as a
-duplicate file; #291 extends the manifest when eQTLGen moves.
+A plain file is one Analysis's. A BESD file set -- ``.besd``, ``.epi`` and
+``.esi`` under one prefix, which holds an Analysis per probe -- is shared: every
+Analysis reading it records the prefix as ``location``, its own
+``source_probe_id`` and the same ``members`` (each member's size and sha256,
+never a composite checksum). The file set's ``bytes`` and ``sha256`` are the
+``.besd`` member's, the file that holds the associations, so they equal what
+the resolver fingerprints. Sharing is accepted only when the claimants agree on
+every member and each probe is claimed once; a member whose checksum differs
+between claimants, or a probe claimed twice, is refused by name (#291).
 
 A file acquisition changed carries its lineage, so a Release Bundle traces
 back to what the provider published: the original's location and sha256 and
@@ -71,13 +77,21 @@ LINEAGE_COLUMNS: tuple[str, ...] = ("original_location", "original_sha256", "ref
 #: the region policy it was filtered to, one canonical JSON object.
 OPTIONAL_LINEAGE_COLUMNS: tuple[str, ...] = ("original_bytes", "region_policy")
 
+#: A BESD file set several Analyses share (#291): the probe each Analysis reads
+#: and the members' sizes and checksums, one canonical JSON object. Both or neither.
+FILE_SET_COLUMNS: tuple[str, ...] = ("source_probe_id", "members")
+
+#: The member suffixes of a BESD file set, and the one that holds the associations.
+BESD_MEMBERS: tuple[str, ...] = (".besd", ".epi", ".esi")
+BESD_DATA_MEMBER: str = ".besd"
+
 OPTIONAL_COLUMNS: tuple[str, ...] = (
     "source_url",
     "sidecar_location",
     "sidecar_url",
     "sidecar_bytes",
     "error",
-) + LINEAGE_COLUMNS + OPTIONAL_LINEAGE_COLUMNS
+) + LINEAGE_COLUMNS + OPTIONAL_LINEAGE_COLUMNS + FILE_SET_COLUMNS
 
 #: Every canonical column, in the order a writer emits them.
 COLUMNS: tuple[str, ...] = REQUIRED_COLUMNS + OPTIONAL_COLUMNS
@@ -153,6 +167,10 @@ class AcquisitionEntry:
     sidecar_bytes: int | None = None
     error: str = ""
     lineage: Lineage | None = None
+    #: The probe a BESD Analysis reads in the file set ``location`` is the prefix of.
+    source_probe_id: str = ""
+    #: A BESD file set's members -> ``{"bytes": int, "sha256": str}``; ``None`` for a plain file.
+    members: Mapping[str, Mapping[str, Any]] | None = None
 
     @property
     def ready(self) -> bool:
@@ -160,8 +178,9 @@ class AcquisitionEntry:
 
     @property
     def files(self) -> tuple[str, ...]:
-        """Every local path this entry claims."""
-        return tuple(path for path in (self.location, self.sidecar_location) if path)
+        """Every local path this entry claims alone: a file set's prefix is shared, so it is not one."""
+        paths = (self.location, self.sidecar_location)
+        return tuple(path for path in paths if path and not (self.members and path == self.location))
 
 
 @dataclass(frozen=True)
@@ -210,6 +229,7 @@ def load_acquisition_manifest(path: Path) -> AcquisitionManifest:
     repeated_files = duplicate_values(path for entry in entries for path in entry.files)
     if repeated_files:
         problems.append(f"duplicate file claimed by more than one entry: {', '.join(repeated_files)}")
+    problems.extend(_file_set_problems(entries))
     if problems:
         raise_problems(AcquisitionManifestError, f"Acquisition Manifest {path}", problems)
     return AcquisitionManifest(
@@ -250,6 +270,14 @@ def _row_problems(row: Mapping[str, str]) -> list[str]:
     for column in ("sha256", "original_sha256"):
         if value(column) and not _SHA256.match(value(column)):
             problems.append(f"{column} {value(column)!r} is not a lower-case sha256 digest")
+    if any(value(column) for column in FILE_SET_COLUMNS):
+        absent = [column for column in FILE_SET_COLUMNS if not value(column)]
+        if absent:
+            problems.append(f"a BESD file set needs {', '.join(FILE_SET_COLUMNS)}; {', '.join(absent)} empty")
+        elif status not in READY_STATUSES:
+            problems.append(f"a file set is recorded on a {status!r} entry with no ready file")
+        else:
+            problems.extend(_members_problems(row))
     if any(value(column) for column in LINEAGE_COLUMNS + OPTIONAL_LINEAGE_COLUMNS):
         absent = [
             column for column in LINEAGE_COLUMNS
@@ -261,6 +289,66 @@ def _row_problems(row: Mapping[str, str]) -> list[str]:
             problems.append(f"lineage is recorded on a {status or 'status-less'!r} entry with no ready file")
         if value("region_policy"):
             problems.extend(_region_policy_problems(value("region_policy")))
+    return problems
+
+
+def _file_set_problems(entries: list[AcquisitionEntry]) -> list[str]:
+    """Why the entries sharing a BESD file set do not agree on it (#291)."""
+    problems: list[str] = []
+    by_prefix: dict[str, list[AcquisitionEntry]] = {}
+    for entry in entries:
+        if entry.members is not None:
+            by_prefix.setdefault(entry.location, []).append(entry)
+    plain = {entry.location for entry in entries if entry.members is None and entry.location}
+    for prefix, claimants in by_prefix.items():
+        if prefix in plain:
+            problems.append(f"duplicate file claimed by more than one entry: {prefix}")
+        first = claimants[0]
+        for entry in claimants[1:]:
+            for suffix in BESD_MEMBERS:
+                if entry.members[suffix] != first.members[suffix]:
+                    problems.append(
+                        f"file set {prefix} member {suffix} differs between "
+                        f"{first.source_analysis_id} ({_describe(first.members[suffix])}) and "
+                        f"{entry.source_analysis_id} ({_describe(entry.members[suffix])}): "
+                        "its sha256 changed"
+                    )
+        repeated = duplicate_values(entry.source_probe_id for entry in claimants)
+        if repeated:
+            problems.append(f"duplicate probe claimed twice in file set {prefix}: {', '.join(repeated)}")
+    return problems
+
+
+def _describe(member: Mapping[str, Any]) -> str:
+    return f"{member['bytes']} bytes, sha256 {member['sha256']}"
+
+
+def _members_problems(row: Mapping[str, str]) -> list[str]:
+    """Why a row's ``members`` is not a BESD file set's complete record, and its data member's identity."""
+    text = row.get("members", "")
+    try:
+        members = json.loads(text)
+    except ValueError:
+        return [f"members {text!r} is not JSON"]
+    if not isinstance(members, dict) or set(members) != set(BESD_MEMBERS):
+        return [f"members must hold exactly {', '.join(BESD_MEMBERS)}; it has {sorted(members) if isinstance(members, dict) else text!r}"]
+    problems = []
+    for suffix in BESD_MEMBERS:
+        member = members[suffix]
+        if not (
+            isinstance(member, dict)
+            and set(member) == {"bytes", "sha256"}
+            and type(member["bytes"]) is int and member["bytes"] >= 0
+            and isinstance(member["sha256"], str) and _SHA256.match(member["sha256"])
+        ):
+            problems.append(f"members {suffix} {member!r} is not a size in bytes and a lower-case sha256")
+    if problems:
+        return problems
+    data = members[BESD_DATA_MEMBER]
+    if row.get("sha256") != data["sha256"]:
+        problems.append(f"sha256 {row.get('sha256')!r} is not the {BESD_DATA_MEMBER} member's {data['sha256']}")
+    if row.get("bytes") != str(data["bytes"]):
+        problems.append(f"bytes {row.get('bytes')!r} is not the {BESD_DATA_MEMBER} member's {data['bytes']}")
     return problems
 
 
@@ -345,4 +433,6 @@ def _entry(row: Mapping[str, str]) -> AcquisitionEntry:
         sidecar_bytes=int(row["sidecar_bytes"]) if row.get("sidecar_bytes") else None,
         error=row.get("error", ""),
         lineage=lineage,
+        source_probe_id=row.get("source_probe_id", ""),
+        members=json.loads(row["members"]) if row.get("members") else None,
     )

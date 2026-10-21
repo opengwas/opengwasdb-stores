@@ -255,14 +255,17 @@ file for that Analysis -- an explained absence (see Freeze).
 | `original_location`, `original_sha256`, `reformat_tool` | No; all three or none | Lineage of a file acquisition changed: the original's path and sha256 and the tool, with its version, that changed it. Only on a ready row. Acquisition changes a file in two cases: a structural change no reader or Column Map can cope with, such as splitting one file into one per Analysis, and filtering it to a release's region policy (#300, below). |
 | `original_bytes` | No; only with lineage | The original's size. It stands in for `original_sha256` only for an original filtered before acquisition checksummed it, and since deleted: Chen 2023's files, filtered by the retired R generator, whose `filter_summary.tsv` recorded each original's size and no checksum. |
 | `region_policy` | No; only with lineage | The region policy a region-filtered file was filtered to: one JSON object with sorted keys and no spaces, naming `region_policy_id` and `association_coverage` (`signals_only` or `cis_plus_signals`), `trans_flank_bp` and `suggestive_lead_min_distance_bp` (whole bases), `significant_p` and `suggestive_p` (in (0, 1]), the QC panel's `resource_id` and `sha256` (every policy keeps one, ADR 0036), and for a cis policy `cis_flank_bp` and the `target` span used (`chromosome`, `start`, `end`). A policy missing any of them, or a cis flank or target on a signals-only one, is refused. |
+| `source_probe_id`, `members` | No; both or neither, only on a ready row | A BESD file set several Analyses share (#291). `location` is the file set's prefix (the path without `.besd`, `.epi` or `.esi`), `source_probe_id` the `.epi` probe this Analysis reads, and `members` one JSON object with sorted keys and no spaces naming exactly `.besd`, `.epi` and `.esi`, each with its `bytes` (a whole number) and lower-case `sha256`. The file set's `bytes` and `sha256` columns are the `.besd` member's -- the file that holds the associations -- and are refused if they are not. There is no composite checksum: the members' own are what the resolver's `source_member_files` fingerprint (size and mtime of each member) is checked against. |
 
 A duplicate `source_analysis_id` is refused, and so is a file -- a `location`
 or `sidecar_location` -- claimed by two rows.
 
-**One row per Analysis is one file per Analysis.** A file several Analyses
-share, such as eQTLGen's BESD file set, cannot be recorded today: it is refused
-as a duplicate file. #291 extends the manifest when eQTLGen moves onto the
-pipeline.
+**A file set is the one shared claim.** Rows with `members` may share one
+`location`, because a BESD file holds an Analysis per probe. They are accepted
+only when every claimant records identical `members` and each `source_probe_id`
+is claimed once in the file set; a member whose size or sha256 differs between
+claimants, or a probe claimed twice, is refused by name. A plain file is still
+one Analysis's, and a file set's prefix may not also be a plain row's `location`.
 
 ### Region-filtered acquisition
 
