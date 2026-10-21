@@ -82,7 +82,8 @@ enforces access itself; the catalog states the posture and does not enforce it
 the Store does not hold, and a missing count is an absence, never a match.
 
 **Schema and build.** Two main tables and supporting ones, in one SQLite file:
-`stores`, one row per registered Store Release; `analyses`, one row per
+`stores`, one row per listed or placeholder Store Release (an excluded or
+refused Store has none, so nothing excluded is discoverable there); `analyses`, one row per
 Analysis of a listed Store; `selection`, the decision and reason per registered
 Store Release; `catalog_meta`, the build's own facts; and derived tables and
 indexes for counts, search and paging.
@@ -124,12 +125,12 @@ versions/<version>/
 current -> versions/<version>
 ```
 
-- **The version is a hash of every input the catalog reads** — each registered
-  bundle's selection inputs, and the Release Manifest of each listed or
-  placeholder Store — plus the builder's own source, which includes the serving
-  policy. That is wider than the selected bundles' contents on purpose: a
-  change to an excluded Store's decision must give a new version, or the
-  reasons in `selection` go stale. A rebuild whose version already exists
+- **The version is a hash of every file of every registered Release Bundle,
+  plus the builder's own source**, which includes the serving policy. That is
+  wider than the selected bundles' contents on purpose: `bundle.check()` reads
+  every file of every bundle, so an edit to an excluded Store's manifest can
+  change its decision, and a change to a decision must give a new version, or
+  the reasons in `selection` go stale. A rebuild whose version already exists
   writes nothing.
 - **A version is immutable and the last few are kept**, so rollback is moving
   `current` back: a rebuild writes a new directory and swaps `current`

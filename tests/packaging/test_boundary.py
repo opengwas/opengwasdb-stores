@@ -41,6 +41,17 @@ GENERATION_PATHS = re.compile(r"manifest_generation|resources/generators")
 CONTRACT_AND_SHARED_LAYOUT = {"ogstores", "ogstores.bundle", "ogstores.paths", "ogstores.index"}
 
 
+# The Analysis Catalog (#323, ADR 0039) reads Release Bundles through the contract
+# and the registry layout, and nothing else of `ogstores`. Nothing imports it, so
+# it can move to the API's repository.
+CATALOG_PACKAGE = "analysis_catalog"
+CATALOG_OGSTORES_SURFACE = {"ogstores", "ogstores.bundle", "ogstores.paths"}
+
+
+def imports_catalog(module: str) -> bool:
+    return module.split(".")[0] == CATALOG_PACKAGE
+
+
 def store_release_build_files() -> list[Path]:
     return sorted((REPO_ROOT / "src" / "ogstores").rglob("*.py")) + [
         REPO_ROOT / "workflow" / "release.py",
@@ -118,17 +129,18 @@ def includes_generation(target: str) -> bool:
     return "generate.smk" in target or bool(GENERATION_PATHS.search(target))
 
 
-def outside_shared_surface(module: str) -> bool:
-    """An `ogstores` import beyond `CONTRACT_AND_SHARED_LAYOUT`.
+def outside_shared_surface(module: str, allowed: set[str] = CONTRACT_AND_SHARED_LAYOUT) -> bool:
+    """An `ogstores` import beyond `allowed`.
 
     `from ogstores import bundle` names the module `ogstores.bundle`; `from
     ogstores.bundle import check` names a member of it, so a name is allowed
-    when it, or its parent other than bare `ogstores`, is listed.
+    when it, or its parent other than bare `ogstores`, is listed. Manifest
+    Generation's surface is the default; the catalog's is `CATALOG_OGSTORES_SURFACE`.
     """
-    if module.split(".")[0] != "ogstores" or module in CONTRACT_AND_SHARED_LAYOUT:
+    if module.split(".")[0] != "ogstores" or module in allowed:
         return False
     parent = module.rsplit(".", 1)[0]
-    return parent == "ogstores" or parent not in CONTRACT_AND_SHARED_LAYOUT
+    return parent == "ogstores" or parent not in allowed
 
 
 class ScannerTest(unittest.TestCase):
@@ -183,6 +195,19 @@ class ScannerTest(unittest.TestCase):
         refused = ["ogstores.plan", "ogstores.run", "ogstores.run.run_step", "ogstores.release"]
         self.assertEqual([m for m in allowed if outside_shared_surface(m)], [])
         self.assertEqual([m for m in refused if outside_shared_surface(m)], refused)
+
+    def test_the_catalog_surface_is_narrower_than_the_shared_one(self) -> None:
+        allowed = ["ogstores", "ogstores.bundle", "ogstores.bundle.check", "ogstores.paths.artifact_root", "os"]
+        refused = ["ogstores.index", "ogstores.manifest", "ogstores.register", "ogstores.index.render_stores_tsv"]
+        self.assertEqual([m for m in allowed if outside_shared_surface(m, CATALOG_OGSTORES_SURFACE)], [])
+        self.assertEqual([m for m in refused if outside_shared_surface(m, CATALOG_OGSTORES_SURFACE)], refused)
+
+    def test_an_import_of_the_catalog_is_found(self) -> None:
+        modules = imported_modules("import analysis_catalog.build\nfrom analysis_catalog import publish\nimport analysis\n")
+        self.assertEqual(
+            [m for m in modules if imports_catalog(m)],
+            ["analysis_catalog.build", "analysis_catalog", "analysis_catalog.publish"],
+        )
 
     def test_a_subprocess_into_generation_is_found(self) -> None:
         strings = code_strings('"""Docs may name manifest_generation."""\nrun(["python3", "-m", "manifest_generation.emit"])\n')
@@ -244,6 +269,47 @@ class StoreReleaseBuildBoundaryTest(unittest.TestCase):
             relative = path.relative_to(REPO_ROOT)
             for module in imported_modules(path.read_text(encoding="utf-8")):
                 if outside_shared_surface(module):
+                    offenders.append(f"{relative}: imports {module}")
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
+
+class AnalysisCatalogBoundaryTest(unittest.TestCase):
+    def test_analysis_catalog_is_an_installed_package_of_this_checkout(self) -> None:
+        import analysis_catalog
+
+        self.assertEqual(
+            Path(analysis_catalog.__file__).resolve().parent,
+            REPO_ROOT / "src" / CATALOG_PACKAGE,
+        )
+
+    def test_nothing_in_ogstores_or_manifest_generation_imports_the_catalog(self) -> None:
+        offenders = []
+        files = store_release_build_files() + sorted((REPO_ROOT / "src" / "manifest_generation").rglob("*.py"))
+        for path in files:
+            source = path.read_text(encoding="utf-8")
+            modules = snakefile_imports(source) if path.name == "Snakefile" else imported_modules(source)
+            relative = path.relative_to(REPO_ROOT)
+            offenders += [f"{relative}: imports {m}" for m in modules if imports_catalog(m)]
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
+    def test_nothing_in_ogstores_or_manifest_generation_runs_the_catalog(self) -> None:
+        offenders = []
+        files = store_release_build_files() + sorted((REPO_ROOT / "src" / "manifest_generation").rglob("*.py"))
+        for path in files:
+            source = path.read_text(encoding="utf-8")
+            strings = snakefile_code_lines(source) if path.name == "Snakefile" else code_strings(source)
+            relative = path.relative_to(REPO_ROOT)
+            offenders += [f"{relative}: {s.strip()!r}" for s in strings if CATALOG_PACKAGE in s]
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
+    def test_the_catalog_imports_only_the_contract_and_the_registry_layout_from_ogstores(self) -> None:
+        package = REPO_ROOT / "src" / CATALOG_PACKAGE
+        self.assertTrue(package.is_dir(), f"{package} is missing")
+        offenders = []
+        for path in sorted(package.rglob("*.py")):
+            relative = path.relative_to(REPO_ROOT)
+            for module in imported_modules(path.read_text(encoding="utf-8")):
+                if outside_shared_surface(module, CATALOG_OGSTORES_SURFACE) or GENERATION_MODULES.match(module):
                     offenders.append(f"{relative}: imports {module}")
         self.assertEqual(offenders, [], "\n".join(offenders))
 
