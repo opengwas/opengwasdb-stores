@@ -135,9 +135,10 @@ GCST90006908        Anti-human herpes…  European               EUR            
 `src/manifest_generation/providers/finngen/source_metadata_adapter.py` converts
 FinnGen's published `finngen_R13_manifest.tsv` -- one row per endpoint, with
 `phenocode`, `phenotype`, `category`, `num_cases`, `num_controls` -- into the
-canonical table (#288). It replaces the retired R metadata resolver
-(`resources/generators/lib/metadata_resolvers/finngen_manifest.R`), and keeps
-its classification exactly:
+canonical table (#288). Its classification is the R metadata resolver's
+(`resources/generators/lib/metadata_resolvers/finngen_manifest.R`), which stays
+while the R generator is the only path that resolves FinnGen, and it keeps it
+exactly:
 
 | Provider column | Canonical column |
 |---|---|
