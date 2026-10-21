@@ -1222,6 +1222,19 @@ class ResolverRun:
     log_path: Path
 
 
+#: Numerical libraries' thread pools. The resolver parallelises by worker
+#: processes, so each worker gets one thread unless the operator set otherwise:
+#: unlimited, 32 workers on the 224-core host ran ~190 threads each (#300).
+RESOLVER_THREAD_VARIABLES: tuple[str, ...] = (
+    "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS",
+)
+
+
+def resolver_environment(environ: Mapping[str, str] = os.environ) -> dict[str, str]:
+    """The resolver subprocess's environment: ``environ``, one thread per worker by default."""
+    return {**{name: "1" for name in RESOLVER_THREAD_VARIABLES}, **environ}
+
+
 def run_resolver(
     argv: Sequence[str], *, cwd: Path, log_path: Path, pass_fds: Sequence[int] = ()
 ) -> ResolverRun:
@@ -1232,7 +1245,8 @@ def run_resolver(
     resolver's declared contract. The raw output goes straight to the log, so
     a failure is auditable without re-running it, and the resolver never
     writes into a pipe that dies with this process. ``pass_fds`` hands it
-    descriptors to hold, such as the Resolution Area's lock.
+    descriptors to hold, such as the Resolution Area's lock. It runs with
+    :func:`resolver_environment`.
     """
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("w", encoding="utf-8") as log:
@@ -1242,6 +1256,7 @@ def run_resolver(
             stdout=log,
             stderr=subprocess.STDOUT,
             pass_fds=tuple(pass_fds),
+            env=resolver_environment(),
             check=False,
         )
     return ResolverRun(argv=list(argv), returncode=completed.returncode, log_path=log_path)

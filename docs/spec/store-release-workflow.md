@@ -927,7 +927,11 @@ snapshot and `resolve` reuses every record whose fingerprint still matches.
 
 The resolver subprocess is `opengwasdb resolve-analyses` (opengwasdb#208). It
 owns the process pool, the single genome-scale reference load, and the atomic,
-fingerprint-aware per-Analysis checkpoints. The registry pins that resolver by
+fingerprint-aware per-Analysis checkpoints. It parallelises by worker
+processes, so it runs with `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`,
+`MKL_NUM_THREADS` and `NUMEXPR_NUM_THREADS` set to 1 unless the operator has set
+them: unlimited, each worker's numerical libraries start a thread per core
+(#300). The registry pins that resolver by
 immutable commit in `pixi.toml` rather than vendoring it (ADR 0023).
 
 **`--resolver` is verification-only.** The hidden flag runs another resolver
