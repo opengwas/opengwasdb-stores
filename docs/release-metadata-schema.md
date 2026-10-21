@@ -164,6 +164,7 @@ published artifact path is now a pure function of the identifier.
 | `label` | Yes | Source-natural display name; provenance, never an identifier (ADR 0022). |
 | `access_posture` | No | Declared availability category: `public`, `controlled`, or `embargoed`. The one store-level fact the retired Store Family tier genuinely declared (ADR 0028); every committed bundle declares it, but it is descriptive rather than structurally required. |
 | `status` | Yes | Registry lifecycle state: `candidate`, `accepted`, `built`, `validated`, `superseded`, or `withdrawn`. |
+| `trial` | No | Whether this is a Trial Store Release: a deliberately small Store Release used to exercise a Source Collection, Source Format or Store Layout (issue #321). Absent means `false`. Only a YAML boolean is accepted. The registry's YAML loader follows YAML 1.1, so the unquoted spellings `true`, `yes` and `on` (and `false`, `no`, `off`) are booleans; a quoted `trial: "yes"` is a string and `trial: 1` is a number, and `bundle.check()` refuses both. A reader that does not gate on `check()` refuses them too rather than reading them as `false`: the Analysis Catalog's serving policy excludes every Trial Store Release, and a coerced value would serve one. |
 | `derived_from` | No | Parent `store_id` when this release derives from another release, and the parent must be a registered Release Bundle. A two-id Reference-Completed release names its Observed-Only parent here (ADR 0007); a Reference-Completed release without it completes its own Store (ADR 0037). |
 | `created_at` | Yes | Timestamp when the candidate bundle was generated. |
 | `accepted_at` | No | Timestamp when the bundle was accepted as the release input record. |
@@ -176,7 +177,11 @@ published artifact path is now a pure function of the identifier.
 | `notes` | No | Free-text release notes. |
 
 `bundle.check()` requires exactly the keys marked Yes above and rejects a
-`generator` that is not a mapping or whose `commands` is empty. Release Status
+`generator` that is not a mapping or whose `commands` is empty. It also holds
+the descriptive facts the Analysis Catalog's serving policy reads (ADR 0008) to
+a checked shape: `trial` must be a YAML boolean, and absent means `false` (a
+quoted `trial: "yes"` or a numeric `trial: 1` is refused, and `Bundle.trial`
+raises rather than answer `false`) (issue #321). Release Status
 transitions are a separate, optional check (`validate_status_transition`): the
 legal lifecycle graph is `candidate -> accepted -> built -> validated ->
 {superseded, withdrawn}` with `withdrawn` reachable from every state. See the

@@ -301,6 +301,28 @@ class Bundle:
         return self.release.get("derived_from")
 
     @property
+    def trial(self) -> bool:
+        """Whether this is a Trial Store Release; absent means it is not (#321).
+
+        A reader that does not gate on `check()` -- the master list, the
+        Analysis Catalog's serving policy -- must not read `trial: "yes"`, `1`
+        or `null` as "not a trial": that would serve a Trial Store Release. So
+        only an absent key answers `False`, and any other value than a YAML
+        boolean raises rather than being coerced (CONTRIBUTING: fail loudly
+        rather than silently substituting data).
+        """
+        release = self.release if isinstance(self.release, Mapping) else {}
+        if "trial" not in release:
+            return False
+        value = release["trial"]
+        if isinstance(value, bool):
+            return value
+        raise ValueError(
+            f"{self.store_id}: release.yaml trial must be a YAML boolean, "
+            f"got {value!r}"
+        )
+
+    @property
     def completes_own_store(self) -> bool:
         """Whether this release completes its own published Store under its id (ADR 0037).
 
@@ -704,6 +726,18 @@ def _check_release(bundle: Bundle) -> list[str]:
         errors.append(
             f"release.yaml has invalid status {status!r}; expected one of "
             f"{sorted(VALID_STATUSES)}"
+        )
+
+    # `trial` marks a Trial Store Release, which the Analysis Catalog's serving
+    # policy must be able to exclude exactly (#321). Only a YAML boolean is
+    # accepted: the loader follows YAML 1.1, so unquoted `trial: yes` is already
+    # `True`, while a quoted `trial: "yes"` is a string and `trial: 1` a number.
+    # Both of those are refused rather than read as `true` or `false`: either
+    # reading would serve a Trial Store Release, or hide one.
+    if "trial" in release and not isinstance(release["trial"], bool):
+        errors.append(
+            f"release.yaml trial must be a boolean true or false, got "
+            f"{release['trial']!r}"
         )
 
     generator = release.get("generator")

@@ -66,6 +66,7 @@ store_id: OGS-00042
 label: r13-pilot-20                 # source-natural display name; not an identifier
 access_posture: public
 status: built                       # candidate|accepted|built|validated|superseded|withdrawn
+trial: false                        # true on a Trial Store Release: deliberately small, never served (#321)
 derived_from: ~                     # a two-id completed child's parent (ADR 0007); none when a release completes its own Store
 created_at: '2026-08-18T08:51:59Z'
 source_snapshot_id: finngen-r13-manifest-2026-05-12
@@ -79,6 +80,19 @@ notes: |
 
 The file trims to identity, lineage, Release Status, creation time, source
 snapshot identity, the generation command log, and prose (issue #136, ADR 0029).
+
+`trial` is the one fact that separates a Trial Store Release from a production
+one: a deliberately small Store Release that exercises a Source Collection,
+Source Format or Store Layout while the generic release pipeline is being
+developed and tested. It is descriptive, so it is not a Release Status and not a
+serving decision; the Analysis Catalog's serving policy excludes every Trial
+Store Release (ADR 0008, #323). Absent means `false`. Only a YAML boolean is
+accepted: the loader follows YAML 1.1, so the unquoted spellings `true`, `yes`
+and `on` (and `false`, `no`, `off`) are booleans, while a quoted `trial: "yes"`
+is a string and `trial: 1` a number. `bundle.check()` refuses those, and a
+reader that does not gate on `check()` -- the master list, the catalog -- raises
+rather than read one as `false`, because either reading would serve a Trial
+Store Release or hide one.
 
 ### Status lifecycle and transitions
 
