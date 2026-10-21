@@ -701,7 +701,11 @@ membership, observed build, built membership, Reference Completion, the
 required format-0.2.0 `by_variant` index, the optional HM3 Indexed Variant
 Subset, Store validation, registration, format/runtime, lineage and warnings.
 `missing` and `unknown` are not passes, and a candidate-generation record is
-reported as a gap in Store validation rather than as a clean verdict.
+reported as a gap in Store validation rather than as a clean verdict. The
+interim single-id state -- `reference_completed` declared while the
+Observed-Only Store is published -- is reported as that declared order of
+business on the Reference Completion, format/runtime and observed-build
+channels, never as a mismatched artifact (issue #307, ADR 0037).
 
 The manifest count is a *selection*, not intended membership: an authoritative
 Source Inventory is reported separately and stays `unknown` where none is
