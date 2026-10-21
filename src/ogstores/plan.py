@@ -45,6 +45,15 @@ list; the release entry point verifies the maintained resource at run time
 (`ogstores.resources`). Ragged releases reject any declaration rather than
 silently dropping it.
 
+A `reference_completed` release with no `derived_from` completes its own
+Store under its id (ADR 0037). `plan()` returns two phases: the build phase,
+exactly what the same bundle plans as `observed_only`, then the completion
+phase, `complete` from the id's published Store into its staged Store
+followed by the declared post steps under `completion-` record names, and
+last the Observed-View Check, which gates the replacement of the published
+Store. Only a Dense release is planned this way. A two-id child (`derived_from`) plans as
+before.
+
 This is the only place in the repository that knows how to invoke
 `opengwasdb`, which is why the Snakefile's rules and the master list's
 `build_command` are two renderings of one thing and cannot disagree.
@@ -56,7 +65,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -74,14 +83,30 @@ from ogstores.bundle import (
 )
 
 
+BUILD_PHASE: str = "build"
+COMPLETION_PHASE: str = "completion"
+
+
 @dataclass(frozen=True)
 class Step:
-    """One executable opengwasdb step with explicit argv, inputs, and outputs."""
+    """One executable opengwasdb step with explicit argv, inputs, and outputs.
+
+    `phase` is `build` for every step a release planned before ADR 0037,
+    a two-id child's `complete` included, and `completion` for the second
+    phase of a release that completes its own Store. `published_store_arg`
+    is the argv index of the token naming that release's published Store,
+    which a completion-phase step reads while it writes the staged one: the
+    two tokens are the same canonical path, so staging is told which one to
+    leave alone (`run.rewrite_argv_for_staging`). It is None for every step
+    that names only the Store it writes.
+    """
 
     name: str
     argv: list[str]
     inputs: list[Path]
     outputs: list[Path]
+    phase: str = BUILD_PHASE
+    published_store_arg: int | None = None
 
 
 @dataclass(frozen=True)
@@ -230,6 +255,47 @@ POST_DEFAULTS: dict[str, Any] = {
     "validate": True,
 }
 
+# A release that completes its own Store (ADR 0037) is published twice under
+# one id, so each phase ends in its own `register`. The completion phase's
+# records are named apart from the build phase's, and both sets stay in
+# `records/` after the swap: a later run then finds every record and does
+# nothing, and a failed completion leaves the build phase's records as they
+# were. Its first step keeps the name `complete`, so `register` still
+# accepts a `complete-dense-resume` substitution for it.
+COMPLETION_STEP_PREFIX: str = "completion-"
+REGISTER_STEPS: dict[str, str] = {
+    BUILD_PHASE: "register",
+    COMPLETION_PHASE: f"{COMPLETION_STEP_PREFIX}register",
+}
+# The completed Store keeps the Store identity it inherits from its source,
+# the id, and takes a release identity of its own (opengwasdb ADR 0011),
+# following the Hybrid Dense Component's `<store-id>-dense`.
+COMPLETED_RELEASE_SUFFIX: str = "-completed"
+# Only the layouts the Observed-View Check can compare complete their own
+# Store; the others keep needing a two-id child (ADR 0037).
+SINGLE_ID_COMPLETION_LAYOUTS: frozenset[str] = frozenset({"dense"})
+# The Observed-View Check compares the published Store with the staged
+# completed one before the completion phase publishes (ADR 0037, Decision 2).
+# Its seed is one fixed default for every release, the ADR's benchmark seed,
+# so each verdict is reproducible from its record; it is not a `build.yaml`
+# option. The verdict is written under the release's work directory, not in
+# `records/`, and the step's record holds it as the command's stdout.
+OBSERVED_VIEW_CHECK_COMMAND: str = "check-observed-view"
+OBSERVED_VIEW_CHECK_STEP: str = "completion-observed-view-check"
+OBSERVED_VIEW_CHECK_SEED: int = 20261021
+OBSERVED_VIEW_CHECK_N_RANDOM: int = 1000
+OBSERVED_VIEW_VERDICT_FILENAME: str = "observed-view-check.json"
+
+
+def completion_step_name(name: str) -> str:
+    """The record name a build-phase step's counterpart takes in the completion phase."""
+    return f"{COMPLETION_STEP_PREFIX}{name}"
+
+
+def release_register(bundle: Bundle) -> str:
+    """The register record that finishes a release: its last phase's (ADR 0037)."""
+    return REGISTER_STEPS[COMPLETION_PHASE if bundle.completes_own_store else BUILD_PHASE]
+
 
 def render_options(options: dict[str, Any] | None) -> list[str]:
     """Render an options dict into CLI argv tokens without interpretation (ADR 0023).
@@ -302,7 +368,9 @@ def _resolve(token: str, bundle: Bundle, root: Path) -> list[Path]:
     if token == "source":
         return [paths.source_dir(bundle.store_id, root=root)]
     if token == "parent_store":
-        return [paths.store_path(bundle.derived_from, root=root)]  # type: ignore[arg-type]
+        # A release that completes its own Store reads its published Store.
+        source_id = bundle.store_id if bundle.completes_own_store else bundle.derived_from
+        return [paths.store_path(source_id, root=root)]  # type: ignore[arg-type]
     if token == "besd_prefix":
         return [_besd_prefix(bundle)]
     if token == "besd_files":
@@ -570,6 +638,19 @@ def _indexed_subset_steps(
     return steps
 
 
+def _insert_subset_steps(post_steps: list[Step], subset_steps: list[Step]) -> list[Step]:
+    """Place declared subset steps after the Store's inline index/rho steps.
+
+    They go before overview and validation, so overview reports them and
+    validate audits them (stores #209 acceptance criteria).
+    """
+    insert_at = next(
+        (i for i, s in enumerate(post_steps) if s.name in ("overview", "validate")),
+        len(post_steps),
+    )
+    return [*post_steps[:insert_at], *subset_steps, *post_steps[insert_at:]]
+
+
 def _select_spec(bundle: Bundle, key: tuple[str, str]) -> tuple[str, CommandSpec]:
     """Resolve the declared subcommand and its spec, or raise NotImplementedError."""
     phase = "complete" if bundle.completion_state == "reference_completed" else "build"
@@ -598,7 +679,13 @@ def plan(
     is the deployment-resolved root from `paths.artifact_root()`; the Build
     Recipe is not consulted for it (issue #126). Performs no I/O beyond path
     construction.
+
+    A release that completes its own Store (`Bundle.completes_own_store`)
+    returns its build phase, then its completion phase (ADR 0037); each
+    Step's `phase` says which.
     """
+    if bundle.completes_own_store:
+        return _plan_completing_own_store(bundle, artifact_root)
     if not bundle.layout or not bundle.completion_state:
         raise ValueError(
             f"Bundle {bundle.store_id} missing layout or completion_state in build.yaml"
@@ -614,11 +701,9 @@ def plan(
     command, spec = _select_spec(bundle, key)
 
     if spec.phase == "complete":
-        if not bundle.derived_from:
-            raise ValueError(
-                f"Bundle {bundle.store_id} missing required 'derived_from' in release.yaml"
-            )
-        paths.require_valid_store_id(bundle.derived_from)
+        # A two-id child: a completion without `derived_from` completes its
+        # own Store and was planned above.
+        paths.require_valid_store_id(bundle.derived_from)  # type: ignore[arg-type]
 
     root = _resolve_artifact_root(artifact_root)
     phase_block = bundle.build.get(spec.phase) or {}
@@ -672,24 +757,132 @@ def plan(
     subset_declarations = indexed_subset_declarations(bundle)
     post_steps = _post_steps(store_p, bundle.build.get("post") or {}, spec)
     subset_steps = _indexed_subset_steps(store_p, subset_declarations)
-    if subset_steps:
-        # Declared subsets are built after the Store and its inline index/rho
-        # steps exist and before overview and validation, so overview reports
-        # them and validate audits them (stores #209 acceptance criteria).
-        insert_at = next(
-            (i for i, s in enumerate(post_steps) if s.name in ("overview", "validate")),
-            len(post_steps),
-        )
-        post_steps[insert_at:insert_at] = subset_steps
-    steps.extend(post_steps)
+    steps.extend(_insert_subset_steps(post_steps, subset_steps))
     return steps
 
 
+def _plan_completing_own_store(bundle: Bundle, artifact_root: Path | str | None) -> list[Step]:
+    """Both phases of a release that completes its own Store under its id (ADR 0037).
+
+    The build phase is exactly what the same bundle plans as `observed_only`
+    without its `complete` block, so a Store built and published before the
+    bundle gained that block is never rebuilt to complete it (#305). The
+    completion phase follows it.
+    """
+    if bundle.layout not in SINGLE_ID_COMPLETION_LAYOUTS:
+        raise ValueError(
+            f"Bundle {bundle.store_id}: a reference_completed release with no derived_from "
+            f"completes its own Store, which is planned only for "
+            f"{sorted(SINGLE_ID_COMPLETION_LAYOUTS)} layout, not {bundle.layout!r}: the "
+            "Observed-View Check that gates the replacement compares no other layout yet "
+            "(ADR 0037)"
+        )
+    if not isinstance(bundle.build.get("build"), Mapping):
+        raise ValueError(
+            f"Bundle {bundle.store_id}: a reference_completed release with no derived_from "
+            "must declare a 'build' block: its build phase builds and publishes the "
+            "Observed-Only Store that its completion phase completes (ADR 0037)"
+        )
+    observed_only = replace(
+        bundle,
+        build={
+            **{key: value for key, value in bundle.build.items() if key != "complete"},
+            "completion_state": "observed_only",
+        },
+    )
+    build_phase = plan(observed_only, artifact_root=artifact_root)
+    return build_phase + _completion_phase(bundle, _resolve_artifact_root(artifact_root))
+
+
+def _completion_phase(bundle: Bundle, root: Path) -> list[Step]:
+    """`complete` from the id's published Store into its staged Store, then the post steps.
+
+    `complete` names the same canonical Store path twice, as its source and
+    its destination; `published_store_arg` marks the source, and staging
+    rewrites only the destination. The declared post steps then run on the
+    staged Store under completion-phase names. Every completion command
+    builds the Top-Hit Index inline, so a declared `top_hits` is met by
+    `complete` itself and plans no step of its own.
+    """
+    command, spec = _select_spec(bundle, (bundle.layout, bundle.completion_state))
+    block = bundle.build.get("complete") or {}
+    options = block.get("options") or {}
+    # Refuses any variant_reference pre-stage: no completion command takes one.
+    _variant_reference_declaration(block, bundle.layout or "", command, options, bundle.store_id)
+    store_p = paths.store_path(bundle.store_id, root=root)
+
+    argv = ["opengwasdb", command]
+    published_store_arg: int | None = None
+    for token in spec.positionals:
+        if token == "parent_store":
+            published_store_arg = len(argv)
+        argv.extend(str(p) for p in _resolve(token, bundle, root))
+    argv.extend(["--release-id", f"{bundle.store_id}{COMPLETED_RELEASE_SUFFIX}"])
+    argv.extend(render_options(options))
+    inputs = [p for token in spec.inputs for p in _resolve(token, bundle, root)]
+    complete = Step(
+        name=spec.phase,
+        argv=argv,
+        inputs=inputs,
+        outputs=[store_p],
+        phase=COMPLETION_PHASE,
+        published_store_arg=published_store_arg,
+    )
+
+    post = {
+        key: value
+        for key, value in (bundle.build.get("post") or {}).items()
+        if key not in ("top_hits", "top-hits")
+    }
+    post_steps = _insert_subset_steps(
+        _post_steps(store_p, post, spec),
+        _indexed_subset_steps(store_p, indexed_subset_declarations(bundle)),
+    )
+    check = Step(
+        name=OBSERVED_VIEW_CHECK_STEP,
+        argv=[
+            "opengwasdb",
+            OBSERVED_VIEW_CHECK_COMMAND,
+            str(store_p),
+            str(store_p),
+            "--seed",
+            str(OBSERVED_VIEW_CHECK_SEED),
+            "--n-random",
+            str(OBSERVED_VIEW_CHECK_N_RANDOM),
+            "--output",
+            str(paths.work_dir(bundle.store_id, root=root) / OBSERVED_VIEW_VERDICT_FILENAME),
+        ],
+        inputs=[store_p],
+        outputs=[],
+        phase=COMPLETION_PHASE,
+        published_store_arg=2,
+    )
+    return [
+        complete,
+        *(
+            replace(step, name=completion_step_name(step.name), phase=COMPLETION_PHASE)
+            for step in post_steps
+        ),
+        check,
+    ]
+
+
 __all__ = [
+    "BUILD_PHASE",
     "COMMANDS",
+    "COMPLETED_RELEASE_SUFFIX",
+    "COMPLETION_PHASE",
+    "COMPLETION_STEP_PREFIX",
     "DEFAULT_COMMANDS",
     "INDEXED_SUBSET_COMMAND",
+    "OBSERVED_VIEW_CHECK_COMMAND",
+    "OBSERVED_VIEW_CHECK_N_RANDOM",
+    "OBSERVED_VIEW_CHECK_SEED",
+    "OBSERVED_VIEW_CHECK_STEP",
+    "OBSERVED_VIEW_VERDICT_FILENAME",
     "POST_DEFAULTS",
+    "REGISTER_STEPS",
+    "SINGLE_ID_COMPLETION_LAYOUTS",
     "VARIANT_REFERENCE_BLOCK_KEYS",
     "VARIANT_REFERENCE_COMMANDS",
     "VARIANT_REFERENCE_LAYOUT_COMMANDS",
@@ -697,7 +890,9 @@ __all__ = [
     "CommandSpec",
     "IndexedSubsetDeclaration",
     "Step",
+    "completion_step_name",
     "indexed_subset_declarations",
     "plan",
+    "release_register",
     "render_options",
 ]

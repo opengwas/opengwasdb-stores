@@ -75,6 +75,85 @@ They refuse an unbuildable bundle as the entry point does, and the
 Snakefile's `all` target expands only to buildable bundles.
 See the specification's Safety section.
 
+### A reference-completed release is published twice under one id
+
+A Dense release whose bundle declares `completion_state: reference_completed`,
+a `build` block and a `complete` block, with no `derived_from`, completes its
+own Store (ADR 0037). One `pixi run release <ID>` does both phases, with no
+`--config force=1`:
+
+1. **Build phase:** the same steps and records as an observed-only release
+   (`build`, the declared post steps, `validate`, `register`). Its `register`
+   publishes the Observed-Only Store at `<ID>/store.opengwasdb`, so it is
+   queryable while completion runs.
+2. **Completion phase:** `complete` reads that published Store and writes
+   `<ID>/store.opengwasdb.partial`, the completion's post steps and
+   validation run there, `completion-observed-view-check` confirms the staged
+   Store keeps every observed association of the published one (a failing
+   check publishes nothing and leaves the published Store as it was; read
+   `<ID>/work/observed-view-check.json`), and `completion-register` replaces the Observed-Only
+   Store with the completed one through the same publication transaction. The
+   completed Store keeps the id as its Store identity and has its own release
+   identity, `<ID>-completed`.
+
+The completion phase's records are `complete`, `completion-rho`,
+`completion-indexed-subset-<name>`, `completion-overview`,
+`completion-validate`, `completion-observed-view-check` and
+`completion-register`. They never overwrite the
+build phase's, and both sets stay in `records/`. The completion phase takes
+no records snapshot. Once the completed Store is published it deletes the
+Observed-Only Store, which the completed Store contains, so the id keeps one
+copy on disk. Its archive, `replaced/<UTC>/` (suffixed `-2`, `-3`, … when that
+name is taken), holds no Store: a copy of the replaced release's
+`records/register.json` and of the passing
+`records/completion-observed-view-check.json` under `records/`, and the
+replaced `validation.yaml`. The bundle's `validation.yaml` then describes the
+completed Store and names the archive. A crash during the deletion is finished
+by the next run. A forced run archives the Store it replaces in both phases.
+
+A failed or interrupted completion leaves the Observed-Only Store published
+and the build phase's records untouched. The next `pixi run release <ID>`,
+with no `--config force=1`, resumes it from the missing completion-phase step
+(#305). An interrupted `complete` is resumed from its checkpoint,
+`<ID>/.store.opengwasdb.partial.checkpoint`, with
+`opengwasdb complete-dense-resume`, so hours of imputation are not repeated.
+The workflow records the planned argv a completion starts from, in
+`<ID>/work/complete.started.json`, and resumes only when that is the argv
+planned now. If the bundle's `complete` block has changed since, or the
+checkpoint was not started by this workflow, the run refuses, naming why,
+and keeps the checkpoint. Only `--config force=1` discards a checkpoint; it
+then rebuilds both phases.
+
+The preflight lets an unforced run through only when every job it schedules
+for a published release is a completion-phase job, and the release's records
+show its Observed-Only Store published and not yet completed
+(`records/register.json` without `records/completion-register.json`). A run
+that would rebuild any part of the build phase is refused as before.
+
+**A Store published as Observed-Only can be completed later.** Its accepted
+`observed_only` bundle may gain a `complete` block and switch to
+`completion_state: reference_completed`. That is the only change an accepted
+bundle allows (ADR 0037). Then `pixi run release <ID>` runs the completion
+phase alone. For a bundle that completes its own Store, the entry point
+refuses, before any job runs and naming what changed, a bundle that no longer
+plans the Store it published:
+- a different argv for a step that wrote the Store (`variant-reference`,
+  `build`), or such a step added or dropped;
+- a different membership (the derived build manifest, and the Analyses it
+  excludes);
+- once the completion phase has published, a different `complete`.
+
+A post step is a re-runnable in-place addition, so a new post-step
+declaration passes this check, and so does a post step the planner now plans
+differently. A new declaration's job is still a build-phase job over a
+published Store, though, so the #195 guard refuses it unless the run is
+forced. Observed-only and two-id releases are not checked. A direct
+`snakemake` run refuses a changed bundle only when it schedules a job
+(`onstart`): one with nothing to schedule writes nothing, and has none of the
+entry point's recovery or settlement either. `release.yaml`'s prose and
+provenance are left to review. `--config force=1` still rebuilds a named
+release from its bundle as it now stands.
+
 ### Production Execution vs. Fixture-Scale Tests
 
 - **Workflow tests (`tests/workflow/`) are fixture-scale**: they exercise DAG wiring, command line composition, transaction staging (`.partial`), publication gating, and step resumption using temporary mock bundles and mock executables without requiring multi-gigabyte production data or reference panels.

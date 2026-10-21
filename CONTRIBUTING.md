@@ -111,6 +111,17 @@ another checkout's (`pixi run --manifest-path <other>/pixi.toml -e dev python3
 to run this checkout's tests under an environment installed from elsewhere, or
 with nothing installed.
 
+One test is a deliberate exception. The workflow suite's pre-#304 test
+(`TestWorkflowCompletingAStoreBuiltBefore304`, #305) builds a Store with the
+workflow as it was at an earlier revision. It runs that revision from a `git
+archive`, with the archive's own `src/` ahead of the editable install on
+`PYTHONPATH`, so the old code, not this checkout's, really runs. It exists
+because a Store built by older code must still be completable without a
+rebuild. Installing the old revision instead would cost minutes on every CI
+run, for no extra fidelity. The exception covers that archived revision
+only: this checkout's own code and tests always import from the installed
+package.
+
 ## Repository boundaries
 
 The repository tracks small, reviewable definitions and evidence:

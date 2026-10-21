@@ -75,6 +75,12 @@ def create_mock_bundle(
     }
     if completion_state == "reference_completed":
         bld_dict["complete"] = {"command": "complete-dense", "options": options or {"ancestry": "EUR"}}
+        if derived_from is None:
+            # One id, published twice: the build phase comes first (ADR 0037).
+            bld_dict["build"] = {
+                "command": "build-dense-vcf",
+                "options": {"source-assembly": "hg38"},
+            }
     else:
         bld_dict["build"] = {"command": "build-dense-vcf", "options": options or {"source-assembly": "hg38"}}
 
@@ -418,6 +424,251 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         art_link1 = art_by_label_dir / "pilot-1"
         self.assertTrue(art_link1.is_symlink())
         self.assertEqual(os.readlink(art_link1), "../OGS-00001")
+
+
+# The `observed` block a register-written record carries. Measurements belong
+# to the Store the publication published, so the same bundle renders different
+# numbers before and after the single-id swap (issue #307, ADR 0037).
+OBSERVED_ONLY_MEASUREMENTS: dict[str, Any] = {
+    "format_version": "0.2.0",
+    "n_analyses": 2,
+    "n_variants": 100,
+    "n_associations": 180,
+    "store_bytes": 4096,
+    "build_elapsed_s": 12.5,
+    "validate_status": "passed",
+}
+REFERENCE_COMPLETED_MEASUREMENTS: dict[str, Any] = {
+    "format_version": "0.2.0",
+    "n_analyses": 2,
+    "n_variants": 250,
+    "n_associations": 500,
+    "store_bytes": 8192,
+    "build_elapsed_s": 40.5,
+    "validate_status": "passed",
+}
+
+
+def validation_record(observed: dict[str, Any]) -> dict[str, Any]:
+    return {"status": "passed", "observed": dict(observed)}
+
+
+class TestPublishedCompletionState(unittest.TestCase):
+    """The master list reports the Store users can query, not the bundle's declaration (#307).
+
+    Under single-id completion a bundle declares `reference_completed` while
+    its Observed-Only Store is what is published, for as long as completion
+    runs. The row's `completion_state` and its measurements therefore come from
+    the Validation Record, which `register` writes at publication and which
+    names the completion state and measurements of the Store it published. A
+    record written before that field existed falls back to the declaration, so
+    two-id and observed-only rows render exactly as before.
+    """
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.td = Path(self.temp_dir.name)
+        self.stores_dir = self.td / "stores"
+        self.stores_dir.mkdir()
+
+    def single_id_bundle(self, observed: dict[str, Any]) -> Bundle:
+        """One id, published twice: it declares both phases and is not a two-id child."""
+        return create_mock_bundle(
+            self.stores_dir,
+            "OGS-00041",
+            label="single-id",
+            completion_state="reference_completed",
+            validation_data=validation_record(observed),
+        )
+
+    def test_the_interim_row_reports_the_store_users_can_query(self) -> None:
+        """Declared reference-completed, published Observed-Only: the row says both."""
+        b = self.single_id_bundle(
+            dict(OBSERVED_ONLY_MEASUREMENTS, completion_state="observed_only")
+        )
+        row = render_stores_row(b, artifact_root="/art")
+
+        self.assertEqual(row["completion_state"], "observed_only")
+        self.assertEqual(row["n_variants"], "100", "the Observed-Only Store's variants")
+        self.assertEqual(row["n_associations"], "180")
+        self.assertEqual(row["store_bytes"], "4096")
+        self.assertEqual(row["build_elapsed_s"], "12.5")
+
+        md = render_stores_md([b], [row])
+        self.assertIn(
+            "| `OGS-00041` | single-id | dense | observed_only (completion pending) |",
+            md,
+            "the row must show that a completion is on its way",
+        )
+        # stores.tsv stays machine-readable: the column holds the published
+        # state alone, with no marker text in it.
+        tsv_cells = render_stores_tsv([b]).splitlines()[1].split("\t")
+        self.assertEqual(tsv_cells[COLUMNS.index("completion_state")], "observed_only")
+
+    def test_after_the_swap_the_row_reports_the_completed_store(self) -> None:
+        """The completion phase's record replaces both the state and the measurements."""
+        b = self.single_id_bundle(
+            dict(REFERENCE_COMPLETED_MEASUREMENTS, completion_state="reference_completed")
+        )
+        row = render_stores_row(b, artifact_root="/art")
+
+        self.assertEqual(row["completion_state"], "reference_completed")
+        self.assertEqual(row["n_variants"], "250", "the completed Store's variants")
+        self.assertEqual(row["n_associations"], "500")
+        self.assertEqual(row["store_bytes"], "8192")
+        md = render_stores_md([b], [row])
+        self.assertNotIn("completion pending", md)
+
+    def test_the_build_command_is_the_build_phases_first_step(self) -> None:
+        """A single-id row keeps naming the command that builds the Store (ADR 0037)."""
+        b = self.single_id_bundle(
+            dict(OBSERVED_ONLY_MEASUREMENTS, completion_state="observed_only")
+        )
+        row = render_stores_row(b, artifact_root="/art")
+        self.assertTrue(
+            row["build_command"].startswith("opengwasdb build-dense-vcf"),
+            row["build_command"],
+        )
+        self.assertIn("/art/OGS-00041/work/analyses.tsv", row["build_command"])
+
+    def test_an_undocumented_published_state_is_refused(self) -> None:
+        """A record's state is published only when it is one `register` documents.
+
+        Falling back to the declaration would hide a new writer's bad value
+        behind a plausible one, which is the wrong answer this project refuses.
+        """
+        b = self.single_id_bundle(
+            dict(OBSERVED_ONLY_MEASUREMENTS, completion_state="reference_pending")
+        )
+        with self.assertRaises(ValueError) as ctx:
+            render_stores_row(b, artifact_root="/art")
+        self.assertIn("observed.completion_state", str(ctx.exception))
+        self.assertIn("reference_pending", str(ctx.exception))
+
+    def test_a_legacy_single_id_record_reports_the_observed_only_store(self) -> None:
+        """An amended pre-#307 bundle is still published Observed-Only (ADR 0037).
+
+        ADR 0037 lets an accepted Observed-Only bundle gain a `complete` block,
+        so a single-id bundle can declare `reference_completed` while its
+        Validation Record predates the field that names the published Store.
+        Reporting the declaration would claim a completed Store that does not
+        exist; the record's own publication says what users can query.
+        """
+        legacy = create_mock_bundle(
+            self.stores_dir,
+            "OGS-00044",
+            label="legacy-single-id",
+            completion_state="reference_completed",
+            validation_data=validation_record(OBSERVED_ONLY_MEASUREMENTS),
+        )
+        self.assertNotIn("completion_state", OBSERVED_ONLY_MEASUREMENTS)
+        self.assertTrue(legacy.completes_own_store)
+
+        row = render_stores_row(legacy, artifact_root="/art")
+        self.assertEqual(row["completion_state"], "observed_only")
+        self.assertEqual(row["n_variants"], "100", "the Observed-Only Store's variants")
+        md = render_stores_md([legacy], [row])
+        self.assertIn(
+            "| `OGS-00044` | legacy-single-id | dense | observed_only (completion pending) |",
+            md,
+        )
+        tsv_cells = render_stores_tsv([legacy], artifact_root="/art").splitlines()[1].split("\t")
+        self.assertEqual(tsv_cells[COLUMNS.index("completion_state")], "observed_only")
+
+    def test_an_unpublished_single_id_row_keeps_the_declaration(self) -> None:
+        """With no publication recorded there is no Store to report, so nothing is inferred."""
+        unpublished = create_mock_bundle(
+            self.stores_dir,
+            "OGS-00045",
+            label="unpublished-single-id",
+            completion_state="reference_completed",
+        )
+        row = render_stores_row(unpublished, artifact_root="/art")
+        self.assertEqual(row["completion_state"], "reference_completed")
+        self.assertNotIn("completion pending", render_stores_md([unpublished], [row]))
+
+    def test_a_two_id_child_cannot_be_completion_pending(self) -> None:
+        """Only a release that completes its own Store paints a Store Observed-Only.
+
+        A two-id child publishes only its completed Store, so a record claiming
+        its published Store is Observed-Only contradicts the bundle. It is
+        refused rather than labelled pending, which is how readiness reports the
+        same pair as a failure.
+        """
+        child = create_mock_bundle(
+            self.stores_dir,
+            "OGS-00046",
+            label="contradictory-child",
+            completion_state="reference_completed",
+            derived_from="OGS-00042",
+            validation_data=validation_record(
+                dict(OBSERVED_ONLY_MEASUREMENTS, completion_state="observed_only")
+            ),
+        )
+        self.assertFalse(child.completes_own_store)
+        with self.assertRaises(ValueError) as ctx:
+            render_stores_row(child, artifact_root="/art")
+        self.assertIn("observed_only", str(ctx.exception))
+        self.assertIn("reference_completed", str(ctx.exception))
+
+    def test_a_legacy_two_id_row_renders_exactly_as_before(self) -> None:
+        """A record written before #307 carries no published state; the row is unchanged."""
+        self.assertNotIn("completion_state", OBSERVED_ONLY_MEASUREMENTS)
+        parent = create_mock_bundle(
+            self.stores_dir,
+            "OGS-00042",
+            label="legacy-parent",
+            validation_data=validation_record(OBSERVED_ONLY_MEASUREMENTS),
+        )
+        child = create_mock_bundle(
+            self.stores_dir,
+            "OGS-00043",
+            label="legacy-child",
+            completion_state="reference_completed",
+            derived_from="OGS-00042",
+            validation_data=validation_record(OBSERVED_ONLY_MEASUREMENTS),
+        )
+        rows = [render_stores_row(b, artifact_root="/art") for b in (parent, child)]
+
+        # Byte-for-byte the rows this repository rendered before #307.
+        self.assertEqual(
+            render_stores_tsv([parent, child], artifact_root="/art"),
+            "\n".join(
+                [
+                    "\t".join(COLUMNS),
+                    "OGS-00042\tlegacy-parent\tdense\tobserved_only\tbuilt\t\t"
+                    "/art/OGS-00042/store.opengwasdb\t2026-08-18T08:51:59Z\t\t"
+                    "generate.py --config=legacy-parent.yaml\t"
+                    "opengwasdb build-dense-vcf /art/OGS-00042/work/analyses.tsv "
+                    "/art/OGS-00042/store.opengwasdb --store-id OGS-00042 "
+                    "--release-id OGS-00042 --source-assembly hg38\t"
+                    "0.2.0\t1\t1\t0\t100\t180\t4096\t12.5\tpassed\t"
+                    "NA\tNA\tNA\tNA\tNA\tNA\tNA",
+                    "OGS-00043\tlegacy-child\tdense\treference_completed\tbuilt\t"
+                    "OGS-00042\t/art/OGS-00043/store.opengwasdb\t"
+                    "2026-08-18T08:51:59Z\t\tgenerate.py --config=legacy-child.yaml\t"
+                    "opengwasdb complete-dense /art/OGS-00042/store.opengwasdb "
+                    "/art/OGS-00043/store.opengwasdb --release-id OGS-00043 "
+                    "--ancestry EUR\t"
+                    "0.2.0\t1\t1\t0\t100\t180\t4096\t12.5\tpassed\t"
+                    "NA\tNA\tNA\tNA\tNA\tNA\tNA",
+                    "",
+                ]
+            ),
+        )
+        md = render_stores_md([parent, child], rows)
+        self.assertIn(
+            "| `OGS-00042` | legacy-parent | dense | observed_only | built | "
+            "0.2.0 | 1 | 0 | 100 | 180 | passed |",
+            md,
+        )
+        self.assertIn(
+            "| `OGS-00043` | legacy-child | dense | reference_completed | built | "
+            "0.2.0 | 1 | 0 | 100 | 180 | passed |",
+            md,
+        )
+        self.assertNotIn("completion pending", md)
 
 
 class TestIndexStrictSeamAndTripwires(unittest.TestCase):

@@ -26,7 +26,18 @@ Release Bundle membership, lifecycle and published evidence.
 5. **Incomplete lineage propagates**: a Reference-Completed child of a release
    with `incomplete_membership` is flagged, and a built-ID read on an
    incomplete parent keeps its runtime identity.
-6. **Supported core seam**: manifest metadata comes from
+6. **The interim single-id state is expected, not a mismatch** (issue #307,
+   ADR 0037): a release that completes its own Store declares
+   `reference_completed` while the Observed-Only Store is what is published, so
+   the format/runtime channel passes and the Reference Completion channel
+   reports it as declared-and-pending; a two-id child, which publishes only a
+   completed Store, still fails on the same difference. Such a release has an
+   observed build of its own, so its observed-build channel is not
+   `not_applicable`. A ledger `completion_verified: true` beside an
+   Observed-Only Store fails: evidence and artifact must agree. The interim
+   rule is `bundle.is_completion_pending`, the same predicate the master list's
+   pending marker uses.
+7. **Supported core seam**: manifest metadata comes from
    `opengwasdb info --format json`; built IDs come from
    `read_analyses(open_store(path).analyses_path)`. A support probe
    (`core_reporting_support`) fails loudly if that public surface changes, and

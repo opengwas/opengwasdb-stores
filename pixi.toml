@@ -213,6 +213,14 @@ threadpoolctl = ">=3.0"
 #   - the shared HM3 benchmark seam (opengwasdb#272);
 #   - bounded Dense validation memory (opengwasdb#254/#276).
 #
+# Repinned for #306 to `023774a7` for `check-observed-view` (opengwasdb#289),
+# which gates a single-id completion's swap. It also brings opengwasdb #277,
+# #278, #281 and #282 merged to `dev` since `4e922566`. The pin stays at
+# `023774a7`: opengwas/opengwasdb PR #291 merged it into `dev` as `d405de0`, of
+# which it is the second parent, so it is permanently in `dev`'s history, and
+# `d405de0` itself also brings opengwasdb#288 (the strand-aware hg19 lift),
+# which epic #282 holds until the #222 build lands.
+#
 # Because these capabilities ship in the tracked pin, the ordinary
 # `pixi run release` invocation resolves a capable runtime from this
 # environment with no ad-hoc `PATH` overlay (the HM3 proof's temporary
@@ -228,7 +236,7 @@ threadpoolctl = ">=3.0"
 # docs/runtime.md. Upgrading the runtime does not convert or requalify any
 # published Store; each build ticket must supply a compatible observed parent
 # (or convert/rebuild first) before completion.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "4e922566d7fa4c13a11be3637069da63e48be28c" }
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "023774a7881940c497e3bdb6710637819b023755" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"

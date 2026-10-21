@@ -1,6 +1,6 @@
 # Reference completion replaces its Store under the same id
 
-Status: proposed
+Status: accepted
 
 Supersedes [0007](0007-reference-completion-as-release-lineage.md).
 
@@ -176,3 +176,27 @@ implementation is specified in #302.
   releases. Both need to say that completion replaces an id's Store once, as a
   new release of the same Store. The "immutable once accepted" wording for
   Release Bundles needs the one exception above.
+
+## Clarified by #305
+
+The amendment rule of Decision 1 is enforced before any job runs, as follows.
+
+- **Scope.** Only a release whose bundle now completes its own Store, and
+  whose build phase has published (`records/register.json`), is checked.
+  Observed-only and two-id releases get no check, as before.
+- **Baseline.** The published release's records, never its Store, and only
+  what made that Store:
+  - the recorded argv of the build phase's Store-writing steps
+    (`variant-reference` if planned, and `build`);
+  - the membership the Store was built from, its derived build manifest
+    and the Analyses it excludes;
+  - once the completion phase has published, the recorded argv of its
+    `complete`.
+
+  Post steps of either phase (`top-hits`, `rho`, Indexed Variant Subsets,
+  overview, validation) are re-runnable in-place additions (ADR 0034,
+  opengwasdb ADR 0061). A new declaration, or a planner that has moved on
+  since, is not a change to the Store. So "plan exactly the argv recorded
+  for the published Store" means the argv that wrote it.
+- **Left to review.** `release.yaml`'s prose and provenance. No code
+  enforces accepted-bundle immutability for those fields, for any bundle.

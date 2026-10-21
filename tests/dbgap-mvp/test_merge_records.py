@@ -120,7 +120,6 @@ class MergeRecordsTest(unittest.TestCase):
         stores = {
             bucket: {
                 "observed_store_id": store_id,
-                "completed_store_id": None,
                 "candidate_store_key": f"dense__fixture__{bucket}",
                 "label": f"fixture-{bucket.lower()}",
                 "assigned_ancestry": None if bucket == "META" else bucket,
