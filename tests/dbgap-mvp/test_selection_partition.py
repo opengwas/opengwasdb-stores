@@ -11,14 +11,26 @@ Run from the repository root:
 """
 from __future__ import annotations
 
+import csv
+import hashlib
+import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
+from manifest_generation.acquisition_manifest import ACQUISITION_MANIFEST
 from manifest_generation.connector_tsv import write_connector
+from manifest_generation.inventory import freeze_release
+from manifest_generation.release_config import load_release_config
 from manifest_generation.selection import SelectionError, parse_selection, select
 from manifest_generation.source_inventory import selection_partition_problems
 from manifest_generation.source_metadata_table import SOURCE_METADATA_TABLE, load_source_metadata_table
+
+import test_end_to_end as end_to_end
 
 #: bucket -> (store_key, expected bound counts, number of fixture rows).
 BUCKETS = (
@@ -128,6 +140,130 @@ class MultiConfigPreflightTests(unittest.TestCase):
             [("EUR", "dbgap-phs002453", ["A"])], collection_ids={"A", "B"}
         )
         self.assertTrue(any("selected by no Selection" in problem and "B" in problem for problem in problems))
+
+
+class CommandPreflightTests(unittest.TestCase):
+    """The multi-config preflight proves completeness through the command (#290 review).
+
+    Three Selections part the fixture collection between them. Leaving one out
+    must fail, naming the Analyses no Selection covers; so must a collection
+    row no Selection takes, which no ``expect_rows`` bound can catch.
+    """
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory(prefix="dbgap-partition-cli-")
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.config_path = end_to_end.build(self.root)
+        self.document = yaml.safe_load(self.config_path.read_text(encoding="utf-8"))
+        self.table = Path(self.document["source_collection"]["connectors"]["source_metadata_table"])
+        self.acquisition = Path(
+            self.document["source_collection"]["connectors"]["acquisition_manifest"]
+        )
+        self.add_bucket("GCST90001003", "dense__pmid-39024449__Multi-ancestry")
+        self.configs = {
+            name: self.write_config(name, [analysis_id])
+            for name, analysis_id in (
+                ("one", "GCST90001001"),
+                ("two", "GCST90001002"),
+                ("three", "GCST90001003"),
+            )
+        }
+        for path in self.configs.values():
+            freeze_release(load_release_config(path, end_to_end.REPO_ROOT))
+
+    def add_bucket(self, analysis_id: str, store_key: str) -> None:
+        """A further bucket of the collection: a converted file and its two connector rows."""
+        data = self.root / "mirror" / f"{analysis_id}.tsv.gz"
+        data.write_bytes(f"fixture body for {analysis_id}\n".encode())
+        sidecar = data.with_name(data.name + "-meta.yaml")
+        sidecar.write_text("genome_assembly: GRCh38\n", encoding="utf-8")
+        with self.table.open(newline="", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        template = dict(rows[0])
+        template.update({
+            "source_analysis_id": analysis_id,
+            "source_trait_label": f"trait {analysis_id}",
+            "store_key": store_key,
+        })
+        write_connector(
+            self.table,
+            SOURCE_METADATA_TABLE,
+            SOURCE_METADATA_TABLE.columns,
+            rows + [template],
+        )
+        with self.acquisition.open(newline="", encoding="utf-8") as handle:
+            entries = list(csv.DictReader(handle, delimiter="\t"))
+        entry = dict(entries[0])
+        entry.update({
+            "source_analysis_id": analysis_id,
+            "location": str(data),
+            "bytes": str(data.stat().st_size),
+            "sha256": hashlib.sha256(data.read_bytes()).hexdigest(),
+            "sidecar_location": str(sidecar),
+            "sidecar_bytes": str(sidecar.stat().st_size),
+            "original_location": "",
+            "original_sha256": "",
+            "reformat_tool": "",
+        })
+        write_connector(self.acquisition, ACQUISITION_MANIFEST, ACQUISITION_MANIFEST.columns,
+                        entries + [entry])
+
+    def write_config(self, name: str, analyses: list[str]) -> Path:
+        document = json.loads(json.dumps(self.document))
+        document["label"] = f"fixture-mvp-{name}"
+        document["source_collection"]["inventory"] = {
+            "snapshot_id": f"fixture-mvp-{name}",
+            "directory": str(self.root / "inventory"),
+        }
+        document["selection"] = {"analyses": analyses, "expect_rows": len(analyses)}
+        path = self.root / f"release-{name}.yaml"
+        path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+        return path
+
+    def preflight(self, *names: str) -> subprocess.CompletedProcess:
+        command = [
+            sys.executable, "-m", "manifest_generation.inventory",
+            "--repo-root", str(end_to_end.REPO_ROOT), "preflight",
+        ]
+        for name in names:
+            command += ["--config", str(self.configs[name])]
+        command += ["--work-root", str(self.root / "work")]
+        return subprocess.run(
+            command, cwd=str(end_to_end.REPO_ROOT), capture_output=True, text=True, check=False
+        )
+
+    def test_three_selections_that_part_the_collection_pass(self) -> None:
+        result = self.preflight("one", "two", "three")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertIn("Selections partition", result.stdout)
+
+    def test_leaving_a_bucket_out_fails_naming_the_analyses_it_covers(self) -> None:
+        result = self.preflight("one", "two")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("GCST90001003", result.stderr)
+        self.assertIn("selected by no Selection", result.stderr)
+        self.assertNotIn("Selections partition", result.stdout)
+
+    def test_a_collection_row_no_selection_takes_fails_by_name(self) -> None:
+        """No expect_rows bound can see an added row: only the collection's intent can."""
+        self.add_bucket("GCST90001004", "dense__pmid-39024449__East-Asian")
+        # The collection's recorded intent is the table as it now is.
+        provenance_path = self.root / "inventory" / "fixture-mvp-one.meta.yaml"
+        provenance = yaml.safe_load(provenance_path.read_text(encoding="utf-8"))
+        for key, path in (
+            ("source_metadata_table", self.table),
+            ("acquisition_manifest", self.acquisition),
+        ):
+            original = provenance[key]["original"]
+            original["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+            original["rows"] = len(path.read_text(encoding="utf-8").splitlines()) - 1
+        provenance_path.write_text(yaml.safe_dump(provenance, sort_keys=False), encoding="utf-8")
+
+        result = self.preflight("one", "two", "three")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("GCST90001004", result.stderr)
+        self.assertIn("selected by no Selection", result.stderr)
 
 
 if __name__ == "__main__":

@@ -445,6 +445,16 @@ Selection's declared `expect_rows` matches its frozen inventory. The retired
 dbGaP MVP partition proved exactly this for its five ancestry buckets (#290);
 the check now follows the Selections rather than a written-out partition.
 
+Completeness is proved against the collection, not against the Selections
+(#290 review): the command reads the Source Collection's checksummed intent --
+the whole-collection Source Metadata Table and Acquisition Manifest the frozen
+snapshot's provenance records -- and fails, naming each one, on an Analysis no
+Selection covers and on a selected Analysis the collection does not intend. An
+`expect_rows` bound cannot see a row that has been added to the collection, and
+a set of Selections that is merely disjoint is not a partition; a preflight
+that cannot read those originals fails rather than reporting a partial result
+as complete.
+
 ## Pilot prefixes
 
 Pilot configs selected a deterministic prefix with `n_analyses`. The Selection

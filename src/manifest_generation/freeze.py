@@ -69,6 +69,7 @@ import yaml
 from manifest_generation import REPO_ROOT
 from manifest_generation.acquisition_manifest import (
     ACQUISITION_MANIFEST,
+    AcquisitionEntry,
     AcquisitionManifest,
     Lineage,
     load_acquisition_manifest,
@@ -350,6 +351,78 @@ def load_frozen_connectors(provenance_path: Path) -> tuple[SourceMetadataTable, 
             )
         paths.append(path)
     return load_source_metadata_table(paths[0]), load_acquisition_manifest(paths[1])
+
+
+@dataclass(frozen=True)
+class CollectionIntent:
+    """Every Analysis a Source Collection intends, from its two checksummed originals (#290).
+
+    A freeze records both connector originals and their sha256. Reading them
+    back is how a command proves a whole collection is accounted for: the
+    Source Metadata Table is the intent (every Analysis the collection means to
+    publish), and the Acquisition Manifest binds each of those to the file the
+    collection acquired for it. Both are refused if their bytes no longer match
+    what the freeze recorded.
+    """
+
+    provenance_path: Path
+    source_metadata_table: SourceMetadataTable
+    acquisition_manifest: AcquisitionManifest
+
+    @property
+    def analysis_ids(self) -> tuple[str, ...]:
+        """Every Analysis the collection intends, in the table's order."""
+        return self.source_metadata_table.analysis_ids
+
+    def acquired(self, analysis_id: str) -> AcquisitionEntry | None:
+        """The acquisition entry for ``analysis_id``, or ``None`` when it recorded none."""
+        try:
+            return self.acquisition_manifest.entry(analysis_id)
+        except KeyError:
+            return None
+
+
+def load_collection_intent(provenance_path: Path) -> CollectionIntent:
+    """Load a Source Collection's intended membership from the checksummed originals.
+
+    The provenance is a frozen snapshot's: its ``source_metadata_table.original``
+    and ``acquisition_manifest.original`` record where each whole-collection
+    connector lives and the sha256 the freeze saw. A missing original, or one
+    whose bytes changed, is refused by name -- a preflight that cannot read the
+    collection's intent cannot prove completeness (#290 review).
+    """
+    provenance_path = Path(provenance_path)
+    if not provenance_path.is_file():
+        raise FreezeError(f"frozen Source Inventory provenance not found: {provenance_path}")
+    document = yaml.safe_load(provenance_path.read_text(encoding="utf-8")) or {}
+    paths: list[Path] = []
+    for key in ("source_metadata_table", "acquisition_manifest"):
+        try:
+            recorded = document[key]["original"]
+            path = original_path(recorded["path"])
+            expected = recorded["sha256"]
+        except (KeyError, TypeError):
+            raise FreezeError(
+                f"{provenance_path} records no original {key}; it was not written by "
+                "manifest_generation.freeze, so the collection's intent cannot be read"
+            ) from None
+        if not path.is_file():
+            raise FreezeError(
+                f"the {key} original {path} named in {provenance_path} is missing, so the "
+                "Source Collection's intent cannot be read"
+            )
+        actual = sha256_file(path)
+        if actual != expected:
+            raise FreezeError(
+                f"the {key} original {path} has sha256 {actual}, but {provenance_path} records "
+                f"{expected}; the collection's intent changed after the freeze"
+            )
+        paths.append(path)
+    return CollectionIntent(
+        provenance_path=provenance_path,
+        source_metadata_table=load_source_metadata_table(paths[0]),
+        acquisition_manifest=load_acquisition_manifest(paths[1]),
+    )
 
 
 def _frozen_file(path: Path, text: str) -> dict[str, Any]:

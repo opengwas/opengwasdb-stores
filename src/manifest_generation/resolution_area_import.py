@@ -18,8 +18,14 @@ wrong made loud:
 
 It imports records only; it does not build the resolver's ``index.json``, which
 the next ``resolve`` run writes for its own Selection. A record outside the
-Selection is harmless: the resolver checks each Analysis's full fingerprint and
-only the manifest's rows are accounted.
+Selection is harmless -- the resolver checks each Analysis's full fingerprint
+and only the manifest's rows are accounted -- but a record outside the Source
+Collection is not: before seeding, every record is checked against the
+collection's checksummed intent (its frozen Source Metadata Table and
+Acquisition Manifest) and refused by name if it does not belong, if its
+fingerprint does not digest to the value it stores, if the file identity it was
+resolved against is not the one the collection acquired, or if the run's own
+``index.json`` (and the receipt beside it) does not name it (#290 review).
 
 Usage:
     python3 -m manifest_generation.resolution_area_import \\
@@ -39,9 +45,11 @@ from typing import Iterable, Mapping, Sequence
 
 from manifest_generation.candidate_workflow import (
     load_candidate_configuration,
+    recompute_fingerprint_digest,
     resolver_settings,
     resolver_settings_digest,
 )
+from manifest_generation.freeze import CollectionIntent, FreezeError, load_collection_intent
 from manifest_generation.resolution_area import (
     ResolutionArea,
     ResolutionAreaError,
@@ -51,6 +59,19 @@ from manifest_generation.resolution_area import (
 
 class ResolutionImportError(ValueError):
     """A pre-#284 record cannot be seeded into the Resolution Area as asked."""
+
+
+#: The record schema this tool can seed: the resolver's ``record_schema_version``.
+RECORD_SCHEMA_VERSION: int = 1
+
+#: The fingerprint fields a seedable record must carry: its self-digest, and the
+#: source identity the collection's Acquisition Manifest must corroborate.
+REQUIRED_FINGERPRINTS: tuple[str, ...] = (
+    "fingerprint_digest",
+    "source_file",
+    "source_recorded_sha256",
+    "source_recorded_bytes",
+)
 
 
 @dataclass(frozen=True)
@@ -71,20 +92,24 @@ def import_records(
     area: ResolutionArea,
     *,
     settings_digest: str,
+    intent: CollectionIntent,
     analysis_ids: Iterable[str] | None = None,
     holder: str = "manifest_generation.resolution_area_import",
 ) -> ImportResult:
     """Copy ``source``'s ``<analysis_id>.json`` records into ``area`` and keep them.
 
     ``settings_digest`` routes the records to the checkpoint the release's
-    :func:`resolver_settings` will use. Only records whose Analysis is in
-    ``analysis_ids`` (all of them when ``None``) are imported. Re-importing the
-    same bytes is a skip; different bytes under one name are refused.
+    :func:`resolver_settings` will use, and ``intent`` is the Source
+    Collection's checksummed intent every record must belong to. Only records
+    whose Analysis is in ``analysis_ids`` (all of them when ``None``) are
+    imported. Re-importing the same bytes is a skip; different bytes under one
+    name are refused.
     """
     source = Path(source)
     if not source.is_dir():
         raise ResolutionImportError(f"record directory not found: {source}")
     wanted = None if analysis_ids is None else set(analysis_ids)
+    index_entries = _run_index_entries(source)
     with area.exclusive(holder):
         checkpoint = area.checkpoint_dir(settings_digest)
         checkpoint.mkdir(parents=True, exist_ok=True)
@@ -97,8 +122,9 @@ def import_records(
             if wanted is not None and analysis_id not in wanted:
                 continue
             data = path.read_bytes()
-            document = _load_record(path, data, analysis_id)
+            document = _load_record(path, data, analysis_id, intent)
             digest = _fingerprint_digest(path, document)
+            _check_bound(path, document, analysis_id, intent, index_entries)
             target = checkpoint / f"{analysis_id}.json"
             if target.exists():
                 if target.read_bytes() != data:
@@ -118,7 +144,10 @@ def import_records(
     return ImportResult(imported=imported, skipped=skipped, kept=kept)
 
 
-def _load_record(path: Path, data: bytes, analysis_id: str) -> Mapping[str, object]:
+def _load_record(
+    path: Path, data: bytes, analysis_id: str, intent: CollectionIntent
+) -> Mapping[str, object]:
+    """The record's JSON, after the schema and collection-membership gates."""
     try:
         document = json.loads(data.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -130,19 +159,132 @@ def _load_record(path: Path, data: bytes, analysis_id: str) -> Mapping[str, obje
         raise ResolutionImportError(
             f"{path} carries analysis_id {recorded!r}, not the file's {analysis_id!r}"
         )
+    if analysis_id not in intent.source_metadata_table:
+        raise ResolutionImportError(
+            f"{path}: {analysis_id} is not an Analysis of the Source Collection's intended "
+            f"membership ({intent.source_metadata_table.path.name})"
+        )
+    schema = document.get("record_schema_version")
+    if type(schema) is not int or schema != RECORD_SCHEMA_VERSION:
+        raise ResolutionImportError(
+            f"{path} records record_schema_version {schema!r}; this tool seeds only "
+            f"{RECORD_SCHEMA_VERSION}"
+        )
+    status = document.get("status")
+    if status != "success":
+        raise ResolutionImportError(
+            f"{path} records status {status!r}; only a successful Resolution Record can be "
+            "seeded (a failed one cannot be resumed, so it would claim a measurement it has not)"
+        )
     return document
 
 
 def _fingerprint_digest(path: Path, document: Mapping[str, object]) -> str:
+    """The record's stored fingerprint digest, after proving it digests its own inputs."""
     fingerprints = document.get("fingerprints")
-    digest = fingerprints.get("fingerprint_digest") if isinstance(fingerprints, Mapping) else None
-    if not isinstance(digest, str) or len(digest) != 64 or any(
-        character not in "0123456789abcdef" for character in digest
-    ):
+    if not isinstance(fingerprints, Mapping):
+        raise ResolutionImportError(f"{path} carries no fingerprint block")
+    absent = [key for key in REQUIRED_FINGERPRINTS if not fingerprints.get(key)]
+    if absent:
+        raise ResolutionImportError(
+            f"{path} fingerprint block carries no {', '.join(absent)}; a record without them "
+            "cannot be resumed and cannot be bound to a file"
+        )
+    digest = fingerprints["fingerprint_digest"]
+    if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
         raise ResolutionImportError(
             f"{path} carries no fingerprint digest; a record without one cannot be resumed"
         )
+    recomputed = recompute_fingerprint_digest(fingerprints)
+    if recomputed != digest:
+        raise ResolutionImportError(
+            f"{path} stores fingerprint digest {digest}, but its own fingerprint inputs digest "
+            f"to {recomputed}; the record was edited after the resolver wrote it"
+        )
     return digest
+
+
+def _check_bound(
+    path: Path,
+    document: Mapping[str, object],
+    analysis_id: str,
+    intent: CollectionIntent,
+    index_entries: Mapping[str, Mapping[str, object]],
+) -> None:
+    """The record's source identity and its run's index, checked against the evidence.
+
+    The fingerprint binds the record to one file. That file must be the one the
+    collection's own Acquisition Manifest acquired for this Analysis; the
+    storage checksum the resolver measured is the only per-record checksum the
+    historical runs kept, so it is what the binding is proved with. The run's
+    ``index.json`` is the other piece of evidence: a record it does not name did
+    not come from that run.
+    """
+    fingerprints = document["fingerprints"]
+    entry = intent.acquired(analysis_id)
+    if entry is None or not entry.ready:
+        raise ResolutionImportError(
+            f"{path}: the Source Collection records no acquired file for {analysis_id}"
+        )
+    recorded = {
+        "source_file": entry.location,
+        "source_recorded_sha256": entry.sha256,
+        "source_recorded_bytes": entry.bytes,
+    }
+    for key, expected in recorded.items():
+        actual = fingerprints.get(key)
+        if actual != expected:
+            raise ResolutionImportError(
+                f"{path}: fingerprint {key} is {actual!r}, but the Source Collection acquired "
+                f"{expected!r}; this record was not resolved against the acquired file"
+            )
+    if index_entries:
+        named = index_entries.get(analysis_id)
+        if named is None:
+            raise ResolutionImportError(
+                f"{path}: the run's index.json does not name {analysis_id}, so this record is "
+                "not the run's"
+            )
+        if named.get("record_file") != path.name or named.get("status") != document["status"]:
+            raise ResolutionImportError(
+                f"{path}: the run's index.json names {named.get('record_file')!r} with status "
+                f"{named.get('status')!r}, not this record"
+            )
+
+
+def _run_index_entries(source: Path) -> Mapping[str, Mapping[str, object]]:
+    """The analysis ids the run's own ``index.json`` names, with its receipt's agreement.
+
+    An old Work Root without an index is seeded on its records' own evidence. One
+    with an index must have an index the receipt beside it records.
+    """
+    index_path = source / "index.json"
+    if not index_path.is_file():
+        return {}
+    try:
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ResolutionImportError(f"{index_path} is not a resolver index: {exc}") from exc
+    if not isinstance(index, dict) or not isinstance(index.get("analyses"), list):
+        raise ResolutionImportError(f"{index_path} is not a resolver index: no analyses list")
+    entries: dict[str, Mapping[str, object]] = {}
+    for entry in index["analyses"]:
+        if not isinstance(entry, Mapping) or not isinstance(entry.get("analysis_id"), str):
+            raise ResolutionImportError(f"{index_path} names an Analysis without an analysis_id")
+        entries[entry["analysis_id"]] = entry
+    receipt_path = source / "receipt" / "resolution-receipt.json"
+    if receipt_path.is_file():
+        try:
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ResolutionImportError(f"{receipt_path} is not a run receipt: {exc}") from exc
+        recorded = (receipt.get("records") or {}).get("index") if isinstance(receipt, dict) else None
+        if recorded != index:
+            raise ResolutionImportError(
+                f"{receipt_path} records a different index than {index_path}; this record "
+                "directory is not the one the run recorded"
+            )
+    return entries
 
 
 def _write_once(target: Path, data: bytes) -> None:
@@ -189,6 +331,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         repo_root = Path(args.repo_root) if args.repo_root else REPO_ROOT
         config = load_candidate_configuration(Path(args.config), repo_root)
+        intent = load_collection_intent(config.base.inventory_provenance_path)
         area = ResolutionArea.for_collection(
             resolution_root(args.resolution_root, repo_root=repo_root),
             config.base.source_collection_id,
@@ -197,7 +340,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         total_imported = total_skipped = 0
         for source in args.source:
             result = import_records(
-                Path(source), area, settings_digest=digest,
+                Path(source), area, settings_digest=digest, intent=intent,
                 analysis_ids=args.analysis,
             )
             total_imported += result.imported
@@ -211,7 +354,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"(checkpoint {digest})"
         )
         return 0
-    except (ResolutionImportError, ResolutionAreaError, ValueError) as exc:
+    except (ResolutionImportError, ResolutionAreaError, FreezeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 

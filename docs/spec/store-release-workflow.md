@@ -1101,8 +1101,14 @@ the lock. `python3 -m manifest_generation.resolution_area_import --config
 <release config> --source <old records directory>` does that for one or more
 such directories (#290): it routes the records to the checkpoint the config's
 resolver settings select, writes each atomically, keeps each through the area's
-write-once path, and refuses a record whose file name, `analysis_id` or
-fingerprint digest disagree. The digest is
+write-once path, and refuses, by name, a record that is not one the run could
+have written (#290 review): one whose file name or `analysis_id` disagree, one
+whose fingerprint does not digest to the value it stores, one that is not an
+Analysis of the Source Collection's checksummed intent, one whose bound
+`source_file`/`source_recorded_sha256`/`source_recorded_bytes` are not the ones
+the collection's Acquisition Manifest records, and one the run's own
+`index.json` -- or the receipt beside it -- does not name. Only a successful
+record is seeded; a failed one would claim a measurement it does not have. The digest is
 `resolver_settings_digest(resolver_settings(config))` in
 `manifest_generation.candidate_workflow`. The resolver resumes each record whose
 fingerprint still matches, and re-resolves the rest, exactly as it would its own.

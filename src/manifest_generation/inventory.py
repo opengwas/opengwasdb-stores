@@ -43,7 +43,13 @@ from typing import Sequence
 import yaml
 
 from manifest_generation import REPO_ROOT
-from manifest_generation.freeze import FreezeError, freeze, frozen_paths, write_frozen_inventory
+from manifest_generation.freeze import (
+    FreezeError,
+    freeze,
+    frozen_paths,
+    load_collection_intent,
+    write_frozen_inventory,
+)
 from manifest_generation.release_config import ReleaseConfig, load_release_config
 from manifest_generation.source_inventory import (
     InventoryError,
@@ -175,6 +181,7 @@ def command_preflight(args: argparse.Namespace, repo_root: Path) -> int:
         )
     ok = True
     releases: list[tuple[str, str, Sequence[str]]] = []
+    provenances: list[Path] = []
     for value in args.config:
         config = load_release_config(_config_path(repo_root, value), repo_root)
         if args.work_root:
@@ -195,6 +202,7 @@ def command_preflight(args: argparse.Namespace, repo_root: Path) -> int:
             cores=args.cores,
         )
         releases.append((config.label, config.source_collection_id, [row.analysis_id for row in rows]))
+        provenances.append(config.inventory_provenance_path)
 
         report_path = Path(args.report) if args.report else (
             config.work_root / "preflight" / f"{inventory_path.stem}.json"
@@ -218,8 +226,16 @@ def command_preflight(args: argparse.Namespace, repo_root: Path) -> int:
 
     if len(releases) > 1:
         # The multi-config preflight: Selections of one Source Collection must
-        # partition it, so drift in a rule or a bound fails by name (#290).
-        problems = selection_partition_problems(releases)
+        # partition it, so drift in a rule or a bound fails by name (#290). The
+        # collection's checksummed intent is what proves completeness: an
+        # Analysis no Selection covers, or one no Selection could ever take, is
+        # named even though every Selection's own bound still matches
+        # (#290 review).
+        try:
+            intent = load_collection_intent(provenances[0])
+        except FreezeError as exc:
+            raise InventoryError(str(exc)) from exc
+        problems = selection_partition_problems(releases, collection_ids=intent.analysis_ids)
         if problems:
             print("FAILED: the Selections do not partition the Source Collection:", file=sys.stderr)
             for problem in problems:

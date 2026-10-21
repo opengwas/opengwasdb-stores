@@ -1325,7 +1325,7 @@ def run_resolver(
     return ResolverRun(argv=list(argv), returncode=completed.returncode, log_path=log_path)
 
 
-def _recompute_fingerprint_digest(fingerprints: Mapping[str, Any]) -> str:
+def recompute_fingerprint_digest(fingerprints: Mapping[str, Any]) -> str:
     """Recompute the resolver's canonical fingerprint digest over a record.
 
     This mirrors ``opengwasdb.build.resolve_manifest.compute_fingerprint_digest``:
@@ -1620,7 +1620,7 @@ def _verify_fingerprints(row: ResolverRow, record: Mapping[str, Any]) -> list[st
     if not isinstance(fingerprints, Mapping):
         return [f"{row.analysis_id}: resolver record has no fingerprints mapping"]
     digest = fingerprints.get("fingerprint_digest")
-    if digest != _recompute_fingerprint_digest(fingerprints):
+    if digest != recompute_fingerprint_digest(fingerprints):
         failures.append(
             f"{row.analysis_id}: resolver fingerprint digest does not match its own "
             "fingerprint inputs (record was edited or is stale)"
@@ -3481,6 +3481,7 @@ __all__ = [
     "read_effect_placeholder_exclusions",
     "read_maf_filter_exempt_analyses",
     "read_resolution_receipt",
+    "recompute_fingerprint_digest",
     "render_build_yaml",
     "render_release_yaml",
     "render_resolver_manifest",
