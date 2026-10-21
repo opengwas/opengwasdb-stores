@@ -90,6 +90,21 @@ The rules that make this hold:
   source label, and a measured disagreement remains an exclusion; so does a
   source whose frequencies the fit could not read (palindromic sites only,
   unusable standard errors), which has frequencies rather than none.
+
+  *Clarified by #290:* a Selection may name no single super-population
+  (`release_policy.selection_superpopulation: multi-ancestry`, dbGaP MVP's
+  META bucket, OGS-00016). Such a Selection never assigns Assigned Ancestry:
+  each Analysis keeps its measured fit, recorded in the Quality Check sidecar
+  and the ancestry sidecar, while the emitted Assigned Ancestry stays empty
+  with Ancestry Assignment Method `unassigned`, exactly as the accepted MVP
+  bundles carry it. The `assigned_ancestry` check is `not_applicable` there,
+  so nothing is excluded for ancestry -- not even a measured super-population,
+  because the Selection claims none. And a release that names one may opt in
+  (`release_policy.keep_unassigned_ancestry_as_warning`) to keep an Analysis
+  the gates left unassigned, still unassigned, as a warning-level
+  `assigned_ancestry` result in `validation.yaml` and the sidecar; a measured
+  *different* super-population remains `ancestry_not_eur`, and without the
+  opt-in nothing changes.
 - **A Resolution Record belongs to the Analysis.** It is kept once per Source
   Collection, keyed by the resolver's fingerprint, and reused by every
   Selection. Each bundle's resolution receipt names the records it used.

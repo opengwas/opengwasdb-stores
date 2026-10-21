@@ -48,6 +48,10 @@ defaults:
 
 release_policy:
   selection_superpopulation: AMR
+  # OGS-00014 keeps the 203 Analyses the ancestry gates left unassigned
+  # (margin 200, proportion 3), unassigned and flagged, as the committed bundle
+  # does; a measured different super-population still excludes (#290).
+  keep_unassigned_ancestry_as_warning: true
 
 reference_resources:
   - resource_id: ukb-ancestry-mixture-hg38

@@ -25,49 +25,56 @@ metadata parsing both the acquisition and adapter use.
 | OGS-00013 | `release-afr.yaml` | `dense__pmid-39024449__African` | 1,368 |
 | OGS-00014 | `release-amr.yaml` | `dense__pmid-39024449__Hispanic-or-Latin-American` | 1,053 |
 | OGS-00015 | `release-eas.yaml` | `dense__pmid-39024449__East-Asian` | 241 |
-| OGS-00016 | *(not yet)* | `dense__pmid-39024449__Multi-ancestry` | 1,691 |
+| OGS-00016 | `release-meta.yaml` | `dense__pmid-39024449__Multi-ancestry` | 1,691 |
 
 `expect_rows` is the retired partition's bound count, now a check on the
 Selection (#290): freeze refuses a different number and preflight re-checks the
 frozen inventory. The frozen snapshots are
-`resources/inventories/dbgap-phs002453-{eur,afr,amr,eas}-2026-10-21.*`.
+`resources/inventories/dbgap-phs002453-{eur,afr,amr,eas,meta}-2026-10-21.*`.
 
-The EUR/AFR/AMR/EAS configs regenerate as **comparison-only** candidates into a
-temporary registry; OGS-00012–16 are accepted and are never replaced.
+All five configs regenerate as **comparison-only** candidates into a temporary
+registry; OGS-00012–16 are accepted and are never replaced.
 
-**META needs a release-policy mode the pipeline does not have.** OGS-00016's
-1,691 Analyses are all Assigned Ancestry empty with method `unassigned`, and
-OGS-00014 includes 203 such rows; the shared `assigned_ancestry` Quality Check
-would exclude them. A multi-ancestry Selection that records, but does not
-require, a single super-population is a decision for #290's report, not
-something these configs may fake with a super-population code. `config-candidate.yaml`
-and `candidates.yaml` are the retired #221 generator's historical plan.
+Two ancestry policies are declared by these configs (#290, ADR 0036 "Clarified
+by #290"):
+
+- **OGS-00016 is `selection_superpopulation: multi-ancestry`.** The Selection
+  names no single super-population, so the `assigned_ancestry` check is
+  `not_applicable`, Assigned Ancestry is never assigned (blank, method
+  `unassigned`), and nothing is excluded for ancestry. The measured fit stays in
+  the Quality Check and ancestry sidecars.
+- **OGS-00014 sets `keep_unassigned_ancestry_as_warning: true`**, keeping the
+  203 Analyses the ancestry gates left unassigned (margin 200, proportion 3):
+  blank ancestry, method `unassigned`, a warning-level `assigned_ancestry`
+  result counted in `validation.yaml` and recorded per Analysis in the sidecar.
+  A measured *different* super-population would still exclude.
+
+`config-candidate.yaml` and `candidates.yaml` are the retired #221 generator's
+historical plan.
 
 ## Regeneration against the committed bundles
 
-The comparison run of 2026-10-21 freezes and preflights the four Selections
-clean, but the pipeline cannot reproduce a committed membership yet. It
-excludes 799 rows the committed bundles include and adds none:
+Re-rendered from the reused pre-#284 records on 2026-10-21, all five Selections
+now reproduce the committed membership exactly, with no exclusion:
 
-| Store | committed | pipeline | exclusions |
-|---|---:|---:|---|
-| OGS-00012 | 1,669 | 1,470 | `sd_failed` 199 |
-| OGS-00013 | 1,368 | 1,187 | `sd_failed` 181 |
-| OGS-00014 | 1,053 | 727 | `ancestry_unassigned` 203, `sd_failed` 123 |
-| OGS-00015 | 241 | 148 | `sd_failed` 93 |
+| Store | committed | re-rendered |
+|---|---:|---:|
+| OGS-00012 | 1,669 | 1,669 |
+| OGS-00013 | 1,368 | 1,368 |
+| OGS-00014 | 1,053 | 1,053 |
+| OGS-00015 | 241 | 241 |
+| OGS-00016 | 1,691 | 1,691 |
 
-Both reasons are shared-pipeline gaps, reported in #290's report, never
-something a config here may paper over:
+`analyses.tsv` carries the pipeline's 42 columns instead of the committed 20–21
+(it drops none), and the bundle gains `sidecars/`, `source_snapshot` and the
+`validation.yaml` contract. The first regeneration also excluded 596
+`scale_already_declared` rows, which #300's declared-scale rule now makes
+`not_applicable`.
 
-- `phenotype_sd` gives `sd_failed` for the resolver's `scale_already_declared`,
-  which is every quantitative Analysis whose scale the deposit declares (#300
-  owns the declared-scale rule);
-- `assigned_ancestry` excludes the 203 AMR rows the resolver measured
-  `margin`/`proportion`, and would exclude META's whole bucket.
-
-Resolving the same Selections also resumes nothing: the pipeline's resolver
-settings differ from the #221 run's in three fingerprint fields, so every
-record is re-resolved. #290's report gives the fields and the options.
+Resolving a Selection from the #221 records still re-resolves every record: the
+pipeline's resolver settings differ from that run's in three fingerprint
+fields. A run resolved once by the pipeline resumes everything afterwards (EAS:
+241/241). #290's report gives the fields.
 
 ## After #292 part 2
 

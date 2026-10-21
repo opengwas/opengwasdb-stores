@@ -445,6 +445,9 @@ class CandidateConfiguration:
     #: whose record shows no allele frequency takes the Source Metadata Table's
     #: super-population as Assigned Ancestry (``source_trusted_no_af``).
     trust_source_ancestry_without_af: bool = False
+    #: ``release_policy.keep_unassigned_ancestry_as_warning`` (#290): an Analysis
+    #: the ancestry gates left unassigned is kept, unassigned, as a warning.
+    keep_unassigned_ancestry_as_warning: bool = False
 
 
 #: The Ancestry Assignment Method of an Analysis whose source has no allele
@@ -503,6 +506,7 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         indexed_subsets_opt_out=base.indexed_subsets_opt_out,
         quality_check_overrides=dict(base.quality_check_overrides),
         trust_source_ancestry_without_af=base.trust_source_ancestry_without_af,
+        keep_unassigned_ancestry_as_warning=base.keep_unassigned_ancestry_as_warning,
     )
 
 
@@ -2246,6 +2250,7 @@ def _decide(
             effect_placeholder_reason=config.effect_placeholder_exclusions.get(row.analysis_id),
             source_superpopulation=resolved.source_superpopulation,
             trust_source_ancestry_without_af=config.trust_source_ancestry_without_af,
+            keep_unassigned_ancestry_as_warning=config.keep_unassigned_ancestry_as_warning,
         ),
         config.quality_check_overrides,
     )
@@ -2321,21 +2326,34 @@ def _decide(
     # Slot SELECTION: the Assigned Ancestry check (ADR 0036). An assignment that
     # is a super-population code is carried as af_assigned, even when it is
     # not the Selection's.
+    multi_ancestry = config.target_ancestry == quality_checks.MULTI_ANCESTRY_SELECTION
     failed = quality_checks.first_exclusion(findings, Stage.SELECTION)
     if failed is not None:
-        if assigned in SUPERPOPULATIONS:
+        if assigned in SUPERPOPULATIONS and not multi_ancestry:
             return excluded_by(failed, assigned=assigned, method="af_assigned")
         return excluded_by(failed)
-    # A warning-level Assigned Ancestry result is #287's source-trusted
-    # assignment: the record shows no allele frequency and the release trusts
-    # the Source Metadata Table's super-population, which the check has
-    # already tested against the Selection's.
+    # A warning-level Assigned Ancestry result is a declared policy that keeps
+    # the Analysis: #287's source-trusted assignment takes the Source Metadata
+    # Table's super-population, while #290's keeps it unassigned. A
+    # multi-ancestry Selection (#290) records the fit and never assigns it.
     method = "af_assigned"
-    if any(
-        finding.name == "assigned_ancestry" and finding.result is quality_checks.Result.WARNING
-        for finding in findings
-    ):
-        assigned, method = resolved.source_superpopulation, SOURCE_TRUSTED_NO_AF
+    if multi_ancestry:
+        assigned, method = "", "unassigned"
+    else:
+        warning = next(
+            (
+                finding
+                for finding in findings
+                if finding.name == "assigned_ancestry"
+                and finding.result is quality_checks.Result.WARNING
+            ),
+            None,
+        )
+        if warning is not None:
+            if quality_checks.kept_unassigned(warning):
+                assigned, method = "", "unassigned"
+            else:
+                assigned, method = resolved.source_superpopulation, SOURCE_TRUSTED_NO_AF
 
     # From here the Analysis has the Selection's ancestry; the only remaining
     # question is whether its effects are on the release's scale.
@@ -2489,7 +2507,7 @@ def build_candidate_tables(
         raise CandidateError(f"internal error: uncontrolled exclusion reason(s): {unknown}")
 
     ancestry_check, sd_check, effect_scale_check, warnings = _derive_checks(
-        outcomes, sd_rows, exclusion_counts, duplicate_membership
+        outcomes, sd_rows, exclusion_counts, duplicate_membership, config
     )
     store_composition = _store_composition(outcomes, config)
     warnings.extend(_store_composition_warnings(store_composition))
@@ -2921,6 +2939,12 @@ def _ancestry_row(
         row["source_assigned_mismatch"] = (
             "false" if outcome.assigned_ancestry == config.target_ancestry else "true"
         )
+    elif outcome.included:
+        row["ancestry_notes"] = (
+            "multi-ancestry Selection: measured ancestry recorded, never assigned (#290)"
+            if config.target_ancestry == quality_checks.MULTI_ANCESTRY_SELECTION
+            else "kept unassigned by release_policy.keep_unassigned_ancestry_as_warning (#290)"
+        )
     composition = ancestry.get("superpop_composition")
     if isinstance(composition, Mapping):
         for superpop in SUPERPOPULATIONS:
@@ -3019,6 +3043,7 @@ def _derive_checks(
     sd_rows: Sequence[Mapping[str, str]],
     exclusion_counts: Mapping[str, int],
     duplicate_membership: Mapping[str, str],
+    config: CandidateConfiguration,
 ) -> tuple[str, str, str, list[str]]:
     """Derive the validation checks and warnings from the decided outcomes."""
     warnings: list[str] = []
@@ -3032,9 +3057,28 @@ def _derive_checks(
         for outcome in outcomes
         if outcome.included and outcome.ancestry_assignment_method == SOURCE_TRUSTED_NO_AF
     )
-    ancestry_check = (
-        "passed" if ancestry_problem == 0 and source_trusted == 0 else "passed_with_warnings"
+    # #290: an Analysis kept unassigned by the release's opt-in. A
+    # multi-ancestry Selection leaves every included Analysis unassigned on
+    # purpose, which is not a warning.
+    multi_ancestry = config.target_ancestry == quality_checks.MULTI_ANCESTRY_SELECTION
+    kept_unassigned = sum(
+        1
+        for outcome in outcomes
+        if outcome.included
+        and outcome.ancestry_assignment_method == "unassigned"
+        and not multi_ancestry
     )
+    ancestry_check = (
+        "passed"
+        if ancestry_problem == 0 and source_trusted == 0 and kept_unassigned == 0
+        else "passed_with_warnings"
+    )
+    if kept_unassigned:
+        warnings.append(
+            f"{kept_unassigned} included Analysis/Analyses have no measured Assigned Ancestry "
+            "and are kept unassigned by release_policy.keep_unassigned_ancestry_as_warning "
+            "(#290); see sidecars/quality_checks.tsv"
+        )
     if source_trusted:
         warnings.append(
             f"{source_trusted} included Analysis/Analyses carry no allele frequencies, so their "

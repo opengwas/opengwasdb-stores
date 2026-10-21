@@ -158,6 +158,10 @@ class ReleaseConfig:
     #: #287: an Analysis whose Resolution Record shows no allele frequency takes
     #: the Source Metadata Table's super-population as Assigned Ancestry.
     trust_source_ancestry_without_af: bool
+    #: #290: an Analysis the ancestry gates left unassigned is kept, unassigned,
+    #: as a recorded warning. A measured different super-population still
+    #: excludes.
+    keep_unassigned_ancestry_as_warning: bool
     imputation_score_declarations: Path | None
     maf_filter_exempt_genotyping_technologies: tuple[str, ...]
     maf_filter_exempt_analyses_path: Path | None
@@ -238,7 +242,7 @@ METHOD_TIER_KEYS = ("stored_effect_scale", "original_effect_scale", "original_sd
 RELEASE_POLICY_OPTIONAL = (
     "store_composition", "trust_source_ancestry_without_af", "imputation_score_declarations",
     "maf_filter_exempt_genotyping_technologies", "maf_filter_exempt_analyses",
-    "effect_placeholder_exclusions",
+    "effect_placeholder_exclusions", "keep_unassigned_ancestry_as_warning",
 )
 RESOURCE_REQUIRED = ("resource_id", "kind", "location")
 RESOURCE_OPTIONAL = (
@@ -487,10 +491,14 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
     selection_superpopulation = _text(
         policy["selection_superpopulation"], f"{where}.selection_superpopulation"
     )
-    if selection_superpopulation not in SUPERPOPULATIONS:
+    if selection_superpopulation not in SUPERPOPULATIONS and (
+        selection_superpopulation != quality_checks.MULTI_ANCESTRY_SELECTION
+    ):
         raise ReleaseConfigError(
             f"{where}.selection_superpopulation {selection_superpopulation!r} is not a "
-            f"super-population code ({', '.join(SUPERPOPULATIONS)})"
+            f"super-population code ({', '.join(SUPERPOPULATIONS)}); a Selection that names "
+            f"no single super-population says "
+            f"{quality_checks.MULTI_ANCESTRY_SELECTION!r} (#290)"
         )
     require_maf_filtered = False
     if policy.get("store_composition") is not None:
@@ -517,6 +525,17 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
             f"{where}.trust_source_ancestry_without_af needs a defaults.maf_threshold (0 "
             "filters nothing): only under a MAF request does the Resolution Record count the "
             "rows with no allele frequency, the evidence that a source has none (#287)"
+        )
+    keep_unassigned = policy.get("keep_unassigned_ancestry_as_warning", False)
+    if not isinstance(keep_unassigned, bool):
+        raise ReleaseConfigError(
+            f"{where}.keep_unassigned_ancestry_as_warning must be a boolean (true or false)"
+        )
+    if keep_unassigned and selection_superpopulation == quality_checks.MULTI_ANCESTRY_SELECTION:
+        raise ReleaseConfigError(
+            f"{where}.keep_unassigned_ancestry_as_warning has nothing to keep in a "
+            f"{quality_checks.MULTI_ANCESTRY_SELECTION!r} Selection, which never assigns "
+            "ancestry (#290)"
         )
     technologies = policy.get("maf_filter_exempt_genotyping_technologies")
     if technologies is None:
@@ -648,6 +667,7 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
         selection_superpopulation=selection_superpopulation,
         require_maf_filtered=require_maf_filtered,
         trust_source_ancestry_without_af=trust_source,
+        keep_unassigned_ancestry_as_warning=keep_unassigned,
         imputation_score_declarations=_optional_path(
             policy, "imputation_score_declarations", _where(path, "release_policy"), repo_root
         ),
