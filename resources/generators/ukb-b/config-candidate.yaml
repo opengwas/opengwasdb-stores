@@ -49,6 +49,12 @@ build_options:
   source-reader-capability: opengwasdb.gwas-vcf
   source-assembly: hg19
   n-workers: 32
+# Flags for the `complete` block, beside the panel and ancestry the
+# completion_reference's Reference Resource declares. complete-dense defaults
+# to one worker; the owner wants the completion at 32, as the build is. The
+# 2,024-Analysis OGS-00010 completion ran with --n-workers 32 in 8.8 h (#312).
+complete_options:
+  n-workers: 32
 post:
   top_hits: true
   overview: true

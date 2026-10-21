@@ -147,10 +147,10 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
         },
         "post": {"top_hits": True, "overview": True},
         # #312 re-emitted OGS-00009 as one single-id release (ADR 0037): the
-        # same build phase, then completion under the same id.
+        # same build phase, then completion under the same id, at 32 workers.
         "complete": {
             "command": "complete-dense",
-            "options": {"ld-panel": "/data/opengwasdb/reference/ld", "ancestry": "EUR"},
+            "options": {"ld-panel": "/data/opengwasdb/reference/ld", "ancestry": "EUR", "n-workers": 32},
         },
     },
     "OGS-00011": {

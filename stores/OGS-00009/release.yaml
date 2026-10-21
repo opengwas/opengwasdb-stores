@@ -3,7 +3,7 @@ label: ukb-b-full
 access_posture: public
 status: candidate
 derived_from: null
-created_at: '2026-10-21T22:10:54Z'
+created_at: '2026-10-21T22:20:44Z'
 accepted_at: null
 source_snapshot_id: ukb-b-restored-2026-10-11
 source_snapshot:
@@ -17,7 +17,7 @@ source_snapshot:
   n_buildable: 2514
 generator:
   name: manifest_generation.providers.ukb_b.generate_candidate
-  version: sha256:ac268dfcb42d96ff4cb85e3fb425835df173427590f3cdbcf58d8d096af44077
+  version: sha256:fdec97e9e80b0ab33cc869465c0b06b8bc82ed850ea4ead42f87827b54d7905b
   commands:
   - python3 -m manifest_generation.providers.ukb_b.generate_candidate OGS-00009
 description: Full dense Store Release of all 2,514 UK Biobank (ukb-b) GWAS-VCF Analyses declared in the

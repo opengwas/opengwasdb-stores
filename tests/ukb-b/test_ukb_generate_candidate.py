@@ -130,6 +130,7 @@ def base_config() -> dict:
         "source_collection_id": "opengwas-gwas-vcf",
         "resolution_snapshot_id": "fixture-resolution",
         "build_options": {"source-reader-capability": "opengwasdb.gwas-vcf", "source-assembly": "hg19", "n-workers": 1},
+        "complete_options": {"n-workers": 32},
         "post": {"top_hits": True, "overview": True},
         "indexed_subsets": [
             {
@@ -578,7 +579,10 @@ class TestOneBundlePerStore(unittest.TestCase):
         self.assertEqual(build["completion_state"], "reference_completed")
         self.assertEqual(
             build["complete"],
-            {"command": "complete-dense", "options": {"ld-panel": FIXTURE_LD_PANEL, "ancestry": "EUR"}},
+            {
+                "command": "complete-dense",
+                "options": {"ld-panel": FIXTURE_LD_PANEL, "ancestry": "EUR", "n-workers": 32},
+            },
         )
         # Everything else in the recipe is the observed bundle's, as the base code emitted it.
         observed = yaml.safe_load(self.golden("build.yaml"))
@@ -687,6 +691,17 @@ class TestOneBundlePerStore(unittest.TestCase):
         self.emit()
         self.assertEqual(self.bundle_directories(), [FIXTURE_STORE_ID])
 
+    def test_complete_options_may_not_name_the_declared_panel(self) -> None:
+        # The panel and ancestry are the Reference Resource's; a config that also
+        # sets one would override the declared panel, or be overridden by it.
+        for key in ("ld-panel", "ancestry"):
+            with self.subTest(key):
+                self.qualify()
+                self.config["complete_options"] = {"n-workers": 32, key: "/elsewhere"}
+                with self.assertRaisesRegex(candidate.CandidateError, key):
+                    self.emit()
+                self.assertFalse(self.registry.exists())
+
     def test_a_panel_whose_directory_is_not_its_ancestry_is_refused(self) -> None:
         # complete-dense joins one --ancestry into the panel path and the Analyses'
         # ancestry filter, which is what kept the `ukb` directory unusable (#219).
@@ -721,6 +736,7 @@ class TestOneBundlePerStore(unittest.TestCase):
         self.assertEqual(complete.argv[:2], ["opengwasdb", "complete-dense"])
         self.assertEqual(option(complete.argv, "--ld-panel"), FIXTURE_LD_PANEL)
         self.assertEqual(option(complete.argv, "--ancestry"), "EUR")
+        self.assertEqual(option(complete.argv, "--n-workers"), "32")
 
 
 class TestRegisteredOGS00009(unittest.TestCase):
@@ -766,6 +782,7 @@ class TestRegisteredOGS00009(unittest.TestCase):
         self.assertEqual(self.declaration["location"], "/data/opengwasdb/reference/ld")
         self.assertEqual(option(complete.argv, "--ancestry"), self.declaration["ancestry_dir"])
         self.assertEqual(option(complete.argv, "--ancestry"), "EUR")
+        self.assertEqual(option(complete.argv, "--n-workers"), "32")
 
     def test_ogs00009_records_its_qualified_active_reference(self) -> None:
         validation = yaml.safe_load((REPO_ROOT / "stores" / "OGS-00009" / "validation.yaml").read_text(encoding="utf-8"))

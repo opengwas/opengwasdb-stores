@@ -116,7 +116,9 @@ by two pure-Python tools:
 Reference-Completed release (ADR 0037): its `completion_reference`
 (`ukb-hg38-eur-ld`) is qualified and active, so the bundle declares the
 observed `build` block and a `complete-dense` block against the panel that
-Reference Resource declares, with no `derived_from`. A reference short of
+Reference Resource declares, with no `derived_from`. The config's
+`complete_options` adds flags to that block (`n-workers: 32`), as
+`build_options` does for the build; it may not set `ld-panel` or `ancestry`. A reference short of
 qualified and active emits the bundle observed-only instead, says so on
 stderr, and records the reference and `blocked: true` under `validation.yaml`'s
 `acceptance` block. The generator refuses a malformed reference (not a mapping,

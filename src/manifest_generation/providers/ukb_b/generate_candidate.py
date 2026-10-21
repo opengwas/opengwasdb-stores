@@ -139,6 +139,7 @@ CONFIG_KEYS: frozenset[str] = frozenset(
         "description",
         "notes",
         "build_options",
+        "complete_options",
         "post",
         "indexed_subsets",
         "defaults",
@@ -227,9 +228,29 @@ def load_config(path: Path) -> CandidateConfig:
         raise CandidateError(f"candidate config {path} has unknown key(s): {', '.join(hints)}")
     try:
         completion_reference(document)
+        complete_options(document)
     except CandidateError as exc:
         raise CandidateError(f"candidate config {path}: {exc}") from exc
     return CandidateConfig(path=path, document=document)
+
+
+def complete_options(config: Mapping) -> dict:
+    """`complete-dense` flags the config sets beside the declared panel, as `build_options` does for the build.
+
+    The panel and its ancestry are the Reference Resource's (`completion_block`),
+    so a config that names either here is refused rather than let one silently
+    override the other.
+    """
+    options = config.get("complete_options") or {}
+    if not isinstance(options, Mapping):
+        raise CandidateError(f"complete_options must be a mapping of complete-dense flags, not {options!r}")
+    declared = sorted({"ld-panel", "ancestry"} & set(options))
+    if declared:
+        raise CandidateError(
+            f"complete_options sets {', '.join(declared)}, which the completion_reference's "
+            "Reference Resource declares; set it there"
+        )
+    return dict(options)
 
 
 def completion_reference(config: Mapping) -> dict | None:
@@ -305,7 +326,10 @@ def completion_block(config: Mapping, repo_root: Path) -> dict | None:
             f"`opengwasdb {COMPLETE_COMMAND} --ancestry` names both the panel directory and the "
             "Analyses it completes, so no single value would serve"
         )
-    return {"command": COMPLETE_COMMAND, "options": {"ld-panel": location, "ancestry": ancestry}}
+    return {
+        "command": COMPLETE_COMMAND,
+        "options": {"ld-panel": location, "ancestry": ancestry, **complete_options(config)},
+    }
 
 
 def _index_by_id(rows: Sequence[Mapping[str, str]], what: str) -> dict[str, dict[str, str]]:
