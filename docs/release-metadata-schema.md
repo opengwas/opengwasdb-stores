@@ -636,19 +636,15 @@ covering fields, conventions and refusals, belongs to OpenGWASDB, which applies
 it at Analysis Resolution and at every build that reads through the map. The
 contract does not copy those rules.
 
-`bundle.check()` cannot yet verify a built-in's `sha256` against its bytes,
-because the pinned OpenGWASDB has no built-in maps. Rather than pass silently,
-it reports the gap on `CheckResult.tolerated`, the #142 channel, cited
-`#292 part 2`. `BUILTIN_COLUMN_MAPS` is a copy of OpenGWASDB's list until the
-pin bump. A bundle test fails once the installed OpenGWASDB has
-`opengwasdb.readers.column_map`, so the copy and the gap cannot outlive the
-bump.
+A built-in binding's `sha256` must be that of the map file the pinned
+OpenGWASDB ships: `bundle.check()` takes the built-in names, and each file's
+checksum, from `opengwasdb.readers.column_map` and refuses any other value,
+naming both.
 
-Store Release Build does not yet pass the map to OpenGWASDB. The tracked
-`opengwasdb` pin predates the Column Map reader and refuses
-`opengwasdb.column-map` as an unknown capability. These follow the pin bump
-(#292, #287): `--column-map` on resolution and on every build command, the
-built-in checksum check, and a changed map making its Resolution Records stale.
+Store Release Build does not yet pass the map to OpenGWASDB, although the
+pinned `opengwasdb` now has the Column Map reader (opengwasdb#281). The rest of
+#292 part 2 follows: `--column-map` on resolution and on every build command,
+and a changed map making its Resolution Records stale.
 
 ### The passthrough rule
 

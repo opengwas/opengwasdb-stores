@@ -304,11 +304,6 @@ COLUMN_MAP_BINDING_KEYS: tuple[str, ...] = ("name", "sha256", "file")
 #: Where a bundle carries the map it binds: ``column_maps/<file>``.
 COLUMN_MAPS_DIR: str = "column_maps"
 COLUMN_MAP_SUFFIX: str = ".toml"
-#: A copy of OpenGWASDB's ``BUILTIN_COLUMN_MAPS``, the maps a bundle names
-#: without carrying. The pinned opengwasdb (4e92256) predates them, so there is
-#: nothing to import yet. #292 part 2's pin bump replaces this with an import
-#: from ``opengwasdb.readers.column_map``; a bundle test fails once that exists.
-BUILTIN_COLUMN_MAPS: frozenset[str] = frozenset({"finngen-r13", "gwas-ssf"})
 #: Lower-case, as ``hashlib`` writes it, so the binding compares byte for byte
 #: with the Resolution Record's fingerprint.
 _SHA256_RE: re.Pattern[str] = re.compile(r"\A[0-9a-f]{64}\Z")
@@ -1543,14 +1538,34 @@ def _column_map_binding(build: Mapping[str, Any]) -> tuple[ColumnMapBinding | No
             f"{where} file {file!r} must be a file name in {COLUMN_MAPS_DIR}/ matching "
             f"{INDEXED_SUBSET_NAME_RE.pattern}, with no '..', ending {COLUMN_MAP_SUFFIX}"
         )
-    if file is None and isinstance(name, str) and name not in BUILTIN_COLUMN_MAPS:
-        errors.append(
-            f"{where} {name!r} names no built-in map and carries no file; a carried "
-            f"map needs file, and the built-ins are {sorted(BUILTIN_COLUMN_MAPS)}"
-        )
+    if file is None and isinstance(name, str):
+        builtins = _builtin_column_maps()
+        packaged = builtins.get(name)
+        if packaged is None:
+            errors.append(
+                f"{where} {name!r} names no built-in map and carries no file; a carried "
+                f"map needs file, and the built-ins are {sorted(builtins)}"
+            )
+        elif isinstance(sha256, str) and _SHA256_RE.fullmatch(sha256) and sha256 != packaged:
+            errors.append(
+                f"{where} sha256 {sha256} is not built-in Column Map {name!r}'s: the "
+                f"pinned opengwasdb ships it with sha256 {packaged}"
+            )
     if errors:
         return None, errors
     return ColumnMapBinding(name=name, sha256=sha256, file=file), []
+
+
+@functools.cache
+def _builtin_column_maps() -> dict[str, str]:
+    """OpenGWASDB's built-in Column Maps by name, each with the sha256 of the file it ships.
+
+    Imported when a binding names a built-in, not with this module: importing
+    the package takes over a second, and every Snakemake job imports this one.
+    """
+    from opengwasdb.readers.column_map import BUILTIN_COLUMN_MAPS, load_column_map
+
+    return {name: load_column_map(name).sha256 for name in BUILTIN_COLUMN_MAPS}
 
 
 def _column_map_reference_errors(
@@ -1667,8 +1682,8 @@ def _check_column_map(
 
     The map is checked shallowly: readable TOML with ``column_map_version`` and
     a ``name`` equal to the binding's. Its full validation is OpenGWASDB's, at
-    resolution and build. A built-in's sha256 cannot be checked against the
-    pinned package yet, which the result discloses as a tolerated gap.
+    resolution and build. A built-in's sha256 is checked against the map file
+    the pinned package ships.
     """
     build = bundle.build if isinstance(bundle.build, Mapping) else {}
     binding_declared = COLUMN_MAP_KEY in build
@@ -1683,20 +1698,7 @@ def _check_column_map(
     if rows is not None:
         errors += _column_map_reference_errors(build, rows, binding_declared)
     errors += _carried_column_map_errors(bundle, build, binding)
-    tolerated: list[ToleratedGap] = []
-    if binding is not None and binding.file is None:
-        tolerated.append(
-            ToleratedGap(
-                store_id=bundle.store_id,
-                count=1,
-                detail=(
-                    f"unverified sha256 of built-in Column Map {binding.name!r}: the "
-                    "pinned opengwasdb has no built-in maps to check it against"
-                ),
-                citation="#292 part 2",
-            )
-        )
-    return errors, tolerated
+    return errors, []
 
 
 def check(
@@ -1748,7 +1750,6 @@ def check(
 __all__ = [
     "BUILDABLE_STATUSES",
     "BUILD_REQUIRED_KEYS",
-    "BUILTIN_COLUMN_MAPS",
     "COLUMN_MAPS_DIR",
     "COLUMN_MAP_BINDING_KEYS",
     "COLUMN_MAP_CAPABILITY",

@@ -7,7 +7,6 @@ import builtins
 import csv
 import hashlib
 import importlib.resources
-import importlib.util
 import os
 import shutil
 import subprocess
@@ -1688,6 +1687,12 @@ class TestColumnMapContract(unittest.TestCase):
     def result(self, **kwargs: Any) -> bundle.CheckResult:
         return bundle.check(self.mapped_bundle(**kwargs), registry_root=self.tmp_dir)
 
+    @staticmethod
+    def packaged_sha256(name: str) -> str:
+        """The sha256 of the built-in map file the installed opengwasdb ships."""
+        packaged = importlib.resources.files("opengwasdb.readers").joinpath("column_maps", f"{name}.toml")
+        return hashlib.sha256(packaged.read_bytes()).hexdigest()
+
     def errors(self, **kwargs: Any) -> list[str]:
         return list(self.result(**kwargs))
 
@@ -1782,16 +1787,8 @@ class TestColumnMapContract(unittest.TestCase):
                 self.errors(row_capabilities=None, recipe_capability=capability, binding=None),
                 [],
             )
-        builtin = {"name": "gwas-ssf", "sha256": "b" * 64}
-        result = self.result(binding=builtin)
-        self.assertEqual(list(result), [])
-        record_check()
-        # Its sha256 cannot be checked against the pinned package yet, and the
-        # result says so rather than reading as clean (#142).
-        self.assertEqual(
-            [(gap.count, gap.citation) for gap in result.tolerated], [(1, "#292 part 2")]
-        )
-        self.assertIn("built-in Column Map 'gwas-ssf'", result.tolerated[0].detail)
+        builtin = {"name": "gwas-ssf", "sha256": self.packaged_sha256("gwas-ssf")}
+        self.assertEqual(self.errors(binding=builtin), [])
         record_check()
         self.assert_refused(
             "column_maps/gwas-ssf.toml is carried but not bound",
@@ -1809,18 +1806,16 @@ class TestColumnMapContract(unittest.TestCase):
         )
         record_check()
 
-    def test_builtin_names_are_a_copy_until_the_pin_bump(self) -> None:
-        """`BUILTIN_COLUMN_MAPS` copies opengwasdb's, which the pin (4e92256) predates.
-
-        When the pin bump brings `opengwasdb.readers.column_map`, this fails:
-        import `BUILTIN_COLUMN_MAPS` from there, delete the copy, and verify a
-        built-in binding's sha256 against the package (#292 part 2).
-        """
-        self.assertIsNone(importlib.util.find_spec("opengwasdb.readers.column_map"))
-        self.assertFalse(
-            importlib.resources.files("opengwasdb.readers").joinpath("column_maps").is_dir()
-        )
+    def test_a_built_in_binding_is_verified_against_the_packaged_map(self) -> None:
+        """Its sha256 is that of the map file the pinned opengwasdb ships (#292 part 2)."""
+        packaged = self.packaged_sha256("gwas-ssf")
+        result = self.result(binding={"name": "gwas-ssf", "sha256": packaged})
+        self.assertEqual((list(result), list(result.tolerated)), ([], []))
         record_check()
+        errors = self.assert_refused(
+            "built-in Column Map 'gwas-ssf'", binding={"name": "gwas-ssf", "sha256": "b" * 64}
+        )
+        self.assertTrue(any(packaged in error and "b" * 64 in error for error in errors), errors)
 
     def test_the_map_is_validated_shallowly(self) -> None:
         def bound(content: str | bytes) -> dict[str, Any]:
