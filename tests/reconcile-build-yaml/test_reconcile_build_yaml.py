@@ -12,10 +12,11 @@ the real active opengwasdb CLI/API (pinned at dev SHA a9e8bc8 via issue #106):
      including Ragged SSF sample_size/source_file and BESD .epi probe derivation.
      BESD probe derivation for OGS-00001 is validated unconditionally via a committed fixture
      tests/reconcile-build-yaml/fixtures/pilot-10.epi (a 10-row provenance slice of authentic
-     eQTLGen pilot probe records), verifying probe ID derivation and ::{tissue} namespace
-     qualification portably in CI without relying on /data/besd. Since issue #319 the
-     `::` qualification is accepted only for the two tolerated legacy releases;
-     any other `build-ragged-besd` release names each Analysis by bare probe id.
+     eQTLGen pilot probe records), reconciling each committed manifest against the ids
+     opengwasdb's builder derives from its own recipe: `::{tissue}` where the recipe passes a
+     `tissue`, bare probe ids otherwise, portably in CI without relying on /data/besd.
+     Since issue #319 an `analysis_id` never contains ':' (`bundle.check()` enforces it); only
+     the two tolerated legacy releases keep the namespaced names.
   4. Each of the seven releases is derived as executable today against the real CLI.
   5. The source_genome_build/source_assembly mismatch is resolved live via
      --source-assembly, with the option value matching the normalized build of
@@ -43,8 +44,6 @@ from opengwasdb.model.manifest_columns import (
     resolve_manifest_columns,
 )
 from opengwasdb.readers import known_capabilities
-
-from ogstores import bundle
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
@@ -80,45 +79,6 @@ def introspect_active_cli() -> dict[str, set[str]]:
 def load_yaml(path: Path) -> dict[str, Any]:
     with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
-
-
-def besd_analysis_id_errors(
-    store_id: str, manifest_ids: set[str], probes: list[Any], tissue: str | None
-) -> list[str]:
-    """Why a `build-ragged-besd` release's `analysis_id`s break the rule (#319).
-
-    An `analysis_id` never contains `:`, because the catalogue names an Analysis
-    `<store_id>:<analysis_id>` and a client splits that on `:`. Only OGS-00001 and
-    OGS-00002 keep opengwasdb's `<probe>::<tissue>` naming, which an accepted
-    bundle may not be edited to remove (ADR 0004). Every other
-    `build-ragged-besd` release passes no `tissue` option and names each Analysis
-    by its bare probe id, recording the tissue in the manifest's `tissue` column
-    instead.
-    """
-    if store_id in bundle.LEGACY_ANALYSIS_ID_RELEASES:
-        if not tissue:
-            return [
-                f"{store_id} is a tolerated legacy release whose analysis_ids are namespaced, "
-                "so its Build Recipe must declare build.options.tissue"
-            ]
-        expected_ids = {f"{p.probe_id}::{tissue}" for p in probes}
-        detail = f"::{tissue}-qualified .epi probe ids"
-    else:
-        if tissue:
-            return [
-                f"{store_id} passes build.options.tissue {tissue!r}, but only "
-                f"{sorted(bundle.LEGACY_ANALYSIS_ID_RELEASES)} may namespace an analysis_id; "
-                "an analysis_id never contains ':' (#319), so the tissue belongs in the "
-                "manifest's own column instead"
-            ]
-        expected_ids = {p.probe_id for p in probes}
-        detail = "bare .epi probe ids"
-    if manifest_ids != expected_ids:
-        return [
-            f"{store_id} analysis_ids must be exactly the {detail}: unexpected "
-            f"{sorted(manifest_ids - expected_ids)}, missing {sorted(expected_ids - manifest_ids)}"
-        ]
-    return []
 
 
 def derive_post_command(layout: str, step_name: str) -> str:
@@ -279,11 +239,28 @@ def test_reconcile_stores() -> None:
             fixture_epi_path = FIXTURES_DIR / "pilot-10.epi"
             check(fixture_epi_path.is_file(), f"Portable BESD .epi fixture exists at {fixture_epi_path}")
 
+            # The expected ids are what opengwasdb's builder derives from this
+            # recipe: a `tissue` option namespaces them `<probe>::<tissue>`, and
+            # without one they are the bare probe ids (opengwasdb
+            # `build_besd.py`). Only OGS-00001 and OGS-00002 may still be built
+            # namespaced, because an accepted bundle is not edited (ADR 0004);
+            # `bundle.check()` enforces that an analysis_id never contains ':'
+            # elsewhere (issue #319), so this test reconciles the manifest
+            # against the builder's naming rather than repeating the rule.
+            tissue = options.get("tissue")
             probes = read_epi(fixture_epi_path)
+            expected_ids = (
+                {f"{p.probe_id}::{tissue}" for p in probes} if tissue
+                else {p.probe_id for p in probes}
+            )
             manifest_ids = {r["analysis_id"] for r in analyses_table.rows}
-            id_errors = besd_analysis_id_errors(store_id, manifest_ids, probes, options.get("tissue"))
-            check(not id_errors, "; ".join(id_errors))
-            analyses_valid = not id_errors
+            check(
+                manifest_ids == expected_ids,
+                f"{store_id} analysis_ids must be exactly the .epi probe ids the "
+                f"builder names: unexpected {sorted(manifest_ids - expected_ids)}, "
+                f"missing {sorted(expected_ids - manifest_ids)}",
+            )
+            analyses_valid = manifest_ids == expected_ids
 
         elif cmd in ("complete-ragged", "complete-dense", "complete-hybrid"):
             # Child release derived from parent
@@ -332,27 +309,6 @@ def test_besd_probe_derivation_negative() -> None:
     probes = read_epi(fixture_epi_path)
     expected_ids = {f"{p.probe_id}::whole_blood" for p in probes}
     check(manifest_ids == expected_ids, "Baseline fixture matches OGS-00001 manifest IDs")
-
-    # The `::{tissue}` naming is accepted only because OGS-00001 is a tolerated
-    # legacy release: an analysis_id never contains ':' (issue #319). The same
-    # manifest under any other Store Release id, with or without a tissue
-    # option, is refused, and a bare-probe-id release is accepted.
-    check(
-        besd_analysis_id_errors("OGS-00001", manifest_ids, probes, "whole_blood") == [],
-        "OGS-00001 keeps its namespaced ids as a tolerated legacy release",
-    )
-    check(
-        bool(besd_analysis_id_errors("OGS-00090", manifest_ids, probes, "whole_blood")),
-        "a release that is not tolerated may not pass build.options.tissue",
-    )
-    check(
-        bool(besd_analysis_id_errors("OGS-00090", manifest_ids, probes, None)),
-        "namespaced analysis_ids are refused for a release that is not tolerated",
-    )
-    check(
-        besd_analysis_id_errors("OGS-00090", {p.probe_id for p in probes}, probes, None) == [],
-        "a release that is not tolerated names each Analysis by its bare probe id",
-    )
 
     # 2. Meaningful failure on invalid / mutated probe ID in .epi
     mutated_expected = {
