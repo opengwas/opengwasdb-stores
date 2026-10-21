@@ -2,7 +2,7 @@
 """Fixture-driven tests for issues #35-40's in-repository implementation."""
 from __future__ import annotations
 
-import csv, importlib.util, json, subprocess, sys, tempfile
+import csv, importlib.util, json, shutil, subprocess, sys, tempfile
 from pathlib import Path
 
 import numpy as np
@@ -19,6 +19,9 @@ assert acquire_spec.loader; acquire_spec.loader.exec_module(acquire)
 materialize_spec = importlib.util.spec_from_file_location("materialize_reference", SCRIPT.with_name("materialize_reference.py"))
 materialize = importlib.util.module_from_spec(materialize_spec); sys.modules[materialize_spec.name] = materialize
 assert materialize_spec.loader; materialize_spec.loader.exec_module(materialize)
+verify_spec = importlib.util.spec_from_file_location("verify_block", SCRIPT.with_name("verify_block.py"))
+verify = importlib.util.module_from_spec(verify_spec); sys.modules[verify_spec.name] = verify
+assert verify_spec.loader; verify_spec.loader.exec_module(verify)
 
 checks = 0
 def check(value: bool, message: str) -> None:
@@ -109,6 +112,54 @@ def test_maf_floor() -> None:
           region[region.index("--samples-file") + 1] == "AMR.ids" and
           "--force-samples" not in region and region[region.index("--output-type") + 1] == "z",
           "region extraction must subset by index and fail on absent samples")
+
+
+def ld_fixture(n: int = 120, seed: int = 241) -> tuple[np.ndarray, list[dict[str, object]]]:
+    """ALT dosages in four LD groups; even columns have EA = REF, odd EA = ALT."""
+    rng = np.random.default_rng(seed)
+    latent = rng.binomial(2, .4, (n, 4)).astype(float)
+    columns = []
+    for j in range(40):
+        column = latent[:, j % 4].copy(); noise = rng.random(n) < .1
+        column[noise] = rng.binomial(2, .4, noise.sum()); columns.append(column)
+    variants = [{"chrom": "22", "pos": 100 + j, "allele1": ("A", "T")[j % 2], "allele2": ("C", "G")[j % 2]}
+                for j in range(40)]
+    return np.column_stack(columns), variants
+
+
+def test_verify_block() -> None:
+    g, variants = ld_fixture()
+    result = module.construct_block(g, variants, mac_threshold=1, component_floor=5)
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp) / "AMR" / "22" / "100-200"
+        module._atomic_outputs(base, result)
+        report = verify.verify_block(base, g, variants, thresh=.9)
+        check(report["failures"] == [] and report["core_components_at_thresh"] == report["components_at_thresh"],
+              f"a correct block failed verification: {report['failures']}")
+        def failures(edit) -> list[str]:
+            with tempfile.TemporaryDirectory() as tmp2:
+                copy = Path(tmp2) / "AMR" / "22" / "100-200"; copy.parent.mkdir(parents=True)
+                for suffix in (".tsv", ".ldeig.npz", ".provenance.json"):
+                    shutil.copy(base.with_suffix(suffix), copy.with_suffix(suffix))
+                arrays = dict(np.load(copy.with_suffix(".ldeig.npz")))
+                provenance = json.loads(copy.with_suffix(".provenance.json").read_text())
+                edit(copy, arrays, provenance)
+                np.savez(copy.with_suffix(".ldeig.npz"), **arrays)
+                copy.with_suffix(".provenance.json").write_text(json.dumps(provenance))
+                return verify.verify_block(copy, g, variants, thresh=.9)["failures"]
+        def swap_rows(base, arrays, provenance):
+            lines = base.with_suffix(".tsv").read_text().splitlines(keepends=True)
+            lines[1], lines[2] = lines[2], lines[1]; base.with_suffix(".tsv").write_text("".join(lines))
+        def flip_row(base, arrays, provenance): arrays["vectors"][3] *= -1
+        def nan(base, arrays, provenance): arrays["vectors"][0, 0] = np.nan
+        def negative(base, arrays, provenance): arrays["values"][-1] = -1.0
+        def under_resolved(base, arrays, provenance):
+            arrays["vectors"] = arrays["vectors"][:, :1]; provenance["components_retained"] = 1
+        check("binding" in failures(swap_rows), "permuted rows passed the binding check")
+        check("binding" in failures(flip_row), "a flipped allele passed the binding check")
+        check("finite" in failures(nan), "a non-finite eigenvector passed")
+        check("non_negative" in failures(negative), "a negative eigenvalue passed")
+        check(failures(under_resolved) == ["resolved_at_thresh"], "an under-resolved block passed")
 
 
 def test_canonical_effect_allele_ld_orientation() -> None:
@@ -253,11 +304,11 @@ def test_plink_raw_input() -> None:
 
 
 def main() -> None:
-    test_block(); test_maf_floor(); test_canonical_effect_allele_ld_orientation()
+    test_block(); test_maf_floor(); test_verify_block(); test_canonical_effect_allele_ld_orientation()
     test_mapping(); test_membership_keep_format(); test_amr_pilot_mapping(); test_amr_pilot_membership()
     test_index_validation(); test_compressed_pvar_input()
     test_plink_raw_input()
-    for script in ("acquire_hgdp1kgp.py", "construct_block.py", "run_panels.py"):
+    for script in ("acquire_hgdp1kgp.py", "construct_block.py", "run_panels.py", "verify_block.py"):
         subprocess.run([sys.executable, str(SCRIPT.with_name(script)), "--help"], check=True,
                        stdout=subprocess.DEVNULL)
     print(f"ok — {checks} checks passed")
