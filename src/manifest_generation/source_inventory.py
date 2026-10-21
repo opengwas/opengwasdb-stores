@@ -923,7 +923,8 @@ def preflight(
     metadata_gate_failed: list[str] = []
     metadata_build_undeclared: list[str] = []
     no_metadata_sidecar: list[str] = []
-    expected_builds = _declared_builds(provenance_path, config)
+    frozen_table, _frozen_manifest = _frozen_connectors(provenance_path, failures)
+    expected_builds = _declared_builds(frozen_table)
     gate_expected: set[str] = set()
     not_ready_with_present_file: list[str] = []
     for row in rows:
@@ -1213,19 +1214,32 @@ def preflight(
     )
 
 
-def _declared_builds(provenance_path: Path, config: Any) -> dict[str, str]:
-    """Each Analysis's ``source_genome_build`` from the frozen Source Metadata Table.
+def _frozen_connectors(provenance_path: Path, failures: list[str]) -> tuple[Any, Any]:
+    """The connectors frozen beside the inventory, checked against their recorded sha256.
 
-    Blank cells are absent: the release config's default applies to them.
-    An inventory whose connectors cannot be read gives none, and preflight
-    fails it for that already (:func:`frozen_for_release_problems`).
+    Preflight proves the frozen snapshot, and the release reads these files, so
+    one that is gone or changed is a named failure, never an empty table
+    (#282 review). ``(None, None)`` then, and when the provenance itself is
+    missing, which preflight reports on its own.
     """
     from manifest_generation.connector_tsv import FreezeError
     from manifest_generation.freeze import load_frozen_connectors
 
+    if not provenance_path.is_file():
+        return None, None
     try:
-        table, _manifest = load_frozen_connectors(provenance_path)
-    except (FreezeError, OSError):
+        return load_frozen_connectors(provenance_path)
+    except (FreezeError, OSError) as exc:
+        failures.append(f"the frozen connectors cannot be read: {exc}")
+        return None, None
+
+
+def _declared_builds(table: Any) -> dict[str, str]:
+    """Each Analysis's ``source_genome_build`` from the frozen Source Metadata Table.
+
+    Blank cells are absent: the release config's default applies to them.
+    """
+    if table is None:
         return {}
     return {
         row["source_analysis_id"]: row["source_genome_build"]

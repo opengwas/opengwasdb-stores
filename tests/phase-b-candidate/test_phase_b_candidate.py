@@ -3215,6 +3215,32 @@ class EntryPointStageTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("a changed Selection is a new freeze", result.stderr + result.stdout)
 
+    def _assert_preflight_names(self, expected: str) -> None:
+        result = _run_cli(self.fixture, "--stage", "preflight")
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn(expected, result.stderr)
+        report = json.loads(
+            (self.fixture.work_root / STORE_ID / "preflight" / f"{SNAPSHOT_ID}.json").read_text()
+        )
+        self.assertTrue(any(expected in failure for failure in report["failures"]), report["failures"])
+
+    def test_preflight_refuses_a_deleted_frozen_source_metadata_table(self) -> None:
+        """Preflight proves the frozen snapshot, its connectors included (#282 review)."""
+        self.stage("freeze")
+        self.stage("preflight")
+        frozen_table = self.fixture.inventory_path.with_name(f"{SNAPSHOT_ID}.source-metadata.tsv")
+        frozen_table.unlink()
+        self._assert_preflight_names(f"frozen source_metadata_table {frozen_table}")
+
+    def test_preflight_refuses_an_edited_frozen_acquisition_manifest(self) -> None:
+        self.stage("freeze")
+        frozen_manifest = self.fixture.inventory_path.with_name(f"{SNAPSHOT_ID}.acquisition-manifest.tsv")
+        frozen_manifest.write_text(
+            frozen_manifest.read_text(encoding="utf-8").replace("example.invalid", "example.org"),
+            encoding="utf-8",
+        )
+        self._assert_preflight_names("it was edited after the freeze")
+
     def test_a_release_config_with_no_connectors_needs_a_frozen_inventory(self) -> None:
         document = yaml.safe_load(self.fixture.config_path.read_text())
         del document["source_collection"]["connectors"]
