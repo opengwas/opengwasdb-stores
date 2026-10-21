@@ -26,6 +26,10 @@ killed job, and that differs between them only in whether the publication
 marker exists and whether the job's output, `records/register.json`, has been
 written. One boundary of each kind is crashed here.
 
+One case more kills a release that completes its own Store (ADR 0037)
+part-way through its completion phase's deletion of the Store it replaced
+(`old-store-deleting`, #309), and the next run finishes it.
+
 Each boundary has its own directories, so Snakemake's metadata for one cannot
 make another look up to date.
 
@@ -54,13 +58,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ogstores import paths, register, release, run  # noqa: E402
 from test_workflow import (  # noqa: E402
     SNAKEFILE_PATH,
+    amend_to_complete_own_store,
     create_dense_fixture_store,
+    create_signal_fixture_vcf,
+    create_signal_ld_panel,
     find_snakemake_cmd,
     release_argv,
     run_release,
 )
 
 STORE_ID = "OGS-00099"
+# A release that completes its own Store (ADR 0037), killed while its
+# completion phase deletes the Store it replaced (#309).
+SINGLE_ID_STORE_ID = "OGS-00111"
 
 # One register-job boundary of each kind Snakemake can see; the register suite
 # crashes the transaction at all of them.
@@ -272,6 +282,80 @@ class TestEveryBoundaryThroughTheEntryPoint(PublishedReleaseFixture):
         again = release_run()
         self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
         self.assertIn("nothing to be done", again.stdout)
+
+
+    def test_a_single_id_completion_killed_mid_deletion_is_finished_by_the_next_run(self) -> None:
+        """A whole-stack SIGKILL with the replaced Observed-Only Store half deleted; the next run finishes (#309).
+
+        The completion phase's register publishes the completed Store, then
+        deletes the Store it replaced. The release is built here the way
+        `test_workflow.single_id_completion_template` builds it, because
+        crossing this boundary takes a completion phase that publishes, and
+        only a fresh release runs one without `force`. The next entry-point
+        run finishes the deletion and the publication, and the run after it
+        executes no job.
+        """
+        boundary = "old-store-deleting"
+        self.assertIn(boundary, register.PUBLICATION_BOUNDARIES)
+        sid = SINGLE_ID_STORE_ID
+        td = Path(tempfile.mkdtemp(prefix="release_fault_single_id_"))
+        self.addCleanup(shutil.rmtree, td, True)
+        stores, artifacts = td / "stores", td / "artifacts"
+        stores.mkdir()
+        artifacts.mkdir()
+        create_dense_fixture_store(
+            stores,
+            store_id=sid,
+            artifact_root=artifacts,
+            vcf_path=create_signal_fixture_vcf(td / "signal.vcf.gz"),
+            post_top_hits=False,
+            post_overview=False,
+        )
+        amend_to_complete_own_store(stores, sid, ld_panel=create_signal_ld_panel(td / "ld-panel"))
+
+        killed = run_release(
+            [sid], registry_root=stores, artifact_root=artifacts,
+            env={run.KILL_GROUP_AT_ENV: boundary}, new_session=True,
+        )
+        self.assertEqual(killed.returncode, -9, f"no kill at {boundary}:\n{killed.stdout}\n{killed.stderr}")
+        store_p = paths.store_path(sid, root=artifacts)
+        marker = json.loads(paths.publication_marker(sid, root=artifacts).read_text(encoding="utf-8"))
+        self.assertEqual(marker["register_record"]["step"], "completion-register")
+        manifest = json.loads((store_p / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["completion_state"], "reference_completed", "the completed Store is published")
+        (half_deleted,) = (paths.store_dir(sid, root=artifacts) / "replaced").glob("*/store.opengwasdb.deleting")
+        self.assertTrue(any(half_deleted.iterdir()), "killed part-way through the deletion")
+        self.assertFalse(paths.record_path(sid, "completion-register", root=artifacts).exists())
+
+        res = run_release([sid], registry_root=stores, artifact_root=artifacts)
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self.assertIn(f"completed the interrupted publication of {sid}", res.stdout)
+        self.assertIn("nothing to be done", res.stdout)
+
+        archive = half_deleted.parent
+        self.assertEqual(sorted(p.name for p in archive.iterdir()), ["records", "validation.yaml"])
+        self.assertEqual(
+            sorted(p.name for p in (archive / "records").iterdir()),
+            ["completion-observed-view-check.json", "register.json"],
+        )
+        written = yaml.safe_load((stores / sid / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(written["observed"]["completion_state"], "reference_completed")
+        self.assertEqual(written["replaced"]["archive"], str(archive))
+        completion_register = json.loads(paths.record_path(sid, "completion-register", root=artifacts).read_text())
+        self.assertEqual(completion_register["replaced_archive"], str(archive))
+        for leftover in (
+            paths.publication_marker(sid, root=artifacts),
+            paths.backup_store_path(sid, root=artifacts),
+            paths.partial_store_path(sid, root=artifacts),
+        ):
+            self.assertFalse(leftover.exists(), leftover)
+
+        records = paths.records_dir(sid, root=artifacts)
+        before = {p: p.stat().st_mtime_ns for p in records.glob("*.json")}
+        again = run_release([sid], registry_root=stores, artifact_root=artifacts)
+        self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
+        self.assertIn("nothing to be done", again.stdout)
+        self.assertEqual({p: p.stat().st_mtime_ns for p in records.glob("*.json")}, before)
 
 
 class TestLiveAndInterruptedRuns(PublishedReleaseFixture):
