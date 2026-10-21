@@ -1000,8 +1000,41 @@ run alone repeats the in-memory steps it needs, never `freeze`, `preflight` or
 | `prepare` | frozen inventory, frozen Source Metadata Table | `<work-root>/<id>/resolver/analyses.tsv` | reconstruct a source path or re-select membership |
 | `resolve` | the resolver manifest | records in the Source Collection's Resolution Area; `<work-root>/<id>/resolver/{index.json,resolve.log,resolution_receipt.json}` | load a reference, fork a worker, or compute ancestry/SD here |
 | `verify` | the records the receipt names | nothing | accept a missing, stale, edited or duplicate record, or one outside the Selection |
-| `render` | records, frozen Source Metadata Table, the Canonical Trait Mapping Table, config | Trait Ontology Mapping, then the release policy, then `<work-root>/<id>/bundle/` | compute a statistic; write into `stores/`; carry files filtered to another region policy |
+| `render` | records, frozen Source Metadata Table, the Canonical Trait Mapping Table, config | Trait Ontology Mapping, then the release policy, then `<work-root>/<id>/bundle/` | compute a statistic; write into `stores/`; carry files filtered to another region policy; declare a completion phase the config has not qualified and activated |
 | `emit` | the rendered bundle | a staged bundle, then `stores/<id>/` | build, validate or accept a Store; write a non-`candidate` status |
+
+**Reference completion (#340, ADR 0037).** A release whose `build` block says
+`completion_state: reference_completed` declares a `completion` recipe in its
+release config ([release config](release-config.md#completion)): the
+`complete-dense` flags and the LD panel it completes against, with the owner's
+`qualification` and `activation` of that panel kept apart from the `status` its
+Reference Resource declares. Only a Dense release declares one, because the
+Observed-View Check that gates the replacement compares no other layout yet.
+
+`render` decides the recipe's place in the bundle, and it is the only place the
+decision is made:
+
+- a reference that is `qualified` and `active` emits `build.yaml` with
+  `completion_state: reference_completed`, the `build` block byte-identical to
+  the one an Observed-Only release gets, and a `complete` block whose `ld-panel`
+  is the declared Reference Resource's location and whose `ancestry` is its
+  declared ancestry. `release.yaml` claims no `derived_from`: one id is
+  published twice, its Observed-Only Store first and its completed Store to the
+  same path (ADR 0037);
+- any other reference emits the Observed-Only bundle, unchanged, and records
+  the reason twice: `release.yaml`'s notes say the recipe is blocked and name
+  the qualification and activation, and `validation.yaml` carries
+  `acceptance.completion_reference` with `blocked: true`, as #312's OGS-00009
+  recorded its qualified one. The stages print the same sentence, so an
+  operator who meant to complete is not left guessing.
+
+The reference is a Reference Resource like any other the release declares, so
+`preflight` requires the panel to be present before anything is rendered. A
+config that declares a non-Dense layout, a `complete-dense` flag naming the
+panel, a panel ancestry other than `release_policy.selection_superpopulation`, a
+`declared_status` its resource does not declare, `reference_completed` with no
+recipe or `observed_only` with one, and the retired `completed_store_id` keys
+is refused when it loads, not when the bundle is emitted.
 
 Re-running a stopped run repeats nothing costly: `freeze` finds the frozen
 snapshot and `resolve` reuses every record whose fingerprint still matches.

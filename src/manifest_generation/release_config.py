@@ -22,6 +22,10 @@ one, written for each Store Release. It says, and nothing else says:
 - the **Reference Resources** (``reference_resources``) and what uses them:
   ancestry assignment, effect-scale validation and Trait Ontology Mapping's
   Canonical Trait Mapping Table;
+- for a reference-completed release, the **completion recipe** (``completion``,
+  #340): the LD panel it is completed against, the owner decision that
+  qualified and activated that panel, and the `complete-dense` flags beside it
+  (ADR 0037);
 - for a region-filtered release, the **region policy** acquisition filters its
   files to (``region_policy``, #300), with the QC panel it always keeps;
 - the run's **runtime** and **Work Root** (``runtime``, ``output``).
@@ -41,7 +45,8 @@ from typing import Any, Mapping, Sequence
 
 import yaml
 
-from manifest_generation import quality_checks
+from manifest_generation import completion, quality_checks
+from manifest_generation.completion import CompletionError, CompletionRecipe
 from manifest_generation.freeze import frozen_paths
 from manifest_generation.region_filter import ASSOCIATION_COVERAGES, RegionPolicy
 from manifest_generation.indexed_subsets import (
@@ -188,6 +193,9 @@ class ReleaseConfig:
     region_policy: RegionPolicy | None = None
     #: The ``qc_panel`` Reference Resource the region policy always keeps.
     qc_panel_resource_id: str | None = None
+    #: The completion recipe a reference-completed release declares (#340,
+    #: ADR 0037), or ``None`` for a release that declares no completion block.
+    completion: CompletionRecipe | None = None
 
     # -- what preflight reads ---------------------------------------------------
 
@@ -221,8 +229,14 @@ TOP_LEVEL_REQUIRED = (
 )
 TOP_LEVEL_OPTIONAL = (
     "access_posture", "notes", INDEXED_SUBSETS_KEY, INDEXED_SUBSETS_OPT_OUT_KEY,
-    "quality_checks", "effect_scale_validation", "runtime", "region_policy",
+    "quality_checks", "effect_scale_validation", "runtime", "region_policy", "completion",
 )
+#: The Build Recipe shapes the release config reads: observed-only, or one that
+#: completes its own Store under its id (ADR 0037).
+COMPLETION_STATES: tuple[str, ...] = ("observed_only", "reference_completed")
+#: The one layout a Store completes its own id on: the Observed-View Check that
+#: gates the replacement compares no other layout yet (ADR 0037).
+COMPLETION_LAYOUTS: tuple[str, ...] = ("dense",)
 DEFAULTS_OPTIONAL = (
     "source_genome_build", "license", "publication_doi", "consortium",
     "sample_size_scope", "analysis_group_id", "info_score_threshold", "maf_threshold",
@@ -363,6 +377,15 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
             "ogstores.yaml), so every release over a Source Collection finds the same "
             "Resolution Area (#284)"
         )
+    # Before the key gate below, so the retired keys are refused by name with
+    # the decision that retired them, not as an unknown key (#308, #340).
+    retired = [key for key in completion.RETIRED_KEYS if key in document]
+    if retired:
+        raise ReleaseConfigError(
+            f"{path} declares {', '.join(retired)}: a reference-completed Store is published "
+            "under its own id, and its one bundle declares both phases (ADR 0037, #340). A "
+            "reserved completed id is never reused; remove the key."
+        )
     _block(document, str(path), TOP_LEVEL_REQUIRED, TOP_LEVEL_OPTIONAL)
 
     # -- identity --------------------------------------------------------------
@@ -417,9 +440,15 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
     for key, value in post_block.items():
         if not isinstance(value, bool):
             raise ReleaseConfigError(f"{where}.post.{key} must be true or false, not {value!r}")
+    completion_state = _text(build_block["completion_state"], f"{where}.completion_state")
+    if completion_state not in COMPLETION_STATES:
+        raise ReleaseConfigError(
+            f"{where}.completion_state {completion_state!r} is not one of "
+            + ", ".join(COMPLETION_STATES)
+        )
     build = BuildRecipeShape(
         layout=_text(build_block["layout"], f"{where}.layout"),
-        completion_state=_text(build_block["completion_state"], f"{where}.completion_state"),
+        completion_state=completion_state,
         command=_text(build_block["command"], f"{where}.command"),
         options=dict(build_block.get("options") or {}),
         post=dict(build_block["post"]),
@@ -634,6 +663,43 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
             document["region_policy"], _where(path, "region_policy"), declared
         )
 
+    # -- reference completion (ADR 0037, #340) ---------------------------------
+    recipe = None
+    if "completion" in document:
+        where = _where(path, "completion")
+        if build.layout not in COMPLETION_LAYOUTS:
+            raise ReleaseConfigError(
+                f"{where} is declared for a {build.layout!r} layout: a Store completes its own "
+                "id only on the " + ", ".join(COMPLETION_LAYOUTS) + " layout, the one the "
+                "Observed-View Check that gates the replacement compares (ADR 0037)"
+            )
+        try:
+            recipe = completion.parse_completion(
+                document["completion"],
+                where=where,
+                superpopulation=selection_superpopulation,
+                resources=resources,
+                repo_root=repo_root,
+            )
+        except CompletionError as exc:
+            raise ReleaseConfigError(str(exc)) from exc
+    # The state and the recipe are one statement: a config either completes its
+    # Store and says against what, or is Observed-Only by policy and declares no
+    # recipe. Reading a contradiction as "never completes" would emit an
+    # Observed-Only bundle for a Store its author meant to complete (#340).
+    if build.completion_state == "reference_completed" and recipe is None:
+        raise ReleaseConfigError(
+            f"{_where(path, 'build', 'completion_state')} is 'reference_completed', but the "
+            "config declares no completion block: a reference-completed Store says which "
+            "reference it completes against (ADR 0037, docs/spec/release-config.md)"
+        )
+    if build.completion_state == "observed_only" and recipe is not None:
+        raise ReleaseConfigError(
+            f"{_where(path, 'build', 'completion_state')} is 'observed_only' and the config "
+            "also declares a completion block: those contradict each other. Declare "
+            "'reference_completed' to complete, or no completion block at all (ADR 0037)"
+        )
+
     # -- runtime and Work Root -----------------------------------------------------
     runtime = _block(document.get("runtime") or {}, _where(path, "runtime"), (),
                      ("cores", "min_free_gb"))
@@ -700,10 +766,14 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
                 + [resource_id for _ancestry, resource_id in effect_scale_references]
                 + [trait_mapping_resource_id]
                 + ([qc_panel_resource_id] if qc_panel_resource_id else [])
+                # The panel a release completes against, so preflight proves it
+                # is on this host before anything is rendered (#340).
+                + ([recipe.resource_id] if recipe else [])
             )
         ),
         region_policy=region_policy,
         qc_panel_resource_id=qc_panel_resource_id,
+        completion=recipe,
     )
 
 

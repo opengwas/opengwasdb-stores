@@ -42,6 +42,7 @@ key.
 | `source_collection` | Yes | The Source Collection and its files (below). |
 | `selection` | Yes | The Selection, in #283's grammar: exactly one of `all: true`, `analyses: [...]` or `where: {...}`, with an optional `expect_rows` membership bound. |
 | `build` | Yes | The Build Recipe shape `build.yaml` carries (below). |
+| `completion` | No | For a reference-completed release, the recipe and the LD panel it completes against (below, #340, ADR 0037). |
 | `indexed_subsets`, `indexed_subsets_opt_out` | No | Dense and Hybrid releases declare the maintained `hm3` Indexed Variant Subset by default; `[]` with a reason opts out; a Ragged release declares none (stores #210). |
 | `defaults` | Yes | Collection-wide Analytical Metadata defaults and the method tiers (below). |
 | `release_policy` | Yes | Membership policy inputs (below). |
@@ -71,7 +72,9 @@ a re-freeze is a new snapshot id.
 ### `build`
 
 `layout`, `completion_state`, `command` and `post` are required, `options` is
-not. `command` names an `opengwasdb` subcommand and `options` are its flags,
+not. `completion_state` is `observed_only` or `reference_completed`; a
+`reference_completed` config declares the `completion` block that says what it
+completes against, and an `observed_only` one declares none (below). `command` names an `opengwasdb` subcommand and `options` are its flags,
 passed through verbatim (ADR 0023): `options` is opaque by design, and its keys
 are not checked here. `post` is the registry's own vocabulary -- `top_hits`,
 `overview`, `rho` and `validate`, each `true` or `false`, the steps
@@ -83,6 +86,91 @@ are not checked here. `post` is the registry's own vocabulary -- `top_hits`,
 `source-reader-capability` (the reader the resolver uses; default
 `opengwasdb.gwas-ssf`) and `variant-reference` (the Variant Reference the
 resolver measures overlap against).
+
+### `completion`
+
+A release that is completed against an LD reference panel declares the recipe
+and the reference (#340, [ADR 0037](../adr/0037-reference-completion-replaces-its-store.md)).
+One Store id is published twice: the `build` block publishes the Observed-Only
+Store, and the completion phase reads that published Store and replaces it, so
+no second id is minted and no `derived_from` is claimed. `src/manifest_generation/completion.py`
+owns this vocabulary.
+
+| Key | Required | Description |
+|---|---:|---|
+| `reference.resource_id` | Yes | A declared `ld_panel` Reference Resource (below). |
+| `reference.declared_status` | Yes | The `status` that resource's declaration records (`available`), and which this must match. It is recorded as it is: a declared status is neither a qualification nor a science pass. |
+| `reference.qualification` | Yes | The owner's: `qualified`, `pending`, `hold` or `not_applicable`. |
+| `reference.activation` | Yes | The panel's usability on this host: `active`, `pending` or `blocked`. |
+| `command` | Yes | `complete-dense`, the only one a single-id release declares: the Observed-View Check that gates the replacement compares no other layout yet. |
+| `options` | No | The `complete-dense` flags beside the panel, passed through verbatim (ADR 0023). `ld-panel` and `ancestry` are refused here: they are the Reference Resource's. |
+
+The bundle completes its Store only when the reference is `qualified` **and**
+`active`. Then `build.yaml` declares `completion_state: reference_completed`,
+`build` and `complete`, and `release.yaml` carries no `derived_from`; the `build`
+block is exactly the Observed-Only one, so completing a published Store
+schedules no rebuild (ADR 0037 clarified by #305). Anything short of that --
+`pending`, `hold`, `blocked` -- emits the Observed-Only bundle a config with no
+`completion` block emits, and records why: the release notes say the recipe is
+blocked, and `validation.yaml`'s `acceptance.completion_reference` carries the
+declared reference with `blocked: true`. A blocked recipe is not an error: the
+release is still emitted, as the Observed-Only Store it is ready to be.
+
+What the recipe cannot contradict, each refused by name:
+
+- a layout other than `dense` (see above);
+- a `complete-dense` option naming the panel;
+- the reference's `ancestry`, from its declaration, differing from
+  `release_policy.selection_superpopulation`: completion imputes against a panel
+  of the ancestors the Store holds;
+- a declaration whose `ancestry_dir` is not its `ancestry`, because
+  `complete-dense` names both the panel directory and the Analyses it completes
+  with one `--ancestry` (#219);
+- a `declared_status` the resource does not declare;
+- `build.completion_state: reference_completed` with no `completion` block, and
+  `observed_only` with one;
+- the retired `completed_store_id` / `planned_completed_store_id` (ADR 0007's
+  second id, which ADR 0037 removes).
+
+The panel's location is the `reference_resources` entry's, which preflight
+requires present; its `ancestry` and `ancestry_dir` are the declaration's, so
+the recipe cannot name a panel other than the one the resource declares.
+
+```yaml
+build:
+  layout: dense
+  completion_state: reference_completed
+  command: build-dense-vcf
+  options:
+    source-reader-capability: opengwasdb.gwas-vcf
+    source-assembly: hg19
+    n-workers: 32
+  post:
+    top_hits: true
+    overview: true
+
+reference_resources:
+  - resource_id: ukb-hg38-eur-ld
+    kind: ld_panel
+    location: /data/opengwasdb/reference/ld
+    location_kind: external_directory
+  # ... the ancestry mixture and the Canonical Trait Mapping Table
+
+completion:
+  reference:
+    resource_id: ukb-hg38-eur-ld
+    declared_status: available
+    qualification: qualified
+    activation: active
+  command: complete-dense
+  options:
+    n-workers: 32
+```
+
+`ukb-hg38-eur-ld`'s declaration (`resources/reference-resources/ukb-hg38-eur-ld/resource.yaml`)
+supplies its `ancestry: EUR` and `ancestry_dir: EUR`, so the emitted `complete`
+block is `{"command": complete-dense, "options": {ld-panel: /data/opengwasdb/reference/ld,
+ancestry: EUR, n-workers: 32}}`.
 
 ### `defaults`
 
@@ -148,7 +236,7 @@ unfiltered files, and region-filtered files under a config that declares no
 and `location` are required; `location_kind`, `version`, `status`,
 `fine_group_map`, `ancestry`, `super_populations`, `genome_build` and
 `variant_id_convention` are optional. A `resource_id` declared twice is
-refused. Three blocks use them, by id:
+refused. Four blocks use them, by id:
 
 - `ancestry_assignment.reference_resource_id` (required) names the ancestry
   mixture the resolver measures against: an `ancestry_mixture` resource, with a
@@ -166,8 +254,13 @@ refused. Three blocks use them, by id:
 - `trait_ontology_mapping.reference_resource_id` (required) names the
   Canonical Trait Mapping Table, a `trait_ontology_mapping` resource whose
   `location` is its resource directory (#286).
+- `completion.reference.resource_id` names the LD panel a reference-completed
+  release completes against: an `ld_panel` resource whose `location` is the
+  panel root and whose declaration names its `ancestry` and `ancestry_dir`
+  (#340). Preflight requires it present, as it does the others.
 
-Preflight requires every named resource to be present.
+Preflight requires every named resource to be present, the completion panel
+included.
 
 ## Example
 
