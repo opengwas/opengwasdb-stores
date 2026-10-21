@@ -264,7 +264,7 @@ class TestEveryBoundaryThroughTheEntryPoint(PublishedReleaseFixture):
                 find_snakemake_cmd()
                 + ["--snakefile", str(SNAKEFILE_PATH), "--unlock", "--config",
                    f"registry_root={stores}", f"artifact_root={artifacts}"],
-                cwd=REPO_ROOT, capture_output=True, text=True,
+                cwd=release.snakemake_directory(), capture_output=True, text=True,
             )
             self.assertEqual(unlock.returncode, 0, unlock.stdout + unlock.stderr)
             res = release_run(force=True)

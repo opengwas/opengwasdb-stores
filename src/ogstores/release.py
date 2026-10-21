@@ -66,6 +66,12 @@ from ogstores import amendment, bundle, paths, register, resources, run, runtime
 
 SNAKEFILE: Path = paths.REPO_ROOT / "workflow" / "Snakefile"
 
+# Test-only: the directory Snakemake runs in, and so keeps its `.snakemake/`
+# locks and metadata in, instead of the repository root. Every Snakemake run
+# deletes that whole lock directory when it exits, and `--unlock` clears every
+# lock in it, so test processes running side by side each need their own.
+SNAKEMAKE_DIRECTORY_ENV: str = "OGSTORES_TEST_SNAKEMAKE_DIRECTORY"
+
 # Configuration only the entry point may set.
 RESERVED_CONFIG_KEYS: frozenset[str] = frozenset({"release_run"})
 
@@ -194,6 +200,11 @@ def _cores(value: str) -> str:
     return value
 
 
+def snakemake_directory() -> Path:
+    """The directory every Snakemake run starts in: the repository root, unless a test names another."""
+    return Path(os.environ.get(SNAKEMAKE_DIRECTORY_ENV) or paths.REPO_ROOT)
+
+
 def snakemake_argv(
     inv: Invocation, *, dry_run: bool, extra_config: dict[str, str] | None = None
 ) -> list[str]:
@@ -319,7 +330,7 @@ def _cleanup_metadata(inv: Invocation, files: Iterable[Path]) -> None:
         ]
         if inv.config:
             argv += ["--config", *(f"{key}={value}" for key, value in inv.config.items())]
-        result = subprocess.run(argv, cwd=paths.REPO_ROOT, capture_output=True, text=True)
+        result = subprocess.run(argv, cwd=snakemake_directory(), capture_output=True, text=True)
         output = result.stdout + result.stderr
         if result.returncode != 0 and "because the metadata was not present" not in output:
             raise RuntimeError(f"Could not clear Snakemake's metadata for {path}:\n{output}")
@@ -615,7 +626,7 @@ def _run_snakemake(
     env = {**os.environ, run.ENTRY_POINT_PID_ENV: str(os.getpid()), **(extra_env or {})}
     proc = subprocess.Popen(
         run._supervised_command(argv, liveness_read, status_write),
-        cwd=paths.REPO_ROOT,
+        cwd=snakemake_directory(),
         env=env,
         start_new_session=True,
         pass_fds=(liveness_read, status_write, *lock_fds),
@@ -649,7 +660,7 @@ def _run_snakemake(
 def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> int:
     """Show the plan and what the guard would do, writing nothing."""
     result = subprocess.run(
-        snakemake_argv(inv, dry_run=True), cwd=paths.REPO_ROOT, capture_output=True, text=True
+        snakemake_argv(inv, dry_run=True), cwd=snakemake_directory(), capture_output=True, text=True
     )
     sys.stdout.write(result.stdout)
     sys.stderr.write(result.stderr)
@@ -789,7 +800,7 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     run.refuse_pending_force_snapshots([(root, store_id) for store_id in requested])
 
     plan = subprocess.run(
-        snakemake_argv(inv, dry_run=True), cwd=paths.REPO_ROOT, capture_output=True, text=True
+        snakemake_argv(inv, dry_run=True), cwd=snakemake_directory(), capture_output=True, text=True
     )
     if plan.returncode != 0:
         sys.stdout.write(plan.stdout)
@@ -918,6 +929,7 @@ __all__ = [
     "ReleaseLocks",
     "RESERVED_CONFIG_KEYS",
     "SNAKEFILE",
+    "SNAKEMAKE_DIRECTORY_ENV",
     "UNSAFE_OPTIONS",
     "SNAPSHOT_RESOLUTIONS",
     "UsageError",
@@ -936,4 +948,5 @@ __all__ = [
     "scheduled_releases",
     "settle",
     "snakemake_argv",
+    "snakemake_directory",
 ]

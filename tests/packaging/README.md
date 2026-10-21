@@ -9,12 +9,15 @@ Covered:
   - a Python suite is named after its directory, or `<directory>/<file>`
     when the directory holds several;
   - a name an R suite already has falls back to the file form;
-  - a split suite runs as its named halves;
+  - a split suite runs as its named parts, and in this repository every
+    test of a split file runs in exactly one part;
+  - a suite in `PER_TEST_SUITES` runs as one process per test, and one that
+    selects no test is refused;
   - in this repository every Python test file is exactly one suite, and the
     suite names CI uses are kept.
 - `test_discovery.py` also checks that two suites sharing a name are
   refused, that this environment's `ogstores` is this checkout's, and that
-  CI's exclusive suites keep their names and order.
+  CI's release-stack suites keep their names and order.
 - `test_imports.py`: no tracked Python file, and not the Snakefile, inserts
   the repository root or `src/` into `sys.path`. That includes inserts
   through a loop over a literal tuple, and `src/` handed to a subprocess
