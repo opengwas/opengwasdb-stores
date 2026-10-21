@@ -1,7 +1,8 @@
 """The catalog's tables: their columns, types and DDL (ADR 0039, epic #313).
 
 Store-level facts live in `stores` once and are never repeated per Analysis. The
-derived tables, indexes and full-text index that #324 adds belong in `DDL`.
+derived columns, counts, indexes and full-text index are built after the rows
+are in (`INDEXES`, `SEARCH`), which is faster than maintaining them per insert.
 """
 
 from __future__ import annotations
@@ -64,12 +65,43 @@ MANIFEST_COLUMNS: dict[str, str] = {
     "first_author": "TEXT",
 }
 
+# Derived once at build time from the manifest columns (`policy.outcome_type`,
+# `policy.trait_class`); the counts group by them.
+DERIVED_COLUMNS: dict[str, str] = {
+    "outcome_type": "TEXT CHECK (outcome_type IN ('binary', 'continuous'))",
+    "trait_class": "TEXT NOT NULL CHECK (trait_class IN ('phenotype', 'molecular'))",
+    "ancestry_category": "TEXT",
+}
+
 ANALYSIS_COLUMNS: dict[str, str] = {
     "id": "TEXT PRIMARY KEY",
     "store_id": "TEXT NOT NULL REFERENCES stores(store_id)",
     "analysis_id": "TEXT NOT NULL",
     "status": "TEXT NOT NULL",
+    # 1 for an Analysis of a listed Store, 0 for a placeholder row.
+    "listed": "INTEGER NOT NULL CHECK (listed IN (0, 1))",
     **MANIFEST_COLUMNS,
+    **DERIVED_COLUMNS,
+}
+
+# The columns a listing can be sorted by, each with an index on (column, id) for
+# `ORDER BY col, id` and keyset paging. `id` itself has a partial index of its own
+# (`INDEXES`): the primary key covers placeholder rows too, so it cannot serve a
+# listing of listed rows alone.
+SORTABLE_COLUMNS: tuple[str, ...] = (
+    "store_id", "analysis_label", "trait_ontology_label", "assigned_ancestry", "tissue",
+    "stored_effect_scale", "sample_size",
+)
+
+# The dimensions `counts` holds, and the SQL expression each groups the listed Analyses by.
+COUNT_DIMENSIONS: dict[str, str] = {
+    "store": "a.store_id",
+    "ancestry": "a.ancestry_category",
+    "tissue": "a.tissue",
+    "effect_scale": "a.stored_effect_scale",
+    "outcome_type": "a.outcome_type",
+    "trait_class": "a.trait_class",
+    "coverage": "s.association_coverage",
 }
 
 
@@ -87,4 +119,29 @@ DDL: tuple[str, ...] = (
         "reason": "TEXT NOT NULL",
     }),
     _create("catalog_meta", {"key": "TEXT PRIMARY KEY", "value": "TEXT"}),
+    _create("counts", {"dimension": "TEXT NOT NULL", "value": "TEXT", "n_analyses": "INTEGER NOT NULL"}),
+    "CREATE VIEW listed_analyses AS SELECT * FROM analyses WHERE listed = 1",
+)
+
+# Partial indexes over listed rows: a placeholder row costs a listing nothing.
+# Queries go through `listed_analyses`, which carries `listed = 1`.
+INDEXES: tuple[str, ...] = (
+    *(
+        f"CREATE INDEX analyses_by_{column} ON analyses ({column}, id) WHERE listed = 1"
+        for column in SORTABLE_COLUMNS
+    ),
+    "CREATE INDEX analyses_by_id ON analyses (id) WHERE listed = 1",
+    "CREATE INDEX analyses_by_region ON analyses (trait_chr, trait_bp, id) WHERE listed = 1",
+    "CREATE INDEX counts_lookup ON counts (dimension, value)",
+)
+
+# External-content full-text index over a listed-only view that exposes the `analyses` rowid, so
+# `rebuild` and `integrity-check` agree with what is indexed.
+SEARCH: tuple[str, ...] = (
+    "CREATE VIEW listed_search_content AS SELECT rowid AS analysis_rowid, analysis_label, "
+    "trait_ontology_label, consortium, first_author FROM analyses WHERE listed = 1",
+    "CREATE VIRTUAL TABLE analysis_search USING fts5("
+    "analysis_label, trait_ontology_label, consortium, first_author, "
+    "content='listed_search_content', content_rowid='analysis_rowid')",
+    "INSERT INTO analysis_search(analysis_search) VALUES('rebuild')",
 )

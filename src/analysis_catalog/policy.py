@@ -34,7 +34,7 @@ POLICY: tuple[str, ...] = (
     "2. Trial Store Release: excluded",
     "3. Access Posture embargoed: excluded",
     "4. Release Status candidate, accepted or built: excluded",
-    "5. Release Status superseded or withdrawn: placeholder",
+    "5. Release Status superseded or withdrawn: placeholder rows, after the count and type checks of rule 6",
     "6. Release Status validated: listed with its Access Posture (public or controlled), "
     "unless the admitted Release Manifest count differs from the Validation Record's "
     "observed.n_analyses or that count is missing: refused",
@@ -82,17 +82,20 @@ def decide(bundle: release_bundle.Bundle, registry: Path) -> Decision:
     if status in UNSERVED_STATUSES:
         return Decision(store_id, EXCLUDED, f"Release Status is {status}, not validated")
     if status in RETIRED_STATUSES:
-        return Decision(
-            store_id, PLACEHOLDER,
-            f"Release Status is {status}: kept as placeholder rows, not listed",
+        return _admit(
+            bundle, PLACEHOLDER, f"Release Status is {status}: kept as placeholder rows, not listed"
         )
     # check() admits only the six Release Statuses, so this one is `validated`.
     if posture not in SERVED_POSTURES:
         return Decision(store_id, REFUSED, f"Access Posture is {posture}; a listed Store is public or controlled")
-    return _list_or_refuse(bundle, posture)
+    return _admit(bundle, LISTED, f"Release Status is validated, Access Posture is {posture}")
 
 
-def _list_or_refuse(bundle: release_bundle.Bundle, posture: str) -> Decision:
+def _admit(bundle: release_bundle.Bundle, decision: str, reason: str) -> Decision:
+    """Read a Store's rows as `decision` (listed or placeholder), or refuse it.
+
+    A placeholder passes the same count and type checks as a listed Store.
+    """
     # Imported here, as bundle.py does, so importing the catalog stays cheap.
     from opengwasdb.model import analyses as opengwasdb_analyses
 
@@ -110,14 +113,11 @@ def _list_or_refuse(bundle: release_bundle.Bundle, posture: str) -> Decision:
             f"observed.n_analyses is {expected}",
         )
     try:
-        rows = tuple(_analysis_row(bundle, row) for row in admitted)
+        rows = tuple(_analysis_row(bundle, row, decision == LISTED) for row in admitted)
         store = _store_row(bundle, observed)
     except RefusedRow as exc:
         return Decision(store_id, REFUSED, str(exc))
-    return Decision(
-        store_id, LISTED, f"Release Status is validated, Access Posture is {posture}",
-        store=store, analyses=rows,
-    )
+    return Decision(store_id, decision, reason, store=store, analyses=rows)
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:
@@ -132,7 +132,8 @@ def _store_row(bundle: release_bundle.Bundle, observed: Mapping[str, Any]) -> tu
         "label": release.get("label"),
         "description": release.get("description"),
         "status": bundle.status,
-        "superseded_by": release.get("superseded_by"),
+        # A withdrawn Store has no successor, whatever the file says.
+        "superseded_by": None if bundle.status == "withdrawn" else release.get("superseded_by"),
         "access_posture": release.get("access_posture"),
         "layout": bundle.layout,
         "completion_state": bundle.completion_state,
@@ -162,7 +163,35 @@ def _store_row(bundle: release_bundle.Bundle, observed: Mapping[str, Any]) -> tu
     return tuple(row)
 
 
-def _analysis_row(bundle: release_bundle.Bundle, row: Mapping[str, str]) -> tuple:
+def outcome_type(stored_effect_scale: str | None, sample_size_kind: str | None) -> str | None:
+    """`binary`, `continuous` or None.
+
+    Binary when `sample_size_kind` is `case_control` or `stored_effect_scale` is
+    `log_or` (the owner's ruling on #324): an `sd` effect with case counts is a
+    binary trait stored in SD units. Continuous for `sd` with `total`. None for
+    every other pair, including a blank, rather than a guess.
+    """
+    if sample_size_kind == "case_control" or stored_effect_scale == "log_or":
+        return "binary"
+    if stored_effect_scale == "sd" and sample_size_kind == "total":
+        return "continuous"
+    return None
+
+
+def ancestry_category(assigned_ancestry: str | None, source_ancestry_label: str | None) -> str | None:
+    """The catalog's ancestry dimension: Assigned Ancestry when set, `META` when it is
+    empty and the Source Ancestry Label is exactly `META`, None (unassigned) otherwise."""
+    if assigned_ancestry is not None:
+        return assigned_ancestry
+    return "META" if source_ancestry_label == "META" else None
+
+
+def trait_class(context: str | None, tissue: str | None, trait_chr: str | None) -> str:
+    """`molecular` when any of the three is set, `phenotype` otherwise."""
+    return "molecular" if any(value is not None for value in (context, tissue, trait_chr)) else "phenotype"
+
+
+def _analysis_row(bundle: release_bundle.Bundle, row: Mapping[str, str], listed: bool) -> tuple:
     analysis_id = (row.get("analysis_id") or "").strip()
     if ":" in analysis_id:
         raise RefusedRow(f"analyses.tsv row {analysis_id!r}: analysis_id contains ':' (#319)")
@@ -177,6 +206,10 @@ def _analysis_row(bundle: release_bundle.Bundle, row: Mapping[str, str]) -> tupl
         store_id=bundle.store_id,
         analysis_id=analysis_id,
         status=bundle.status,
+        listed=int(listed),
+        outcome_type=outcome_type(values["stored_effect_scale"], values["sample_size_kind"]),
+        ancestry_category=ancestry_category(values["assigned_ancestry"], values["source_ancestry_label"]),
+        trait_class=trait_class(values["context"], values["tissue"], values["trait_chr"]),
     )
     return tuple(values[column] for column in ANALYSIS_COLUMNS)
 
