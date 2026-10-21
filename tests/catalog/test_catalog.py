@@ -547,6 +547,24 @@ class UnrepresentableValuesTest(TempDirCase):
             "analyses.tsv row 'A1': trait_bp '9223372036854775808' is not an integer SQLite can store",
         )
 
+    def test_nan_is_the_absence_marker_of_the_two_threshold_columns(self) -> None:
+        write_bundle(self.registry, "OGS-00001", rows=[
+            analysis_row("A1", info_score_threshold="NaN", maf_threshold="NaN"),
+            analysis_row("A2", info_score_threshold="0.8", maf_threshold="0"),
+        ])
+        self.build()
+        self.assertEqual(
+            query(self.root, "SELECT id, info_score_threshold, maf_threshold, typeof(maf_threshold) "
+                             "FROM analyses ORDER BY id"),
+            [("OGS-00001:A1", None, None, "null"), ("OGS-00001:A2", 0.8, 0.0, "real")],
+        )
+
+    def test_nan_in_any_other_numeric_column_is_still_refused(self) -> None:
+        self.assertEqual(
+            self.refused(original_sd="NaN"),
+            "analyses.tsv row 'A1': original_sd 'NaN' is not a finite number",
+        )
+
     def test_zero_is_still_a_value(self) -> None:
         write_bundle(self.registry, "OGS-00001", rows=[analysis_row("A1", original_sd="0")])
         self.build()

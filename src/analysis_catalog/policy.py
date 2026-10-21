@@ -45,6 +45,13 @@ POLICY: tuple[str, ...] = (
 INT64_MIN, INT64_MAX = -(2**63), 2**63 - 1
 
 
+# The schema's own absence marker (docs/release-metadata-schema.md:303, :307):
+# a literal `NaN` in these two columns means "unavailable" and "no MAF filter",
+# distinct from `0`, which means filtering was explicitly disabled. So it is
+# NULL here. In any other numeric column `NaN` is still refused.
+NAN_IS_ABSENT = frozenset({"info_score_threshold", "maf_threshold"})
+
+
 class RefusedRow(ValueError):
     """A value the catalog's column type cannot hold."""
 
@@ -181,6 +188,8 @@ def _typed(analysis_id: str, column: str, kind: str, cell: str | None) -> Any:
     text = cell.strip()
     if kind == "TEXT":
         return text
+    if text == "NaN" and column in NAN_IS_ABSENT:
+        return None
     where = f"analyses.tsv row {analysis_id!r}: {column} {text!r}"
     try:
         number = Decimal(text)

@@ -53,6 +53,11 @@ one decision and a reason, in `selection`. The first rule that applies decides:
 - `check()` runs first because `Bundle.trial` raises on a malformed `trial`.
 - Rule 5 writes no `analyses` rows yet: placeholder rows, and the
   `superseded_by` they carry, are #324.
+- The one exception is the schema's own absence marker: a literal `NaN` in
+  `info_score_threshold` ("unavailable") or `maf_threshold` ("no MAF filter")
+  is `NULL` (`docs/release-metadata-schema.md`), distinct from `0`, which stays
+  `0.0`. Reading the marker is not a coercion; in any other numeric column
+  `NaN` refuses the Store.
 - A value is never coerced or rounded: an integer outside SQLite's signed 64
   bits, a `NaN` or infinity, and a finite nonzero real that would become `0.0`
   or `inf` each refuse the Store, naming the Analysis, column and value. A bad
