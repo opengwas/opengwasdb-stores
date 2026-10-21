@@ -85,6 +85,7 @@ from typing import Any, Iterable, Mapping, Sequence  # noqa: E402
 
 import numpy as np  # noqa: E402
 import yaml  # noqa: E402
+from ogstores.readiness import store_built_ids  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 STORE_ID = "OGS-00011"
@@ -96,7 +97,8 @@ ANALYSES_TSV = REPO_ROOT / "stores" / STORE_ID / "analyses.tsv"
 # OGS-00009, until #312 made OGS-00009 one single-id release of all 2,514 ukb-b
 # Analyses and retired OGS-00010; the committed allele-check sidecars name
 # OGS-00010 because that is what they compared against. Until #312's rebuild
-# replaces it, the Store published at this path is still the earlier 2,024.
+# replaces it, the Store published at this path is still the earlier 2,024, so
+# a run refuses (`require_pool_in_store`) rather than look up the 490 it lacks.
 COMPARISON_BUNDLE = "OGS-00009"
 COMPARISON_ANALYSES_TSV = REPO_ROOT / "stores" / COMPARISON_BUNDLE / "analyses.tsv"
 COMPARISON_STORE = Path(f"/data/opengwasdb/stores/{COMPARISON_BUNDLE}/store.opengwasdb")
@@ -332,6 +334,23 @@ def load_targets(ancestry_tsv: Path, readiness_tsv: Path) -> list[TargetStudy]:
             )
         )
     return sorted(targets, key=lambda study: study.analysis_id)
+
+
+def require_pool_in_store(pool: Sequence[ComparisonStudy], store_ids: Iterable[str], store: Path) -> None:
+    """Refuse a UK Biobank pool with Analyses the queried Store does not hold.
+
+    A lookup of an Analysis the Store lacks returns no rows, which a comparison
+    reads as "no overlapping variants" rather than as a missing Analysis (#312).
+    """
+    held = set(store_ids)
+    missing = [study.analysis_id for study in pool if study.analysis_id not in held]
+    if missing:
+        raise SystemExit(
+            f"{len(missing)} of the {len(pool)} {COMPARISON_BUNDLE} comparison Analyses are not in "
+            f"the Store at {store}, so their lookups would come back empty: "
+            f"{', '.join(missing[:5])}{f' and {len(missing) - 5} more' if len(missing) > 5 else ''}. "
+            "Rebuild the Store from its bundle before comparing against it."
+        )
 
 
 def load_comparison_pools() -> tuple[list[ComparisonStudy], list[ComparisonStudy]]:
@@ -907,6 +926,9 @@ def run(args: argparse.Namespace) -> int:
 
     if args.plan_only:
         return 0
+
+    store_ids, _runtime = store_built_ids(COMPARISON_STORE)
+    require_pool_in_store(ukb, store_ids, COMPARISON_STORE)
 
     # -- phase 1: top variants of every target ---------------------------------
     print("scanning target sources...", flush=True)
