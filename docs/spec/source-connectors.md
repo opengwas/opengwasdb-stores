@@ -190,8 +190,13 @@ records the filtered file's location, size and sha256 with its lineage
 (`original_location`, `original_sha256`, `reformat_tool`, `region_policy`), and
 syncs the manifest. Only then does it delete the original: a failure to record
 leaves the original in place. An Analysis the originals' manifest records as
-unavailable stays an explained absence, and a re-run resumes without filtering a
-recorded Analysis again. A cis policy refuses the run if an Analysis has no
+unavailable stays an explained absence. A re-run resumes only a run that is
+this one: before anything is skipped, filtered or deleted, every Analysis the
+output manifest records must still be a ready original of this run, filtered
+from that original (location and sha256), to this run's region policy, QC
+panel and target, into a filtered file that still has its recorded size and
+sha256. Any difference refuses the run, naming each Analysis, and deletes
+nothing; otherwise an original an interrupted run left behind is deleted. A cis policy refuses the run if an Analysis has no
 target span in the Source Metadata Table.
 
 The filter is the retired R `gwas-ssf-ragged` generator's, reproduced row for

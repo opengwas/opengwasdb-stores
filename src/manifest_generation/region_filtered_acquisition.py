@@ -15,9 +15,14 @@ checked against that manifest before it is filtered. An Analysis acquisition
 could not download stays an explained absence. A cis policy needs every
 Analysis's target span, from the Source Metadata Table.
 
-Re-running resumes: an Analysis the output manifest already records is not
-filtered again, and an original its recorded row names is deleted if it is
-still there.
+Re-running resumes, but only a run that is this one: before anything is
+skipped, filtered or deleted, every Analysis the output manifest already
+records must still be a ready original of this run, filtered from that
+original (its location and sha256), to this run's region policy, QC panel
+and target, into a filtered file that is still there with its recorded size
+and sha256. Any difference refuses the run, naming each Analysis, and deletes
+nothing. A recorded Analysis whose original survived an interrupted run then
+has that original deleted.
 
 ``<manifest-stem>.meta.yaml`` (``acquisition_manifest.pass_lineage_path``)
 records the run: the originals' manifest, the tool, the policy and each
@@ -129,15 +134,33 @@ def acquire_region_filtered(
     counts: dict[str, dict[str, int]] = {}
     if manifest_path.is_file():
         recorded = load_acquisition_manifest(manifest_path)
-        for analysis_id, row in zip((e.source_analysis_id for e in recorded.entries), recorded.rows):
-            if recorded.entry(analysis_id).lineage is not None:
-                rows[analysis_id] = dict(row)
+        resumed = {
+            entry.source_analysis_id: dict(row)
+            for entry, row in zip(recorded.entries, recorded.rows)
+            if entry.lineage is not None
+        }
+        by_id = {entry.source_analysis_id: entry for entry in ready}
+        problems = [
+            f"{analysis_id}: {problem}"
+            for analysis_id, row in resumed.items()
+            for problem in _resume_problems(
+                by_id.get(analysis_id), row,
+                policy_record(policy, qc_panel, targets.get(analysis_id)),
+            )
+        ]
+        if problems:
+            raise RegionFilteredAcquisitionError(
+                f"cannot resume the acquisition recorded in {manifest_path}; nothing was deleted:\n  - "
+                + "\n  - ".join(problems)
+            )
+        rows.update(resumed)
         previous = pass_lineage_path(manifest_path)
         if previous.is_file():
             counts.update((yaml.safe_load(previous.read_text(encoding="utf-8")) or {}).get("filtered") or {})
-    for entry in ready:
-        if entry.source_analysis_id in rows:
-            _delete_recorded_original(entry, rows[entry.source_analysis_id])
+        # Every recorded Analysis is this run's: an original an interrupted run
+        # left behind may now go.
+        for analysis_id in resumed:
+            Path(by_id[analysis_id].location).unlink(missing_ok=True)
 
     tool = filter_tool()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -213,15 +236,37 @@ def _carried(entry: AcquisitionEntry) -> dict[str, str]:
     }
 
 
-def _delete_recorded_original(entry: AcquisitionEntry, row: Mapping[str, str]) -> None:
-    """Finish an interrupted run: delete an original its recorded row already names."""
+def _resume_problems(
+    entry: AcquisitionEntry | None, row: Mapping[str, str], expected_policy: Mapping[str, Any]
+) -> list[str]:
+    """Why an Analysis an earlier run recorded is not this run's, if it is not."""
+    if entry is None:
+        return ["recorded, but not a ready original in this run's originals' Acquisition Manifest"]
+    problems = []
+    filtered = Path(row["location"])
+    if not filtered.is_file():
+        problems.append(f"its recorded filtered file {filtered} is missing")
+    elif str(filtered.stat().st_size) != row["bytes"] or sha256_file(filtered) != row["sha256"]:
+        problems.append(f"its filtered file {filtered} is not the size and sha256 recorded")
+    if (row.get("original_location"), row.get("original_sha256")) != (entry.location, entry.sha256):
+        problems.append(
+            f"it was filtered from {row.get('original_location')} (sha256 {row.get('original_sha256')}), "
+            f"not this run's original {entry.location} (sha256 {entry.sha256})"
+        )
     original = Path(entry.location)
-    if (
-        row.get("original_location") == entry.location
-        and original.is_file()
-        and sha256_file(original) == row.get("original_sha256")
-    ):
-        original.unlink()
+    if original.is_file() and sha256_file(original) != entry.sha256:
+        problems.append(f"its original {original} no longer has sha256 {entry.sha256}")
+    recorded_policy = json.loads(row["region_policy"]) if row.get("region_policy") else {}
+    differing = sorted(
+        key for key in set(recorded_policy) | set(expected_policy)
+        if recorded_policy.get(key) != expected_policy.get(key)
+    )
+    if differing:
+        problems.append(
+            "it was filtered to another region policy: "
+            + "; ".join(f"{key} {recorded_policy.get(key)!r}, not {expected_policy.get(key)!r}" for key in differing)
+        )
+    return problems
 
 
 def _write_durably(path: Path, rows: Sequence[Mapping[str, str]]) -> None:

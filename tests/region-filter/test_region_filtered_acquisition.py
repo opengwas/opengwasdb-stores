@@ -20,6 +20,7 @@ import gzip
 import os
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from manifest_generation.acquisition_manifest import (
@@ -28,7 +29,10 @@ from manifest_generation.acquisition_manifest import (
 )
 from manifest_generation.connector_tsv import write_connector
 from manifest_generation.region_filter import QcPanel, RegionPolicy, TargetSpan
-from manifest_generation.region_filtered_acquisition import acquire_region_filtered
+from manifest_generation.region_filtered_acquisition import (
+    RegionFilteredAcquisitionError,
+    acquire_region_filtered,
+)
 from manifest_generation.source_inventory import sha256_file
 
 HEADER = "chromosome\tbase_pair_location\teffect_allele\tother_allele\tbeta\tstandard_error\tp_value\n"
@@ -59,6 +63,7 @@ class RegionFilteredAcquisitionTest(unittest.TestCase):
                 + "3\t100\tA\tG\t0.1\t0.02\t0.5\n"     # nothing: dropped
             )
         self.original_sha256 = sha256_file(self.original)
+        self.original_bytes = self.original.read_bytes()
         self.originals = self.tmp / "originals.acquisition-manifest.tsv"
         write_connector(
             self.originals,
@@ -85,11 +90,11 @@ class RegionFilteredAcquisitionTest(unittest.TestCase):
             os.chmod(directory, 0o755)
         self._tmp.cleanup()
 
-    def acquire(self):
+    def acquire(self, policy=POLICY, panel=PANEL):
         return acquire_region_filtered(
             load_acquisition_manifest(self.originals),
-            policy=POLICY,
-            qc_panel=PANEL,
+            policy=policy,
+            qc_panel=panel,
             targets=self.targets,
             out_dir=self.filtered_dir,
             manifest_path=self.manifest,
@@ -138,6 +143,40 @@ class RegionFilteredAcquisitionTest(unittest.TestCase):
         self.assertTrue(self.original.is_file())
         self.assertEqual(sha256_file(self.original), self.original_sha256)
         self.assertFalse(self.manifest.exists())
+
+    def interrupted_after_recording(self) -> None:
+        """A run that recorded GCST1's filtered file and was stopped before deleting the original."""
+        self.acquire()
+        self.original.write_bytes(self.original_bytes)
+
+    def assertResumeRefused(self, *fragments: str, **changed) -> None:
+        recorded = self.manifest.read_bytes()
+        with self.assertRaises(RegionFilteredAcquisitionError) as caught:
+            self.acquire(**changed)
+        for fragment in ("GCST1",) + fragments:
+            self.assertIn(fragment, str(caught.exception))
+        self.assertEqual(sha256_file(self.original), self.original_sha256)
+        self.assertEqual(self.manifest.read_bytes(), recorded)
+
+    def test_a_resume_whose_filtered_file_is_gone_is_refused_and_keeps_the_original(self) -> None:
+        self.interrupted_after_recording()
+        (self.filtered_dir / "GCST1.filtered.tsv.gz").unlink()
+        self.assertResumeRefused("filtered file")
+
+    def test_a_resume_under_another_policy_is_refused_and_keeps_the_original(self) -> None:
+        self.interrupted_after_recording()
+        self.assertResumeRefused("trans_flank_bp", policy=replace(POLICY, trans_flank_bp=500_000))
+
+    def test_a_resume_with_another_qc_panel_is_refused_and_keeps_the_original(self) -> None:
+        self.interrupted_after_recording()
+        self.assertResumeRefused("qc_panel", panel=replace(PANEL, sha256="d" * 64))
+
+    def test_a_resume_finishes_an_interrupted_deletion(self) -> None:
+        self.interrupted_after_recording()
+        recorded = self.manifest.read_bytes()
+        self.acquire()
+        self.assertFalse(self.original.exists())
+        self.assertEqual(self.manifest.read_bytes(), recorded)
 
     def test_a_rerun_keeps_what_was_recorded_and_filters_nothing_again(self) -> None:
         self.acquire()
