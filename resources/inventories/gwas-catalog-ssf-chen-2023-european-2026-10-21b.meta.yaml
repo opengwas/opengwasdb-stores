@@ -1,6 +1,6 @@
-snapshot_id: gwas-catalog-ssf-chen-2023-european-2026-10-21
+snapshot_id: gwas-catalog-ssf-chen-2023-european-2026-10-21b
 source_collection_id: gwas-catalog-ssf
-frozen_at: '2026-10-21T06:34:37Z'
+frozen_at: '2026-10-21T08:58:07Z'
 frozen_by: manifest_generation.freeze
 selection:
   where:
@@ -18,7 +18,7 @@ duplicate_content_groups: []
 inventory_tsv_sha256: 6768133adf316e9bbb061483548dd3f7dfb8251bd9788252897936bca6bfc50b
 source_metadata_table:
   frozen:
-    path: gwas-catalog-ssf-chen-2023-european-2026-10-21.source-metadata.tsv
+    path: gwas-catalog-ssf-chen-2023-european-2026-10-21b.source-metadata.tsv
     sha256: a3ed94ccb49c566b6d4a9443e0e62e1022ba0b4b9d594429cf5f89874f840687
     bytes: 268908
     rows: 1400
@@ -29,7 +29,7 @@ source_metadata_table:
     rows: 171274
 acquisition_manifest:
   frozen:
-    path: gwas-catalog-ssf-chen-2023-european-2026-10-21.acquisition-manifest.tsv
+    path: gwas-catalog-ssf-chen-2023-european-2026-10-21b.acquisition-manifest.tsv
     sha256: c818b5f0cabcbd77058eef947ba873a0053ed56358a37f5abd0ba32020d7c171
     bytes: 1258333
     rows: 1400
@@ -40,7 +40,9 @@ acquisition_manifest:
     rows: 1400
     readiness_counts:
       ok: 1400
-    pass_lineage: null
+    pass_lineage:
+      path: resources/generators/gwas-catalog-ragged/connectors/chen-2023-european.acquisition-manifest.meta.yaml
+      sha256: 02f3ac20164e34c54bc9900da44d82f6c09950fc74d831cf6f7909cee5aed0af
   unselected_entries: 0
 lineage:
 - analysis_id: GCST90199621

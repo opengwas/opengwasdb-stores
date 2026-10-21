@@ -41,7 +41,7 @@ source_collection:
     source_metadata_table: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-20/gwas-catalog-ssf.source-metadata.tsv
     acquisition_manifest: resources/generators/gwas-catalog-ragged/connectors/chen-2023-european.acquisition-manifest.tsv
   inventory:
-    snapshot_id: gwas-catalog-ssf-chen-2023-european-2026-10-21
+    snapshot_id: gwas-catalog-ssf-chen-2023-european-2026-10-21b
     directory: resources/inventories
 
 selection:

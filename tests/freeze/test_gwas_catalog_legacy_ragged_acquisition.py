@@ -5,8 +5,11 @@ Chen 2023's originals were deleted after the R ``gwas-ssf-ragged`` generator
 filtered them, so OGS-00006 regenerates from its filtered files as they are.
 Their lineage comes from the bundle's ``filter_summary.tsv``: the original's
 URL and size (the R filter recorded no checksum), the R filter's policy, and
-the tool. A file whose sha256 is not the one R recorded was re-materialised
-from ``sparse_regions.tsv`` on 15 Sep 2026, and its lineage says so.
+the tool. A file whose sha256 is not the one R recorded is accepted only as
+one of the reviewed re-materialisations of 15 Sep 2026 -- its (recorded,
+on-disk) sha256 pair listed -- and its lineage says so; any other difference
+is refused. The run record checksums the bundle's own sparse_regions.tsv and
+filter_summary.tsv as the evidence its candidate carries, and the list.
 
 Run from the repository root:
     python3 tests/freeze/test_gwas_catalog_legacy_ragged_acquisition.py
@@ -20,9 +23,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from manifest_generation.acquisition_manifest import load_acquisition_manifest
+import yaml
+
+from manifest_generation.acquisition_manifest import load_acquisition_manifest, pass_lineage_path
 from manifest_generation.providers.gwas_catalog.legacy_ragged_acquisition import write_legacy_manifest
-from manifest_generation.source_inventory import sha256_file
+from manifest_generation.source_inventory import InventoryError, sha256_file
 
 URL = "http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/GCST90199001-GCST90200000/{0}/harmonised/{0}.h.tsv.gz"
 
@@ -48,14 +53,24 @@ class LegacyRaggedAcquisitionTest(unittest.TestCase):
             "analysis_id\tstatus\tsource_url\tdownloaded_bytes\tchecksum\n"
             + "".join(f"{a}\tok\t{URL.format(a)}\t40418976{n}\t{r_checksum[a]}\n" for n, a in enumerate(files))
         )
+        (self.bundle / "sidecars" / "sparse_regions.tsv").write_text(
+            "analysis_id\tregion_id\nGCST90199621\tGCST90199621__qc_panel__001\n"
+        )
         self.files = files
+        self.reviewed = self.tmp / "rematerialised.tsv"
+        self.reviewed.write_text(
+            "store_id\tanalysis_id\trecorded_sha256\trematerialised_sha256\trecorded_rows"
+            "\trematerialised_rows\tlead_sibling_rows\n"
+            f"OGS-00006\tGCST90199622\t{'9' * 64}\t{sha256_file(files['GCST90199622'])}\t1\t2\t1\n"
+        )
+        self.out = self.tmp / "chen.acquisition-manifest.tsv"
 
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
     def test_each_filtered_file_is_recorded_with_its_lineage_from_the_filter_summary(self) -> None:
-        out = self.tmp / "chen.acquisition-manifest.tsv"
-        write_legacy_manifest(self.bundle, "OGS-00006", out)
+        out = self.out
+        write_legacy_manifest(self.bundle, "OGS-00006", out, self.reviewed)
         manifest = load_acquisition_manifest(out)
         same, rematerialised = manifest.entry("GCST90199621"), manifest.entry("GCST90199622")
         self.assertEqual((same.location, same.sha256), (str(self.files["GCST90199621"]),
@@ -93,6 +108,20 @@ class LegacyRaggedAcquisitionTest(unittest.TestCase):
             },
         )
         self.assertEqual(json.loads(out.read_text().splitlines()[1].split("\t")[-1]), same.lineage.region_policy)
+        run = yaml.safe_load(pass_lineage_path(out).read_text(encoding="utf-8"))
+        self.assertEqual(run["reviewed_rematerialisations"]["sha256"], sha256_file(self.reviewed))
+        for name in ("filter_summary", "sparse_regions"):
+            self.assertEqual(
+                run["evidence"][name]["sha256"], sha256_file(self.bundle / "sidecars" / f"{name}.tsv")
+            )
+
+    def test_a_file_changed_any_other_way_is_refused(self) -> None:
+        """A replacement no review explains -- here junk -- is never given a provenance."""
+        self.files["GCST90199622"].write_bytes(b"not a GWAS-SSF file")
+        with self.assertRaises(InventoryError) as caught:
+            write_legacy_manifest(self.bundle, "OGS-00006", self.out, self.reviewed)
+        self.assertIn("GCST90199622", str(caught.exception))
+        self.assertFalse(self.out.exists())
 
 
 if __name__ == "__main__":

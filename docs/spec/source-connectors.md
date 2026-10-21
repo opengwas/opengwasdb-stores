@@ -236,15 +236,23 @@ candidate carries both files' selected rows into its bundle
 
 ### Files the retired R generator filtered
 
-OGS-00006 (Chen 2023) and OGS-00007 (Sun 2018) were built from files the R
-`gwas-ssf-ragged` generator filtered, deleting each original.
+OGS-00006 (Chen 2023) was built from files the R `gwas-ssf-ragged` generator
+filtered, deleting each original.
 `src/manifest_generation/providers/gwas_catalog/legacy_ragged_acquisition.py`
-writes the Acquisition Manifest of such a bundle's filtered files as they are,
-with lineage from its `sidecars/filter_summary.tsv`: `original_location` (the
-URL R downloaded), `original_bytes` and no `original_sha256` (R recorded
-none), R's policy, and the tool -- the R generator for a file whose sha256 is
-the one R recorded, the 15 Sep 2026 re-materialisation from
-`sparse_regions.tsv` for one whose sha256 differs.
+writes the Acquisition Manifest of its filtered files as they are, with
+lineage from its `sidecars/filter_summary.tsv`: `original_location` (the URL R
+downloaded), `original_bytes` and no `original_sha256` (R recorded none), R's
+policy, and the tool. A file whose sha256 is the one R recorded is the R
+generator's output. One whose sha256 differs is accepted only when the
+reviewed list of re-materialisations
+(`resources/generators/gwas-catalog-ragged/ogs-00006-rematerialised-2026-09-15.tsv`)
+names its (recorded, on-disk) sha256 pair -- the 198 files
+`materialise-gwas-ssf-ragged.R` re-created from `sparse_regions.tsv` on 15 Sep
+2026, each holding R's rows plus the multi-allelic siblings of some of its
+leads -- and its tool then says so. Any other difference is refused, naming
+the Analysis, and nothing is written. Its run record checksums the list and,
+as `evidence`, the bundle's own `sparse_regions.tsv` and `filter_summary.tsv`,
+which a regenerated candidate carries unchanged.
 
 ### Pass lineage
 

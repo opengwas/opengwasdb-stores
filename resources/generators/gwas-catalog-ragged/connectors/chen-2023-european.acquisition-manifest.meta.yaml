@@ -1,0 +1,13 @@
+acquisition_manifest: resources/generators/gwas-catalog-ragged/connectors/chen-2023-european.acquisition-manifest.tsv
+written_by: manifest_generation.providers.gwas_catalog.legacy_ragged_acquisition
+bundle: stores/OGS-00006
+reviewed_rematerialisations:
+  path: resources/generators/gwas-catalog-ragged/ogs-00006-rematerialised-2026-09-15.tsv
+  sha256: e48532a4e9e2bf68847aaee07fbf03b6868b5ab0706478fef535d14747c1221a
+evidence:
+  filter_summary:
+    path: stores/OGS-00006/sidecars/filter_summary.tsv
+    sha256: 4253504c144dc06c59f08a628c8c5ee918383ca39100f7a1a5452bf067f16c10
+  sparse_regions:
+    path: stores/OGS-00006/sidecars/sparse_regions.tsv
+    sha256: 9754adbe767684995a10fa8d715dc61c48280e68c2f2e83dafa8af25ba43843a

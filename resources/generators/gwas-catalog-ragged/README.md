@@ -27,10 +27,18 @@ releases; the GWAS Catalog's whole Source Metadata Table is read-only on
 | `chen-2023-european.acquisition-manifest.tsv` | `python3 -m manifest_generation.providers.gwas_catalog.legacy_ragged_acquisition OGS-00006 --out ...` |
 | `sun-2018-pilot-10.acquisition-manifest.tsv` | `python3 -m manifest_generation.providers.gwas_catalog.legacy_ragged_acquisition OGS-00007 --out ...` |
 
-Both Acquisition Manifests list the files the R generator filtered, as they
-are, with lineage from the bundle's `filter_summary.tsv`. Chen's originals were
-deleted after filtering, so its files cannot be acquired afresh; 198 of them
-were re-materialised on 15 Sep 2026 and their lineage says so. R kept no QC
+Chen's Acquisition Manifest lists the files the R generator filtered, as they
+are, with lineage from OGS-00006's `filter_summary.tsv`: the originals were
+deleted after filtering, so they cannot be acquired afresh. 198 of the files
+were re-materialised on 15 Sep 2026; `ogs-00006-rematerialised-2026-09-15.tsv`
+is the reviewed list of them, each by its recorded and on-disk sha256, and any
+other difference is refused. Reviewed by counting: each file's rows, less the
+rows sharing a recorded suggestive lead's position and id beyond the first,
+are exactly R's `retained_rows` (225 sibling rows over the 198); the 16 whose
+originals survive in `/data/opengwasdb/raw/ebi-chen-10/` were also re-filtered
+row for row. Its run record (`.meta.yaml`) checksums the list and OGS-00006's
+`sparse_regions.tsv` and `filter_summary.tsv`, which a regenerated candidate
+carries unchanged. R kept no QC
 panel for Sun: to acquire Sun's files to this policy, filter its originals with
 the shared region filter, which deletes each original once the filtered file is
 recorded, and re-freeze under a new snapshot id:
