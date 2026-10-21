@@ -54,6 +54,7 @@ import math
 import os
 import statistics
 import subprocess
+import time
 from dataclasses import dataclass, field, replace
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
@@ -82,12 +83,18 @@ from manifest_generation.resolution_area import (
 from manifest_generation.safe_write import atomic_write_bytes
 from manifest_generation.source_inventory import (
     INVENTORY_COLUMNS,
+    InventoryError,
     SourceInventoryRow,
     duplicate_content_groups,
 )
 from manifest_generation.release_config import ReleaseConfig, load_release_config
 from manifest_generation.connector_tsv import FreezeError
-from manifest_generation.freeze import load_frozen_connectors, original_path
+from manifest_generation.freeze import (
+    OriginalMissingError,
+    load_collection_intent,
+    load_frozen_connectors,
+)
+from manifest_generation.region_filtered_acquisition import frozen_evidence, region_lineage_problems
 from manifest_generation.trait_ontology_mapping import (
     CanonicalTraitMappingTable,
     SourceTrait,
@@ -844,55 +851,42 @@ ACQUISITION_EVIDENCE_SIDECARS: Mapping[str, str] = {
 }
 
 
-def acquisition_evidence(provenance_path: Path, analysis_ids: Iterable[str]) -> dict[str, str]:
+def acquisition_evidence(config: ReleaseConfig, analysis_ids: Iterable[str]) -> dict[str, str]:
     """The Selection's rows of what acquisition recorded about its filtering, as sidecars (#300).
 
     A region-filtered acquisition records each file's plan and counts and
     checksums them in its run record (``evidence``), which freeze checksums
     into the provenance as the pass lineage. Each file's header and the rows
     of ``analysis_ids`` are carried verbatim, in file order, after both
-    checksums are checked. A file changed since, or a selected Analysis the
-    summary does not cover, is refused. No pass lineage, or one without
-    ``evidence``, carries nothing.
+    checksums are checked. A release with no region policy carries nothing.
+
+    Nothing is carried, and the candidate is refused, unless the frozen
+    acquisition is filtered to this release config's region policy
+    (``region_filtered_acquisition.region_lineage_problems``, #282 review).
+    Preflight checks the same, and this checks it again however the stages
+    were run.
     """
+    provenance_path = config.inventory_provenance_path
     try:
-        document = yaml.safe_load(Path(provenance_path).read_text(encoding="utf-8"))
-        lineage = document["acquisition_manifest"]["original"]["pass_lineage"]
-    except (OSError, KeyError, TypeError) as exc:
-        raise CandidateError(f"{provenance_path} records no acquisition pass lineage: {exc}") from exc
-    if lineage is None:
-        return {}
-    run = yaml.safe_load(_verified(original_path(lineage["path"]), lineage["sha256"], provenance_path))
+        table, manifest = load_frozen_connectors(provenance_path)
+        evidence = frozen_evidence(provenance_path)
+    except InventoryError as exc:
+        raise CandidateError(
+            f"cannot check the frozen acquisition against the release's region policy: {exc}"
+        ) from exc
+    problems = region_lineage_problems(config, table, manifest, evidence)
+    if problems:
+        raise CandidateError(
+            "the frozen acquisition is not filtered to the release's region policy:\n  - "
+            + "\n  - ".join(problems)
+        )
     wanted = set(analysis_ids)
     carried: dict[str, str] = {}
     for name, sidecar in ACQUISITION_EVIDENCE_SIDECARS.items():
-        entry = ((run or {}).get("evidence") or {}).get(name)
-        if entry is None:
-            continue
-        lines = _verified(original_path(entry["path"]), entry["sha256"], provenance_path).splitlines(True)
-        kept = [line for line in lines[1:] if line.split("\t", 1)[0] in wanted]
-        if name == "filter_summary":
-            summarised = {line.split("\t", 1)[0] for line in kept}
-            missing = sorted(wanted - summarised)
-            if missing:
-                raise CandidateError(
-                    f"acquisition's filter summary {entry['path']} records no filtering of "
-                    f"{len(missing)} selected Analysis/Analyses: {', '.join(missing[:10])}"
-                )
-        carried[sidecar] = "".join(lines[:1] + kept)
+        if name in evidence:
+            lines = evidence[name][1].splitlines(True)
+            carried[sidecar] = "".join(lines[:1] + [line for line in lines[1:] if line.split("\t", 1)[0] in wanted])
     return carried
-
-
-def _verified(path: Path, sha256: str, provenance_path: Path) -> str:
-    """``path``'s text, refused unless it has the sha256 the frozen inventory bound."""
-    if not path.is_file():
-        raise CandidateError(f"{path}, which {provenance_path} binds, is not on this host")
-    actual = sha256_file(path)
-    if actual != sha256:
-        raise CandidateError(
-            f"{path} has sha256 {actual}, but {provenance_path} binds {sha256}: it changed after the freeze"
-        )
-    return path.read_text(encoding="utf-8")
 
 
 def trait_sources(metadata: Mapping[str, AnalysisMetadata]) -> list[SourceTrait]:
@@ -941,37 +935,21 @@ SCORE_DECLARATION_COLUMNS: tuple[str, ...] = (
 
 
 def collection_analysis_ids(provenance_path: Path) -> frozenset[str] | None:
-    """Every Analysis the Source Collection intends, from the Source Metadata Table freeze read.
+    """Every Analysis the Source Collection intends, from the connector originals freeze read.
 
     A frozen inventory keeps only its Selection's rows; the collection is the
-    original table its provenance names and checksums. ``None`` when that file
-    is not on this host. A file there with another checksum is not the
-    collection that was frozen, and is refused.
+    originals its provenance names and checksums (``freeze.load_collection_intent``).
+    A completeness proof refuses a missing original; a caller here can do
+    without the collection, so it gives ``None`` when an original is not on
+    this host. One there with another checksum is not the collection that was
+    frozen, and is refused.
     """
     try:
-        document = yaml.safe_load(Path(provenance_path).read_text(encoding="utf-8"))
-        original = document["source_metadata_table"]["original"]
-        path, expected = original_path(original["path"]), original["sha256"]
-    except (OSError, KeyError, TypeError) as exc:
-        raise CandidateError(
-            f"{provenance_path} records no original Source Metadata Table: {exc}"
-        ) from exc
-    if not path.is_file():
+        return frozenset(load_collection_intent(provenance_path).analysis_ids)
+    except OriginalMissingError:
         return None
-    actual = sha256_file(path)
-    if actual != expected:
-        raise CandidateError(
-            f"the collection's Source Metadata Table {path} has sha256 {actual}, but "
-            f"{provenance_path} froze {expected}; it is not the collection that was frozen"
-        )
-    # A connector file carries no quoting (connector_tsv), so a field is what
-    # lies between tabs; the checksum above proves it is the frozen file.
-    with path.open(encoding="utf-8") as fh:
-        header = fh.readline().rstrip("\n").split("\t")
-        if "source_analysis_id" not in header:
-            raise CandidateError(f"{path} has no source_analysis_id column")
-        column = header.index("source_analysis_id")
-        return frozenset(line.rstrip("\n").split("\t")[column] for line in fh if line.strip())
+    except FreezeError as exc:
+        raise CandidateError(f"cannot read the Source Collection's intent: {exc}") from exc
 
 
 def read_imputation_score_declarations(
@@ -1034,7 +1012,8 @@ def read_imputation_score_declarations(
             raise CandidateError(
                 f"{path}: {len(outside)} declaration(s) name Analyses outside this Selection "
                 f"(first {outside[0][1]!r}, line {outside[0][0]}), and the collection's Source "
-                "Metadata Table is not available to check that the collection intends them"
+                "Metadata Table and Acquisition Manifest are not available to check that the "
+                "collection intends them"
             )
         for number, analysis_id in outside:
             if analysis_id not in collection:
@@ -1734,22 +1713,41 @@ def sha256_file(path: Path) -> str:
 
     One run hashes each reference for its settings digest, the contract it
     binds and the contract it verifies, so a digest is remembered for the
-    process, keyed by the file's identity and modification time.
+    process. This is an integrity boundary, so it is remembered only where it
+    can never answer for bytes the file no longer holds (#282 review): keyed by
+    the file's identity, size, mtime and ctime -- any write changes ctime, and
+    ``utime`` cannot restore it -- and never for a file that changed while it
+    was read, or whose ctime has not settled. A kernel stamps times at its
+    clock's tick, so a second write within a tick of the first keeps its ctime.
     """
-    stat = Path(path).stat()
-    key = (str(Path(path).resolve()), stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
-    cached = _SHA256_BY_FILE_IDENTITY.get(key)
+    path = Path(path)
+    started_ns = time.time_ns()
+    identity = _file_identity(path)
+    cached = _SHA256_BY_FILE_IDENTITY.get(identity)
     if cached is not None:
         return cached
     digest = hashlib.sha256()
-    with Path(path).open("rb") as fh:
+    with path.open("rb") as fh:
         for chunk in iter(lambda: fh.read(1024 * 1024), b""):
             digest.update(chunk)
-    _SHA256_BY_FILE_IDENTITY[key] = digest.hexdigest()
-    return _SHA256_BY_FILE_IDENTITY[key]
+    if _file_identity(path) == identity and identity[-1] < started_ns - _DIGEST_SETTLE_NS:
+        _SHA256_BY_FILE_IDENTITY[identity] = digest.hexdigest()
+    return digest.hexdigest()
 
 
-_SHA256_BY_FILE_IDENTITY: dict[tuple[str, int, int, int, int], str] = {}
+def _file_identity(path: Path) -> tuple[str, int, int, int, int, int]:
+    stat = path.stat()
+    return (
+        str(path.resolve()), stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns,
+    )
+
+
+#: How old a file's ctime must be before its digest is remembered: coarser than
+#: the timestamp granularity of the filesystems generation runs on (XFS stamps
+#: at the kernel's tick, a millisecond here).
+_DIGEST_SETTLE_NS: int = 1_000_000_000
+
+_SHA256_BY_FILE_IDENTITY: dict[tuple[str, int, int, int, int, int], str] = {}
 
 
 def _opengwasdb_tool_identity() -> tuple[str, str | None]:

@@ -40,6 +40,11 @@ candidate carries the selected rows of both files into its bundle as
 OGS-00007's: they are only read, and the lineage names them where they are
 kept.
 
+That lineage is what the release is held to once frozen: preflight and
+rendering refuse a frozen acquisition whose files were not filtered to the
+release config's policy, QC panel and target spans, or whose evidence is
+missing (:func:`region_lineage_problems`, #282 review).
+
 Usage (the release config names the policy, its QC panel and the Source
 Metadata Table whose target spans a cis policy reads):
     python3 -m manifest_generation.region_filtered_acquisition \\
@@ -68,8 +73,8 @@ from manifest_generation.acquisition_manifest import (
     load_acquisition_manifest,
     pass_lineage_path,
 )
-from manifest_generation.connector_tsv import write_connector
-from manifest_generation.freeze import recorded_path
+from manifest_generation.connector_tsv import listed, write_connector
+from manifest_generation.freeze import load_provenance, original_path, recorded_path
 from manifest_generation.region_filter import (
     QcPanel,
     RegionFilterError,
@@ -79,7 +84,7 @@ from manifest_generation.region_filter import (
     load_qc_panel,
 )
 from manifest_generation.release_config import ReleaseConfig, load_release_config
-from manifest_generation.source_metadata_table import load_source_metadata_table
+from manifest_generation.source_metadata_table import SourceMetadataTable, load_source_metadata_table
 from manifest_generation.source_inventory import InventoryError, atomic_write, sha256_file
 
 #: The columns this acquisition writes.
@@ -437,16 +442,19 @@ def _resume_problems(
     if original.is_file() and sha256_file(original) != entry.sha256:
         problems.append(f"its original {original} no longer has sha256 {entry.sha256}")
     recorded_policy = json.loads(row["region_policy"]) if row.get("region_policy") else {}
-    differing = sorted(
-        key for key in set(recorded_policy) | set(expected_policy)
-        if recorded_policy.get(key) != expected_policy.get(key)
-    )
+    differing = policy_differences(recorded_policy, expected_policy)
     if differing:
-        problems.append(
-            "it was filtered to another region policy: "
-            + "; ".join(f"{key} {recorded_policy.get(key)!r}, not {expected_policy.get(key)!r}" for key in differing)
-        )
+        problems.append("it was filtered to another region policy: " + "; ".join(differing))
     return problems
+
+
+def policy_differences(recorded: Mapping[str, Any], expected: Mapping[str, Any]) -> list[str]:
+    """Each key a recorded region policy has another value for, as ``<key> <recorded>, not <expected>``."""
+    return [
+        f"{key} {recorded.get(key)!r}, not {expected.get(key)!r}"
+        for key in sorted(set(recorded) | set(expected))
+        if recorded.get(key) != expected.get(key)
+    ]
 
 
 def _write_durably(path: Path, rows: Sequence[Mapping[str, str]]) -> None:
@@ -495,7 +503,11 @@ def target_spans(config: ReleaseConfig) -> dict[str, TargetSpan]:
             f"{config.path}: a cis region policy reads target spans from the Source Metadata "
             "Table, and source_collection.connectors names none"
         )
-    table = load_source_metadata_table(config.connectors.source_metadata_table)
+    return table_target_spans(load_source_metadata_table(config.connectors.source_metadata_table))
+
+
+def table_target_spans(table: SourceMetadataTable) -> dict[str, TargetSpan]:
+    """Each Analysis's target span in a Source Metadata Table, the original or the frozen one."""
     return {
         row["source_analysis_id"]: TargetSpan(
             row["target_chromosome"], int(row["target_start"]), int(row["target_end"]),
@@ -513,6 +525,139 @@ def source_genome_builds(config: ReleaseConfig) -> dict[str, str]:
         return {}
     table = load_source_metadata_table(config.connectors.source_metadata_table)
     return {row["source_analysis_id"]: row.get("source_genome_build") or default for row in table.rows}
+
+
+# ---------------------------------------------------------------------------
+# A frozen acquisition against its release's region policy (#282 review)
+# ---------------------------------------------------------------------------
+
+#: The evidence a region-filtered acquisition's run record binds, under ``evidence``.
+EVIDENCE: tuple[str, ...] = ("filter_summary", "sparse_regions")
+
+
+def frozen_evidence(provenance_path: Path) -> dict[str, tuple[str, str]]:
+    """What acquisition recorded about its filtering, as a frozen snapshot binds it: ``name -> (path, text)``.
+
+    Freeze checksums the acquisition's run record into the provenance as its
+    pass lineage, and the run record checksums each evidence file. Both are
+    checked, and a file gone or changed since is refused by name. No pass
+    lineage, or one without ``evidence``, binds none.
+    """
+    try:
+        lineage = load_provenance(provenance_path)["acquisition_manifest"]["original"]["pass_lineage"]
+    except (KeyError, TypeError) as exc:
+        raise RegionFilteredAcquisitionError(
+            f"{provenance_path} records no acquisition pass lineage: {exc}"
+        ) from exc
+    if lineage is None:
+        return {}
+    run = yaml.safe_load(_bound_text(lineage["path"], lineage["sha256"], provenance_path)) or {}
+    bound = run.get("evidence") or {}
+    return {
+        name: (bound[name]["path"], _bound_text(bound[name]["path"], bound[name]["sha256"], provenance_path))
+        for name in EVIDENCE
+        if name in bound
+    }
+
+
+def _bound_text(recorded: str, sha256: str, provenance_path: Path) -> str:
+    """The text of a file the frozen snapshot binds, refused unless it still has that sha256."""
+    path = original_path(recorded)
+    if not path.is_file():
+        raise RegionFilteredAcquisitionError(f"{path}, which {provenance_path} binds, is not on this host")
+    actual = sha256_file(path)
+    if actual != sha256:
+        raise RegionFilteredAcquisitionError(
+            f"{path} has sha256 {actual}, but {provenance_path} binds {sha256}: it changed after the freeze"
+        )
+    return path.read_text(encoding="utf-8")
+
+
+def region_lineage_problems(
+    config: ReleaseConfig,
+    table: SourceMetadataTable,
+    manifest: AcquisitionManifest,
+    evidence: Mapping[str, tuple[str, str]],
+) -> list[str]:
+    """Why a frozen acquisition is not filtered to ``config``'s region policy, if it is not (#282 review).
+
+    ``table`` and ``manifest`` are the connectors frozen with the inventory and
+    ``evidence`` what its pass lineage binds (:func:`frozen_evidence`). ADR 0036
+    (clarified by #300) filters a release's files to *its* policy, so every ready
+    row must record, as its lineage's ``region_policy``, the config's policy, its
+    QC panel's identity as the panel is now, and for a cis policy the target
+    span the frozen Source Metadata Table gives; and the plan and the summary
+    must be bound, the summary covering every ready Analysis. A changed flank,
+    threshold, panel or target therefore refuses the files filtered under the
+    old one: they hold only the rows that policy kept. A config with no policy
+    refuses region-filtered files and their evidence for the same reason.
+    """
+    ready = [entry for entry in manifest.entries if entry.ready]
+    policy = config.region_policy
+    if policy is None:
+        filtered = [
+            entry.source_analysis_id
+            for entry in ready
+            if entry.lineage is not None and entry.lineage.region_policy is not None
+        ]
+        problems = []
+        if filtered:
+            problems.append(
+                f"{len(filtered)} ready Analysis/Analyses were acquired region-filtered, but "
+                f"{config.path} declares no region_policy: {listed(filtered)}"
+            )
+        if evidence:
+            problems.append(
+                f"acquisition recorded region-filtering evidence ({', '.join(evidence)}), but "
+                f"{config.path} declares no region_policy"
+            )
+        return problems
+
+    resource = config.reference_resources[config.qc_panel_resource_id]
+    try:
+        qc_panel = load_qc_panel(Path(resource.location), resource.resource_id)
+    except (OSError, RegionFilterError) as exc:
+        return [
+            f"the frozen files cannot be checked against region policy {policy.region_policy_id}: "
+            f"its QC panel {resource.resource_id!r} cannot be read: {exc}"
+        ]
+    cis = policy.association_coverage == "cis_plus_signals"
+    targets = table_target_spans(table) if cis else {}
+    differing: dict[str, list[str]] = {}
+    for entry in ready:
+        analysis_id = entry.source_analysis_id
+        recorded = entry.lineage.region_policy if entry.lineage is not None else None
+        if recorded is None:
+            difference = "no region-filtered lineage"
+        elif cis and analysis_id not in targets:
+            difference = "no target span in the frozen Source Metadata Table"
+        else:
+            expected = policy_record(policy, qc_panel, targets.get(analysis_id))
+            difference = "; ".join(policy_differences(recorded, expected))
+        if difference:
+            differing.setdefault(difference, []).append(analysis_id)
+    problems = [
+        f"{len(ids)} ready Analysis/Analyses were not filtered to region policy "
+        f"{policy.region_policy_id} ({difference}): {listed(ids)}"
+        for difference, ids in differing.items()
+    ]
+
+    for name in EVIDENCE:
+        if name not in evidence:
+            problems.append(
+                f"acquisition bound no {name} for region policy {policy.region_policy_id}: the "
+                "frozen snapshot's pass lineage names none, so the release cannot carry it"
+            )
+    if "filter_summary" in evidence:
+        path, text = evidence["filter_summary"]
+        summarised = {line.split("\t", 1)[0] for line in text.splitlines()[1:]}
+        unsummarised = [entry.source_analysis_id for entry in ready if entry.source_analysis_id not in summarised]
+        if unsummarised:
+            problems.append(
+                f"acquisition's filter summary {path} records no filtering of {len(unsummarised)} "
+                f"ready Analysis/Analyses: {listed(unsummarised)}"
+            )
+    return problems
 
 
 def main(argv: Sequence[str] | None = None) -> int:

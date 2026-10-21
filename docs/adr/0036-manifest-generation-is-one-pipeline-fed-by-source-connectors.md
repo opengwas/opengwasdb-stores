@@ -137,6 +137,16 @@ The rules that make this hold:
   later; the policy is per release config
   ([spec](../spec/source-connectors.md#region-filtered-acquisition)).
 
+  One historical exception is grandfathered: files whose originals were
+  deleted before acquisition recorded lineage. Chen 2023's 1,400 files
+  (OGS-00006) were filtered by the retired R generator, which deleted each
+  original and recorded its size but no checksum. Their lineage records the
+  original's location and size (`original_bytes`), with `original_sha256`
+  blank, and they carry the evidence R committed with the bundle
+  ([spec](../spec/source-connectors.md#files-the-retired-r-generator-filtered)).
+  No checksum is invented for them, and the exception covers no other file:
+  every new acquisition records the original's checksum.
+
 ## Considered options
 
 - **Adapters as code the pipeline calls** (`fetch(analysis_ids)`). This is a

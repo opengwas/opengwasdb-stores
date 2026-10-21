@@ -332,6 +332,22 @@ sha256, the filter tool, the policy, and under `evidence` each of the two files'
 candidate carries both files' selected rows into its bundle
 ([schema](../release-metadata-schema.md)).
 
+**A release reads only files filtered to its own policy** (#282 review).
+Preflight refuses, before resolution, a frozen acquisition that is not the
+release config's, and rendering refuses it again however the stages are run
+(`region_filtered_acquisition.region_lineage_problems`). Every ready row of the
+frozen Acquisition Manifest must record, as its `region_policy`, the config's
+policy, its QC panel's `resource_id` with the sha256 the panel has now, and
+for a cis policy the target span the frozen Source Metadata Table gives the
+Analysis. The pass lineage the freeze bound must name both the plan and the
+summary, each still with the sha256 its run record binds, and the summary must
+cover every ready Analysis. A changed flank, threshold, QC panel or target
+therefore refuses the files filtered under the old one, naming each Analysis
+and what differs: their rows are the old policy's, so they are re-acquired
+and re-frozen. A policy declared over files nobody filtered is refused the
+same way, and a config with no `region_policy` refuses region-filtered files
+and their evidence.
+
 ### Files the retired R generator filtered
 
 OGS-00006 (Chen 2023) was built from files the R `gwas-ssf-ragged` generator

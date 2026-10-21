@@ -598,11 +598,9 @@ def _one_invocation() -> Iterator[None]:
 
     :func:`_run_cli` drives the entry point in this process, so a cache one
     invocation fills outlives it, where a subprocess would start empty every
-    time. The content digest memo is keyed by path, device, inode, size and
-    mtime, so a reference rewritten to the same length with its mtime restored
-    would be read as the bytes it used to be, and verification would pass where
-    a process refuses (#282 review). The provenance parse is memoised the same
-    way, for the same reason (#290 review).
+    time. The content digest memo and the provenance parse each refuse to
+    answer for bytes a file no longer holds (``ContentDigestMemoTests``, #290
+    review), but a run is still held to the state a fresh process starts from.
     """
 
     def clear() -> None:
@@ -3217,6 +3215,32 @@ class EntryPointStageTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("a changed Selection is a new freeze", result.stderr + result.stdout)
 
+    def _assert_preflight_names(self, expected: str) -> None:
+        result = _run_cli(self.fixture, "--stage", "preflight")
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn(expected, result.stderr)
+        report = json.loads(
+            (self.fixture.work_root / STORE_ID / "preflight" / f"{SNAPSHOT_ID}.json").read_text()
+        )
+        self.assertTrue(any(expected in failure for failure in report["failures"]), report["failures"])
+
+    def test_preflight_refuses_a_deleted_frozen_source_metadata_table(self) -> None:
+        """Preflight proves the frozen snapshot, its connectors included (#282 review)."""
+        self.stage("freeze")
+        self.stage("preflight")
+        frozen_table = self.fixture.inventory_path.with_name(f"{SNAPSHOT_ID}.source-metadata.tsv")
+        frozen_table.unlink()
+        self._assert_preflight_names(f"frozen source_metadata_table {frozen_table}")
+
+    def test_preflight_refuses_an_edited_frozen_acquisition_manifest(self) -> None:
+        self.stage("freeze")
+        frozen_manifest = self.fixture.inventory_path.with_name(f"{SNAPSHOT_ID}.acquisition-manifest.tsv")
+        frozen_manifest.write_text(
+            frozen_manifest.read_text(encoding="utf-8").replace("example.invalid", "example.org"),
+            encoding="utf-8",
+        )
+        self._assert_preflight_names("it was edited after the freeze")
+
     def test_a_release_config_with_no_connectors_needs_a_frozen_inventory(self) -> None:
         document = yaml.safe_load(self.fixture.config_path.read_text())
         del document["source_collection"]["connectors"]
@@ -3313,6 +3337,66 @@ class SharedVocabularyTests(unittest.TestCase):
         from manifest_generation import generation_rules
 
         self.assertIs(candidate_workflow.INFO_SCORE_KINDS, generation_rules.INFO_SCORE_KINDS)
+
+
+class ContentDigestMemoTests(unittest.TestCase):
+    """The contract's content digest memo never answers for bytes a file no longer holds (#282 review).
+
+    One run hashes each reference for its settings digest, the contract it binds
+    and the contract it verifies. Remembering the digest spares re-reading a
+    genome-scale file, but this is an integrity boundary: within one process, a
+    reference rewritten between two of those reads must be read again.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="digest-memo-")
+        self.path = Path(self._tmp.name) / "ref_freqs.tsv.gz"
+        self.path.write_bytes(b"fixture reference A\n")
+        candidate_workflow._SHA256_BY_FILE_IDENTITY.clear()
+        self.addCleanup(candidate_workflow._SHA256_BY_FILE_IDENTITY.clear)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def rewrite_with_its_mtime_restored(self) -> bytes:
+        """The reviewer's edit: different bytes, the same size and the same mtime."""
+        stat = self.path.stat()
+        self.path.write_bytes(b"fixture reference B\n")
+        os.utime(self.path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+        after = self.path.stat()
+        self.assertEqual((after.st_size, after.st_mtime_ns), (stat.st_size, stat.st_mtime_ns))
+        return self.path.read_bytes()
+
+    def test_a_same_size_rewrite_with_its_mtime_restored_is_read_again(self) -> None:
+        # One process, nothing cleared between the two reads.
+        self.assertEqual(candidate_workflow.sha256_file(self.path), _sha256_bytes(b"fixture reference A\n"))
+        rewritten = self.rewrite_with_its_mtime_restored()
+        self.assertEqual(candidate_workflow.sha256_file(self.path), _sha256_bytes(rewritten))
+
+    def test_a_remembered_digest_is_not_returned_after_a_rewrite(self) -> None:
+        # A file whose ctime has settled is remembered; any later write changes
+        # its ctime, which utime cannot restore.
+        with mock.patch.object(candidate_workflow, "_DIGEST_SETTLE_NS", 20_000_000):
+            time.sleep(0.03)
+            candidate_workflow.sha256_file(self.path)
+            self.assertEqual(len(candidate_workflow._SHA256_BY_FILE_IDENTITY), 1)
+            rewritten = self.rewrite_with_its_mtime_restored()
+            self.assertEqual(candidate_workflow.sha256_file(self.path), _sha256_bytes(rewritten))
+
+    def test_a_file_that_changes_while_it_is_read_is_not_remembered(self) -> None:
+        real_open = Path.open
+
+        def open_then_rewrite(path, *args, **kwargs):
+            handle = real_open(path, *args, **kwargs)
+            with open(self.path, "r+b") as fh:  # the builtin: not the patched Path.open
+                fh.write(b"fixture reference B\n")
+            return handle
+
+        with mock.patch.object(candidate_workflow, "_DIGEST_SETTLE_NS", 20_000_000):
+            time.sleep(0.03)
+            with mock.patch.object(Path, "open", open_then_rewrite):
+                candidate_workflow.sha256_file(self.path)
+        self.assertEqual(candidate_workflow._SHA256_BY_FILE_IDENTITY, {})
 
 
 # ---------------------------------------------------------------------------

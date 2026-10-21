@@ -117,7 +117,10 @@ a single association file, it reports:
 It exits non-zero when the frozen snapshot cannot be trusted: the TSV no longer
 matches the checksum its provenance sidecar records, the snapshot is not the one
 the config declares or was not frozen by the shared freeze for the config's
-Source Collection and Selection, a required Reference Resource (or an
+Source Collection and Selection, a frozen connector beside it is gone or no
+longer has the sha256 its provenance records, the frozen acquisition is not
+filtered to the config's region policy (or is filtered, and the config declares
+none), a required Reference Resource (or an
 ancestry-mixture reference's fine-group map) is absent, a ready source or
 recorded metadata file is gone or changed, a study design has no declared method
 tier, the requested core count exceeds the cap, or the work root is unusable or
