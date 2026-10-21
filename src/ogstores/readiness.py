@@ -404,11 +404,8 @@ def _completion_channel(bundle_obj: Bundle, entry: Mapping[str, Any]) -> Channel
     complete = bundle_obj.build.get("complete") or {}
     options = complete.get("options") if isinstance(complete, Mapping) else None
     ancestry = options.get("ancestry") if isinstance(options, Mapping) else None
-    if not bundle_obj.derived_from:
-        return Channel(
-            EvidenceState.FAIL,
-            "reference_completed release has no derived_from parent",
-        )
+    # With no `derived_from`, the release completes its own Store (ADR 0037).
+    source = bundle_obj.derived_from or bundle_obj.store_id
     if not ancestry:
         return Channel(
             EvidenceState.MISSING,
@@ -417,11 +414,11 @@ def _completion_channel(bundle_obj: Bundle, entry: Mapping[str, Any]) -> Channel
     if entry.get("completion_verified") is True:
         return Channel(
             EvidenceState.PASS,
-            f"reference completion from {bundle_obj.derived_from!r} against "
+            f"reference completion from {source!r} against "
             f"ancestry {ancestry!r} verified against the published artifact",
         )
     detail = (
-        f"recipe completes from {bundle_obj.derived_from!r} with ancestry "
+        f"recipe completes from {source!r} with ancestry "
         f"{ancestry!r}; completion is configured but not verified against the "
         "published artifact"
     )

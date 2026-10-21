@@ -19,6 +19,11 @@ calling `ogstores.manifest`; it carries no filtering logic itself (ADR 0025).
 
     build_manifest --> build (or complete) --> top_hits --> rho --> overview --> validate --> register
 
+A release that completes its own Store (ADR 0037) then runs its completion
+phase from that `register` record:
+
+    register --> complete --> completion-rho --> completion-overview --> completion-validate --> completion-register
+
 The `build_manifest` rule feeds every build-phase command: `plan()` resolves
 the `analyses` token to the derived path `<artifact-root>/<store_id>/work/
 analyses.tsv`, which is the first planned step's input, so Snakemake builds the
@@ -43,7 +48,14 @@ from snakemake.exceptions import WorkflowError
 
 # `ogstores` is installed editable into the pixi environment (#257).
 from ogstores import bundle, index, manifest, paths, register, resources, run, runtime
-from ogstores.plan import plan
+from ogstores.plan import (
+    BUILD_PHASE,
+    COMPLETION_PHASE,
+    REGISTER_STEPS,
+    completion_step_name,
+    plan,
+    release_register,
+)
 
 REGISTRY_ROOT: Path = Path(config.get("registry_root", "stores"))
 if not REGISTRY_ROOT.is_dir() and (Path.cwd() / "stores").is_dir():
@@ -59,6 +71,11 @@ EXECUTION_STEPS = ["variant-reference", "build", "complete", "top-hits", "rho", 
 # declaration, `indexed-subset-<name>`, so the `{step}` wildcard admits that
 # bounded prefix in addition to the fixed execution steps.
 INDEXED_SUBSET_STEP_PATTERN = "indexed-subset-[A-Za-z0-9._-]+"
+# A release that completes its own Store (ADR 0037) records its completion
+# phase's post steps as `completion-<step>`, apart from its build phase's.
+# Its first step is `complete`, and its register is a rule of its own.
+COMPLETION_STEPS = [completion_step_name(name) for name in ("rho", "overview", "validate")]
+COMPLETION_SUBSET_STEP_PATTERN = completion_step_name(INDEXED_SUBSET_STEP_PATTERN)
 
 
 def get_bundle(store_id: str) -> bundle.Bundle:
@@ -87,26 +104,44 @@ def record(store_id: str, step: str, root: Path | str | None = None) -> str:
 
 
 def step_input(wildcards) -> list[str]:
-    """Predecessor of a step: the prior record, the parent's register, or raw sources.
+    """Predecessor of a step: the prior record, a register record, or raw sources.
 
     The first planned step of a derived release takes its parent's `register`
     record, which is what sequences a lineage without a hand-written batch order.
+    The first step of a completion phase takes its own build phase's `register`
+    record, because it completes the Store that phase published (ADR 0037).
     """
-    names = [s.name for s in get_steps(wildcards.store_id, wildcards.root)]
+    steps = get_steps(wildcards.store_id, wildcards.root)
+    names = [s.name for s in steps]
     idx = names.index(wildcards.step)
-    if idx > 0:
+    if idx > 0 and steps[idx - 1].phase == steps[idx].phase:
         return [record(wildcards.store_id, names[idx - 1], wildcards.root)]
+    if idx > 0:
+        return [record(wildcards.store_id, REGISTER_STEPS[steps[idx - 1].phase], wildcards.root)]
 
     parent = get_bundle(wildcards.store_id).derived_from
     if parent:
         return [record(parent, "register", wildcards.root)]
-    return [str(p) for p in get_steps(wildcards.store_id, wildcards.root)[0].inputs]
+    return [str(p) for p in steps[0].inputs]
+
+
+def last_step_record(wildcards, phase: str) -> str:
+    """The record a phase's register consumes: the phase's last planned step's."""
+    names = [s.name for s in get_steps(wildcards.store_id, wildcards.root) if s.phase == phase]
+    if not names:
+        raise WorkflowError(f"{wildcards.store_id} has no {phase} phase to register")
+    return record(wildcards.store_id, names[-1], wildcards.root)
 
 
 wildcard_constraints:
     root=".+",
     store_id=r"OGS-\d{5}",
-    step="|".join([*EXECUTION_STEPS, INDEXED_SUBSET_STEP_PATTERN])
+    step="|".join([
+        *EXECUTION_STEPS,
+        INDEXED_SUBSET_STEP_PATTERN,
+        *COMPLETION_STEPS,
+        COMPLETION_SUBSET_STEP_PATTERN,
+    ])
 
 
 onstart:
@@ -181,9 +216,11 @@ onstart:
 BUILDABLE_STORE_IDS: list[str] = [sid for sid in ALL_STORE_IDS if bundle.is_buildable(get_bundle(sid))]
 
 
+# A release is done when its last phase's register record exists: a release
+# that completes its own Store has two (ADR 0037).
 rule all:
     input:
-        [record(sid, "register") for sid in BUILDABLE_STORE_IDS]
+        [record(sid, release_register(get_bundle(sid))) for sid in BUILDABLE_STORE_IDS]
 
 
 rule build_manifest:
@@ -220,11 +257,7 @@ rule step:
 
 rule register:
     input:
-        lambda wildcards: record(
-            wildcards.store_id,
-            [s.name for s in get_steps(wildcards.store_id, wildcards.root)][-1],
-            wildcards.root,
-        )
+        lambda wildcards: last_step_record(wildcards, BUILD_PHASE)
     output:
         "{root}/{store_id}/records/register.json"
     run:
@@ -249,11 +282,33 @@ rule register:
         )
 
 
+# The completion phase's register (ADR 0037): it replaces the Store the build
+# phase's register published, through the same transaction, with no `force`
+# and no records snapshot. Under the entry point its marker is left for the
+# entry point to remove, as every register job's is (#195).
+rule completion_register:
+    input:
+        lambda wildcards: last_step_record(wildcards, COMPLETION_PHASE)
+    output:
+        "{root}/{store_id}/records/" + REGISTER_STEPS[COMPLETION_PHASE] + ".json"
+    run:
+        b = get_bundle(wildcards.store_id)
+        register.register_release(
+            b,
+            registry_root=REGISTRY_ROOT,
+            artifact_root=wildcards.root,
+            publish=True,
+            acceptance_commit=register.committed_revision(b.root / "validation.yaml"),
+            finalize=not config.get("release_run"),
+            phase=COMPLETION_PHASE,
+        )
+
+
 # Target aliases, so an operator names a release rather than a path.
 for sid in ALL_STORE_IDS:
     rule:
         name: sid
-        input: record(sid, "register")
+        input: record(sid, release_register(get_bundle(sid)))
 
 
 def reject_unknown_store_id(wildcards):

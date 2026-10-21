@@ -507,6 +507,14 @@ build_manifest ──> build ──> top_hits ──> rho ──> indexed-subset
 
 `build_manifest` is the derived build manifest's rule (ADR 0025). It runs before every observed-only build command, because `plan()` names the manifest it writes as the build step's first input. A two-id Reference-Completed child substitutes `complete` for `build` and takes the supported tail; completion consumes only a parent Store, so it depends on no manifest step.
 
+A release that completes its own Store (ADR 0037) runs both phases in one run. Its build phase is the chain above. Its completion phase then starts from the build phase's `register` record, because it completes the Store that phase published:
+
+```text
+register ──> complete ──> completion-rho ──> completion-indexed-subset-<name> ──> completion-overview ──> completion-validate ──> completion-register
+```
+
+Completion-phase steps share the `step` rule, under their own `{step}` values. `completion-register` is a rule of its own, `completion_register`, which calls `register_release(..., phase="completion")`. `all` and the id's target alias depend on that record, so naming the id runs both phases. The existing rules' bodies, and the inputs of every build-phase job, are exactly what they were before ADR 0037. Snakemake's default rerun triggers compare a rule's code and a job's input set with what it recorded, so a Store built before then is not rescheduled when its bundle gains a `complete` block (#305).
+
 Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. A declared `indexed_subsets` list inserts one `build-indexed-subset` Step per declaration between those inline index steps and `overview`/`validate`, so overview reports the subsets and validation audits them. `rho` defaults off and `validate` defaults on, so a Build Recipe names only the steps it chooses differently (ADR 0027, issue #128). A two-id Reference-Completed child substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
 
 ### Indexed Variant Subsets

@@ -12,7 +12,10 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
    ```text
    build (or complete) ──> top_hits ──> rho ──> overview ──> validate ──> register
    ```
-   `top_hits` and `rho` steps are conditional on `build.yaml`'s `post` configuration. A Reference-Completed release substitutes `complete` for `build` and follows the same tail.
+   `top_hits` and `rho` steps are conditional on `build.yaml`'s `post` configuration. A two-id Reference-Completed child substitutes `complete` for `build` and follows the same tail. A release that completes its own Store (ADR 0037) follows its `register` with a completion phase:
+   ```text
+   register ──> complete ──> completion-rho ──> completion-overview ──> completion-validate ──> completion-register
+   ```
 
 3. **Tracked outputs are record files**:
    - Each rule's tracked output is its execution record file (`records/<step>.json` via `ogstores.paths.record_path`), **never** the Store directory.
@@ -68,6 +71,13 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
    - The child is a real completion, not an empty one: its manifest reports `completion_state: reference_completed` with its own `release_id`, the position the fixture VCF holds out but the fixture LD panel covers comes back `imputed`, and `observed_only=True` returns the parent's observed associations with identical z, se and eaf by ALID — compared exactly, not within a tolerance.
    - Re-running the entry point over the published pair executes 0 jobs, prints its "nothing to be done" line and leaves every record's mtime unchanged. That holds from a copy of the artifact root too, which stands in for another checkout with no shared Snakemake provenance: finishing a deferred publication rewrites neither `validation.yaml` nor `records/register.json` when they already hold the marker's bytes, so no consumer's record goes stale.
    - The pair is built at most once per process (`two_id_completion_template`), and the fixture is the signal profile later completion tickets reuse: `create_signal_fixture_vcf`, `create_signal_ld_panel` and `create_completed_child_bundle` in `test_workflow.py`.
+
+12. **Reference completion end to end, under one id (#304, ADR 0037)**:
+   - One Release Bundle declares the build and the completion of a Dense Store, with no `derived_from`. One fresh entry-point run builds and publishes the Observed-Only Store, completes it from that published Store into the id's staged path, validates it there, and publishes the completed Store at the same path, all without `--config force=1`. Both phases' records report success: `build`, `validate`, `register`, then `complete`, `completion-validate`, `completion-register`.
+   - `complete` read the published `store.opengwasdb` and wrote `store.opengwasdb.partial`. The completed manifest keeps `store_id` = the id and takes `release_id` = `<id>-completed`. That the fixture imputes its held-out position and decodes to the VCF's values is contract 11's to prove, on the same commands.
+   - The replaced Observed-Only Store is archived in the one `replaced/<stamp>/`, beside a copy of its `records/register.json` and its Validation Record, and it holds exactly the VCF's observed positions. `observed_only=True` on the completed Store returns its associations with identical z, se and eaf by ALID. The build phase's records stay in `records/`, and `validation.yaml` describes the completed Store and names the archive.
+   - A rerun executes 0 jobs and rewrites no record, both in place, where Snakemake reads the build's own metadata, and from a copy of the artifact root, where it decides by mtime.
+   - The release is built at most once per process (`single_id_completion_template`), from #303's signal fixture and `amend_to_complete_own_store`, the shape later completion tickets reuse.
 
 ## Running the suite
 
