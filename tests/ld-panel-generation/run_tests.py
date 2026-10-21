@@ -63,6 +63,54 @@ def test_block() -> None:
         check(p["components_retained"] == d["vectors"].shape[1], "written provenance mismatch")
 
 
+def test_maf_floor() -> None:
+    # #241's AMR pilot: 345 diploids, MAF >= 0.01 over called samples. MAC 7
+    # (7/690) passes and MAC 6 does not, so an inherited MAC >= 50 must not apply.
+    n = 345
+    rng = np.random.default_rng(241)
+    def hets(k: int) -> np.ndarray: return np.r_[np.ones(k), np.zeros(n - k)]
+    sparse = hets(6); sparse[-45:] = np.nan  # MAF 6/600 = 0.01 on the 300 called
+    g = np.column_stack([
+        hets(6), hets(7), sparse, np.full(n, np.nan), np.zeros(n), 2 - hets(7),
+        *[rng.binomial(2, .3, n).astype(float) for _ in range(20)],
+    ])
+    variants = [{"chrom": "1", "pos": 100 + i, "allele1": "C", "allele2": "G"}
+                for i in range(g.shape[1])]
+    result = module.construct_block(g, variants, maf_threshold=.01,
+        cumulative_variance_target=.99, component_floor=5)
+    p = result.provenance
+    check([v["BP"] for v in result.variant_table] == [101, 102, 105, *range(106, 126)],
+          "MAF floor kept the wrong variants")
+    check(p["maf_threshold"] == .01 and p["mac_threshold"] is None,
+          "a MAF floor must replace, not add to, the MAC floor")
+    check((p["n_variants_all_missing"], p["n_variants_invariant"], p["n_variants_below_floor"]) == (1, 1, 1),
+          "dropped-variant classes are miscounted")
+    check(p["below_floor_mac_counts"] == {"6": 1}, "below-floor MAC strata are wrong")
+    check(np.isclose(p["missing_call_rate"], (45 + n) / (n * g.shape[1])), "input missingness is wrong")
+    check(np.isclose(p["max_missing_call_rate_retained"], 45 / n), "retained missingness is wrong")
+    mac_only = module.construct_block(g, variants, mac_threshold=7, component_floor=5).provenance
+    check(mac_only["mac_threshold"] == 7 and mac_only["maf_threshold"] is None and
+          mac_only["n_variants_retained"] == 22 and mac_only["below_floor_mac_counts"] == {"6": 2},
+          "the MAC floor changed")
+    for script in ("construct_block.py", "run_panels.py"):
+        both = subprocess.run([sys.executable, str(SCRIPT.with_name(script)), "--maf", ".01", "--mac", "50"],
+                              capture_output=True, text=True)
+        check(both.returncode == 2 and "not allowed with" in both.stderr,
+              f"{script} accepted a MAC floor alongside a MAF floor")
+    # Pilot conversion takes every biallelic site: the floor belongs to construct_block.
+    command = materialize.conversion_command(Path("plink2"), Path("block.vcf.gz"),
+                                             Path("AMR.keep"), Path("AMR/chr22"), None)
+    check("--mac" not in command and "--maf" not in command and "--max-alleles" in command,
+          "pilot PGEN conversion applied a frequency floor")
+    region = materialize.region_vcf_command(Path("bcftools"), Path("chr22.vcf.bgz"),
+                                            "chr22:100-200", Path("AMR.ids"), Path("block.vcf.gz"))
+    check(region[:2] == ["bcftools", "view"] and
+          region[region.index("--regions") + 1] == "chr22:100-200" and
+          region[region.index("--samples-file") + 1] == "AMR.ids" and
+          "--force-samples" not in region and region[region.index("--output-type") + 1] == "z",
+          "region extraction must subset by index and fail on absent samples")
+
+
 def test_canonical_effect_allele_ld_orientation() -> None:
     dosage = np.tile([0.0, 1.0, 2.0, 1.0], 10)
     # PLINK exports ALT dosage. Variant 1's canonical effect allele is ALT,
@@ -149,7 +197,7 @@ def test_plink_raw_input() -> None:
 
 
 def main() -> None:
-    test_block(); test_canonical_effect_allele_ld_orientation()
+    test_block(); test_maf_floor(); test_canonical_effect_allele_ld_orientation()
     test_mapping(); test_membership_keep_format(); test_index_validation(); test_compressed_pvar_input()
     test_plink_raw_input()
     for script in ("acquire_hgdp1kgp.py", "construct_block.py", "run_panels.py"):

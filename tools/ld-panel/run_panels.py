@@ -31,7 +31,10 @@ def main() -> int:
     ap.add_argument("--reference-root", type=Path, required=True)
     ap.add_argument("--regions", type=Path, required=True); ap.add_argument("--members", type=Path, required=True)
     ap.add_argument("--ancestries", nargs="+", default=["AFR", "EAS", "SAS"])
-    ap.add_argument("--jobs", type=int, default=DEFAULT_JOBS); ap.add_argument("--mac", type=int, default=50)
+    ap.add_argument("--jobs", type=int, default=DEFAULT_JOBS)
+    floor = ap.add_mutually_exclusive_group()
+    floor.add_argument("--mac", type=int, default=50)
+    floor.add_argument("--maf", type=float, help="MAF floor over called individuals; replaces --mac")
     ap.add_argument("--cumvar", type=float, default=.99); ap.add_argument("--min-k", type=int, default=250)
     ap.add_argument("--force", action="store_true", help="Rebuild blocks with valid existing outputs")
     args = ap.parse_args()
@@ -49,7 +52,8 @@ def main() -> int:
             source = (ancestry_root if ancestry_root.is_dir() else args.genotype_root) / f'chr{row["chr"]}'
             cmd = (sys.executable, str(script), "--pfile", str(source),
                    "--keep", str(keep), "--chrom", row["chr"], "--start", row["start"],
-                   "--end", row["end"], "--out", str(base), "--mac", str(args.mac),
+                   "--end", row["end"], "--out", str(base),
+                   *(("--maf", str(args.maf)) if args.maf is not None else ("--mac", str(args.mac))),
                    "--cumvar", str(args.cumvar), "--min-k", str(args.min_k))
             jobs.append((f"{anc}/{row['chr']}/{base.name}", *cmd))
     failures = args.reference_root / "failures.tsv"

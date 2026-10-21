@@ -53,32 +53,45 @@ def construct_block(
     individual_ids: list[str] | None = None,
     interval: str = "unknown",
     mac_threshold: int = 50,
+    maf_threshold: float | None = None,
     cumulative_variance_target: float = 0.99,
     component_floor: int = 250,
 ) -> BlockResult:
-    """Filter by MAC and return a stable eigendecomposition and provenance."""
+    """Filter by one variant floor and return a stable eigendecomposition and provenance.
+
+    The floor is ``maf_threshold`` when given, else ``mac_threshold``; a MAF
+    floor replaces the MAC floor rather than adding to it (#241). MAF is the
+    minor-allele count over twice the called individuals, so missing calls do
+    not dilute it.
+    """
     g = np.asarray(genotypes, dtype=np.float64)
     if g.ndim != 2 or g.shape[1] != len(variants):
         raise ValueError("genotypes must be individuals x variants")
     if individual_ids is not None and len(individual_ids) != g.shape[0]:
         raise ValueError("individual_ids length does not match genotypes")
-    if not 0 < cumulative_variance_target <= 1 or mac_threshold < 0 or component_floor < 0:
+    if (not 0 < cumulative_variance_target <= 1 or mac_threshold < 0 or component_floor < 0
+            or (maf_threshold is not None and not 0 <= maf_threshold <= .5)):
         raise ValueError("invalid construction threshold")
     if g.shape[0] < 2:
         raise ValueError("at least two individuals are required")
 
     # Mean-impute missing calls before centring.  All-missing variants become
     # non-finite and are excluded along with invariant variants.
-    with np.errstate(invalid="ignore"):
-        means = np.nanmean(g, axis=0)
-    filled = np.where(np.isnan(g), means, g)
     ac = np.nansum(g, axis=0)
     called = np.sum(~np.isnan(g), axis=0)
+    means = np.divide(ac, called, out=np.full(g.shape[1], np.nan), where=called > 0)
+    filled = np.where(np.isnan(g), means, g)
     mac = np.minimum(ac, 2 * called - ac)
-    keep = (mac >= mac_threshold) & np.isfinite(means) & (means > 0) & (means < 2)
-    kept = np.flatnonzero(keep)
+    maf = np.divide(mac, 2 * called, out=np.zeros(g.shape[1]), where=called > 0)
+    all_missing = called == 0
+    invariant = ~all_missing & (mac == 0)
+    polymorphic = ~all_missing & ~invariant
+    above = maf >= maf_threshold if maf_threshold is not None else mac >= mac_threshold
+    below = polymorphic & ~above
+    kept = np.flatnonzero(polymorphic & above)
     if not len(kept):
-        raise ValueError("no variants remain after MAC/invariant filtering")
+        raise ValueError("no variants remain after variant-floor/invariant filtering")
+    missing_rate = 1 - called / g.shape[0]
 
     x = filled[:, kept]
     x -= x.mean(axis=0)
@@ -125,7 +138,14 @@ def construct_block(
     provenance = {
         "interval": interval, "n_individuals": int(g.shape[0]),
         "n_variants_input": int(g.shape[1]), "n_variants_retained": len(table),
-        "mac_threshold": mac_threshold, "cumulative_variance_target": cumulative_variance_target,
+        "mac_threshold": None if maf_threshold is not None else mac_threshold,
+        "maf_threshold": maf_threshold,
+        "n_variants_all_missing": int(all_missing.sum()), "n_variants_invariant": int(invariant.sum()),
+        "n_variants_below_floor": int(below.sum()),
+        "below_floor_mac_counts": {str(int(m)): int(c) for m, c in zip(*np.unique(mac[below], return_counts=True))},
+        "missing_call_rate": float(missing_rate.mean()),
+        "max_missing_call_rate_retained": float(missing_rate[kept].max()),
+        "cumulative_variance_target": cumulative_variance_target,
         "component_floor": component_floor, "components_retained": k,
         "achieved_variance": achieved,
     }
@@ -211,7 +231,10 @@ def main() -> int:
     src.add_argument("--pfile", type=Path); src.add_argument("--bfile", type=Path)
     ap.add_argument("--keep", type=Path, required=True); ap.add_argument("--chrom", required=True)
     ap.add_argument("--start", type=int, required=True); ap.add_argument("--end", type=int, required=True)
-    ap.add_argument("--out", type=Path, required=True); ap.add_argument("--mac", type=int, default=50)
+    ap.add_argument("--out", type=Path, required=True)
+    floor = ap.add_mutually_exclusive_group()
+    floor.add_argument("--mac", type=int, default=50)
+    floor.add_argument("--maf", type=float, help="MAF floor over called individuals; replaces --mac")
     ap.add_argument("--cumvar", type=float, default=.99); ap.add_argument("--min-k", type=int, default=250)
     ap.add_argument("--plink2", default="plink2")
     args = ap.parse_args()
@@ -219,7 +242,7 @@ def main() -> int:
         g, variants, ids = _plink_extract(args, Path(tmp))
         result = construct_block(g, variants, individual_ids=ids,
             interval=f"{args.chrom}:{args.start}-{args.end}", mac_threshold=args.mac,
-            cumulative_variance_target=args.cumvar, component_floor=args.min_k)
+            maf_threshold=args.maf, cumulative_variance_target=args.cumvar, component_floor=args.min_k)
     _atomic_outputs(args.out, result)
     return 0
 
