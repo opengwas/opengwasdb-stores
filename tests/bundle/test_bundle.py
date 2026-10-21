@@ -1439,8 +1439,16 @@ class TestBundleContract(unittest.TestCase):
         original_is_dir = Path.is_dir
 
         def reject_artifact(path: object) -> None:
+            # The artifact root and a Store path, not every path under /data/opengwasdb:
+            # a checkout or scratch directory there holds this repository's own bundles.
             text = str(path)
-            if text.startswith("/data/opengwasdb") or ".opengwasdb" in text:
+            location = Path(text)
+            root = Path(paths.DEFAULT_ARTIFACT_ROOT)
+            if (
+                location == root
+                or root in location.parents
+                or any(part.endswith(".opengwasdb") for part in location.parts)
+            ):
                 raise AssertionError(f"artifact path inspected: {text}")
 
         def guarded_open(path: object, *args: Any, **kwargs: Any) -> Any:
