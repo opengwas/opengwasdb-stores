@@ -52,6 +52,7 @@ import time
 import unittest
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Iterator
 from unittest import mock
 
 import yaml
@@ -59,6 +60,7 @@ import yaml
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
 import manifest_generation.candidate_workflow as candidate_workflow  # noqa: E402
+import manifest_generation.qc_panel_concordance as qc_panel_concordance  # noqa: E402
 from ogstores import bundle as bundle_module  # noqa: E402
 from ogstores.plan import plan  # noqa: E402
 from manifest_generation.candidate_workflow import (  # noqa: E402
@@ -589,12 +591,41 @@ def _cli_invocation(
     return command, env
 
 
+@contextlib.contextmanager
+def _one_invocation() -> Iterator[None]:
+    """Clear the state the entry point memoises on its modules, before and after a run.
+
+    :func:`_run_cli` drives the entry point in this process, so a cache one
+    invocation fills outlives it, where a subprocess would start empty every
+    time. The content digest memo is keyed by path, device, inode, size and
+    mtime, so a reference rewritten to the same length with its mtime restored
+    would be read as the bytes it used to be, and verification would pass where
+    a process refuses (#282 review).
+    """
+
+    def clear() -> None:
+        candidate_workflow._SHA256_BY_FILE_IDENTITY.clear()
+        # Per-worker concordance state: a single-worker run fills it in this
+        # process. Every run sets it before use, and dropping it after the run
+        # releases the reference the run loaded with it.
+        qc_panel_concordance._WORKER_REF = None
+        qc_panel_concordance._WORKER_PANEL = None
+        qc_panel_concordance._WORKER_GATES = None
+
+    clear()
+    try:
+        yield
+    finally:
+        clear()
+
+
 def _run_cli(fixture: Fixture, *args: str, **kwargs) -> subprocess.CompletedProcess:
     """Drive the operator entry point in this process, then report as a subprocess would.
 
     The suite's subject is what the entry point does, not that ``python -m`` can
     start it: reaching ``generate_candidate.main`` in this interpreter runs the
-    same argparse, the same stages and the same files. A fresh interpreter for
+    same argparse, the same stages and the same files, starting from the state a
+    fresh process would have (:func:`_one_invocation`). A fresh interpreter for
     every run costs about 1.4 s here (``load_candidate_configuration`` imports
     ``opengwasdb``), which made this suite the repository's slowest (#282).
 
@@ -610,13 +641,23 @@ def _run_cli(fixture: Fixture, *args: str, **kwargs) -> subprocess.CompletedProc
         os.chdir(REPO_ROOT)
         try:
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-                try:
-                    code = generate_candidate.main(command[3:])
-                except SystemExit as exc:  # argparse refusing a flag, as `python -m` would
-                    code = exc.code if isinstance(exc.code, int) else 0
+                with _one_invocation():
+                    try:
+                        code = generate_candidate.main(command[3:])
+                    except SystemExit as exc:  # argparse refusing a flag, as `python -m` would
+                        # Python's own exit semantics: an integer is the code, None
+                        # is a clean exit, and anything else is a message on stderr
+                        # with exit code 1.
+                        code = exc.code
+                        if code is not None and not isinstance(code, int):
+                            print(code, file=stderr)
+                            code = 1
         finally:
             os.chdir(previous_cwd)
-    return subprocess.CompletedProcess(command, code, stdout.getvalue(), stderr.getvalue())
+    # A main that returns None exited cleanly, as it does under `python -m`.
+    return subprocess.CompletedProcess(
+        command, 0 if code is None else code, stdout.getvalue(), stderr.getvalue()
+    )
 
 
 def _run_cli_subprocess(
@@ -4017,6 +4058,64 @@ class ResolutionRootTests(unittest.TestCase):
         for bad in ("", "..", "a/b", ".hidden"):
             with self.assertRaises(ValueError):
                 ResolutionArea.for_collection(self.root, bad)
+
+
+class InProcessEntryPointTests(unittest.TestCase):
+    """``_run_cli`` reports an exit exactly as ``python3 -m`` would (#282 review).
+
+    The in-process runner stands in for a process, so its return code and stderr
+    must be what an operator would see: an integer ``SystemExit`` is that code,
+    ``None`` or ``0`` is a clean exit, and any other value is a message on stderr
+    and exit code 1. Reporting a refusal as success would hide exactly the
+    failures this suite exists to catch.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="in-process-exit-")
+        root = Path(self._tmp.name)
+        # No files: every path here is only rendered into the argv.
+        self.fixture = Fixture(
+            root=root,
+            config_path=root / "config.yaml",
+            inventory_path=root / "inventory.tsv",
+            provenance_path=root / "provenance.json",
+            source_metadata_table_path=root / "metadata.tsv",
+            acquisition_manifest_path=root / "acquisition.tsv",
+            outcomes_path=root / "outcomes.json",
+            registry_root=root / "stores",
+            work_root=root / "work",
+            trait_table_dir=root / "traits",
+            resolution_root=root / "resolution",
+        )
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _run_exiting(self, code) -> subprocess.CompletedProcess:
+        def main(argv: list[str]) -> int:
+            raise SystemExit(code)
+
+        with mock.patch.object(generate_candidate, "main", main):
+            return _run_cli(self.fixture)
+
+    def test_a_string_exit_code_is_a_message_and_exit_code_one(self) -> None:
+        result = self._run_exiting("the resolver is not installed")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(result.stderr, "the resolver is not installed\n")
+
+    def test_no_exit_code_or_zero_is_a_clean_exit(self) -> None:
+        for code in (None, 0):
+            with self.subTest(code=code):
+                result = self._run_exiting(code)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stderr, "")
+
+    def test_an_integer_exit_code_is_that_code(self) -> None:
+        self.assertEqual(self._run_exiting(3).returncode, 3)
+
+    def test_a_returned_none_is_a_clean_exit(self) -> None:
+        with mock.patch.object(generate_candidate, "main", lambda argv: None):
+            self.assertEqual(_run_cli(self.fixture).returncode, 0)
 
 
 def _pid_alive(pid: int) -> bool:
