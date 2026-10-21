@@ -505,7 +505,9 @@ def stage_render(
             "exclusions.tsv": tables.exclusions_tsv,
             "reference_overlap.tsv": tables.reference_overlap_tsv,
             "quality_checks.tsv": tables.quality_checks_tsv,
-        },
+        }
+        # Only a release with targeted Analyses carries the target sidecar (#300).
+        | ({"analysis_targets.tsv": tables.analysis_targets_tsv} if tables.analysis_targets_tsv else {}),
     )
     write_rendered(candidate, pipeline.rendered_path)
     print(f"Rendered: {pipeline.rendered_path}")

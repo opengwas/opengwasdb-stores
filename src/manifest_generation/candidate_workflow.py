@@ -172,6 +172,36 @@ ANALYSES_COLUMNS: tuple[str, ...] = (
     "exclude_from_build",
 )
 
+#: The target annotation columns (#300): the target span as cis coordinates
+#: and how the target was resolved. A release with no targeted Analysis omits
+#: them entirely (docs/release-metadata-schema.md); in one that has some, an
+#: Analysis with no target leaves them blank.
+TARGET_ANALYSES_COLUMNS: tuple[str, ...] = (
+    "trait_chr", "trait_bp", "mhc", "target_resolution_method", "n_target_rows",
+)
+#: The measured tissue and assay context, rendered when any Analysis has one.
+CONTEXT_ANALYSES_COLUMNS: tuple[str, ...] = ("tissue", "context")
+#: Where those columns go after ``ANALYSES_COLUMNS``, when present: OGS-00007's order.
+OPTIONAL_ANALYSES_COLUMNS: tuple[str, ...] = (
+    "trait_chr", "trait_bp", "tissue", "context", "mhc", "target_resolution_method", "n_target_rows",
+)
+
+#: ``sidecars/analysis_targets.tsv`` (#300): every targeted Analysis's target
+#: annotation from the Source Metadata Table. Absent when no Analysis has one.
+ANALYSIS_TARGETS_COLUMNS: tuple[str, ...] = (
+    "analysis_id",
+    "target_assay_id",
+    "target_symbol",
+    "target_ensembl_gene_id",
+    "target_chromosome",
+    "target_start",
+    "target_end",
+    "target_mhc",
+    "target_is_aggregate",
+    "target_resolution_method",
+    "target_rows",
+)
+
 #: ``sidecars/source_readiness.tsv``: the frozen inventory's 14 columns plus the
 #: two derived columns that make it a membership audit rather than a copy.
 SOURCE_READINESS_COLUMNS: tuple[str, ...] = INVENTORY_COLUMNS + (
@@ -713,7 +743,32 @@ class AnalysisMetadata:
     consortium: str = ""
     license: str = ""
     source_genome_build: str = ""
+    #: The target annotation (``ANALYSIS_TARGETS_COLUMNS`` but ``analysis_id``),
+    #: blank for an Analysis with no molecular target (#300).
+    target_assay_id: str = ""
+    target_symbol: str = ""
+    target_ensembl_gene_id: str = ""
+    target_chromosome: str = ""
+    target_start: str = ""
+    target_end: str = ""
+    target_mhc: str = ""
+    target_is_aggregate: str = ""
+    target_resolution_method: str = ""
+    target_rows: str = ""
+    tissue: str = ""
+    context: str = ""
     trait_ontology: TraitOntologyMapping | None = None
+
+    @property
+    def targeted(self) -> bool:
+        return any(getattr(self, column) for column in ANALYSIS_TARGETS_COLUMNS[1:])
+
+    @property
+    def analysis_label(self) -> str:
+        """The Analysis Label: the target gene's symbol, the assay for an aggregate (#141)."""
+        if self.target_is_aggregate == "true":
+            return self.target_assay_id
+        return self.target_symbol or self.source_label
 
 
 def read_analysis_metadata(
@@ -760,6 +815,9 @@ def read_analysis_metadata(
             consortium=row.get("consortium", ""),
             license=row.get("license", ""),
             source_genome_build=row.get("source_genome_build", ""),
+            tissue=row.get("tissue", ""),
+            context=row.get("context", ""),
+            **{column: row.get(column, "") for column in ANALYSIS_TARGETS_COLUMNS[1:]},
         )
     return found
 
@@ -2292,6 +2350,8 @@ class CandidateTables:
     warnings: tuple[str, ...]
     #: ``sidecars/quality_checks.tsv``: one row per selected Analysis (#285).
     quality_checks_tsv: str = ""
+    #: ``sidecars/analysis_targets.tsv`` (#300), or empty when no Analysis has a target.
+    analysis_targets_tsv: str = ""
     #: Each applied Quality Check's summary, keyed by name (#285).
     quality_checks: Mapping[str, CheckSummary] = field(default_factory=dict)
 
@@ -2356,9 +2416,15 @@ def build_candidate_tables(
     warnings.extend(_store_composition_warnings(store_composition))
     quality_checks_tsv, quality_check_summary = _quality_check_tables(outcomes, config)
     warnings.extend(quality_checks.warning_lines(quality_check_summary))
+    targets = [
+        {"analysis_id": outcome.analysis_id}
+        | {column: getattr(outcome.metadata, column) for column in ANALYSIS_TARGETS_COLUMNS[1:]}
+        for outcome in outcomes
+        if outcome.metadata.targeted
+    ]
 
     return CandidateTables(
-        analyses_tsv=_render_tsv(ANALYSES_COLUMNS, analyses_rows),
+        analyses_tsv=_render_tsv(analyses_columns(outcomes, analyses_rows), analyses_rows),
         source_readiness_tsv=_render_tsv(SOURCE_READINESS_COLUMNS, readiness_rows),
         ancestry_tsv=_render_tsv(ANCESTRY_SIDECAR_COLUMNS, ancestry_rows),
         sd_estimation_tsv=_render_tsv(SD_ESTIMATION_SIDECAR_COLUMNS, sd_rows),
@@ -2377,7 +2443,20 @@ def build_candidate_tables(
         warnings=tuple(warnings),
         quality_checks_tsv=quality_checks_tsv,
         quality_checks=quality_check_summary,
+        analysis_targets_tsv=_render_tsv(ANALYSIS_TARGETS_COLUMNS, targets) if targets else "",
     )
+
+
+def analyses_columns(
+    outcomes: Sequence[AnalysisOutcome], rows: Sequence[Mapping[str, str]]
+) -> tuple[str, ...]:
+    """``ANALYSES_COLUMNS``, and the optional columns this release has (#300)."""
+    present = set()
+    if any(outcome.metadata.targeted for outcome in outcomes):
+        present.update(TARGET_ANALYSES_COLUMNS)
+    if any(row[column] for row in rows for column in CONTEXT_ANALYSES_COLUMNS):
+        present.update(CONTEXT_ANALYSES_COLUMNS)
+    return ANALYSES_COLUMNS + tuple(column for column in OPTIONAL_ANALYSES_COLUMNS if column in present)
 
 
 def _quality_check_tables(
@@ -2670,7 +2749,7 @@ def _analyses_row(
         "analysis_id": row.analysis_id,
         "source_analysis_id": row.analysis_id,
         "source_label": resolved.source_label or row.trait,
-        "analysis_label": resolved.source_label or row.trait,
+        "analysis_label": resolved.analysis_label or row.trait,
         "trait_ontology_label": trait_ontology.trait_ontology_label,
         "trait_ontology_id": trait_ontology.trait_ontology_id,
         "trait_ontology_mapping_method": str(trait_ontology.method),
@@ -2710,6 +2789,13 @@ def _analyses_row(
         "maf_threshold": outcome.maf_threshold,
         "inclusion_reason": inclusion_reason,
         "exclude_from_build": exclude,
+        "trait_chr": resolved.target_chromosome,
+        "trait_bp": resolved.target_start,
+        "tissue": _or_default(resolved.tissue, config, "tissue"),
+        "context": _or_default(resolved.context, config, "context"),
+        "mhc": resolved.target_mhc,
+        "target_resolution_method": resolved.target_resolution_method,
+        "n_target_rows": resolved.target_rows,
     }
 
 
@@ -3120,7 +3206,8 @@ def render_validation_yaml(
             "exclusions": "sidecars/exclusions.tsv",
             "reference_overlap": "sidecars/reference_overlap.tsv",
             "quality_checks": "sidecars/quality_checks.tsv",
-        },
+        }
+        | ({"analysis_targets": "sidecars/analysis_targets.tsv"} if tables.analysis_targets_tsv else {}),
         "warnings": list(tables.warnings),
         "errors": list(tables.reference_overlap_errors),
     }
@@ -3211,8 +3298,11 @@ def _int_or_empty(value: Any) -> str:
 
 
 __all__ = [
+    "ANALYSIS_TARGETS_COLUMNS",
     "ANCESTRY_SIDECAR_COLUMNS",
     "ANALYSES_COLUMNS",
+    "OPTIONAL_ANALYSES_COLUMNS",
+    "analyses_columns",
     "CANDIDATE_STATUS",
     "EFFECT_PLACEHOLDER_EXCLUSION_COLUMNS",
     "MAF_FILTER_EXEMPTION_COLUMNS",

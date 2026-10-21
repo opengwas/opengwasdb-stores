@@ -65,11 +65,19 @@ value -- never zero and never a default.
 | `target_assay_id` | No | text | Target annotation for an Analysis of one molecular target: the assay identifier (Sun 2018: the SomaScan SeqId, `5227-60`). |
 | `target_symbol` | No | text | The target's gene symbol (`PDK1`). |
 | `target_ensembl_gene_id` | No | `ENSG` + 11 digits, optional `.version` | The target's Ensembl gene. |
-| `target_chromosome`, `target_start`, `target_end` | No | `1`–`22`, `X`, `Y`, `MT`; positive integers, start ≤ end | The target gene's span on the source build. All three or none. |
+| `target_chromosome`, `target_start`, `target_end` | No | `1`–`22`, `X`, `Y`, `MT`; positive integers, start ≤ end | The target gene's span on the source build. All three or none. A cis region policy keeps a flank around it ([release config](release-config.md#region_policy)). |
+| `target_mhc` | No | `true`, `false` | Whether the target gene overlaps the MHC (chr6:25–34 Mb). |
+| `target_is_aggregate` | No | `true`, `false` | `true` for an aggregate assay that measures several targets at once (a SomaScan SeqId for a protein family): its Analysis Label is `target_assay_id`, which it then needs, never one member gene; the symbol, gene and span are those its coordinates map to. |
+| `target_resolution_method` | No | text | How the target was resolved (`somascan_db_seqid`, `somascan_db_gene_name`, `ensembl_hgnc_symbol`). |
+| `target_rows` | No | positive integer | How many target-table rows the target was resolved from. |
 | `tissue`, `context` | No | text | The measured tissue and assay context (`plasma`, `SomaScan`), as in `analyses.tsv`. |
 
 The target columns are annotation, never a Trait Ontology Mapping: a gene is
-not the Trait (issue #141).
+not the Trait (issue #141). They render into `analyses.tsv` (`trait_chr` and
+`trait_bp` from the span's chromosome and start, `mhc`,
+`target_resolution_method`, `n_target_rows`, and the Analysis Label: the
+`target_symbol` of a single target, the `target_assay_id` of an aggregate) and
+into `sidecars/analysis_targets.tsv`, one row per targeted Analysis (#300).
 
 ### The GWAS Catalog adapter
 

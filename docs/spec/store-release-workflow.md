@@ -1137,6 +1137,7 @@ stores/OGS-00011/
     exclusions.tsv          # one row per excluded selected Analysis, with its reason
     reference_overlap.tsv   # one row per selected Analysis
     quality_checks.tsv      # one row per selected Analysis: every Quality Check's result
+    analysis_targets.tsv    # only when Analyses have molecular targets: one row per targeted Analysis (#300)
 ```
 
 **Determinism and atomicity.** Aggregation is ordered by the frozen inventory,

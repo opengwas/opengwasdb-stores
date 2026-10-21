@@ -356,17 +356,22 @@ membership decision and only at emit, so toggling it needs `--stage emit` and
 never a re-resolve. See
 [ADR 0033](adr/0033-shared-stores-admit-only-maf-filtered-analyses.md).
 
-Some generators add release-specific columns beyond this table, such as the
-`gwas-ssf-ragged` generator's single-gene-target columns (`trait_chr`,
-`trait_bp`, `n`, `mhc`, `target_resolution_method`, `n_target_rows`) for
-proteomics releases whose Analyses each have one resolvable encoding gene. A
-release with no such target (for example small-molecule metabolomics, issue
-#26) omits these columns entirely rather than filling them with placeholder or
-`NA` values — their absence is how a reviewer tells the two shapes apart. These
-columns remain release-specific with no shared-core equivalent.
+A release whose Analyses each measure one molecular target -- proteomics,
+such as Sun 2018's SomaScan pQTLs -- adds the target columns `trait_chr`,
+`trait_bp`, `mhc`, `target_resolution_method` and `n_target_rows`, rendered
+from the Source Metadata Table's target annotation (#300; the retired R
+`gwas-ssf-ragged` generator also wrote `n`). A release with no such target (for
+example small-molecule metabolomics, issue #26) omits these columns entirely
+rather than filling them with placeholder or `NA` values — their absence is how
+a reviewer tells the two shapes apart. `tissue` and `context` likewise appear
+only in a release that declares them. These columns remain release-specific
+with no shared-core equivalent.
 
-The target-resolution sidecar retains the source trait mapping and raw Ensembl
-fields as evidence; they are not duplicate Analysis columns.
+The target sidecar, `sidecars/analysis_targets.tsv`, lists each targeted
+Analysis's target annotation (assay, gene symbol and Ensembl id, span, MHC
+flag, whether the assay is an aggregate, how the target was resolved); it is
+evidence, not duplicate Analysis columns. Bundles emitted by the R generator
+carry its wider form, with the raw SomaScan and Ensembl fields.
 
 ### Accepted build rows
 

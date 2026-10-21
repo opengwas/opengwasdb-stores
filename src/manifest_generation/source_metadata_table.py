@@ -69,13 +69,18 @@ OPTIONAL_COLUMNS: tuple[str, ...] = (
     "license",
     "store_key",
     # Target annotation for an Analysis of one molecular target (Sun 2018's
-    # SomaScan proteins): the assay, the gene it measures and that gene's span.
+    # SomaScan proteins): the assay, the gene it measures and that gene's span,
+    # and how the target was resolved (#300).
     "target_assay_id",
     "target_symbol",
     "target_ensembl_gene_id",
     "target_chromosome",
     "target_start",
     "target_end",
+    "target_mhc",
+    "target_is_aggregate",
+    "target_resolution_method",
+    "target_rows",
     "tissue",
     "context",
 )
@@ -91,6 +96,9 @@ STUDY_DESIGNS: tuple[str, ...] = ("quantitative", "case-control")
 #: ``source_genome_build`` uses. ``hg19``/``hg38`` are OpenGWASDB flag values,
 #: not this column's.
 GENOME_BUILDS: tuple[str, ...] = ("GRCh37", "GRCh38")
+
+#: ``target_mhc`` and ``target_is_aggregate`` values.
+BOOLEANS: tuple[str, ...] = ("true", "false")
 
 #: ``target_chromosome`` values, spelled without a ``chr`` prefix.
 TARGET_CHROMOSOMES: tuple[str, ...] = tuple(str(n) for n in range(1, 23)) + ("X", "Y", "MT")
@@ -181,6 +189,8 @@ def _row_problems(row: Mapping[str, str]) -> list[str]:
     vocabulary("study_design", STUDY_DESIGNS)
     vocabulary("source_genome_build", GENOME_BUILDS)
     vocabulary("target_chromosome", TARGET_CHROMOSOMES)
+    vocabulary("target_mhc", BOOLEANS)
+    vocabulary("target_is_aggregate", BOOLEANS)
     if value("declared_effect_scale"):
         vocabulary("declared_effect_scale", _stored_effect_scales())
 
@@ -203,6 +213,12 @@ def _row_problems(row: Mapping[str, str]) -> list[str]:
     if value("source_trait_ontology_label") and not value("source_trait_ontology_id"):
         problems.append("source_trait_ontology_label is set without source_trait_ontology_id")
 
+    if value("target_rows") and not _POSITIVE_INTEGER.match(value("target_rows")):
+        problems.append(f"target_rows {value('target_rows')!r} is not a positive integer")
+    # An aggregate assay measures several targets, so its Analysis Label is the
+    # assay, never one member gene (#141): it needs the assay identifier.
+    if value("target_is_aggregate") == "true" and not value("target_assay_id"):
+        problems.append("target_is_aggregate is true but target_assay_id is empty")
     if value("target_ensembl_gene_id") and not _ENSEMBL_GENE.match(value("target_ensembl_gene_id")):
         problems.append(
             f"target_ensembl_gene_id {value('target_ensembl_gene_id')!r} is not an Ensembl gene id"
