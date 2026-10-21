@@ -1,6 +1,6 @@
 snapshot_id: finngen-r13-full-2026-10-21
 source_collection_id: finngen-r13
-frozen_at: '2026-10-21T00:15:58Z'
+frozen_at: '2026-10-21T06:33:39Z'
 frozen_by: manifest_generation.freeze
 selection:
   all: true
@@ -20,13 +20,13 @@ inventory_tsv_sha256: 20767e50ec1dd827d9d15d9b90ac60ccc332915ec0d045d36cb44c2793
 source_metadata_table:
   frozen:
     path: finngen-r13-full-2026-10-21.source-metadata.tsv
-    sha256: 1418fd03c87dcb52029342a9e9e64c92af1769477d94edab1c2ae9c6fa39189a
-    bytes: 321514
+    sha256: 16782d5716babfc4397f5d3be75a76a19327668eeb8cd8e911f6304059240a59
+    bytes: 550984
     rows: 2754
   original:
     path: /data/opengwasdb/raw/finngen-r13/connectors/2026-10-21/finngen-r13.source-metadata.tsv
-    sha256: 1418fd03c87dcb52029342a9e9e64c92af1769477d94edab1c2ae9c6fa39189a
-    bytes: 321514
+    sha256: 16782d5716babfc4397f5d3be75a76a19327668eeb8cd8e911f6304059240a59
+    bytes: 550984
     rows: 2754
 acquisition_manifest:
   frozen:
