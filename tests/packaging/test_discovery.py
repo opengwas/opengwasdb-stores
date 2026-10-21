@@ -80,6 +80,29 @@ class DiscoveryTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.discover()
 
+    def test_a_release_stack_suite_runs_one_process_per_test(self) -> None:
+        script = self.tests / "theta" / "test_theta.py"
+        script.parent.mkdir(parents=True)
+        script.write_text(
+            "import unittest\n"
+            "class A(unittest.TestCase):\n"
+            "    def test_one(self): pass\n"
+            "    def test_two(self): pass\n"
+            "class B(unittest.TestCase):\n"
+            "    def test_three(self): pass\n"
+            "setattr(B, 'test_made', lambda self: None)\n",
+            encoding="utf-8",
+        )
+
+        self.assertEqual(
+            runner.jobs_for("workflow", [str(script), "-k", "B"]),
+            [("B.test_made", [str(script), "B.test_made"]), ("B.test_three", [str(script), "B.test_three"])],
+        )
+        self.assertEqual(len(runner.jobs_for("workflow", [str(script)])), 4)
+        self.assertEqual(runner.jobs_for("alpha", [str(script)]), [("", [str(script)])])
+        with self.assertRaisesRegex(RuntimeError, "selects no tests"):
+            runner.jobs_for("workflow", [str(script), "-k", "Missing"])
+
     def test_a_split_suite_runs_as_its_named_halves(self) -> None:
         touch(self.tests.parent, "tests/epsilon/test_epsilon.py")
         touch(self.tests.parent, "tests/epsilon/test_faults.py")
@@ -110,10 +133,20 @@ class RepositorySuitesTest(unittest.TestCase):
         self.assertEqual(sorted(run), files)
 
     def test_ci_suite_names_are_kept(self) -> None:
-        """CI's matrix names the suites that run alone, `workflow` first."""
+        """CI's matrix names the release-stack suites, `workflow` first, and every name the runner keeps is a suite."""
         labels = {label for label, _, _ in runner.SUITES}
-        self.assertEqual(runner.EXCLUSIVE_ORDER, ("workflow", "release-faults/boundaries", "release-faults/interrupts"))
-        self.assertEqual((set(runner.EXCLUSIVE_ORDER) | set(runner.SUITE_COST)) - labels, set())
+        self.assertEqual(
+            runner.RELEASE_STACK_SUITES, ("workflow", "release-faults/boundaries", "release-faults/interrupts")
+        )
+        named = set(runner.RELEASE_STACK_SUITES) | runner.PER_TEST_SUITES | set(runner.SUITE_COST)
+        self.assertEqual(named - labels, set())
+
+    def test_every_test_of_a_split_file_runs_in_exactly_one_part(self) -> None:
+        """A test class added to a split file without a part of its own would otherwise never run."""
+        for path, parts in runner.SPLITS.items():
+            with self.subTest(path=path):
+                selected = [test for _, extra in parts for test in runner.list_tests([path, *extra])]
+                self.assertEqual(sorted(selected), sorted(runner.list_tests([path])))
 
     def test_this_environment_imports_this_checkout(self) -> None:
         """The editable install points at this checkout, not another worktree's (#257)."""

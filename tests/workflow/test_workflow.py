@@ -70,7 +70,7 @@ from typing import Any
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
-from ogstores import bundle, manifest, paths, run
+from ogstores import bundle, manifest, paths, release, run
 from ogstores.plan import plan
 
 # The completed child is asserted on through opengwasdb's published query
@@ -474,7 +474,7 @@ def run_snakemake(
         cmd.extend(extra_args)
     cmd.extend(targets)
 
-    return subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
+    return subprocess.run(cmd, cwd=release.snakemake_directory(), capture_output=True, text=True)
 
 
 RELEASE_ENTRY_POINT: Path = REPO_ROOT / "workflow" / "release.py"
