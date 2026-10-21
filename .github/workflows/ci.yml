@@ -69,7 +69,11 @@ jobs:
       matrix:
         suite: ${{ fromJSON(needs.plan.outputs.exclusive) }}
     steps:
+      # Full history: the workflow suite builds a Store with the workflow as it
+      # was at an earlier revision, and a shallow clone lacks it (#305).
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: prefix-dev/setup-pixi@v0.10.1
         with:

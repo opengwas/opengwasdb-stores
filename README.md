@@ -109,9 +109,15 @@ documents each directory.
 
 Every Store Release has one globally unique opaque identifier, `OGS-` plus
 five digits, allocated sequentially (ADR 0022). It names the registry
-directory, the artifact directory, and the `release_id` in the built Store's
-manifest. There is no Store Family tier: the `OGS-` id is the only identifier,
-and access posture survives as descriptive `release.yaml` metadata (ADR 0028).
+directory and the artifact directory. In the built Store's manifest it is the
+`store_id`, and the `release_id` of an Observed-Only release. A release that
+completes its own Store keeps `store_id` as the id once completed, and the
+completed Store carries `release_id` `<id>-completed`: a new release of the same
+Store (ADR 0037, opengwasdb ADR 0011). A two-id Reference-Completed child
+(ADR 0007) is the exception: its id is the `release_id`, and the `store_id` is
+its parent's. There is no Store Family tier: the `OGS-` id is the only
+identifier, and access posture survives as descriptive `release.yaml` metadata
+(ADR 0028).
 
 Identifiers are opaque so that metadata cannot be stuffed into them and go
 stale, and so the generated master list is the only way to find a release --
@@ -150,7 +156,8 @@ resolving a parent Store from `derived_from` needs no registry lookup:
   store.opengwasdb          the Store Release
   store.opengwasdb.partial  transient staged destination
   publication.json          transient: a publication in progress
-  replaced/<UTC>/           a release a forced run replaced, kept until a person deletes it
+  replaced/<UTC>/           a release a forced run replaced, kept until a person deletes it;
+                            a completion phase's keeps only the records (ADR 0037)
 <artifact-root>/by-label/   generated symlinks
 ```
 

@@ -86,7 +86,7 @@ The workflow that turns an accepted Release Bundle into a built, validated and p
 _Avoid_: Phase A, release pipeline, build phase
 
 **Release Bundle**:
-The Store Registry directory `stores/<store-id>/` that Manifest Generation and Store Release Build meet at, and the only thing they share: `release.yaml` (identity, lineage, Release Status and provenance), `build.yaml` (the Build Recipe), `analyses.tsv` (the Release Manifest), `validation.yaml` (the Validation Record), sidecars, and, for a Source Collection read through a Column Map, that map (in `column_maps/`, checksummed by the Build Recipe). Manifest Generation emits it as a candidate, a human accepts it, and Store Release Build consumes it. A candidate and an accepted Release Bundle are the same thing at different Release Statuses.
+The Store Registry directory `stores/<store-id>/` that Manifest Generation and Store Release Build meet at, and the only thing they share: `release.yaml` (identity, lineage, Release Status and provenance), `build.yaml` (the Build Recipe), `analyses.tsv` (the Release Manifest), `validation.yaml` (the Validation Record), sidecars, and, for a Source Collection read through a Column Map, that map (in `column_maps/`, checksummed by the Build Recipe). Manifest Generation emits it as a candidate, a human accepts it, and Store Release Build consumes it. A candidate and an accepted Release Bundle are the same thing at different Release Statuses. An accepted Release Bundle is immutable, with one exception: an Observed-Only bundle may gain a completion block to declare reference completion (ADR 0037).
 _Avoid_: Release Manifest Candidate, candidate bundle (as a separate kind), release directory
 
 **Release Manifest**:
@@ -130,7 +130,7 @@ A release-level admission rule deciding which Analyses may share one Store's var
 _Avoid_: routing rule, panel policy
 
 **Store Release**:
-A versioned, immutable, validated OpenGWASDB analytical asset that Store Release Build produces from an accepted Release Bundle and material Build Recipe choices.
+A versioned, validated OpenGWASDB analytical asset that Store Release Build produces from an accepted Release Bundle and material Build Recipe choices. Each published Store is immutable. A reference-completed Store Release is published twice under one id: its completed Store replaces its Observed-Only Store (ADR 0037).
 _Avoid_: database, live store
 
 **Trial Store Release**:
@@ -166,8 +166,12 @@ Where Manifest Generation keeps its working files for one Store Release: for the
 _Avoid_: release directory, family bundle directory
 
 **Release Lineage**:
-The relationship between Store Releases, including observed-only releases, reference-completed releases, corrected releases, and other derived releases.
+The `derived_from` relationship between Store Releases, such as corrected releases and other derived releases. Reference completion is no longer a lineage edge: it replaces a Store under its own id (ADR 0037). Two-id pairs from before that decision keep their `derived_from` edge.
 _Avoid_: source lineage
+
+**Observed-View Check**:
+The check that a completed Store reproduces every observed association of the Observed-Only Store it is about to replace. It gates that replacement (ADR 0037).
+_Avoid_: equivalence check, parity check
 
 **Release Status**:
 The registry lifecycle state for a Release Bundle: candidate, accepted, built, validated, superseded, or withdrawn.

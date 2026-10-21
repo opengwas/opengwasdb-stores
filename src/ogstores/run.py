@@ -16,7 +16,15 @@ Staged release transaction lifecycle (ADR 0022, ADR 0023):
   behind to satisfy a later existence check.
 * Exact canonical destination rewriting: planned argv targets `store.opengwasdb`;
   `rewrite_argv_for_staging()` rewrites the single target store token/substring to
-  `store.opengwasdb.partial` during execution while preserving parent inputs.
+  `store.opengwasdb.partial` during execution while preserving parent inputs. A
+  completion-phase step of a release that completes its own Store (ADR 0037) names
+  the published Store and the staged one with the same token; the argument its Step
+  marks as the published Store (`published_store_arg`) is left as it is.
+* Completion resume (#305): before a fresh `complete-dense` starts, its planned argv
+  is recorded (`paths.completion_start_path`). An interrupted one leaves its checkpoint
+  beside the staged Store; the next `complete` runs `complete-dense-resume` from it
+  (`resume_argv_for_completion`) when that record holds the argv planned now, and
+  refuses, naming the difference, when it does not or there is none.
 * Rejection of invalid paths: Non-canonical equivalent tokens, embedded substrings,
   symlinks (both live and dangling), or non-directories are rejected before execution via lstat/no-follow.
 * Publication gating: Publication is permitted ONLY on the terminal 'validate' step
@@ -61,6 +69,7 @@ See docs/spec/store-release-workflow.md and ADRs 0022, 0023, 0026.
 from __future__ import annotations
 
 import datetime
+import difflib
 import glob
 import json
 import os
@@ -82,9 +91,21 @@ from ogstores.bundle import (
     Bundle,
     is_valid_indexed_subset_name,
 )
-from ogstores.plan import Step
+from ogstores.bundle import load as load_bundle
+from ogstores.plan import (
+    BUILD_PHASE,
+    COMPLETION_PHASE,
+    COMPLETION_STEP_PREFIX,
+    OBSERVED_VIEW_CHECK_STEP,
+    REGISTER_STEPS,
+    Step,
+    completion_step_name,
+    plan,
+)
 
 VARIANT_REFERENCE_STEP: str = "variant-reference"
+# The completion phase of a release that completes its own Store names its
+# post steps and its register apart from the build phase's (ADR 0037).
 VALID_STEP_NAMES: frozenset[str] = frozenset({
     "build",
     "complete",
@@ -93,7 +114,9 @@ VALID_STEP_NAMES: frozenset[str] = frozenset({
     "rho",
     "overview",
     "validate",
-    "register",
+    *(completion_step_name(name) for name in ("rho", "overview", "validate")),
+    OBSERVED_VIEW_CHECK_STEP,
+    *REGISTER_STEPS.values(),
     "unknown",
 })
 UNAVAILABLE: str = "unavailable"
@@ -214,7 +237,8 @@ def validate_step_name(name: str) -> str:
     A fixed name must be in :data:`VALID_STEP_NAMES`. A declared Indexed Variant
     Subset (#209) is allowed as ``indexed-subset-<name>``, where ``<name>`` is a
     valid subset name; the prefix bounds the dynamic space without opening the
-    record filename to an arbitrary string.
+    record filename to an arbitrary string. A completion phase's subset step is
+    ``completion-indexed-subset-<name>`` (ADR 0037).
     """
     if not isinstance(name, str) or "/" in name or "\\" in name or ".." in name:
         raise ValueError(
@@ -224,8 +248,9 @@ def validate_step_name(name: str) -> str:
         )
     if name in VALID_STEP_NAMES:
         return name
-    if name.startswith(INDEXED_SUBSET_STEP_PREFIX):
-        subset_name = name[len(INDEXED_SUBSET_STEP_PREFIX):]
+    subset_step = name.removeprefix(COMPLETION_STEP_PREFIX)
+    if subset_step.startswith(INDEXED_SUBSET_STEP_PREFIX):
+        subset_name = subset_step[len(INDEXED_SUBSET_STEP_PREFIX):]
         if is_valid_indexed_subset_name(subset_name):
             return name
     raise ValueError(
@@ -429,6 +454,10 @@ def rewrite_argv_for_staging(
     - Rejects missing or multiple ambiguous destination tokens before execution.
     - Rejects non-canonical equivalent path tokens (relative paths, trailing slashes) before execution.
     - Preserves parent store paths and non-target arguments verbatim.
+    - Leaves the argument a completion-phase step marks as the release's own
+      published Store (`Step.published_store_arg`, ADR 0037) as it is. It is
+      the same canonical token as the destination, so it must be that token
+      exactly, and is not counted among the destinations.
     """
     validate_step_name(step.name)
     target_store = paths.store_path(store_id, root=artifact_root)
@@ -438,10 +467,22 @@ def rewrite_argv_for_staging(
     partial_str = str(partial_store)
     target_resolved = target_store.resolve()
 
+    published_arg = step.published_store_arg
+    if published_arg is not None and (
+        not 0 <= published_arg < len(step.argv) or step.argv[published_arg] != target_str
+    ):
+        raise ValueError(
+            f"Step {step.name!r} for {store_id} marks argument {published_arg} as the published "
+            f"Store it reads, but that argument is not {target_str!r}: {step.argv}"
+        )
+
     rewritten: list[str] = []
     replacement_count = 0
 
-    for token in step.argv:
+    for index, token in enumerate(step.argv):
+        if index == published_arg:
+            rewritten.append(token)
+            continue
         val = token.split("=", 1)[1] if token.startswith("-") and "=" in token else token
 
         is_equivalent = False
@@ -477,6 +518,83 @@ def rewrite_argv_for_staging(
         )
 
     return rewritten
+
+
+def argv_change(before: list[str], now: list[str]) -> str:
+    """The token runs that differ between two argv, each with the flag it belongs to."""
+    changes: list[str] = []
+    matcher = difflib.SequenceMatcher(a=before, b=now, autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        old, new = before[i1:i2], now[j1:j2]
+        if i1 > 0 and before[i1 - 1].startswith("-") and not (old or new)[0].startswith("-"):
+            old, new = [before[i1 - 1], *old], [before[i1 - 1], *new]
+        changes.append(f"`{' '.join(old) or 'nothing'}` became `{' '.join(new) or 'nothing'}`")
+    return "; ".join(changes)
+
+
+COMPLETE_DENSE: str = "complete-dense"
+# `complete-dense-resume` takes the checkpoint and, besides it, only how many
+# workers to run (opengwasdb CLI). A planned `--n-workers` is passed on, so a
+# resumed completion runs as the plan asked; it sets how the work runs, not
+# what it computes.
+_RESUME_PASSES_ON: tuple[str, ...] = ("--n-workers",)
+
+
+def _started_completion_argv(store_id: str, root: Path | str) -> list[str] | None:
+    """The planned argv this workflow recorded when it started the completion whose checkpoint exists."""
+    try:
+        recorded = json.loads(paths.completion_start_path(store_id, root=root).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    argv = recorded.get("planned_argv") if isinstance(recorded, dict) else None
+    return argv if isinstance(argv, list) else None
+
+
+def resume_argv_for_completion(
+    step: Step, executed_argv: list[str], store_id: str, artifact_root: Path | str
+) -> list[str]:
+    """Resume an interrupted `complete-dense` from its checkpoint, or return its argv unchanged (#305).
+
+    `complete-dense` keeps a checkpoint beside the staged Store it writes
+    (`paths.completion_checkpoint_path`) and refuses to start while one
+    exists. Completion takes hours at UKB-B scale, so an interrupted one is
+    resumed, not restarted, with `complete-dense-resume <checkpoint>`, which
+    takes every parameter from the checkpoint. `execute_step` records the
+    step's planned argv before it starts a fresh `complete-dense`
+    (`paths.completion_start_path`), so a checkpoint is resumed only when that
+    record holds the argv planned now. A different plan, or a checkpoint this
+    workflow has no record of starting, is refused, naming it, and nothing
+    runs. Only stores' own planned argv is compared: no `opengwasdb` option or
+    checkpoint key is interpreted here (ADR 0023). An unforced run never
+    discards a checkpoint, even for a planned `--overwrite`; a forced run's
+    preflight does (`prepare_release_run`). `register` accepts the
+    substitution and records the release as resumed.
+    """
+    checkpoint = paths.completion_checkpoint_path(store_id, root=artifact_root)
+    if step.name != "complete" or executed_argv[1:2] != [COMPLETE_DENSE] or not _lstat_exists(checkpoint):
+        return executed_argv
+    started = _started_completion_argv(store_id, artifact_root)
+    if started is None:
+        raise ValueError(
+            f"Step {step.name!r} for {store_id} finds the checkpoint {checkpoint}, but this workflow has no "
+            f"record of starting it ({paths.completion_start_path(store_id, root=artifact_root)}): it was "
+            "made outside this workflow, or by an older one. Nothing was resumed. `--config force=1` "
+            "discards it and rebuilds the release."
+        )
+    if started != list(step.argv):
+        raise ValueError(
+            f"Step {step.name!r} for {store_id} would resume the checkpoint {checkpoint}, but it was started "
+            f"from another plan: {argv_change(started, list(step.argv))}. Nothing was resumed. "
+            "`--config force=1` discards it and rebuilds the release."
+        )
+    resume = [executed_argv[0], "complete-dense-resume", str(checkpoint)]
+    for i, token in enumerate(executed_argv):
+        name = token.split("=", 1)[0]
+        if name in _RESUME_PASSES_ON:
+            resume.extend([token] if "=" in token else executed_argv[i:i + 2])
+    return resume
 
 
 def variant_reference_partial_path(target: Path | str) -> Path:
@@ -874,9 +992,63 @@ def refuse_pending_force_snapshots(scheduled: Iterable[tuple[Path | str, str]]) 
     )
 
 
+# The workflow's rules that write a phase's register record (ADR 0037).
+_REGISTER_RULES: dict[str, str] = {"register": BUILD_PHASE, "completion_register": COMPLETION_PHASE}
+
+
+def job_record(rule: str, step: str | None) -> str | None:
+    """The record a workflow job writes: its step's, its phase's register's, or None.
+
+    `build_manifest` writes no record. The preflight tells a completion-phase
+    job from a build-phase one by this name (#305).
+    """
+    if step is not None:
+        return step
+    phase = _REGISTER_RULES.get(rule)
+    return REGISTER_STEPS[phase] if phase is not None else None
+
+
+def completing_own_stores(
+    jobs: Iterable[tuple[Path | str, str, str | None]],
+    *,
+    registry_root: Path | str,
+) -> frozenset[str]:
+    """The releases whose every scheduled job completes their own published Observed-Only Store (#305).
+
+    `jobs` is the (artifact root, store_id, record) of every job the run is
+    about to execute, `record` as `job_record` names it. Completing that Store
+    is a release's next step, not a rebuild of it (ADR 0037). Whether it is
+    published and not yet completed is read from records, never from the Store
+    (ADR 0023): the build phase's `records/register.json` exists and the
+    completion phase's does not. Which records belong to the completion phase
+    is the plan's to say, so a two-id child's `complete` stays a build of its
+    Store.
+    """
+    scheduled: dict[tuple[Path, str], set[str | None]] = {}
+    for root, store_id, record in jobs:
+        if paths.is_valid_store_id(store_id):
+            scheduled.setdefault((Path(root), store_id), set()).add(record)
+    completing: set[str] = set()
+    for (root, store_id), records in scheduled.items():
+        registers = {
+            phase: paths.record_path(store_id, name, root=root) for phase, name in REGISTER_STEPS.items()
+        }
+        if not registers[BUILD_PHASE].is_file() or _lstat_exists(registers[COMPLETION_PHASE]):
+            continue
+        loaded = load_bundle(store_id, registry_root=registry_root)
+        if not loaded.completes_own_store:
+            continue
+        completion = {step.name for step in plan(loaded, artifact_root=root) if step.phase == COMPLETION_PHASE}
+        completion.add(REGISTER_STEPS[COMPLETION_PHASE])
+        if records <= completion:
+            completing.add(store_id)
+    return frozenset(completing)
+
+
 def refuse_rebuilding_published_releases(
     scheduled: Iterable[tuple[Path | str, str]],
     forced: Iterable[str] = frozenset(),
+    completing: Iterable[str] = frozenset(),
 ) -> None:
     """Refuse a workflow run that would execute a job for a published release (#195).
 
@@ -886,14 +1058,16 @@ def refuse_rebuilding_published_releases(
     inside the job would already have cost the release its records. An
     up-to-date release schedules no job, so it never reaches this check.
 
-    A release in `forced` (`forced_releases`) is let through to be replaced;
-    every other published release is refused.
+    A release in `forced` (`forced_releases`) is let through to be replaced,
+    and so is one in `completing` (`completing_own_stores`), whose jobs only
+    complete the Observed-Only Store it published (#305). Every other
+    published release is refused.
     """
-    forced_ids = frozenset(forced)
+    passed = frozenset(forced) | frozenset(completing)
     published = [
         (store_id, str(paths.store_path(store_id, root=root)))
         for root, store_id in _scheduled_releases(scheduled)
-        if store_id not in forced_ids and _lstat_exists(paths.store_path(store_id, root=root))
+        if store_id not in passed and _lstat_exists(paths.store_path(store_id, root=root))
     ]
     if published:
         listed = "\n".join(f"  {store_id}: {store_p}" for store_id, store_p in published)
@@ -911,13 +1085,15 @@ def prepare_release_run(
     *,
     forced: Iterable[str] = frozenset(),
     stamp: str | None = None,
+    completing: Iterable[str] = frozenset(),
 ) -> list[Path]:
     """The entry point's preflight: refuse, then snapshot what a forced run may replace (#195).
 
     The entry point (`ogstores.release`) calls this after it has completed any
     pending publication and before Snakemake starts. It refuses a scheduled
     release that still has a pending publication or a leftover snapshot, and
-    an unforced published release, so a refused run takes no snapshot. It also
+    an unforced published release unless it is `completing` its own
+    Observed-Only Store (#305), so a refused run takes no snapshot. It also
     removes the hidden partial copy an interrupted snapshot can leave. Then, for
     each forced release whose Store is published, it copies `records/` to
     `records.before-force-<stamp>/`, keeping mtimes so a restored record is the
@@ -936,12 +1112,20 @@ def prepare_release_run(
             "Refusing to run: these publications have not finished: " + ", ".join(pending)
         )
     refuse_pending_force_snapshots(releases)
-    refuse_rebuilding_published_releases(releases, forced=forced_ids)
+    refuse_rebuilding_published_releases(releases, forced=forced_ids, completing=completing)
     for root, store_id in releases:
         store_dir_p = paths.store_dir(store_id, root=root)
         if store_dir_p.is_dir():
             for stale in store_dir_p.glob(f".{paths.FORCE_SNAPSHOT_PREFIX}*.copying"):
                 shutil.rmtree(stale)
+        # A forced run rebuilds the Store an interrupted completion was reading,
+        # so it discards that completion's checkpoint, and the record of its
+        # start, rather than resume it. Nothing else discards one (#305).
+        checkpoint = paths.completion_checkpoint_path(store_id, root=root)
+        if store_id in forced_ids and _lstat_exists(checkpoint):
+            shutil.rmtree(checkpoint)
+        if store_id in forced_ids:
+            _remove_path_if_exists(paths.completion_start_path(store_id, root=root))
 
     run_stamp = stamp or utc_stamp()
     snapshots: list[Path] = []
@@ -1082,6 +1266,34 @@ def _supervised_command(
     ]
 
 
+def _finish_build_phase_publication(step: Step, store_id: str, root: Path) -> None:
+    """Finish the build phase's publication before a step that reads it stages anything (ADR 0037).
+
+    A step with a `published_store_arg` reads the published Store its
+    release's build phase has just published; that publication is finished
+    before anything is staged beside it. `register` imports this module,
+    hence the import here.
+    """
+    if step.published_store_arg is not None:
+        from ogstores import register
+
+        register.finish_build_phase_publication(store_id, root)
+
+
+def _record_completion_start(step: Step, executed_argv: list[str], store_id: str, root: Path) -> None:
+    """Record the plan a fresh `complete-dense` starts from, before it can write a checkpoint (#305).
+
+    An interrupted completion is then resumed only from that plan
+    (`resume_argv_for_completion`). A resumed completion, and any other
+    step, records nothing.
+    """
+    if step.name == "complete" and executed_argv[1:2] == [COMPLETE_DENSE]:
+        _write_record_atomically(
+            {"planned_argv": list(step.argv), "checkpoint": str(paths.completion_checkpoint_path(store_id, root=root))},
+            paths.completion_start_path(store_id, root=root),
+        )
+
+
 def execute_step(
     step: Step,
     store_id: str | None = None,
@@ -1195,6 +1407,7 @@ def execute_step(
 
     # 3. Preflight paths and recover any stale backup from prior crash/interruption
     _preflight_paths(store_id, resolved_root)
+    _finish_build_phase_publication(step, store_id, resolved_root)
     _recover_pending_backup(store_id, resolved_root)
 
     # 4. Clean up stale partial store before starting a fresh build (unless explicit resume)
@@ -1216,6 +1429,7 @@ def execute_step(
             executed_argv = rewrite_argv_for_variant_reference(step, ref_target_p)
         else:
             executed_argv = rewrite_argv_for_staging(step, store_id, artifact_root=resolved_root)
+            executed_argv = resume_argv_for_completion(step, executed_argv, store_id, resolved_root)
     except ValueError as rewrite_err:
         # Preflight failure record: write failed record before raising
         err_res = StepResult(
@@ -1280,6 +1494,8 @@ def execute_step(
         )
         _write_record_atomically(skip_result.to_dict(), record_p)
         return skip_result
+
+    _record_completion_start(step, executed_argv, store_id, resolved_root)
 
     # A test-only pause or crash point: the step's record is gone and its
     # command has not started, so a run stopped here is mid-step (#195).
@@ -1471,6 +1687,10 @@ def execute_step(
             stderr_captured = (stderr_captured or "") + f"\nPublication error: {exc}"
             publication_error = exc
 
+    # A finished completion, fresh or resumed, has no checkpoint left to resume.
+    if success and step.name == "complete" and executed_argv[1:2] in ([COMPLETE_DENSE], ["complete-dense-resume"]):
+        _remove_path_if_exists(paths.completion_start_path(store_id, root=resolved_root))
+
     # 9. Construct StepResult and atomically write record
     result = StepResult(
         step=step.name,
@@ -1514,11 +1734,90 @@ def execute_step(
 
     if not success and check:
         raise StepExecutionError(
-            f"Step {step.name!r} for {store_id} failed with exit code {exit_code}:\n{stderr_captured}",
+            _step_failure_message(step, store_id, executed_argv, exit_code, stdout_captured, stderr_captured),
             result,
         )
 
     return result
+
+
+def _step_failure_message(
+    step: Step, store_id: str, executed_argv: list[str], exit_code: int, stdout: str, stderr: str
+) -> str:
+    """What a failed step raises with: the Observed-View Check's reading of its verdict, or the step's stderr."""
+    if step.name == OBSERVED_VIEW_CHECK_STEP:
+        return observed_view_check_failure(step, store_id, executed_argv, exit_code, stdout or "", stderr or "")
+    return f"Step {step.name!r} for {store_id} failed with exit code {exit_code}:\n{stderr}"
+
+
+def first_json_object(text: str) -> dict[str, Any]:
+    """The verdict a step printed on stdout: the first JSON object in `text` (#306, #309).
+
+    The first, because `execute_step` may capture a step that exits non-zero
+    twice: whatever follows the first object, a second copy or anything else,
+    is not read. Leading whitespace is skipped. Raises ValueError when `text`
+    does not start with a JSON value, or when that value is not an object.
+    """
+    value, _ = json.JSONDecoder().raw_decode(text.lstrip())
+    if not isinstance(value, dict):
+        raise ValueError(f"a JSON {type(value).__name__}, not an object")
+    return value
+
+
+def _observed_view_failure_counts(verdict: Mapping[str, Any]) -> str:
+    """Each name in a verdict's `failures`, with its count where the verdict holds one.
+
+    A counter is in `totals`. The three axis and Analyses failures carry
+    theirs elsewhere: `axis.parent_rows_unmapped`, `axis.order_preserved` and
+    `analyses.identical`.
+    """
+    totals, axis, analyses = verdict["totals"], verdict["axis"], verdict["analyses"]
+    named: list[str] = []
+    for name in verdict["failures"]:
+        if name in totals:
+            named.append(f"{name}={totals[name]}")
+        elif name == "parent_rows_unmapped":
+            named.append(f"parent_rows_unmapped={axis['parent_rows_unmapped']}")
+        elif name == "order_not_preserved":
+            named.append(f"order_preserved={str(axis['order_preserved']).lower()}")
+        elif name == "analyses_mismatch":
+            named.append(
+                f"analyses_identical={str(analyses['identical']).lower()} "
+                f"(n_parent={analyses['n_parent']}, n_child={analyses['n_child']})"
+            )
+        else:
+            named.append(name)
+    return ", ".join(named)
+
+
+def observed_view_check_failure(
+    step: Step, store_id: str, argv: list[str], exit_code: int, stdout: str, stderr: str
+) -> str:
+    """What the operator reads when the Observed-View Check does not pass (ADR 0037).
+
+    Every message names where the verdict is kept. Exit 1 is a mismatch: the
+    command printed its verdict, so the message names the failing counters
+    with their counts. Exit 2 is a refusal, which prints no verdict: it is
+    reported as one, with the command's stderr. A verdict that cannot be read
+    from stdout is said to be unreadable, with the reason and the start of
+    stdout, never replaced by a generic failure.
+    """
+    where = f"Step {step.name!r} for {store_id}"
+    output = argv[argv.index("--output") + 1] if "--output" in argv else "(no --output)"
+    if exit_code == 2:
+        return f"{where} was refused by {step.argv[1]} (exit 2); verdict: {output}\n{stderr}"
+    try:
+        failing = _observed_view_failure_counts(first_json_object(stdout))
+    except (ValueError, KeyError, TypeError) as exc:
+        return (
+            f"{where} failed with exit code {exit_code}; verdict unreadable: {exc!r}; "
+            f"verdict: {output}; stdout begins {stdout[:200]!r}\n{stderr}"
+        )
+    return (
+        f"{where} found the completed Store differs from the published one in what was observed "
+        f"(exit {exit_code}); failing counters: {failing or 'none named'}; verdict: {output}\n"
+        f"Nothing was published and the published Store is as it was.\n{stderr}"
+    )
 
 
 def run_step(
@@ -1623,8 +1922,11 @@ __all__ = [
     "VALID_STEP_NAMES",
     "VARIANT_REFERENCE_STEP",
     "archive_force_snapshot",
+    "argv_change",
+    "completing_own_stores",
     "execute_step",
     "fault_boundary",
+    "first_json_object",
     "force_requested",
     "forced_by_transaction",
     "forced_releases",
@@ -1633,6 +1935,7 @@ __all__ = [
     "get_opengwasdb_version",
     "is_exact_commit_hash",
     "is_store_producing_step",
+    "job_record",
     "load_record",
     "pending_force_snapshots",
     "prepare_release_run",
@@ -1640,6 +1943,7 @@ __all__ = [
     "refuse_pending_force_snapshots",
     "refuse_rebuilding_published_releases",
     "restore_force_snapshot",
+    "resume_argv_for_completion",
     "rewrite_argv_for_staging",
     "rewrite_argv_for_variant_reference",
     "run_plan",

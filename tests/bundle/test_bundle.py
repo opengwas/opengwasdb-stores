@@ -1306,7 +1306,6 @@ class TestBundleContract(unittest.TestCase):
         self.assertEqual(errors, [])
 
         cases = (
-            (None, "requires non-empty derived_from"),
             (child.store_id, "cannot reference itself"),
             ("bad-parent", "not a valid store_id"),
             ("OGS-00999", "unresolvable derived_from"),
@@ -1318,6 +1317,45 @@ class TestBundleContract(unittest.TestCase):
             )
             record_check()
             self.assertTrue(any(fragment in error for error in errors), errors)
+
+    def test_a_single_id_completed_release_declares_both_phases(self) -> None:
+        """No `derived_from`: the bundle builds its own Store, then completes it (ADR 0037).
+
+        Such a bundle must carry the `build` block its build phase runs and the
+        `complete` block its completion phase runs, and a refusal names the
+        one that is missing. A two-id child keeps its meaning: with
+        `derived_from` it needs only its `complete` block.
+        """
+        build_block = {"command": "build-dense-vcf", "options": {"source-assembly": "hg38"}}
+        complete_block = {"command": "complete-dense", "options": {"ld-panel": "/data/ld", "ancestry": "EUR"}}
+        single_id = self.make_bundle(
+            store_id="OGS-00103",
+            build={
+                "completion_state": "reference_completed",
+                "build": build_block,
+                "complete": complete_block,
+            },
+        )
+        record_check()
+        self.assertEqual(bundle.check(single_id, registry_root=self.tmp_dir), [])
+
+        for missing in ("build", "complete"):
+            without = {key: value for key, value in single_id.build.items() if key != missing}
+            errors = bundle.check(replace(single_id, build=without), registry_root=self.tmp_dir)
+            record_check()
+            self.assertEqual(len(errors), 1, errors)
+            self.assertIn(f"{missing!r}", errors[0])
+            self.assertIn("derived_from", errors[0])
+
+        parent = self.make_bundle(store_id="OGS-00104")
+        two_id = self.make_bundle(
+            store_id="OGS-00105",
+            release={"derived_from": parent.store_id},
+            build={"completion_state": "reference_completed", "complete": complete_block},
+        )
+        two_id = replace(two_id, build={key: value for key, value in two_id.build.items() if key != "build"})
+        record_check()
+        self.assertEqual(bundle.check(two_id, registry_root=self.tmp_dir), [])
 
     def test_besd_prefix_is_checked_as_metadata_without_being_inspected(self) -> None:
         checked = self.make_bundle(

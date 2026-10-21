@@ -67,6 +67,12 @@ def create_mock_bundle(
             "command": "complete-dense",
             "options": {"ancestry": complete_ancestry} if complete_ancestry else {},
         }
+        if derived_from is None:
+            # One id, published twice: the build phase comes first (ADR 0037).
+            bld["build"] = {
+                "command": "build-dense-vcf",
+                "options": {"source-assembly": "hg38"},
+            }
     else:
         bld["build"] = {"command": "build-dense-vcf", "options": {"source-assembly": "hg38"}}
     if indexed_subsets:
@@ -423,6 +429,180 @@ class TestEvidenceChannels(unittest.TestCase):
         self.assertEqual(
             record.channels["reference_completion"].state, EvidenceState.PASS
         )
+
+    def test_a_release_completing_its_own_store_is_not_a_failed_lineage(self) -> None:
+        """No `derived_from` is how a release completes its own Store (ADR 0037), not an error."""
+        single_id = create_mock_bundle(
+            self.stores,
+            "OGS-00034",
+            completion_state="reference_completed",
+            analyses_rows=[{"analysis_id": "a"}],
+        )
+        record = readiness.reconcile_release(single_id, {"releases": {}}, {"OGS-00034": single_id}, set())
+        channel = record.channels["reference_completion"]
+        self.assertEqual(channel.state, EvidenceState.UNKNOWN, channel.detail)
+        self.assertIn("'OGS-00034'", channel.detail)
+
+    def test_the_interim_single_id_state_is_expected_not_a_mismatch(self) -> None:
+        """Declared reference-completed, published Observed-Only, is the order of business.
+
+        Under single-id completion the publication in place is the Observed-Only
+        Store until the swap (ADR 0037), so `opengwasdb info` reporting
+        `observed_only` for a bundle that declares `reference_completed` is what
+        the registry expects, not evidence that the artifact is the wrong one.
+        """
+        interim = create_mock_bundle(
+            self.stores,
+            "OGS-00040",
+            completion_state="reference_completed",
+            validation_data={
+                "status": "passed",
+                "observed": {"completion_state": "observed_only"},
+            },
+        )
+        info = {
+            "format_version": "0.2.0",
+            "primary_layout": "dense",
+            "completion_state": "observed_only",
+        }
+        record = self._reconcile(interim, {"releases": {}}, info=info)
+        channel = record.channels["format_runtime"]
+        self.assertEqual(channel.state, EvidenceState.PASS, channel.detail)
+        self.assertIn("Observed-Only", channel.detail)
+        self.assertNotIn("completion", record.blockers)
+
+        # After the swap the two agree and the channel is unchanged.
+        swapped = create_mock_bundle(
+            self.stores,
+            "OGS-00041",
+            completion_state="reference_completed",
+            validation_data={
+                "status": "passed",
+                "observed": {"completion_state": "reference_completed"},
+            },
+        )
+        record = self._reconcile(
+            swapped, {"releases": {}}, info=dict(info, completion_state="reference_completed")
+        )
+        self.assertEqual(record.channels["format_runtime"].state, EvidenceState.PASS)
+
+    def test_a_two_id_childs_published_state_mismatch_is_still_a_failure(self) -> None:
+        """Only a release that completes its own Store paints an Observed-Only Store."""
+        child = create_mock_bundle(
+            self.stores,
+            "OGS-00042",
+            completion_state="reference_completed",
+            derived_from="OGS-00039",
+            validation_data={"status": "passed", "observed": {"completion_state": "reference_completed"}},
+        )
+        record = self._reconcile(
+            child,
+            {"releases": {}},
+            info={
+                "format_version": "0.2.0",
+                "primary_layout": "dense",
+                "completion_state": "observed_only",
+            },
+        )
+        self.assertEqual(record.channels["format_runtime"].state, EvidenceState.FAIL)
+        # The same pair is not "completion on its way" for a child: it publishes
+        # only a completed Store, so the completion channel claims nothing.
+        self.assertFalse(
+            record.channels["reference_completion"].state is EvidenceState.PASS,
+            record.channels["reference_completion"].detail,
+        )
+
+    def test_a_single_id_release_has_an_observed_build(self) -> None:
+        """It builds and publishes an Observed-Only Store first, so that channel applies."""
+        single_id = create_mock_bundle(
+            self.stores,
+            "OGS-00043",
+            completion_state="reference_completed",
+            analyses_rows=[{"analysis_id": "a"}],
+            validation_data={"status": "passed", "observed": {"completion_state": "observed_only"}},
+        )
+        record = readiness.reconcile_release(
+            single_id,
+            {"releases": {}},
+            {"OGS-00043": single_id},
+            set(),
+            built_read=(("a",), "opengwasdb v0.3.0"),
+        )
+        channel = record.channels["observed_build"]
+        self.assertNotEqual(channel.state, EvidenceState.NOT_APPLICABLE, channel.detail)
+        self.assertEqual(channel.state, EvidenceState.PASS, channel.detail)
+
+        # A two-id child takes its observed parent's build, as before (ADR 0007).
+        parent = create_mock_bundle(self.stores, "OGS-00044")
+        child = create_mock_bundle(
+            self.stores,
+            "OGS-00045",
+            completion_state="reference_completed",
+            derived_from="OGS-00044",
+        )
+        child_record = readiness.reconcile_release(
+            child, {"releases": {}}, {"OGS-00044": parent, "OGS-00045": child}, set()
+        )
+        self.assertEqual(
+            child_record.channels["observed_build"].state, EvidenceState.NOT_APPLICABLE
+        )
+
+    def test_the_interim_state_passes_the_completion_channel(self) -> None:
+        """Completion is declared and scheduled; the Store it will replace is what is published."""
+        interim = create_mock_bundle(
+            self.stores,
+            "OGS-00046",
+            completion_state="reference_completed",
+            validation_data={
+                "status": "passed",
+                "observed": {"completion_state": "observed_only"},
+            },
+        )
+        record = readiness.reconcile_release(
+            interim, {"releases": {}}, {"OGS-00046": interim}, set()
+        )
+        channel = record.channels["reference_completion"]
+        self.assertTrue(channel.state is EvidenceState.PASS, channel.detail)
+        self.assertIn("Observed-Only", channel.detail)
+        self.assertFalse(channel.is_gap)
+
+        # Nothing recorded about the published Store: still unknown, never a pass.
+        bare = create_mock_bundle(
+            self.stores, "OGS-00047", completion_state="reference_completed"
+        )
+        bare_record = readiness.reconcile_release(
+            bare, {"releases": {}}, {"OGS-00047": bare}, set()
+        )
+        self.assertEqual(
+            bare_record.channels["reference_completion"].state, EvidenceState.UNKNOWN
+        )
+
+    def test_a_verified_ledger_beside_an_observed_only_store_fails(self) -> None:
+        """Evidence and artifact must agree: a verified completion is in the completed Store.
+
+        The ledger's `completion_verified` is a host-side fact that cannot be
+        re-derived from git, so the published Store is what refutes a stale
+        entry. Reporting a pass here would be the wrong answer that looks right.
+        """
+        interim = create_mock_bundle(
+            self.stores,
+            "OGS-00048",
+            completion_state="reference_completed",
+            validation_data={
+                "status": "passed",
+                "observed": {"completion_state": "observed_only"},
+            },
+        )
+        record = readiness.reconcile_release(
+            interim,
+            {"releases": {"OGS-00048": {"completion_verified": True}}},
+            {"OGS-00048": interim},
+            set(),
+        )
+        channel = record.channels["reference_completion"]
+        self.assertEqual(channel.state, EvidenceState.FAIL, channel.detail)
+        self.assertIn("Observed-Only", channel.detail)
+        self.assertIn("'OGS-00048'", channel.detail)
 
     def test_store_validation_provenance_is_classified(self) -> None:
         b = create_mock_bundle(
