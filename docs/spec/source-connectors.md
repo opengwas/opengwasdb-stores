@@ -210,10 +210,29 @@ Analysis Resolution can still measure ancestry and phenotype SD. A row with no
 position or p-value is dropped. Kept rows are the source's own lines, with its
 header: the filter selects and never reformats.
 
+Before a filtered file's row is recorded, its plan and counts go beside the
+manifest, as the R filter recorded them:
+
+- `<manifest-stem>.sparse-regions.tsv`, one row per region kept, in R's
+  columns (`analysis_id`, `region_id` = `<id>__<cis|sig_trans|suggestive|qc_panel>__<nnn>`,
+  `region_kind`, `chromosome`, `start`, `end`, `source_genome_build`,
+  `target_id`, `target_label`, `lead_variant_id`, `pvalue_threshold`,
+  `n_variants_retained`, `region_policy_id`): the cis window and each merged
+  significant-trans range with the rows kept in it, each suggestive lead as a
+  one-base region named by its `variant_id` (else `rsid`), and the QC-panel rows
+  kept on each chromosome, first to last;
+- `<manifest-stem>.filter-summary.tsv`, one row per filtered file:
+  `analysis_id`, `status`, `error`, `source_url`, `downloaded_bytes`,
+  `input_rows`, `retained_rows`, `retained_fraction`, `cis_rows`,
+  `significant_trans_regions`, `significant_trans_rows`, `suggestive_leads`,
+  `qc_panel_rows`, `output_file`, `output_bytes`, `checksum_algorithm`,
+  `checksum` -- R's columns without its per-run attempt and timing ones.
+
 `<manifest-stem>.meta.yaml` records the run: the originals' manifest and its
-sha256, the filter tool, the policy, and each filtered file's counts
-(`input_rows`, `retained_rows`, `cis_rows`, `significant_trans_regions`,
-`significant_trans_rows`, `suggestive_leads`, `qc_panel_rows`).
+sha256, the filter tool, the policy, and under `evidence` each of the two files'
+`path` and `sha256`. Freeze checksums it into the inventory's provenance, and a
+candidate carries both files' selected rows into its bundle
+([schema](../release-metadata-schema.md)).
 
 ### Files the retired R generator filtered
 

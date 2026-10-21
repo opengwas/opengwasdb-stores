@@ -1142,6 +1142,8 @@ stores/OGS-00011/
     reference_overlap.tsv   # one row per selected Analysis
     quality_checks.tsv      # one row per selected Analysis: every Quality Check's result
     analysis_targets.tsv    # only when Analyses have molecular targets: one row per targeted Analysis (#300)
+    sparse_regions.tsv      # only for a region-filtered release: its filtering's plan, from acquisition (#300)
+    filter_summary.tsv      # only for a region-filtered release: one row per filtered file, from acquisition (#300)
 ```
 
 **Determinism and atomicity.** Aggregation is ordered by the frozen inventory,

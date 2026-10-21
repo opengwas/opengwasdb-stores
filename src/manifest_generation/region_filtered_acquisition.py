@@ -24,9 +24,15 @@ and sha256. Any difference refuses the run, naming each Analysis, and deletes
 nothing. A recorded Analysis whose original survived an interrupted run then
 has that original deleted.
 
-``<manifest-stem>.meta.yaml`` (``acquisition_manifest.pass_lineage_path``)
-records the run: the originals' manifest, the tool, the policy and each
-filtered file's counts. Freeze checksums it into the inventory's provenance.
+Each filtered file's plan and counts, as the R filter recorded them, go
+beside the manifest before its row is recorded: ``<manifest-stem>.sparse-regions.tsv``
+and ``<manifest-stem>.filter-summary.tsv`` (:data:`SPARSE_REGIONS_COLUMNS`,
+:data:`FILTER_SUMMARY_COLUMNS`). ``<manifest-stem>.meta.yaml``
+(``acquisition_manifest.pass_lineage_path``) records the run -- the
+originals' manifest, the tool, the policy -- and both files' sha256, under
+``evidence``. Freeze checksums it into the inventory's provenance, and a
+candidate carries the selected rows of both files into its bundle as
+``sidecars/sparse_regions.tsv`` and ``sidecars/filter_summary.tsv``.
 
 Usage (the release config names the policy, its QC panel and the Source
 Metadata Table whose target spans a cis policy reads):
@@ -38,10 +44,10 @@ Metadata Table whose target spans a cis policy reads):
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import os
 import sys
-from dataclasses import asdict
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -57,6 +63,7 @@ from manifest_generation.acquisition_manifest import (
     pass_lineage_path,
 )
 from manifest_generation.connector_tsv import write_connector
+from manifest_generation.freeze import recorded_path
 from manifest_generation.region_filter import (
     QcPanel,
     RegionFilterError,
@@ -77,6 +84,43 @@ COLUMNS: tuple[str, ...] = (
 )
 
 TOOL_MODULE: str = "manifest_generation.region_filter"
+
+#: ``filter_summary.tsv``: one row per filtered file, R's counts without its
+#: per-run attempt and timing columns, so the same files give the same bytes.
+FILTER_SUMMARY_COLUMNS: tuple[str, ...] = (
+    "analysis_id", "status", "error", "source_url", "downloaded_bytes", "input_rows",
+    "retained_rows", "retained_fraction", "cis_rows", "significant_trans_regions",
+    "significant_trans_rows", "suggestive_leads", "qc_panel_rows", "output_file",
+    "output_bytes", "checksum_algorithm", "checksum",
+)
+
+#: ``sparse_regions.tsv``: one row per region a filtered file kept, R's columns.
+SPARSE_REGIONS_COLUMNS: tuple[str, ...] = (
+    "analysis_id", "region_id", "region_kind", "chromosome", "start", "end",
+    "source_genome_build", "target_id", "target_label", "lead_variant_id",
+    "pvalue_threshold", "n_variants_retained", "region_policy_id",
+)
+
+#: ``region_id`` is ``<analysis_id>__<tag>__<nnn>``, numbered per kind, as R named it.
+_REGION_TAGS: Mapping[str, str] = {
+    "cis": "cis", "significant_trans": "sig_trans", "suggestive_trans": "suggestive",
+    "qc_panel": "qc_panel",
+}
+
+
+def filter_summary_path(manifest_path: Path) -> Path:
+    """``<manifest-stem>.filter-summary.tsv``, beside the Acquisition Manifest."""
+    return _beside(manifest_path, "filter-summary.tsv")
+
+
+def sparse_regions_path(manifest_path: Path) -> Path:
+    """``<manifest-stem>.sparse-regions.tsv``, beside the Acquisition Manifest."""
+    return _beside(manifest_path, "sparse-regions.tsv")
+
+
+def _beside(manifest_path: Path, suffix: str) -> Path:
+    manifest_path = Path(manifest_path)
+    return manifest_path.with_name(f"{manifest_path.name.removesuffix('.tsv')}.{suffix}")
 
 
 class RegionFilteredAcquisitionError(InventoryError):
@@ -102,7 +146,7 @@ def policy_record(policy: RegionPolicy, qc_panel: QcPanel, target: TargetSpan | 
     if policy.association_coverage == "cis_plus_signals":
         record["cis_flank_bp"] = policy.cis_flank_bp
         if target is not None:
-            record["target"] = asdict(target)
+            record["target"] = {"chromosome": target.chromosome, "start": target.start, "end": target.end}
     return record
 
 
@@ -115,8 +159,13 @@ def acquire_region_filtered(
     out_dir: Path,
     manifest_path: Path,
     workers: int = 1,
+    source_genome_builds: Mapping[str, str] | None = None,
 ) -> AcquisitionManifest:
-    """Filter every ready original into ``out_dir``, recording each before deleting its original."""
+    """Filter every ready original into ``out_dir``, recording each before deleting its original.
+
+    ``source_genome_builds`` gives each Analysis's build for its plan's rows.
+    """
+    builds = dict(source_genome_builds or {})
     out_dir, manifest_path = Path(out_dir), Path(manifest_path)
     ready = [entry for entry in originals.entries if entry.ready]
     if policy.association_coverage == "cis_plus_signals":
@@ -131,9 +180,14 @@ def acquire_region_filtered(
     rows: dict[str, dict[str, str]] = {
         entry.source_analysis_id: _carried(entry) for entry in originals.entries if not entry.ready
     }
-    counts: dict[str, dict[str, int]] = {}
+    summaries: dict[str, dict[str, str]] = {}
+    regions: dict[str, list[dict[str, str]]] = {}
     if manifest_path.is_file():
         recorded = load_acquisition_manifest(manifest_path)
+        for row in _read_tsv(filter_summary_path(manifest_path)):
+            summaries[row["analysis_id"]] = row
+        for row in _read_tsv(sparse_regions_path(manifest_path)):
+            regions.setdefault(row["analysis_id"], []).append(row)
         resumed = {
             entry.source_analysis_id: dict(row)
             for entry, row in zip(recorded.entries, recorded.rows)
@@ -146,7 +200,9 @@ def acquire_region_filtered(
             for problem in _resume_problems(
                 by_id.get(analysis_id), row,
                 policy_record(policy, qc_panel, targets.get(analysis_id)),
-            )
+            ) + ([] if analysis_id in summaries else [
+                f"no row in {filter_summary_path(manifest_path)} records its filtering"
+            ])
         ]
         if problems:
             raise RegionFilteredAcquisitionError(
@@ -154,9 +210,6 @@ def acquire_region_filtered(
                 + "\n  - ".join(problems)
             )
         rows.update(resumed)
-        previous = pass_lineage_path(manifest_path)
-        if previous.is_file():
-            counts.update((yaml.safe_load(previous.read_text(encoding="utf-8")) or {}).get("filtered") or {})
         # Every recorded Analysis is this run's: an original an interrupted run
         # left behind may now go.
         for analysis_id in resumed:
@@ -173,12 +226,20 @@ def acquire_region_filtered(
     order = [entry.source_analysis_id for entry in originals.entries]
 
     def record(entry: AcquisitionEntry, filtered: Path, original_sha256: str, summary) -> None:
+        analysis_id = entry.source_analysis_id
+        filtered_sha256 = sha256_file(filtered)
+        summaries[analysis_id] = _summary_row(entry, filtered, filtered_sha256, summary)
+        regions[analysis_id] = _region_rows(
+            analysis_id, summary, policy, targets.get(analysis_id), builds.get(analysis_id, "")
+        )
+        # The plan and counts first: a recorded row always has them.
+        evidence = _write_evidence(manifest_path, order, summaries, regions)
         rows[entry.source_analysis_id] = {
             **_carried(entry),
             "status": "ok",
             "location": str(filtered),
             "bytes": str(filtered.stat().st_size),
-            "sha256": sha256_file(filtered),
+            "sha256": filtered_sha256,
             "error": "",
             "original_location": entry.location,
             "original_sha256": original_sha256,
@@ -188,9 +249,8 @@ def acquire_region_filtered(
                 sort_keys=True, separators=(",", ":"),
             ),
         }
-        counts[entry.source_analysis_id] = asdict(summary)
         _write_durably(manifest_path, [rows[analysis_id] for analysis_id in order if analysis_id in rows])
-        _write_run_record(manifest_path, originals, tool, policy, qc_panel, counts)
+        _write_run_record(manifest_path, originals, tool, policy, qc_panel, evidence)
         # Recorded and synced: only now may the original go.
         Path(entry.location).unlink()
 
@@ -204,7 +264,85 @@ def acquire_region_filtered(
     if not rows:
         raise RegionFilteredAcquisitionError("the originals' Acquisition Manifest has no rows to acquire")
     _write_durably(manifest_path, [rows[analysis_id] for analysis_id in order if analysis_id in rows])
+    if summaries:
+        evidence = _write_evidence(manifest_path, order, summaries, regions)
+        _write_run_record(manifest_path, originals, filter_tool(), policy, qc_panel, evidence)
     return load_acquisition_manifest(manifest_path)
+
+
+def _summary_row(entry: AcquisitionEntry, filtered: Path, sha256: str, summary) -> dict[str, str]:
+    counts = summary.counts()
+    return {
+        "analysis_id": entry.source_analysis_id,
+        "status": "ok",
+        "error": "",
+        "source_url": entry.source_url,
+        "downloaded_bytes": "" if entry.bytes is None else str(entry.bytes),
+        **{name: str(value) for name, value in counts.items()},
+        # R's round(retained / input, 6), written as fwrite writes a double.
+        "retained_fraction": format(round(counts["retained_rows"] / counts["input_rows"], 6), ".15g")
+        if counts["input_rows"] else "",
+        "output_file": str(filtered),
+        "output_bytes": str(filtered.stat().st_size),
+        "checksum_algorithm": "sha256",
+        "checksum": sha256,
+    }
+
+
+def _region_rows(
+    analysis_id: str, summary, policy: RegionPolicy, target: TargetSpan | None, build: str
+) -> list[dict[str, str]]:
+    rows, numbered = [], {}
+    for region in summary.regions:
+        numbered[region.kind] = numbered.get(region.kind, 0) + 1
+        threshold = {"significant_trans": policy.significant_p, "suggestive_trans": policy.suggestive_p}
+        rows.append({
+            "analysis_id": analysis_id,
+            "region_id": f"{analysis_id}__{_REGION_TAGS[region.kind]}__{numbered[region.kind]:03d}",
+            "region_kind": region.kind,
+            "chromosome": region.chromosome,
+            "start": str(region.start),
+            "end": str(region.end),
+            "source_genome_build": build,
+            "target_id": target.gene_id if region.kind == "cis" and target else "",
+            "target_label": target.symbol if region.kind == "cis" and target else "",
+            "lead_variant_id": region.lead_variant_id,
+            # as.character() of the threshold, as R wrote it.
+            "pvalue_threshold": format(threshold[region.kind], ".15g") if region.kind in threshold else "",
+            "n_variants_retained": str(region.n_variants_retained),
+            "region_policy_id": policy.region_policy_id,
+        })
+    return rows
+
+
+def _write_evidence(
+    manifest_path: Path,
+    order: Sequence[str],
+    summaries: Mapping[str, Mapping[str, str]],
+    regions: Mapping[str, Sequence[Mapping[str, str]]],
+) -> dict[str, dict[str, str]]:
+    """Write the plan and counts beside the manifest, synced; return their identity for the run record."""
+    written = {}
+    for name, path, columns, rows in (
+        ("filter_summary", filter_summary_path(manifest_path), FILTER_SUMMARY_COLUMNS,
+         [summaries[a] for a in order if a in summaries]),
+        ("sparse_regions", sparse_regions_path(manifest_path), SPARSE_REGIONS_COLUMNS,
+         [row for a in order for row in regions.get(a, ())]),
+    ):
+        text = "\t".join(columns) + "\n" + "".join(
+            "\t".join(row[column] for column in columns) + "\n" for row in rows
+        )
+        atomic_write(path, text)
+        _sync(path)
+        written[name] = {"path": recorded_path(path), "sha256": sha256_file(path)}
+    return written
+
+
+def _read_tsv(path: Path) -> list[dict[str, str]]:
+    if not Path(path).is_file():
+        return []
+    with Path(path).open(encoding="utf-8", newline="") as fh:
+        return list(csv.DictReader(fh, delimiter="\t"))
 
 
 def _filter_one(task):
@@ -272,6 +410,10 @@ def _resume_problems(
 def _write_durably(path: Path, rows: Sequence[Mapping[str, str]]) -> None:
     """Write the manifest and sync it and its directory, so a recorded row survives a crash."""
     write_connector(path, ACQUISITION_MANIFEST, COLUMNS, rows)
+    _sync(path)
+
+
+def _sync(path: Path) -> None:
     with path.open("rb") as fh:
         os.fsync(fh.fileno())
     directory = os.open(path.parent, os.O_RDONLY)
@@ -287,15 +429,15 @@ def _write_run_record(
     tool: str,
     policy: RegionPolicy,
     qc_panel: QcPanel,
-    counts: Mapping[str, Mapping[str, int]],
+    evidence: Mapping[str, Mapping[str, str]],
 ) -> None:
     document = {
-        "acquisition_manifest": str(manifest_path),
+        "acquisition_manifest": recorded_path(manifest_path),
         "written_by": "manifest_generation.region_filtered_acquisition",
-        "originals": {"path": str(originals.path), "sha256": originals.sha256},
+        "originals": {"path": recorded_path(originals.path), "sha256": originals.sha256},
         "filter_tool": tool,
         "region_policy": policy_record(policy, qc_panel, None),
-        "filtered": {analysis_id: dict(counts[analysis_id]) for analysis_id in sorted(counts)},
+        "evidence": {name: dict(entry) for name, entry in evidence.items()},
     }
     atomic_write(
         pass_lineage_path(manifest_path),
@@ -313,11 +455,21 @@ def target_spans(config: ReleaseConfig) -> dict[str, TargetSpan]:
     table = load_source_metadata_table(config.connectors.source_metadata_table)
     return {
         row["source_analysis_id"]: TargetSpan(
-            row["target_chromosome"], int(row["target_start"]), int(row["target_end"])
+            row["target_chromosome"], int(row["target_start"]), int(row["target_end"]),
+            gene_id=row.get("target_ensembl_gene_id", ""), symbol=row.get("target_symbol", ""),
         )
         for row in table.rows
         if row.get("target_chromosome")
     }
+
+
+def source_genome_builds(config: ReleaseConfig) -> dict[str, str]:
+    """Each Analysis's source build: the Source Metadata Table's, else the release default."""
+    default = config.defaults.get("source_genome_build", "")
+    if config.connectors is None:
+        return {}
+    table = load_source_metadata_table(config.connectors.source_metadata_table)
+    return {row["source_analysis_id"]: row.get("source_genome_build") or default for row in table.rows}
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -342,6 +494,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             out_dir=args.out_dir,
             manifest_path=args.out,
             workers=args.workers,
+            source_genome_builds=source_genome_builds(config),
         )
     except (InventoryError, RegionFilterError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

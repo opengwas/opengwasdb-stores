@@ -822,6 +822,65 @@ def read_analysis_metadata(
     return found
 
 
+#: Acquisition's evidence a bundle carries (#300): the run record's
+#: ``evidence`` key -> the sidecar it becomes.
+ACQUISITION_EVIDENCE_SIDECARS: Mapping[str, str] = {
+    "filter_summary": "filter_summary.tsv",
+    "sparse_regions": "sparse_regions.tsv",
+}
+
+
+def acquisition_evidence(provenance_path: Path, analysis_ids: Iterable[str]) -> dict[str, str]:
+    """The Selection's rows of what acquisition recorded about its filtering, as sidecars (#300).
+
+    A region-filtered acquisition records each file's plan and counts and
+    checksums them in its run record (``evidence``), which freeze checksums
+    into the provenance as the pass lineage. Each file's header and the rows
+    of ``analysis_ids`` are carried verbatim, in file order, after both
+    checksums are checked. A file changed since, or a selected Analysis the
+    summary does not cover, is refused. No pass lineage, or one without
+    ``evidence``, carries nothing.
+    """
+    try:
+        document = yaml.safe_load(Path(provenance_path).read_text(encoding="utf-8"))
+        lineage = document["acquisition_manifest"]["original"]["pass_lineage"]
+    except (OSError, KeyError, TypeError) as exc:
+        raise CandidateError(f"{provenance_path} records no acquisition pass lineage: {exc}") from exc
+    if lineage is None:
+        return {}
+    run = yaml.safe_load(_verified(original_path(lineage["path"]), lineage["sha256"], provenance_path))
+    wanted = set(analysis_ids)
+    carried: dict[str, str] = {}
+    for name, sidecar in ACQUISITION_EVIDENCE_SIDECARS.items():
+        entry = ((run or {}).get("evidence") or {}).get(name)
+        if entry is None:
+            continue
+        lines = _verified(original_path(entry["path"]), entry["sha256"], provenance_path).splitlines(True)
+        kept = [line for line in lines[1:] if line.split("\t", 1)[0] in wanted]
+        if name == "filter_summary":
+            summarised = {line.split("\t", 1)[0] for line in kept}
+            missing = sorted(wanted - summarised)
+            if missing:
+                raise CandidateError(
+                    f"acquisition's filter summary {entry['path']} records no filtering of "
+                    f"{len(missing)} selected Analysis/Analyses: {', '.join(missing[:10])}"
+                )
+        carried[sidecar] = "".join(lines[:1] + kept)
+    return carried
+
+
+def _verified(path: Path, sha256: str, provenance_path: Path) -> str:
+    """``path``'s text, refused unless it has the sha256 the frozen inventory bound."""
+    if not path.is_file():
+        raise CandidateError(f"{path}, which {provenance_path} binds, is not on this host")
+    actual = sha256_file(path)
+    if actual != sha256:
+        raise CandidateError(
+            f"{path} has sha256 {actual}, but {provenance_path} binds {sha256}: it changed after the freeze"
+        )
+    return path.read_text(encoding="utf-8")
+
+
 def trait_sources(metadata: Mapping[str, AnalysisMetadata]) -> list[SourceTrait]:
     """The Trait Ontology Mapping step's input: each Analysis's source trait columns."""
     return [
@@ -2367,6 +2426,8 @@ class CandidateTables:
     quality_checks_tsv: str = ""
     #: ``sidecars/analysis_targets.tsv`` (#300), or empty when no Analysis has a target.
     analysis_targets_tsv: str = ""
+    #: Acquisition's evidence (:func:`acquisition_evidence`): sidecar name -> text.
+    acquisition_evidence: Mapping[str, str] = field(default_factory=dict)
     #: Each applied Quality Check's summary, keyed by name (#285).
     quality_checks: Mapping[str, CheckSummary] = field(default_factory=dict)
 
@@ -2377,8 +2438,11 @@ def build_candidate_tables(
     outcomes: Sequence[AnalysisOutcome],
     config: CandidateConfiguration,
     index_summary: Mapping[str, Any],
+    acquisition_evidence: Mapping[str, str] | None = None,
 ) -> CandidateTables:
     """Render every bundle table/sidecar in manifest order, deterministically.
+
+    ``acquisition_evidence`` is carried as it is (:func:`acquisition_evidence`).
 
     Nothing here depends on completion order or worker count: rows are indexed
     by the frozen inventory's order and every derived value is a pure function
@@ -2459,6 +2523,7 @@ def build_candidate_tables(
         quality_checks_tsv=quality_checks_tsv,
         quality_checks=quality_check_summary,
         analysis_targets_tsv=_render_tsv(ANALYSIS_TARGETS_COLUMNS, targets) if targets else "",
+        acquisition_evidence=dict(acquisition_evidence or {}),
     )
 
 
@@ -3222,7 +3287,8 @@ def render_validation_yaml(
             "reference_overlap": "sidecars/reference_overlap.tsv",
             "quality_checks": "sidecars/quality_checks.tsv",
         }
-        | ({"analysis_targets": "sidecars/analysis_targets.tsv"} if tables.analysis_targets_tsv else {}),
+        | ({"analysis_targets": "sidecars/analysis_targets.tsv"} if tables.analysis_targets_tsv else {})
+        | {name.removesuffix(".tsv"): f"sidecars/{name}" for name in sorted(tables.acquisition_evidence)},
         "warnings": list(tables.warnings),
         "errors": list(tables.reference_overlap_errors),
     }
@@ -3313,7 +3379,9 @@ def _int_or_empty(value: Any) -> str:
 
 
 __all__ = [
+    "ACQUISITION_EVIDENCE_SIDECARS",
     "ANALYSIS_TARGETS_COLUMNS",
+    "acquisition_evidence",
     "ANCESTRY_SIDECAR_COLUMNS",
     "ANALYSES_COLUMNS",
     "OPTIONAL_ANALYSES_COLUMNS",

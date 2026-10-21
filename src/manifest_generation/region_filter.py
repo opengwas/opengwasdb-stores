@@ -25,7 +25,8 @@ source's header: it selects, it never reformats, so the filtered file is read
 exactly as the original would have been.
 
 The file is read twice -- once for the rows that can be signals, once to keep
-rows -- so memory holds only the signals, never the file.
+rows -- so memory holds only the signals, never the file. Filtering also
+reports its plan, as R's ``sparse_regions.tsv`` recorded it (:class:`Region`).
 """
 
 from __future__ import annotations
@@ -99,16 +100,44 @@ def load_qc_panel(path: Path, resource_id: str) -> QcPanel:
 
 @dataclass(frozen=True)
 class TargetSpan:
-    """An Analysis's target gene span on the source build (the Source Metadata Table's)."""
+    """An Analysis's target gene span on the source build (the Source Metadata Table's).
+
+    ``gene_id`` and ``symbol`` name the gene in the plan's cis region; the span
+    alone decides what is kept.
+    """
 
     chromosome: str
     start: int
     end: int
+    gene_id: str = ""
+    symbol: str = ""
+
+
+#: ``Region.kind`` values, in the order a plan lists them (R's ``region_kind``).
+REGION_KINDS: tuple[str, ...] = ("cis", "significant_trans", "suggestive_trans", "qc_panel")
+
+
+@dataclass(frozen=True)
+class Region:
+    """One region a filtered file kept, as R's ``sparse_regions.tsv`` recorded it.
+
+    A cis window or a merged significant-trans range, each with the rows kept
+    in it; a suggestive lead, a one-base region named by its ``variant_id``
+    (else its ``rsid``); or the QC-panel rows kept on one chromosome, spanning
+    the first to the last. Ends are included.
+    """
+
+    kind: str
+    chromosome: str
+    start: int
+    end: int
+    n_variants_retained: int
+    lead_variant_id: str = ""
 
 
 @dataclass(frozen=True)
 class FilterSummary:
-    """What filtering one file kept, in the R filter's ``filter_summary`` terms."""
+    """What filtering one file kept, in the R filter's ``filter_summary`` terms, and its plan."""
 
     input_rows: int
     retained_rows: int
@@ -117,6 +146,13 @@ class FilterSummary:
     significant_trans_rows: int
     suggestive_leads: int
     qc_panel_rows: int
+    #: The plan in R's order: cis, then trans ranges by chromosome (as text) and
+    #: start, then leads and QC-panel chromosomes in file order.
+    regions: tuple[Region, ...] = ()
+
+    def counts(self) -> dict[str, int]:
+        """The counts alone, as ``filter_summary.tsv`` records them."""
+        return {name: value for name, value in self.__dict__.items() if name != "regions"}
 
 
 @dataclass(frozen=True)
@@ -164,6 +200,9 @@ def filter_file(
     )
 
     input_rows = retained = cis_rows = trans_rows = qc_rows = 0
+    in_interval: dict[tuple[str, int, int], int] = {}
+    lead_regions: list[Region] = []
+    panel_spans: dict[str, list[int]] = {}
     partial = destination.with_name(destination.name + ".partial")
     try:
         # mtime 0 and no file name: the same rows always give the same bytes.
@@ -181,6 +220,18 @@ def filter_file(
                         cis_rows += in_cis
                         trans_rows += in_trans
                         qc_rows += in_panel
+                        for kind, intervals, inside in (("cis", cis, in_cis), ("significant_trans", trans, in_trans)):
+                            if inside:
+                                key = (kind, chromosome, _locate(intervals, chromosome, position))
+                                in_interval[key] = in_interval.get(key, 0) + 1
+                        if index in leads:
+                            lead_regions.append(Region(
+                                "suggestive_trans", chromosome, position, position, 1,
+                                _lead_variant_id(line, columns),
+                            ))
+                        if in_panel:
+                            span = panel_spans.setdefault(chromosome, [position, position, 0])
+                            span[0], span[1], span[2] = min(span[0], position), max(span[1], position), span[2] + 1
             raw.flush()
             os.fsync(raw.fileno())
         partial.replace(destination)
@@ -194,6 +245,17 @@ def filter_file(
         significant_trans_rows=trans_rows,
         suggestive_leads=len(leads),
         qc_panel_rows=qc_rows,
+        regions=tuple(
+            Region(kind, chromosome, start, end, in_interval.get((kind, chromosome, at), 0))
+            for kind, intervals in (("cis", cis), ("significant_trans", trans))
+            for chromosome in sorted(intervals)
+            for at, (start, end) in enumerate(intervals[chromosome])
+        )
+        + tuple(lead_regions)
+        + tuple(
+            Region("qc_panel", chromosome, start, end, count)
+            for chromosome, (start, end, count) in panel_spans.items()
+        ),
     )
 
 
@@ -300,9 +362,23 @@ def merge_intervals(spans) -> Intervals:
     return merged
 
 
-def _contains(intervals: Intervals, chromosome: str, position: int) -> bool:
+def _locate(intervals: Intervals, chromosome: str, position: int) -> int | None:
+    """The index of the interval on ``chromosome`` that holds ``position``, if one does."""
     spans = intervals.get(chromosome)
     if not spans:
-        return False
+        return None
     at = bisect.bisect_right(spans, (position, math.inf)) - 1
-    return at >= 0 and spans[at][0] <= position <= spans[at][1]
+    return at if at >= 0 and spans[at][0] <= position <= spans[at][1] else None
+
+
+def _contains(intervals: Intervals, chromosome: str, position: int) -> bool:
+    return _locate(intervals, chromosome, position) is not None
+
+
+def _lead_variant_id(line: bytes, columns: dict[str, int]) -> str:
+    """A lead's ``variant_id``, else its ``rsid``, as R named it; ``NA`` is no value."""
+    fields = line.rstrip(b"\r\n").split(b"\t")
+    for column in ("variant_id", "rsid"):
+        if column in columns and fields[columns[column]] not in _MISSING:
+            return fields[columns[column]].decode("utf-8")
+    return ""

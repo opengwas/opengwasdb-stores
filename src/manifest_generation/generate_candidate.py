@@ -79,6 +79,7 @@ from manifest_generation.candidate_workflow import (
     CandidateError,
     CandidateTables,
     account_records,
+    acquisition_evidence,
     apply_release_policy,
     build_candidate_tables,
     build_resolution_receipt,
@@ -438,6 +439,10 @@ def stage_render(
         outcomes=outcomes,
         config=pipeline.config,
         index_summary=index,
+        # A region-filtered release carries its filtering's plan and counts (#300).
+        acquisition_evidence=acquisition_evidence(
+            pipeline.config.base.inventory_provenance_path, [row.analysis_id for row in rows if row.ready]
+        ),
     )
     print(
         f"Release policy: {tables.included_rows} included, {tables.excluded_rows} excluded"
@@ -507,7 +512,8 @@ def stage_render(
             "quality_checks.tsv": tables.quality_checks_tsv,
         }
         # Only a release with targeted Analyses carries the target sidecar (#300).
-        | ({"analysis_targets.tsv": tables.analysis_targets_tsv} if tables.analysis_targets_tsv else {}),
+        | ({"analysis_targets.tsv": tables.analysis_targets_tsv} if tables.analysis_targets_tsv else {})
+        | dict(tables.acquisition_evidence),
     )
     write_rendered(candidate, pipeline.rendered_path)
     print(f"Rendered: {pipeline.rendered_path}")

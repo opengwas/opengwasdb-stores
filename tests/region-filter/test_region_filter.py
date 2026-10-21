@@ -26,6 +26,7 @@ from pathlib import Path
 from manifest_generation import REPO_ROOT
 from manifest_generation.region_filter import (
     QcPanel,
+    Region,
     RegionPolicy,
     TargetSpan,
     filter_file,
@@ -102,6 +103,7 @@ class RegionFilterTest(unittest.TestCase):
         )
         self.assertEqual(self.kept(lines), [("2", 2_000_000), ("2", 3_020_000), ("2", 4_050_000)])
         self.assertEqual((summary.input_rows, summary.retained_rows, summary.cis_rows), (6, 3, 3))
+        self.assertEqual(summary.regions, (Region("cis", "2", 2_000_000, 4_050_000, 3),))
         # Kept rows are the source's own lines, byte for byte.
         self.assertEqual(lines[1], rows[2])
 
@@ -126,6 +128,13 @@ class RegionFilterTest(unittest.TestCase):
         self.assertEqual(
             (summary.significant_trans_regions, summary.significant_trans_rows, summary.retained_rows),
             (2, 5, 5),
+        )
+        # R's plan: one region per merged range, in chromosome-then-start order
+        # (chromosomes sorted as text), with the rows it kept.
+        self.assertEqual(
+            summary.regions,
+            (Region("significant_trans", "1", 4_000_000, 6_000_000, 3),
+             Region("significant_trans", "7", 19_000_000, 21_000_000, 2)),
         )
 
     def test_a_significant_hit_inside_the_cis_window_opens_no_trans_flank(self) -> None:
@@ -161,6 +170,13 @@ class RegionFilterTest(unittest.TestCase):
             [("4", 300_000), ("4", 500_500), ("9", 2_000_000), ("9", 2_500_000)],
         )
         self.assertEqual((summary.suggestive_leads, summary.significant_trans_rows), (2, 2))
+        # Each lead is a one-base region in file order, named by its variant_id.
+        self.assertEqual(
+            summary.regions,
+            (Region("significant_trans", "9", 1_000_000, 3_000_000, 2),
+             Region("suggestive_trans", "4", 300_000, 300_000, 1, "rs4_300000"),
+             Region("suggestive_trans", "4", 500_500, 500_500, 1, "rs_first_tie")),
+        )
 
     def test_qc_panel_positions_are_kept_whatever_their_p_value(self) -> None:
         # The panel names chr1:15,903 and chr22:500; the source spells chr1 as
@@ -175,6 +191,11 @@ class RegionFilterTest(unittest.TestCase):
         summary, lines = self.run_filter(rows, panel=panel)
         self.assertEqual(self.kept(lines), [("chr1", 15_903), ("22", 500)])
         self.assertEqual((summary.qc_panel_rows, summary.retained_rows), (2, 2))
+        # One region per chromosome, spanning the panel rows kept, in file order.
+        self.assertEqual(
+            summary.regions,
+            (Region("qc_panel", "1", 15_903, 15_903, 1), Region("qc_panel", "22", 500, 500, 1)),
+        )
 
     def test_trans_flanks_merge_when_they_overlap_or_touch(self) -> None:
         # Flanks of 1 Mb. chr5: hits 1,500,000 apart overlap -> one region.
@@ -231,6 +252,22 @@ class RegionFilterTest(unittest.TestCase):
         self.assertEqual(len(r_kept), 35)
         self.assertEqual(keys(ours), keys(r_kept))
         self.assertEqual(summary.retained_rows, 35)
+        # Its plan: chromosome 11's trans range and 18 leads in OGS-00006's
+        # sparse_regions.tsv (r_regions.tsv). The fixture holds every signal row
+        # of the chromosome, so the ranges and leads are the full file's; only
+        # the counts of rows kept depend on which other rows it holds.
+        with (fixture / "r_regions.tsv").open(encoding="utf-8") as fh:
+            r_regions = [
+                (row["region_kind"], row["chromosome"], int(row["start"]), int(row["end"]),
+                 row["lead_variant_id"].strip('"'))
+                for row in csv.DictReader(fh, delimiter="\t")
+            ]
+        self.assertEqual(len(r_regions), 19)
+        self.assertEqual(
+            [(r.kind, r.chromosome, r.start, r.end, r.lead_variant_id) for r in summary.regions
+             if r.kind != "qc_panel"],
+            r_regions,
+        )
 
     def test_rows_without_a_position_or_p_value_are_dropped(self) -> None:
         panel = QcPanel("qc-panel-hg38", "f" * 64, frozenset({("1", 100)}))

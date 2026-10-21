@@ -21,17 +21,22 @@ import os
 import tempfile
 import unittest
 from dataclasses import replace
+
+import yaml
 from pathlib import Path
 
 from manifest_generation.acquisition_manifest import (
     ACQUISITION_MANIFEST,
     load_acquisition_manifest,
+    pass_lineage_path,
 )
 from manifest_generation.connector_tsv import write_connector
 from manifest_generation.region_filter import QcPanel, RegionPolicy, TargetSpan
 from manifest_generation.region_filtered_acquisition import (
     RegionFilteredAcquisitionError,
     acquire_region_filtered,
+    filter_summary_path,
+    sparse_regions_path,
 )
 from manifest_generation.source_inventory import sha256_file
 
@@ -83,7 +88,9 @@ class RegionFilteredAcquisitionTest(unittest.TestCase):
         )
         self.filtered_dir = self.tmp / "filtered"
         self.manifest = self.tmp / "connectors" / "acquisition-manifest.tsv"
-        self.targets = {"GCST1": TargetSpan("2", 3_000_000, 3_050_000)}
+        self.targets = {
+            "GCST1": TargetSpan("2", 3_000_000, 3_050_000, gene_id="ENSG00000152256", symbol="PDK1")
+        }
 
     def tearDown(self) -> None:
         for directory, _dirs, _files in os.walk(self.tmp):
@@ -98,6 +105,7 @@ class RegionFilteredAcquisitionTest(unittest.TestCase):
             targets=self.targets,
             out_dir=self.filtered_dir,
             manifest_path=self.manifest,
+            source_genome_builds={"GCST1": "GRCh38"},
         )
 
     def test_the_filtered_file_and_its_lineage_are_recorded_and_the_original_deleted(self) -> None:
@@ -132,6 +140,38 @@ class RegionFilteredAcquisitionTest(unittest.TestCase):
         self.assertEqual((manifest.entry("GCST2").status, manifest.entry("GCST2").error),
                          ("data_absent_upstream", "404"))
         self.assertFalse(self.original.exists())
+
+    def test_the_plan_and_summary_are_recorded_beside_the_manifest(self) -> None:
+        """R's sparse_regions.tsv and filter_summary.tsv, which the bundle carries (#300)."""
+        self.acquire()
+        filtered = self.filtered_dir / "GCST1.filtered.tsv.gz"
+        self.assertEqual(
+            filter_summary_path(self.manifest).read_text(encoding="utf-8").splitlines(),
+            [
+                "analysis_id\tstatus\terror\tsource_url\tdownloaded_bytes\tinput_rows\tretained_rows"
+                "\tretained_fraction\tcis_rows\tsignificant_trans_regions\tsignificant_trans_rows"
+                "\tsuggestive_leads\tqc_panel_rows\toutput_file\toutput_bytes\tchecksum_algorithm\tchecksum",
+                f"GCST1\tok\t\thttps://example.org/GCST1.h.tsv.gz\t{len(self.original_bytes)}\t3\t2"
+                f"\t0.666667\t1\t0\t0\t0\t1\t{filtered}\t{filtered.stat().st_size}\tsha256"
+                f"\t{sha256_file(filtered)}",
+            ],
+        )
+        self.assertEqual(
+            sparse_regions_path(self.manifest).read_text(encoding="utf-8").splitlines(),
+            [
+                "analysis_id\tregion_id\tregion_kind\tchromosome\tstart\tend\tsource_genome_build"
+                "\ttarget_id\ttarget_label\tlead_variant_id\tpvalue_threshold\tn_variants_retained"
+                "\tregion_policy_id",
+                "GCST1\tGCST1__cis__001\tcis\t2\t2000000\t4050000\tGRCh38\tENSG00000152256\tPDK1\t\t\t1"
+                "\tcis-1mb_sig-trans-1mb_suggestive-leads",
+                "GCST1\tGCST1__qc_panel__001\tqc_panel\t1\t15903\t15903\tGRCh38\t\t\t\t\t1"
+                "\tcis-1mb_sig-trans-1mb_suggestive-leads",
+            ],
+        )
+        run = yaml.safe_load(pass_lineage_path(self.manifest).read_text(encoding="utf-8"))
+        for name, path in (("filter_summary", filter_summary_path(self.manifest)),
+                           ("sparse_regions", sparse_regions_path(self.manifest))):
+            self.assertEqual(run["evidence"][name]["sha256"], sha256_file(path))
 
     def test_a_failed_checksum_write_leaves_the_original_in_place(self) -> None:
         # The manifest's directory refuses the write that would record the
