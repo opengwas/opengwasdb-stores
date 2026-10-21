@@ -308,14 +308,11 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
     def test_a_reported_association_count_is_recorded_as_reported(self) -> None:
         """n_associations is the builder's reported count, not a value register derives (#322)."""
         b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00058")
-        rec_p = paths.record_path(b.store_id, "build", root=artifact_root)
-        rec = json.loads(rec_p.read_text(encoding="utf-8"))
-        rec["stdout"] = json.dumps({
+        set_step_stdout("OGS-00058", "build", artifact_root, {
             "n_variants": 12500,
             "n_analyses": 50,
             "n_associations": 424242,
-        }) + "\n"
-        run._write_record_atomically(rec, rec_p)
+        })
 
         written = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
 
@@ -324,19 +321,16 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
     def test_association_coverage_and_reference_assembly_come_from_the_build_report(self) -> None:
         """Both come from the producing step's stdout JSON, under the keys register reads (#322)."""
         b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00059")
-        rec_p = paths.record_path(b.store_id, "build", root=artifact_root)
-        rec = json.loads(rec_p.read_text(encoding="utf-8"))
-        rec["stdout"] = json.dumps({
+        set_step_stdout("OGS-00059", "build", artifact_root, {
             "n_variants": 1000,
             "n_analyses": 2,
-            "association_coverage": "cis",
+            "association_coverage": "cis_and_signals",
             "reference_assembly": "GRCh38",
-        }) + "\n"
-        run._write_record_atomically(rec, rec_p)
+        })
 
         written = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
 
-        self.assertEqual(written["observed"]["association_coverage"], "cis")
+        self.assertEqual(written["observed"]["association_coverage"], "cis_and_signals")
         self.assertEqual(written["observed"]["reference_assembly"], "GRCh38")
 
     def test_the_completion_step_reports_association_coverage_and_reference_assembly(self) -> None:
@@ -348,20 +342,17 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
             command="complete-dense",
             derived_from="OGS-00042",
         )
-        rec_p = paths.record_path(b.store_id, "complete", root=artifact_root)
-        rec = json.loads(rec_p.read_text(encoding="utf-8"))
-        rec["stdout"] = json.dumps({
+        set_step_stdout("OGS-00060", "complete", artifact_root, {
             "n_variants": 1000,
             "n_analyses": 2,
             "n_associations": 7,
-            "association_coverage": "full_gwas",
+            "association_coverage": "full",
             "reference_assembly": "GRCh37",
-        }) + "\n"
-        run._write_record_atomically(rec, rec_p)
+        })
 
         written = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
 
-        self.assertEqual(written["observed"]["association_coverage"], "full_gwas")
+        self.assertEqual(written["observed"]["association_coverage"], "full")
         self.assertEqual(written["observed"]["reference_assembly"], "GRCh37")
         self.assertEqual(written["observed"]["n_associations"], 7)
 
@@ -375,6 +366,43 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
         self.assertIn("reference_assembly", written["observed"])
         self.assertIsNone(written["observed"]["association_coverage"])
         self.assertIsNone(written["observed"]["reference_assembly"])
+
+    def test_a_malformed_association_count_is_refused(self) -> None:
+        """A present n_associations that is not a non-negative int fails, naming the key and step."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00062")
+        for value in ("424242", True, -1):
+            with self.subTest(value=value):
+                set_step_stdout("OGS-00062", "build", artifact_root, {
+                    "n_variants": 1000,
+                    "n_analyses": 2,
+                    "n_associations": value,
+                })
+
+                with self.assertRaises(RegisterError) as ctx:
+                    register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+
+                self.assertIn("n_associations", str(ctx.exception))
+                self.assertIn("build", str(ctx.exception))
+                self.assertFalse((b.root / "validation.yaml").exists(), "nothing is written")
+
+    def test_malformed_coverage_or_assembly_is_refused(self) -> None:
+        """A present coverage or assembly that is not a non-empty string fails, naming key and step."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00063")
+        for key in ("association_coverage", "reference_assembly"):
+            for value in (3, "", ["full"]):
+                with self.subTest(key=key, value=value):
+                    set_step_stdout("OGS-00063", "build", artifact_root, {
+                        "n_variants": 1000,
+                        "n_analyses": 2,
+                        key: value,
+                    })
+
+                    with self.assertRaises(RegisterError) as ctx:
+                        register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+
+                    self.assertIn(key, str(ctx.exception))
+                    self.assertIn("build", str(ctx.exception))
+                    self.assertFalse((b.root / "validation.yaml").exists(), "nothing is written")
 
     def test_written_record_matches_the_documented_register_shape(self) -> None:
         """The written validation.yaml carries exactly the canonical register keys (issue #135).
@@ -398,6 +426,16 @@ def set_validate_output(store_id: str, artifact_root: Path, stdout: str, stderr:
     rec = json.loads(rec_p.read_text(encoding="utf-8"))
     rec["stdout"] = stdout
     rec["stderr"] = stderr
+    run._write_record_atomically(rec, rec_p)
+
+
+def set_step_stdout(
+    store_id: str, step_name: str, artifact_root: Path, payload: dict[str, Any]
+) -> None:
+    """Replace the stdout JSON a build or complete step's record carries."""
+    rec_p = paths.record_path(store_id, step_name, root=artifact_root)
+    rec = json.loads(rec_p.read_text(encoding="utf-8"))
+    rec["stdout"] = json.dumps(payload) + "\n"
     run._write_record_atomically(rec, rec_p)
 
 
