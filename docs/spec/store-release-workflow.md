@@ -187,7 +187,7 @@ complete:
     n-workers: 16
 ```
 
-A two-id Reference-Completed child, the form from before ADR 0037, has a `complete` block instead of `build`, and its parent is `release.yaml`'s `derived_from`, whose artifact path is a pure function of that ID. Existing two-id bundles (OGS-00002, OGS-00010) stay valid; nothing new should take that form.
+A two-id Reference-Completed child, the form from before ADR 0037, has a `complete` block instead of `build`, and its parent is `release.yaml`'s `derived_from`, whose artifact path is a pure function of that ID. Existing two-id bundles (OGS-00002, OGS-00022, OGS-00023) stay valid; nothing new should take that form.
 
 ### Artifact root comes from configuration
 
@@ -557,7 +557,7 @@ Both phases run in one entry-point run, so the completion phase starts while the
 
 Either resolution also clears Snakemake's marks that the killed run's outputs (the release's records and derived manifest) are incomplete. Otherwise a restored record would stop every later run with `IncompleteFilesException`. A whole-host crash also leaves Snakemake's lock on the working directory. If a later run reports it, check that no other run is active, then run `snakemake --snakefile workflow/Snakefile --unlock`. That writes nothing under a release.
 
-**Nothing deletes an archive.** `publish_store(force=True)` renames the old Store into it rather than removing it, and so does crash recovery of a `store.opengwasdb.backup` found without a marker. An archive failure is raised, never swallowed. **A forced run's archive holds a full Store**, so replacing a release costs its size again in disk until a person deletes the archive: 2.7 GB for OGS-00005, about 35 GB for OGS-00009 and 50 GB for OGS-00010. Only a completion phase deletes a Store, the one it replaced, and only under its marker.
+**Nothing deletes an archive.** `publish_store(force=True)` renames the old Store into it rather than removing it, and so does crash recovery of a `store.opengwasdb.backup` found without a marker. An archive failure is raised, never swallowed. **A forced run's archive holds a full Store**, so replacing a release costs its size again in disk until a person deletes the archive: 2.7 GB for OGS-00005 and about 35 GB for OGS-00009; OGS-00010's was 50 GB before #312 retired it. Only a completion phase deletes a Store, the one it replaced, and only under its marker.
 
 Tests inject crashes at each named boundary through `run.fault_boundary` and the test-only `OGSTORES_TEST_KILL_AT` and `OGSTORES_TEST_KILL_GROUP_AT` variables. The boundaries are the register job's (`register.PUBLICATION_BOUNDARIES`) and the entry point's (`release.ENTRY_POINT_BOUNDARIES`). `tests/register/test_register.py` kills or fails the publication transaction at every register-job boundary and completes it: a forced replacement at each boundary it crosses, and a completion phase's, which deletes the old Store, at each it crosses (`old-store-deleting` is part-way through the deletion). A boundary that neither kind is killed at fails that suite. `tests/workflow/test_release_faults.py` kills the whole stack (entry point, Snakemake and register job) through the supported entry point at every entry-point boundary, `marker-removed` included. It also does so at one register-job boundary of each kind Snakemake can tell apart: before the marker (`publication-started`), with the marker but no `records/register.json` (`store-published`), and with both (`register-record-written`). It also kills a release that completes its own Store while its completion phase is part-way through deleting the Observed-Only Store (`old-store-deleting`). It then asserts that the next run recovers, and fails if the code gains an entry-point boundary the suite does not crash. The same suite pauses a forced run once its build has started (`<step>-started` points in `run.execute_step`, with the test-only `OGSTORES_TEST_PAUSE_AT` and `OGSTORES_TEST_PAUSE_FILE` variables). It shows that a second run, a forced one, `--resolve-snapshot` and a dry run all see the live run's lock, and that the run then completes. It also shows that Ctrl-C, SIGTERM to the entry point, and SIGTERM to every process each restore the records byte for byte, mid-build. For a completion (#305), Ctrl-C mid-`complete` and SIGTERM to every process mid-`completion-validate` each leave the Observed-Only Store published and the build phase's records untouched, and the next unforced run resumes, `complete` from its checkpoint.
 
@@ -628,8 +628,8 @@ rebuilt by declaring or not declaring a subset.
 
 **Registry migration (stores#211, epic #214).** Every existing registered
 Release Bundle with a Dense Component now declares the default `hm3` subset:
-`OGS-00003`, `OGS-00004`, `OGS-00005`, `OGS-00008`, `OGS-00009`, `OGS-00010`,
-`OGS-00011` and `OGS-00017`. The four Ragged-only bundles (`OGS-00001`,
+`OGS-00003`, `OGS-00004`, `OGS-00005`, `OGS-00008`, `OGS-00009`,
+`OGS-00011` and `OGS-00017` (and `OGS-00010`, retired by #312). The four Ragged-only bundles (`OGS-00001`,
 `OGS-00002`, `OGS-00006`, `OGS-00007`) are unchanged. The declaration is
 planning metadata only: it adds no Analysis and changes no `release.yaml`
 status, lineage or `analyses.tsv`, so it mints no new Store Release and rebuilds

@@ -1,0 +1,25 @@
+store_id: OGS-99001
+label: ukb-b-test
+access_posture: public
+status: candidate
+derived_from: null
+created_at: '2026-10-12T00:00:00Z'
+accepted_at: null
+source_snapshot_id: fixture
+source_snapshot:
+  source_collection_id: opengwas-gwas-vcf
+  inventory_path: inventory.tsv
+  inventory_sha256: {fixture-digest}
+  resolution_path: resolution.tsv
+  resolution_sha256: 28ac697ef40ce1d5db412488577eb6b1d70f401ba70281e009a9df3c323e5ade
+  resolution_snapshot_id: fixture-resolution
+  n_analyses: 3
+  n_buildable: 3
+generator:
+  name: manifest_generation.providers.ukb_b.generate_candidate
+  version: {generator-digest}
+  commands:
+  - python3 -m manifest_generation.providers.ukb_b.generate_candidate OGS-99001 --config config.yaml --registry-root
+    stores --created-at 2026-10-12T00:00:00Z --repo-root {fixture}
+description: fixture candidate
+notes: ''

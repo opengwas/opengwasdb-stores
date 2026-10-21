@@ -45,6 +45,13 @@ DEFAULT_ARTIFACT_ROOT: Path = Path("/data/opengwasdb/stores")
 ARTIFACT_ROOT_ENV_VAR: str = "OPENGWASDB_ARTIFACT_ROOT"
 REPO_CONFIG_FILENAME: str = "ogstores.yaml"
 STORE_ID_PATTERN: re.Pattern[str] = re.compile(r"\AOGS-\d{5}\Z")
+#: Store Release ids retired unused. An id is never reused (ADR 0022), so no
+#: bundle takes one of these. #308 retired the ids ADR 0007 reserved for the
+#: dbGaP MVP's completed children; #312 retired the two-id UKB-B plan's
+#: OGS-00010 and its reserved successors OGS-00030/31.
+RETIRED_STORE_IDS: frozenset[str] = frozenset(
+    {"OGS-00010", "OGS-00018", "OGS-00019", "OGS-00020", "OGS-00021", "OGS-00030", "OGS-00031"}
+)
 
 
 def is_valid_store_id(store_id: str) -> bool:
@@ -276,6 +283,7 @@ __all__ = [
     "REPLACED_DIRNAME",
     "REPO_CONFIG_FILENAME",
     "REPO_ROOT",
+    "RETIRED_STORE_IDS",
     "STORE_ID_PATTERN",
     "artifact_root",
     "backup_store_path",

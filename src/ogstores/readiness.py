@@ -1083,7 +1083,8 @@ def reconcile_registry(
     by_id = {b.store_id: b for b in loaded}
     incomplete = set(incomplete_parents)
     # A parent is incomplete when the ledger marks it so; this is the mechanism
-    # that keeps OGS-00010 flagged as derived from the incomplete OGS-00009.
+    # that flagged a two-id child derived from an incomplete parent, as OGS-00010
+    # was from the 2,024-Analysis OGS-00009 until #312 retired it.
     for entry_id, entry in (ledger_doc.get("releases") or {}).items():
         if isinstance(entry, Mapping) and entry.get("incomplete_membership"):
             incomplete.add(entry_id)
