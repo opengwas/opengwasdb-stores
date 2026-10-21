@@ -75,8 +75,8 @@ ANALYSIS_ID_PATTERN = re.compile(r"^ukb-b-\d+$")
 #: Inventory input, not a Release Bundle's membership table: the frozen
 #: inventory (`ukb-b-restored-2026-10-11`) declares the Selection it was frozen
 #: for, and the receipt pins this file's sha256. It moved here from the retired
-#: `families/` archive in #252; its bytes, and so every recorded hash, are
-#: unchanged.
+#: family-first bundle archive in #252; its bytes, and so every recorded hash,
+#: are unchanged.
 DEFAULT_DECLARED_SELECTION: str = (
     "resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv"
 )

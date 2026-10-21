@@ -185,7 +185,8 @@ schema_config <- file.path(schema_tmp, "config.yaml")
 writeLines(c("output:", "  store_id: OGS-99021"), schema_config)
 valid_schema_row <- fread(
   # The row is a fixture under tests/ since #252: the bundle it came from
-  # (dense-observed-vcf-c128-resolved) was retired with families/.
+  # (dense-observed-vcf-c128-resolved) was retired with the family-first
+  # archive.
   "tests/opengwas-gwas-vcf-dense/fixtures/ukb-b-19953.analyses.tsv",
   sep = "\t", na.strings = "", colClasses = list(character = "exclude_from_build")
 )[analysis_id == "ukb-b-19953"]

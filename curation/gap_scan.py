@@ -37,12 +37,10 @@ Store Family attribution
 The Store Family tier was retired (ADR 0028), so no single field names it today.
 `derive_store_family` resolves the family for each Manifest with a documented
 precedence: a `store_family_id` (or legacy `family`) in a sibling `release.yaml`
-wins; otherwise the directory above a `releases/` path segment (the historical
-`families/<family>/releases/<release>/` layout); otherwise the directory above a
-`families/` segment; otherwise the bundle directory's own name (the
-`stores/<store-id>/` layout, where the `OGS-` id is the only identifier). The
-value is only ever an attribution label for the queue -- it does not restate a
-retired registry tier.
+wins; otherwise a bundle inside the Store Registry is attributed to its Store
+Release id, `stores/<store-id>/` being the one home for a Release Bundle
+(#252); otherwise the bundle directory's own name. The value is only ever an
+attribution label for the queue -- it does not restate a retired registry tier.
 """
 
 from __future__ import annotations
@@ -61,6 +59,8 @@ import yaml
 
 ANALYSES_FILENAME: str = "analyses.tsv"
 RELEASE_FILENAME: str = "release.yaml"
+#: The Store Registry: the one home for a Release Bundle (#252, ADR 0022).
+STORES_DIRNAME: str = "stores"
 
 MAPPING_METHOD_COLUMN: str = "trait_ontology_mapping_method"
 UNMAPPED: str = "unmapped"
@@ -159,18 +159,12 @@ def _store_family_from_release_yaml(release_path: Path) -> str | None:
     return None
 
 
-def _store_family_from_path(bundle_dir: Path) -> str | None:
-    """Derive the family from the historical bundle path layout, if recognisable."""
+def _store_release_from_path(bundle_dir: Path) -> str | None:
+    """The Store Release id of a `stores/<store-id>/` bundle, if recognisable."""
     parts = bundle_dir.parts
-    # families/<family>/releases/<release>/analyses.tsv -- the segment before
-    # the nearest `releases` is the family.
-    for index in range(len(parts) - 1, -1, -1):
-        if parts[index] == "releases" and index > 0:
-            return parts[index - 1]
-    # families/<family>/... even without a `releases/` level.
     for index in range(len(parts) - 1):
-        if parts[index] == "families":
-            return parts[index + 1]
+        if parts[index] == STORES_DIRNAME:
+            return parts[index + 1] or None
     return None
 
 
@@ -178,8 +172,8 @@ def derive_store_family(manifest_path: Path | str) -> str:
     """Attribute a Manifest to a Store Family for the queue's `store_families`.
 
     Precedence: explicit `store_family_id`/`family` in a sibling `release.yaml`;
-    the directory above a `releases/` path segment; the directory after a
-    `families/` segment; else the bundle directory's own name.
+    the Store Release id of a bundle under `stores/`; else the bundle
+    directory's own name.
     """
     manifest = resolve_manifest_path(manifest_path)
     bundle_dir = manifest.parent
@@ -188,9 +182,9 @@ def derive_store_family(manifest_path: Path | str) -> str:
     if from_metadata:
         return from_metadata
 
-    from_path = _store_family_from_path(bundle_dir)
-    if from_path:
-        return from_path
+    from_registry = _store_release_from_path(bundle_dir)
+    if from_registry:
+        return from_registry
 
     return bundle_dir.name or str(bundle_dir)
 

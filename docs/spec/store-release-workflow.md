@@ -539,9 +539,8 @@ audit-indexed-subsets`) prints the full in-scope list and refuses a
 Dense-component bundle that is neither migrated nor explicitly opted out
 (`indexed_subsets: []`), and a Ragged-only bundle that declares a subset. It
 reads only `build.yaml` and the small resource declaration, so it runs in CI
-without the reference root. The unmigrated `families/*/releases/*` bundles are
-out of scope: they are unregistered, use the retired family-first schema, and
-are not planned by the workflow.
+without the reference root. Its scope is every registered Release Bundle under
+`stores/`, which since #252 is the only home for one.
 
 ### HM3 benchmark reporting
 
@@ -823,7 +822,7 @@ Their outputs also live in different places and are reviewed differently. Phase 
 | Phase A | *derived* from a declarative `build.yaml` by `plan()` | regenerable, CI-checkable, verified against `records/` |
 | Phase B | *not derivable* -- family-specific imperative code calling several scripts in sequence | must be **recorded as it runs** |
 
-`release.yaml` now holds `generator: {version, commands}` -- an executed command log (a list), because generation calls acquire, select, assign-ancestry, estimate-SD and emit in turn and a single command string is wrong as soon as more than one step runs (issue #136). The previous `generator.name` path and the `--config=families/...` argument pointed at files that no longer exist and were corrected in the same change. That is the per-store script that Phase A does not need, and it is a log rather than a prediction.
+`release.yaml` now holds `generator: {version, commands}` -- an executed command log (a list), because generation calls acquire, select, assign-ancestry, estimate-SD and emit in turn and a single command string is wrong as soon as more than one step runs (issue #136). The previous `generator.name` path and a family-first `--config=...` argument pointed at files that no longer exist and were corrected in the same change. That is the per-store script that Phase A does not need, and it is a log rather than a prediction.
 
 ### The five fixed rules
 
@@ -835,7 +834,7 @@ Their outputs also live in different places and are reviewed differently. Phase 
 
 **Acquisition is separate from selection.** Acquisition is per Source Collection and is the expensive resumable part. Selection is per Store Release. The Source Collection is a grouping string recorded on the release, not a directory (ADR 0028).
 
-**Every generator emits through one emitter** (#248, ADR 0035). `src/manifest_generation/emit.py` is the only code that writes a candidate into `stores/<id>/`. A Python generator builds a `CandidateBundle` and calls `emit()`. A legacy R or BESD generator keeps a family-shaped working bundle in its work root, `<artifact-root>/<output.store_id>/generate` (`paths.generation_dir`, reported by `python3 -m manifest_generation.emit work-root <id>`), and its `--mode=emit-registry` projects the current contract from that working bundle and the config's `build:` block (`manifest_generation.emit project`, called from R through `resources/generators/lib/emit_registry.R`). A directory rendered elsewhere can be emitted with `python3 -m manifest_generation.emit <id> --from <dir> --command ...`; anything a bundle does not hold is refused. No generator config names a `families/` path as output or work root; tracked inputs still under `families/` move with #252. The emitter:
+**Every generator emits through one emitter** (#248, ADR 0035). `src/manifest_generation/emit.py` is the only code that writes a candidate into `stores/<id>/`. A Python generator builds a `CandidateBundle` and calls `emit()`. A legacy R or BESD generator keeps a family-shaped working bundle in its work root, `<artifact-root>/<output.store_id>/generate` (`paths.generation_dir`, reported by `python3 -m manifest_generation.emit work-root <id>`), and its `--mode=emit-registry` projects the current contract from that working bundle and the config's `build:` block (`manifest_generation.emit project`, called from R through `resources/generators/lib/emit_registry.R`). A directory rendered elsewhere can be emitted with `python3 -m manifest_generation.emit <id> --from <dir> --command ...`; anything a bundle does not hold is refused. No generator config names a path outside the Store Registry as output or work root. The emitter:
 
 - writes every YAML document in one style, with `status: candidate` and `generator.commands`, and refuses a rendered status or command log that disagrees;
 - stages the bundle under `stores/.staging/<id>/`, checks it against the Release Bundle contract with lineage resolved in the real registry, and writes `summary.yaml`;

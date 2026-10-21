@@ -142,15 +142,15 @@ class ScanCoverageManifestsTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
-    def _manifest(self, family: str, release: str, rows: list[dict[str, str]]) -> Path:
-        path = self.base / "families" / family / "releases" / release / "analyses.tsv"
+    def _manifest(self, store_id: str, rows: list[dict[str, str]]) -> Path:
+        # A Release Bundle has one home: stores/<store-id>/ (#252).
+        path = self.base / "stores" / store_id / "analyses.tsv"
         write_table(path, ANALYSES_COLUMNS, rows)
         return path
 
     def test_totals_and_unmapped_counts_are_per_family(self) -> None:
         manifest_a = self._manifest(
-            "fam-a",
-            "rel-a",
+            "OGS-99001",
             [
                 {"analysis_id": "a1", "source_label": "Body mass index", "trait_ontology_mapping_method": "unmapped"},
                 {"analysis_id": "a2", "source_label": "body mass index", "trait_ontology_mapping_method": "unmapped"},
@@ -158,8 +158,7 @@ class ScanCoverageManifestsTest(unittest.TestCase):
             ],
         )
         manifest_b = self._manifest(
-            "fam-b",
-            "rel-b",
+            "OGS-99002",
             [
                 {"analysis_id": "b1", "source_label": "Body height", "trait_ontology_mapping_method": "unmapped"},
                 {"analysis_id": "b2", "source_label": "body height", "trait_ontology_mapping_method": "unmapped"},
@@ -169,43 +168,41 @@ class ScanCoverageManifestsTest(unittest.TestCase):
 
         stats = coverage.scan_coverage_manifests([manifest_a, manifest_b])
 
-        self.assertEqual(stats["fam-a"].total_analyses, 3)
-        self.assertEqual(stats["fam-a"].unmapped_before, 3)
-        self.assertEqual(stats["fam-a"].unmapped_label_counts[BMI_LABEL], 2)
-        self.assertEqual(stats["fam-a"].unmapped_label_counts[MYSTERY_LABEL], 1)
+        self.assertEqual(stats["OGS-99001"].total_analyses, 3)
+        self.assertEqual(stats["OGS-99001"].unmapped_before, 3)
+        self.assertEqual(stats["OGS-99001"].unmapped_label_counts[BMI_LABEL], 2)
+        self.assertEqual(stats["OGS-99001"].unmapped_label_counts[MYSTERY_LABEL], 1)
 
-        self.assertEqual(stats["fam-b"].total_analyses, 3)
+        self.assertEqual(stats["OGS-99002"].total_analyses, 3)
         # The source_provided row is counted in the denominator but not unmapped.
-        self.assertEqual(stats["fam-b"].unmapped_before, 2)
-        self.assertEqual(stats["fam-b"].unmapped_label_counts[HEIGHT_LABEL], 2)
+        self.assertEqual(stats["OGS-99002"].unmapped_before, 2)
+        self.assertEqual(stats["OGS-99002"].unmapped_label_counts[HEIGHT_LABEL], 2)
 
     def test_case_and_whitespace_variants_collapse(self) -> None:
         manifest = self._manifest(
-            "fam",
-            "rel",
+            "OGS-99004",
             [
                 {"analysis_id": "1", "source_label": "  Body mass index ", "trait_ontology_mapping_method": "unmapped"},
                 {"analysis_id": "2", "source_label": "body MASS index", "trait_ontology_mapping_method": "unmapped"},
             ],
         )
         stats = coverage.scan_coverage_manifests([manifest])
-        self.assertEqual(stats["fam"].unmapped_label_counts, {BMI_LABEL: 2})
+        self.assertEqual(stats["OGS-99004"].unmapped_label_counts, {BMI_LABEL: 2})
 
     def test_blank_unmapped_label_is_not_a_zero_count(self) -> None:
         manifest = self._manifest(
-            "fam",
-            "rel",
+            "OGS-99004",
             [
                 {"analysis_id": "1", "source_label": "", "trait_ontology_mapping_method": "unmapped"},
                 {"analysis_id": "2", "source_label": "x", "trait_ontology_mapping_method": "unmapped"},
             ],
         )
         stats = coverage.scan_coverage_manifests([manifest])
-        self.assertEqual(stats["fam"].total_analyses, 2)
-        self.assertEqual(stats["fam"].unmapped_label_counts, {"x": 1})
+        self.assertEqual(stats["OGS-99004"].total_analyses, 2)
+        self.assertEqual(stats["OGS-99004"].unmapped_label_counts, {"x": 1})
 
     def test_manifest_without_mapping_column_is_skipped(self) -> None:
-        path = self.base / "families" / "fam" / "releases" / "rel" / "analyses.tsv"
+        path = self.base / "stores" / "OGS-99004" / "analyses.tsv"
         write_table(path, ["analysis_id", "source_label"], [{"analysis_id": "1", "source_label": "x"}])
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
@@ -238,8 +235,8 @@ class ComputeCoverageTest(unittest.TestCase):
     def test_analyses_resolved_is_not_rows_added(self) -> None:
         """One promoted row can resolve many Analyses across several families."""
         stats = {
-            "fam-a": self._stats("fam-a", 100, {BMI_LABEL: 60, "other": 10}),
-            "fam-b": self._stats("fam-b", 50, {BMI_LABEL: 5}),
+            "OGS-99001": self._stats("OGS-99001", 100, {BMI_LABEL: 60, "other": 10}),
+            "OGS-99002": self._stats("OGS-99002", 50, {BMI_LABEL: 5}),
         }
         report = coverage.compute_coverage(stats, promoted_labels=[BMI_LABEL])
 
@@ -254,7 +251,7 @@ class ComputeCoverageTest(unittest.TestCase):
         self.assertAlmostEqual(report.unmapped_rate_before, 75 / 150)
         self.assertAlmostEqual(report.unmapped_rate_after, 10 / 150)
 
-        fam_a = report.family("fam-a")
+        fam_a = report.family("OGS-99001")
         assert fam_a is not None
         self.assertEqual(fam_a.unmapped_before, 70)
         self.assertEqual(fam_a.analyses_resolved, 60)
@@ -262,7 +259,7 @@ class ComputeCoverageTest(unittest.TestCase):
         self.assertAlmostEqual(fam_a.unmapped_rate_before, 0.70)
         self.assertAlmostEqual(fam_a.unmapped_rate_after, 0.10)
 
-        fam_b = report.family("fam-b")
+        fam_b = report.family("OGS-99002")
         assert fam_b is not None
         self.assertEqual(fam_b.unmapped_before, 5)
         self.assertEqual(fam_b.analyses_resolved, 5)
@@ -271,19 +268,19 @@ class ComputeCoverageTest(unittest.TestCase):
 
     def test_promoted_label_absent_from_a_family_resolves_nothing_there(self) -> None:
         stats = {
-            "fam-a": self._stats("fam-a", 10, {BMI_LABEL: 4}),
-            "fam-b": self._stats("fam-b", 10, {"other": 3}),
+            "OGS-99001": self._stats("OGS-99001", 10, {BMI_LABEL: 4}),
+            "OGS-99002": self._stats("OGS-99002", 10, {"other": 3}),
         }
         report = coverage.compute_coverage(stats, promoted_labels=[BMI_LABEL])
         self.assertEqual(report.rows_added, 1)
         self.assertEqual(report.analyses_resolved, 4)
-        fam_b = report.family("fam-b")
+        fam_b = report.family("OGS-99002")
         assert fam_b is not None
         self.assertEqual(fam_b.analyses_resolved, 0)
         self.assertEqual(fam_b.unmapped_after, 3)
 
     def test_duplicate_and_unnormalised_promoted_labels_count_once(self) -> None:
-        stats = {"fam": self._stats("fam", 10, {BMI_LABEL: 4})}
+        stats = {"OGS-99004": self._stats("OGS-99004", 10, {BMI_LABEL: 4})}
         report = coverage.compute_coverage(
             stats, promoted_labels=["Body Mass Index", BMI_LABEL, "  body mass index  "]
         )
@@ -427,8 +424,8 @@ class ChooserCostTest(unittest.TestCase):
 class RenderTest(unittest.TestCase):
     def _report(self) -> coverage.CoverageReport:
         stats = {
-            "fam-a": coverage.FamilyStats("fam-a", 10, {BMI_LABEL: 6}),
-            "fam-b": coverage.FamilyStats("fam-b", 10, {"other": 4}),
+            "OGS-99001": coverage.FamilyStats("OGS-99001", 10, {BMI_LABEL: 6}),
+            "OGS-99002": coverage.FamilyStats("OGS-99002", 10, {"other": 4}),
         }
         return coverage.compute_coverage(
             stats,
@@ -447,8 +444,8 @@ class RenderTest(unittest.TestCase):
             "Review queue size: 2",
             "No candidates retrieved: 1",
             "Total round cost: $0.5000",
-            "fam-a",
-            "fam-b",
+            "OGS-99001",
+            "OGS-99002",
         ):
             self.assertIn(expected, text)
 
@@ -473,8 +470,8 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(comments["cost_tracked"], "true")
         self.assertEqual(comments["total_cost_usd"], "0.500000")
         by_family = {row["store_family"]: row for row in rows}
-        self.assertEqual(by_family["fam-a"]["analyses_resolved"], "6")
-        self.assertEqual(by_family["fam-b"]["analyses_resolved"], "0")
+        self.assertEqual(by_family["OGS-99001"]["analyses_resolved"], "6")
+        self.assertEqual(by_family["OGS-99002"]["analyses_resolved"], "0")
 
     def test_untracked_cost_renders_as_not_tracked(self) -> None:
         report = coverage.compute_coverage({}, promoted_labels=[])
@@ -506,7 +503,7 @@ class CoverageCliTest(unittest.TestCase):
         return code, stdout.getvalue(), stderr.getvalue()
 
     def _fixtures(self) -> tuple[Path, Path, Path, Path, Path]:
-        manifest = self.base / "families" / "fam" / "releases" / "rel" / "analyses.tsv"
+        manifest = self.base / "stores" / "OGS-99004" / "analyses.tsv"
         write_table(
             manifest,
             ANALYSES_COLUMNS,
@@ -522,8 +519,8 @@ class CoverageCliTest(unittest.TestCase):
             work_queue,
             list(gap_scan.OUTPUT_COLUMNS),
             [
-                {"trait_label": "body mass index", "occurrence_count": "1", "store_families": "fam"},
-                {"trait_label": "mystery", "occurrence_count": "1", "store_families": "fam"},
+                {"trait_label": "body mass index", "occurrence_count": "1", "store_families": "OGS-99004"},
+                {"trait_label": "mystery", "occurrence_count": "1", "store_families": "OGS-99004"},
             ],
         )
         shortlists = self.base / "shortlists.tsv"
@@ -599,8 +596,7 @@ class CurationRoundTestCase(unittest.TestCase):
         self.base = Path(self.temp_dir.name)
 
         self.manifest_a = self._manifest(
-            "fam-a",
-            "rel-a",
+            "OGS-99001",
             [
                 {"analysis_id": "a1", "source_label": "Body mass index", "trait_ontology_mapping_method": "unmapped"},
                 {"analysis_id": "a2", "source_label": "body mass index", "trait_ontology_mapping_method": "unmapped"},
@@ -608,8 +604,7 @@ class CurationRoundTestCase(unittest.TestCase):
             ],
         )
         self.manifest_b = self._manifest(
-            "fam-b",
-            "rel-b",
+            "OGS-99002",
             [
                 {"analysis_id": "b1", "source_label": "Body mass index", "trait_ontology_mapping_method": "unmapped"},
                 {"analysis_id": "b2", "source_label": "Body height", "trait_ontology_mapping_method": "unmapped"},
@@ -652,8 +647,9 @@ class CurationRoundTestCase(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
-    def _manifest(self, family: str, release: str, rows: list[dict[str, str]]) -> Path:
-        path = self.base / "families" / family / "releases" / release / "analyses.tsv"
+    def _manifest(self, store_id: str, rows: list[dict[str, str]]) -> Path:
+        # A Release Bundle has one home: stores/<store-id>/ (#252).
+        path = self.base / "stores" / store_id / "analyses.tsv"
         write_table(path, ANALYSES_COLUMNS, rows)
         return path
 
@@ -692,7 +688,7 @@ class CurationRoundTest(CurationRoundTestCase):
         self.assertEqual(report.review_queue_size, 1)
         self.assertEqual(report.no_candidate_count, 1)
 
-        fam_a = report.family("fam-a")
+        fam_a = report.family("OGS-99001")
         assert fam_a is not None
         self.assertEqual(fam_a.total_analyses, 3)
         self.assertEqual(fam_a.unmapped_before, 3)
@@ -701,7 +697,7 @@ class CurationRoundTest(CurationRoundTestCase):
         self.assertAlmostEqual(fam_a.unmapped_rate_before, 1.0)
         self.assertAlmostEqual(fam_a.unmapped_rate_after, 1 / 3)
 
-        fam_b = report.family("fam-b")
+        fam_b = report.family("OGS-99002")
         assert fam_b is not None
         self.assertEqual(fam_b.analyses_resolved, 1)
         self.assertEqual(fam_b.unmapped_after, 2)
@@ -827,7 +823,7 @@ class StrictBoundariesTest(CurationRoundTestCase):
         stores = self.base / "stores" / "OGS-00001"
         stores.mkdir(parents=True)
         (stores / "analyses.tsv").write_text("analysis_id\ttrait\n", encoding="utf-8")
-        bundle = self.base / "families" / "fam-c" / "releases" / "rel-c"
+        bundle = self.base / "stores" / "OGS-99005"
         bundle.mkdir(parents=True)
         (bundle / "analyses.tsv").write_text("analysis_id\ttrait\n", encoding="utf-8")
         (bundle / "release.yaml").write_text("store_family_id: fam-c\n", encoding="utf-8")
@@ -853,7 +849,7 @@ class StrictBoundariesTest(CurationRoundTestCase):
                 f"unexpected modification outside the resource/work dirs: {path}",
             )
         self.assertIn("stores/OGS-00001/analyses.tsv", before)
-        self.assertIn("families/fam-c/releases/rel-c/analyses.tsv", before)
+        self.assertIn("stores/OGS-99005/analyses.tsv", before)
 
     def test_round_over_the_real_ukb_b_manifest_touches_nothing_real(self) -> None:
         """A no-match index leaves every real label unmapped, by design."""

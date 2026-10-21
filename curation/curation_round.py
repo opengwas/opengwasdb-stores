@@ -53,15 +53,14 @@ from curation.ontology import IndexFormatError, load_index
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[1]
 
-#: The committed ukb-b Dense observed VCF Release Manifest: the corpus this
-#: pipeline was built to curate.
+#: The committed ukb-b declared Selection, a Release Manifest-shaped table of the
+#: 2,514 Analyses this pipeline was built to curate. It lives with the Source
+#: Inventory it declares (#252).
 DEFAULT_UKB_B_MANIFEST: Path = (
     REPO_ROOT
-    / "families"
-    / "ukb-b"
-    / "releases"
-    / "dense-observed-vcf-c128"
-    / "analyses.tsv"
+    / "resources"
+    / "inventories"
+    / "ukb-b-restored-2026-10-11.declared-selection.tsv"
 )
 
 DEFAULT_RESOURCE_DIR: Path = promotion.DEFAULT_RESOURCE_DIR

@@ -163,7 +163,7 @@ _Avoid_: output directory, data root
 
 **Work Root**:
 Where Manifest Generation keeps its working files for one Store Release: for the shared pipeline, `<output.work_root>/<store-id>/` (its freeze and preflight reports, resolver manifest, log, the run's resolver index and resolution receipt, and the rendered bundle before it is emitted); for a legacy generator, `<artifact-root>/<store-id>/generate` (`paths.generation_dir`), where its working bundle lives and is emitted from. Resolution Records are not kept here but in the Resolution Area. Store Release Build never reads a Work Root.
-_Avoid_: release directory, families/ release dir
+_Avoid_: release directory, family bundle directory
 
 **Release Lineage**:
 The relationship between Store Releases, including observed-only releases, reference-completed releases, corrected releases, and other derived releases.

@@ -206,11 +206,11 @@ class TestScanManifest(unittest.TestCase):
             {"source_label": "Unmapped", "trait_ontology_id": "",
              "trait_ontology_label": "", "trait_ontology_mapping_method": "unmapped"},
         ]
-        manifest = make_bundle(self.td, "metabolome-plasma-2023", "releases", "rel", rows=rows)
+        manifest = make_bundle(self.td, "stores", "OGS-99005", rows=rows)
         entries = scan_manifest(manifest)
         self.assertEqual([entry.trait_label for entry in entries], ["Mapped by source"])
         self.assertEqual(entries[0].ontology_id, "EFO:1")
-        self.assertEqual(entries[0].store_families, ("metabolome-plasma-2023",))
+        self.assertEqual(entries[0].store_families, ("OGS-99005",))
 
     def test_source_provided_row_without_id_is_skipped(self) -> None:
         rows = [
@@ -219,7 +219,7 @@ class TestScanManifest(unittest.TestCase):
             {"source_label": "Has id", "trait_ontology_id": "EFO:1",
              "trait_ontology_label": "one", "trait_ontology_mapping_method": "source_provided"},
         ]
-        manifest = make_bundle(self.td, "family", "releases", "rel", rows=rows)
+        manifest = make_bundle(self.td, "stores", "OGS-99004", rows=rows)
         entries = scan_manifest(manifest)
         self.assertEqual([entry.trait_label for entry in entries], ["Has id"])
 
@@ -231,7 +231,7 @@ class TestScanManifest(unittest.TestCase):
             {"source_label": "Single", "trait_ontology_id": "http://www.ebi.ac.uk/efo/EFO_3",
              "trait_ontology_label": "c", "trait_ontology_mapping_method": "source_provided"},
         ]
-        manifest = make_bundle(self.td, "family", "releases", "rel", rows=rows)
+        manifest = make_bundle(self.td, "stores", "OGS-99004", rows=rows)
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
             entries = scan_manifest(manifest)
@@ -280,7 +280,7 @@ class TestHarvest(unittest.TestCase):
 
     def test_pairs_are_unique_and_families_union(self) -> None:
         m1 = make_bundle(
-            self.td, "metabolome-plasma-2023", "releases", "rel-1",
+            self.td, "stores", "OGS-99005",
             rows=[
                 {"source_label": "Carnitine levels", "trait_ontology_id": "EFO:0010469",
                  "trait_ontology_label": "carnitine measurement",
@@ -291,7 +291,7 @@ class TestHarvest(unittest.TestCase):
             ],
         )
         m2 = make_bundle(
-            self.td, "pqtl-interval-2018", "releases", "rel-2",
+            self.td, "stores", "OGS-99006",
             rows=[
                 {"source_label": "Carnitine levels", "trait_ontology_id": "EFO:0010469",
                  "trait_ontology_label": "carnitine measurement",
@@ -301,7 +301,7 @@ class TestHarvest(unittest.TestCase):
         entries = harvest_pairs([m1, m2])
         self.assertEqual(len(entries), 1)
         self.assertEqual(
-            entries[0].store_families, ("metabolome-plasma-2023", "pqtl-interval-2018")
+            entries[0].store_families, ("OGS-99005", "OGS-99006")
         )
 
     def test_same_label_different_id_is_two_pairs(self) -> None:
@@ -485,10 +485,8 @@ class TestCanonicalOntologyIds(unittest.TestCase):
             root = Path(tmp)
             bundle = make_bundle(
                 root,
-                "families",
-                "fam",
-                "releases",
-                "rel",
+                "stores",
+                "OGS-99004",
                 rows=[
                     {
                         "analysis_id": "1",

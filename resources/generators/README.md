@@ -64,7 +64,8 @@ one shared pipeline fed by per-source connector files.
    `--mode=emit-registry` projects the current contract from that and its
    config's `build:` block through `manifest_generation.emit project`
    (`lib/emit_registry.R`).
-   No generator config names a `families/` path as output or work root. The emitter writes `status: candidate` and the
+   No generator config names a path outside the Store Registry as its output or
+   work root. The emitter writes `status: candidate` and the
    generator commands, checks the bundle against the Release Bundle contract,
    writes its `summary.yaml`, and replaces `stores/<id>/` in one step. It
    replaces only an earlier candidate, refuses a bundle that has been accepted

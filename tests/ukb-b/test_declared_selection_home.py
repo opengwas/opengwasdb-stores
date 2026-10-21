@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """The ukb-b declared selection lives with Source Inventories (#252).
 
-`families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv` was never only an
-archived bundle: it is the declared Selection behind the restored UKB-B
-inventory (`ukb-b-restored-2026-10-11`), so a Source Inventory receipt pins its
-sha256, the provider metadata step compares against it, and two ukb-b generator
-configs read it. Retiring `families/` therefore moved the file, and only the
-file, into `resources/inventories/`.
+The ukb-b declared selection was never only an archived bundle: it is the
+declared Selection behind the restored UKB-B inventory
+(`ukb-b-restored-2026-10-11`), so a Source Inventory receipt pins its sha256,
+the provider metadata step compares against it, and two ukb-b generator configs
+read it. Retiring the family-first archive (#252) therefore moved the file, and
+only the file, into `resources/inventories/`.
 
 The frozen inventory's evidence is the content hash, not the path: this suite
 pins both. The bytes must still hash to the hash the receipt, the provenance

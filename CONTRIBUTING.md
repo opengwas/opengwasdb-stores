@@ -166,6 +166,12 @@ A bundle is immutable once accepted. A material change to membership or to the
 Build Recipe is a **new** Store Release (ADR 0004), not an edit. Correcting
 Analytical Metadata after publication is a Release Erratum.
 
+This is the *only* home for a Release Bundle. The family-first archive that
+once sat beside it held bundles in the pre-ADR-0022 schema and is gone (#252):
+each of its bundles was either registered here under its own `OGS-` id or
+retired, and git history keeps the retired ones. Nothing writes a bundle
+anywhere else.
+
 ### `workflow/`
 
 Phase A. `Snakefile` scans `stores/` and wires dependencies; nothing else.
@@ -276,13 +282,6 @@ one-off analyses.
 This is the one directory at risk of becoming a junk drawer. The test: if
 something here starts being run as a step in producing a Store Release, it
 belongs in `src/manifest_generation/` or `workflow/` instead.
-
-### `families/`
-
-Not part of the layout. What remains is the thirteen Release Bundles that have
-not yet migrated to `stores/`, awaiting triage -- each is either given a Store
-Release id or marked `superseded`/`withdrawn` and retired. The directory goes
-when it empties.
 
 ## Metadata and scripts
 

@@ -221,7 +221,7 @@ class RoundTestCase(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def manifest(self, family: str, rows: list[dict[str, str]]) -> Path:
-        path = self.base / "families" / family / "releases" / "rel" / "analyses.tsv"
+        path = self.base / "stores" / family / "analyses.tsv"
         write_table(path, ANALYSES_COLUMNS, rows)
         return path
 
