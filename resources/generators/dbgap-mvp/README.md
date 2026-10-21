@@ -43,6 +43,32 @@ require, a single super-population is a decision for #290's report, not
 something these configs may fake with a super-population code. `config-candidate.yaml`
 and `candidates.yaml` are the retired #221 generator's historical plan.
 
+## Regeneration against the committed bundles
+
+The comparison run of 2026-10-21 freezes and preflights the four Selections
+clean, but the pipeline cannot reproduce a committed membership yet. It
+excludes 799 rows the committed bundles include and adds none:
+
+| Store | committed | pipeline | exclusions |
+|---|---:|---:|---|
+| OGS-00012 | 1,669 | 1,470 | `sd_failed` 199 |
+| OGS-00013 | 1,368 | 1,187 | `sd_failed` 181 |
+| OGS-00014 | 1,053 | 727 | `ancestry_unassigned` 203, `sd_failed` 123 |
+| OGS-00015 | 241 | 148 | `sd_failed` 93 |
+
+Both reasons are shared-pipeline gaps, reported in #290's report, never
+something a config here may paper over:
+
+- `phenotype_sd` gives `sd_failed` for the resolver's `scale_already_declared`,
+  which is every quantitative Analysis whose scale the deposit declares (#300
+  owns the declared-scale rule);
+- `assigned_ancestry` excludes the 203 AMR rows the resolver measured
+  `margin`/`proportion`, and would exclude META's whole bucket.
+
+Resolving the same Selections also resumes nothing: the pipeline's resolver
+settings differ from the #221 run's in three fingerprint fields, so every
+record is re-resolved. #290's report gives the fields and the options.
+
 ## After #292 part 2
 
 When OpenGWASDB's Column Map reader lands (#292 part 2), MVP should declare a
