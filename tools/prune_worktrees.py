@@ -12,16 +12,20 @@ with the reason:
 * it is not the primary checkout, and not the worktree the command runs from;
 * it is not locked (`git worktree lock`);
 * its HEAD is merged into `origin/dev` or `origin/main`: an ancestor of one of
-  them, or `git cherry` shows no `+` commit (squash-merged);
+  them or, for a worktree on a branch (the branch survives removal), a branch
+  whose `git cherry` shows no `+` commit (squash-merged, one commit at a time).
+  A detached HEAD must be an ancestor: removing it drops its only ref;
 * `git status --porcelain` is empty: no tracked changes, no untracked files
   that are not ignored;
-* no running process uses it: a process's cwd, its executable, or any word of
-  its command line is under the worktree's path.
+* its directory exists;
+* no running process uses it: a process's cwd, its executable, an open file, or
+  a path under the worktree's own in any word of its command line (a relative
+  path is not recognised).
 
-Removal is `git worktree remove` (`--force` only once the worktree has just
-been re-checked as clean, so it can only discard ignored files), then `git
-worktree prune`. A branch is never deleted: removing a worktree discards a
-view, not commits.
+Removal is `git worktree remove` of each removable worktree, checked again just
+before it goes; if git refuses, the worktree is kept and the error reported.
+Nothing else is forgotten: there is no `git worktree prune`. A branch is never
+deleted: removing a worktree discards a view, not commits.
 
 Out of scope: an ignored file that cannot be regenerated (a scratch note in a
 `.gitignore`d directory, a local `.env`) is not detected, and goes with the
@@ -35,6 +39,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -57,7 +62,6 @@ class Worktree:
     branch: str = ""  # short name, "" when detached
     bare: bool = False
     locked: str | None = None  # the lock reason ("" when none was given)
-    prunable: bool = False  # its directory is gone
 
 
 @dataclass
@@ -102,8 +106,6 @@ def list_worktrees() -> list[Worktree]:
                 current.bare = True
             elif key == "locked":
                 current.locked = value
-            elif key == "prunable":
-                current.prunable = True
         if current is not None:
             worktrees.append(current)
     return worktrees
@@ -113,20 +115,15 @@ def _under(path: str, root: str) -> bool:
     return path == root or path.startswith(root.rstrip("/") + "/")
 
 
-def _mentions(word: str, root: str) -> bool:
-    """`word` holds `root` as a path: `/x/wt`, `/x/wt/a`, `--p=/x/wt/a`, not `/x/wt-2`."""
-    start = word.find(root)
-    while start != -1:
-        end = start + len(root)
-        if end == len(word) or not (word[end].isalnum() or word[end] in "_-."):
-            return True
-        start = word.find(root, start + 1)
-    return False
+def _mention(root: str) -> re.Pattern[str]:
+    """`root` in a string as a whole path: `/x/wt`, `/x/wt/a`, `--p=/x/wt/a`, `see /x/wt.`;
+    not `/x/wt-2` or `/x/wt.bak`."""
+    return re.compile(re.escape(root) + r"(?![A-Za-z0-9_-])(?!\.[A-Za-z0-9_-])")
 
 
 def scan_processes(roots: list[str]) -> dict[str, ProcessScan]:
-    """For each root, the processes using it: cwd, executable, or a word of the
-    command line under it.
+    """For each root, the processes using it: cwd, executable, an open file, or a
+    word of the command line that holds it.
 
     A process of ours whose command line cannot be read is listed in
     `uninspectable`, and the caller keeps every worktree ("can't tell" is never
@@ -134,12 +131,13 @@ def scan_processes(roots: list[str]) -> dict[str, ProcessScan]:
     users', and privilege-separated ones such as an `sshd` session, which show
     our uid) is checked by its command line alone and counted in
     `foreign_unreadable`: keeping everything for them would keep everything on
-    any shared host. So a worktree used only as the cwd or executable of such
-    a process is not detected. A process that exits mid-scan is gone, not
+    any shared host. So a worktree used only as the cwd, executable or open
+    file of such a process (`root`, `sudo` and other users') is not detected. A process that exits mid-scan is gone, not
     unreadable.
     """
     roots = list(dict.fromkeys(roots))
     scans = {root: ProcessScan() for root in roots}
+    mentions = {root: _mention(root) for root in roots}
     me = os.getuid()
     unreadable = 0
     try:
@@ -173,13 +171,27 @@ def scan_processes(roots: list[str]) -> dict[str, ProcessScan]:
                 pass  # a kernel thread, an exited process, or an executable that no longer exists
             except OSError:
                 hidden = True
+        try:
+            for fd in os.listdir(f"{base}/fd"):
+                try:
+                    paths.append(os.readlink(f"{base}/fd/{fd}").removesuffix(" (deleted)"))
+                except OSError:
+                    pass  # a closed fd, or a socket-like target that is no path
+        except FileNotFoundError:
+            pass
+        except OSError:
+            hidden = True
         if hidden:
             unreadable += 1
+        # A word may spell a worktree's path another way (a symlink): resolve it too.
+        resolved = [os.path.realpath(w) for w in words if w.startswith("/")]
         command = " ".join(words)[:90] or f"[{pid}]"
         for root in roots:
             hit = next((p for p in paths if _under(p, root)), None)
             if hit is None:
-                hit = next((w for w in words if _mentions(w, root)), None)
+                hit = next((w for w in words if mentions[root].search(w)), None)
+            if hit is None:
+                hit = next((r for r in resolved if _under(r, root)), None)
             if hit is not None:
                 scans[root].uses.append((pid, command, hit))
     for scan in scans.values():
@@ -187,9 +199,13 @@ def scan_processes(roots: list[str]) -> dict[str, ProcessScan]:
     return scans
 
 
-def unmerged_commits(head: str, cwd: str) -> int | None:
+def unmerged_commits(head: str, cwd: str, *, patches: bool) -> int | None:
     """None when `head` is merged into a target, else the fewest commits it has
-    that no target has (by patch, so a squash merge counts as merged)."""
+    that no target has. With `patches`, a commit whose patch a target has too
+    counts as merged (a squash merge): only for a worktree on a branch, whose
+    ref survives its removal. `git cherry` ignores whitespace and merge commits,
+    so a detached HEAD, which removal would leave with no ref, must be an
+    ancestor."""
     fewest: int | None = None
     present = 0
     for ref in MERGE_TARGETS:
@@ -198,10 +214,13 @@ def unmerged_commits(head: str, cwd: str) -> int | None:
         present += 1
         if git("merge-base", "--is-ancestor", head, ref, cwd=cwd, check=False).returncode == 0:
             return None
-        cherry = git("cherry", ref, head, cwd=cwd).stdout.splitlines()
-        ahead = sum(1 for line in cherry if line.startswith("+"))
-        if ahead == 0:
-            return None
+        if patches:
+            cherry = git("cherry", ref, head, cwd=cwd).stdout.splitlines()
+            ahead = sum(1 for line in cherry if line.startswith("+"))
+            if ahead == 0:
+                return None
+        else:
+            ahead = int(git("rev-list", "--count", head, "--not", ref, cwd=cwd).stdout)
         fewest = ahead if fewest is None else min(fewest, ahead)
     if not present:
         raise PruneError(f"neither {' nor '.join(MERGE_TARGETS)} exists; fetch origin first")
@@ -241,21 +260,11 @@ def human(size: int | None) -> str:
     raise AssertionError
 
 
-def classify(worktrees: list[Worktree], here: str, scans: dict[str, ProcessScan]) -> list[Verdict]:
-    verdicts = []
-    primary = os.path.realpath(worktrees[0].path) if worktrees and not worktrees[0].bare else None
-    for index, wt in enumerate(worktrees):
-        real = os.path.realpath(wt.path)
-        verdict = _classify_one(wt, index == 0, real, primary, here, scans)
-        verdicts.append(verdict)
-    return verdicts
-
-
-def _classify_one(wt: Worktree, is_first: bool, real: str, primary: str | None, here: str,
-                  scans: dict[str, ProcessScan]) -> Verdict:
+def classify(wt: Worktree, is_first: bool, primary: str | None, here: str, scan: ProcessScan) -> Verdict:
     def kept(reason: str) -> Verdict:
         return Verdict(wt, KEPT, reason)
 
+    real = os.path.realpath(wt.path)
     if wt.bare:
         return kept("bare repository")
     if is_first or real == primary:
@@ -264,13 +273,13 @@ def _classify_one(wt: Worktree, is_first: bool, real: str, primary: str | None, 
         return kept("the worktree this command runs from")
     if wt.locked is not None:
         return kept("locked" + (f": {wt.locked}" if wt.locked else ""))
+    if not os.path.isdir(wt.path):
+        return kept("directory missing (`git worktree prune` would forget it; this command never does)")
     if not wt.head:
         return kept("HEAD unknown")
-    ahead = unmerged_commits(wt.head, here)
+    ahead = unmerged_commits(wt.head, here, patches=bool(wt.branch))
     if ahead is not None:
         return kept(f"not merged: {ahead} commit{'s' if ahead != 1 else ''} not in {' or '.join(MERGE_TARGETS)}")
-    if wt.prunable or not os.path.isdir(wt.path):
-        return Verdict(wt, REMOVABLE, "merged; directory is gone, `git worktree prune` forgets it")
     status = git("status", "--porcelain", cwd=wt.path, check=False)
     if status.returncode != 0:
         return kept(f"cannot tell if dirty: {status.stderr.strip()}")
@@ -278,43 +287,33 @@ def _classify_one(wt: Worktree, is_first: bool, real: str, primary: str | None, 
         lines = status.stdout.splitlines()
         untracked = sum(1 for line in lines if line.startswith("??"))
         return kept(f"dirty: {len(lines) - untracked} changed, {untracked} untracked")
-    scan = scans[wt.path]
     if scan.uninspectable:
         pids = ", ".join(map(str, scan.uninspectable[:5]))
         return kept(f"cannot tell if in use: could not read the command line of your processes {pids}")
     if scan.uses:
-        shown = "; ".join(f"pid {pid} `{cmd}`" for pid, cmd, _ in scan.uses[:3])
+        shown = "; ".join(f"pid {pid} `{cmd}` uses {used}" for pid, cmd, used in scan.uses[:3])
         more = f" (+{len(scan.uses) - 3} more)" if len(scan.uses) > 3 else ""
         return kept(f"in use: {shown}{more}")
     return Verdict(wt, REMOVABLE, "merged, clean, unlocked, unused")
 
 
-def survey(here: str) -> tuple[list[Verdict], int]:
+def survey(here: str, only: str | None = None) -> tuple[list[Verdict], int]:
+    """A verdict for every worktree, or for the one at `only`, and the number of
+    processes whose cwd and executable could not be read."""
     worktrees = list_worktrees()
-    scans = scan_processes([wt.path for wt in worktrees] + [os.path.realpath(wt.path) for wt in worktrees])
-    # A process may name either spelling of a path: merge the two scans.
-    merged: dict[str, ProcessScan] = {}
-    for wt in worktrees:
-        a, b = scans[wt.path], scans[os.path.realpath(wt.path)]
-        seen = {u[0] for u in a.uses}
-        merged[wt.path] = ProcessScan(
-            uses=a.uses + [u for u in b.uses if u[0] not in seen],
-            uninspectable=a.uninspectable,
-            foreign_unreadable=a.foreign_unreadable,
-        )
+    primary = os.path.realpath(worktrees[0].path) if worktrees and not worktrees[0].bare else None
+    chosen = [(i, wt) for i, wt in enumerate(worktrees) if only is None or wt.path == only]
+    # /proc reports real paths, and a word spelled through a symlink is resolved too.
+    scans = scan_processes([os.path.realpath(wt.path) for _, wt in chosen])
+    verdicts = [classify(wt, index == 0, primary, here, scans[os.path.realpath(wt.path)]) for index, wt in chosen]
     foreign = next(iter(scans.values())).foreign_unreadable if scans else 0
-    return classify(worktrees, here, merged), foreign
+    return verdicts, foreign
 
 
 def remove(wt: Worktree) -> None:
-    if wt.prunable or not os.path.isdir(wt.path):
-        return  # `git worktree prune` does it
-    if git("worktree", "remove", wt.path, check=False).returncode == 0:
-        return
-    # Status was clean: what is left is ignored content, or a submodule.
-    if git("status", "--porcelain", cwd=wt.path).stdout.strip():
-        raise PruneError(f"{wt.path} became dirty; kept")
-    git("worktree", "remove", "--force", wt.path)
+    """Plain `git worktree remove`: git refuses a worktree with tracked changes or
+    untracked files, and a refusal keeps the worktree (no `--force`)."""
+    git("worktree", "remove", wt.path)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -351,26 +350,21 @@ def main(argv: list[str] | None = None) -> int:
 
     errors = 0
     if args.apply:
-        # Re-check just before removing: a process may have started since the survey.
-        fresh = {v.worktree.path: v for v in survey(here)[0]}
         for v in verdicts:
             if v.verdict != REMOVABLE:
                 continue
-            now = fresh.get(v.worktree.path)
-            if now is None or now.verdict != REMOVABLE:
-                print(f"kept   {v.worktree.path}: changed since the survey: {now.reason if now else 'gone'}")
+            # Check this worktree again, whole, just before removing it: a process may
+            # have started, or a file changed, since the survey (removals take a while).
+            now = survey(here, only=v.worktree.path)[0]
+            if not now or now[0].verdict != REMOVABLE:
+                print(f"kept    {v.worktree.path}: changed since the survey: {now[0].reason if now else 'gone'}")
                 continue
             try:
                 remove(v.worktree)
                 print(f"removed {v.worktree.path}")
             except PruneError as exc:
                 errors += 1
-                print(f"error: {exc}", file=sys.stderr)
-        try:
-            git("worktree", "prune")
-        except PruneError as exc:
-            errors += 1
-            print(f"error: {exc}", file=sys.stderr)
+                print(f"error: {exc}; {v.worktree.path} kept", file=sys.stderr)
     else:
         print("dry run: nothing removed; --apply removes the removable ones (branches are never deleted)")
     return 1 if errors else 0

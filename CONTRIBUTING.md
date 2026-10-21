@@ -106,20 +106,41 @@ pixi run -e dev worktree-prune --apply     # remove the removable ones
 ```
 
 It fetches `origin` first (`--no-fetch` skips that) and removes a worktree only
-if it is not the primary checkout or the one you run it from, is not locked, has
-HEAD merged into `origin/dev` or `origin/main` (an ancestor, or squash-merged:
-`git cherry` shows nothing left), has no tracked changes and no untracked files,
-and has no running process using it: a cwd, an executable, or a command-line
-word under its path. Everything else is kept, with the reason. It never deletes
-a branch, and it exits non-zero only on errors, not because something was kept.
+if it is not the primary checkout or the one you run it from, is not locked,
+still has its directory, has HEAD merged into `origin/dev` or `origin/main`,
+has no tracked changes and no untracked files, and has no running process using
+it: a cwd, an **executable**, an open file, or a path under it in any word of a
+command line (`bash -c '... > /x/wt/log'` counts; a relative path does not).
+Everything else is kept, with the reason and the matched path. Each worktree is
+checked again just before it is removed, with plain `git worktree remove`; if
+git refuses, it is kept and the error reported. It never deletes a branch, never
+runs `git worktree prune` (a worktree whose directory is missing is kept, so its
+commits are never orphaned), and exits non-zero only on errors, not because
+something was kept.
 
-Two limits. The process scan reads `/proc`. A process whose cwd and executable
-it cannot read (another user's, or a privilege-separated one such as an `sshd`
-session) is checked by its command line only, so a worktree that only such a
-process has as its cwd is not noticed; a process of yours whose command line it
-cannot read keeps every worktree. And an **ignored** file that cannot be
-regenerated (a scratch note in a `.gitignore`d directory, a local `.env`) is not
-detected: it goes with the worktree. Move such files out first.
+What "merged" means. A worktree on a branch counts as merged if its HEAD is an
+ancestor of `origin/dev` or `origin/main`, or `git cherry` finds every commit's
+patch already there, which recognises a single-commit squash merge. A
+multi-commit squash shows as not merged, which errs toward keeping it. A
+detached HEAD must be an ancestor, because `git cherry` ignores whitespace and
+merge commits and removing the worktree would drop the only ref to its commits.
+
+Limits to know:
+
+- The process scan reads `/proc`. A process whose cwd and executable it cannot
+  read (`root`, `sudo`, other users', or a privilege-separated one such as an
+  `sshd` session) is checked by its command line only, so a worktree that only
+  such a process has as its cwd or executable is not noticed. A process of
+  yours whose command line it cannot read keeps every worktree.
+- An **ignored** file that cannot be regenerated (a scratch note in a
+  `.gitignore`d directory, a local `.env`) is not detected: it goes with the
+  worktree. Move such files out first.
+- A worktree that is queued but idle, or a build checkout whose path a release
+  receipt or record names, looks "merged, clean, unused". Lock it, with `git
+  worktree add --lock` or `git worktree lock <path>`, and the command keeps it.
+- `--sizes` counts each file's blocks, so on a reflinking filesystem it
+  overstates what removal frees: shared blocks stay while another environment
+  or the cache holds them.
 
 The commands it runs are these, by hand:
 

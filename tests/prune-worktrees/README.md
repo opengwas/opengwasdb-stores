@@ -13,3 +13,11 @@ It also asserts that a dry run changes nothing; that `--apply` removes exactly
 the removable worktrees, keeps what it kept untouched and deletes no branch;
 that `--no-fetch` judges by the local `origin/*` refs and the default fetches;
 and that only errors exit non-zero.
+
+Guards, each with a test that fails without it: a detached HEAD must be an
+ancestor (a whitespace-only difference and a merge commit both fool `git
+cherry`); a missing directory is kept and never forgotten, and nothing runs
+`git worktree prune`; a process that cannot be inspected keeps every worktree;
+each worktree is checked again just before its removal; a refused removal is
+reported, never forced; `/x/wt-2` is not `/x/wt`; open files, a path ending a
+sentence inside a command string, and a symlink spelling are uses.

@@ -10,12 +10,16 @@ with its cwd in a worktree and one with the worktree's path in its argv.
 
 from __future__ import annotations
 
+import contextlib
+import importlib.util
+import io
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -29,7 +33,12 @@ GIT_ENV = {
 }
 
 REMOVABLE_NAMES = ["merged", "squashed", "decoy"]
-KEPT_NAMES = ["unmerged", "dirty-tracked", "dirty-untracked", "locked", "in-use-cwd", "in-use-argv"]
+KEPT_NAMES = [
+    "unmerged", "dirty-tracked", "dirty-untracked", "locked", "in-use-cwd", "in-use-argv", "in-use-fd",
+    "in-use-string", "in-use-link",
+]
+# Detached worktrees: their HEAD is the only ref to what they hold.
+DETACHED_NAMES = ["detached-whitespace", "detached-merge", "detached-missing"]
 
 
 def git(cwd: Path, *args: str) -> str:
@@ -92,16 +101,67 @@ class PruneWorktreesTestCase(unittest.TestCase):
         git(self.primary, "worktree", "lock", "--reason", "on a USB stick", str(self.trees / "locked"))
         self.add_worktree("in-use-cwd")
         self.add_worktree("in-use-argv")
+        self.add_worktree("in-use-fd")
+        self.add_worktree("in-use-string")
+        self.add_worktree("in-use-link")
         self.add_worktree("here")  # the worktree the command runs from
+        self.add_detached_worktrees()
 
         self.cwd_proc = self.start(["sleep", "60"], cwd=self.trees / "in-use-cwd")
         self.argv_proc = self.start(
             ["sh", "-c", "sleep 60; :", "sh", str(self.trees / "in-use-argv" / "pixi.toml")], cwd=self.root)
+        self.ignore(self.trees / "in-use-fd", "log")
+        (self.trees / "in-use-fd" / "log").write_text("")
+        with open(self.trees / "in-use-fd" / "log") as log:  # inherited: the path is in no argument
+            self.fd_proc = subprocess.Popen(["sleep", "60"], cwd=self.root, stdin=log)
+        self.procs.append(self.fd_proc)
+        self.string_proc = self.start(
+            ["sh", "-c", f"sleep 60; : see {self.trees / 'in-use-string'}."], cwd=self.root)
+        (self.root / "link").symlink_to(self.trees)  # another spelling of the same directory
+        self.link_proc = self.start(
+            ["sh", "-c", "sleep 60; :", "sh", str(self.root / "link" / "in-use-link" / "pixi.toml")], cwd=self.root)
+        # A directory whose name merely starts with a worktree's: not a use of "decoy".
+        (self.trees / "decoy-cwd").mkdir()
+        self.start(["sleep", "60"], cwd=self.trees / "decoy-cwd")
         # Mentions a sibling whose name merely starts with "decoy": not a use of "decoy".
         self.start(["sh", "-c", "sleep 60; :", "sh", str(self.trees / "decoy-other" / "x")], cwd=self.root)
 
     def add_worktree(self, name: str) -> None:
         git(self.primary, "worktree", "add", "-q", "-b", f"branch/{name}", str(self.trees / name), "origin/dev")
+
+    def add_detached_worktrees(self) -> None:
+        """Detached HEADs that `git cherry` would call merged, though removing the
+        worktree would leave their commits with no ref."""
+        seed = self.seed
+        git(self.primary, "worktree", "add", "-q", "--detach", str(self.trees / "detached-whitespace"), "origin/dev")
+        commit_file(self.trees / "detached-whitespace", "ws.txt", "a  b\n")
+        git(seed, "pull", "-q", "origin", "dev")
+        commit_file(seed, "ws.txt", "a b\n")  # the same patch, bar whitespace
+        git(seed, "push", "-q", "origin", "dev")
+
+        # HEAD is a merge of two commits dev also has, as other commits with the same patches;
+        # the merge itself adds a file. Cherry skips merges, so it finds nothing left.
+        merge = self.trees / "detached-merge"
+        git(self.primary, "worktree", "add", "-q", "--detach", str(merge), "origin/dev")
+        base = git(merge, "rev-parse", "HEAD")
+        commit_file(merge, "a.txt", "a\n")
+        first = git(merge, "rev-parse", "HEAD")
+        git(merge, "checkout", "-q", "--detach", base)
+        commit_file(merge, "b.txt", "b\n")
+        git(merge, "merge", "-q", "--no-ff", "--no-commit", first)
+        (merge / "only-in-the-merge.txt").write_text("evil merge\n")
+        git(merge, "add", "only-in-the-merge.txt")
+        git(merge, "commit", "-q", "-m", "merge with its own content")
+        git(seed, "pull", "-q", "origin", "dev")
+        commit_file(seed, "a.txt", "a\n")
+        commit_file(seed, "b.txt", "b\n")
+        git(seed, "push", "-q", "origin", "dev")
+
+        missing = self.trees / "detached-missing"
+        git(self.primary, "worktree", "add", "-q", "--detach", str(missing), "origin/dev")
+        commit_file(missing, "gone.txt", "gone\n")
+        shutil.rmtree(missing)
+        git(self.primary, "fetch", "-q", "origin")
 
     def ignore(self, worktree: Path, pattern: str) -> None:
         exclude = Path(git(worktree, "rev-parse", "--git-path", "info/exclude"))
@@ -215,12 +275,139 @@ class PruneWorktreesTestCase(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertFalse(wt.exists())
 
-    def test_a_worktree_whose_directory_is_gone_is_forgotten(self) -> None:
-        shutil.rmtree(self.trees / "merged")
+    def line(self, proc: subprocess.CompletedProcess, name: str) -> str:
+        prefix = f"{self.trees / name}  "
+        return next(l for l in proc.stdout.splitlines() if l.startswith(prefix))
+
+    def check_detached_is_kept(self, name: str) -> None:
+        # `git cherry` ignores whitespace and skips merge commits, so both fixtures look
+        # merged; removing either would leave its commits with no ref.
+        line = self.line(self.run_tool(), name)
+        self.assertIn("KEPT", line)
+        self.assertIn("not merged", line)
+        self.run_tool("--apply")
+        self.assertTrue((self.trees / name).is_dir(), name)
+        self.assertIn(str(self.trees / name), git(self.primary, "worktree", "list", "--porcelain"))
+
+    def test_a_detached_head_differing_from_dev_only_in_whitespace_is_kept(self) -> None:
+        self.check_detached_is_kept("detached-whitespace")
+
+    def test_a_detached_head_whose_content_is_in_a_merge_commit_is_kept(self) -> None:
+        self.check_detached_is_kept("detached-merge")
+
+    def test_a_missing_directory_is_kept_and_never_forgotten(self) -> None:
+        self.assertFalse((self.trees / "detached-missing").exists())
+        line = self.line(self.run_tool(), "detached-missing")
+        self.assertIn("KEPT", line)
+        self.assertIn("directory missing", line)
         proc = self.run_tool("--apply")
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertNotIn(str(self.trees / "merged"), git(self.primary, "worktree", "list", "--porcelain"))
-        self.assertIn("branch/merged", git(self.primary, "branch", "--list", "--format=%(refname:short)"))
+        self.assertIn(str(self.trees / "detached-missing"), git(self.primary, "worktree", "list", "--porcelain"))
+
+    def test_apply_forgets_nothing_it_did_not_remove(self) -> None:
+        proc = self.run_tool("--apply")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        listed = git(self.primary, "worktree", "list", "--porcelain")
+        for name in [*KEPT_NAMES, *DETACHED_NAMES, "here"]:
+            self.assertIn(str(self.trees / name), listed, name)
+
+    def test_an_open_file_in_the_worktree_is_a_use(self) -> None:
+        reason = self.verdicts(self.run_tool())["in-use-fd"][1]
+        self.assertIn(f"pid {self.fd_proc.pid}", reason)
+        self.assertIn(str(self.trees / "in-use-fd" / "log"), reason)
+
+    def test_a_path_inside_a_command_string_is_a_use(self) -> None:
+        # "... see /x/in-use-string." : the path ends a sentence.
+        reason = self.verdicts(self.run_tool())["in-use-string"][1]
+        self.assertIn(f"pid {self.string_proc.pid}", reason)
+
+    def test_another_spelling_of_the_path_is_a_use(self) -> None:
+        reason = self.verdicts(self.run_tool())["in-use-link"][1]
+        self.assertIn(f"pid {self.link_proc.pid}", reason)
+
+    def test_the_matched_path_is_printed(self) -> None:
+        reason = self.verdicts(self.run_tool())["in-use-argv"][1]
+        self.assertIn(str(self.trees / "in-use-argv" / "pixi.toml"), reason)
+
+    def test_a_directory_sharing_a_prefix_is_not_the_worktree(self) -> None:
+        # decoy-cwd (a process's cwd) and decoy-other (in an argument) both start with "decoy".
+        self.assertIn("REMOVABLE", self.line(self.run_tool(), "decoy"))
+
+    def in_process(self, *args: str) -> tuple[object, tuple]:
+        spec = importlib.util.spec_from_file_location("prune_worktrees_under_test", TOOL)
+        tool = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = tool  # dataclasses look their module up here
+        self.addCleanup(sys.modules.pop, spec.name, None)
+        spec.loader.exec_module(tool)
+        return tool, args
+
+    def run_in_process(self, tool, args, **patches) -> tuple[int, str]:
+        out = io.StringIO()
+        old = os.getcwd()
+        os.chdir(self.trees / "here")
+        try:
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                code = tool.main(list(args))
+        finally:
+            os.chdir(old)
+        return code, out.getvalue()
+
+    def test_each_worktree_is_checked_again_just_before_it_is_removed(self) -> None:
+        tool, _ = self.in_process()
+        real_remove = tool.remove
+        removed: list[str] = []
+
+        def remove_then_start_a_process_in_squashed(wt) -> None:
+            real_remove(wt)
+            removed.append(wt.path)
+            if len(removed) == 1:  # a process starts in "squashed" while the first is being removed
+                self.start(["sleep", "60"], cwd=self.trees / "squashed")
+
+        with mock.patch.object(tool, "remove", remove_then_start_a_process_in_squashed):
+            code, out = self.run_in_process(tool, ["--no-fetch", "--apply"])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(sorted(removed), sorted(str(self.trees / n) for n in ("merged", "decoy")))
+        self.assertTrue((self.trees / "squashed").is_dir())
+        self.assertIn("changed since", out)
+
+    def test_a_process_it_cannot_inspect_keeps_every_worktree(self) -> None:
+        tool, _ = self.in_process()
+        real_open = open
+        hidden = f"/proc/{self.cwd_proc.pid}/cmdline"
+
+        def open_hiding_one_command_line(path, *a, **kw):
+            if str(path) == hidden:
+                raise PermissionError(13, "hidden", hidden)
+            return real_open(path, *a, **kw)
+
+        with mock.patch("builtins.open", open_hiding_one_command_line):
+            code, out = self.run_in_process(tool, ["--no-fetch", "--apply"])
+        self.assertEqual(code, 0, out)
+        for name in REMOVABLE_NAMES:
+            self.assertTrue((self.trees / name).is_dir(), f"{name} must be kept: it cannot be told apart from in use")
+        self.assertIn("cannot tell", out)
+        self.assertIn(f"{self.cwd_proc.pid}", out)
+
+    def test_a_refused_removal_is_reported_and_never_forced(self) -> None:
+        tool, _ = self.in_process()
+        real_git = tool.git
+        calls: list[tuple] = []
+
+        def git_refusing_removal(*args, cwd=None, check=True):
+            if args[:2] == ("worktree", "remove"):
+                calls.append(args)
+                if check:
+                    raise tool.PruneError("refused")
+                return subprocess.CompletedProcess(args, 1, "", "refused")
+            return real_git(*args, cwd=cwd, check=check)
+
+        with mock.patch.object(tool, "git", git_refusing_removal):
+            code, out = self.run_in_process(tool, ["--no-fetch", "--apply"])
+        self.assertEqual(code, 1)
+        self.assertTrue(calls)
+        self.assertFalse(any("--force" in c for c in calls), calls)
+        for name in REMOVABLE_NAMES:
+            self.assertTrue((self.trees / name).is_dir(), name)
 
     def test_fetch_is_the_default_and_no_fetch_skips_it(self) -> None:
         self.add_worktree("ahead")
