@@ -16,8 +16,10 @@ could not download stays an explained absence. A cis policy needs every
 Analysis's target span, from the Source Metadata Table.
 
 Re-running resumes, but only a run that is this one: before anything is
-skipped, filtered or deleted, every Analysis the output manifest already
-records must still be a ready original of this run, filtered from that
+skipped, filtered or deleted, the plan and summary beside the manifest must
+be the ones the run record binds (both present, both checksums matching), and
+every Analysis the output manifest already records must still be a ready
+original of this run, filtered from that
 original (its location and sha256), to this run's region policy, QC panel
 and target, into a filtered file that is still there with its recorded size
 and sha256. Any difference refuses the run, naming each Analysis, and deletes
@@ -184,15 +186,23 @@ def acquire_region_filtered(
     regions: dict[str, list[dict[str, str]]] = {}
     if manifest_path.is_file():
         recorded = load_acquisition_manifest(manifest_path)
-        for row in _read_tsv(filter_summary_path(manifest_path)):
-            summaries[row["analysis_id"]] = row
-        for row in _read_tsv(sparse_regions_path(manifest_path)):
-            regions.setdefault(row["analysis_id"], []).append(row)
         resumed = {
             entry.source_analysis_id: dict(row)
             for entry, row in zip(recorded.entries, recorded.rows)
             if entry.lineage is not None
         }
+        # The plan and summary a recorded row was written with must be the
+        # ones its run record bound, before anything reads them.
+        problems = _evidence_problems(manifest_path) if resumed else []
+        if problems:
+            raise RegionFilteredAcquisitionError(
+                f"cannot resume the acquisition of {', '.join(resumed)} recorded in {manifest_path}; "
+                "nothing was deleted:\n  - " + "\n  - ".join(problems)
+            )
+        for row in _read_tsv(filter_summary_path(manifest_path)):
+            summaries[row["analysis_id"]] = row
+        for row in _read_tsv(sparse_regions_path(manifest_path)):
+            regions.setdefault(row["analysis_id"], []).append(row)
         by_id = {entry.source_analysis_id: entry for entry in ready}
         problems = [
             f"{analysis_id}: {problem}"
@@ -232,8 +242,10 @@ def acquire_region_filtered(
         regions[analysis_id] = _region_rows(
             analysis_id, summary, policy, targets.get(analysis_id), builds.get(analysis_id, "")
         )
-        # The plan and counts first: a recorded row always has them.
+        # The plan and counts, and the run record that binds them, first: a
+        # recorded row is always covered by a run record its evidence matches.
         evidence = _write_evidence(manifest_path, order, summaries, regions)
+        _write_run_record(manifest_path, originals, tool, policy, qc_panel, evidence)
         rows[entry.source_analysis_id] = {
             **_carried(entry),
             "status": "ok",
@@ -250,7 +262,6 @@ def acquire_region_filtered(
             ),
         }
         _write_durably(manifest_path, [rows[analysis_id] for analysis_id in order if analysis_id in rows])
-        _write_run_record(manifest_path, originals, tool, policy, qc_panel, evidence)
         # Recorded and synced: only now may the original go.
         Path(entry.location).unlink()
 
@@ -374,6 +385,28 @@ def _carried(entry: AcquisitionEntry) -> dict[str, str]:
     }
 
 
+def _evidence_problems(manifest_path: Path) -> list[str]:
+    """Why the plan and summary beside ``manifest_path`` are not the ones its run record binds."""
+    run = pass_lineage_path(manifest_path)
+    if not run.is_file():
+        return [f"its run record {run} is missing"]
+    evidence = (yaml.safe_load(run.read_text(encoding="utf-8")) or {}).get("evidence") or {}
+    problems = []
+    for name, path in (("filter_summary", filter_summary_path(manifest_path)),
+                       ("sparse_regions", sparse_regions_path(manifest_path))):
+        bound = evidence.get(name)
+        if bound is None:
+            problems.append(f"its run record {run} binds no {name}")
+        elif not path.is_file():
+            problems.append(f"{path.name}, which its run record binds, is missing")
+        elif sha256_file(path) != bound.get("sha256"):
+            problems.append(
+                f"{path.name} has sha256 {sha256_file(path)}, not the {bound.get('sha256')} its run "
+                f"record {run} binds"
+            )
+    return problems
+
+
 def _resume_problems(
     entry: AcquisitionEntry | None, row: Mapping[str, str], expected_policy: Mapping[str, Any]
 ) -> list[str]:
@@ -443,6 +476,7 @@ def _write_run_record(
         pass_lineage_path(manifest_path),
         yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100),
     )
+    _sync(pass_lineage_path(manifest_path))
 
 
 def target_spans(config: ReleaseConfig) -> dict[str, TargetSpan]:

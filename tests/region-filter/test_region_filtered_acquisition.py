@@ -190,13 +190,17 @@ class RegionFilteredAcquisitionTest(unittest.TestCase):
         self.original.write_bytes(self.original_bytes)
 
     def assertResumeRefused(self, *fragments: str, **changed) -> None:
+        """The resume refuses, naming GCST1 and ``fragments``, and changes and deletes nothing."""
         recorded = self.manifest.read_bytes()
+        evidence = {path: path.read_bytes() for path in (filter_summary_path(self.manifest),
+                                                         sparse_regions_path(self.manifest)) if path.is_file()}
         with self.assertRaises(RegionFilteredAcquisitionError) as caught:
             self.acquire(**changed)
         for fragment in ("GCST1",) + fragments:
             self.assertIn(fragment, str(caught.exception))
         self.assertEqual(sha256_file(self.original), self.original_sha256)
         self.assertEqual(self.manifest.read_bytes(), recorded)
+        self.assertEqual({path: path.read_bytes() for path in evidence if path.is_file()}, evidence)
 
     def test_a_resume_whose_filtered_file_is_gone_is_refused_and_keeps_the_original(self) -> None:
         self.interrupted_after_recording()
@@ -210,6 +214,26 @@ class RegionFilteredAcquisitionTest(unittest.TestCase):
     def test_a_resume_with_another_qc_panel_is_refused_and_keeps_the_original(self) -> None:
         self.interrupted_after_recording()
         self.assertResumeRefused("qc_panel", panel=replace(PANEL, sha256="d" * 64))
+
+    def test_a_resume_whose_plan_is_gone_is_refused_and_keeps_the_original(self) -> None:
+        self.interrupted_after_recording()
+        sparse_regions_path(self.manifest).unlink()
+        self.assertResumeRefused(sparse_regions_path(self.manifest).name)
+
+    def test_a_resume_whose_plan_was_edited_is_refused_and_keeps_the_original(self) -> None:
+        self.interrupted_after_recording()
+        plan = sparse_regions_path(self.manifest)
+        plan.write_text(plan.read_text(encoding="utf-8").replace("qc_panel\t1\t15903", "qc_panel\t1\t15904"))
+        self.assertResumeRefused(plan.name, "sha256")
+
+    def test_a_resume_whose_summary_was_edited_is_refused_and_keeps_the_original(self) -> None:
+        self.interrupted_after_recording()
+        summary = filter_summary_path(self.manifest)
+        lines = summary.read_text(encoding="utf-8").splitlines(True)
+        fields = lines[1].split("\t")
+        fields[5] = "999"  # input_rows
+        summary.write_text(lines[0] + "\t".join(fields), encoding="utf-8")
+        self.assertResumeRefused(summary.name, "sha256")
 
     def test_a_resume_finishes_an_interrupted_deletion(self) -> None:
         self.interrupted_after_recording()

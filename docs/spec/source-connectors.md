@@ -191,8 +191,10 @@ records the filtered file's location, size and sha256 with its lineage
 syncs the manifest. Only then does it delete the original: a failure to record
 leaves the original in place. An Analysis the originals' manifest records as
 unavailable stays an explained absence. A re-run resumes only a run that is
-this one: before anything is skipped, filtered or deleted, every Analysis the
-output manifest records must still be a ready original of this run, filtered
+this one: before anything is skipped, filtered or deleted, the plan and the
+summary beside the manifest (below) must both be present with the sha256s its
+run record binds, and every Analysis the output manifest records must still
+be a ready original of this run, filtered
 from that original (location and sha256), to this run's region policy, QC
 panel and target, into a filtered file that still has its recorded size and
 sha256. Any difference refuses the run, naming each Analysis, and deletes
@@ -211,7 +213,8 @@ position or p-value is dropped. Kept rows are the source's own lines, with its
 header: the filter selects and never reformats.
 
 Before a filtered file's row is recorded, its plan and counts go beside the
-manifest, as the R filter recorded them:
+manifest, as the R filter recorded them, and the run record is rewritten to
+bind them:
 
 - `<manifest-stem>.sparse-regions.tsv`, one row per region kept, in R's
   columns (`analysis_id`, `region_id` = `<id>__<cis|sig_trans|suggestive|qc_panel>__<nnn>`,
