@@ -12,9 +12,23 @@ measurements and the validate verdict into `validation.yaml`. Git records both,
 so only facts that change without a commit stay out.
 
 The `build_command` column is derived by `plan()`, so the published command
-is derived rather than maintained. `store_uri` is likewise derived: it is the
+is derived rather than maintained. It is the build phase's first step, so a
+single-id release names the command that builds its Store rather than the one
+that then completes it (ADR 0037). `store_uri` is likewise derived: it is the
 pure function of the identifier `<artifact-root>/<store-id>/store.opengwasdb`
 (ADR 0022), with no migration-note fallback (ADR 0030).
+
+The `completion_state` column reports the completion state of the Store users
+can query, not the bundle's declaration (#307). `register` records it as
+`observed.completion_state` in the Validation Record of each publication, so a
+single-id release reads `observed_only` while completion runs and
+`reference_completed` after the swap. A record written before that field
+carries none, and the row keeps the declared value, which for an
+Observed-Only Store and for a two-id child is the state the record's Store was
+published in. When a row's published state is `observed_only` while its bundle
+declares `reference_completed`, `STORES.md` marks the cell
+`observed_only (completion pending)`; `stores.tsv` keeps the bare state so a
+machine reader still sees a documented value.
 
 See docs/spec/store-release-workflow.md and ADRs 0022, 0023, 0028, 0030.
 """
@@ -31,7 +45,7 @@ import yaml
 
 from ogstores import bundle, paths
 from ogstores.bundle import Bundle
-from ogstores.plan import plan
+from ogstores.plan import BUILD_PHASE, plan
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
@@ -77,7 +91,7 @@ def render_stores_row(
     store_id = bundle_obj.store_id
     label = bundle_obj.label or ""
     layout = bundle_obj.layout or ""
-    completion_state = bundle_obj.completion_state or ""
+    declared_completion_state = bundle_obj.completion_state or ""
     status = bundle_obj.status or ""
     derived_from = bundle_obj.derived_from or ""
     membership_summary = bundle.summarise(bundle_obj)
@@ -116,11 +130,14 @@ def render_stores_row(
     else:
         generator_command = ""
 
-    # build_command derived purely from plan(). The `analyses` token resolves to
-    # the derived build manifest under the artifact root, so the rendered command
-    # already names the filtered manifest the builder consumes (ADR 0025).
+    # build_command derived purely from plan(): the build phase's first step,
+    # which is `steps[0]` for every bundle whose plan is one phase. The
+    # `analyses` token resolves to the derived build manifest under the artifact
+    # root, so the rendered command already names the filtered manifest the
+    # builder consumes (ADR 0025).
     steps = plan(bundle_obj, artifact_root=artifact_root)
-    build_command = " ".join(steps[0].argv) if steps else ""
+    build_steps = [step for step in steps if step.phase == BUILD_PHASE] or steps
+    build_command = " ".join(build_steps[0].argv) if build_steps else ""
 
     # Observed columns extracted exclusively from validation.yaml in git. The
     # values live in the register-written `observed` block and nowhere else: a
@@ -129,6 +146,20 @@ def render_stores_row(
     # fallback remains and an unrecorded measurement is published as absent.
     val = bundle_obj.validation or {}
     obs = val.get("observed", {})
+
+    # The published Store's completion state (#307), from the record `register`
+    # wrote at publication. Never from build.yaml's declaration, which under
+    # single-id completion reads `reference_completed` while the Observed-Only
+    # Store is what is published. A record written before #307 carries no such
+    # field, so the row falls back to the declared state -- which is the
+    # published state for an Observed-Only Store and for a two-id child -- and
+    # renders exactly as it did before.
+    recorded_completion_state = obs.get("completion_state")
+    completion_state = (
+        recorded_completion_state
+        if isinstance(recorded_completion_state, str) and recorded_completion_state
+        else declared_completion_state
+    )
 
     format_version = obs.get("format_version")
     format_version_str = str(format_version) if format_version else ""
@@ -238,12 +269,26 @@ def tolerated_gaps_by_store(
     return gaps
 
 
+def completion_is_pending(declared: str, published: str) -> bool:
+    """Whether a row reports an Observed-Only Store whose completion is declared but unpublished.
+
+    Under single-id completion a bundle declares `reference_completed` while
+    its Observed-Only Store is published, for as long as completion runs
+    (ADR 0037). The row reports the published state (#307) and the human view
+    marks it, so a reader sees both facts without reading `build.yaml`.
+    """
+    return declared == "reference_completed" and published == "observed_only"
+
+
 def render_stores_md(
     bundles: list[Bundle],
     rows: list[dict[str, str]],
     tolerated_gaps: dict[str, tuple[bundle.ToleratedGap, ...]] | None = None,
 ) -> str:
     """Render human-readable STORES.md table."""
+    # A row carries only its own columns, so the declaration a pending marker
+    # needs comes from the bundle, looked up by id.
+    declared_by_id = {b.store_id: (b.completion_state or "") for b in bundles}
     lines: list[str] = [
         "# OpenGWASDB Store Releases",
         "",
@@ -260,6 +305,8 @@ def render_stores_md(
         lbl = row["label"] or "-"
         lay = row["layout"] or "-"
         comp = row["completion_state"] or "-"
+        if completion_is_pending(declared_by_id.get(row["store_id"], ""), row["completion_state"]):
+            comp += " (completion pending)"
         st = row["status"] or "-"
         fmt = row["format_version"] or "-"
         n_ana = _format_cell(row["n_analyses"])
@@ -440,6 +487,7 @@ regenerate_index = generate_index
 __all__ = [
     "COLUMNS",
     "build_index",
+    "completion_is_pending",
     "generate_by_label_symlinks",
     "generate_index",
     "regenerate_index",

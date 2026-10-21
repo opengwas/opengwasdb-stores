@@ -678,6 +678,17 @@ observed  format_version  n_variants  n_associations  store_bytes
 `n_analyses` is admitted membership; `n_manifest` and `n_excluded` keep the
 excluded manifest rows visible (issue #217).
 
+`completion_state` is the completion state of the Store users can query, not
+the bundle's declaration (issue #307, ADR 0037). `register` records it as
+`observed.completion_state` at publication, so a release that completes its own
+Store reads `observed_only` while completion runs and `reference_completed`
+after the swap. A Validation Record written before that field carries none, and
+the column keeps the declared value, which for an Observed-Only Store and for a
+two-id child is the state its Store was published in. Where the published state
+is `observed_only` and the bundle declares `reference_completed`, `STORES.md`
+marks the cell `observed_only (completion pending)`; `stores.tsv` keeps the bare
+state so a machine reader still sees a documented value.
+
 `store_uri` is a pure function of the identifier (`<artifact-root>/<store-id>/store.opengwasdb`, ADRs 0022 and 0030). The one-time migration-note fallback that previously preferred a legacy family-first path is removed (issue #137), so the published location is where a Store must live, resolved from deployment configuration, never a stale note.
 
 ### Readiness reconciliation (issue #217)
