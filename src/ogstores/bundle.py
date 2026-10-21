@@ -11,18 +11,27 @@ See docs/spec/store-release-workflow.md and ADRs 0017, 0022, 0023, and 0028.
 
 from __future__ import annotations
 
+import csv
 import re
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit, urlunsplit
 
 import yaml
-from opengwasdb.model import analyses as opengwasdb_analyses
 
+from ogstores.manifest import EXCLUDE_COLUMN, classify_exclusion
 from ogstores.paths import is_valid_store_id
+
+# `opengwasdb.model` is imported inside the functions that read analyses.tsv,
+# not here. Every process that imports `ogstores` imports this module: the
+# release entry point, each Snakemake parse of the release workflow, the
+# parent-death supervisor. Importing opengwasdb's model costs each of them
+# about 1.5s, and the release path never reads an analyses table.
+if TYPE_CHECKING:
+    from opengwasdb.model import analyses as opengwasdb_analyses
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
@@ -43,6 +52,13 @@ LEGAL_STATUS_TRANSITIONS: dict[str, frozenset[str]] = {
     "superseded": frozenset({"superseded", "withdrawn"}),
     "withdrawn": frozenset({"withdrawn"}),
 }
+
+# The Release Statuses the release workflow may build (#247). `accepted` is the
+# human-frozen input the build rests on; `built` and `validated` keep a re-run,
+# or a `--config force=1` replacement, working. A `candidate` has not been
+# accepted, and `superseded` and `withdrawn` are retired. This set is the one
+# statement of the rule: callers ask the functions below.
+BUILDABLE_STATUSES: frozenset[str] = frozenset({"accepted", "built", "validated"})
 
 # Release-level identity and provenance required by the current bundle contract.
 # The identity file trims to identity, lineage, status, creation time, source
@@ -67,34 +83,60 @@ BUILD_REQUIRED_KEYS: tuple[str, ...] = (
     "post",
 )
 
-PHASE_B_REQUIRED_COLUMNS: tuple[str, ...] = (
-    "assigned_ancestry",
-    "ancestry_assignment_method",
-    "stored_effect_scale",
-    "original_sd_method",
+# Optional named Indexed Variant Subset declarations (stores #209, epic #214).
+# A Build Recipe may declare one or more; `plan()` turns each into a
+# `build-indexed-subset` Step. The declaration names a maintained variant-list
+# Reference Resource by `resource_id` and records the resolved `variant_list`
+# path and `reference_assembly` it uses, so the immutable bundle is
+# self-contained and `plan()` needs no resource I/O. Ragged Store Releases have
+# no Dense Component to index, so they reject any declaration rather than
+# silently dropping it (CONTRIBUTING's fail-loud rule; epic #214 non-goal).
+INDEXED_SUBSETS_KEY: str = "indexed_subsets"
+INDEXED_SUBSET_STEP_PREFIX: str = "indexed-subset-"
+# The subset-name grammar is opengwasdb's own (`_NAME_RE`,
+# `opengwas/layouts/dense/indexed_subsets.py`), so a name the planner accepts is
+# one the consumer accepts. The registry is additionally stricter in rejecting
+# `..`, because the name becomes part of a record filename.
+INDEXED_SUBSET_NAME_RE: re.Pattern[str] = re.compile(
+    r"\A[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z"
+)
+INDEXED_SUBSET_REQUIRED_KEYS: tuple[str, ...] = (
+    "name",
+    "resource_id",
+    "variant_list",
+    "reference_assembly",
+)
+INDEXED_SUBSET_OPTIONAL_KEYS: tuple[str, ...] = ("checksum", "options")
+# Dense and Hybrid releases have a self-contained Dense Component; Ragged does
+# not (ADR 0061 in the sibling `opengwasdb` repository).
+INDEXED_SUBSET_LAYOUTS: frozenset[str] = frozenset({"dense", "hybrid"})
+# An `options` key that re-specifies an input the runtime verifies would let the
+# executed CLI consume a different list or assembly than the one hashed and
+# checked -- a silent integrity failure. Keys are normalised exactly as
+# `render_options` renders them (`str(key).strip().lstrip("-")`).
+INDEXED_SUBSET_RESERVED_OPTION_KEYS: frozenset[str] = frozenset(
+    {"variant-list", "reference-assembly"}
 )
 
-# The optional per-Analysis INFO policy columns (stores #175). A requested
-# floor (`info_score_threshold`) and an imputation score declaration
-# (`imputation_score_column`, `imputation_score_kind`,
-# `imputation_score_provenance`) are one policy: a numeric threshold without the
-# complete triple, or any triple cell without a numeric threshold, is
-# incoherent and rejected. Older bundles may omit all of them.
-INFO_SCORE_COLUMNS: tuple[str, ...] = (
-    "info_score_threshold",
-    "imputation_score_column",
-    "imputation_score_kind",
-    "imputation_score_provenance",
-)
-INFO_SCORE_KINDS: frozenset[str] = frozenset({"imputation_info", "imputation_r2"})
 
-# The optional per-Analysis MAF floor column (stores #176). A numeric value is
-# the requested floor in [0, 0.5] (0 disables); literal NaN means no validated
-# MAF evidence -- no configured default, an exempt genotyping technology, a
-# legacy record, or unusable evidence. The pinned OpenGWASDB Analysis schema may
-# predate this column, so it is validated here independently rather than being
-# left to the core reader.
-MAF_THRESHOLD_COLUMN: str = "maf_threshold"
+def normalize_option_key(key: object) -> str:
+    """The flag name `render_options` derives from an `options` key (ADR 0023)."""
+    return str(key).strip().lstrip("-")
+
+
+def is_valid_indexed_subset_name(name: object) -> bool:
+    """Return True if `name` is a filesystem- and consumer-safe subset name."""
+    return (
+        isinstance(name, str)
+        and ".." not in name
+        and INDEXED_SUBSET_NAME_RE.fullmatch(name) is not None
+    )
+
+
+def indexed_subset_step_name(name: str) -> str:
+    """The execution Step name carrying one declared subset's identity."""
+    return f"{INDEXED_SUBSET_STEP_PREFIX}{name}"
+
 
 # Legacy Trial Store Releases where required Analysis metadata is unpopulated
 # in upstream BESD sources and cannot be resolved without external study metadata
@@ -145,6 +187,31 @@ _TRAIT_ONTOLOGY_AUTHORITY_LABELS: frozenset[str] = frozenset(
 # Store-level descriptive metadata that is derived from the membership table.
 # Names intentionally match their source columns: in particular, ``context``
 # is not renamed to ``assay`` because the Analysis contract has no assay field.
+#: ``sidecars/quality_checks.tsv`` (#285, ADR 0036): every Analysis's Quality
+#: Check results. Optional: a bundle emitted before #285 has none. Present, it
+#: is validated by :func:`_check_quality_checks`. Store Release Build never
+#: reads it; membership is already decided in ``analyses.tsv``.
+QUALITY_CHECKS_SIDECAR: str = "sidecars/quality_checks.tsv"
+#: Its leading columns; each check then adds ``<check>`` and ``<check>_measured``.
+QUALITY_CHECK_LEADING_COLUMNS: tuple[str, ...] = (
+    "analysis_id",
+    "exclude_from_build",
+    "exclusion_reason",
+)
+QUALITY_CHECK_MEASURED_SUFFIX: str = "_measured"
+#: The controlled ``<check>`` result vocabulary.
+QUALITY_CHECK_RESULTS: tuple[str, ...] = (
+    "passed",
+    "failed",
+    "not_applicable",
+    "unmeasured",
+    "invalid",
+)
+#: The exclusions sidecar, whose ``reason`` the Quality Check sidecar must agree with.
+EXCLUSIONS_SIDECAR: str = "sidecars/exclusions.tsv"
+#: How many row-level errors one sidecar reports before summarising the rest.
+_MAX_SIDECAR_ROW_ERRORS: int = 10
+
 SUMMARY_COLUMNS: tuple[str, ...] = (
     "first_author",
     "publication_pmid",
@@ -214,7 +281,8 @@ class Bundle:
 
     @property
     def status(self) -> str | None:
-        return self.release.get("status")
+        # A release.yaml that is not a mapping has no status; check() reports it.
+        return self.release.get("status") if isinstance(self.release, Mapping) else None
 
     @property
     def label(self) -> str | None:
@@ -236,6 +304,62 @@ class Bundle:
     def validation_path(self) -> Path | None:
         path = self.root / "validation.yaml"
         return path if path.is_file() else None
+
+
+class NotBuildableError(ValueError):
+    """The release workflow was asked to build a bundle its Release Status does not allow (#247)."""
+
+
+def is_buildable(bundle: Bundle) -> bool:
+    """Return whether the release workflow may build this bundle (`BUILDABLE_STATUSES`)."""
+    return bundle.status in BUILDABLE_STATUSES
+
+
+def build_refusal(bundle: Bundle) -> str | None:
+    """Why the release workflow must not build this bundle, or None when it may."""
+    if is_buildable(bundle):
+        return None
+    status = bundle.status
+    if status not in VALID_STATUSES:
+        return (
+            f"{bundle.store_id} has no valid Release Status ({status!r}); "
+            "`pixi run bundle-check` names the problem."
+        )
+    if "accepted" in LEGAL_STATUS_TRANSITIONS[status]:
+        return (
+            f"{bundle.store_id} has Release Status {status!r}. To accept it, review it, "
+            f"then set `status: accepted` and `accepted_at` in {bundle.root / 'release.yaml'}, "
+            "check it with `pixi run bundle-check`, and commit the change."
+        )
+    return (
+        f"{bundle.store_id} has Release Status {status!r}, which never returns to 'accepted'; "
+        "a replacement is a new Store Release."
+    )
+
+
+def partition_buildable(bundles: Iterable[Bundle]) -> tuple[list[Bundle], list[str]]:
+    """Split bundles into those the release workflow may build and a refusal for each other one."""
+    buildable: list[Bundle] = []
+    refusals: list[str] = []
+    for b in bundles:
+        refusal = build_refusal(b)
+        if refusal is None:
+            buildable.append(b)
+        else:
+            refusals.append(refusal)
+    return buildable, refusals
+
+
+def refuse_unbuildable(bundles: Iterable[Bundle]) -> None:
+    """Raise `NotBuildableError` naming every bundle the release workflow must not build."""
+    _, refusals = partition_buildable(bundles)
+    if refusals:
+        listed = "\n".join(f"  {refusal}" for refusal in refusals)
+        raise NotBuildableError(
+            "Refusing to run: only a bundle with Release Status "
+            f"{', '.join(sorted(BUILDABLE_STATUSES))} is built (#247):\n{listed}\n"
+            "Nothing was written."
+        )
 
 
 @dataclass(frozen=True)
@@ -367,15 +491,65 @@ def _collapse_url(table: opengwasdb_analyses.AnalysesTable, column: str) -> str:
     return urlunsplit((first.scheme, first.netloc, common_path or "/", "", ""))
 
 
+def partition_membership(
+    table: opengwasdb_analyses.AnalysesTable,
+) -> tuple[list[Mapping[str, str]], list[Mapping[str, str]]]:
+    """Split ``analyses.tsv`` rows into (admitted, excluded) using one strict parse.
+
+    ``exclude_from_build`` is the registry-only admission column (ADR 0025).
+    This is the same classifier the build-manifest materialiser uses, so a
+    review view cannot count a row as admitted that the builder would refuse.
+    """
+    admitted: list[Mapping[str, str]] = []
+    excluded: list[Mapping[str, str]] = []
+    for row_index, row in enumerate(table.rows):
+        analysis_id = (row.get("analysis_id") or "").strip()
+        if classify_exclusion(row.get(EXCLUDE_COLUMN), row_index, analysis_id):
+            excluded.append(row)
+        else:
+            admitted.append(row)
+    return admitted, excluded
+
+
+def membership_ids(bundle: Bundle) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return ``(admitted analysis_ids, excluded analysis_ids)`` from ``analyses.tsv``.
+
+    Reads only the bundle's membership table, never a Store or Release
+    Artifact (ADR 0023): the registry owns intended and admitted membership;
+    what was actually built is a separate evidence channel.
+    """
+    from opengwasdb.model import analyses as opengwasdb_analyses
+    table = opengwasdb_analyses.read_analyses(bundle.analyses_path)
+    admitted, excluded = partition_membership(table)
+    admitted_ids = tuple((row.get("analysis_id") or "").strip() for row in admitted)
+    excluded_ids = tuple((row.get("analysis_id") or "").strip() for row in excluded)
+    return admitted_ids, excluded_ids
+
+
 def summarise(bundle: Bundle) -> dict[str, str | int]:
     """Derive a Store Release summary solely from its Analysis membership.
 
     The function reads ``analyses.tsv`` and no Store or Release Artifact. It
     preserves absence as ``NA`` and raw constant values verbatim; it never
     substitutes metadata from ``release.yaml`` or a Build Recipe.
+
+    Membership counts are separated rather than collapsed: ``n_manifest`` is
+    every manifest row, ``n_admitted`` the rows that pass the
+    ``exclude_from_build`` admission column, and ``n_excluded`` the rest.
+    ``n_analyses`` is the admitted count -- the Store's membership -- so a
+    derived view never presents an excluded manifest row as a built Analysis
+    (issue #217). ``n_manifest`` is a *selection* count, not the intended Source
+    Inventory size, and is named separately from ``n_admitted`` for that reason.
     """
+    from opengwasdb.model import analyses as opengwasdb_analyses
     table = opengwasdb_analyses.read_analyses(bundle.analyses_path)
-    summary: dict[str, str | int] = {"n_analyses": len(table.rows)}
+    admitted, excluded = partition_membership(table)
+    summary: dict[str, str | int] = {
+        "n_manifest": len(table.rows),
+        "n_admitted": len(admitted),
+        "n_excluded": len(excluded),
+        "n_analyses": len(admitted),
+    }
     for column in _IDENTIFIER_SUMMARY_COLUMNS:
         summary[column] = _collapse_identifier(table, column)
     summary["sample_size"] = _collapse_quantity(table, "sample_size")
@@ -547,6 +721,101 @@ def _check_release(bundle: Bundle) -> list[str]:
     return errors
 
 
+def _check_indexed_subsets(build: Mapping[str, Any]) -> list[str]:
+    """Validate optional `indexed_subsets` declarations without any resource I/O.
+
+    Shape and vocabulary only: names, required string fields, checksum syntax,
+    uniqueness, and the Ragged refusal. Whether the declared `resource_id`
+    resolves to the maintained resource, and whether the list's bytes match the
+    declared checksum, are runtime facts the release entry point checks before a
+    build (`ogstores.resources`); `check()` never opens a resource or a Store.
+    """
+    errors: list[str] = []
+    if INDEXED_SUBSETS_KEY not in build:
+        return errors
+    raw = build.get(INDEXED_SUBSETS_KEY)
+    if raw is None:
+        return [
+            f"build.yaml {INDEXED_SUBSETS_KEY} must be a list of declarations, "
+            "not null; omit the key to declare none"
+        ]
+    if not isinstance(raw, list):
+        return [
+            f"build.yaml {INDEXED_SUBSETS_KEY} must be a list of declarations, "
+            f"not {type(raw).__name__}"
+        ]
+    if not raw:
+        return errors
+
+    layout = build.get("layout")
+    if layout not in INDEXED_SUBSET_LAYOUTS:
+        errors.append(
+            f"build.yaml {INDEXED_SUBSETS_KEY} may be declared only for "
+            f"{sorted(INDEXED_SUBSET_LAYOUTS)} layout, not {layout!r}"
+        )
+
+    allowed = set(INDEXED_SUBSET_REQUIRED_KEYS) | set(INDEXED_SUBSET_OPTIONAL_KEYS)
+    seen: set[str] = set()
+    for index, entry in enumerate(raw):
+        where = f"build.yaml {INDEXED_SUBSETS_KEY}[{index}]"
+        if not isinstance(entry, Mapping):
+            errors.append(f"{where} must be a mapping")
+            continue
+
+        unknown = sorted(set(entry) - allowed)
+        if unknown:
+            errors.append(
+                f"{where} has unknown key(s) {unknown}; allowed keys are "
+                f"{sorted(allowed)}"
+            )
+        for key in INDEXED_SUBSET_REQUIRED_KEYS:
+            value = entry.get(key)
+            if not isinstance(value, str) or not value.strip():
+                errors.append(f"{where} requires a non-empty string {key!r}")
+
+        name = entry.get("name")
+        if isinstance(name, str) and name.strip():
+            if not is_valid_indexed_subset_name(name):
+                errors.append(
+                    f"{where} name {name!r} must match "
+                    f"{INDEXED_SUBSET_NAME_RE.pattern} and contain no '..'"
+                )
+            elif name in seen:
+                errors.append(f"{where} duplicates subset name {name!r}")
+            else:
+                seen.add(name)
+
+        checksum = entry.get("checksum")
+        if checksum is not None and not _is_valid_hex(checksum, 64):
+            errors.append(
+                f"{where} checksum must be a 64-character hex sha256, "
+                f"got {checksum!r}"
+            )
+
+        options = entry.get("options")
+        if options is not None:
+            if not isinstance(options, Mapping):
+                errors.append(f"{where} options must be a mapping")
+            else:
+                reserved = sorted(
+                    str(key)
+                    for key in options
+                    if normalize_option_key(key) in INDEXED_SUBSET_RESERVED_OPTION_KEYS
+                )
+                if reserved:
+                    errors.append(
+                        f"{where} options must not set {reserved}; variant_list and "
+                        "reference_assembly are the declaration's own verified inputs"
+                    )
+                elif "overwrite" in options:
+                    errors.append(
+                        f"{where} options must not set 'overwrite'; a Release Bundle "
+                        "declares a named subset to build, not to replace in place"
+                    )
+
+    return errors
+
+
 def _check_build(bundle: Bundle) -> list[str]:
     build, errors = _document_errors(bundle.build, "build.yaml")
     if build is None:
@@ -597,6 +866,8 @@ def _check_build(bundle: Bundle) -> list[str]:
             "build.yaml must not declare 'artifacts'; the artifact root is "
             "deployment configuration resolved by paths.artifact_root() (issue #126)"
         )
+
+    errors.extend(_check_indexed_subsets(build))
 
     # 908797f made the BESD prefix a frozen bundle provenance fact. Validate
     # the value, but deliberately do not stat the external BESD artifacts.
@@ -691,6 +962,11 @@ def _check_previous_status(
     return validate_status_transition(before, after)
 
 
+# The Validation Record verdicts that give Release Status `validated` (#195,
+# decided 7 Oct 2026): warnings are non-blocking, so they stay in the record.
+VALIDATED_RECORD_STATUSES: frozenset[str] = frozenset({"passed", "passed_with_warnings"})
+
+
 def _check_validation(bundle: Bundle) -> list[str]:
     release = bundle.release if isinstance(bundle.release, Mapping) else {}
     status = release.get("status")
@@ -706,10 +982,18 @@ def _check_validation(bundle: Bundle) -> list[str]:
             f"validation.yaml has invalid status {validation_status!r}; "
             f"expected one of {sorted(allowed)}"
         )
+    elif status == "validated" and validation_status not in VALIDATED_RECORD_STATUSES:
+        # opengwasdb validate passing, with or without warnings, is what makes
+        # a release validated; a failed or never-run validate never does (#195).
+        errors.append(
+            f"release status 'validated' needs a validation.yaml status of "
+            f"{' or '.join(sorted(VALIDATED_RECORD_STATUSES))}; got {validation_status!r}"
+        )
     return errors
 
 
 def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
+    from opengwasdb.model import analyses as opengwasdb_analyses
     errors: list[str] = []
     tolerated: list[ToleratedGap] = []
     try:
@@ -722,94 +1006,12 @@ def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
     except Exception as exc:
         return [f"failed to read analyses.tsv: {type(exc).__name__}: {exc}"], []
 
-    for column in PHASE_B_REQUIRED_COLUMNS:
-        if column not in table.fieldnames:
-            errors.append(
-                f"analyses.tsv is missing Phase B required column: {column!r}"
-            )
-
     for column in opengwasdb_analyses.RETIRED_ANALYSIS_COLUMNS:
         if column in table.fieldnames:
             errors.append(
                 f"Store Release {bundle.store_id} analyses.tsv contains retired "
                 f"Analysis column {column!r}"
             )
-
-    # Optional for older bundles. A literal NaN means no validated score
-    # evidence; zero is the explicit disabled filter, not an absent value. The
-    # threshold is a request, not a fact: it is coherent only alongside the
-    # complete per-Analysis declaration (`imputation_score_column`, kind and
-    # provenance), so a numeric threshold with a partial triple and a triple
-    # with no numeric threshold are both rejected (stores #175).
-    if any(column in table.fieldnames for column in INFO_SCORE_COLUMNS):
-        for row in table.rows:
-            analysis_id = row.get("analysis_id") or "<unknown analysis_id>"
-            value = (row.get("info_score_threshold") or "").strip()
-            declaration = {
-                column: (row.get(column) or "").strip()
-                for column in INFO_SCORE_COLUMNS[1:]
-            }
-            numeric = False
-            if value == "NaN":
-                pass
-            elif value:
-                try:
-                    number = Decimal(value)
-                except InvalidOperation:
-                    number = Decimal("NaN")
-                if number.is_finite() and 0 <= number <= 1:
-                    numeric = True
-                else:
-                    errors.append(
-                        f"analysis {analysis_id!r} has info_score_threshold "
-                        f"{value!r}; expected literal NaN or a number in [0,1]"
-                    )
-            else:
-                errors.append(
-                    f"analysis {analysis_id!r} has info_score_threshold {value!r}; "
-                    "expected literal NaN or a number in [0,1]"
-                )
-            declaration_present = any(declaration.values())
-            complete = all(declaration.values())
-            if numeric and not complete:
-                missing = [column for column, cell in declaration.items() if not cell]
-                errors.append(
-                    f"analysis {analysis_id!r} has a numeric info_score_threshold "
-                    "but an incomplete imputation score declaration; missing "
-                    + ", ".join(missing)
-                )
-            if declaration_present and (value == "" or value == "NaN"):
-                errors.append(
-                    f"analysis {analysis_id!r} has an imputation score declaration "
-                    "but no numeric info_score_threshold"
-                )
-            if complete and declaration["imputation_score_kind"] not in INFO_SCORE_KINDS:
-                errors.append(
-                    f"analysis {analysis_id!r} has invalid imputation_score_kind "
-                    f"{declaration['imputation_score_kind']!r}; expected one of "
-                    f"{sorted(INFO_SCORE_KINDS)}"
-                )
-
-    # Optional per-Analysis MAF floor (stores #176): literal NaN, or a finite
-    # number in [0, 0.5]. The column is a request, not a report of what was
-    # filtered, and its range is the whole truth checkable from the bundle alone.
-    if MAF_THRESHOLD_COLUMN in table.fieldnames:
-        for row in table.rows:
-            analysis_id = row.get("analysis_id") or "<unknown analysis_id>"
-            value = (row.get(MAF_THRESHOLD_COLUMN) or "").strip()
-            if value == "NaN":
-                continue
-            number = Decimal("NaN")
-            if value:
-                try:
-                    number = Decimal(value)
-                except InvalidOperation:
-                    number = Decimal("NaN")
-            if not number.is_finite() or not 0 <= number <= Decimal("0.5"):
-                errors.append(
-                    f"analysis {analysis_id!r} has maf_threshold {value!r}; "
-                    "expected literal NaN or a number in [0,0.5]"
-                )
 
     # A Trait Ontology Mapping is an ontology term plus its trait label. It is
     # never a gene identifier with an authority name standing in for the label:
@@ -884,15 +1086,16 @@ def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
         errors.append(f"failed to validate analyses.tsv: {type(exc).__name__}: {exc}")
         analysis_errors = []
 
-    release = bundle.release if isinstance(bundle.release, Mapping) else {}
-    # Candidate releases may legitimately leave values blank pending resolution.
-    # Legacy trial releases OGS-00001 and OGS-00002 are tolerated pending external
-    # study metadata and upstream schema resolution (issue #134).
-    # This exemption is strictly scoped to these two named releases so that any
-    # new release (including any future ragged-BESD build) fails loudly if required
-    # Analysis values are blank.
+    # Required values must be present in a bundle Store Release Build builds
+    # (#247). One it will not build -- a candidate still being resolved, or a
+    # retired release -- may leave them blank; what a candidate may leave blank
+    # is Manifest Generation's policy, not this contract's (#250). Legacy trial
+    # releases OGS-00001 and OGS-00002 are tolerated pending external study
+    # metadata and upstream schema resolution (issue #134), strictly scoped to
+    # those two so that any new release (including any future ragged-BESD
+    # build) fails loudly if required Analysis values are blank.
     allow_blank_overlay_values = (
-        release.get("status") == "candidate"
+        not is_buildable(bundle)
         or bundle.store_id in LEGACY_BLANK_ANALYSIS_RELEASES
     )
     suppressed_blank_values = 0
@@ -914,7 +1117,7 @@ def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
                 citation=(
                     "#134"
                     if bundle.store_id in LEGACY_BLANK_ANALYSIS_RELEASES
-                    else "candidate status"
+                    else "not buildable"
                 ),
             )
         )
@@ -940,6 +1143,134 @@ def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
     return errors, tolerated
 
 
+def _read_sidecar_rows(path: Path) -> tuple[list[str], list[list[str]]]:
+    """Header and rows of a strict TSV sidecar, or raise ``ValueError``."""
+    with path.open(newline="", encoding="utf-8") as fh:
+        rows = list(csv.reader(fh, delimiter="\t", quoting=csv.QUOTE_NONE))
+    if not rows:
+        raise ValueError("is empty; it needs at least a header")
+    header, body = rows[0], rows[1:]
+    for number, row in enumerate(body, 2):
+        if len(row) != len(header):
+            raise ValueError(f"line {number} has {len(row)} fields; the header has {len(header)}")
+    return header, body
+
+
+def _quality_check_column_errors(header: Sequence[str]) -> list[str]:
+    leading = len(QUALITY_CHECK_LEADING_COLUMNS)
+    expected = (
+        f"columns must be {', '.join(QUALITY_CHECK_LEADING_COLUMNS)}, then one "
+        f"<check>, <check>{QUALITY_CHECK_MEASURED_SUFFIX} pair per Quality Check"
+    )
+    pairs = header[leading:]
+    if tuple(header[:leading]) != QUALITY_CHECK_LEADING_COLUMNS or not pairs or len(pairs) % 2:
+        return [f"{QUALITY_CHECKS_SIDECAR}: {expected}; got {list(header)}"]
+    names = pairs[0::2]
+    for name, measured in zip(names, pairs[1::2]):
+        if not name.isidentifier() or measured != f"{name}{QUALITY_CHECK_MEASURED_SUFFIX}":
+            return [f"{QUALITY_CHECKS_SIDECAR}: {expected}; {name!r} is followed by {measured!r}"]
+    if len(set(names)) != len(names):
+        return [f"{QUALITY_CHECKS_SIDECAR}: columns name a Quality Check twice: {names}"]
+    return []
+
+
+def _exclusion_reasons(bundle: Bundle) -> dict[str, str] | None:
+    """``analysis_id -> reason`` from ``sidecars/exclusions.tsv``, or ``None`` if absent."""
+    path = bundle.root / EXCLUSIONS_SIDECAR
+    if not path.is_file() or path.is_symlink():
+        return None
+    header, body = _read_sidecar_rows(path)
+    if "analysis_id" not in header or "reason" not in header:
+        raise ValueError(f"{EXCLUSIONS_SIDECAR} needs analysis_id and reason columns")
+    id_at, reason_at = header.index("analysis_id"), header.index("reason")
+    return {row[id_at]: row[reason_at] for row in body}
+
+
+def _check_quality_checks(bundle: Bundle) -> list[str]:
+    """Validate ``sidecars/quality_checks.tsv`` when the bundle carries one (#285).
+
+    It must name every ``analyses.tsv`` Analysis once, in the same order; use
+    the controlled result vocabulary; and agree with ``analyses.tsv`` on which
+    Analyses are excluded, and with ``sidecars/exclusions.tsv`` (when present)
+    on why. Absent is valid.
+    """
+    path = bundle.root / QUALITY_CHECKS_SIDECAR
+    if not path.exists() and not path.is_symlink():
+        return []
+    if path.is_symlink() or not path.is_file():
+        return [f"{QUALITY_CHECKS_SIDECAR} must be a regular file"]
+    try:
+        header, body = _read_sidecar_rows(path)
+    except (OSError, UnicodeDecodeError, ValueError, csv.Error) as exc:
+        return [f"{QUALITY_CHECKS_SIDECAR} {exc}"]
+    errors = _quality_check_column_errors(header)
+    if errors:
+        return errors
+
+    from opengwasdb.model import analyses as opengwasdb_analyses
+
+    table = opengwasdb_analyses.read_analyses(bundle.analyses_path)
+    expected: list[tuple[str, bool]] = []
+    for index, row in enumerate(table.rows):
+        analysis_id = (row.get("analysis_id") or "").strip()
+        expected.append(
+            (analysis_id, classify_exclusion(row.get(EXCLUDE_COLUMN), index, analysis_id))
+        )
+    found = [row[0] for row in body]
+    wanted = [analysis_id for analysis_id, _ in expected]
+    if found != wanted:
+        missing = [aid for aid in wanted if aid not in set(found)]
+        extra = [aid for aid in found if aid not in set(wanted)]
+        detail = []
+        if missing:
+            detail.append(f"missing {missing[:5]}")
+        if extra:
+            detail.append(f"not in analyses.tsv {extra[:5]}")
+        if not missing and not extra:
+            detail.append("rows are not in analyses.tsv order")
+        return [
+            f"{QUALITY_CHECKS_SIDECAR} must have one row per analyses.tsv Analysis, "
+            f"in its order: {'; '.join(detail)}"
+        ]
+    try:
+        reasons = _exclusion_reasons(bundle)
+    except (OSError, UnicodeDecodeError, ValueError, csv.Error) as exc:
+        return [f"{EXCLUSIONS_SIDECAR} {exc}"]
+
+    leading = len(QUALITY_CHECK_LEADING_COLUMNS)
+    checks = list(zip(header[leading::2], range(leading, len(header), 2)))
+    row_errors: list[str] = []
+    for row, (analysis_id, excluded) in zip(body, expected):
+        flag, reason = row[1], row[2]
+        if flag not in ("", "true"):
+            row_errors.append(f"{analysis_id}: exclude_from_build {flag!r} is not 'true' or empty")
+        elif (flag == "true") != excluded:
+            row_errors.append(
+                f"{analysis_id}: exclude_from_build {flag!r} disagrees with analyses.tsv"
+            )
+        if excluded and not reason:
+            row_errors.append(f"{analysis_id}: excluded with an empty exclusion_reason")
+        if not excluded and reason:
+            row_errors.append(f"{analysis_id}: included but has exclusion_reason {reason!r}")
+        if excluded and reasons is not None and reasons.get(analysis_id) != reason:
+            row_errors.append(
+                f"{analysis_id}: exclusion_reason {reason!r} disagrees with "
+                f"{EXCLUSIONS_SIDECAR} ({reasons.get(analysis_id)!r})"
+            )
+        for name, at in checks:
+            if row[at] not in QUALITY_CHECK_RESULTS:
+                row_errors.append(
+                    f"{analysis_id}: {name} result {row[at]!r} is not one of "
+                    f"{', '.join(QUALITY_CHECK_RESULTS)}"
+                )
+    shown = [f"{QUALITY_CHECKS_SIDECAR}: {error}" for error in row_errors[:_MAX_SIDECAR_ROW_ERRORS]]
+    if len(row_errors) > _MAX_SIDECAR_ROW_ERRORS:
+        shown.append(
+            f"{QUALITY_CHECKS_SIDECAR}: {len(row_errors) - _MAX_SIDECAR_ROW_ERRORS} more row error(s)"
+        )
+    return shown
+
+
 def check(
     bundle: Bundle,
     previous_status: str | Bundle | None = None,
@@ -951,9 +1282,9 @@ def check(
     kept a plain ``list`` by making :class:`CheckResult` a ``list`` subclass, so
     every existing caller comparing ``== []``, iterating, or testing membership
     is unchanged. The second channel is ``CheckResult.tolerated``: the
-    suppressions the #134 legacy exemption (and candidate status) deliberately
-    tolerate, each with its count and citation, so a caller can surface the gap
-    instead of a clean ``[]`` silently erasing it (issue #142).
+    suppressions the #134 legacy exemption (and a bundle that is not buildable)
+    deliberately tolerate, each with its count and citation, so a caller can
+    surface the gap instead of a clean ``[]`` silently erasing it (issue #142).
 
     The check reads files contained in the Release Bundle and other registered
     bundles needed to resolve lineage. It never resolves source paths, uses an
@@ -971,6 +1302,7 @@ def check(
         ("Release Lineage", lambda: (_check_lineage(bundle, registry_root), [])),
         ("validation.yaml", lambda: (_check_validation(bundle), [])),
         ("analyses.tsv", lambda: _check_analyses(bundle)),
+        (QUALITY_CHECKS_SIDECAR, lambda: (_check_quality_checks(bundle), [])),
     )
     for label, stage in stages:
         try:
@@ -984,21 +1316,31 @@ def check(
 
 
 __all__ = [
+    "BUILDABLE_STATUSES",
     "BUILD_REQUIRED_KEYS",
     "Bundle",
     "CheckResult",
-    "INFO_SCORE_COLUMNS",
-    "INFO_SCORE_KINDS",
     "LEGACY_BLANK_ANALYSIS_RELEASES",
     "LEGAL_STATUS_TRANSITIONS",
-    "MAF_THRESHOLD_COLUMN",
-    "PHASE_B_REQUIRED_COLUMNS",
+    "QUALITY_CHECKS_SIDECAR",
+    "QUALITY_CHECK_LEADING_COLUMNS",
+    "QUALITY_CHECK_MEASURED_SUFFIX",
+    "QUALITY_CHECK_RESULTS",
+    "NotBuildableError",
     "RELEASE_REQUIRED_KEYS",
     "SUPERPOPULATIONS",
     "ToleratedGap",
+    "VALIDATED_RECORD_STATUSES",
     "VALID_STATUSES",
+    "build_refusal",
     "check",
+    "is_buildable",
     "is_legal_status_transition",
     "load",
+    "membership_ids",
+    "partition_buildable",
+    "partition_membership",
+    "refuse_unbuildable",
+    "summarise",
     "validate_status_transition",
 ]

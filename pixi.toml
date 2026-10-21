@@ -13,17 +13,33 @@ version = "0.1.0"
 # ---------------------------------------------------------------------------
 
 [feature.python.dependencies]
-python = "3.11.*"
+# Python 3.12 is the floor the pinned current-format opengwasdb runtime
+# requires (stores#218; opengwas/opengwasdb#244): zarr-python 3.4, which the
+# format-0.2.0 builders are written against, requires Python >=3.12 and
+# numpy >=2. Do not lower this without lowering the pinned runtime.
+python = "3.12.*"
 pip = "*"
 numpy = ">=1.26,<2.5"
 scipy = ">=1.11"
 pyyaml = "*"
 
+[feature.python.pypi-dependencies]
+# This repository's own Python code, installed editable (pyproject.toml, #257),
+# so it imports without sys.path insertions. An editable install points at the
+# checkout it was installed from: a second worktree runs `pixi install` of its
+# own, and run_all_tests.py refuses to test one checkout against another's code.
+ogstores = { path = ".", editable = true }
+
 [feature.store-build.dependencies]
 pandas = ">=2.0"
 scikit-learn = ">=1.3"
-zarr = ">=2.18,<3"
-numcodecs = ">=0.12,<0.13"
+# Format 0.2.0 is Zarr v3 with the sharding codec (opengwas/opengwasdb ADR
+# 0057/0058, issue #247). The pinned runtime requires zarr>=3.4,<4 and
+# numcodecs>=0.17 (the first release that locks Blosc's context on decode as
+# well as encode, which the fused decode pipeline relies on). zarr 2.x cannot
+# open a 0.2.0 Store, so this is the runtime floor, not a preference.
+zarr = ">=3.4,<4"
+numcodecs = ">=0.17"
 typer = ">=0.12"
 pyliftover = ">=0.4"
 threadpoolctl = ">=3.0"
@@ -157,7 +173,62 @@ threadpoolctl = ">=3.0"
 # exactly 0 or 1 as missing, and fingerprints resolver records with the core's
 # own commit rather than this repository's. Candidate generation and the build
 # must run at this same revision.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "a0656c0d073875c17088972b24cbb9568c0467a2" }
+#
+# Bumped for #195 (OGS-00005 re-registration): this pins the `dev` merge commit
+# of opengwasdb#256 (#255). A plain-ALID `--variant-reference` build now
+# collects the sources' rsids, where it previously went single-pass with an
+# empty rsid map and wrote a Store with none, which `opengwasdb validate`
+# passed. OGS-00004's and OGS-00005's recipes take that path. Deliberately not
+# `dev`'s head: epic #240 (`5910e29`) has since merged there, and its builders
+# write format 0.2.0, which the catalogue does not adopt until #197. This
+# revision still writes 0.1.0, like every registered Store.
+#
+# #209 (Indexed Variant Subsets) deliberately does not bump this pin: every
+# opengwasdb revision that provides `build-indexed-subset` (first at
+# `4819a2ee`, opengwasdb#264) is a descendant of the format-0.2.0 builders
+# (`5910e29`), so a bump would silently adopt the catalogue-wide migration
+# tracked by #197. A release that declares `indexed_subsets` instead carries a
+# documented runtime prerequisite: its run needs a subset-capable `opengwasdb`
+# on PATH, and the release entry point refuses loudly when the resolved
+# executable does not provide the command. A release with no declaration is
+# never gated on the runtime version.
+#
+# Bumped for #218 (pinned current-format runtime, coordinating #197): the
+# initial #218 pin was core `dev` merge commit `1be2a15` (opengwas/opengwasdb
+# PR #275), the first immutable revision carrying every capability the
+# supported release entry point requires together. The pin was then
+# re-coordinated to `4e922566` (opengwas/opengwasdb PR #276) once core #254's
+# bounded Dense-validation memory work merged to `dev`, so the same capability
+# set is now paired with the validation memory bound the build tickets need.
+# The capabilities are unchanged by the repin:
+#
+#   - format-0.2.0 builders (opengwasdb#247, `5910e29`): Zarr v3 with the
+#     sharding codec, Dense inner chunk [1000, 64] and shard [100000, 1024];
+#   - the required Ragged/Overflow variant-side `by_variant/` index written
+#     inline by every Ragged/Hybrid builder and required by `validate`
+#     (opengwasdb#252/#268, `4832843`) -- this is a format contract, not an
+#     optional enhancement;
+#   - Indexed Variant Subset support, including Dense, completed-Dense and
+#     Hybrid Dense components (opengwasdb#264/#269/#271, first at `4819a2ee`);
+#   - the shared HM3 benchmark seam (opengwasdb#272);
+#   - bounded Dense validation memory (opengwasdb#254/#276).
+#
+# Because these capabilities ship in the tracked pin, the ordinary
+# `pixi run release` invocation resolves a capable runtime from this
+# environment with no ad-hoc `PATH` overlay (the HM3 proof's temporary
+# `--opengwasdb-checkout` / PATH substitution is retired for supported runs).
+# The release entry point still proves the resolved revision against this pin,
+# probes every subcommand the scheduled steps need, and refuses a Reference
+# Completion whose existing parent Store is not format 0.2.0, before any
+# artifact is written.
+#
+# This bump changes what a *new* build is: a Store built from here is format
+# 0.2.0, so Reference Completion of an existing 0.1.0 parent is refused. The
+# supported order is the core-owned conversion or rebuild procedure in
+# docs/runtime.md. Upgrading the runtime does not convert or requalify any
+# published Store; each build ticket must supply a compatible observed parent
+# (or convert/rebuild first) before completion.
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "4e922566d7fa4c13a11be3637069da63e48be28c" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"
@@ -243,6 +314,13 @@ curation = { features = ["python", "curation"] }
 # ---------------------------------------------------------------------------
 
 [feature.store-build.tasks]
+# Manifest Generation (ADR 0035), the `manifest_generation` package under
+# src/ (#249). Its tasks run the package's modules. generate-candidate,
+# inventory-freeze, preflight and concordance-run take any candidate-workflow
+# config with `--config` (concordance-sample takes an `--inventory`); without
+# one they default to the EBI GWAS Catalog eur-hybrid release (OGS-00011),
+# whose inputs live under resources/generators/gwas-catalog-eur-hybrid/.
+#
 # Phase B candidate generation (issue #153). One operator entry point runs
 # preflight, invokes `opengwasdb resolve-analyses`, accounts every record, and
 # atomically emits a candidate Release Bundle. It needs `opengwasdb` (the
@@ -253,23 +331,33 @@ curation = { features = ["python", "curation"] }
 #     --config resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
 #     --cores 64 --resume
 #
-generate-candidate = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py" }
+generate-candidate = { cmd = "python3 -m manifest_generation.generate_candidate" }
 
 [feature.python.tasks]
-# Phase B: freeze the Source Inventory a release selects from, then prove the
-# frozen snapshot before the resolution run reads a single association row
-# (issue #151). Both are pure Python (no opengwasdb, no R), so they run in the
-# default environment.
-inventory-freeze = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/inventory.py freeze" }
-preflight = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/inventory.py preflight" }
-concordance-sample = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/sample_concordance.py" }
+# Manifest Generation: freeze the Source Inventory a release selects
+# from, then prove the frozen snapshot before the resolution run reads a single
+# association row (issue #151). Both are pure Python (no opengwasdb, no R), so
+# they run in the default environment.
+#
+# `concordance-sample` draws the QC Panel Concordance Study's stratified sample
+# (#152) from any frozen Source Inventory given with `--inventory`; it takes no
+# `--config`. Its defaults read the GWAS Catalog eur-hybrid 2026-09-10 snapshot
+# and OVERWRITE the tracked sample under resources/inventories/
+# (gwas-catalog-ssf-eur-hybrid-qc-sample-2026-09-10.{tsv,meta.yaml}); pass
+# `--out-tsv`/`--out-meta` to write elsewhere. `concordance-run` (dev) runs the
+# study for any candidate-workflow config (`--config`) and writes its reports
+# under `--out-dir` (default /data/opengwasdb/work/gwas-catalog-eur-hybrid/concordance).
+inventory-freeze = { cmd = "python3 -m manifest_generation.inventory freeze" }
+preflight = { cmd = "python3 -m manifest_generation.inventory preflight" }
+concordance-sample = { cmd = "python3 -m manifest_generation.sample_concordance" }
 
 [feature.dev.tasks]
 test = { cmd = "python3 resources/scripts/run_all_tests.py" }
 test-python = { cmd = "python3 resources/scripts/run_all_tests.py --only python" }
 test-r = { cmd = "python3 resources/scripts/run_all_tests.py --only r" }
-concordance-run = { cmd = "python3 resources/generators/gwas-catalog-eur-hybrid/run_concordance_study.py" }
+concordance-run = { cmd = "python3 -m manifest_generation.run_concordance_study" }
 bundle-check = { cmd = "python3 resources/scripts/check_bundles.py" }
+audit-indexed-subsets = { cmd = "python3 resources/scripts/audit_indexed_subsets.py" }
 env-check = { cmd = "python3 resources/scripts/env_check.py" }
 index-ci = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
@@ -280,8 +368,22 @@ materialise-gwas-ssf-ragged = { cmd = "Rscript resources/scripts/materialise-gwa
 # Phase A. `release` takes one or more Store Release ids; lineage order is
 # resolved by the DAG, so a Reference-Completed child never needs sequencing
 # by hand. `index` regenerates the master list from the bundles alone.
-release = { cmd = "snakemake --snakefile workflow/Snakefile --cores all --" }
-release-dry = { cmd = "snakemake --snakefile workflow/Snakefile --dry-run --" }
+#
+#
+# `release` is the supported entry point (#195): workflow/release.py completes
+# any interrupted publication, refuses a published release unless it is named
+# with `--config force=1`, snapshots what a forced run may replace, runs
+# Snakemake once, and settles the run. It accepts only release ids, `--config`,
+# `--cores`, `--dry-run`, `--keep-going`, `--rerun-incomplete` and
+# `--resolve-snapshot restore|delete`; `--no-hooks` and other unsafe options are
+# refused. Name the ids first, then the overrides:
+#
+#   pixi run release OGS-00003 --config artifact_root=/path
+#   pixi run release OGS-00005 --config force=1   # replace it; the old one is archived
+#
+# Running snakemake directly bypasses that guard.
+release = { cmd = "python3 workflow/release.py" }
+release-dry = { cmd = "python3 workflow/release.py --dry-run" }
 index = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
 [feature.reporting.tasks]

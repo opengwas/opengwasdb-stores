@@ -1,5 +1,7 @@
 store_family_id: metabolome-plasma-2023
 family_release_id: 2023-chen-full-european
+label: 2023-chen-full-european
+access_posture: public
 store_key: ragged__pmid-36635386__European
 source_collection_id: gwas-catalog-ssf
 release_kind: full
@@ -91,6 +93,22 @@ ancestry_assignment:
     residual_max: 0.06
 
 output:
-  release_dir: families/metabolome-plasma-2023/releases/2023-chen-full-european
+  # Registry Release Bundle id (ADR 0022). The working bundle lives in the work
+  # root, <artifact-root>/OGS-00006/generate; --mode=emit-registry emits it into
+  # stores/OGS-00006/ through the one emitter (#248), which refuses to replace a
+  # bundle that has been accepted or built.
+  store_id: OGS-00006
   artifact_root: /data/opengwasdb
   artifact_subdir: metabolome-plasma-2023/releases/2023-chen-full-european
+
+# The observed-only Build Recipe the registry bundle carries, as registered in
+# stores/OGS-00006/build.yaml. --mode=emit-registry renders build.yaml from it.
+build:
+  layout: ragged
+  completion_state: observed_only
+  command: build-ragged-ssf
+  options:
+    stored-effect-scale: sd
+  post:
+    top_hits: true
+    overview: false

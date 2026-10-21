@@ -100,6 +100,17 @@ Commit or tag anything that turns up. A branch merged into a pushed branch is
 already safe, and a branch that reached a GitHub pull request is safe forever —
 GitHub keeps `refs/pull/<n>/head` after the branch is deleted.
 
+### Each worktree runs its own environment
+
+The repository's Python code (`ogstores`, `curation`, the generator library)
+installs editable into the pixi environments (`pyproject.toml`, #257), and an
+editable install points at the checkout that ran `pixi install`. So run
+`pixi install` in a new worktree and use its own environment there: borrowing
+another checkout's (`pixi run --manifest-path <other>/pixi.toml -e dev python3
+...` from this worktree) imports that checkout's code. The test runner refuses
+to run this checkout's tests under an environment installed from elsewhere, or
+with nothing installed.
+
 ## Repository boundaries
 
 The repository tracks small, reviewable definitions and evidence:
@@ -124,11 +135,15 @@ workflow begins at the fixed-input boundary documented in
 ```text
 stores/            accepted Release Bundles, one per Store Release
 workflow/          Phase A: accepted bundle -> validated Store Release
-src/ogstores/      the Python package both phases use
+src/ogstores/      Store Release Build, and the Release Bundle contract both use
+src/manifest_generation/  Manifest Generation: sources -> candidate Release Bundle
+  providers/           per-Source-Provider connector code
 resources/         everything on the input side
   reference-resources/ auxiliary build-time inputs
   annotations/         curated metadata that outlives a release
-  generators/          Phase B: sources -> candidate bundle
+  inventories/         frozen Source Inventories
+  generators/          Manifest Generation inputs: per-generator configs and reviewed
+                       tables; legacy R generators until they retire
   scripts/             standalone toolchains and repo tooling
 docs/              adr/ decisions, spec/ specifications, rendered site
 tests/
@@ -158,7 +173,8 @@ Per ADR 0023 it contains no source column name, no
 manifest translation, and no layout branch -- each rule asks `ogstores.plan`
 for a Step and hands it to `ogstores.run`.
 
-`generate.smk` (Phase B) will live here too. The two share no DAG: the accepted
+`generate.smk` (Manifest Generation) lives here too, as coarse wiring over
+`python3 -m manifest_generation.generate_candidate`. The two share no DAG: the accepted
 bundle is a boundary only because a human froze it, and one graph spanning both
 would silently regenerate a bundle and rebuild a Store when a generator config
 changed.
@@ -168,8 +184,36 @@ changed.
 `bundle.py` (load and check a bundle), `plan.py` (Bundle to argv -- the seam),
 `paths.py`, `run.py`, `index.py`. Top-level rather than inside `workflow/`
 because it is not Phase A's: a generator validates what it emits with
-`bundle.check()`, so Phase B depends on it too. `workflow/` is also Snakemake's
+`bundle.check()` (and Manifest Generation's own rules), so Phase B depends on
+it too. `workflow/` is also Snakemake's
 own namespace (`Snakefile`, `rules/`, `scripts/`, `envs/`).
+
+Store Release Build imports nothing from Manifest Generation. Manifest
+Generation imports from `ogstores` the Release Bundle contract (`bundle`) and
+the registry layout it shares with Store Release Build: Store id and Artifact
+Root paths (`paths`) and the master-list index (`index`).
+`tests/packaging/test_boundary.py` enforces both directions.
+
+### `src/manifest_generation/`
+
+Manifest Generation (ADRs 0035 and 0036), installed editable like
+`ogstores`. Its root holds the shared pipeline: the candidate workflow
+(`candidate_workflow.py`), its entry point (`generate_candidate.py`, run as
+`pixi run generate-candidate` or `python3 -m manifest_generation.generate_candidate`),
+Source Inventory freeze and preflight (`source_inventory.py`, `inventory.py`),
+the one emitter (`emit.py`), Manifest Generation's rules
+(`generation_rules.py`) and the helpers they share.
+
+`providers/<provider>/` holds one Source Provider's connector code, each an
+importable subpackage: acquisition and download scripts, metadata adapters,
+and generators specific to that provider. A provider that is inconsistent
+across its collections gets one subpackage per Source Collection (ADR 0036):
+dbGaP is a host rather than one collection, so the MVP (phs002453)
+acquisition and generator are `providers/dbgap/mvp/`.
+
+Everything here is imported as a module, never loaded by file path or through
+`sys.path` (`tests/packaging/test_imports.py`). Run a module with
+`python3 -m manifest_generation.<module>`.
 
 ### `resources/reference-resources/`
 
@@ -193,10 +237,16 @@ changes how the statistics are interpreted, does.
 
 ### `resources/generators/`
 
-Phase B. `<family-id>/` holds a family's entry point, config, and README;
-`lib/` holds shared helpers; `lib/source-formats/` holds code scoped to a
-Source Format, so two families sharing a Source Collection share selection code
-without a configuration system by accident.
+Manifest Generation's inputs. `<generator>/` holds a generator's configs, reviewed tables,
+`generation-*.yaml` receipts and README; recorded config paths and receipts
+resolve here, so they do not move. The code that reads them is in
+`src/manifest_generation/`.
+
+The legacy R generators also live here until epic #282 retires them:
+`<family-id>/generate.R`, the shared R helpers in `lib/`, the metadata
+resolvers in `lib/metadata_resolvers/`, and `lib/source-formats/` for code
+scoped to a Source Format. Where they call Python, they run a
+`manifest_generation` module with `python3 -m`.
 
 A generator's only output is a bundle directory. It never builds a Store, and
 it invokes statistics rather than implementing them: if two Store Families
@@ -211,7 +261,7 @@ one-off analyses.
 
 This is the one directory at risk of becoming a junk drawer. The test: if
 something here starts being run as a step in producing a Store Release, it
-belongs in `generators/` or `workflow/` instead.
+belongs in `src/manifest_generation/` or `workflow/` instead.
 
 ### `families/`
 
@@ -275,20 +325,39 @@ pixi run bundle-check
 pixi run test
 pixi run test-python
 pixi run test-r
+pixi run test --suite workflow   # one named suite (repeatable)
 pixi run --environment docs docs-smoke
 ```
+
+`pixi run test` finds the Python suites itself (#257): every
+`tests/**/test_*.py` and `tests/**/run_tests.py` is one. It is named after its
+directory when that holds no other Python suite, when it is a `run_tests.py`,
+or when the file is named after the directory; otherwise
+`<directory>/<file>`, without `test_` and with `-` for `_`, which is also the
+fallback when an R suite already has the directory's name. Adding one needs no
+list edit; an R suite is listed in `resources/scripts/run_all_tests.py`.
+Repository code imports from the installed package: nothing inserts the
+repository root or `src/` into `sys.path` or hands them to a subprocess
+through `PYTHONPATH`. `tests/packaging` enforces both rules.
+
+`pixi run test --list-exclusive` names the suites that build Stores through the
+whole release stack and so run alone, after the rest. CI gives each of them a
+runner of its own and runs everything else with `--skip-exclusive`.
 
 `bundle.check(bundle, registry_root=...)` is the executable Release Bundle
 contract. It returns a list of every registry-side error it can find (an empty
 list means valid) and never raises for invalid bundle content. The returned
 list also carries a second channel, `.tolerated`, naming the suppressions the
-#134 legacy exemption (and candidate status) deliberately tolerate -- with
+#134 legacy exemption (and a bundle Store Release Build will not build)
+deliberately tolerate -- with
 their count and citation -- so a caller can surface the gap rather than read a
 clean `[]` that silently erased it (issue #142). It reads only
 files inside Release Bundles, plus a parent bundle when resolving
 `derived_from`; it never opens a Store or inspects a Release Artifact. The
 `bundle-check` task discovers every bundle under `stores/` and fails if any
-error is returned, and CI runs that task explicitly. In particular, it rejects
+error is returned, from the contract or from Manifest Generation's own rules
+(`src/manifest_generation/generation_rules.py`, #250), and CI runs that task
+explicitly. In particular, it rejects
 a Build Recipe `artifacts` block because issue #126 moved the artifact root to
 deployment configuration.
 

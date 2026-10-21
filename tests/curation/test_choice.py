@@ -31,14 +31,10 @@ from __future__ import annotations
 import contextlib
 import io
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 from curation import candidates, choice
 from curation.choice import (
@@ -160,7 +156,13 @@ class FixedChooser(Chooser):
     def __init__(self, result: ChoiceResult) -> None:
         self.result = result
 
-    def select(self, trait_label: str, candidates: list[Candidate]) -> ChoiceResult:
+    def select(
+        self,
+        trait_label: str,
+        candidates: list[Candidate],
+        *,
+        trait_context: str = "",
+    ) -> ChoiceResult:
         return self.result
 
 

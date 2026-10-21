@@ -29,22 +29,25 @@ same panel revision used to create the sparse-region plan.
 
 ## Producing a candidate release
 
-The legacy generator is deliberately split into three steps:
+The legacy generator keeps a family-shaped working bundle in its work root,
+`<artifact-root>/<output.store_id>/generate` (#248), and is deliberately split
+into steps:
 
 ```sh
 pixi run Rscript resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R \
-  --config=resources/generators/pqtl-interval-2018/config.yaml \
+  --config=resources/generators/pqtl-interval-2018/config-pilot-10.yaml \
   --mode=emit
 
 pixi run Rscript resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R \
-  --config=resources/generators/pqtl-interval-2018/config.yaml \
+  --config=resources/generators/pqtl-interval-2018/config-pilot-10.yaml \
   --mode=filter
 
-pixi run python resources/generators/lib/source-formats/gwas-ssf-ragged/build-store.py \
-  --release-dir=families/pqtl-interval-2018/releases/2018-sun-pilot-100
+pixi run Rscript resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R \
+  --config=resources/generators/pqtl-interval-2018/config-pilot-10.yaml \
+  --mode=emit-registry
 ```
 
-`emit` freezes the selected analyses and writes a release bundle. `filter`
+`emit` freezes the selected analyses and writes the working bundle. `filter`
 downloads each full harmonised GWAS-SSF file transiently, writes a filtered
 GWAS-SSF-shaped file containing the configured sparse regions, deletes the full
 download, and stamps checksums/sizes back into `analyses.tsv`. Each Analysis's
@@ -57,20 +60,21 @@ conservative number chosen to avoid opening too many concurrent connections to
 EBI's public FTP rather than maxing out available cores. Per-analysis
 `download_seconds`/`filter_seconds`/`total_seconds` in
 `sidecars/filter_summary.tsv` and per-analysis error handling are unchanged by
-parallelising the run. `build-store.py`
-passes the filtered files to OpenGWASDB and records a small read-back report.
-`refresh-artifacts` updates artifact paths in an existing release bundle after
+parallelising the run. `emit-registry` projects the current Release Bundle
+contract from the working bundle and the config's `build:` block, and emits it
+into `stores/<output.store_id>/` through the one emitter, which replaces only
+an earlier candidate. `refresh-artifacts` updates artifact paths in an existing release bundle after
 changing `output.artifact_root` or `output.artifact_subdir`. `refresh-build`
 re-writes `build.yaml` from the current config (for example after adding or
 changing `reference_resources`/`effect_scale_validation`) without touching
 `analyses.tsv`.
 
 Run reference-AF effect-scale validation after `filter` and before
-`build-store.py` (issue #16):
+`emit-registry` (issue #16):
 
 ```sh
 pixi run Rscript resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R \
-  --config=resources/generators/pqtl-interval-2018/config.yaml \
+  --config=resources/generators/pqtl-interval-2018/config-pilot-10.yaml \
   --mode=effect-scale
 ```
 
@@ -94,8 +98,8 @@ Run AF-based ancestry assignment after `filter` (issues #23, #25), for
 releases whose Source Collection provides usable source allele frequencies:
 
 ```sh
-pixi run python resources/generators/lib/source-formats/gwas-ssf-ragged/ancestry-assign.py \
-  --release-dir=families/<family>/releases/<release>
+pixi run python3 -m manifest_generation.providers.gwas_catalog.ancestry_assign \
+  --release-dir="$(pixi run python3 -m manifest_generation.emit work-root <OGS-id>)"
 ```
 
 For each Analysis with usable source AF, this builds a canonical `{alid: af}`
@@ -108,7 +112,7 @@ without usable source AF are left untouched at `source_trusted_no_af`, per
 issue #11's settled trust-vs-validate policy — this stage never assigns
 ancestry when there is nothing to validate against. It merges empirical
 `checks.ancestry` into `validation.yaml` via the same shared
-`resources/generators/lib/release_yaml.py::merge_validation_yaml` helper the effect-scale
+`src/manifest_generation/release_yaml.py::merge_validation_yaml` helper the effect-scale
 stage's fix to `build-store.py` introduced, so it never clobbers another
 stage's checks. See `docs/release-metadata-schema.md` ("Ancestry assignment
 configuration") and `tests/ancestry-assignment/` for fixture coverage.

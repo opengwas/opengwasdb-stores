@@ -47,7 +47,7 @@ acquisition manifest under the mirror.
 # candidate pool. `--manifest` is repeatable and REPLACES the configured passes
 # entirely; order is the precedence rule, so the last pass wins for any
 # analysis_id it covers:
-pixi run python resources/generators/gwas-catalog-eur-hybrid/inventory.py freeze \
+pixi run python3 -m manifest_generation.inventory freeze \
   --snapshot-id gwas-catalog-ssf-eur-hybrid-2026-10-01 \
   --manifest base=/data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-manifest.tsv \
   --manifest retry_transient=/data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-retry-transient-manifest.tsv \
@@ -70,7 +70,7 @@ snapshot recorded as non-ready. Re-run it with:
 awk -F'\t' 'NR>1 && $6!="ok" && $6!="already_present"{print $1}' \
   resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-10.tsv > /tmp/not-ready.txt
 
-pixi run python resources/scripts/download-ebi-gwas-catalog-eur-hybrid.py \
+pixi run python3 -m manifest_generation.providers.gwas_catalog.download_ebi_gwas_catalog_eur_hybrid \
   --accessions-file /tmp/not-ready.txt \
   --harmonised-index /data/opengwasdb/raw/ebi-gwas-catalog/harmonised_list-2026-09-22.txt \
   --manifest /data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-rescue-upstream-harmonised-manifest.tsv
@@ -108,9 +108,10 @@ The Phase B candidate workflow turns the frozen Source Inventory into a
 **candidate** Release Bundle (`stores/OGS-xxxxx/`, `status: candidate`). It runs
 preflight, derives the canonical resolver manifest, invokes
 `opengwasdb resolve-analyses`, accounts every resolver record, applies the
-registry's membership/exclusion policy, validates the staged bundle and renames
-it into place atomically. It never builds, validates or accepts a Store, and it
-never invokes Phase A.
+registry's membership/exclusion policy, and emits the bundle through the shared
+emitter (`src/manifest_generation/emit.py`), which checks it against the
+Release Bundle contract and replaces only an earlier candidate. It never
+builds, validates or accepts a Store, and it never invokes Phase A.
 
 ```sh
 # Preflight + resolve + verify + finalise in one resumable run:
@@ -137,7 +138,7 @@ work root (also how `workflow/generate.smk` wires the coarse DAG):
 | `prepare` | The canonical resolver manifest from the frozen exact `data_file` paths and the per-design method tiers. |
 | `resolve` | Invokes `opengwasdb resolve-analyses`; writes records, `index.json`, `resolve.log`, and the `resolution_receipt.json` that binds the run to its contract. |
 | `verify` | Accounts every record and requires the current contract and every record digest to match the successful resolution receipt; refuses a missing, stale, duplicate, extra, or incompatible-schema record. |
-| `emit` | Applies release policy, checks the pinned schema and `bundle.check()`, and atomically publishes `stores/OGS-xxxxx/`. |
+| `emit` | Applies release policy, checks the pinned schema, and emits `stores/OGS-xxxxx/` through the shared emitter, which runs `bundle.check()`. |
 | `all` | Default: every stage in order. |
 
 Useful options: `--registry-root` (default `stores/`), `--work-root` (default
@@ -160,7 +161,13 @@ sidecars.
 stores/OGS-xxxxx/
   release.yaml    build.yaml    analyses.tsv    validation.yaml
   sidecars/ source_readiness.tsv ancestry.tsv sd_estimation.tsv exclusions.tsv reference_overlap.tsv
+            quality_checks.tsv
 ```
+
+* `sidecars/quality_checks.tsv` (#285) records, for every selected Analysis,
+  each Quality Check's result and measurement, passing or not; the release's
+  thresholds and any `quality_checks:` override are in `validation.yaml`. See
+  [the schema](../../../docs/release-metadata-schema.md#quality-check-sidecar).
 
 * `analyses.tsv` holds every selected ready Analysis. Non-member rows stay in it
   with `exclude_from_build: true` and a controlled reason in `inclusion_reason`.
@@ -175,7 +182,10 @@ stores/OGS-xxxxx/
   orientation failures, unusable source AF, incomplete metadata, ordinary
   resolution failures, and a successful record whose own tally of build-eligible
   rows is zero (`no_build_eligible_rows`: no row has a finite effect and a
-  positive standard error).
+  positive standard error), Analyses on the reviewed placeholder-effect list
+  (`effect_placeholder_rows`, see below), and -- when
+  `store_composition.require_maf_filtered` is on -- otherwise admissible
+  Analyses with no applied MAF floor (`not_maf_filtered`, see below).
 * Duplicate-content accessions (`GCST90565871`/`GCST90565872` and
   `GCST90624704`/`GCST90624705`) are surfaced in `sidecars/source_readiness.tsv`
   and a warning; they are never silently collapsed.
@@ -261,8 +271,9 @@ alone is not evidence.
 
 `analyses.tsv` therefore carries four optional INFO columns: the requested
 `info_score_threshold` plus `imputation_score_column`,
-`imputation_score_kind` and `imputation_score_provenance`. `bundle.check()`
-rejects a numeric threshold without the complete triple and a triple without a
+`imputation_score_kind` and `imputation_score_provenance`. Manifest
+Generation's rules (`src/manifest_generation/generation_rules.py`, #250)
+reject a numeric threshold without the complete triple and a triple without a
 numeric threshold.
 
 ### Deriving the score declarations (#176)
@@ -272,7 +283,7 @@ numeric threshold.
 deterministically from the header of every ready inventory row:
 
 ```sh
-pixi run python resources/generators/gwas-catalog-eur-hybrid/derive_score_declarations.py
+pixi run python3 -m manifest_generation.providers.gwas_catalog.derive_score_declarations
 ```
 
 The synonym table is fixed and case-sensitive (the OGS-00011 admission
@@ -318,6 +329,26 @@ resolution receipt contract records the exemption file and its
 `analysis_id -> reason` mapping, so changing either makes the receipt stale and
 requires a re-resolve.
 
+An optional `source.effect_placeholder_exclusions` path points to a reviewed
+TSV of the same shape and validation (`analysis_id`, `reason`). Each listed
+Analysis is excluded at emit as `effect_placeholder_rows` (category
+`effect_scale`), with its `reason` as the exclusion detail. It exists for
+sources that write an effect they did not estimate as
+`±2.2250738585072014e-308` (the smallest normal double, so only the sign
+survives) with `standard_error` 0. Core derives a missing standard error from
+the effect and the p-value (opengwasdb#236) and refuses only an effect of exactly
+0, so such a row would be stored as an effect of ~0 with a standard error of
+~1e-308. `config-full.yaml` lists the 27 included OGS-00011 Analyses that carry
+at least one such row in a full-file scan (2026-09-30). Four are almost entirely
+placeholder (`GCST90454200/1`, whose SD then estimates as exactly 0, and
+`GCST90565871/2`); the other 23 have fewer than 0.5% of rows affected. This is
+an emit-time membership decision; it does not change the resolver manifest or
+receipt. Remove the table once core refuses the placeholder itself.
+
+Independently, a quantitative Analysis whose phenotype-SD estimate is not a
+positive finite number is excluded as `sd_no_qualifying_evidence`: the builder
+refuses a non-positive `original_sd`.
+
 The resolver manifest carries the derived `maf_threshold` per Analysis.
 Candidate `analyses.tsv` emits the numeric value only on resolver evidence: the
 record's `diagnostics.maf_state` is `disabled` or `filtered` **and** the
@@ -325,9 +356,52 @@ per-Analysis fingerprint still binds the same `maf_threshold`. Every other
 Analysis emits literal `NaN`. `verify` requires a numeric request to be bound
 by the fingerprint, exactly as it does for the INFO threshold, and the
 resolution receipt's contract records the configured default and both exemption
-rules, so changing any of them makes the receipt stale. `bundle.check()` rejects any
-`maf_threshold` value that is not literal `NaN` or a finite number in
-`[0, 0.5]`.
+rules, so changing any of them makes the receipt stale. Manifest Generation's
+rules reject any `maf_threshold` value that is not literal `NaN` or a finite
+number in `[0, 0.5]`.
+
+### Store composition (#203)
+
+`store_composition.require_maf_filtered` is an optional Phase B generator-config
+rule deciding whether a shared Store may admit an Analysis with no applied MAF
+floor. Absent or `false`, membership is unchanged; `true` requires a positive
+`defaults.maf_threshold` and adds one gate after every other membership decision:
+an otherwise admissible Analysis whose emitted `maf_threshold` is literal `NaN`
+is excluded as `not_maf_filtered` (category `store_composition`), and its
+exclusion detail records the requested floor, the resolver's `maf_state`, the
+source's `genotyping_technology`, and how many of its build-eligible rows are off
+the variant reference. An Analysis excluded for any other reason keeps that
+reason.
+
+The rule exists because the 148 included Analyses the sequencing exemption
+leaves unfiltered in `config-full.yaml` (97 WGS and 51 WES) carry 49,537,183
+Overflow variants -- 32.9 % of `OGS-00011`'s Overflow -- on 63,770,673 rows, and
+49.3 M of the axis's 75.9 M variants below 0.5 % MAF are carried only by them.
+Build and validation scale with that axis (opengwasdb #254), even though the
+Store opens in about 0.29 GiB (opengwasdb #252). Issue #203 called these Analyses
+"no-EAF", but they report EAF: every one passed the EAF-orientation check, 126
+had their phenotype SD estimated from source MAF, and a sampled WGS source
+(`GCST90446475`) carries `effect_allele_frequency` on every one of its first 2 M
+rows, 81 % of them below 0.5 % MAF. They are exempt from the floor, not
+unfilterable, so the rule is worded as "rows were MAF-filtered" rather than "the
+source reports EAF". See
+[ADR 0033](../../../docs/adr/0033-shared-stores-admit-only-maf-filtered-analyses.md).
+
+The gate is an emit-time membership decision, like `effect_placeholder_rows`: it
+does not change the resolver manifest or the resolution receipt, so toggling it
+needs only `--stage emit` and never a re-resolve. Every candidate
+`validation.yaml` gains a top-level `store_composition` block recording whether
+the rule ran, the configured floor, how many included Analyses have no applied
+floor and how many were routed, and the off-reference row sums for each (a sum
+is `null` when no `variant-reference` is declared or any counted Analysis lacks
+the resolver count). Two warnings become `Review:` lines: one when Analyses were
+routed as `not_maf_filtered`, and -- when the rule is off but a floor is
+configured -- one when included Analyses have no applied floor, so a later
+release cannot silently re-inflate the axis. With the rule on, `release.yaml` notes state the composition the Store
+admits.
+
+The 148 routed Analyses need their own sequencing Store, a separate Store
+Release not yet made (follow-up work).
 
 ### Human review before acceptance
 
@@ -346,9 +420,9 @@ registers or builds it. A human reviewer should:
 
 A generated candidate is a reviewed git change like any other: commit
 `stores/OGS-xxxxx/`, regenerate the master list (`pixi run index`) so
-`stores.tsv`/`STORES.md` include it, and open a pull request. `index` also writes
-the bundle's generated `summary.yaml`, so `bundle-check` and the CI clean-tree
-gate stay green.
+`stores.tsv`/`STORES.md` include it, and open a pull request. The emitter has
+already written the bundle's generated `summary.yaml`; `index` rewrites it
+identically, so `bundle-check` and the CI clean-tree gate stay green.
 
 `config-full.yaml`'s `build` block declares the reader capability and assembly
 but no `variant-reference`/`reference-panel`: the full release's Dense-Component
@@ -403,14 +477,47 @@ This release adopts an explicit **Source-AF-Only** policy:
   from the candidate manifest.
 - The absent panel `/data/opengwasdb/reference/ukb-hg38` is never treated as usable evidence.
 
+## Dense per-ancestry acquisition (PMID 39024449)
+
+The same harmonised-file downloader also acquires the four single-publication
+dense stores split out of PMID 39024449 (Verma et al. 2024, VA Million Veteran
+Program), planned as OGS-00012..OGS-00015. The candidate table already
+partitions that publication into per-ancestry `dense__pmid-39024449__*` store
+keys, so acquisition is one pass per key against this same mirror:
+
+```sh
+src/manifest_generation/providers/gwas_catalog/download-ebi-gwas-catalog-dense-pmid39024449.sh
+```
+
+The wrapper loops the four keys (`European`, `African`,
+`Hispanic-or-Latin-American`, `East-Asian`), writes
+`dense-pmid39024449-<ancestry>-download-manifest.tsv` beside the eur-hybrid
+manifests, and re-runs each key so a 404 caused by EBI load is re-attempted
+rather than frozen as absent.
+
+**Raw fallback.** Many of this study's accessions are in EBI's
+`harmonised_list.txt` but publish only the raw `<GCST>.tsv.gz` (GRCh38
+GWAS-SSF v1.0, `is_harmonised: false`) -- the harmonised `<GCST>.h.tsv.gz`
+directory genuinely does not exist. For those the harmonised pass records
+`missing_remote_harmonised_yaml`/`data_absent_upstream`, and a second pass
+(`src/manifest_generation/providers/gwas_catalog/download_ebi_gwas_catalog_raw.py`) then downloads the raw
+pair into the same mirror layout, writing
+`dense-pmid39024449-<ancestry>-raw-download-manifest.tsv`. It skips every row
+the harmonised pass already obtained, so nothing is fetched twice, and it
+records the raw `genome_assembly`/`file_type`/`is_harmonised` fields so a later
+harmonisation-migration step has the provenance it needs. The raw pass is
+acquisition only: which pass supplies membership is still a Phase B decision.
+
 ## Pieces
 
 - `resources/inventories/` — the frozen snapshot, sample manifest, and what their columns mean;
-- `resources/generators/lib/source_inventory.py` — the freeze merge rule, the
+- `src/manifest_generation/source_inventory.py` — the freeze merge rule, the
   readiness vocabulary, and preflight;
-- `resources/generators/lib/concordance_sampling.py` — deterministic stratified sampling;
-- `resources/generators/lib/qc_panel_concordance.py` — concordance comparison engine & metrics;
+- `src/manifest_generation/concordance_sampling.py` — deterministic stratified sampling;
+- `src/manifest_generation/qc_panel_concordance.py` — concordance comparison engine & metrics;
 - `docs/spec/qc-panel-concordance-preregistration.md` — locked preregistration document;
 - `docs/qc-panel-concordance-report.md` — finalized decision & empirical concordance evidence report;
-- `resources/scripts/download-ebi-gwas-catalog-eur-hybrid.py` — acquisition,
-  which writes the status manifests the freeze merges.
+- `src/manifest_generation/providers/gwas_catalog/download_ebi_gwas_catalog_eur_hybrid.py` — acquisition,
+  which writes the status manifests the freeze merges;
+- `src/manifest_generation/providers/gwas_catalog/download_ebi_gwas_catalog_raw.py` — raw-file fallback for
+  accessions EBI did not harmonise, writing a separate status manifest.

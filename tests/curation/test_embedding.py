@@ -20,7 +20,6 @@ from __future__ import annotations
 import contextlib
 import io
 import json
-import sys
 import tempfile
 import importlib.util
 import unittest
@@ -29,9 +28,6 @@ from typing import Mapping, Sequence
 
 import numpy as np
 
-REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 from curation import candidates, embedding
 from curation.candidates import (

@@ -1,19 +1,40 @@
-# Manifest Generators (Phase B)
+# Manifest Generation inputs
 
-Phase B produces a candidate Release Bundle from a Source Collection. It is
-**not designed yet** -- see `docs/spec/store-release-workflow.md`, which fixes
-four rules for its boundary and leaves everything inside them open.
+Manifest Generation produces a candidate Release Bundle from a Source
+Collection. Its machinery is the `manifest_generation` package under
+[`src/manifest_generation/`](../../src/manifest_generation/) (#249); this
+directory holds its **inputs**:
 
 ```text
-<family-id>/       family-scoped entry point, config, and README
-lib/               shared helpers
-lib/source-formats/    source-format-scoped generation code
+<generator>/           a generator's configs, reviewed tables, generation-*.yaml
+                       receipts and README
+<family-id>/generate.R legacy R generators, until epic #282 retires them
+lib/*.R                the legacy R generators' shared helpers
+lib/metadata_resolvers/    their metadata resolvers
+lib/source-formats/    their source-format-scoped code
 ```
 
-The entry point is family-scoped, matching `CONTEXT.md`'s definition of a
-Manifest Generator. The library is source-format-scoped, so two families
-sharing a Source Collection share selection code without a configuration
-system by accident.
+Recorded config paths and receipts resolve here, so these files do not move.
+The code that reads them:
+
+```text
+src/manifest_generation/              the shared pipeline: candidate workflow,
+                                      generate_candidate (entry point), inventory
+                                      (freeze/preflight), emit, generation_rules
+src/manifest_generation/providers/    per-Source-Provider connectors:
+  gwas_catalog/   EBI downloads; the OGS-00011 orientation rescue; imputation-score
+                  declarations; ancestry assignment for the R GWAS-SSF Ragged generators
+  ukb_b/          Source Inventory, provider metadata, candidate generator
+  dbgap/mvp/      phs002453 (MVP): acquisition, candidate generator and pilot
+  finngen/        R13 acquisition and assessment
+  eqtlgen/        BESD generator and subsetter
+  opengwas/       GWAS-VCF annotation
+```
+
+Run any of it as a module, `python3 -m manifest_generation.<module>`, or through
+its Pixi task (`pixi run generate-candidate`, `preflight`, `inventory-freeze`,
+`concordance-sample`, `concordance-run`). See ADR 0036 for where this is going:
+one shared pipeline fed by per-source connector files.
 
 ## The rules that are already fixed
 
@@ -30,6 +51,21 @@ system by accident.
    implementing them. If two Store Families computing something differently
    would be a bug, `opengwasdb` implements it; the registry keeps which
    Analyses, which method tier, and what tolerance to accept.
+5. **Every generator emits through one emitter** (#248, ADR 0035).
+   `manifest_generation.emit` is the only code that writes a candidate into
+   `stores/<id>/`.
+   A Python generator calls `emit()`. A legacy (R or BESD) generator keeps a
+   family-shaped working bundle in its work root,
+   `<artifact-root>/<output.store_id>/generate`
+   (`python3 -m manifest_generation.emit work-root <id>`), and its
+   `--mode=emit-registry` projects the current contract from that and its
+   config's `build:` block through `manifest_generation.emit project`
+   (`lib/emit_registry.R`).
+   No generator config names a `families/` path as output or work root. The emitter writes `status: candidate` and the
+   generator commands, checks the bundle against the Release Bundle contract,
+   writes its `summary.yaml`, and replaces `stores/<id>/` in one step. It
+   replaces only an earlier candidate, refuses a bundle that has been accepted
+   or gone further, and runs one emit of an id at a time.
 
 `generation-*.yaml` files here were lifted verbatim out of the pre-ADR-0022
 `build.yaml` files during migration: source reading, effect-scale validation,

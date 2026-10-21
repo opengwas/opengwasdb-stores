@@ -1,5 +1,0 @@
-analysis_id	region_id	region_kind	chromosome	start	end	source_genome_build	target_id	target_label	lead_variant_id	pvalue_threshold	n_variants_retained	region_policy_id
-GCST900001	GCST900001__sig_trans__001	significant_trans	1	4000000	6000040	GRCh38	""	""	""	5e-08	5	sig-trans-1mb_suggestive-leads
-GCST900001	GCST900001__suggestive__001	suggestive_trans	1	20000000	20000000	GRCh38	""	""	""	1e-05	1	sig-trans-1mb_suggestive-leads
-GCST900001	GCST900001__suggestive__002	suggestive_trans	1	40000000	40000000	GRCh38	""	""	""	1e-05	1	sig-trans-1mb_suggestive-leads
-GCST900001	GCST900001__suggestive__003	suggestive_trans	1	60000000	60000000	GRCh38	""	""	""	1e-05	1	sig-trans-1mb_suggestive-leads

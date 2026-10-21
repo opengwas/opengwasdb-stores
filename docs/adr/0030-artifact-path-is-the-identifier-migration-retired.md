@@ -28,3 +28,12 @@ The legacy family-first paths remain discoverable through the follow-up issue an
 ## Supersedes
 
 The `migration` provenance block's `previous_store_uri` was the last thing the indexer could read to prefer a legacy path over the identifier. Removing it completes the promise ADR 0022 made ("a store artifact path is a pure function of its identifier") and trims the field list ADR 0029 recorded as kept.
+
+---
+
+**Amended 2026-10-13.** ADR 0022's owner-authorized-renumbering amendment
+reintroduces a **narrow** `migration` provenance block for a documented,
+owner-authorized old→new identifier change (first case: FinnGen `OGS-00016` →
+`OGS-00017`). The rule here is unchanged: the indexer never reads
+`migration.previous_store_id` and `store_uri` remains a pure function of the
+identifier. The block records the identity change, not an artifact location.

@@ -34,7 +34,11 @@ description: >
   `source_label_map.tsv` beside this file translates free-text Source Ancestry
   Labels from the candidates table to these codes; both the Ancestry
   Assignment stage and the manifest generators read it so Assigned Ancestry
-  stays in one vocabulary across every Release Bundle (issue #133).
+  stays in one vocabulary across every Release Bundle (issue #133). Its
+  companion `source_label_imprecise.tsv` lists, with a reason each, the labels
+  the map leaves out on purpose (Multiple/Mixed, NR/Unknown, Other, Asian
+  (unspecified)), so a metadata adapter can tell a deliberately blank
+  super-population from an unknown label and refuse the latter (#283).
 
   This is a distinct resource from `ukb-hg38-eur-af`: that one is a
   single-ancestry LD/AF panel used for reference-MAF effect-scale

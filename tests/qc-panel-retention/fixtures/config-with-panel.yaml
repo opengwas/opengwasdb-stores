@@ -51,5 +51,5 @@ filter:
     resource_id: qc-panel-fixture
 
 output:
-  release_dir: tests/qc-panel-retention/fixtures/output-with-panel
+  store_id: OGS-99031
   data_dir: tests/qc-panel-retention/fixtures/output-with-panel

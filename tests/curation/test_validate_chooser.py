@@ -15,14 +15,10 @@ from __future__ import annotations
 import contextlib
 import io
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 from curation import candidates, validate_chooser
 from curation.chooser import NONE_SUITABLE, Candidate
@@ -196,9 +192,13 @@ class TestConditionalAccuracy(ValidateChooserTestCase):
         calls: list[str] = []
 
         class CountingChooser(StubChooser):
-            def select(self, trait_label, candidates):  # type: ignore[override]
+            def select(  # type: ignore[override]
+                self, trait_label, candidates, *, trait_context=""
+            ):
                 calls.append(trait_label)
-                return super().select(trait_label, candidates)
+                return super().select(
+                    trait_label, candidates, trait_context=trait_context
+                )
 
         chooser = CountingChooser(
             {

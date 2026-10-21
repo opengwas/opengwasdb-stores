@@ -16,6 +16,14 @@ everything in one pass:
 pixi run bundle-check        # discovers and checks every stores/<id>/ bundle
 ```
 
+The contract holds only what both workflows share and what Store Release Build
+needs to consume a bundle. Manifest Generation's own rules for a candidate's
+`analyses.tsv` live beside it, in `src/manifest_generation/generation_rules.py`
+(#250): the columns a generator must resolve, and how it records the INFO and
+MAF filters it requests. The emitter runs them before a candidate lands, and
+`pixi run bundle-check` runs them with the contract over every committed bundle,
+so neither escapes CI.
+
 A Release Bundle structure is:
 
 ```text
@@ -200,7 +208,7 @@ ignored: the registry materialises a derived build manifest with every excluded
 row removed and points the builder at it, so `opengwasdb` never sees an excluded
 row at all ([ADR 0025](adr/0025-registry-filters-excluded-analyses.md)).
 
-`bundle.check()` requires these columns to be present in the header:
+A bundle's header carries these columns:
 
 ```text
 analysis_id  stored_effect_scale  sample_size_kind  sample_size_scope
@@ -208,18 +216,21 @@ sample_size  original_effect_scale  original_sd_method
 ancestry_assignment_method  assigned_ancestry
 ```
 
-The first eight are OpenGWASDB's required set; `assigned_ancestry` is added by
-the registry. `bundle.check()` structurally enforces exactly these header
-columns, the retired-column list, and the ancestry, case/control-count, and
-checksum rules below. The `Required` column in the reference table is the
+The first eight are OpenGWASDB's required set, which `bundle.check()` enforces
+through the pinned shared schema. `assigned_ancestry` is added by the registry
+and required by Manifest Generation's rules, which also require
+`ancestry_assignment_method`, `stored_effect_scale` and `original_sd_method`
+(#250). `bundle.check()` enforces the shared required set, the retired-column
+list, and the ancestry vocabulary, case/control-count, and checksum rules
+below. The `Required` column in the reference table is the
 broader authoring convention for a complete bundle — columns marked Yes that
 `check()` does not itself demand (`analysis_label`, `source_label`, `source_file`,
 `checksum`, `source_genome_build`, `license`, `trait_ontology_mapping_method`)
 are what a reviewer and the pinned OpenGWASDB schema expect to see populated.
 Every required column must also be non-empty on every row, except
-that a `candidate` release and the two legacy trial releases `OGS-00001` and
-`OGS-00002` may leave required Analysis values blank pending resolution (issue
-#134; see "Blank required values" below).
+that a release Store Release Build will not build and the two legacy trial
+releases `OGS-00001` and `OGS-00002` may leave required Analysis values blank
+(issue #134; see "Blank required values" below).
 
 `bundle.check()` **rejects** any column named by the pinned upstream
 `RETIRED_ANALYSIS_COLUMNS` list: `phenotype_id`, `phenotype_label`, `trait_id`,
@@ -269,19 +280,21 @@ and the matching authority name in `trait_ontology_label` (issue #141).
 | `n_controls` | No | Control count for binary traits, or non-event/comparison count for time-to-event traits when reported by the source. Same absence rule as `n_cases`. |
 | `analysis_group_id` | No | Grouping key for analyses sharing a publication, analyte panel, phenotype batch, or source bundle. |
 | `inclusion_reason` | No | Short reason this Analysis was selected. |
-| `info_score_threshold` | No | Optional per-Analysis requested imputation INFO/R² floor in `[0,1]`. A numeric value (including `0`) is emitted only alongside the complete declaration triple below and only on resolver evidence: the record reports `info_score_state` `disabled` (explicit zero) or `filtered` (positive floor), `info_rows_usable > 0`, and a fingerprint that still binds the declaration. Literal `NaN` means unavailable -- no approved declaration, a legacy record without the diagnostics, or unusable evidence. A source MAF/EAF or a lookalike `INFO` header is not evidence of imputation quality. This value alone does not imply any variants were filtered. `bundle.check()` rejects a numeric threshold without the complete triple. Omission remains valid for older bundles. |
+| `info_score_threshold` | No | Optional per-Analysis requested imputation INFO/R² floor in `[0,1]`. A numeric value (including `0`) is emitted only alongside the complete declaration triple below and only on resolver evidence: the record reports `info_score_state` `disabled` (explicit zero) or `filtered` (positive floor), `info_rows_usable > 0`, and a fingerprint that still binds the declaration. Literal `NaN` means unavailable -- no approved declaration, a legacy record without the diagnostics, or unusable evidence. A source MAF/EAF or a lookalike `INFO` header is not evidence of imputation quality. This value alone does not imply any variants were filtered. Manifest Generation's rules reject a numeric threshold without the complete triple. Omission remains valid for older bundles. |
 | `imputation_score_column` | No | Exact, case-sensitive source column name the declaration cites as the imputation score. Emitted only with a numeric `info_score_threshold` and the other two triple columns; empty otherwise. |
-| `imputation_score_kind` | No | `imputation_info` or `imputation_r2`. `bundle.check()` rejects any other non-empty value. |
+| `imputation_score_kind` | No | `imputation_info` or `imputation_r2`. Manifest Generation's rules reject any other non-empty value. |
 | `imputation_score_provenance` | No | Independent provider semantic evidence (for example a provider data dictionary) for the declared column. A header guess, the column name itself, or MAF/EAF is not provenance. |
-| `maf_threshold` | No | Optional per-Analysis MAF floor in `[0, 0.5]`; `0` disables filtering and literal `NaN` means no MAF filter. A numeric value is emitted only on resolver evidence: the record reports a usable `maf_state` (`disabled` for an explicit zero, `filtered` for a positive floor) and the per-Analysis fingerprint still binds the same value. Every other Analysis -- no configured default, a MAF-exempt genotyping technology, a legacy record without the diagnostics, or a changed fingerprint -- emits literal `NaN`. The frequency is the reader's `af_alt` (GWAS-SSF `effect_allele_frequency`); `MAF = min(af, 1 - af)`. A row whose `af` is missing, non-finite or outside `[0, 1]` is retained, not dropped. `bundle.check()` rejects any non-`NaN` value outside `[0, 0.5]`. This value alone does not imply any variants were filtered. Omission remains valid for older bundles. |
+| `maf_threshold` | No | Optional per-Analysis MAF floor in `[0, 0.5]`; `0` disables filtering and literal `NaN` means no MAF filter. A numeric value is emitted only on resolver evidence: the record reports a usable `maf_state` (`disabled` for an explicit zero, `filtered` for a positive floor) and the per-Analysis fingerprint still binds the same value. Every other Analysis -- no configured default, a MAF-exempt genotyping technology, a legacy record without the diagnostics, or a changed fingerprint -- emits literal `NaN`. The frequency is the reader's `af_alt` (GWAS-SSF `effect_allele_frequency`); `MAF = min(af, 1 - af)`. A row whose `af` is missing, non-finite or outside `[0, 1]` is retained, not dropped. Manifest Generation's rules reject any non-`NaN` value outside `[0, 0.5]`. This value alone does not imply any variants were filtered. Omission remains valid for older bundles. |
 | `exclude_from_build` | No | `true` only for rows retained for audit but intentionally skipped by the build. The registry honours it at build time: it materialises a derived build manifest (`<artifact-root>/<store-id>/work/analyses.tsv`) with every `true` row removed and points the builder at that, so `opengwasdb` never sees an excluded row. The row itself stays in the committed bundle, with its `inclusion_reason`, as the audit record of why the Analysis is absent. See [ADR 0025](adr/0025-registry-filters-excluded-analyses.md). |
 | `ancestry_prop_*` | No | Optional family of columns for estimated reference ancestry proportions. |
 
 The four INFO columns are one policy: `info_score_threshold` is the requested
 floor and `imputation_score_column`/`imputation_score_kind`/
 `imputation_score_provenance` are the exact source-column declaration it
-requires. `bundle.check()` rejects a numeric threshold without the complete
-triple and a triple without a numeric threshold. A declared column is only
+requires. Manifest Generation's rules reject a numeric threshold without the
+complete triple and a triple without a numeric threshold, on every row; the
+pinned shared schema `bundle.check()` runs also checks the rows that will be
+built. A declared column is only
 meaningful to the GWAS-SSF reader, and the pinned OpenGWASDB validator reads
 the reader from the row, not from the Build Recipe's
 `source-reader-capability` default. A row with a numeric threshold must
@@ -312,8 +325,18 @@ YAML's `genotyping_technology` list is non-empty and every technology is in
 metadata is never an exemption. The resolver manifest carries the derived
 `maf_threshold` per Analysis and the resolver record's `maf_state` plus its
 fingerprint binding decide the emitted candidate value, exactly as for INFO.
-`bundle.check()` validates the column independently of the pinned OpenGWASDB
-Analysis schema.
+Manifest Generation's rules validate the column on every row, independently of
+the pinned OpenGWASDB Analysis schema.
+
+A separate optional `store_composition.require_maf_filtered` generator-config
+rule decides whether a shared Store may admit an Analysis with no applied MAF
+floor. Absent or `false`, every otherwise admissible Analysis is included;
+`true` requires a positive `defaults.maf_threshold` and excludes an otherwise
+admissible Analysis whose emitted `maf_threshold` is `NaN` as
+`not_maf_filtered` (see the exclusions sidecar). The rule runs after every other
+membership decision and only at emit, so toggling it needs `--stage emit` and
+never a re-resolve. See
+[ADR 0033](adr/0033-shared-stores-admit-only-maf-filtered-analyses.md).
 
 Some generators add release-specific columns beyond this table, such as the
 `gwas-ssf-ragged` generator's single-gene-target columns (`trait_chr`,
@@ -359,9 +382,11 @@ vocabulary, so the split cannot silently reappear.
 `bundle.check()` normally fails a row that leaves a required column blank.
 Two deliberate exemptions exist, both narrow:
 
-- **Candidate releases.** A `candidate` may legitimately leave values blank
-  pending resolution; this is the one status where an unresolved row is the
-  expected state rather than a defect.
+- **Releases Store Release Build will not build.** A release whose status is
+  not `accepted`, `built` or `validated` (#247) may leave values blank: a
+  `candidate` is still being resolved, and what it must resolve before it
+  lands is Manifest Generation's policy, not the contract's (#250). `check()`
+  discloses the count as a tolerated gap cited `not buildable`.
 - **Legacy monolithic BESD releases.** `OGS-00001` and `OGS-00002` are exempt
   because their required Analytical Metadata is unpopulated in upstream BESD
   sources and cannot be resolved without external study metadata. The exemption
@@ -390,6 +415,7 @@ registry fact or an `opengwasdb` flag. It does not record *where* artifacts land
 | `build.command` / `complete.command` | Yes | An `opengwasdb` CLI subcommand; never a Python import path. Supported values are keyed by phase in `plan.COMMANDS`: `build-dense-vcf`, `build-hybrid`, `build-ragged-ssf`, `build-ragged-besd`; `complete-dense`, `complete-hybrid`, `complete-ragged`. |
 | `build.options` / `complete.options` | No | `opengwasdb` flag names passed through verbatim; see "The passthrough rule". |
 | `post` | Yes | Post-processing choices: `top_hits`, `rho`, `overview`, `validate`. `rho` defaults off and `validate` defaults on (`plan.POST_DEFAULTS`); a recipe states only what it chooses differently. `top_hits` and `overview` are always explicit because they vary per release. |
+| `indexed_subsets` | No | Optional named Indexed Variant Subset declarations (stores #209, epic #214). A list of `{name, resource_id, variant_list, reference_assembly, checksum?, options?}`. Dense and Hybrid only; a Ragged release rejects any declaration. Every declaration adds one `build-indexed-subset` Step before `overview` and `validate`. See "Indexed Variant Subset declarations". |
 
 A Build Recipe must **not** declare an `artifacts` block: `bundle.check()`
 rejects it, because the artifact root is deployment configuration (issue #126).
@@ -436,6 +462,47 @@ post:
   overview: true
 ```
 
+### Indexed Variant Subset declarations
+
+A Dense or Hybrid Build Recipe may declare optional named Indexed Variant
+Subsets (stores #209). Each declaration becomes one `opengwasdb
+build-indexed-subset` Step, planned after the Store and its inline top-hit/rho
+steps exist and before `overview` and `validate`, so overview reports the subset
+and validation audits it. The Step's durable `records/indexed-subset-<name>.json`
+is written by the ordinary step executor; no new record schema is introduced.
+
+| Field | Required | Description |
+|---|---:|---|
+| `name` | Yes | The subset identity. The consumer's grammar `[A-Za-z0-9][A-Za-z0-9._-]{0,127}`, and the registry additionally refuses `..` because the name becomes part of the record filename. Unique within the release. |
+| `resource_id` | Yes | `resource_id` of a maintained `kind: variant_list` Reference Resource (`resources/reference-resources/<id>/resource.yaml`). |
+| `variant_list` | Yes | The concrete canonical-ALID list path the build passes as `--variant-list`. It must match the resource declaration's `location`. Recorded so the immutable bundle is self-contained; `plan()` never opens it. |
+| `reference_assembly` | Yes | The list's assembly, passed as `--reference-assembly`. It must match the resource declaration's `genome_build`. |
+| `checksum` | No | The maintained list's sha256 as 64 hex characters. When present it must equal the resource declaration's `checksums.alid_sha256`. |
+| `options` | No | `build-indexed-subset` flags passed through verbatim (`plan.render_options`). `overwrite` is refused, and so is any key that normalises (`strip().lstrip('-')`) to `variant-list` or `reference-assembly`: those are the declaration's own verified inputs, and re-specifying one in `options` would let the executed CLI use a value the runtime did not hash or check. |
+
+The key is optional; omit it to declare no subsets. An explicit `indexed_subsets:
+null` is malformed rather than treated as omitted, so a generator cannot
+silently drop a declaration.
+
+```yaml
+indexed_subsets:
+  - name: hm3
+    resource_id: hapmap3-hg38
+    variant_list: /data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt
+    reference_assembly: GRCh38
+    checksum: 4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398
+```
+
+`bundle.check()` validates the declaration shape (names, required strings,
+checksum syntax, uniqueness, Dense/Hybrid only, no `overwrite`) without any
+resource I/O. Whether the `resource_id` resolves, whether the list matches the
+maintained checksum, and whether the runtime provides `build-indexed-subset`
+are run-time facts the release entry point verifies before a build; the
+tracked `opengwasdb` pin provides the capability since stores#218, so the entry
+point needs no `PATH` overlay. See
+[ADR 0034](adr/0034-indexed-variant-subsets-in-release-planning.md) and the
+workflow specification's "Indexed Variant Subsets".
+
 ### The passthrough rule
 
 `options` keys are `opengwasdb` flag names. `plan()` renders `key: value` as
@@ -464,16 +531,51 @@ support:
 
 ## `validation.yaml`
 
-Release-level acceptance and build validation summary. `register` is the only
-writer (issue #119); it assembles the record from the step records and the
-`opengwasdb validate` verdict. This table is the one definition of the format;
-the workflow specification explains how `register` produces it rather than
-restating the fields. A measurement the build did not report is written as
-`null` — absence is recorded, never guessed or defaulted (issue #135).
+Release-level acceptance and build validation summary. This table is the one
+definition of the format; the workflow specification explains how `register`
+produces it rather than restating the fields. A measurement the build did not
+report is written as `null` — absence is recorded, never guessed or defaulted
+(issue #135).
+
+Two writers produce this file at different times:
+- A Manifest Generator writes a candidate bundle's record (Phase B): its
+  acceptance checks, sidecar `reports` and `warnings`.
+- `register` writes the record of a built release (issue #119).
+
+`register` replaces the candidate's record; it does not merge with it. Its
+`status`, `checks`, `warnings` and `errors` hold only that run's findings: the
+`opengwasdb validate --format json` verdict as `checks.store`, with that run's
+`warnings` and `errors` exactly as validate printed them. None of them carries
+anything from the record being replaced (#195).
+
+The candidate's Phase B acceptance evidence is kept in its own labelled
+`acceptance` block, apart from those findings, and nothing in it feeds them
+(#195). `register` fills the block in one of three ways:
+- **From a candidate record** (one whose `validator.name` is not
+  `opengwasdb validate`): every block it holds, verbatim -- its `checks`,
+  `warnings` and `reports`, and whatever evidence its generator records, such
+  as `reference_overlap` (OGS-00011), `store_composition` (#203) or a dbGaP
+  candidate's own `acceptance` -- except the fields that describe the
+  generator's run rather than the bundle: `status`, `validated_at`,
+  `validator`, `build_environment`, `observed` and `errors`. The block is dated
+  by the candidate's own `validated_at` and tied to the commit that record came
+  from. A candidate block named `recorded_at` or `commit` is refused, since it
+  would overwrite that dating.
+- **From a `register`-written record:** its `acceptance` block is passed on
+  verbatim, because the accepted bundle it describes is immutable.
+- **Not at all, from a record #135 migrated** (OGS-00001..7). Those records
+  mix Phase B evidence with an earlier build's findings, so nothing is
+  extracted from them; git keeps them.
+
+`register` names no generator's evidence, so a generator that records a new
+kind is carried without changing `register` (#250).
 
 A `built` or `validated` release must carry a `validation.yaml` whose `status`
 is one of `not_run`, `passed`, `passed_with_warnings`, or `failed`;
-`bundle.check()` rejects any other value. A `candidate`, `accepted`,
+`bundle.check()` rejects any other value. A `validated` release needs `passed`
+or `passed_with_warnings`: a passing `opengwasdb validate` is what makes a
+release validated, and its warnings are kept in the record (#195; see the
+workflow specification's "The Release Status a Validation Record gives"). A `candidate`, `accepted`,
 `superseded`, or `withdrawn` release needs none.
 
 | Field | Required | Description |
@@ -486,7 +588,7 @@ is one of `not_run`, `passed`, `passed_with_warnings`, or `failed`;
 | `build_environment.opengwasdb_commit` | No | `opengwasdb` revision the record was produced against. |
 | `build_environment.python_version` | No | Python version of the registering environment. |
 | `build_environment.platform` | No | Platform string of the registering environment. |
-| `observed.format_version` | Yes | OpenGWASDB store format version the build reported, or `null` when it was not recorded. |
+| `observed.format_version` | Yes | OpenGWASDB store format version the build reported, or `null` when it was not recorded. `register` never assumes one. Until #195 it defaulted to `"1.0"`, which is why OGS-00001..3 record `"1.0"` for Stores whose manifests say `0.1.0`. |
 | `observed.n_analyses` | Yes | Analysis count the build reported, or `null` when it was not recorded. |
 | `observed.n_variants` | Yes | Variant count the build reported, or `null` when it was not recorded. |
 | `observed.n_associations` | Yes | Association count the build reported, or `null` when it was not recorded. |
@@ -494,16 +596,40 @@ is one of `not_run`, `passed`, `passed_with_warnings`, or `failed`;
 | `observed.build_elapsed_s` | Yes | Summed step elapsed seconds, or `null` when it was not recorded. |
 | `observed.validate_status` | Yes | The validate verdict the release-level `status` is derived from. |
 | `observed.variant_reference` | No | Variant-reference provenance (issue #148): `provided` when the artifact already existed (a skipped `variant-reference` pre-stage, or a build option naming an existing panel with no declared pre-stage, as OGS-00004/OGS-00005 do), `extracted` when the workflow ran `extract-variant-reference`, and absent when the release uses no variant reference. |
-| `checks.schema` | Yes | Whether required files and fields conform to OpenGWASDB's shared core schema and this registry's release-bundle requirements. |
-| `checks.files` | Yes | Whether referenced source or filtered files exist and match checksums. |
+| `checks.store` | Yes, `register` record | This run's `opengwasdb validate --format json` verdict: `failed` when `ok` is false, `passed_with_warnings` when it reported a warning, `passed` otherwise, and `not_run` when the plan has no validate step. The only check a `register`-written record carries (#195). |
+| `checks.schema` | Yes, Phase B record | Whether required files and fields conform to OpenGWASDB's shared core schema and this registry's release-bundle requirements. Written by a Manifest Generator; not carried into a registered record. |
+| `checks.files` | Yes, Phase B record | Whether referenced source or filtered files exist and match checksums. Written by a Manifest Generator; not carried into a registered record. |
 | `checks.reader_smoke_test` | No | Whether OpenGWASDB can read a small sample from each source file or bundle. |
 | `checks.ancestry` | No | `not_run` when the release has not opted into `ancestry_assignment` (or opted in but every Analysis was skipped for lacking usable source AF). Otherwise reflects the AF-based ancestry sidecar evidence: `passed` when every attempted Analysis cleared its gates with no source/assigned mismatch, `passed_with_warnings` when at least one attempted Analysis failed a gate or disagreed with its source-declared ancestry, and never a bare `passed` implying validation ran when it did not. |
 | `checks.effect_scale` | No | `not_run` when the release has not opted into `effect_scale_validation`, or when it has opted in but reflects only controlled-vocabulary validity. Once a release opts in, this must reflect the empirical reference-AF/source-AF SD-estimation sidecar outcome across attempted Analyses (`passed`, `passed_with_warnings`, or `failed`), not merely that declared vocabulary values are valid. |
 | `checks.sd_estimation` | No | `not_run` when SD-estimation was not attempted. Otherwise `passed` only when the sidecar is internally consistent (every attempted, warned, or failed Analysis has a matching sidecar row with required fields populated) and no attempted Analysis has status `failed`; `passed_with_warnings` when at least one Analysis has status `warning`, or `skipped` for a reason that should be reviewed (for example `no_reference_resource_for_ancestry`); `failed` otherwise. |
 | `checks.sparse_regions` | No | Whether ragged region sidecars match filtered files. |
-| `reports` | No | URIs or paths to detailed reports. |
-| `warnings` | No | List of non-blocking warnings. Reference-AF effect-scale warnings should name the Analysis and reason, for example low reference-AF overlap, an allele mismatch, unstable implied SD, a missing reference resource for the assigned ancestry, or scale inconsistency versus the declared effect scale. |
-| `errors` | No | List of blocking errors. |
+| `store_composition` | No | The candidate's Store composition rule evidence (Phase B record, #203; [ADR 0033](adr/0033-shared-stores-admit-only-maf-filtered-analyses.md)). |
+| `store_composition.require_maf_filtered` | No | Whether the rule ran: `true` when the generator config set `store_composition.require_maf_filtered`, `false` otherwise. |
+| `store_composition.maf_floor` | No | The configured `defaults.maf_threshold` as a string, or `null` when none was configured. |
+| `store_composition.unfiltered_included` | No | Number of included Analyses with no applied MAF floor. |
+| `store_composition.unfiltered_included_off_reference_rows` | No | Sum of those Analyses' build-eligible rows off the variant reference, or `null` when no `variant-reference` is declared or any counted Analysis lacks the resolver count. |
+| `store_composition.unfiltered_routed` | No | Number of Analyses excluded as `not_maf_filtered`. |
+| `store_composition.unfiltered_routed_off_reference_rows` | No | The same off-reference sum for the routed Analyses, or `null` under the same absence rule. |
+| `quality_checks` | No | The candidate's Quality Check summary (Manifest Generation record, #285; [ADR 0036](adr/0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.md)): one entry per check, keyed by its name. Per-Analysis results are in the [Quality Check sidecar](#quality-check-sidecar). |
+| `quality_checks.<check>.kind` | No | `exclusion` or `warning`, as the check declares it. |
+| `quality_checks.<check>.stage` | No | The precedence slot where a failed exclusion takes effect: `resolved`, `ancestry_read`, `selection` or `target_ancestry` (see the sidecar). |
+| `quality_checks.<check>.measures` | No | What the check reads, in words; it names a reviewed listing where OpenGWASDB does not measure the value yet. |
+| `quality_checks.<check>.threshold` | No | The threshold this release applied, or `null` for a check that tests a status. |
+| `quality_checks.<check>.default_threshold` | No | The shared default, or `null`. |
+| `quality_checks.<check>.overridden` | No | `true` when the generator config's `quality_checks` block overrode the default. |
+| `quality_checks.<check>.results` | No | How many Analyses had each result: `passed`, `failed`, `not_applicable`, `unmeasured`, `invalid`. |
+| `quality_checks.<check>.excluded` | No | For an exclusion: how many Analyses it excluded. An Analysis that failed it after an earlier rule excluded it is counted under `results.failed` only. |
+| `quality_checks.<check>.warned` | No | For a warning: how many included Analyses failed it. Each warning check that warned also adds one line to `warnings`. |
+| `reports` | No | URIs or paths to detailed reports. A Phase B record points at its sidecars; `register` writes no top-level `reports` (#195). |
+| `warnings` | No | List of non-blocking warnings. In a `register`-written record, exactly the `warnings` list `opengwasdb validate --format json` printed for this run. Reference-AF effect-scale warnings should name the Analysis and reason, for example low reference-AF overlap, an allele mismatch, unstable implied SD, a missing reference resource for the assigned ancestry, or scale inconsistency versus the declared effect scale. |
+| `errors` | No | List of blocking errors. In a `register`-written record, exactly the `errors` list `opengwasdb validate --format json` printed for this run. |
+| `replaced.archive` | No | Written when this run replaced a published release (`--config force=1`, #195): the `replaced/<UTC>/` directory beside the Store. It holds the replaced `store.opengwasdb`, its `records/` and a copy of its `validation.yaml`, and nothing deletes it. |
+| `replaced.replaced_at` | No | When this run replaced it. |
+| `acceptance` | No | The accepted bundle's Phase B acceptance evidence, kept apart from this run's findings (#195). See above for when `register` writes it. Absent when there is none to keep. |
+| `acceptance.recorded_at` | Yes, in the block | The candidate record's own `validated_at`. |
+| `acceptance.commit` | Yes, in the block | The commit the candidate record came from, or `null` when the file was untracked or modified since its last commit, so no commit describes it. |
+| `acceptance.<block>` | No | Every other block of the candidate record, verbatim, except `status`, `validated_at`, `validator`, `build_environment`, `observed` and `errors`: its `checks`, `warnings` and `reports`, and any evidence its generator records. A block the candidate did not have is absent. |
 
 The record's top-level `status` is the release-level verdict, and the generated
 master list publishes that value and no other. A per-check entry in `checks`
@@ -527,7 +653,9 @@ master list. See `bundle.summarise()` and [ADR 0014](adr/0014-release-manifest-b
 
 Generated evidence lives under `sidecars/` inside the bundle. Sidecars are
 Phase B outputs; `bundle.check()` does not validate their fields, so a Manifest
-Generator is responsible for emitting them consistently.
+Generator is responsible for emitting them consistently. The one exception is
+the [Quality Check sidecar](#quality-check-sidecar), which is part of the
+Release Bundle contract: optional, but validated whenever it is present.
 
 ### Ancestry sidecar
 
@@ -615,11 +743,97 @@ reason. The same reason is carried in the excluded `analyses.tsv` row's
 | `analysis_id` | Yes | Registry Analysis ID matching `analyses.tsv`. |
 | `source_analysis_id` | No | Upstream analysis identifier. |
 | `study_design` | No | The frozen inventory's `study_design`. |
-| `category` | Yes | `ancestry`, `orientation`, `effect_scale`, `resolution`, or `metadata`. |
-| `reason` | Yes | Controlled vocabulary: `resolution_failed`, `ancestry_unassigned`, `ancestry_not_eur`, `orientation_failure`, `sd_no_reference_resource_for_ancestry`, `sd_no_qualifying_evidence`, `sd_no_usable_sample_size`, `sd_failed`, `missing_sample_size`, `missing_case_control_counts`, or `no_build_eligible_rows`. |
+| `category` | Yes | `ancestry`, `orientation`, `effect_scale`, `resolution`, `metadata`, or `store_composition`. |
+| `reason` | Yes | Controlled vocabulary: `resolution_failed`, `ancestry_unassigned`, `ancestry_not_eur`, `orientation_failure`, `sd_no_reference_resource_for_ancestry`, `sd_no_qualifying_evidence`, `sd_no_usable_sample_size`, `sd_failed`, `missing_sample_size`, `missing_case_control_counts`, `no_build_eligible_rows`, `effect_placeholder_rows` (a reviewed listing of Analyses whose source writes unestimated effects as a `±2.2e-308` placeholder with `standard_error` 0), or `not_maf_filtered` (an otherwise admissible Analysis with no applied MAF floor while `store_composition.require_maf_filtered` is on; [ADR 0033](adr/0033-shared-stores-admit-only-maf-filtered-analyses.md)). |
 | `detail` | No | The concrete evidence (assigned ancestry, gate reason, resolver error, missing field). |
 | `resolver_status` | No | The resolver record's status (`success`, `controlled_failure`, or `missing`). |
 | `exclude_from_build` | Yes | Always `true`; the exclusion is enforced at build time per [ADR 0025](adr/0025-registry-filters-excluded-analyses.md). |
+
+Nine of these reasons are written by an exclusion Quality Check (see the
+[Quality Check sidecar](#quality-check-sidecar)): `no_build_eligible_rows`,
+`effect_placeholder_rows`, `orientation_failure`, the Assigned Ancestry check's
+`ancestry_unassigned` and `ancestry_not_eur`, and the four `sd_*` reasons. The
+other four are release policy, with no measurement to test:
+`resolution_failed` (no Resolution Record), `missing_sample_size` and
+`missing_case_control_counts` (candidate-table metadata), and the Store
+Composition Rule's `not_maf_filtered` ([ADR 0033](adr/0033-shared-stores-admit-only-maf-filtered-analyses.md)).
+
+### Quality Check sidecar
+
+Suggested path: `sidecars/quality_checks.tsv`. Written by the candidate
+workflow (issue #285; [ADR 0036](adr/0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.md)).
+One row per ready Analysis, included or excluded, in `analyses.tsv` order: a
+Quality Check's measurement is recorded whether the Analysis passes or not, and
+whether or not that check decided its membership.
+
+A **Quality Check** tests one measurement of an Analysis against a threshold,
+or, for a status, against the values it accepts. Its consequence is fixed when
+the check is declared (`src/manifest_generation/quality_checks.py`): an
+**exclusion** makes the Analysis an `exclude_from_build` audit row with the
+check's reason (see the exclusions sidecar), and a **warning** keeps it and
+records the finding. Every registered check is evaluated for every Analysis.
+
+| Field | Required | Description |
+|---|---:|---|
+| `analysis_id` | Yes | Registry Analysis ID matching `analyses.tsv`. |
+| `exclude_from_build` | Yes | `true` when the Analysis is an audit row, empty when included; as in `analyses.tsv`. |
+| `exclusion_reason` | No | The reason that decided the exclusion, whether a Quality Check's or release policy's; empty when included. |
+| `<check>` | Yes | The check's result, one of: `passed`; `failed`; `not_applicable`, the check does not apply to this Analysis (a phenotype SD on a `log_or` scale), decided before anything is measured, so it wins over `unmeasured`; `unmeasured`, there is no measurement to test (a record check without a successful Resolution Record); `invalid`, the measurement breaks its contract (an unknown `eaf_orientation`, a non-numeric SD), recorded on an Analysis an earlier rule already excluded. |
+| `<check>_measured` | No | The measurement the result is based on, as the check renders it; empty when there is none. |
+
+The `<check>` column pairs follow the registry's order. The built-in checks are:
+
+| Check | Kind | Stage | Measures | Default threshold | Fails when | Reasons |
+|---|---|---|---|---|---|---|
+| `build_eligible_rows` | exclusion | `resolved` | the record's `diagnostics.build_eligible_rows` (rows with a finite effect and positive standard error, after any INFO and MAF floor); `unmeasured` when absent, `invalid` when not a non-negative integer | `1` (minimum rows) | fewer rows than the threshold | `no_build_eligible_rows` |
+| `effect_placeholder_rows` | exclusion | `resolved` | the reviewed `source.effect_placeholder_exclusions` listing, because OpenGWASDB does not count placeholder rows yet (ADR 0036, clarified by #285); `_measured` is the listing's reason, or `not_listed` | none | the Analysis is listed | `effect_placeholder_rows` |
+| `eaf_orientation` | exclusion | `ancestry_read` | the record's `ancestry.eaf_orientation`, `gate_reason` and `eaf_orientation_r`; `passed` and `unverified` pass, no outcome is `unmeasured`, a value outside the vocabulary `invalid` | none | `eaf_orientation = failed` or `gate_reason = eaf_orientation` | `orientation_failure` |
+| `assigned_ancestry` | exclusion | `selection` | the record's `ancestry.assigned_ancestry` against the Selection's super-population (from `source.ancestry_group`, today `EUR`) | none | no assignment, or not a super-population code (`ancestry_unassigned`); a different super-population (`ancestry_not_eur`) | `ancestry_unassigned`, `ancestry_not_eur` |
+| `phenotype_sd` | exclusion | `target_ancestry` | the record's `phenotype_sd` status, reason and estimate; `not_applicable` for `log_or`/`log_hazard`; a non-numeric estimate is `invalid` | none | not a positive finite estimate | `sd_no_qualifying_evidence`, `sd_no_reference_resource_for_ancestry`, `sd_no_usable_sample_size`, `sd_failed` |
+
+A check's **stage** is a precedence slot in the release policy: the policy
+settles an Analysis in a fixed order and, at each slot, the first failed
+exclusion check there decides. The slot fixes which reason wins when several
+apply and what the audit row carries: `resolved` (a successful Resolution
+Record, before Assigned Ancestry is read; the row carries none),
+`ancestry_read` (Assigned Ancestry read but not yet assessed; the row keeps the
+value read), `selection` (Assigned Ancestry tested against the Selection; the
+row carries it as `af_assigned` when it is a super-population code) and
+`target_ancestry` (the Analysis has the Selection's ancestry, and its
+case-control counts when it needs them). Within a slot, registry order decides.
+A new check can use an existing slot without a policy change; a new slot is a
+change to the release policy.
+
+A measurement an exclusion cannot use is never a silent pass. An `invalid`
+result where its check would decide membership stops the run; on an Analysis
+an earlier rule already excluded, it is only recorded. An Analysis that nothing
+excluded but that an exclusion check recorded as `unmeasured` (or `invalid`) is
+refused, naming the Analysis and the check, rather than included untested.
+
+The INFO and MAF floors (`defaults.info_score_threshold`,
+`defaults.maf_threshold`) are not Quality Checks, because OpenGWASDB applies
+them to rows during Analysis Resolution and neither one decides an Analysis's
+membership; their effect is measured by `build_eligible_rows`.
+
+**Contract.** The sidecar is an optional Release Bundle contract file
+([ADR 0036](adr/0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.md):
+the contract grows per-Analysis Quality Check results). A bundle without it is
+valid; every bundle emitted before #285 has none. When it is present,
+`bundle.check()` (`_check_quality_checks`) requires:
+
+- the columns `analysis_id`, `exclude_from_build`, `exclusion_reason`, then
+  one `<check>`, `<check>_measured` pair per check, at least one, with no check
+  named twice;
+- one row per `analyses.tsv` Analysis, excluded audit rows included, in the
+  same order, and no other row;
+- every `<check>` value in the result vocabulary above;
+- `exclude_from_build` exactly `true` or empty, agreeing with `analyses.tsv`;
+  `exclusion_reason` non-empty exactly when excluded, and, when
+  `sidecars/exclusions.tsv` is present, equal to its `reason` for that
+  Analysis.
+
+Store Release Build never reads it: membership is already decided in
+`analyses.tsv` (`tests/packaging/test_boundary.py` holds this).
 
 ### Sparse-region sidecar
 
@@ -657,6 +871,32 @@ specialised sidecar.
 | `evidence` | No | Compact evidence string or URI. |
 | `notes` | No | Free-text notes for audit. |
 
+## Source connector files and freeze
+
+A Source Collection plugs into Manifest Generation through files, never through
+code the pipeline calls ([ADR 0036](adr/0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.md)).
+Two of them meet at freeze (`python3 -m manifest_generation.freeze`, #283):
+
+- the **Source Metadata Table**: one row per intended Analysis in canonical
+  columns -- `source_analysis_id` (the only required one), Source Trait Label
+  and ontology terms, Source Ancestry Label and super-population, study
+  design, declared effect scale, sample size and case counts, genome build,
+  Publication Metadata, licence, a provider grouping (`store_key`) and
+  optional target columns for single-target Analyses;
+- the **Acquisition Manifest**: per Analysis, the file acquisition produced --
+  location, size, sha256, source URL, metadata sidecar, lineage for a
+  reformatted file -- or the readiness status recording why there is none.
+
+A release config's **Selection** (`all`, an `analyses` list, or a `where`
+rule) picks the Analyses one release takes. Freeze reconciles them, fails on a
+selected Analysis with no manifest row, a row no Analysis claims or a
+duplicate, keeps an explained absence as a non-ready inventory row, and writes
+the Source Inventory with the selected connector rows frozen beside it.
+
+[`docs/spec/source-connectors.md`](spec/source-connectors.md) specifies every
+column, the vocabularies, the GWAS Catalog adapter and writer, the Selection
+grammar and the frozen inventory's provenance.
+
 ## Manifest Generator configuration
 
 The blocks below are **Phase B generator configuration**, not Release Bundle
@@ -686,7 +926,7 @@ snapshot was frozen from:
 | `source.inventory.freeze_inputs` | Yes | The ordered `{role, path}` acquisition status manifests `freeze` merges. Order is the precedence rule: earliest pass first, and a later pass is authoritative for every `analysis_id` it covers. A later pass may not regress a ready Analysis to a non-ready one. |
 
 Which `readiness_status` values count as a usable source is **not** a config
-key: it is owned by `resources/generators/lib/source_inventory.py`
+key: it is owned by `src/manifest_generation/source_inventory.py`
 (`READY_STATUSES`: `ok` and `already_present`), so the vocabulary has one
 spelling rather than one per generator config. An unknown status fails rather
 than defaulting to unavailable.
@@ -827,7 +1067,7 @@ validation should declare at least:
 | Field | Required | Description |
 |---|---:|---|
 | `resource_id` | Yes | Stable ID for this Reference Resource, referenced from `effect_scale_validation.reference_resources` or `ancestry_assignment.reference_resource_id`. |
-| `kind` | Yes | `reference_af` for single-ancestry allele-frequency lookup resources used by effect-scale validation; `ancestry_mixture` for multi-ancestry mixture-frequency resources used by AF-based ancestry assignment (issue #23); `qc_panel` for the fixed QC variant panel unconditionally retained regardless of significance (issue #28/#29); `trait_ontology_mapping` for a curated trait-label-to-ontology-term lookup; `hybrid_dense_panel` for a Hybrid release's Dense Component reference panel; other kinds (for example LD panels) may reuse the same declaration shape. |
+| `kind` | Yes | `reference_af` for single-ancestry allele-frequency lookup resources used by effect-scale validation; `ancestry_mixture` for multi-ancestry mixture-frequency resources used by AF-based ancestry assignment (issue #23); `qc_panel` for the fixed QC variant panel unconditionally retained regardless of significance (issue #28/#29); `trait_ontology_mapping` for a curated trait-label-to-ontology-term lookup; `hybrid_dense_panel` for a Hybrid release's Dense Component reference panel; `variant_list` for a canonical ALID list consumed as an Indexed Variant Subset build input (`hapmap3-hg38`, epic #214); other kinds (for example LD panels) may reuse the same declaration shape. |
 | `ancestry` | Yes for `reference_af` | Ancestry/population label the resource represents, matching the controlled `assigned_ancestry` vocabulary. For `ancestry_mixture` resources, which cover multiple super-populations at once, use `ancestry: multi` and list the covered super-populations in `super_populations` instead. Not applicable for `trait_ontology_mapping`. |
 | `super_populations` | Yes for `ancestry_mixture` | List of super-population labels the mixture reference can assign to (for example `AFR, AMR, EAS, EUR, MID, NAF, SAS`). |
 | `genome_build` | Yes, except `trait_ontology_mapping` | Genome build of the resource's coordinates. Not applicable for `trait_ontology_mapping`, which has no genomic coordinates. |
@@ -835,11 +1075,67 @@ validation should declare at least:
 | `allele_columns` | No | Column-name mapping the resource uses for effect/other allele and frequency, for example `{effect: EA, other: OA, freq: EAF}`. |
 | `location` | Yes | External path or URI for the resource, outside this repository — except `kind: qc_panel` and `kind: trait_ontology_mapping`, both small enough to track directly in this repository, so `location` is a repo-relative path instead. |
 | `location_kind` | No | How to interpret `location`, for example `external_directory`, `external_file`, or `tracked_file` for a small resource tracked directly in this repository. |
+| `row_count` | Yes for `variant_list` | Number of variant rows the resource contains. Verification fails on a mismatch, so a truncated or appended list cannot pass as the declared one. |
+| `checksums` | Yes for `variant_list` | The exact bytes the resource was accepted at: `alid_sha256` and `alid_bytes` for the maintained list, plus `source_md5`/`source_sha256` for the upstream source snapshot. The consumer hashes the same bytes (`opengwasdb build-indexed-subset` records the list's SHA-256 in the subset metadata), so this is the identity a reviewer compares against. |
+| `source` | Yes for `variant_list` | Upstream provenance of the list: source name, file, download URL, snapshot path, size, columns and source row count. |
+| `derivation` | Yes for `variant_list` | How the maintained list was derived from the source and the counts that reconcile it, including `rsids_requested`, `resolved`, `absent_from_store_axis`, `allele_incompatible` and `duplicate_alids`. The arithmetic must balance and `resolved` must equal `row_count`; verification refuses otherwise. |
 | `fine_group_map` | Yes for `ancestry_mixture` | External path to the fine-ancestry-group -> super-population map (one row per fine group in the resource) used to aggregate a fitted mixture to super-population composition. |
 
 Reference-AF and ancestry-mixture resources are recorded here for provenance;
 the resource data itself lives under the configured artifact root or another
-external location, never inside this repository (ADR 0015).
+external location, never inside this repository (ADR 0015). A `kind: variant_list`
+resource is the same shape for an Indexed Variant Subset build input: the
+`hapmap3-hg38` declaration records the canonical-ALID list's `row_count` and
+byte checksums, its LDSC source checksum and snapshot, and the rsID
+reconciliation, and `resources/reference-resources/hapmap3-hg38/verify_hm3_resource.py`
+is the executable check of all of them.
+
+### Indexed Variant Subset defaults
+
+Every future Dense and Hybrid Store Release declares the maintained `hm3`
+Indexed Variant Subset by default (stores #210, epic #214); a Ragged-only release
+does not. A generator resolves that declaration through
+`src/manifest_generation/indexed_subsets.py` (or its R mirror
+`resources/generators/lib/indexed_subsets.R`), which reads the one maintained
+`hapmap3-hg38` Reference Resource, so no writer copies the list path, assembly
+or checksum. The default is not a requirement:
+
+| Field | Required | Description |
+|---|---:|---|
+| `indexed_subsets` | No | A Dense or Hybrid release that omits the key gets the default `hm3` declaration. An explicit `[]` is a deliberate opt-out and must be paired with `indexed_subsets_opt_out`. A non-empty list overrides the default verbatim (validated by `bundle.check()`). A Ragged release may not declare one. |
+| `indexed_subsets_opt_out` | Yes when `indexed_subsets: []` | The written reason a Dense or Hybrid release omits the default. The generator records it in `release.yaml` notes so the omission is reviewable; an empty list with no reason, a null value, or a malformed entry is a generator error rather than a silent omission. |
+
+The resolved declaration is written to `build.yaml` in the shape documented under
+[`build.yaml`](#indexed-variant-subset-declarations). Because a subset-declaring
+release needs an `opengwasdb` providing `build-indexed-subset`, the release
+entry point probes for it and refuses a missing capability before any write; the
+repository's pinned current-format runtime provides it (stores#218). See
+`src/ogstores/resources.py`, `src/ogstores/runtime.py` and
+[the release runtime](../runtime.md).
+
+### Quality Check configuration
+
+A generator config's optional top-level `quality_checks` block overrides a
+Quality Check's shared default threshold for one release (#285):
+
+```yaml
+quality_checks:
+  build_eligible_rows: 1000   # exclude an Analysis with fewer build-eligible rows
+```
+
+Each key names a registered check that has a threshold; its value is parsed by
+that check (`build_eligible_rows` takes a whole number of rows of at least 1).
+An unknown name, a check with no threshold (one that tests a status), or a value
+the check refuses is a config error. A check's kind is part of its declaration
+and cannot be overridden.
+
+Thresholds are recorded twice. `validation.yaml` `quality_checks.<check>`
+carries the effective and default thresholds and whether this release
+overrode it. The resolution receipt's contract always carries a
+`quality_checks` entry holding the effective thresholds, defaults included, and
+the release's overrides, so changing an override or a shared default makes the
+receipt stale and `verify`/`emit` refuse it until resolution is re-run. A
+receipt written before #285 has no such entry and is stale for the same reason.
 
 ### Effect-scale validation configuration
 

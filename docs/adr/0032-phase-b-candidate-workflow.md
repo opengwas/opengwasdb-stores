@@ -10,6 +10,12 @@ issue #152. What remained was the workflow that turns those into a candidate
 Release Bundle without building a Store and without re-implementing statistics
 OpenGWASDB already owns.
 
+**Amended by [0036](0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.md).**
+The workflow described here becomes the pipeline every Source Collection uses:
+its candidate table becomes a canonical Source Metadata Table, its freeze
+reconciles that table against an Acquisition Manifest for one Selection, and its
+exclusions become Quality Checks. Every decision below stands.
+
 ## Decision
 
 **Expose one thin registry-owned candidate workflow that invokes
@@ -36,8 +42,9 @@ It runs five stages — `preflight`, `prepare`, `resolve`, `verify`, `emit` — 
   is `resolution_failed`, `ancestry_unassigned`, `ancestry_not_eur`,
   `orientation_failure`, `sd_no_reference_resource_for_ancestry`,
   `sd_no_qualifying_evidence`, `sd_no_usable_sample_size`, `sd_failed`,
-  `missing_sample_size`, `missing_case_control_counts` and
-  `no_build_eligible_rows`; each is explained in `sidecars/exclusions.tsv`.
+  `missing_sample_size`, `missing_case_control_counts`,
+  `no_build_eligible_rows`, `effect_placeholder_rows` and `not_maf_filtered`
+  (ADR 0033); each is explained in `sidecars/exclusions.tsv`.
 
 - **Every record is accounted before anything is replaced.** Finalisation refuses
   a selected Analysis with no record, a record that names an Analysis the

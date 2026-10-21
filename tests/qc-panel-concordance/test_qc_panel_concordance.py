@@ -15,26 +15,9 @@ import gzip
 import json
 import tempfile
 import unittest
-import sys
 from pathlib import Path
 
 import yaml
-
-# Ensure opengwasdb is discoverable
-REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-# Ensure opengwasdb from integration worktree / sibling is discoverable
-for sibling_candidate in [
-    Path("/home/gh13047/repo/opengwasdb-phase-b-integration"),
-    Path("/home/gh13047/repo/opengwasdb-ticket207"),
-    Path("/home/gh13047/repo/opengwasdb"),
-]:
-    if sibling_candidate.exists() and (sibling_candidate / "opengwasdb" / "build" / "resolve.py").exists():
-        if str(sibling_candidate) not in sys.path:
-            sys.path.insert(0, str(sibling_candidate))
-        break
 
 from opengwasdb.ancestry.mixture import AncestryAssignment, Gates  # type: ignore[import-untyped]
 from opengwasdb.ancestry.reference import AncestryReference, load_reference  # type: ignore[import-untyped]
@@ -48,20 +31,20 @@ from opengwasdb.build.resolve import (  # type: ignore[import-untyped]
 )
 from opengwasdb.model.enums import OriginalSdMethod, StoredEffectScale  # type: ignore[import-untyped]
 from opengwasdb.readers.gwas_ssf import GwasSsfReader  # type: ignore[import-untyped]
-from resources.generators.lib.concordance_sampling import (
+from manifest_generation.concordance_sampling import (
     EXPLICIT_EDGE_CASE_IDS,
     SampledAnalysisRow,
     build_concordance_sample,
     write_sample_manifest,
 )
-from resources.generators.lib.qc_panel_concordance import (
+from manifest_generation.qc_panel_concordance import (
     AnalysisConcordanceResult,
     categorize_disagreement,
     compare_single_analysis,
     evaluate_concordance_study,
     render_concordance_markdown_report,
 )
-from resources.generators.lib.source_inventory import (
+from manifest_generation.source_inventory import (
     SourceInventoryRow,
     read_inventory,
     sha256_file,

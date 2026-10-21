@@ -29,14 +29,11 @@ import io
 import json
 import shutil
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 from curation import candidates, promotion
 from curation.choice import PROPOSAL_COLUMNS

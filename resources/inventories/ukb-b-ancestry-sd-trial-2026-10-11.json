@@ -1,0 +1,239 @@
+{
+ "assembly_convention": {
+  "ancestry_reference_assembly": "GRCh38/hg38 (ref_freqs.hg38.tsv.gz; 5,810,530 reference sites)",
+  "chain_file": "/data/opengwasdb/reference/liftover/hg19ToHg38.over.chain.gz (present, 227,698 bytes)",
+  "cli_liftover_wiring": "assign-ancestry CLI exposes no --liftover/--chain option; annotate_catalogue calls assign_from_source(...) without a liftover; GwasVcfReader.liftover defaults to None, so extract_at_sites builds a -R regions file from the hg38 reference ALIDs and queries the hg19 VCF at those coordinates.",
+  "consequence": "The assign-ancestry NNLS output for ukb-b is NOT interpretable as ancestry evidence: source and reference coordinates were never aligned. af_overlap 29,825-45,484 out of 5,810,530 reference sites (~0.5-0.8%) is consistent with coincidental allele matches at unaligned positions. The 10/10 gate_reason=residual and the eaf_orientation=passed values are artifacts of the assembly mismatch, not a gate/calibration finding.",
+  "library_liftover_support": "opengwasdb.ancestry.mixture.assign_from_source(..., liftover=load_liftover(chain_file=...)) is the documented GRCh37 GWAS-VCF -> GRCh38 reference path; when liftover is set, extract_at_sites does a full unrestricted scan and lifts each row before computing its canonical ALID.",
+  "source_assembly": "GRCh37/hg19 (ukb-b VCF ##contig assembly=GRCh37; verified in ukb-b-10001 header)"
+ },
+ "assign_ancestry": {
+  "command": "opengwasdb assign-ancestry ancestry-manifest.tsv catalogue.tsv --ancestry-reference .../ref_freqs.hg38.tsv.gz --ancestry-groups .../ancestry_groups.tsv --maf-floor 0.01 --tau 0.50 --delta 0.20 --n-min 5000 --residual-max 0.06 --n-workers 2 --catalogue-version v1",
+  "elapsed_wall": "26:34.24",
+  "finding": "All 10 read with af_overlap 29825-45484 and correct EAF orientation (eaf_orientation=passed, r 0.83-0.88), dominant superpop EUR 0.876-0.928, but every one gated Unassigned with gate_reason=residual because the NNLS residual exceeds --residual-max 0.06. The existing route is technically supported for VCF; the residual gate (a registry/calibration decision, same values as the c128 config) needs review for ukb-b.",
+  "fs_input_blocks_512": 2819824,
+  "max_rss_kb": 8168600,
+  "outcomes": {},
+  "per_analysis": [
+   {
+    "af_overlap": 37755,
+    "assigned_ancestry": "Unassigned",
+    "dominant_proportion": 0.925961,
+    "dominant_superpop": "EUR",
+    "eaf_orientation": "passed",
+    "gate_reason": "residual",
+    "trait_id": "ukb-b-10001"
+   },
+   {
+    "af_overlap": 31478,
+    "assigned_ancestry": "Unassigned",
+    "dominant_proportion": 0.921,
+    "dominant_superpop": "EUR",
+    "eaf_orientation": "passed",
+    "gate_reason": "residual",
+    "trait_id": "ukb-b-10002"
+   },
+   {
+    "af_overlap": 29825,
+    "assigned_ancestry": "Unassigned",
+    "dominant_proportion": 0.927946,
+    "dominant_superpop": "EUR",
+    "eaf_orientation": "passed",
+    "gate_reason": "residual",
+    "trait_id": "ukb-b-10003"
+   },
+   {
+    "af_overlap": 40948,
+    "assigned_ancestry": "Unassigned",
+    "dominant_proportion": 0.914905,
+    "dominant_superpop": "EUR",
+    "eaf_orientation": "passed",
+    "gate_reason": "residual",
+    "trait_id": "ukb-b-10008"
+   },
+   {
+    "af_overlap": 45484,
+    "assigned_ancestry": "Unassigned",
+    "dominant_proportion": 0.876073,
+    "dominant_superpop": "EUR",
+    "eaf_orientation": "passed",
+    "gate_reason": "residual",
+    "trait_id": "ukb-b-10011"
+   },
+   {
+    "af_overlap": 44435,
+    "assigned_ancestry": "Unassigned",
+    "dominant_proportion": 0.87995,
+    "dominant_superpop": "EUR",
+    "eaf_orientation": "passed",
+    "gate_reason": "residual",
+    "trait_id": "ukb-b-1004"
+   },
+   {
+    "af_overlap": 42893,
+    "assigned_ancestry": "Unassigned",
+    "dominant_proportion": 0.893805,
+    "dominant_superpop": "EUR",
+    "eaf_orientation": "passed",
+    "gate_reason": "residual",
+    "trait_id": "ukb-b-10054"
+   },
+   {
+    "af_overlap": 45484,
+    "assigned_ancestry": "Unassigned",
+    "dominant_proportion": 0.876087,
+    "dominant_superpop": "EUR",
+    "eaf_orientation": "passed",
+    "gate_reason": "residual",
+    "trait_id": "ukb-b-10787"
+   },
+   {
+    "af_overlap": 45484,
+    "assigned_ancestry": "Unassigned",
+    "dominant_proportion": 0.876115,
+    "dominant_superpop": "EUR",
+    "eaf_orientation": "passed",
+    "gate_reason": "residual",
+    "trait_id": "ukb-b-11842"
+   },
+   {
+    "af_overlap": 45484,
+    "assigned_ancestry": "Unassigned",
+    "dominant_proportion": 0.876107,
+    "dominant_superpop": "EUR",
+    "eaf_orientation": "passed",
+    "gate_reason": "residual",
+    "trait_id": "ukb-b-19953"
+   }
+  ],
+  "system_s": 100.69,
+  "user_s": 2978.58
+ },
+ "code_branch_proof": "opengwasdb/build/resolve.py requires MetricsReader; GwasVcfReader is not one, so resolve-analyses structurally rejects VCF. assign-ancestry defaults to opengwasdb.gwas-vcf and estimate-phenotype-sd resolves a SourceReader; both are documented and covered by tests/test_assign_ancestry_cli.py and tests/test_estimate_phenotype_sd_cli.py.",
+ "estimate_phenotype_sd": {
+  "command": "opengwasdb estimate-phenotype-sd analyses-10-sd.tsv sd.tsv --af-source source --n-workers 2",
+  "elapsed_wall": "1:52.11",
+  "fs_input_blocks_512": 47960,
+  "max_rss_kb": 1175404,
+  "note": "A first run with original_sd_method=declared_standardised was refused by design: the command only computes estimated_from_beta_distribution / estimated_from_reference_maf / estimated_from_source_maf and leaves the tier to the caller. Re-run with estimated_from_source_maf (source AF, no reference panel needed).",
+  "per_analysis": [
+   {
+    "analysis_id": "ukb-b-10001",
+    "dispersion": "0.0002022181548",
+    "method": "estimated_from_source_maf",
+    "original_sd": "0.1192906661"
+   },
+   {
+    "analysis_id": "ukb-b-10002",
+    "dispersion": "0.0008521934939",
+    "method": "estimated_from_source_maf",
+    "original_sd": "0.3022217155"
+   },
+   {
+    "analysis_id": "ukb-b-10003",
+    "dispersion": "0.0001252037559",
+    "method": "estimated_from_source_maf",
+    "original_sd": "0.07781313929"
+   },
+   {
+    "analysis_id": "ukb-b-10008",
+    "dispersion": "0.0003168404011",
+    "method": "estimated_from_source_maf",
+    "original_sd": "0.1703556456"
+   },
+   {
+    "analysis_id": "ukb-b-10011",
+    "dispersion": "0.003613678622",
+    "method": "estimated_from_source_maf",
+    "original_sd": "0.9775379973"
+   },
+   {
+    "analysis_id": "ukb-b-1004",
+    "dispersion": "0.0005218517798",
+    "method": "estimated_from_source_maf",
+    "original_sd": "0.1483135245"
+   },
+   {
+    "analysis_id": "ukb-b-10054",
+    "dispersion": "0.001421679356",
+    "method": "estimated_from_source_maf",
+    "original_sd": "0.4987289026"
+   },
+   {
+    "analysis_id": "ukb-b-10787",
+    "dispersion": "0.004284362231",
+    "method": "estimated_from_source_maf",
+    "original_sd": "0.6306806787"
+   },
+   {
+    "analysis_id": "ukb-b-11842",
+    "dispersion": "0.003861377513",
+    "method": "estimated_from_source_maf",
+    "original_sd": "0.8363478175"
+   },
+   {
+    "analysis_id": "ukb-b-19953",
+    "dispersion": "0.00415331454",
+    "method": "estimated_from_source_maf",
+    "original_sd": "0.952863806"
+   }
+  ],
+  "system_s": 9.78,
+  "user_s": 289.05
+ },
+ "identities": {
+  "analyses_10_sd_manifest": {
+   "path": "/data/opengwasdb/work/epic232/219/resolution/analyses-10-sd.tsv",
+   "sha256": "04b63f6fcf1f28d69eeb790a31b75ed00bfc6cbfaadd4fff6ff36bb2a1fa6ce7"
+  },
+  "ancestry_groups": {
+   "path": "/data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv",
+   "sha256": "005093f9a8f74cc792e6ee4e828f7f4fa1ca7508e92c2d1dd463f320bac3834d"
+  },
+  "ancestry_manifest": {
+   "path": "/data/opengwasdb/work/epic232/219/resolution/ancestry-manifest.tsv",
+   "sha256": "01a36751582824097f6d830ac34a4f960a078f3a1f9e69122ae57b55ec7b00a9"
+  },
+  "ancestry_reference": {
+   "path": "/data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz",
+   "sha256": "067914e0c21fe2f0d464f8489e7d91bd4eeafdbf71bc0b93e895a2117ddc0925"
+  },
+  "catalogue": {
+   "path": "/data/opengwasdb/work/epic232/219/resolution/catalogue.tsv",
+   "sha256": "4b6cfe1fd3d071ba5e816dc10d7637f306e6cc641a1fb02798df3d88d14888b0"
+  },
+  "liftover_chain": {
+   "path": "/data/opengwasdb/reference/liftover/hg19ToHg38.over.chain.gz",
+   "sha256": "5c0598e500ceb5a78c73086929e8ef993aec309bcafb595139b53d440b125a1d"
+  },
+  "resolve_analyses_manifest": {
+   "path": "/data/opengwasdb/work/epic232/219/resolution/manifest.tsv",
+   "sha256": "d2c7951597e18958045b112b0c4f3de2e67fd3842eb2e28820ee850f9eb1b941"
+  },
+  "sd_output": {
+   "path": "/data/opengwasdb/work/epic232/219/resolution/sd.tsv",
+   "sha256": "23f13926df981f497f963793df06031b90fe1ef1c8f6050e97cffb053c79a4a0"
+  }
+ },
+ "projection_at_2_workers": {
+  "assign_ancestry_hours_for_2514": 1.9,
+  "basis": "measured wall time on the 10-Analysis pilot, linear extrapolation, same 2 workers",
+  "estimate_sd_hours_for_2514": 7.8
+ },
+ "runtime": {
+  "commit": "1be2a156649e4d444f31f9b4107c3f47a046f855",
+  "env": "/home/gh13047/repo/opengwasdb-stores-wt/218-current-runtime/.pixi/envs/dev",
+  "opengwasdb": "0.3.0",
+  "python": "3.12"
+ },
+ "timeout_budget": {
+  "assign_ancestry": "0:26:34 wall (< 30 min)",
+  "estimate_phenotype_sd": "0:01:52 wall (< 30 min)"
+ },
+ "trial": "10 representative ukb-b Analyses via the separate supported core commands (NOT resolve-analyses)",
+ "validity": {
+  "assign_ancestry": "INVALID for ancestry interpretation (GRCh37 source vs GRCh38 reference, no liftover applied). The command itself completed within budget and produced a Catalogue.",
+  "estimate_phenotype_sd": "VALID as a source-MAF SD estimate: --af-source source is assembly-independent for the se/af evidence; it read a bounded evidence sample (~25 MB, 47,960 512-byte blocks), not a full scan."
+ },
+ "verdict": "The separate CLI route natively supports VCF, but for ukb-b it is assembly-incompatible as invoked: the CLI must gain liftover wiring (or the registry must pre-lift / use the core library API with the chain) before its NNLS output can be interpreted. No gate was loosened and no full-2514 run was launched."
+}

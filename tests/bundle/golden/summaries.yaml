@@ -1,4 +1,7 @@
 OGS-00001:
+  n_manifest: 10
+  n_admitted: 10
+  n_excluded: 0
   n_analyses: 10
   first_author: NA
   publication_pmid: NA
@@ -8,6 +11,9 @@ OGS-00001:
   sample_size: NA
   source_url: NA
 OGS-00002:
+  n_manifest: 10
+  n_admitted: 10
+  n_excluded: 0
   n_analyses: 10
   first_author: NA
   publication_pmid: NA
@@ -17,6 +23,9 @@ OGS-00002:
   sample_size: NA
   source_url: NA
 OGS-00003:
+  n_manifest: 10
+  n_admitted: 10
+  n_excluded: 0
   n_analyses: 10
   first_author: NA
   publication_pmid: NA
@@ -26,7 +35,10 @@ OGS-00003:
   sample_size: 362216-500186
   source_url: https://storage.googleapis.com/finngen-public-data-r13/summary_stats/
 OGS-00004:
-  n_analyses: 10
+  n_manifest: 10
+  n_admitted: 9
+  n_excluded: 1
+  n_analyses: 9
   first_author: mixed (8)
   publication_pmid: mixed (8)
   tissue: NA
@@ -35,6 +47,9 @@ OGS-00004:
   sample_size: 6753-482730
   source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
 OGS-00005:
+  n_manifest: 10
+  n_admitted: 10
+  n_excluded: 0
   n_analyses: 10
   first_author: mixed (8)
   publication_pmid: mixed (8)
@@ -44,6 +59,9 @@ OGS-00005:
   sample_size: 511-300447
   source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
 OGS-00006:
+  n_manifest: 1400
+  n_admitted: 1400
+  n_excluded: 0
   n_analyses: 1400
   first_author: Chen Y
   publication_pmid: '36635386'
@@ -53,6 +71,9 @@ OGS-00006:
   sample_size: 3441-8299
   source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
 OGS-00007:
+  n_manifest: 10
+  n_admitted: 10
+  n_excluded: 0
   n_analyses: 10
   first_author: Sun BB
   publication_pmid: '29875488'
@@ -62,6 +83,9 @@ OGS-00007:
   sample_size: '3301'
   source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
 OGS-00008:
+  n_manifest: 10
+  n_admitted: 10
+  n_excluded: 0
   n_analyses: 10
   first_author: Ben Elsworth
   publication_pmid: NA
@@ -71,6 +95,9 @@ OGS-00008:
   sample_size: 352094-462933
   source_url: NA
 OGS-00009:
+  n_manifest: 2024
+  n_admitted: 2024
+  n_excluded: 0
   n_analyses: 2024
   first_author: Ben Elsworth
   publication_pmid: NA
@@ -80,6 +107,9 @@ OGS-00009:
   sample_size: 10339-463010
   source_url: NA
 OGS-00010:
+  n_manifest: 2024
+  n_admitted: 2024
+  n_excluded: 0
   n_analyses: 2024
   first_author: Ben Elsworth
   publication_pmid: NA
@@ -89,7 +119,10 @@ OGS-00010:
   sample_size: 10339-463010
   source_url: NA
 OGS-00011:
-  n_analyses: 4783
+  n_manifest: 4783
+  n_admitted: 3169
+  n_excluded: 1614
+  n_analyses: 3169
   first_author: mixed (662)
   publication_pmid: mixed (758)
   tissue: NA
@@ -97,3 +130,75 @@ OGS-00011:
   assigned_ancestry: NA
   sample_size: 15-2586691
   source_url: https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
+OGS-00012:
+  n_manifest: 1669
+  n_admitted: 1669
+  n_excluded: 0
+  n_analyses: 1669
+  first_author: NA
+  publication_pmid: NA
+  tissue: NA
+  context: NA
+  assigned_ancestry: EUR
+  sample_size: 5266-451195
+  source_url: NA
+OGS-00013:
+  n_manifest: 1368
+  n_admitted: 1368
+  n_excluded: 0
+  n_analyses: 1368
+  first_author: NA
+  publication_pmid: NA
+  tissue: NA
+  context: NA
+  assigned_ancestry: AFR
+  sample_size: 3435-121774
+  source_url: NA
+OGS-00014:
+  n_manifest: 1053
+  n_admitted: 1053
+  n_excluded: 0
+  n_analyses: 1053
+  first_author: NA
+  publication_pmid: NA
+  tissue: NA
+  context: NA
+  assigned_ancestry: NA
+  sample_size: 1454-59807
+  source_url: NA
+OGS-00015:
+  n_manifest: 241
+  n_admitted: 241
+  n_excluded: 0
+  n_analyses: 241
+  first_author: NA
+  publication_pmid: NA
+  tissue: NA
+  context: NA
+  assigned_ancestry: EAS
+  sample_size: 2291-6665
+  source_url: NA
+OGS-00016:
+  n_manifest: 1691
+  n_admitted: 1691
+  n_excluded: 0
+  n_analyses: 1691
+  first_author: NA
+  publication_pmid: NA
+  tissue: NA
+  context: NA
+  assigned_ancestry: NA
+  sample_size: 5954-636153
+  source_url: NA
+OGS-00017:
+  n_manifest: 2754
+  n_admitted: 2754
+  n_excluded: 0
+  n_analyses: 2754
+  first_author: NA
+  publication_pmid: NA
+  tissue: NA
+  context: NA
+  assigned_ancestry: NA
+  sample_size: 68562-500186
+  source_url: https://storage.googleapis.com/finngen-public-data-r13/summary_stats/

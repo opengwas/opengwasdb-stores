@@ -9,23 +9,14 @@ that a future edit cannot widen the declaration silently.
 from __future__ import annotations
 
 import gzip
-import importlib.util
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT))
 
-from resources.generators.lib.source_inventory import SourceInventoryRow  # noqa: E402
-
-SCRIPT = REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/derive_score_declarations.py"
-_spec = importlib.util.spec_from_file_location("derive_score_declarations", SCRIPT)
-assert _spec and _spec.loader
-derive = importlib.util.module_from_spec(_spec)
-sys.modules[_spec.name] = derive
-_spec.loader.exec_module(derive)
+from manifest_generation.providers.gwas_catalog import derive_score_declarations as derive
+from manifest_generation.source_inventory import SourceInventoryRow
 
 
 def _row(analysis_id: str, data_file: str, *, readiness: str = "ok") -> SourceInventoryRow:
@@ -150,7 +141,7 @@ class DeriveDeclarationsTests(unittest.TestCase):
             self.assertEqual(len(lines), 3)
 
     def test_declaration_columns_match_the_candidate_workflow_contract(self) -> None:
-        from resources.generators.lib.candidate_workflow import SCORE_DECLARATION_COLUMNS
+        from manifest_generation.candidate_workflow import SCORE_DECLARATION_COLUMNS
 
         self.assertEqual(derive.DECLARATION_COLUMNS, SCORE_DECLARATION_COLUMNS)
 

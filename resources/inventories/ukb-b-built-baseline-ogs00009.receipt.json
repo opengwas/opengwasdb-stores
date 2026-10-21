@@ -1,0 +1,15 @@
+{
+ "analysis_ids_sha256": "953ea543600608d2738eaec81da4df8fbe761e467acc94c40df26233d0b5f327",
+ "artifact_analyses_path": "/data/opengwasdb/stores/OGS-00009/store.opengwasdb/analyses.tsv",
+ "artifact_path": "/data/opengwasdb/stores/OGS-00009/store.opengwasdb",
+ "built_analyses": 2024,
+ "core_commit": "1be2a156649e4d444f31f9b4107c3f47a046f855",
+ "core_version": "0.3.0",
+ "first_id": "ukb-b-13414",
+ "last_id": "ukb-b-9991",
+ "legacy_bundle_analyses_tsv": "stores/OGS-00009/analyses.tsv",
+ "legacy_bundle_sha256": "eacfac7d98bf441bd9b35b1ba0779a4cbee26799cb7166c7022e1bf44ea6866a",
+ "method": "approved core public interface: opengwasdb.open_store(...) + opengwasdb.model.analyses.read_analyses(store.analyses_path)",
+ "note": "Built membership reported from the built artifact via the supported core interface; the committed bundle file is retained only as the legacy registry record, not the authority for the built set.",
+ "store_id": "OGS-00009"
+}

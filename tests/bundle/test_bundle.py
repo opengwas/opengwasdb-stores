@@ -7,6 +7,7 @@ import builtins
 import csv
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -16,12 +17,13 @@ from typing import Any
 from unittest import mock
 
 import yaml
+from opengwasdb.model import analyses as opengwasdb_analyses
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "src"))
 
 import ogstores.bundle
 from ogstores import bundle, paths
+from ogstores.plan import plan
 
 n_checks = 0
 
@@ -96,69 +98,29 @@ class TestBundleContract(unittest.TestCase):
         (root / "analyses.tsv").write_text(analyses, encoding="utf-8")
         return bundle.load(store_id, registry_root=self.tmp_dir)
 
-    def test_optional_info_score_threshold_validates_numeric_or_unavailable(self) -> None:
+    def test_manifest_generation_rules_are_not_the_contracts(self) -> None:
+        """Manifest Generation's rules are its own (#250).
+
+        `src/manifest_generation/generation_rules.py` requires the columns a
+        generator resolves, and checks the INFO and MAF requests on every row;
+        the emitter and `bundle-check` run it beside the contract. The contract
+        checks a request only where the shared Analysis schema does, on the
+        rows that will be built, so an excluded audit row's request, and a
+        missing generation column, are not its business.
+        """
         base = self.make_bundle()
-        self.assertEqual(bundle.check(base, registry_root=self.tmp_dir), [])
-        original = (base.root / "analyses.tsv").read_text()
-        header, row = original.strip().split("\n")
-        triple_header = (
-            "\timputation_score_column\timputation_score_kind"
-            "\timputation_score_provenance"
-        )
-        triple = "\timputation_INFO\timputation_info\tprovider specification: INFO quality"
-        candidate = self.make_bundle(analyses=(
-            header + "\tsource_reader_capability\tinfo_score_threshold" + triple_header + "\n" + row + "\topengwasdb.gwas-ssf\tNaN\t\t\t\n"
-        ))
-        self.assertEqual(bundle.check(candidate, registry_root=self.tmp_dir), [])
-        for value in ("0", "0.6", "1"):
-            candidate = self.make_bundle(analyses=(
-                header + "\tsource_reader_capability\tinfo_score_threshold" + triple_header + "\n"
-                + row + "\topengwasdb.gwas-ssf\t" + value + triple + "\n"
-            ))
-            self.assertEqual(bundle.check(candidate, registry_root=self.tmp_dir), [])
-        for value in ("", "nan", "NA", "inf", "-0.01", "1.01", "missing"):
-            candidate = self.make_bundle(analyses=(
-                header + "\tsource_reader_capability\tinfo_score_threshold" + triple_header + "\n"
-                + row + "\topengwasdb.gwas-ssf\t" + value + triple + "\n"
-            ))
-            with self.subTest(value=value):
-                self.assertTrue(any("info_score_threshold" in error for error in
-                                    bundle.check(candidate, registry_root=self.tmp_dir)))
+        header, row = (base.root / "analyses.tsv").read_text().strip().split("\n")
+        names, values = header.split("\t"), row.split("\t")
+        keep = [i for i, name in enumerate(names) if name != "assigned_ancestry"]
+        info = "\tinfo_score_threshold\timputation_score_column\timputation_score_kind\timputation_score_provenance"
+        header = "\t".join(names[i] for i in keep) + "\tsource_reader_capability\texclude_from_build\tmaf_threshold" + info
+        built = "\t".join(values[i] for i in keep) + "\topengwasdb.gwas-ssf\t\tNaN\tNaN\t\t\t"
+        audit = ("\t".join(values[i] for i in keep).replace("FIXTURE_1", "FIXTURE_2")
+                 + "\topengwasdb.gwas-ssf\ttrue\t0.9\t0.6\t\t\t")
+        breaking = self.make_bundle(store_id="OGS-00096", analyses="\n".join([header, built, audit]) + "\n")
 
-    def test_info_score_threshold_and_declaration_must_be_complete(self) -> None:
-        base = self.make_bundle()
-        original = (base.root / "analyses.tsv").read_text()
-        header, row = original.strip().split("\n")
-        triple_header = (
-            "\timputation_score_column\timputation_score_kind"
-            "\timputation_score_provenance"
-        )
-        full = "\timputation_INFO\timputation_info\tprovider specification: INFO quality"
-
-        def check(threshold: str, declaration: str) -> list[str]:
-            candidate = self.make_bundle(analyses=(
-                header + "\tsource_reader_capability\tinfo_score_threshold" + triple_header + "\n"
-                + row + "\topengwasdb.gwas-ssf\t" + threshold + declaration + "\n"
-            ))
-            return list(bundle.check(candidate, registry_root=self.tmp_dir))
-
-        self.assertEqual(check("0.6", full), [])
-        # A numeric threshold without the complete triple is rejected.
-        for partial in ("\t\t\t", "\timputation_INFO\t\t", "\t\timputation_info\t"):
-            errors = check("0.6", partial)
-            self.assertTrue(
-                any("incomplete imputation score declaration" in error for error in errors),
-                errors,
-            )
-        # A triple without a numeric threshold is rejected.
-        for threshold in ("NaN", ""):
-            errors = check(threshold, full)
-            self.assertTrue(
-                any("no numeric info_score_threshold" in error for error in errors), errors
-            )
-        # A complete triple with an unsupported kind is rejected.
-        errors = check("0.6", "\timputation_INFO\tMAF\tprovider specification: INFO quality")
-        self.assertTrue(any("imputation_score_kind" in error for error in errors), errors)
+        self.assertEqual(bundle.check(breaking, registry_root=self.tmp_dir), [])
+        record_check()
 
     def test_numeric_info_score_threshold_names_its_reader_in_the_row(self) -> None:
         """The pinned OpenGWASDB validator reads the reader from the row alone.
@@ -178,36 +140,16 @@ class TestBundleContract(unittest.TestCase):
         errors = list(bundle.check(candidate, registry_root=self.tmp_dir))
         self.assertTrue(any("source_reader_capability" in error for error in errors), errors)
 
-    def test_optional_maf_threshold_validates_nan_or_numeric(self) -> None:
-        """A per-Analysis MAF floor is literal NaN or a number in [0, 0.5] (#176)."""
-        base = self.make_bundle()
-        self.assertEqual(bundle.check(base, registry_root=self.tmp_dir), [])
-        header, row = (base.root / "analyses.tsv").read_text().strip().split("\n")
-        header = header + "\t" + bundle.MAF_THRESHOLD_COLUMN
-        for value in ("NaN", "0", "0.005", "0.5"):
-            candidate = self.make_bundle(analyses=header + "\n" + row + "\t" + value + "\n")
-            with self.subTest(value=value):
-                self.assertEqual(
-                    bundle.check(candidate, registry_root=self.tmp_dir), [], value
-                )
-        for value in ("", "nan", "NA", "inf", "-0.01", "0.5001", "missing"):
-            candidate = self.make_bundle(analyses=header + "\n" + row + "\t" + value + "\n")
-            with self.subTest(value=value):
-                self.assertTrue(
-                    any(
-                        "maf_threshold" in error
-                        for error in bundle.check(candidate, registry_root=self.tmp_dir)
-                    )
-                )
-
-    def test_ci_population_is_all_seven_registered_bundles_and_each_passes(self) -> None:
+    def test_ci_population_is_every_registered_bundle_and_each_passes(self) -> None:
         registry = REPO_ROOT / "stores"
         store_ids = sorted(
             path.name
             for path in registry.iterdir()
             if path.is_dir() and paths.is_valid_store_id(path.name)
         )
-        self.assertEqual(store_ids, [f"OGS-{number:05d}" for number in range(1, 12)])
+        self.assertEqual(
+            store_ids, [f"OGS-{number:05d}" for number in [*range(1, 18)]]
+        )
         for store_id in store_ids:
             errors = bundle.check(
                 bundle.load(store_id, registry_root=registry),
@@ -215,6 +157,255 @@ class TestBundleContract(unittest.TestCase):
             )
             record_check()
             self.assertEqual(errors, [], f"{store_id}: {errors}")
+
+    def test_ogs_00015_frozen_dev_input_is_not_scientific_acceptance(self) -> None:
+        """OGS-00015 is the owner-authorized, frozen EAS input manifest.
+
+        #247 `accepted` is the registry's fixed-input acceptance gate, not a
+        flag bypass and not scientific release validation: the exact
+        241-Analysis membership is accepted and frozen for dev construction,
+        while human scientific acceptance stays pending and the Validation
+        Record stays not_run.
+        """
+        loaded = bundle.load("OGS-00015", registry_root=REPO_ROOT / "stores")
+        record_check()
+        self.assertEqual(loaded.status, "accepted")
+        record_check()
+        self.assertTrue(loaded.release.get("accepted_at"))
+        record_check()
+        self.assertEqual(
+            loaded.release["source_snapshot_id"],
+            "dbgap-phs002453-mvp-eas-metadata-2026-10-13",
+        )
+        record_check()
+        self.assertNotIn("candidate-pending", loaded.release["source_snapshot_id"])
+        notes = loaded.release["notes"]
+        record_check()
+        self.assertNotIn("ONLY so", notes)
+        record_check()
+        self.assertIn("owner-authorized", notes)
+        record_check()
+        self.assertIn("accepted and frozen", notes)
+        snapshot = loaded.release["source_snapshot"]
+        record_check()
+        self.assertEqual(
+            snapshot["resolver_source_evidence_scope"], "capped_pilot_diagnostic"
+        )
+        acceptance = loaded.validation["acceptance"]
+        record_check()
+        self.assertIs(acceptance["membership_accepted"], True)
+        record_check()
+        self.assertIs(acceptance["membership_frozen"], True)
+        record_check()
+        self.assertEqual(acceptance["human_acceptance"], "pending")
+        record_check()
+        self.assertIn("6156153525", acceptance["owner_authorization"])
+        record_check()
+        self.assertIn("6156153173", acceptance["owner_authorization"])
+        record_check()
+        self.assertEqual(loaded.validation["status"], "not_run")
+        record_check()
+        summary = bundle.summarise(loaded)
+        self.assertEqual(summary["n_analyses"], 241)
+        record_check()
+        self.assertEqual(summary["n_admitted"], 241)
+        record_check()
+        self.assertEqual(summary["n_excluded"], 0)
+        record_check()
+        self.assertFalse((REPO_ROOT / "stores" / "OGS-00021").exists())
+
+    MVP_OBSERVED = {
+        "OGS-00012": ("eur", 1669),
+        "OGS-00013": ("afr", 1368),
+        "OGS-00014": ("amr", 1053),
+        "OGS-00015": ("eas", 241),
+        "OGS-00016": ("meta", 1691),
+    }
+
+    def test_mvp_observed_stores_cover_the_6022_partition_without_exclusions(self) -> None:
+        total = 0
+        for store_id, (_, expected) in self.MVP_OBSERVED.items():
+            summary = bundle.summarise(
+                bundle.load(store_id, registry_root=REPO_ROOT / "stores")
+            )
+            record_check()
+            self.assertEqual(summary["n_manifest"], expected, store_id)
+            record_check()
+            self.assertEqual(summary["n_admitted"], expected, store_id)
+            record_check()
+            self.assertEqual(summary["n_excluded"], 0, store_id)
+            total += summary["n_admitted"]
+        record_check()
+        self.assertEqual(total, 6022)
+        # The MVP completion children are deferred, not registered.
+        for child in ("OGS-00018", "OGS-00019", "OGS-00020", "OGS-00021"):
+            record_check()
+            self.assertFalse((REPO_ROOT / "stores" / child).exists(), child)
+
+    def test_mvp_observed_stores_are_frozen_dev_inputs(self) -> None:
+        for store_id, (slug, _) in self.MVP_OBSERVED.items():
+            loaded = bundle.load(store_id, registry_root=REPO_ROOT / "stores")
+            record_check()
+            self.assertEqual(loaded.status, "accepted", store_id)
+            record_check()
+            self.assertTrue(loaded.release.get("accepted_at"), store_id)
+            record_check()
+            self.assertEqual(
+                loaded.release["source_snapshot_id"],
+                f"dbgap-phs002453-mvp-{slug}-metadata-2026-10-13",
+                store_id,
+            )
+            record_check()
+            self.assertNotIn("ONLY so", loaded.release["notes"], store_id)
+            record_check()
+            self.assertEqual(
+                loaded.release["source_snapshot"]["resolver_source_evidence_scope"],
+                "capped_pilot_diagnostic",
+                store_id,
+            )
+            acceptance = loaded.validation["acceptance"]
+            record_check()
+            self.assertIs(acceptance["membership_accepted"], True, store_id)
+            record_check()
+            self.assertIs(acceptance["membership_frozen"], True, store_id)
+            record_check()
+            self.assertEqual(acceptance["human_acceptance"], "pending", store_id)
+            record_check()
+            self.assertIn("6156153525", acceptance["owner_authorization"], store_id)
+            record_check()
+            self.assertIn("6156153173", acceptance["owner_authorization"], store_id)
+            record_check()
+            self.assertEqual(loaded.validation["status"], "not_run", store_id)
+
+    def test_ogs_00014_preserves_unassigned_amr_analyses(self) -> None:
+        rows = opengwasdb_analyses.read_analyses(
+            REPO_ROOT / "stores" / "OGS-00014" / "analyses.tsv"
+        ).rows
+        record_check()
+        self.assertEqual(len(rows), 1053)
+        assigned = [r for r in rows if (r.get("assigned_ancestry") or "").strip()]
+        unassigned = [r for r in rows if not (r.get("assigned_ancestry") or "").strip()]
+        record_check()
+        self.assertEqual(len(assigned), 850)
+        record_check()
+        self.assertEqual(len(unassigned), 203)
+        record_check()
+        self.assertTrue(all(r["assigned_ancestry"] == "AMR" for r in assigned))
+        record_check()
+        self.assertTrue(
+            all(r["ancestry_assignment_method"] == "af_assigned" for r in assigned)
+        )
+        record_check()
+        self.assertTrue(
+            all(r["ancestry_assignment_method"] == "unassigned" for r in unassigned)
+        )
+        record_check()
+        self.assertEqual(
+            {r["source_ancestry_label"] for r in rows}, {"AMR"}
+        )
+
+    def test_mvp_source_label_tuples_per_store(self) -> None:
+        # The corrected re-emission binds every row to its authority mapping
+        # source label and the canonical (ancestry, method) tuple.
+        expected = {
+            "OGS-00012": ({"EUR": 1669}, {"EUR/af_assigned": 1669}),
+            "OGS-00013": ({"AFR": 1368}, {"AFR/af_assigned": 1368}),
+            "OGS-00014": ({"AMR": 1053}, {"AMR/af_assigned": 850, "/unassigned": 203}),
+            "OGS-00016": ({"META": 1691}, {"/unassigned": 1691}),
+        }
+        for store_id, (labels, tuples) in expected.items():
+            rows = opengwasdb_analyses.read_analyses(
+                REPO_ROOT / "stores" / store_id / "analyses.tsv"
+            ).rows
+            label_counts: dict[str, int] = {}
+            tuple_counts: dict[str, int] = {}
+            for row in rows:
+                label_counts[row["source_ancestry_label"]] = (
+                    label_counts.get(row["source_ancestry_label"], 0) + 1
+                )
+                key = f"{row['assigned_ancestry']}/{row['ancestry_assignment_method']}"
+                tuple_counts[key] = tuple_counts.get(key, 0) + 1
+            record_check()
+            self.assertEqual(label_counts, labels, store_id)
+            record_check()
+            self.assertEqual(tuple_counts, tuples, store_id)
+
+    def test_ogs_00016_meta_is_canonically_empty_with_core_inference(self) -> None:
+        rows = opengwasdb_analyses.read_analyses(
+            REPO_ROOT / "stores" / "OGS-00016" / "analyses.tsv"
+        ).rows
+        record_check()
+        self.assertEqual(len(rows), 1691)
+        record_check()
+        self.assertTrue(
+            all(not (r.get("assigned_ancestry") or "").strip() for r in rows)
+        )
+        record_check()
+        self.assertTrue(
+            all(r["ancestry_assignment_method"] == "unassigned" for r in rows)
+        )
+        record_check()
+        self.assertEqual(
+            {r["source_ancestry_label"] for r in rows}, {"META"}
+        )
+        notes = bundle.load("OGS-00016", registry_root=REPO_ROOT / "stores").release["notes"]
+        record_check()
+        self.assertIn("raw core inference", notes)
+        record_check()
+        self.assertIn("EUR", notes)
+
+    def test_mvp_nworkers_16_is_execution_only_amendment(self) -> None:
+        # Owner-authorized execution-only amendment: n-workers 16 on the four MVP
+        # observed builds. The accepted input manifest and identity are unchanged
+        # (ADR 0004 material choices untouched; core ADR 0024 makes the worker
+        # count a pure runtime knob).
+        import hashlib
+
+        analyses_sha = {
+            "OGS-00012": "21cb48c43686dbc2b222e2a260ff8fa920d4367790111c3c0ebf3e3386625696",
+            "OGS-00013": "2748ded2d45aceba88519e3d5736ee3c0ebf593373ec90ec5fadafe704d6d6c1",
+            "OGS-00014": "ee22eb1f3a8cca2f0c11f71a5024388ef089fdc20524055751bee92a88f3a89d",
+            "OGS-00016": "d1f40e98d6e28094dc4050628f54fa0532ce5b7087d4edbdf6e9027a068bdccf",
+        }
+        for store_id, digest in analyses_sha.items():
+            build = yaml.safe_load(
+                (REPO_ROOT / "stores" / store_id / "build.yaml").read_text(encoding="utf-8")
+            )
+            record_check()
+            self.assertEqual(build["build"]["options"]["n-workers"], 16, store_id)
+            loaded = bundle.load(store_id, registry_root=REPO_ROOT / "stores")
+            argv = next(step for step in plan(loaded) if step.name == "build").argv
+            record_check()
+            self.assertEqual(argv[argv.index("--n-workers") + 1], "16", store_id)
+            record_check()
+            self.assertEqual(
+                hashlib.sha256(
+                    (REPO_ROOT / "stores" / store_id / "analyses.tsv").read_bytes()
+                ).hexdigest(),
+                digest,
+                store_id,
+            )
+            record_check()
+            self.assertEqual(loaded.status, "accepted", store_id)
+            record_check()
+            self.assertTrue(loaded.release.get("accepted_at"), store_id)
+        # EAS and FinnGen recipes are untouched by the amendment.
+        eas = yaml.safe_load((REPO_ROOT / "stores" / "OGS-00015" / "build.yaml").read_text())
+        record_check()
+        self.assertNotIn("n-workers", eas["build"]["options"])
+        finngen = yaml.safe_load((REPO_ROOT / "stores" / "OGS-00017" / "build.yaml").read_text())
+        record_check()
+        self.assertEqual(finngen["build"]["options"]["n-workers"], 32)
+        # The amendment is recorded and cites the governing ADRs.
+        doc = (REPO_ROOT / "docs" / "ogs-00012-16-nworkers-16-amendment.md").read_text(
+            encoding="utf-8"
+        )
+        record_check()
+        self.assertIn("execution-only", doc.lower())
+        record_check()
+        self.assertIn("adr/0004-store-release-identity.md", doc)
+        record_check()
+        self.assertIn("0024-parallel-dense-vcf-build-disk-spill", doc)
 
     def test_ogs_00007_trait_ontology_is_source_provided_not_a_gene(self) -> None:
         """Issue #141: the Trait columns carry the source EFO term and label.
@@ -232,17 +423,17 @@ class TestBundleContract(unittest.TestCase):
             return f"{prefix.upper()}:{local}" if prefix else uri
 
         release_root = REPO_ROOT / "stores" / "OGS-00007"
-        analyses = ogstores.bundle.opengwasdb_analyses.read_analyses(
+        analyses = opengwasdb_analyses.read_analyses(
             release_root / "analyses.tsv"
         )
-        targets = ogstores.bundle.opengwasdb_analyses.read_analyses(
+        targets = opengwasdb_analyses.read_analyses(
             release_root / "sidecars" / "analysis_targets.tsv"
         )
         targets_by_id = {row["source_analysis_id"]: row for row in targets.rows}
 
         self.assertTrue(
             set(analyses.fieldnames).isdisjoint(
-                ogstores.bundle.opengwasdb_analyses.RETIRED_ANALYSIS_COLUMNS
+                opengwasdb_analyses.RETIRED_ANALYSIS_COLUMNS
             )
         )
         for row in analyses.rows:
@@ -368,7 +559,7 @@ class TestBundleContract(unittest.TestCase):
             build="not a mapping",  # type: ignore[arg-type]
         )
         with mock.patch.object(
-            ogstores.bundle.opengwasdb_analyses,
+            opengwasdb_analyses,
             "validate_analyses",
             side_effect=RuntimeError("validator exploded"),
         ):
@@ -424,10 +615,125 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertTrue(any("must not declare 'artifacts'" in error for error in errors))
 
+    def _subset_declaration(self, **overrides: Any) -> dict[str, Any]:
+        declaration: dict[str, Any] = {
+            "name": "hm3",
+            "resource_id": "hapmap3-hg38",
+            "variant_list": (
+                "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt"
+            ),
+            "reference_assembly": "GRCh38",
+        }
+        declaration.update(overrides)
+        return declaration
+
+    def test_indexed_subsets_are_optional_and_valid_on_dense_and_hybrid(self) -> None:
+        checked = self.make_bundle()
+        self.assertEqual(bundle.check(checked, registry_root=self.tmp_dir), [])
+        record_check()
+
+        dense = self.make_bundle(build={
+            "indexed_subsets": [self._subset_declaration()],
+        })
+        self.assertEqual(bundle.check(dense, registry_root=self.tmp_dir), [])
+        record_check()
+
+        hybrid = self.make_bundle(build={
+            "layout": "hybrid",
+            "build": {"command": "build-hybrid", "options": {}},
+            "indexed_subsets": [self._subset_declaration(name="eur", checksum="a" * 64)],
+        })
+        self.assertEqual(bundle.check(hybrid, registry_root=self.tmp_dir), [])
+        record_check()
+
+        empty = self.make_bundle(build={"indexed_subsets": []})
+        self.assertEqual(bundle.check(empty, registry_root=self.tmp_dir), [])
+        record_check()
+
+    def test_indexed_subsets_reject_ragged_layout(self) -> None:
+        ragged = self.make_bundle(build={
+            "layout": "ragged",
+            "build": {"command": "build-ragged-ssf", "options": {}},
+            "indexed_subsets": [self._subset_declaration()],
+        })
+        errors = bundle.check(ragged, registry_root=self.tmp_dir)
+        record_check()
+        self.assertTrue(
+            any("indexed_subsets" in error and "ragged" in error for error in errors),
+            errors,
+        )
+
+    def test_indexed_subsets_reject_malformed_declarations(self) -> None:
+        cases: list[dict[str, Any]] = [
+            {"indexed_subsets": "not-a-list"},
+            {"indexed_subsets": ["not-a-mapping"]},
+            {"indexed_subsets": [self._subset_declaration(name="")]},
+            {"indexed_subsets": [self._subset_declaration(name="../escape")]},
+            {
+                "indexed_subsets": [
+                    self._subset_declaration(name="dup"),
+                    self._subset_declaration(name="dup"),
+                ]
+            },
+            {"indexed_subsets": [self._subset_declaration(checksum="nothex")]},
+            {"indexed_subsets": [self._subset_declaration(unknown_key=1)]},
+            {"indexed_subsets": [self._subset_declaration(options=["a"])]},
+            {
+                "indexed_subsets": [
+                    self._subset_declaration(options={"overwrite": True})
+                ]
+            },
+            {
+                "indexed_subsets": [
+                    {
+                        key: value
+                        for key, value in self._subset_declaration().items()
+                        if key != "resource_id"
+                    }
+                ]
+            },
+            {
+                "indexed_subsets": [
+                    {
+                        key: value
+                        for key, value in self._subset_declaration().items()
+                        if key != "variant_list"
+                    }
+                ]
+            },
+            {
+                "indexed_subsets": [
+                    {
+                        key: value
+                        for key, value in self._subset_declaration().items()
+                        if key != "reference_assembly"
+                    }
+                ]
+            },
+            {"indexed_subsets": None},
+            {
+                "indexed_subsets": [
+                    self._subset_declaration(options={"variant-list": "/evil"})
+                ]
+            },
+            {
+                "indexed_subsets": [
+                    self._subset_declaration(
+                        options={"--reference-assembly": "hg19"}
+                    )
+                ]
+            },
+        ]
+        for overrides in cases:
+            checked = self.make_bundle(build=overrides)
+            errors = bundle.check(checked, registry_root=self.tmp_dir)
+            record_check()
+            self.assertTrue(errors, overrides)
+
     def test_retired_analysis_columns_come_from_upstream_and_name_the_release(self) -> None:
         checked = self.make_bundle()
         lines = checked.analyses_path.read_text(encoding="utf-8").splitlines()
-        retired = ogstores.bundle.opengwasdb_analyses.RETIRED_ANALYSIS_COLUMNS
+        retired = opengwasdb_analyses.RETIRED_ANALYSIS_COLUMNS
         retired_header = "\t".join(retired)
         retired_values = "\t".join("retired" for _ in retired)
         checked.analyses_path.write_text(
@@ -447,7 +753,7 @@ class TestBundleContract(unittest.TestCase):
 
         sentinel = "upstream_only_retired"
         with mock.patch.object(
-            ogstores.bundle.opengwasdb_analyses,
+            opengwasdb_analyses,
             "RETIRED_ANALYSIS_COLUMNS",
             (sentinel,),
         ):
@@ -560,8 +866,12 @@ class TestBundleContract(unittest.TestCase):
             self.assertEqual(gap.citation, "#134")
             self.assertEqual(gap.detail, "blank required Analysis values")
 
-    def test_candidate_blank_analysis_exemption_is_reported_on_second_channel(self) -> None:
-        """Candidate releases also surface their tolerated blanks, cited by status not #134."""
+    def test_a_bundle_store_release_build_will_not_build_discloses_its_blanks(self) -> None:
+        """Required values must be present only in a bundle the release workflow builds (#250, #247).
+
+        A candidate, superseded or withdrawn bundle may hold blanks; they are
+        reported on the second channel, never silently dropped.
+        """
         unresolved = (
             "analysis_id\tstored_effect_scale\tsample_size_kind\t"
             "sample_size_scope\tsample_size\toriginal_effect_scale\t"
@@ -569,13 +879,15 @@ class TestBundleContract(unittest.TestCase):
             "ancestry_assignment_method\n"
             "FIXTURE_1\t\t\t\t\t\t\t\t\n"
         )
-        checked = self.make_bundle(status="candidate", analyses=unresolved)
-        result = bundle.check(checked, registry_root=self.tmp_dir)
-        record_check()
-        self.assertEqual(result, [])
-        self.assertEqual(len(result.tolerated), 1, result.tolerated)
-        self.assertEqual(result.tolerated[0].citation, "candidate status")
-        self.assertGreater(result.tolerated[0].count, 0)
+        for status in sorted(bundle.VALID_STATUSES - bundle.BUILDABLE_STATUSES):
+            with self.subTest(status=status):
+                checked = self.make_bundle(status=status, analyses=unresolved)
+                result = bundle.check(checked, registry_root=self.tmp_dir)
+                record_check()
+                self.assertEqual(result, [])
+                self.assertEqual(len(result.tolerated), 1, result.tolerated)
+                self.assertEqual(result.tolerated[0].citation, "not buildable")
+                self.assertGreater(result.tolerated[0].count, 0)
 
     def test_assigned_ancestry_must_use_the_super_population_vocabulary(self) -> None:
         header = (
@@ -746,6 +1058,115 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertTrue(any("illegal status transition" in error for error in errors))
 
+    def test_store_release_build_builds_accepted_built_and_validated_bundles_only(self) -> None:
+        """Acceptance is a check, not a convention (#247).
+
+        `built` and `validated` stay buildable so that a re-run, or a forced
+        replacement, of a release still goes through.
+        """
+        buildable = {
+            "accepted": True,
+            "built": True,
+            "validated": True,
+            "candidate": False,
+            "superseded": False,
+            "withdrawn": False,
+        }
+        self.assertEqual(set(buildable), bundle.VALID_STATUSES, "every Release Status needs a verdict")
+        for status, expected in buildable.items():
+            with self.subTest(status=status):
+                made = self.make_bundle(store_id="OGS-00105", status=status)
+                record_check()
+                self.assertEqual(bundle.is_buildable(made), expected)
+                refusal = bundle.build_refusal(made)
+                if expected:
+                    self.assertIsNone(refusal)
+                else:
+                    self.assertIn("OGS-00105", refusal)
+                    self.assertIn(f"Release Status '{status}'", refusal)
+
+    def test_a_candidate_refusal_says_how_to_accept_it(self) -> None:
+        made = self.make_bundle(store_id="OGS-00106", status="candidate")
+        refusal = bundle.build_refusal(made)
+        record_check()
+        self.assertIn("status: accepted", refusal)
+        self.assertIn("accepted_at", refusal)
+        self.assertIn(str(made.root / "release.yaml"), refusal)
+
+    def test_a_retired_release_is_never_accepted_again(self) -> None:
+        """`superseded` and `withdrawn` cannot return to `accepted`, so no acceptance is offered."""
+        for status in ("superseded", "withdrawn"):
+            with self.subTest(status=status):
+                refusal = bundle.build_refusal(self.make_bundle(store_id="OGS-00107", status=status))
+                record_check()
+                self.assertIn("never returns to 'accepted'", refusal)
+                self.assertNotIn("status: accepted", refusal)
+
+    def test_a_bundle_without_a_valid_release_status_is_not_buildable(self) -> None:
+        made = self.make_bundle(store_id="OGS-00108")
+        for release in ({k: v for k, v in made.release.items() if k != "status"}, {**made.release, "status": "ready"}):
+            with self.subTest(status=release.get("status")):
+                unknown = replace(made, release=release)
+                record_check()
+                self.assertFalse(bundle.is_buildable(unknown))
+                self.assertIn("no valid Release Status", bundle.build_refusal(unknown))
+
+    def test_partition_and_refuse_unbuildable_name_every_refused_bundle(self) -> None:
+        accepted = self.make_bundle(store_id="OGS-00109", status="accepted")
+        candidate = self.make_bundle(store_id="OGS-00110", status="candidate")
+        withdrawn = self.make_bundle(store_id="OGS-00111", status="withdrawn")
+
+        buildable, refusals = bundle.partition_buildable([accepted, candidate, withdrawn])
+        record_check()
+        self.assertEqual([b.store_id for b in buildable], ["OGS-00109"])
+        self.assertEqual(refusals, [bundle.build_refusal(candidate), bundle.build_refusal(withdrawn)])
+
+        bundle.refuse_unbuildable([accepted])
+        with self.assertRaises(bundle.NotBuildableError) as raised:
+            bundle.refuse_unbuildable([accepted, candidate, withdrawn])
+        record_check()
+        message = str(raised.exception)
+        self.assertNotIn("OGS-00109", message)
+        self.assertIn(bundle.build_refusal(candidate), message)
+        self.assertIn(bundle.build_refusal(withdrawn), message)
+        self.assertIn("Nothing was written", message)
+
+    def test_validated_release_needs_a_passing_validation_record(self) -> None:
+        """`validated` comes only from a passed or passed_with_warnings record (#195)."""
+        for record_status, gives_validated in (
+            ("passed", True),
+            ("passed_with_warnings", True),
+            ("failed", False),
+            ("not_run", False),
+        ):
+            with self.subTest(record_status=record_status):
+                made = self.make_bundle(store_id="OGS-00103", status="validated")
+                (made.root / "validation.yaml").write_text(
+                    yaml.safe_dump({"status": record_status}), encoding="utf-8"
+                )
+                checked = bundle.load(made.store_id, registry_root=self.tmp_dir)
+                errors = bundle.check(checked, registry_root=self.tmp_dir)
+                record_check()
+                if gives_validated:
+                    self.assertEqual(errors, [])
+                else:
+                    self.assertTrue(
+                        any("validated" in e and record_status in e for e in errors),
+                        f"a {record_status} record must not give validated: {errors}",
+                    )
+
+    def test_built_release_may_carry_any_documented_verdict(self) -> None:
+        """A failed or not_run record leaves a release at `built`; that stays valid."""
+        for record_status in ("passed", "passed_with_warnings", "failed", "not_run"):
+            with self.subTest(record_status=record_status):
+                made = self.make_bundle(store_id="OGS-00104", status="built")
+                (made.root / "validation.yaml").write_text(
+                    yaml.safe_dump({"status": record_status}), encoding="utf-8"
+                )
+                checked = bundle.load(made.store_id, registry_root=self.tmp_dir)
+                record_check()
+                self.assertEqual(bundle.check(checked, registry_root=self.tmp_dir), [])
+
     def test_candidate_allows_unresolved_rows_without_validation_record(self) -> None:
         unresolved = (
             "analysis_id\tstored_effect_scale\tsample_size_kind\t"
@@ -838,9 +1259,9 @@ class TestBundleContract(unittest.TestCase):
             ),
         )
         with mock.patch.object(
-            ogstores.bundle.opengwasdb_analyses,
+            opengwasdb_analyses,
             "validate_analyses",
-            wraps=ogstores.bundle.opengwasdb_analyses.validate_analyses,
+            wraps=opengwasdb_analyses.validate_analyses,
         ) as delegated:
             errors = bundle.check(checked, registry_root=self.tmp_dir)
         record_check()
@@ -917,6 +1338,120 @@ class TestBundleContract(unittest.TestCase):
         finally:
             for patch in helper_patches:
                 patch.stop()
+
+
+class TestQualityCheckSidecar(unittest.TestCase):
+    """`sidecars/quality_checks.tsv` is an optional contract file (#285, ADR 0036).
+
+    Absent is valid. Present, it must name every Analysis of `analyses.tsv` in
+    the same order, use the controlled result vocabulary, and agree with
+    `analyses.tsv` and `exclusions.tsv` on which Analyses are excluded and why.
+    """
+
+    HEADER = (
+        "analysis_id\texclude_from_build\texclusion_reason\t"
+        "build_eligible_rows\tbuild_eligible_rows_measured\n"
+    )
+    ROWS = (
+        "FIXTURE_1\t\t\tpassed\t1200\n",
+        "FIXTURE_2\ttrue\tno_build_eligible_rows\tfailed\t0\n",
+    )
+    EXCLUSIONS = (
+        "analysis_id\tsource_analysis_id\tstudy_design\tcategory\treason\tdetail\t"
+        "resolver_status\texclude_from_build\n"
+        "FIXTURE_2\tFIXTURE_2\tquantitative\teffect_scale\tno_build_eligible_rows\t"
+        "none\tsuccess\ttrue\n"
+    )
+
+    setUp = TestBundleContract.setUp
+    tearDown = TestBundleContract.tearDown
+    make_bundle = TestBundleContract.make_bundle
+
+    def sidecar_bundle(
+        self,
+        sidecar: str | None,
+        *,
+        exclusions: str | None = EXCLUSIONS,
+    ) -> bundle.Bundle:
+        base = self.make_bundle(store_id="OGS-00097")
+        header, row = (base.root / "analyses.tsv").read_text().strip().split("\n")
+        analyses = (
+            header + "\texclude_from_build\n"
+            + row + "\t\n"
+            + row.replace("FIXTURE_1", "FIXTURE_2") + "\ttrue\n"
+        )
+        loaded = self.make_bundle(store_id="OGS-00097", analyses=analyses)
+        sidecars = loaded.root / "sidecars"
+        sidecars.mkdir(exist_ok=True)
+        if sidecar is not None:
+            (sidecars / "quality_checks.tsv").write_text(sidecar, encoding="utf-8")
+        if exclusions is not None:
+            (sidecars / "exclusions.tsv").write_text(exclusions, encoding="utf-8")
+        return loaded
+
+    def errors(self, sidecar: str | None, **kwargs: Any) -> list[str]:
+        loaded = self.sidecar_bundle(sidecar, **kwargs)
+        return list(bundle.check(loaded, registry_root=self.tmp_dir))
+
+    def assert_refused(self, sidecar: str, expected: str, **kwargs: Any) -> None:
+        errors = self.errors(sidecar, **kwargs)
+        self.assertTrue(
+            any("quality_checks.tsv" in error and expected in error for error in errors),
+            errors,
+        )
+        record_check()
+
+    def test_a_valid_sidecar_and_an_absent_one_pass(self) -> None:
+        self.assertEqual(self.errors(self.HEADER + "".join(self.ROWS)), [])
+        self.assertEqual(self.errors(None), [])
+        # exclusions.tsv is itself optional; the sidecar then agrees with analyses.tsv alone.
+        self.assertEqual(self.errors(self.HEADER + "".join(self.ROWS), exclusions=None), [])
+        record_check()
+
+    def test_a_missing_row_fails(self) -> None:
+        self.assert_refused(self.HEADER + self.ROWS[0], "FIXTURE_2")
+
+    def test_a_wrong_order_fails(self) -> None:
+        self.assert_refused(self.HEADER + self.ROWS[1] + self.ROWS[0], "order")
+
+    def test_an_extra_row_fails(self) -> None:
+        extra = self.ROWS[0].replace("FIXTURE_1", "FIXTURE_3")
+        self.assert_refused(self.HEADER + "".join(self.ROWS) + extra, "FIXTURE_3")
+
+    def test_a_reason_disagreeing_with_the_exclusions_sidecar_fails(self) -> None:
+        wrong = self.ROWS[1].replace("no_build_eligible_rows", "orientation_failure")
+        self.assert_refused(self.HEADER + self.ROWS[0] + wrong, "exclusions.tsv")
+
+    def test_membership_disagreeing_with_analyses_fails(self) -> None:
+        included_as_excluded = "FIXTURE_1\ttrue\tno_build_eligible_rows\tfailed\t0\n"
+        self.assert_refused(
+            self.HEADER + included_as_excluded + self.ROWS[1], "exclude_from_build",
+            exclusions=None,
+        )
+        excluded_without_reason = "FIXTURE_2\ttrue\t\tfailed\t0\n"
+        self.assert_refused(
+            self.HEADER + self.ROWS[0] + excluded_without_reason, "exclusion_reason",
+            exclusions=None,
+        )
+
+    def test_a_result_outside_the_vocabulary_fails(self) -> None:
+        self.assert_refused(
+            self.HEADER + self.ROWS[0].replace("passed", "ok") + self.ROWS[1], "'ok'"
+        )
+
+    def test_columns_must_lead_with_membership_and_pair_each_check(self) -> None:
+        self.assert_refused(
+            self.HEADER.replace("exclusion_reason\t", "") + "".join(
+                row.replace("\tno_build_eligible_rows", "").replace("\t\tpassed", "\tpassed")
+                for row in self.ROWS
+            ),
+            "columns",
+        )
+        unpaired = self.HEADER.replace("\tbuild_eligible_rows_measured", "")
+        self.assert_refused(
+            unpaired + "".join(row.rsplit("\t", 1)[0] + "\n" for row in self.ROWS),
+            "columns",
+        )
 
 
 class TestBundleSummary(unittest.TestCase):
@@ -1058,7 +1593,7 @@ class TestBundleSummary(unittest.TestCase):
         self.assertEqual(summary["first_author"], "mixed (2)")
         self.assertEqual(summary["publication_pmid"], "mixed (2)")
 
-    def test_all_seven_trial_release_summaries_match_regression_golden(self) -> None:
+    def test_registered_bundle_summaries_match_regression_golden(self) -> None:
         expected = yaml.safe_load(
             (REPO_ROOT / "tests" / "bundle" / "golden" / "summaries.yaml").read_text(
                 encoding="utf-8"
@@ -1100,6 +1635,7 @@ class TestArtifactPaths(unittest.TestCase):
         self.assertEqual(paths.store_dir(store_id, root), root / store_id)
         self.assertEqual(paths.source_dir(store_id, root), root / store_id / "source")
         self.assertEqual(paths.work_dir(store_id, root), root / store_id / "work")
+        self.assertEqual(paths.generation_dir(store_id, root), root / store_id / "generate")
         self.assertEqual(
             paths.store_path(store_id, root), root / store_id / "store.opengwasdb"
         )
@@ -1183,6 +1719,22 @@ class TestArtifactRootResolution(unittest.TestCase):
         self._write_config("artifact_root: 42\n")
         with self.assertRaises(ValueError):
             paths.artifact_root(env={}, repo_root=self.tmp_dir)
+        record_check()
+
+
+class TestImportCost(unittest.TestCase):
+    """Importing `ogstores` leaves opengwasdb unloaded."""
+
+    def test_the_release_path_does_not_import_opengwasdb(self) -> None:
+        """The entry point, each Snakemake parse and the supervisor import `ogstores`; opengwasdb would cost each ~1.5s."""
+        code = (
+            "import sys; "
+            "import ogstores, ogstores.release, ogstores._pdeath_supervisor; "
+            "print(sorted(m for m in sys.modules if m.split('.')[0] == 'opengwasdb'))"
+        )
+        result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "[]")
         record_check()
 
 

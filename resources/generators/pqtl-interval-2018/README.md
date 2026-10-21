@@ -1,21 +1,23 @@
 # pqtl-interval-2018 Manifest Generator
 
 This Store Family's Manifest Generator selects analyses from the
-`gwas-catalog-ssf` Source Collection and emits a candidate release bundle
-(`../releases/<family-release-id>/`).
+`gwas-catalog-ssf` Source Collection and keeps a working bundle in its work root,
+`<artifact-root>/<output.store_id>/generate`; `--mode=emit-registry` emits the
+candidate into `stores/<output.store_id>/` through the one emitter (#248).
+`config-pilot-10.yaml` is registered as `OGS-00007`.
 
 It is a **thin family-specific wrapper** over the shared engine at
 `resources/generators/lib/source-formats/gwas-ssf-ragged/`. The engine is generic across all
 molecular GWAS-SSF ragged stores; only this family's inputs differ, held here as:
 
-- `config.yaml` - the analyte selection (GWAS Catalog accessions), the
+- `config-pilot-10.yaml` - the analyte selection (GWAS Catalog accessions), the
   authoritative gene / cis-coordinate source (SomaScan SeqId -> gene -> GRCh38 via
   `../../../resources/somascan/sun-2018-analysis-targets.tsv`), the per-analysis
   metadata (N, ancestry, effect scale = sd, tissue), and the sparse-region
   filter policy (cis +/-1 Mb; significant trans p<=5e-8, merged +/-1 Mb;
   suggestive p<=1e-5, lead SNPs only; MHC analytes flagged).
-- `generate.R` - a one-call driver that runs the shared engine with `config.yaml`
-  and writes the release bundle.
+- `generate.R` - a one-call driver that runs the shared engine with
+  `config-pilot-10.yaml` and writes the working bundle.
 
 Generate and validate the candidate bundle with:
 

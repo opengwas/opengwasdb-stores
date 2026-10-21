@@ -26,6 +26,12 @@ check <- function(cond, ...) {
 fixtures_dir <- "tests/no-cis-region-policy/fixtures"
 output_dir <- file.path(fixtures_dir, "output")
 unlink(output_dir, recursive = TRUE)
+# The generator's working bundle lives in the work root,
+# <artifact-root>/<id>/generate (#248); filtered sources still go to data_dir.
+artifact_root <- tempfile("no-cis-artifacts-")
+Sys.setenv(OPENGWASDB_ARTIFACT_ROOT = artifact_root)
+on.exit(unlink(artifact_root, recursive = TRUE), add = TRUE)
+work_dir <- file.path(artifact_root, "OGS-99041", "generate")
 
 status <- system2("Rscript", c(shQuote(file.path(fixtures_dir, "generate_fixtures.R"))))
 if (status != 0) fail("Fixture generation failed")
@@ -48,11 +54,11 @@ run_mode("emit")
 run_mode("validate")
 run_mode("filter")
 
-analyses <- fread(file.path(output_dir, "analyses.tsv"), sep = "\t", na.strings = "")
+analyses <- fread(file.path(work_dir, "analyses.tsv"), sep = "\t", na.strings = "")
 check(all(analyses$assigned_ancestry == "EUR"),
       "emitted assigned_ancestry should be the super-population code EUR, not the source label European")
-release <- read_yaml(file.path(output_dir, "release.yaml"))
-regions <- fread(file.path(output_dir, "sidecars", "sparse_regions.tsv"), sep = "\t", na.strings = "")
+release <- read_yaml(file.path(work_dir, "release.yaml"))
+regions <- fread(file.path(work_dir, "sidecars", "sparse_regions.tsv"), sep = "\t", na.strings = "")
 
 # No fabricated gene-target columns for a family with no target gene.
 for (col in c("trait_id", "gene_id", "gene_name", "trait_chr", "trait_bp", "n", "mhc",
@@ -61,7 +67,7 @@ for (col in c("trait_id", "gene_id", "gene_name", "trait_chr", "trait_bp", "n", 
 }
 check(is.null(release$sidecars$analysis_targets),
       "release.yaml should not declare a sidecars.analysis_targets pointer for a no-target family")
-check(!file.exists(file.path(output_dir, "sidecars", "analysis_targets.tsv")),
+check(!file.exists(file.path(work_dir, "sidecars", "analysis_targets.tsv")),
       "no analysis_targets.tsv sidecar should be written for a no-target family")
 
 # Only significant/suggestive regions retained; zero cis regions.
@@ -75,7 +81,7 @@ filtered <- fread(file.path(output_dir, "filtered", analyses$filtered_file[1]), 
 check(nrow(filtered) == 8, "expected 8 retained rows (5 significant + 3 suggestive), got %d", nrow(filtered))
 check(all(filtered$p_value <= 1e-5), "every retained row should be significant or suggestive, not null")
 
-summary_dt <- fread(file.path(output_dir, "sidecars", "filter_summary.tsv"), sep = "\t", na.strings = "")
+summary_dt <- fread(file.path(work_dir, "sidecars", "filter_summary.tsv"), sep = "\t", na.strings = "")
 check(identical(summary_dt$status[1], "ok"), "filter_summary should record status=ok for the fixture analysis")
 check(summary_dt$cis_rows[1] == 0, "cis_rows should be 0 for a no-target family")
 
@@ -172,12 +178,12 @@ target_config$inputs$analysis_targets <- target_path
 target_config$inputs$somascan_targets <- somascan_path
 target_config$selection$fail_if_target_unresolved <- TRUE
 target_config$selection$n_analyses <- 3
-target_config$output$release_dir <- target_root
+target_config$output$store_id <- "OGS-99042"
 target_config$output$data_dir <- target_root
 writeLines(as.yaml(target_config), tmp_config)
 run_mode("emit")
 
-target_analyses <- fread(file.path(target_root, "analyses.tsv"), sep = "\t", na.strings = "")
+target_analyses <- fread(file.path(artifact_root, "OGS-99042", "generate", "analyses.tsv"), sep = "\t", na.strings = "")
 check(!any(c("trait_id", "gene_id", "gene_name") %in% names(target_analyses)),
       "gene-target manifest should omit retired Analysis columns")
 

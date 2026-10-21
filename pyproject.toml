@@ -1,0 +1,44 @@
+# Package metadata so this repository's Python code installs editable into the
+# pixi environments, and imports without sys.path insertions (#257).
+#
+# Pixi owns the environments and every dependency (pixi.toml); this file only
+# says what to install. Its `dependencies` stay empty so pip never resolves a
+# second copy of what conda already provides.
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ogstores"
+version = "0.1.0"
+description = "OpenGWASDB Store Registry tooling: the Release Bundle contract, Store Release Build, and Manifest Generation"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.setuptools]
+# Store Release Build (`ogstores`) and Manifest Generation
+# (`manifest_generation`, #249) live under src/; they meet only at the Release
+# Bundle (ADR 0035). The curation tooling still lives at the repository root.
+#
+# `manifest_generation` installs editable only: it resolves its inputs and the
+# registry against the checkout it lives in, and refuses to import from
+# anywhere else. The shell scripts in its provider directories run
+# `python3 -m manifest_generation...` and so rely on that editable install.
+# tests/packaging/test_packages.py keeps this list equal to the package's
+# directories.
+package-dir = { "ogstores" = "src/ogstores", "manifest_generation" = "src/manifest_generation", "curation" = "curation" }
+packages = [
+    "ogstores",
+    "manifest_generation",
+    "manifest_generation.providers",
+    "manifest_generation.providers.dbgap",
+    "manifest_generation.providers.dbgap.mvp",
+    "manifest_generation.providers.dbgap.mvp.pilot",
+    "manifest_generation.providers.eqtlgen",
+    "manifest_generation.providers.finngen",
+    "manifest_generation.providers.gwas_catalog",
+    "manifest_generation.providers.opengwas",
+    "manifest_generation.providers.ukb_b",
+    "curation",
+]

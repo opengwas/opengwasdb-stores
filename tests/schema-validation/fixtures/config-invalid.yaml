@@ -35,5 +35,5 @@ defaults:
   inclusion_reason: schema_validation_fixture
 
 output:
-  release_dir: tests/schema-validation/fixtures/output-invalid
+  store_id: OGS-99062
   data_dir: tests/schema-validation/fixtures/output-invalid

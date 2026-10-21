@@ -2,8 +2,26 @@
 
 suppressPackageStartupMessages(library(data.table))
 
+finngen_manifest_columns <- function() {
+  c("phenocode", "phenotype", "category", "num_cases", "num_controls", "path_https")
+}
+
+# Full-release selection: every endpoint in the frozen public manifest, in the
+# manifest's own order. The pilot selector below is a bounded trial; this is the
+# production selection the onboarding evidence covers. No endpoint is dropped
+# here -- `finngen_release_rows` still refuses any row the metadata resolver
+# cannot honestly classify, so a bad upstream row fails the emit rather than
+# silently shrinking the release.
+select_finngen_r13_full <- function(manifest) {
+  required <- finngen_manifest_columns()
+  missing <- setdiff(required, names(manifest))
+  if (length(missing)) stop("FinnGen manifest missing columns: ", paste(missing, collapse = ", "))
+  if (nrow(manifest) < 1L) stop("FinnGen R13 manifest contains no endpoints")
+  copy(manifest)
+}
+
 select_finngen_r13_pilot <- function(manifest, binary_count = 17L) {
-  required <- c("phenocode", "phenotype", "category", "num_cases", "num_controls", "path_https")
+  required <- finngen_manifest_columns()
   missing <- setdiff(required, names(manifest))
   if (length(missing)) stop("FinnGen manifest missing columns: ", paste(missing, collapse = ", "))
 
@@ -33,7 +51,7 @@ select_finngen_r13_pilot <- function(manifest, binary_count = 17L) {
   rbindlist(list(quantitative, selected_binary), use.names = TRUE, fill = TRUE)[, manifest_order := NULL][]
 }
 
-finngen_release_rows <- function(selected, artifact_source_dir, defaults) {
+finngen_release_rows <- function(selected, artifact_source_dir, defaults, selection_mode = "pilot") {
   rows <- lapply(seq_len(nrow(selected)), function(i) {
     source <- as.list(selected[i])
     resolved <- resolve_finngen_manifest_metadata(source)
@@ -77,7 +95,9 @@ finngen_release_rows <- function(selected, artifact_source_dir, defaults) {
       n_cases = resolved$n_cases[[1]],
       n_controls = resolved$n_controls[[1]],
       analysis_group_id = source$category,
-      inclusion_reason = if (is_binary) {
+      inclusion_reason = if (identical(selection_mode, "full")) {
+        "all endpoints in the frozen FinnGen R13 public summary-statistics manifest"
+      } else if (is_binary) {
         "largest-case endpoint in its category; category retained among the 17 largest winners"
       } else {
         "all FinnGen R13 inverse-rank-normalised quantitative endpoints"

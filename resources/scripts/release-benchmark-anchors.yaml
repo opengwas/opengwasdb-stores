@@ -1,0 +1,38 @@
+# Per-Store anchors for the seven generic query shapes (stores#212, epic#214).
+#
+# The release benchmark report measures the HM3 Indexed Variant Subset for every
+# registered Store via opengwasdb's shared
+# `benchmarks._query_shapes.measure_hm3_extract`. It additionally surfaces the
+# seven generic query shapes (from `benchmarks/benchmark_store_comparison.py`)
+# for a Store only when an anchor is configured here; otherwise the report marks
+# the shapes `not_configured` and continues, because the shapes need a
+# Store-specific Analysis and window that the shared defaults
+# (`ukb-b-17805`, chr19) cannot supply for every release.
+#
+# `exposure` is the Analysis id the shapes are anchored on. The other two keys
+# are optional: the harness derives the PheWAS variant from the exposure's
+# strongest genome-wide top hit when `phewas_alid` is absent, and defaults the
+# regional window to the harness default when `region` is absent. A Store in
+# this file whose artifact is not queryable (no variant index yet) records a
+# non-failing `not_queryable` operational status rather than a measurement.
+#
+# The default exposure is the first analysis_id in the bundle's analyses.tsv,
+# matching the report's HM3 anchor. Change one only with a measurement reason.
+
+stores:
+  OGS-00003:
+    exposure: finngen-r13-BMI_IRN
+  OGS-00004:
+    exposure: GCST003566
+  OGS-00005:
+    exposure: GCST002047
+  OGS-00008:
+    exposure: ukb-b-19953
+  OGS-00009:
+    exposure: ukb-b-13414
+  OGS-00010:
+    exposure: ukb-b-13414
+  OGS-00011:
+    exposure: GCST000028
+  OGS-00017:
+    exposure: finngen-r13-AB1_ACTINOMYCOSIS

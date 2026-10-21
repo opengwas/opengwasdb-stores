@@ -1,0 +1,145 @@
+# Numeric-key discrepancies between the PMID 39024449 candidate table (GWAS
+# Catalog metadata) and the dbGaP phs002453 GIA deposit metadata.
+#
+# `map` binds an Analysis to a candidate row by the exact key
+# (ancestry, sample_size, n_cases, n_controls).  Where the two first-party
+# sources disagree, the binding is never relaxed or guessed: this ledger names
+# each disagreement with its primary evidence and its owner decision, and `map`
+# re-validates every record against the extracted metadata and the candidate
+# table on each run.
+#
+# A `resolved` record binds the named pair with match_basis=discrepancy-ledger
+# and MUST carry an `owner_decision`.  An `owner_decision_required` record is
+# reported as numeric_key_discrepancy and keeps the bijection gate red.  A stale
+# record (keys now agree, member/candidate absent, or an entry already bound)
+# fails the run loudly rather than passing silently.
+#
+# Evidence was captured 2026-10-11 from first-party sources only:
+#   * dbGaP phs002453 GIA extracted metadata (the fields recorded under `dbgap`);
+#   * GWAS Catalog EBI raw meta.yaml (md5 recorded per record);
+#   * GWAS Catalog REST v2 study JSON (URLs recorded per record).
+#
+# Durable owner decision (created 2026-10-12 21:24:22 UTC):
+#   https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250
+version: 1
+
+#: Owner decisions (epic #232, ticket #220), recorded 2026-10-12.
+#: The owner's instruction was: "for mvp use the dbgap information for all
+#: three queries."  dbGaP phs002453 is therefore authoritative; the GWAS
+#: Catalog values are retained below as non-canonical provenance only.
+owner_decisions:
+  - id: D1
+    authority: dbGaP
+    quote: "for mvp use the dbgap information for all three queries."
+    recorded: "2026-10-12T21:24:22Z"
+    citation: https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250
+    effect: >-
+      GCST90476298 canonical sample_size is the deposit 114731; the Catalog 235
+      is retained as provenance.
+  - id: D2
+    authority: dbGaP
+    quote: "for mvp use the dbgap information for all three queries."
+    recorded: "2026-10-12T21:24:22Z"
+    citation: https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250
+    effect: >-
+      GCST90481129 canonical metadata is the 3-ancestry deposit meta-analysis
+      (N=571620, cases=49766, controls=521854).  The 4-ancestry Catalog
+      aggregate (N=577873) is retained as provenance; the META mixture stays
+      with ticket #221.
+  - id: traits
+    authority: dbGaP
+    quote: "use the dbgap information for all three queries"
+    recorded: "2026-10-12T21:24:22Z"
+    citation: https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250
+    effect: >-
+      For the 57 trait-label mismatches the canonical label is the dbGaP
+      analyzed_variable; the GWAS Catalog counterpart is retained as
+      provenance.  All 57 are resolved as dbGaP-authoritative; the raw
+      punctuation-only/lexical-variant classification is retained but does not
+      assert the labels are lexically equivalent.  No fuzzy identity binding.
+
+records:
+  - member: MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.Platelet_Mean_INT.AFR.GIA.dbGaP.txt.gz
+    analysis_id: GCST90476298
+    disposition: resolved
+    owner_decision:
+      id: D1
+      authority: dbGaP
+      quote: "for mvp use the dbgap information for all three queries."
+      recorded: "2026-10-12T21:24:22Z"
+      citation: https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250
+    dbgap:
+      ancestry: AFR
+      analyzed_variable: platelet count (mean, inv-norm transformed)
+      sample_size: 114731
+      n_cases: 0
+      n_controls: 0
+    candidate:
+      ancestry_group: African
+      ancestry_fraction: 1
+      trait: platelet count (mean, inv-norm transformed)
+      sample_size: 235
+      n_cases: 0
+      n_controls: 0
+    owner_question: >-
+      The deposited GWAS-SSF member's own metadata and num_samples column say
+      N=114731, while the GWAS Catalog record says 235; trait text and ancestry
+      agree exactly. Owner decided 2026-10-12 that dbGaP is authoritative, so
+      the binding is resolved and the canonical N is 114731.
+    evidence:
+      - >-
+        dbGaP member metadata: "Sample size: Total Sample Size=114731",
+        "Analyzed variable: platelet count (mean, inv-norm transformed)",
+        "Sample population: African American Veterans from MVP (GIA)";
+        data header row num_samples=114731.
+      - >-
+        GWAS Catalog raw meta.yaml sample_size: 235; md5
+        30d14f53e4956e046b9a53f25def2968;
+        https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/GCST90476001-GCST90477000/GCST90476298/GCST90476298.tsv.gz-meta.yaml
+      - >-
+        GWAS Catalog REST v2:
+        https://www.ebi.ac.uk/gwas/rest/api/v2/studies/GCST90476298
+  - member: MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2/MVP_R4.1000G_AGR.Phe_371_3.META.GIA.dbGaP.txt.gz
+    analysis_id: GCST90481129
+    disposition: resolved
+    owner_decision:
+      id: D2
+      authority: dbGaP
+      quote: "for mvp use the dbgap information for all three queries."
+      recorded: "2026-10-12T21:24:22Z"
+      citation: https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250
+    dbgap:
+      ancestry: META
+      analyzed_variable: Inflammation of eyelids
+      sample_size: 571620
+      n_cases: 49766
+      n_controls: 521854
+    candidate:
+      ancestry_group: European
+      ancestry_fraction: 0.703775743113106
+      trait: Inflammation of eyelids (PheCode 371.3)
+      sample_size: 577873
+      n_cases: 50122
+      n_controls: 527751
+    owner_question: >-
+      The Catalog record is a 4-ancestry meta-analysis (AFR 110183 + AMR 54744 +
+      EAS 6253 + EUR 406693 = 577873; cases 50122 = 8636+3623+356+37507;
+      controls 527751 = 101547+51121+5897+369186), while the deposit's
+      Phe_371_3.META is a 3-ancestry meta-analysis (AFR+AMR+EUR = 571620;
+      49766; 521854). The 6253 difference is exactly the EAS component, and no
+      EAS Phe_371_3 member is deposited. Owner decided 2026-10-12 that dbGaP is
+      authoritative, so the canonical metadata is the 3-ancestry deposit meta
+      and the 4-ancestry Catalog aggregate is retained as provenance only.
+    evidence:
+      - >-
+        dbGaP member description: "Meta-analysis of Phe_371_3 (Inflammation of
+        eyelids) in AFR, AMR, and EUR MVP participants"; "Sample size: Total
+        Sample Size=571620; Cases=49766; Controls=521854". Only AFR/AMR/EUR/META
+        members exist on disk and in the table of contents.
+      - >-
+        GWAS Catalog raw meta.yaml samples: AFR 110183, AMR 54744, EAS 6253,
+        EUR 406693; md5 56cb4b91f869ce62843b9eb90f1bd637;
+        https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/GCST90481001-GCST90482000/GCST90481129/GCST90481129.tsv.gz-meta.yaml
+      - >-
+        GWAS Catalog REST v2:
+        https://www.ebi.ac.uk/gwas/rest/api/v2/studies/GCST90481129

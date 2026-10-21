@@ -2,7 +2,7 @@
 
 args <- commandArgs(trailingOnly = TRUE)
 if (!any(grepl("^--config=", args))) {
-  args <- c("--config=resources/generators/metabolome-plasma-2023/config.yaml", args)
+  args <- c("--config=resources/generators/metabolome-plasma-2023/config-european.yaml", args)
 }
 
 status <- system2(

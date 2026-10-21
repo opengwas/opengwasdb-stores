@@ -88,8 +88,8 @@ resolve_batch <- function(ids, jwt = Sys.getenv("OPENGWAS_JWT")) {
   rbindlist(rows)
 }
 
-write_build_yaml <- function(cfg, release_dir) {
-  write_yaml_file(list(
+write_build_yaml <- function(cfg, root, release_dir) {
+  build <- list(
     store_family_id = cfg$store_family_id,
     family_release_id = cfg$family_release_id,
     store_layout = "dense-observed",
@@ -120,7 +120,12 @@ write_build_yaml <- function(cfg, release_dir) {
       store_uri = cfg$output$planned_store_uri
     ),
     notes = cfg$build_notes %||% ""
-  ), file.path(release_dir, "build.yaml"))
+  )
+  # Dense releases declare the maintained hm3 Indexed Variant Subset by default
+  # (stores #210); a reviewed opt-out emits the explicit empty list.
+  indexed <- resolve_indexed_subsets(cfg, "dense", root)
+  if (!is.null(indexed$subsets)) build$indexed_subsets <- indexed$subsets
+  write_yaml_file(build, file.path(release_dir, "build.yaml"))
 }
 
 emit_bundle <- function(cfg, root, max_analyses = NA_integer_, only_analysis_id = "") {
@@ -144,7 +149,7 @@ emit_bundle <- function(cfg, root, max_analyses = NA_integer_, only_analysis_id 
   canonical_table <- load_canonical_trait_table_from_cfg(cfg$reference_resources, root)
   analyses <- apply_trait_ontology_mapping(analyses, canonical_table)
 
-  release_dir <- path_abs(root, cfg$output$release_dir)
+  release_dir <- cfg$.work_root
   sidecar_dir <- file.path(release_dir, "sidecars")
   dir.create(sidecar_dir, recursive = TRUE, showWarnings = FALSE)
   fwrite(analyses, file.path(release_dir, "analyses.tsv"), sep = "\t", na = "")
@@ -190,10 +195,10 @@ emit_bundle <- function(cfg, root, max_analyses = NA_integer_, only_analysis_id 
       ancestry = "sidecars/ancestry.tsv",
       sd_estimation = "sidecars/sd_estimation.tsv"
     ),
-    notes = cfg$notes %||% ""
+    notes = notes_with_indexed_subsets_opt_out(cfg$notes %||% "", "dense", cfg, root)
   ), file.path(release_dir, "release.yaml"))
 
-  write_build_yaml(cfg, release_dir)
+  write_build_yaml(cfg, root, release_dir)
 
   write_yaml_file(list(
     status = status,
@@ -220,7 +225,7 @@ emit_bundle <- function(cfg, root, max_analyses = NA_integer_, only_analysis_id 
 }
 
 validate_emit <- function(cfg, root) {
-  release_dir <- path_abs(root, cfg$output$release_dir)
+  release_dir <- cfg$.work_root
   # exclude_from_build's only non-blank value is the literal string "true"
   # (see docs/release-metadata-schema.md); fread's type inference otherwise
   # reads a column of blanks + "true" as logical, and a subsequent `!=
@@ -259,7 +264,7 @@ validate_emit <- function(cfg, root) {
     fwrite(buildable, temporary_schema_path, sep = "\t", na = "")
     schema_path <- temporary_schema_path
   }
-  schema <- validate_against_opengwasdb_schema(schema_path, root)
+  schema <- validate_against_opengwasdb_schema(schema_path)
   if (!is.null(temporary_schema_path)) unlink(temporary_schema_path)
   validation_path <- file.path(release_dir, "validation.yaml")
   validation <- if (file.exists(validation_path)) read_yaml(validation_path) else list(checks = list())
@@ -284,17 +289,23 @@ source(path_abs(root, "resources/generators/lib/metadata_resolvers/canonical_tra
 source(path_abs(root, "resources/generators/lib/build_environment.R"))
 source(path_abs(root, "resources/generators/lib/opengwas_gwas_vcf_dense.R"))
 source(path_abs(root, "resources/generators/lib/schema_validate.R"))
+source(path_abs(root, "resources/generators/lib/indexed_subsets.R"))
+source(path_abs(root, "resources/generators/lib/emit_registry.R"))
 cfg <- read_yaml(path_abs(root, args$config))
 cfg$.config_path <- args$config
+# Resolved once: every mode reads and writes the working bundle there (#248).
+cfg$.work_root <- generation_work_root(cfg)
 
 if (args$mode == "emit") {
   emit_bundle(cfg, root, args$max_analyses, args$only_analysis_id)
   validate_emit(cfg, root)
 } else if (args$mode == "validate") {
   validate_emit(cfg, root)
+} else if (args$mode == "emit-registry") {
+  emit_registry(cfg, root, "resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/generate.R")
 } else if (args$mode == "refresh-build") {
-  release_dir <- path_abs(root, cfg$output$release_dir)
-  write_build_yaml(cfg, release_dir)
+  release_dir <- cfg$.work_root
+  write_build_yaml(cfg, root, release_dir)
   cat("Refreshed ", file.path(release_dir, "build.yaml"), "\n", sep = "")
 } else {
   stop("Unknown --mode=", args$mode)

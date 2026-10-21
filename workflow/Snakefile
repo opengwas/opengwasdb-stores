@@ -1,4 +1,4 @@
-"""Phase A: every accepted Release Bundle in stores/, wired by dependency only.
+"""Phase A: every buildable Release Bundle in stores/, wired by dependency only.
 
     pixi run release OGS-00003             one release, plus any parent it needs
     pixi run release OGS-00003 OGS-00004   several; lineage order is resolved
@@ -36,22 +36,13 @@ differed only in which name they looked up. The chain's shape lives in
 
 from __future__ import annotations
 
-import sys
+import os
 from pathlib import Path
 
 from snakemake.exceptions import WorkflowError
 
-# Ensure src/ is on sys.path when invoked via snakemake CLI
-_CANDIDATE_SRC_DIRS = [
-    Path(workflow.basedir).parent / "src" if hasattr(workflow, "basedir") else None,
-    Path(workflow.snakefile).resolve().parents[1] / "src" if hasattr(workflow, "snakefile") and workflow.snakefile else None,
-    Path.cwd() / "src",
-]
-for _src in _CANDIDATE_SRC_DIRS:
-    if _src is not None and _src.is_dir() and str(_src) not in sys.path:
-        sys.path.insert(0, str(_src))
-
-from ogstores import bundle, index, manifest, paths, register, run
+# `ogstores` is installed editable into the pixi environment (#257).
+from ogstores import bundle, index, manifest, paths, register, resources, run, runtime
 from ogstores.plan import plan
 
 REGISTRY_ROOT: Path = Path(config.get("registry_root", "stores"))
@@ -64,6 +55,10 @@ ALL_STORE_IDS: list[str] = sorted([
 ]) if REGISTRY_ROOT.is_dir() else []
 
 EXECUTION_STEPS = ["variant-reference", "build", "complete", "top-hits", "rho", "overview", "validate"]
+# Declared Indexed Variant Subsets (#209) add one dynamically named step per
+# declaration, `indexed-subset-<name>`, so the `{step}` wildcard admits that
+# bounded prefix in addition to the fixed execution steps.
+INDEXED_SUBSET_STEP_PATTERN = "indexed-subset-[A-Za-z0-9._-]+"
 
 
 def get_bundle(store_id: str) -> bundle.Bundle:
@@ -111,12 +106,84 @@ def step_input(wildcards) -> list[str]:
 wildcard_constraints:
     root=".+",
     store_id=r"OGS-\d{5}",
-    step="|".join(EXECUTION_STEPS)
+    step="|".join([*EXECUTION_STEPS, INDEXED_SUBSET_STEP_PATTERN])
+
+
+onstart:
+    # Defence in depth for a direct `snakemake` run. The supported entry point,
+    # `pixi run release` (workflow/release.py), refuses, snapshots and settles
+    # around Snakemake and cannot be switched off. Here, before the first job,
+    # a run that would build a bundle whose Release Status does not allow it is
+    # refused (#247), and so is one that would rebuild a published release
+    # unless it holds the records snapshot of the entry point's run,
+    # `release_run` (#195).
+    scheduled = [
+        (job.wildcards_dict["root"], job.wildcards_dict["store_id"])
+        for job in workflow.dag.needrun_jobs()
+        if {"root", "store_id"} <= job.wildcards_dict.keys()
+    ]
+    # Same jobs with the `step` wildcard, for the runtime guard's parent-format
+    # and capability checks: an enhancement-only job on a Store is not a build
+    # of that Store (#218).
+    scheduled_jobs = [
+        (
+            job.wildcards_dict["root"],
+            job.wildcards_dict["store_id"],
+            job.wildcards_dict.get("step"),
+        )
+        for job in workflow.dag.needrun_jobs()
+        if {"root", "store_id"} <= job.wildcards_dict.keys()
+    ]
+    # Release Status first: a named candidate, or the unbuilt parent a named
+    # child would schedule, is refused before any other check (#247).
+    try:
+        bundle.refuse_unbuildable(
+            get_bundle(store_id) for store_id in sorted({sid for _, sid in scheduled})
+        )
+    except bundle.NotBuildableError as exc:
+        raise WorkflowError(str(exc))
+    run.refuse_rebuilding_published_releases(
+        scheduled,
+        forced=run.forced_by_transaction(config.get("release_run"), scheduled),
+    )
+    # Defence in depth for a direct `snakemake` run (#218): the resolved
+    # runtime must be the tracked pin, provide every capability the scheduled
+    # steps name, and be able to complete each parent a scheduled completion
+    # consumes. Refuse before the first job writes a Store. Under the entry
+    # point, the subcommands it has just probed on this runtime are not probed
+    # again; the pin is checked either way.
+    try:
+        runtime.verify_runtime_for_releases(
+            scheduled_jobs,
+            registry_root=REGISTRY_ROOT,
+            handoff=os.environ.get(runtime.VERIFIED_RUNTIME_ENV),
+        )
+    except runtime.RuntimeGuardError as exc:
+        raise WorkflowError(str(exc))
+    # Defence in depth for a direct `snakemake` run (#209): a declared Indexed
+    # Variant Subset needs a `build-indexed-subset`-capable runtime and a
+    # maintained variant list that matches its declaration. Refuse before the
+    # build starts rather than hours in.
+    try:
+        resources.verify_indexed_subsets_for_releases(
+            scheduled, registry_root=REGISTRY_ROOT, repo_root=paths.REPO_ROOT
+        )
+    except (
+        resources.IndexedSubsetRuntimeError,
+        resources.ReferenceResourceError,
+    ) as exc:
+        raise WorkflowError(str(exc))
+
+
+# `all` is every bundle the contract lets this workflow build, not every
+# registered one: any whose Release Status does not allow a build is left out
+# (#247). Named on its own, such a bundle is refused at `onstart`.
+BUILDABLE_STORE_IDS: list[str] = [sid for sid in ALL_STORE_IDS if bundle.is_buildable(get_bundle(sid))]
 
 
 rule all:
     input:
-        [record(sid, "register") for sid in ALL_STORE_IDS]
+        [record(sid, "register") for sid in BUILDABLE_STORE_IDS]
 
 
 rule build_manifest:
@@ -161,12 +228,24 @@ rule register:
     output:
         "{root}/{store_id}/records/register.json"
     run:
+        b = get_bundle(wildcards.store_id)
+        # Inside the entry point's run, `release_run` names it. A published Store
+        # is replaced only if it holds that run's records snapshot, which only
+        # the entry point creates. The entry point also finishes the publication
+        # (finalize=False): it removes publication.json once Snakemake has
+        # recorded this job, so a crash before then is always recoverable (#195).
+        release_run = config.get("release_run")
+        forced = bool(
+            run.forced_by_transaction(release_run, [(wildcards.root, wildcards.store_id)])
+        )
         register.register_release(
-            get_bundle(wildcards.store_id),
+            b,
             registry_root=REGISTRY_ROOT,
             artifact_root=wildcards.root,
-            force=False,
+            force=forced,
             publish=True,
+            acceptance_commit=register.committed_revision(b.root / "validation.yaml"),
+            finalize=not release_run,
         )
 
 

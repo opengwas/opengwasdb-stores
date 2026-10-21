@@ -21,8 +21,9 @@ stores/
     summary.yaml              generated    review view derived from analyses.tsv
     validation.yaml          written back  merged evidence from the run
   by-label/                  generated     finngen-r13-pilot-20 -> ../OGS-00042
-src/ogstores/                              bundle.py plan.py paths.py manifest.py run.py index.py register.py
+src/ogstores/                              bundle.py plan.py paths.py manifest.py run.py index.py register.py release.py
 workflow/Snakefile                         Phase A: scans stores/, wires every release
+workflow/release.py                        Phase A operator entry point (pixi run release)
 workflow/generate.smk                      Phase B: coarse wiring for one candidate (issue #153)
 resources/reference-resources/<id>/        resource.yaml
 resources/annotations/                     post-release curated metadata
@@ -35,6 +36,8 @@ Artifacts live outside git, at a path that is a pure function of the store ID:
 
 ```text
 <artifact-root>/OGS-00042/
+  generate/                  Manifest Generation's work root: a legacy
+                             generator's working bundle (#248)
   source/                    acquired or filtered source files
   work/                      checkpoints, scratch, logs
   work/analyses.tsv          derived build manifest: the bundle's analyses.tsv
@@ -43,6 +46,11 @@ Artifacts live outside git, at a path that is a pure function of the store ID:
   records/<step>.json        one per executed step
   store.opengwasdb           the Store Release
   store.opengwasdb.partial   transient staged destination
+  records.before-force-<UTC>/   transient: a forced run's copy of records/
+  publication.json           transient: a publication in progress (#195)
+<artifact-root>/.release-locks/<id>.lock   one release's run lock (#195)
+  replaced/<UTC>/            archive of a release a forced run replaced:
+                             store.opengwasdb, records/, validation.yaml
 <artifact-root>/by-label/   generated symlinks
 ```
 
@@ -87,6 +95,21 @@ candidate ──> accepted ──> built ──> validated ──> superseded
 - `validated` — Passed `opengwasdb validate`; terminal release step complete. Transitions to: `superseded`, `withdrawn`.
 - `superseded` — Replaced by a newer Store Release. Transitions to: `withdrawn`.
 - `withdrawn` — Retracted/withdrawn release (terminal).
+
+**Buildable statuses** (#247). Phase A builds a bundle only when its Release Status is `accepted`, `built` or `validated`. `accepted` is the human-frozen input the build rests on; `built` and `validated` stay buildable so that a re-run, or a `--config force=1` replacement, still goes through. `candidate`, `superseded` and `withdrawn` are refused, as is a bundle with no valid status. The rule lives in the Release Bundle contract (`bundle.BUILDABLE_STATUSES`, asked through `bundle.is_buildable`, `bundle.build_refusal` and `bundle.partition_buildable`); the Snakefile's `all` target, its `onstart` check and the release entry point all ask it rather than restating it. A candidate's refusal says how to accept it; a superseded or withdrawn release never returns to `accepted`, so a replacement is a new Store Release.
+
+#### The Release Status a Validation Record gives
+
+`register` writes one of four verdicts. Which of them gives `validated` was decided in review on 7 Oct 2026 (#195), and `bundle.check()` enforces it: a `validated` release whose `validation.yaml` status is anything else fails `bundle-check`.
+
+| Validation Record `status` | Release Status | Reason |
+|---|---|---|
+| `passed` | `validated` | `opengwasdb validate` passed with nothing to report. |
+| `passed_with_warnings` | `validated`; the warnings stay in the record | `validate` exits 0 with `ok: true`. Its warnings are non-blocking by definition, because `errors` is the blocking list. ADR 0023 has this repository record `opengwasdb`'s verdict rather than re-judge it. The warnings stay visible: the record lists them, and the master list publishes `validate_status: passed_with_warnings`. A warning that should block belongs in `opengwasdb` as an error. |
+| `failed` | never `validated` | A failed validate step publishes nothing, so `register` writes no record for it. |
+| `not_run` | never `validated` | There is no verdict. |
+
+A `built` release may carry any of the four. Moving it to `validated` remains a reviewed edit to `release.yaml`.
 
 ## `build.yaml`
 
@@ -140,13 +163,13 @@ The Build Recipe says *what* to build; configuration says *where* it lands. An a
 `paths.artifact_root()` therefore resolves the root in precedence order:
 
 ```text
-1. workflow config override   pixi run release --config artifact_root=/path
+1. workflow config override   pixi run release OGS-00042 --config artifact_root=/path
 2. environment variable       OPENGWASDB_ARTIFACT_ROOT=/path
 3. repository config file     ogstores.yaml: artifact_root
 4. built-in default           paths.DEFAULT_ARTIFACT_ROOT
 ```
 
-A workflow config override and the environment variable are per-invocation overrides for CI, a developer laptop, or a one-off run. The tracked `ogstores.yaml` names this deployment's default root and is the reviewed place to change it. `plan()` never reads the root from `build.yaml`: the workflow resolves it once and passes it in, and the build command published in the master list is rendered under the same resolved root.
+A workflow config override and the environment variable are per-invocation overrides for CI, a developer laptop, or a one-off run. Name the Store Release ids before `--config`, because it takes every word after it as a `key=value`. The `release` and `release-dry` tasks pass those words to Snakemake as given; they once ended in a bare `--`, which made Snakemake read the override as a target (#195). The tracked `ogstores.yaml` names this deployment's default root and is the reviewed place to change it. `plan()` never reads the root from `build.yaml`: the workflow resolves it once and passes it in, and the build command published in the master list is rendered under the same resolved root.
 
 ### The passthrough rule
 
@@ -192,14 +215,15 @@ Running them at build time would make Phase A mutate its own input, and the acce
 
 Effect-scale validation is additionally an *acceptance* decision rather than a build step. `finngen-r13/r13-pilot-20` is the worked case: effect-scale validation failed for `HEIGHT_IRN` (implied phenotype SD 0.665 against declared-standardised provenance) while the Store itself built and passed `opengwasdb validate`, and the pilot recorded a NO-GO. A check that can veto a release has to run before thirteen hours are spent, not after.
 
-Phase A keeps a cheap residual role: `bundle.check()` asserts these columns are present and vocabulary-valid, delegating to `opengwasdb.model.analyses`. Asserting presence is registry-side structural validation; recomputing the values is not.
+Store Release Build keeps a cheap residual role: `bundle.check()` asserts the shared required columns are present through `opengwasdb.model.analyses`, and `assigned_ancestry` is vocabulary-valid wherever it appears. That `assigned_ancestry` is present is Manifest Generation's own rule (`src/manifest_generation/generation_rules.py`, #250), which `bundle-check` runs beside the contract. Asserting presence is structural validation; recomputing the values is not.
 
 The one thing Phase A writes is the **derived build manifest** under the artifact root (`work/analyses.tsv`), which drops `exclude_from_build` audit rows. It is not the bundle's `analyses.tsv` and it writes no column back into the bundle: the accepted input stays byte-identical, and the derived file is a projection of the registry's own selection decision, not a recomputation of Analytical Metadata (ADR 0025).
 
 ## `src/ogstores/` — the modules
 
 The package is shared by both phases. Its module surfaces are `bundle.py`,
-`plan.py`, `paths.py`, `manifest.py`, `run.py`, `index.py` and `register.py`;
+`plan.py`, `paths.py`, `manifest.py`, `run.py`, `index.py`, `register.py`,
+`resources.py`, `runtime.py`, `release.py` and `readiness.py`;
 `_pdeath_supervisor.py` is an internal helper `run.py` uses to contain a
 detached build's process group (ADR 0026).
 
@@ -253,15 +277,22 @@ stats a source path, and never inspects any Release Artifact. The
 `stores/`, and CI runs that gate explicitly so a newly committed bundle cannot
 bypass the contract.
 
-`summarise` reads only the loaded bundle's `analyses.tsv` and derives Analysis
-count, first author, publication PMID, tissue, context, assigned ancestry,
-sample size, and download source. Constants remain verbatim, varying
-identifiers become `mixed (n)`, varying quantities become `min-max`, and
-varying URLs become their common host/path prefix. A missing column, an empty
-table, or any empty value renders as `NA`; zero is not absence. The index rule
-writes the result to `summary.yaml` in every bundle and publishes the same
-values in the master list. CI runs the rule and rejects any resulting dirty
-tree.
+`summarise` reads only the loaded bundle's `analyses.tsv` and derives admission
+counts (manifest, admitted, excluded) plus first author, publication PMID,
+tissue, context, assigned ancestry, sample size, and download source. Constants
+remain verbatim, varying identifiers become `mixed (n)`, varying quantities
+become `min-max`, and varying URLs become their common host/path prefix. A
+missing column, an empty table, or any empty value renders as `NA`; zero is not
+absence.
+
+Admission is explicit (issue #217): `n_manifest` is every manifest row,
+`n_admitted` the rows whose `exclude_from_build` is not `true`, and
+`n_excluded` the rest, all parsed with the same strict classifier the build
+manifest uses (`manifest.classify_exclusion`). `n_analyses` is the admitted
+count -- a Store's membership -- so a derived view never presents an excluded
+manifest row as a built Analysis. The index rule writes the result to
+`summary.yaml` in every bundle and publishes the same values in the master
+list. CI runs the rule and rejects any resulting dirty tree.
 
 The summary does not fill a missing `source_url` from
 `release.yaml:source_snapshot.besd_prefix`: `908797f` made that prefix frozen
@@ -297,7 +328,8 @@ Given the `build.yaml` above it returns four `Step`s, each holding an argv plus 
                              "--n-workers", "8", "--chunk-variants", "1000"], ...),
  Step(name="top-hits", argv=["opengwasdb", "build-dense-top-hits", "<store>"], ...),
  Step(name="overview", argv=["opengwasdb", "regenerate-overview",  "<store>"], ...),
- Step(name="validate", argv=["opengwasdb", "validate",             "<store>"], ...)]
+ Step(name="validate", argv=["opengwasdb", "validate",             "<store>",
+                             "--format", "json"], ...)]
 ```
 
 Internally it is a lookup table -- `("dense", "observed_only")` to `build-dense-vcf`, `("ragged", "reference_completed")` to `complete-ragged` -- plus about fifteen lines per entry assembling positional arguments, plus a renderer turning `options` into flags without reading them.
@@ -305,6 +337,8 @@ Internally it is a lookup table -- `("dense", "observed_only")` to `build-dense-
 It reads `build.yaml` and `release.yaml` and nothing else: no I/O beyond path construction, no store opened, no `analyses.tsv` row read. The artifact root is not one of those reads -- it is deployment configuration, resolved by the caller with `paths.artifact_root()` and passed in (issue #126). So it is deterministic and testable by string comparison, and it is the only place in this repository that knows how to invoke `opengwasdb` -- which is why the Snakefile's rules and the master list's `build_command` are two renderings of one thing and cannot disagree.
 
 A Build Recipe may also declare an optional `variant_reference` pre-build stage for the Dense-VCF and Hybrid builders (issue #145). `plan()` then prepends an `extract-variant-reference` Step and appends the artifact to the build step's inputs. The declared destination must equal the build step's `--variant-reference` option -- the one bounded, syntactic exception to ADR 0023's never-interpret rule -- but whether the artifact already exists is a runtime fact the executor decides when the step runs, never the planner (ADR 0031, issue #147).
+
+A Build Recipe may declare optional named `indexed_subsets` (stores #209). `plan()` then emits one `build-indexed-subset` Step per declaration, in declaration order, after the Store and its inline index steps exist and before `overview` and `validate`. Each Step is an ordinary `Step`, so `run.py` gives it the usual durable `records/indexed-subset-<name>.json`. `plan()` resolves nothing: the declaration records the maintained `resource_id`, the concrete `variant_list` path and the `reference_assembly`, and the release entry point verifies the maintained resource and the runtime capability before a build. A Ragged release rejects any declaration rather than silently dropping it. See "Indexed Variant Subsets" below and [ADR 0034](../adr/0034-indexed-variant-subsets-in-release-planning.md).
 
 This is the entire adapter layer. It replaces `workflow/phase.py`, `workflow/model.py`, `release_plan.py`, `release_manifest.py`, `metadata_resolution.py` and `catalogue_coverage.py` (~4,100 lines on PR #105).
 
@@ -346,13 +380,93 @@ two renderings cannot drift (ADRs 0022, 0030).
 `opengwasdb validate` verdict, compares each record's executed argv against
 `plan()`'s planned argv, harvests the observed measurements, and publishes the
 staged Store. It is the only writer of `validation.yaml` (issues #119, #135;
-ADR 0023).
+ADR 0023). Publication is one recoverable transaction: `publication.json` is
+written first, and `complete_publication()` finishes it, now or after a crash
+(see Safety, #195).
+
+### `release.py`
+
+The supported operator entry point, run by `pixi run release` and
+`pixi run release-dry` through `workflow/release.py` (#195). It allowlists
+options, and around one Snakemake run it does four things: it completes
+pending publications, refuses unsafe runs, snapshots what a forced run may
+replace, and settles the run. See Safety.
+
+### `resources.py` and `runtime.py`
+
+The run-time counterparts to the pure planner. `resources.py` verifies a
+declared Indexed Variant Subset's maintained variant list against its
+`resource_id` declaration. `runtime.py` (stores#218) is the pre-write runtime
+guard: it proves the resolved `opengwasdb` is the tracked pin (from the
+executable's own install metadata, failing closed on an unprovable identity),
+provides every subcommand the *scheduled steps* name, and can complete each
+parent a scheduled `complete` job consumes -- where a same-run `build`/`complete`
+of that parent makes the stale on-disk artifact irrelevant. Both are called by
+the entry point before the snapshot and by the Snakefile's `onstart` for a
+direct `snakemake` run. See [the release runtime](../runtime.md).
 
 ## Safety
 
 **Tracked outputs are record files, not store directories.** Snakemake handles directory outputs poorly, and a half-written store must never satisfy a rule.
 
 **Staged release transaction lifecycle.** A release executes entirely against `store.opengwasdb.partial` across all steps: `build` or `complete` creates `store.opengwasdb.partial`, and every mutating post-step (`top-hits`, `rho`, `overview`) as well as `validate` operates directly on that staged `.partial` path. Only upon successful terminal validation/finalization is `store.opengwasdb.partial` published (atomically renamed) to the final `store.opengwasdb` path. If any step fails or is interrupted, `store.opengwasdb.partial` is retained for debugging or resumption, and any pre-existing final Store and `validation.yaml` remain completely untouched without needing whole-Store copying. `force=True` replacement applies only at this terminal publication moment.
+
+**The supported entry point** (#195, review round 1 of #196). Releases run through `pixi run release` and `pixi run release-dry`. Both are `workflow/release.py`, which runs `ogstores.release`. It wraps one Snakemake run in a guard that no Snakemake option can switch off, in five stages:
+
+1. **Recovery.** It takes the run lock of each release it was asked for (below), then completes any publication a crash left half done (`publication.json`, below). A release whose lock another live run holds is left alone. It also puts back or archives any `store.opengwasdb.backup` left by `run.publish_store(force=True)`. This happens before any refusal, so a refusal never blocks recovery.
+2. **Preflight.** A requested release holding a leftover records snapshot is refused first, before the dry run, so an operator sees that refusal and its resolutions rather than the `IncompleteFilesException` the leftover would cause. A Snakemake dry run then lists the jobs, and the lock of every scheduled release is taken. The guard refuses a published release that would be rebuilt, unless it was named with `--config force=1`. It also refuses a release holding a leftover records snapshot, until an operator resolves it. Nothing has been written when either refusal happens. If no job is scheduled, it stops there without starting Snakemake.
+3. **Snapshot.** For each forced, published release, `records/` is copied to `records.before-force-<UTC>/`, keeping mtimes.
+4. **The run.** One Snakemake run, with `--config release_run=<UTC>` naming this run, and so any snapshot it took. Under that token a register job publishes but leaves `publication.json` in place.
+5. **Settlement.** Each publication the run left is finished (`release.finish_publication`). Steps a killed job did not reach are completed. Snakemake's mark that a killed register job's output is incomplete is cleared. Only then is the marker removed. Then a failed run's snapshots are put back as `records/`, and a successful run's are archived.
+
+**Only buildable bundles are built** (#247). Before any of the stages above, a registered release named as a target whose Release Status is not buildable (see *Buildable statuses*) is refused, before any lock is taken or anything is written; an unregistered id still gets the Snakefile's "Unknown Store Release ID" guidance. The refusal names the status and, for a candidate, how to accept it. `all`, and an invocation naming no release, means every registered release that is buildable; the entry point lists each one it leaves out, with the reason, and so does `--dry-run`. A named child can schedule its unbuilt parent, so once the dry run lists the jobs, every scheduled release is checked the same way, before the snapshot or any build work.
+
+The entry point accepts only release ids or `all`, `--config key=value`, `--cores`, `--dry-run`, `--keep-going`, `--rerun-incomplete`, and `--resolve-snapshot restore|delete` (below). Anything else is refused before anything is written, including `--no-hooks`, `--touch`, `--forceall`, `--nolock`, `--ignore-incomplete` and `--snakefile`. `release_run` is reserved for the entry point. `--dry-run` writes nothing: it prints Snakemake's plan and what the guard would do.
+
+**Two runs never touch one release at once** (review round 3 of #196). Each run holds an exclusive `fcntl.flock` on `<artifact-root>/.release-locks/<ID>.lock` for every release it touches, from recovery through settlement. `--resolve-snapshot` holds it too. The lock is per release, not per artifact root, because a release build can run for hours, and one lock per root would stop every other release meanwhile. Locks are only ever tried, never waited for, so two runs cannot deadlock. The lock file holds its holder's pid. It lives outside the release's own directory, so taking it never changes a file of a release that a refused run promises it left alone.
+
+While another live run holds a release's lock, any run of that release is refused with "a run of `<ID>` is in progress (pid …)", and so is `--resolve-snapshot`. Recovery never completes or removes another live run's marker. The lock is passed to Snakemake's supervisor, so it stays held while Snakemake lives. The kernel drops it when every holder has died, SIGKILL included, and that is exactly what tells a live run from a dead one's leftovers. So the leftover-snapshot refusal, which asks an operator to resolve the snapshot, is given only when the lock is free. `--dry-run` reports a live run's holder without taking or writing anything.
+
+**An interrupted run settles** (review round 3 of #196). The entry point runs Snakemake and its jobs in their own session, led by `run.py`'s parent-death supervisor (ADR 0026), so nothing outlives the entry point. On Ctrl-C or SIGTERM, the entry point ignores further interrupts and stops Snakemake, in three steps:
+1. One SIGINT to the session, as a terminal's Ctrl-C would send, puts Snakemake in cancel mode, so it schedules nothing more.
+2. A running job does not stop on that: a job process runs its `run:` block in a worker thread and waits for it, and a step's command runs in its own supervised session. So after two seconds the job processes, never Snakemake itself, are SIGKILLed, and their step supervisors kill the commands.
+3. Snakemake, its jobs failed, exits on its own and releases its own lock.
+
+Snakemake's own handling of SIGTERM would wait for running jobs to finish, which can take hours. The entry point then settles the run as failed. Any publication that had begun is completed. Otherwise the snapshot is restored as `records/`, byte for byte, and Snakemake's incomplete marks on the restored records are cleared, as `--resolve-snapshot` does. Settlement ignores further interrupts, and the exit code is 128 plus the signal: 130 for SIGINT, 143 for SIGTERM. The release is then exactly as it was before the forced run.
+
+**Running `snakemake` directly bypasses the entry point.** The Snakefile keeps its checks as defence in depth, in its `onstart` hook. It refuses a run that would build a bundle whose Release Status is not buildable (#247), and its `all` target expands only to buildable bundles. It refuses a run that would rebuild a published release, unless the release holds the entry point's force-transaction snapshot. `--no-hooks` disables those checks (the `all` target still expands only to buildable bundles), and a direct run gets no recovery, snapshot, restore or settlement.
+
+**Why the check runs before any job.** A fresh checkout is enough to rebuild a published release by accident: every bundle file is then newer than the records beside its published Store, so Snakemake schedules the whole chain again. Without the refusal, that run rebuilt into `.partial`, rewrote the release's `work/` and `records/`, and only then failed at publication. The check cannot run inside a job, because Snakemake deletes a job's existing outputs before running it. Two kinds of run are unaffected, because neither schedules a job for the published release: re-running an up-to-date release, and building a new Reference-Completed child of an up-to-date published parent.
+
+**Replacing a published release** (decided in review on 7 Oct 2026):
+
+```sh
+pixi run release OGS-00005 --config force=1
+```
+
+Force reaches only the release ids named as targets. A published release scheduled only as a dependency, or through `all`, is still refused. The register job runs in a subprocess that re-parses the Snakefile, so it cannot see the targets. It replaces a published Store only when `release_run` names a snapshot that release holds, and only the entry point creates one.
+
+**Publication is one recoverable transaction.** Once `register` has verified every record and assembled the new Validation Record, it writes `publication.json` beside the Store. The marker records the whole outcome: the archive, the snapshot, the new `validation.yaml` text, `register.json`, and for a replacement the replaced Validation Record. `complete_publication` then carries out the steps below. Each step checks what is already done, so a later run can repeat it safely:
+
+1. For a replacement, the old Store is set aside as `.backup`.
+2. The staged Store is renamed into place.
+3. The old Store is renamed into `replaced/<UTC>/` (the snapshot's `<UTC>`).
+4. The snapshot moves into the archive as `records/`.
+5. The replaced Validation Record is written into the archive. It is a copy, because the bundle's file is rewritten in place, and git keeps it.
+6. The new `validation.yaml` and `records/register.json` are written.
+7. The marker is removed, last. Under the entry point the register job does not remove it (`finalize=False`). The entry point does, in `finish_publication`, once Snakemake has finished the job and any mark that a killed job left `register.json` incomplete is cleared with `snakemake --cleanup-metadata`. A direct `register_release()` removes its own marker.
+
+A crash between any two steps, up to and including the marker's removal, therefore leaves either the marker or a release that is already consistent with no Snakemake mark outstanding. The next entry-point run finishes a pending marker before anything else. If only the register job dies, the same run's settlement finishes it. A state that fits no step, such as neither a Store nor a staged Store, raises `PublicationError` and keeps the marker for an operator. The new record's `replaced.archive`, and `register.json`'s `replaced_archive`, say where the archive is. A first publication uses the same marker, without the archive steps.
+
+**Before the marker, a crash leaves the old release in place.** The Store and `validation.yaml` are untouched, and the leftover snapshot makes the next run of that release refuse to start, forced or not (decided in review on 7 Oct 2026). The refusal names the snapshot and the two resolutions, which an operator chooses and the entry point carries out:
+- `pixi run release <ID> --resolve-snapshot restore` replaces `records/` with the snapshot, when the killed run had already rewritten records;
+- `pixi run release <ID> --resolve-snapshot delete` deletes it, when `records/` is known to describe the Store beside it.
+
+Either resolution also clears Snakemake's marks that the killed run's outputs (the release's records and derived manifest) are incomplete. Otherwise a restored record would stop every later run with `IncompleteFilesException`. A whole-host crash also leaves Snakemake's lock on the working directory. If a later run reports it, check that no other run is active, then run `snakemake --snakefile workflow/Snakefile --unlock`. That writes nothing under a release.
+
+**Nothing deletes an archive.** `publish_store(force=True)` renames the old Store into it rather than removing it, and so does crash recovery of a `store.opengwasdb.backup`. An archive failure is raised, never swallowed. **Each archive holds a full Store**, so replacing a release costs its size again in disk until a person deletes the archive: 2.7 GB for OGS-00005, about 35 GB for OGS-00009 and 50 GB for OGS-00010.
+
+Tests inject crashes at each named boundary through `run.fault_boundary` and the test-only `OGSTORES_TEST_KILL_AT` and `OGSTORES_TEST_KILL_GROUP_AT` variables. The boundaries are the register job's (`register.PUBLICATION_BOUNDARIES`) and the entry point's (`release.ENTRY_POINT_BOUNDARIES`). `tests/register/test_register.py` kills or fails the publication transaction at every register-job boundary and completes it. `tests/workflow/test_release_faults.py` kills the whole stack (entry point, Snakemake and register job) through the supported entry point at every entry-point boundary, `marker-removed` included. It also does so at one register-job boundary of each kind Snakemake can tell apart: before the marker (`publication-started`), with the marker but no `records/register.json` (`store-published`), and with both (`register-record-written`). It then asserts that the next run recovers, and fails if the code gains an entry-point boundary the suite does not crash. The same suite pauses a forced run once its build has started (`<step>-started` points in `run.execute_step`, with the test-only `OGSTORES_TEST_PAUSE_AT` and `OGSTORES_TEST_PAUSE_FILE` variables). It shows that a second run, a forced one, `--resolve-snapshot` and a dry run all see the live run's lock, and that the run then completes. It also shows that Ctrl-C, SIGTERM to the entry point, and SIGTERM to every process each restore the records byte for byte, mid-build.
 
 **`validation.yaml` is written only by the terminal `register` step.** A failed run leaves the previous one intact.
 
@@ -363,12 +477,106 @@ One Snakefile for the whole registry, not one per release. It scans `stores/*/` 
 Dependency wiring only, per ADR 0023. It contains no source column name, no manifest translation, and no layout branch. `get_artifact_root()` is the one configuration read: it resolves the artifact root through `paths.artifact_root()`, so the workflow never takes it from a Build Recipe (issue #126).
 
 ```text
-build_manifest ──> build ──> top_hits ──> rho ──> overview ──> validate ──> register
+build_manifest ──> build ──> top_hits ──> rho ──> indexed-subset-<name> ──> overview ──> validate ──> register
 ```
 
 `build_manifest` is the derived build manifest's rule (ADR 0025). It runs before every observed-only build command, because `plan()` names the manifest it writes as the build step's first input. A Reference-Completed release substitutes `complete` for `build` and takes the supported tail; completion consumes only a parent Store, so it depends on no manifest step.
 
-Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. `rho` defaults off and `validate` defaults on, so a Build Recipe names only the steps it chooses differently (ADR 0027, issue #128). A Reference-Completed release substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
+Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. A declared `indexed_subsets` list inserts one `build-indexed-subset` Step per declaration between those inline index steps and `overview`/`validate`, so overview reports the subsets and validation audits them. `rho` defaults off and `validate` defaults on, so a Build Recipe names only the steps it chooses differently (ADR 0027, issue #128). A Reference-Completed release substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
+
+### Indexed Variant Subsets
+
+An optional named Indexed Variant Subset (stores #209, epic #214) is a
+Dense-only derived acceleration artifact defined by opengwas/opengwasdb ADR
+0061. It is built from a maintained canonical-ALID variant list:
+
+```text
+opengwasdb build-indexed-subset STORE SUBSET_NAME \
+  --variant-list hm3.alid.txt --reference-assembly GRCh38
+```
+
+A Build Recipe declares the subset in a top-level `indexed_subsets` list, and
+`plan()` emits one Step per declaration before `overview` and `validate`. The
+Step's record is the ordinary durable record every Step gets, so planned and
+executed argv, inputs, outputs, stdout/stderr, timing, success and the
+`opengwasdb` revision used are all captured; `register` requires the record and
+compares executed against planned argv like any other Step.
+
+**Runtime prerequisite.** The capability first shipped in opengwas/opengwasdb
+`4819a2ee` (opengwas/opengwasdb#264), a descendant of the format-0.2.0 builders.
+The repository's tracked current-format runtime now provides it (stores#218; see
+[the release runtime](../runtime.md)), so a subset-declaring release and every
+other supported release run on the same pinned executable. Before a run that
+declares a subset, `ogstores.release` (and the Snakefile `onstart` hook, for a
+direct `snakemake` run) still:
+
+1. probes the resolved `opengwasdb` for `build-indexed-subset` and refuses with
+the required capability when it is absent;
+2. resolves each declaration's `resource_id` under
+`resources/reference-resources/<id>/resource.yaml` and hashes the declared
+`variant_list` against the maintained sha256, byte size and row count.
+
+Both refusals happen before the snapshot or any build work. `plan()` never reads
+a resource. Separately, `ogstores.runtime.verify_runtime_for_releases` refuses a
+run whose resolved runtime is not the tracked pin, is missing any subcommand a
+scheduled plan names, or would complete a parent Store that is not format
+0.2.0. A subset-declaring release is format 0.2.0 and its Validation Record
+names the runtime commit that ran, which is the tracked pin for every supported
+run. This is opt-in per release in the sense that no Store is converted or
+rebuilt by declaring or not declaring a subset.
+
+**Registry migration (stores#211, epic #214).** Every existing registered
+Release Bundle with a Dense Component now declares the default `hm3` subset:
+`OGS-00003`, `OGS-00004`, `OGS-00005`, `OGS-00008`, `OGS-00009`, `OGS-00010`,
+`OGS-00011` and `OGS-00017`. The four Ragged-only bundles (`OGS-00001`,
+`OGS-00002`, `OGS-00006`, `OGS-00007`) are unchanged. The declaration is
+planning metadata only: it adds no Analysis and changes no `release.yaml`
+status, lineage or `analyses.tsv`, so it mints no new Store Release and rebuilds
+no primary data; building the derived namespace for an already-published Store
+is a deliberate capability-runtime run, not part of this migration.
+`resources/scripts/audit_indexed_subsets.py` (`pixi run
+audit-indexed-subsets`) prints the full in-scope list and refuses a
+Dense-component bundle that is neither migrated nor explicitly opted out
+(`indexed_subsets: []`), and a Ragged-only bundle that declares a subset. It
+reads only `build.yaml` and the small resource declaration, so it runs in CI
+without the reference root. The unmigrated `families/*/releases/*` bundles are
+out of scope: they are unregistered, use the retired family-first schema, and
+are not planned by the workflow.
+
+### HM3 benchmark reporting
+
+An Indexed Variant Subset is an optional derived artifact, so a routine release
+benchmark must be able to report a Store that has none without failing. That is
+the contract of opengwas/opengwasdb#272's shared
+`benchmarks._query_shapes.measure_hm3_extract`, and the registry-side report is
+`resources/scripts/release-benchmark-report.py` (stores#212, epic #214):
+
+```text
+pixi run -e dev python <stores>/resources/scripts/release-benchmark-report.py \
+  --opengwasdb-checkout /path/to/opengwasdb --all --hm3-only \
+  --output docs/benchmark-output/opengwasdb_hm3_release_benchmark.json \
+  --report docs/benchmark-output/opengwasdb_hm3_release_benchmark.md
+```
+
+The report measures every registered Store's `hm3` record only through that
+core seam and records the core status verbatim: `measured` carries the timing
+and result count, and `missing`, `not_applicable` (Ragged-only) and
+`unsupported` are non-failing operational statuses. It never times a query or
+reimplements classification. Where a per-Store anchor exists
+(`resources/scripts/release-benchmark-anchors.yaml`) the core generic harness
+surfaces the seven query shapes beside HM3; otherwise the shapes are marked
+`not_configured` and the run continues. Because the tracked pin predates the
+capability, the report is run against an explicit `--opengwasdb-checkout` and
+records that checkout's git revision and the imported package's fingerprint.
+
+**HM3 benchmark absence is operational evidence, not a Store validation
+failure.** None of `missing`, `not_applicable` or `unsupported` is a
+`bundle.check()` error, a Validation Record verdict, or a Release Status
+change; a Store with no `hm3` subset is still a valid Store. The one loud case
+is a subset that is *present and structurally valid* whose extraction raises:
+the core helper propagates it, and the report does not downgrade it to
+`missing`, because a broken index reported as absent is a wrong answer that
+looks like a right one.
 
 **Lineage ordering is why the DAG spans every store rather than one.** A Reference-Completed release declares its parent's `register` record as an input, resolved from `release.yaml`'s `derived_from`. A per-release workflow driven by a batch loop would have to sequence parents before children by hand, and would get it wrong. Here it is a declared edge.
 
@@ -379,7 +587,7 @@ Scanning every store means DAG construction is proportional to the registry, whi
 ### Operator interface
 
 ```sh
-pixi run release OGS-00003             # one registered release, plus any parent it depends on
+pixi run release OGS-00003             # one registered release, plus any parent it depends on (workflow/release.py)
 pixi run release OGS-00003 OGS-00004   # several registered releases; lineage order is resolved
 pixi run index                         # regenerate master list, summaries, by-label/
 ```
@@ -428,13 +636,47 @@ The only thing deliberately excluded is anything whose answer changes without a 
 ```text
 derived   store_id  label  layout  completion_state  status  derived_from
           store_uri  created_at  opengwasdb_rev  generator_command  build_command
-          n_analyses  first_author  publication_pmid  tissue  context
-          assigned_ancestry  sample_size  source_url
+          n_analyses  n_manifest  n_excluded  first_author  publication_pmid
+          tissue  context  assigned_ancestry  sample_size  source_url
 observed  format_version  n_variants  n_associations  store_bytes
           build_elapsed_s  validate_status
 ```
 
+`n_analyses` is admitted membership; `n_manifest` and `n_excluded` keep the
+excluded manifest rows visible (issue #217).
+
 `store_uri` is a pure function of the identifier (`<artifact-root>/<store-id>/store.opengwasdb`, ADRs 0022 and 0030). The one-time migration-note fallback that previously preferred a legacy family-first path is removed (issue #137), so the published location is where a Store must live, resolved from deployment configuration, never a stale note.
+
+### Readiness reconciliation (issue #217)
+
+`readiness.py` (driven by `resources/scripts/release_readiness.py`) renders a
+reconciliation view that separates manifest, admitted, excluded and intended
+bundle membership from what was actually published, and keeps each kind of
+evidence on its own channel: Release Status, source acquisition, intended
+membership, observed build, built membership, Reference Completion, the
+required format-0.2.0 `by_variant` index, the optional HM3 Indexed Variant
+Subset, Store validation, registration, format/runtime, lineage and warnings.
+`missing` and `unknown` are not passes, and a candidate-generation record is
+reported as a gap in Store validation rather than as a clean verdict.
+
+The manifest count is a *selection*, not intended membership: an authoritative
+Source Inventory is reported separately and stays `unknown` where none is
+recorded (issue #217). Built Analysis IDs are read only through the supported
+core API, `read_analyses(open_store(path).analyses_path)`, which keeps Store
+opening and parsing in OpenGWASDB; the registry never constructs
+`analyses.tsv`, joins a filename, or touches a storage array. A built-ID
+reconciliation and a committed-bundle baseline difference are reported as
+separate sections, so a count is never treated as ID equivalence and a
+committed baseline is never presented as proof of what is on disk. The
+supported `opengwasdb info --format json` manifest metadata is a third,
+separate channel.
+
+`--info` refreshes the manifest-metadata channel and `--built` performs the
+built-ID read; both are read-only and neither runs a build or a Store
+validation. Historical host-side facts that cannot be re-derived from git,
+including the committed-versus-published provenance mismatches and the
+prospective reference-declaration gaps, live in `docs/readiness-evidence.yaml`,
+rendered to `docs/store-release-readiness.md`.
 
 Two commands per store matter, and they are different kinds of thing. The **generator command log** (`inventory.tsv` + config to bundle) is recorded by the generator into `release.yaml` as `generator.commands`. The **build command** (bundle to store) is *derived by `plan()`*, the same function the workflow renders its rules from. A hand-maintained list would be wrong within a month.
 
@@ -478,7 +720,24 @@ The field-by-field format is defined once in
 [`docs/release-metadata-schema.md`](../release-metadata-schema.md#validationyaml);
 this section records only how the workflow produces it.
 
-Assembled by `register` from the step records: the JSON each build command already prints, plus `opengwasdb validate`'s verdict. `register` also compares each record's executed argv against `plan()`'s planned argv and fails on drift, per "Planned and executed argv are different facts" above. It records; it does not judge. This repository does not decide whether a store is scientifically sound — it captures what `opengwasdb` reported and who accepted it.
+Assembled by `register` from the step records: the JSON each build command already prints, plus `opengwasdb validate`'s verdict.
+
+The verdict is read from `opengwasdb validate --format json`, which the planned validate step requests (opengwasdb#175). It prints one object, `{"ok", "errors", "warnings"}`, and the record follows from it exactly:
+- `status` and `checks.store` are `failed` when `ok` is false, `passed_with_warnings` when `warnings` is non-empty, and `passed` otherwise;
+- `warnings` and `errors` are those two lists, as printed;
+- a plan with no validate step records `not_run`.
+
+`register` accepts only what the pinned CLI can print. stdout must be exactly that one object, with no other output and no other key, a boolean `ok`, and lists of strings. `ok` must be true exactly when `errors` is empty. The record's `exit_code` must be an int and `success` a bool; a bool or float exit code is refused by type, because it would compare equal to 0 or 1. The step must have exited 0 and succeeded exactly when `ok` is true. Any other record is refused with `ValidateVerdictError` and nothing is written: malformed, extra, coerced or self-contradictory output, such as `ok: true` with an error. Text output is never searched for the word "warning" (#195).
+
+The record describes this run and no other. `register` replaces the bundle's previous `validation.yaml`; it never merges with it. The old record's `checks`, `warnings`, `errors` and `reports` describe another run, and republishing them under a new `validated_at` would present them as current (#195).
+
+The one thing kept is the accepted bundle's Phase B acceptance evidence, in a separate `acceptance` block:
+- from a candidate record, every block it holds verbatim, dated, with the commit it came from, except the fields describing the generator's own run (`status`, `validated_at`, `validator`, `build_environment`, `observed`, `errors`). `register` names no generator's evidence, so a new kind is carried unchanged (#250);
+- from a previous `register`-written record, its `acceptance` block as it stands.
+
+Nothing in the block feeds `status`, `checks.store`, `warnings` or `errors`. The candidate record's commit comes from `register.committed_revision()`, which the Snakefile calls before `register_release`; `register_release` itself spawns no subprocess.
+
+`register` also compares each record's executed argv against `plan()`'s planned argv and fails on drift, per "Planned and executed argv are different facts" above. It records; it does not judge. This repository does not decide whether a store is scientifically sound — it captures what `opengwasdb` reported and who accepted it.
 
 The record's top-level `status` is the release-level verdict, and the generated master list publishes that value and no other. A per-check entry in `checks` describes one check and cannot override the record: a record reads `status: failed` precisely when a check failed, and publishing the passing check in its place is the "wrong answer that looks like a right answer" CONTRIBUTING names as the worst outcome. A release with no Validation Record publishes an empty verdict.
 
@@ -486,7 +745,8 @@ The record's top-level `status` is the release-level verdict, and the generated 
 
 The checks cover the things this repository is responsible for:
 
-1. **Every Release Bundle satisfies `bundle.check()`.** The CI gate discovers
+1. **Every Release Bundle satisfies `bundle.check()`** and Manifest Generation's
+   own rules (#250). The CI gate discovers
    bundles dynamically, reports all errors per bundle, and accesses no Store or
    Release Artifact. Retired Analysis columns are fixture-tested against the
    pinned upstream list rather than a registry-owned copy.
@@ -508,14 +768,45 @@ The upstream prerequisites on `opengwasdb` `dev` (merged in PR #178 / epic openg
 | [opengwasdb#172](https://github.com/opengwas/opengwasdb/issues/172) | Closed on `dev` | Ragged SSF releases — canonical `analyses.tsv` names (`sample_size`, `source_file`) |
 | [opengwasdb#173](https://github.com/opengwas/opengwasdb/issues/173) | Closed on `dev` | BESD releases — `--analyses` Analytical/Attribution Metadata overlay |
 | [opengwasdb#174](https://github.com/opengwas/opengwasdb/issues/174) | Closed on `dev` | Dense/Hybrid `--source-reader-capability` and `--source-assembly` CLI defaults |
-| [opengwasdb#175](https://github.com/opengwas/opengwasdb/issues/175) | Closed on `dev` | Machine-readable `--format json` in `validate` and `info` for `validation.yaml` |
+| [opengwasdb#175](https://github.com/opengwas/opengwasdb/issues/175) | Closed on `dev` | Machine-readable `--format json` in `validate` and `info` for `validation.yaml`; the planned validate step passes it, and `register` reads its verdict (#195) |
 | [opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176) | Closed on `dev` | Phase B — `estimate-phenotype-sd` CLI over canonical manifests |
 
 All layouts (Dense, Hybrid, Ragged SSF, and BESD) are unblocked on `opengwasdb@dev`. The active pin in `pixi.toml` ([opengwasdb-stores#106](https://github.com/opengwas/opengwasdb-stores/issues/106)) brings these capabilities into the workspace environment.
 
+### The pinned current-format runtime (stores#218)
+
+Since stores#218 the active pin is the immutable core revision
+`4e922566d7fa4c13a11be3637069da63e48be28c` (core `dev`, opengwas/opengwasdb PR
+#276, repinned from the initial #218 pin `1be2a15` when core #254 merged). It
+carries the format-0.2.0 builders, the required Ragged/Overflow `by_variant/`
+index, Indexed Variant Subset support, the shared HM3 benchmark seam and the
+bounded Dense-validation memory work. `pixi.lock` resolves it with Python 3.12,
+`zarr>=3.4,<4` and `numcodecs>=0.17`; [the release runtime](../runtime.md)
+records the full identity and what upgrading it does not do.
+
+Two consequences are contract, not incidental:
+
+- **Reference Completion needs a format-0.2.0 observed parent.** A 0.1.0 parent
+  is readable but not completable by a 0.2.0 builder (opengwas/opengwasdb ADR
+  0038 §4). The runtime guard refuses the run before any write when a
+  *scheduled* `complete` job would consume a 0.1.0 parent, and directs the
+  operator to [the release runtime](../runtime.md) for the supported conversion
+  or rebuild order. A same-run `build`/`complete` of the parent is a fresh
+  0.2.0 Store and is not gated; a missing parent that is not scheduled to be
+  produced is refused. Every completed-release build ticket must supply a
+  compatible parent, or convert/rebuild one first. Bumping the runtime does not
+  convert or requalify a published Store.
+- **Inner chunks name the format's shape, and must tile the decided shard.**
+  `--chunk-variants` / `--chunk-analyses` name the inner chunk; their defaults
+  are `[1000, 64]`, and the shard `[100000, 1024]` is fixed and not exposed. On
+  an axis at least as long as the shard, the inner chunk must divide it, so a
+  wrapper must not pass `--chunk-analyses 1000` for a release with 1,024 or more
+  Analyses; omit it and take the default. No committed Build Recipe passes an
+  inner-chunk option.
+
 ## Phase B — what produces a bundle
 
-Phase B generation runs as per-source-format Manifest Generator scripts under `resources/generators/`, and each Release Bundle records the commands it ran in `release.yaml:generator.commands`. The GWAS Catalog eur-hybrid family now has an implemented, resumable candidate workflow (`resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py`, issue #153); `workflow/generate.smk` wires its stages as an optional coarse DAG. The four rules below fix that boundary; everything inside it is open.
+Manifest Generation is the `manifest_generation` package under `src/manifest_generation/` (#249): the shared candidate workflow and emitter at its root, per-Source-Provider connector code under `providers/`, and each generator's configs and reviewed inputs under `resources/generators/<generator>/` (the legacy R generators also remain there until they retire). Each Release Bundle records the commands it ran in `release.yaml:generator.commands`. The GWAS Catalog eur-hybrid family now has an implemented, resumable candidate workflow (`src/manifest_generation/generate_candidate.py`, issue #153); `workflow/generate.smk` wires its stages as an optional coarse DAG. The five rules below fix that boundary; everything inside it is open.
 
 ### Phase A and Phase B are separate workflows
 
@@ -534,7 +825,7 @@ Their outputs also live in different places and are reviewed differently. Phase 
 
 `release.yaml` now holds `generator: {version, commands}` -- an executed command log (a list), because generation calls acquire, select, assign-ancestry, estimate-SD and emit in turn and a single command string is wrong as soon as more than one step runs (issue #136). The previous `generator.name` path and the `--config=families/...` argument pointed at files that no longer exist and were corrected in the same change. That is the per-store script that Phase A does not need, and it is a log rather than a prediction.
 
-### The four fixed rules
+### The five fixed rules
 
 **Phase B is a separate workflow, meeting Phase A at the accepted bundle** — above.
 
@@ -544,13 +835,20 @@ Their outputs also live in different places and are reviewed differently. Phase 
 
 **Acquisition is separate from selection.** Acquisition is per Source Collection and is the expensive resumable part. Selection is per Store Release. The Source Collection is a grouping string recorded on the release, not a directory (ADR 0028).
 
+**Every generator emits through one emitter** (#248, ADR 0035). `src/manifest_generation/emit.py` is the only code that writes a candidate into `stores/<id>/`. A Python generator builds a `CandidateBundle` and calls `emit()`. A legacy R or BESD generator keeps a family-shaped working bundle in its work root, `<artifact-root>/<output.store_id>/generate` (`paths.generation_dir`, reported by `python3 -m manifest_generation.emit work-root <id>`), and its `--mode=emit-registry` projects the current contract from that working bundle and the config's `build:` block (`manifest_generation.emit project`, called from R through `resources/generators/lib/emit_registry.R`). A directory rendered elsewhere can be emitted with `python3 -m manifest_generation.emit <id> --from <dir> --command ...`; anything a bundle does not hold is refused. No generator config names a `families/` path as output or work root; tracked inputs still under `families/` move with #252. The emitter:
+
+- writes every YAML document in one style, with `status: candidate` and `generator.commands`, and refuses a rendered status or command log that disagrees;
+- stages the bundle under `stores/.staging/<id>/`, checks it against the Release Bundle contract with lineage resolved in the real registry, and writes `summary.yaml`;
+- swaps it into `stores/<id>/` in one step, and only over nothing or an earlier candidate;
+- holds `stores/.staging/<id>.lock` throughout, so two emits of one id never mix.
+
 ```text
 resources/inventories/<id>.tsv discovered upstream analyses, once acquisition
                                produces one at scale (ADR 0024). The contract,
                                the readiness vocabulary and the freeze/preflight
                                commands are in resources/inventories/README.md;
                                the code is
-                               resources/generators/lib/source_inventory.py.
+                               src/manifest_generation/source_inventory.py.
 
 resources/generators/<family-id>/
     README.md                  the exact commands
@@ -568,7 +866,7 @@ A generator has the same shape as the build workflow: discover upstream, select 
 
 ### The Source Inventory seam
 
-Selection starts at a **frozen Source Inventory**, not at a glob over an acquisition mirror (issue #151). Acquisition writes a status manifest per pass; freezing merges the retry pass over the base pass, accounts every row against the candidate pool, and writes one row per discovered Analysis with its readiness status and the exact local source path. `resources/inventories/README.md` is the contract; `resources/generators/lib/source_inventory.py` owns the merge rule and the readiness vocabulary (`ok` and `already_present` are ready, nothing else is).
+Selection starts at a **frozen Source Inventory**, not at a glob over an acquisition mirror (issue #151). Acquisition writes a status manifest per pass; freezing merges the retry pass over the base pass, accounts every row against the candidate pool, and writes one row per discovered Analysis with its readiness status and the exact local source path. `resources/inventories/README.md` is the contract; `src/manifest_generation/source_inventory.py` owns the merge rule and the readiness vocabulary (`ok` and `already_present` are ready, nothing else is).
 
 Two operator commands sit at this seam, and both are cheap:
 
@@ -593,7 +891,7 @@ There is no catch-22 requiring a Store to exist first. `opengwasdb.readers.inter
 
 Deferring instead -- building first and correcting the Store afterwards -- is not available. `stored_se = original_se / original_sd` is applied at write time, so a Store built without the SD holds wrong standard errors, and there is no rescale operation: Stores are immutable (ADR 0004, ADR 0007) and Reference Completion writes a new one. It would also mean building every candidate to discover which are unusable, when `GCST002047`'s odds-ratio beta column and `GCST003566`'s inverted EAF are both detectable from the source.
 
-That CLI wiring is provided upstream by `estimate-phenotype-sd` ([opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176)), now available on `dev` and active via #106; Phase B must invoke the upstream CLI command rather than keeping local estimation shims or per-family connectors. The previous `resources/generators/lib/phenotype_sd_estimate.py` was a 47-line shim taking JSON arrays on the command line, which forced each family to open source files and extract `se`/`af`/`beta` itself; that is how `resources/generators/lib/effect_scale_validation.R` grew to 562 lines, of which roughly 60 are the acceptance policy that genuinely belongs here and the rest re-implements reference-panel access and allele harmonisation `opengwasdb` already owns.
+That CLI wiring is provided upstream by `estimate-phenotype-sd` ([opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176)), now available on `dev` and active via #106; Manifest Generation must invoke the upstream CLI command rather than keeping local estimation shims or per-family connectors. The previous `src/manifest_generation/phenotype_sd_estimate.py` was a 47-line shim taking JSON arrays on the command line, which forced each family to open source files and extract `se`/`af`/`beta` itself; that is how `resources/generators/lib/effect_scale_validation.R` grew to 562 lines, of which roughly 60 are the acceptance policy that genuinely belongs here and the rest re-implements reference-panel access and allele harmonisation `opengwasdb` already owns.
 
 ### The resumable candidate workflow (issue #153)
 
@@ -672,7 +970,13 @@ orientation failure is excluded; a quantitative Analysis on the computable
 `estimated_from_source_maf` tier whose phenotype SD is unavailable is excluded;
 a resolver `controlled_failure` is excluded. Each excluded row stays in
 `analyses.tsv` with `exclude_from_build: true` and a machine-checkable reason in
-`inclusion_reason`, and is explained in `sidecars/exclusions.tsv`. Case-control
+`inclusion_reason`, and is explained in `sidecars/exclusions.tsv`. The
+exclusions that test a measurement (zero build-eligible rows, the reviewed
+placeholder-effect listing, EAF orientation, Assigned Ancestry against the
+Selection, phenotype SD) are declared Quality Checks (#285, ADR 0036), and every
+Analysis's result for each check is recorded in `sidecars/quality_checks.tsv`,
+an optional Release Bundle contract file, passing or not. An Analysis an
+exclusion check could not test is refused rather than included. Case-control
 rows are included on `log_or`/`binary_trait` with their case/control counts and
 an explicit SD skip; duplicate-content accessions are reported and never
 collapsed. Because the candidate is a Candidate Bundle, no exclusion blocks the
@@ -691,17 +995,25 @@ stores/OGS-00011/
     ancestry.tsv            # one row per selected Analysis
     sd_estimation.tsv       # one row per selected Analysis
     exclusions.tsv          # one row per excluded selected Analysis, with its reason
+    reference_overlap.tsv   # one row per selected Analysis
+    quality_checks.tsv      # one row per selected Analysis: every Quality Check's result
 ```
 
 **Determinism and atomicity.** Aggregation is ordered by the frozen inventory,
 not by completion order or worker count, and every numeric sidecar value is
 formatted through the issue-#143 sub-tolerance formatter, so 1 worker and 64
-workers produce byte-identical tables and sidecars. The bundle is written under
-`stores/.staging/<id>/` (hidden, so `bundle-check`/`index` cannot see a
-half-written candidate), `bundle.check()` and the pinned OpenGWASDB Analysis
-schema are run against it, and only then is it renamed into `stores/<id>/`, with
-any previous candidate restored if the rename fails. A killed resolver or a
-failed finalisation leaves the previous candidate untouched.
+workers produce byte-identical tables and sidecars. The pinned OpenGWASDB
+Analysis schema is run over the included rows, and the bundle is then emitted
+through the shared emitter, `src/manifest_generation/emit.py` (#248). The
+emitter stages it under `stores/.staging/<id>/` (hidden, so
+`bundle-check`/`index` cannot see a half-written candidate), runs
+`bundle.check()` against the real registry and Manifest Generation's own rules
+(#250), writes `summary.yaml`, and only
+then swaps it into `stores/<id>/` in one step (`renameat2(RENAME_EXCHANGE)`,
+falling back to a move with restore). It replaces only an earlier candidate: a
+bundle with any later Release Status is refused, and needs a new Store Release
+id. A killed resolver, a failed check or a refused emit leaves the previous
+candidate untouched.
 
 The command log in `release.yaml` records the operator invocation and the exact
 `opengwasdb resolve-analyses` argv that ran; the candidate remains `status:

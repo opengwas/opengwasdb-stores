@@ -23,11 +23,11 @@ This proves:
   than silently staying `not_run`;
 - issue #51 AC3's two named example violations -- an out-of-vocabulary
   `original_sd_method` and a missing required column (`sample_size_scope`)
-  -- each fail `resources/generators/lib/schema_validate.py` directly with a message
+  -- each fail `src/manifest_generation/schema_validate.py` directly with a message
   identifying the violation, checked against hand-written fixture TSVs in
   isolation from the full generator pipeline;
 - the real, already-accepted release bundles this repository tracks
   (`pqtl-interval-2018`, every `metabolome-plasma-2023` release) still
   conform to opengwasdb's shared schema (issue #51 AC4), checked directly
-  against `resources/generators/lib/schema_validate.py` without mutating those bundles'
+  against `src/manifest_generation/schema_validate.py` without mutating those bundles'
   own `validation.yaml`.

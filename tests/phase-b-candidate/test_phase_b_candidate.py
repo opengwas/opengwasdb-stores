@@ -48,15 +48,11 @@ from unittest import mock
 import yaml
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-for extra in (str(REPO_ROOT), str(REPO_ROOT / "src")):
-    if extra not in sys.path:
-        sys.path.insert(0, extra)
 
-import resources.generators.lib.candidate_workflow as candidate_workflow  # noqa: E402
+import manifest_generation.candidate_workflow as candidate_workflow  # noqa: E402
 from ogstores import bundle as bundle_module  # noqa: E402
 from ogstores.plan import plan  # noqa: E402
-from resources.generators.lib.candidate_workflow import (  # noqa: E402
-    EXCLUSION_REASONS,
+from manifest_generation.candidate_workflow import (  # noqa: E402
     RECEIPT_FILENAME,
     RESOLVER_MANIFEST_COLUMNS,
     USABLE_MAF_STATES,
@@ -67,24 +63,28 @@ from resources.generators.lib.candidate_workflow import (  # noqa: E402
     analysis_maf_threshold,
     apply_release_policy,
     build_candidate_tables,
-    check_staged_candidate,
+    compute_resolution_contract,
+    controlled_exclusion_categories,
     derive_resolver_manifest,
     info_score_emission,
     load_candidate_configuration,
     maf_threshold_emission,
     parse_maf_filter_exempt_technologies,
     parse_maf_threshold,
+    parse_store_composition,
     read_candidate_metadata,
     read_genotyping_technologies,
+    read_effect_placeholder_exclusions,
     read_maf_filter_exempt_analyses,
     read_resolution_receipt,
+    render_release_yaml,
     render_validation_yaml,
     render_resolver_manifest,
     resolver_argv,
     validate_candidate_analyses,
     verify_records,
 )
-from resources.generators.lib.source_inventory import (  # noqa: E402
+from manifest_generation.source_inventory import (  # noqa: E402
     ACQUISITION_MANIFEST_COLUMNS,
     AcquisitionPass,
     SourceInventoryRow,
@@ -94,7 +94,7 @@ from resources.generators.lib.source_inventory import (  # noqa: E402
     write_snapshot,
 )
 
-CLI = REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/generate_candidate.py"
+CLI = ("-m", "manifest_generation.generate_candidate")
 FAKE_RESOLVER = Path(__file__).resolve().parent / "fixtures/fake_resolver.py"
 SNAKEMAKE = shutil.which("snakemake")
 STORE_KEY = "hybrid__European"
@@ -410,7 +410,7 @@ def _run_cli(
 ) -> subprocess.CompletedProcess:
     command = [
         sys.executable,
-        str(CLI),
+        *CLI,
         STORE_ID,
         "--config",
         str(fixture.config_path),
@@ -523,6 +523,9 @@ def _synthetic_resolver_record(
             "source_file": "/mirror/GCST90000001.h.tsv.gz",
             "rows_read": 100,
             "ancestry_sites": 100,
+            # Measured by the build_eligible_rows Quality Check (#285): an
+            # included Analysis must carry it.
+            "build_eligible_rows": 100,
         },
         "ancestry": {
             "assigned_ancestry": assigned_ancestry,
@@ -600,7 +603,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         # Every excluded row carries its controlled reason in its audit row.
         for analysis_id, reason in EXPECTED_EXCLUDED.items():
             self.assertIn(reason, excluded[analysis_id]["inclusion_reason"])
-            self.assertIn(reason, EXCLUSION_REASONS)
+            self.assertIn(reason, controlled_exclusion_categories())
 
         exclusions = _read_tsv(bundle_dir / "sidecars/exclusions.tsv")
         reasons = {row["analysis_id"]: row["reason"] for row in exclusions}
@@ -651,7 +654,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         commands = " ".join(release["generator"]["commands"])
         self.assertIn("resolve-analyses", commands)
         self.assertIn("--n-workers 1", commands)
-        self.assertIn("generate_candidate.py", commands)
+        self.assertIn("python3 -m manifest_generation.generate_candidate", commands)
         receipt_path = self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME
         self.assertEqual(
             release["source_snapshot"]["resolver_receipt_sha256"],
@@ -663,6 +666,22 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertEqual(build["completion_state"], "observed_only")
         self.assertEqual(build["build"]["command"], "build-hybrid")
         self.assertNotIn("artifacts", build)
+        # Dense/Hybrid releases declare the maintained hm3 Indexed Variant Subset
+        # by default (stores #210), sourced from the hapmap3-hg38 resource.
+        self.assertEqual(
+            build["indexed_subsets"],
+            [{
+                "name": "hm3",
+                "resource_id": "hapmap3-hg38",
+                "variant_list": (
+                    "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt"
+                ),
+                "reference_assembly": "GRCh38",
+                "checksum": (
+                    "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398"
+                ),
+            }],
+        )
 
         validation = yaml.safe_load((bundle_dir / "validation.yaml").read_text(encoding="utf-8"))
         self.assertIn(validation["status"], {"passed", "passed_with_warnings"})
@@ -679,6 +698,12 @@ class CandidateWorkflowTests(unittest.TestCase):
         steps = plan(loaded)
         self.assertEqual(steps[0].name, "build")
         self.assertIn("build-hybrid", steps[0].argv)
+        step_names = [step.name for step in steps]
+        self.assertIn("indexed-subset-hm3", step_names)
+        self.assertLess(
+            step_names.index("indexed-subset-hm3"),
+            step_names.index("validate"),
+        )
 
     def test_info_threshold_configuration_and_no_declaration_emission(self) -> None:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
@@ -749,6 +774,30 @@ class CandidateWorkflowTests(unittest.TestCase):
             document["source"].pop("maf_filter_exempt_analyses", None)
         else:
             document["source"]["maf_filter_exempt_analyses"] = path
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+
+    def _set_store_composition(self, value: object) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        if value is None:
+            document.pop("store_composition", None)
+        else:
+            document["store_composition"] = value
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+
+    def _set_indexed_subsets(self, value: object, *, present: bool = True) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        if not present:
+            document.pop("indexed_subsets", None)
+        else:
+            document["indexed_subsets"] = value
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+
+    def _set_indexed_subsets_opt_out(self, value: object) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        if value is None:
+            document.pop("indexed_subsets_opt_out", None)
+        else:
+            document["indexed_subsets_opt_out"] = value
         self.fixture.config_path.write_text(yaml.safe_dump(document))
 
     def _write_exemptions(
@@ -1347,6 +1396,25 @@ class CandidateWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(index["n_resumed"], 3)
 
+    def test_re_emitting_the_candidate_is_byte_identical_in_every_file(self) -> None:
+        """`--stage emit` over its own candidate rewrites every file byte for byte (#248)."""
+        self.assertEqual(_run_cli(self.fixture).returncode, 0)
+        bundle_dir = self.fixture.registry_root / STORE_ID
+
+        def every_file() -> dict[str, bytes]:
+            return {str(p.relative_to(bundle_dir)): p.read_bytes() for p in sorted(bundle_dir.rglob("*")) if p.is_file()}
+
+        pinned = ("--stage", "emit", "--created-at", "2026-10-14T00:00:00Z")
+        first = _run_cli(self.fixture, *pinned)
+        self.assertEqual(first.returncode, 0, first.stderr)
+        emitted = every_file()
+        second = _run_cli(self.fixture, *pinned)
+        self.assertEqual(second.returncode, 0, second.stderr)
+
+        self.assertIn("release.yaml", emitted)
+        self.assertIn("summary.yaml", emitted)
+        self.assertEqual(every_file(), emitted)
+
     def test_interrupted_run_preserves_prior_candidate(self) -> None:
         first = _run_cli(self.fixture)
         self.assertEqual(first.returncode, 0, first.stderr)
@@ -1361,13 +1429,11 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertEqual(
             (self.fixture.registry_root / STORE_ID / "release.yaml").read_bytes(), release_before
         )
-        self.assertFalse((self.fixture.registry_root / ".staging").exists())
 
     def test_failed_finalisation_does_not_create_a_candidate(self) -> None:
         result = _run_cli(self.fixture, fail_after=1)
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse((self.fixture.registry_root / STORE_ID).exists())
-        self.assertFalse((self.fixture.registry_root / ".staging").exists())
 
     # -- accounting ------------------------------------------------------------
 
@@ -1383,7 +1449,6 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("missing", result.stderr)
         self.assertEqual(_candidate_tables_bytes(self.fixture.registry_root), before)
-        self.assertFalse((self.fixture.registry_root / ".staging").exists())
 
     def test_extra_record_fails_before_replacement(self) -> None:
         self.assertEqual(_run_cli(self.fixture).returncode, 0)
@@ -1428,7 +1493,6 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(expected_message, result.stderr)
         self.assertEqual(_candidate_tables_bytes(self.fixture.registry_root), before)
-        self.assertFalse((self.fixture.registry_root / ".staging").exists())
 
     def test_changed_gate_makes_the_receipt_stale(self) -> None:
         self._resolved_candidate()
@@ -1687,7 +1751,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         )
         self.assertTrue(
             all(
-                outcome.exclusion_reason in EXCLUSION_REASONS
+                outcome.exclusion_reason in controlled_exclusion_categories()
                 for outcome in outcomes
                 if not outcome.included
             )
@@ -1771,6 +1835,9 @@ class CandidateWorkflowTests(unittest.TestCase):
             record["diagnostics"].update(
                 ancestry_rows_read=100, ancestry_reference_rows_matched=90,
                 variant_reference_rows_matched=matches,
+                build_eligible_rows=100,
+                build_eligible_rows_on_variant_reference=matches,
+                build_eligible_rows_off_variant_reference=100 - matches,
             )
             records.append(record)
         outcomes = apply_release_policy(
@@ -1784,9 +1851,9 @@ class CandidateWorkflowTests(unittest.TestCase):
         overlap = list(csv.DictReader(io.StringIO(tables.reference_overlap_tsv), delimiter="\t"))
         self.assertEqual([row["variant_reference_rate"] for row in overlap], ["1", "0"])
         self.assertEqual([row["rows_scanned"] for row in overlap], ["100", "100"])
-        validation = yaml.safe_load(render_validation_yaml(
+        validation = render_validation_yaml(
             tables=tables, index_summary={}, validated_at="now", validator_name="test"
-        ))
+        )
         self.assertEqual(validation["checks"]["reference_overlap"], "failed")
         self.assertEqual(validation["reference_overlap"]["projected_off_reference_share"], 0.5)
         self.assertEqual(validation["reference_overlap"]["low_overlap_analyses"], ["GCST90000002"])
@@ -1831,40 +1898,530 @@ class CandidateWorkflowTests(unittest.TestCase):
             [row["build_eligible_rows_on_variant_reference"] for row in overlap], ["40", "0"]
         )
         self.assertEqual([row["build_eligible_rate"] for row in overlap], ["0.8", "0"])
-        validation = yaml.safe_load(render_validation_yaml(
+        validation = render_validation_yaml(
             tables=tables, index_summary={}, validated_at="now", validator_name="test"
-        ))
+        )
         summary = validation["reference_overlap"]
         self.assertEqual(summary["projected_off_reference_basis"], "build_eligible_rows")
         self.assertEqual(summary["projected_off_reference_share"], 0.6)
         self.assertEqual(summary["low_overlap_analyses"], ["GCST90000002"])
         self.assertEqual(validation["checks"]["reference_overlap"], "failed")
 
-    def test_overlap_gate_falls_back_to_legacy_counts_without_diagnostics(self) -> None:
+    def test_a_record_without_post_info_diagnostics_is_refused_not_included(self) -> None:
+        # Before #285 such a record was included and the overlap gate fell back
+        # to the legacy pre-INFO counts. The build_eligible_rows Quality Check
+        # cannot test it, and an untested exclusion is never a silent pass.
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
         config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
         row = _synthetic_inventory_row()
         record = _synthetic_resolver_record()
         record["analysis_id"] = row.analysis_id
+        record["diagnostics"].pop("build_eligible_rows")
         record["diagnostics"].update(
             rows_read=100, ancestry_rows_read=100, ancestry_reference_rows_matched=100,
             variant_reference_rows_matched=80,
         )
+        with self.assertRaises(CandidateError) as raised:
+            apply_release_policy(
+                [row], config, {row.analysis_id: _synthetic_candidate_metadata()},
+                {row.analysis_id: record},
+            )
+        self.assertIn(row.analysis_id, str(raised.exception))
+        self.assertIn("build_eligible_rows is unmeasured", str(raised.exception))
+
+    def test_listed_effect_placeholder_analysis_is_excluded_with_its_reason(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        config = replace(
+            config,
+            effect_placeholder_exclusions={"GCST90000002": "5 of 100 rows are placeholders"},
+        )
+        first = _synthetic_inventory_row()
+        second = replace(first, analysis_id="GCST90000002", data_file="/mirror/second.gz")
+        records = {}
+        for row in (first, second):
+            record = _synthetic_resolver_record()
+            record["analysis_id"] = row.analysis_id
+            records[row.analysis_id] = record
         outcomes = apply_release_policy(
-            [row], config, {row.analysis_id: _synthetic_candidate_metadata()},
-            {row.analysis_id: record},
+            [first, second], config,
+            {row.analysis_id: _synthetic_candidate_metadata() for row in (first, second)},
+            records,
+        )
+        by_id = {outcome.analysis_id: outcome for outcome in outcomes}
+        self.assertTrue(by_id["GCST90000001"].included)
+        self.assertFalse(by_id["GCST90000002"].included)
+        self.assertEqual(by_id["GCST90000002"].exclusion_reason, "effect_placeholder_rows")
+        self.assertEqual(
+            by_id["GCST90000002"].exclusion_detail, "5 of 100 rows are placeholders"
         )
         tables = build_candidate_tables(
-            inventory_rows=[row], outcomes=outcomes, config=config, index_summary={}
+            inventory_rows=[first, second], outcomes=outcomes, config=config, index_summary={}
         )
-        overlap = list(csv.DictReader(io.StringIO(tables.reference_overlap_tsv), delimiter="\t"))
-        self.assertEqual([r["build_eligible_rows"] for r in overlap], [""])
-        validation = yaml.safe_load(render_validation_yaml(
-            tables=tables, index_summary={}, validated_at="now", validator_name="test"
-        ))
-        summary = validation["reference_overlap"]
-        self.assertEqual(summary["projected_off_reference_basis"], "legacy_rows_read")
-        self.assertEqual(summary["projected_off_reference_share"], 0.2)
+        self.assertEqual(dict(tables.exclusion_counts), {"effect_placeholder_rows": 1})
+        (excluded,) = csv.DictReader(io.StringIO(tables.exclusions_tsv), delimiter="\t")
+        self.assertEqual(excluded["category"], "effect_scale")
+        self.assertEqual(excluded["reason"], "effect_placeholder_rows")
+
+    def test_non_positive_or_non_finite_sd_estimate_is_no_evidence(self) -> None:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        row = _synthetic_inventory_row()
+        for sd in (0.0, -1.0, float("nan"), float("inf")):
+            record = _synthetic_resolver_record()
+            record["phenotype_sd"]["estimate"]["sd"] = sd
+            (outcome,) = apply_release_policy(
+                [row], config, {row.analysis_id: _synthetic_candidate_metadata()},
+                {row.analysis_id: record},
+            )
+            self.assertFalse(outcome.included, sd)
+            self.assertEqual(outcome.exclusion_reason, "sd_no_qualifying_evidence")
+            self.assertIn("not a positive finite number", outcome.exclusion_detail)
+
+    def test_committed_effect_placeholder_exclusions_are_readable(self) -> None:
+        path = REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/effect-placeholder-exclusions.tsv"
+        found = read_effect_placeholder_exclusions(path)
+        self.assertEqual(len(found), 27)
+        for analysis_id in ("GCST90454200", "GCST90454201", "GCST90565871", "GCST90565872"):
+            self.assertIn("standard_error 0", found[analysis_id])
+        self.assertEqual(read_effect_placeholder_exclusions(None), {})
+        duplicate = self.fixture.root / "placeholder-duplicate.tsv"
+        duplicate.write_text("analysis_id\treason\nA\tx\nA\ty\n", encoding="utf-8")
+        with self.assertRaisesRegex(CandidateError, "duplicate analysis_id"):
+            read_effect_placeholder_exclusions(duplicate)
+        config = load_candidate_configuration(
+            REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/config-full.yaml", REPO_ROOT
+        )
+        self.assertEqual(config.effect_placeholder_exclusions, found)
+
+    # -- Indexed Variant Subset defaults (stores #210, epic #214) -------------
+
+    def test_indexed_subsets_default_opt_out_and_malformed_errors(self) -> None:
+        # Default: a config that says nothing emits the maintained hm3 entry.
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertEqual(len(config.indexed_subsets), 1)
+        self.assertEqual(config.indexed_subsets[0]["name"], "hm3")
+        self.assertEqual(config.indexed_subsets[0]["resource_id"], "hapmap3-hg38")
+        self.assertIsNone(config.indexed_subsets_opt_out)
+        build = candidate_workflow.render_build_yaml(STORE_ID, config)
+        self.assertEqual(build["indexed_subsets"][0]["name"], "hm3")
+
+        # A reviewed opt-out is an explicit empty list plus a written reason;
+        # the build still declares the key, so the omission is reviewable.
+        self._set_indexed_subsets([])
+        self._set_indexed_subsets_opt_out("pilot predates the maintained HapMap3 list")
+        opt_out = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertEqual(tuple(opt_out.indexed_subsets), ())
+        self.assertEqual(
+            opt_out.indexed_subsets_opt_out,
+            "pilot predates the maintained HapMap3 list",
+        )
+        self.assertEqual(
+            candidate_workflow.render_build_yaml(STORE_ID, opt_out)[
+                "indexed_subsets"
+            ],
+            [],
+        )
+
+        # Empty without a reason is a generator error, not a silent omission.
+        self._set_indexed_subsets_opt_out(None)
+        with self.assertRaisesRegex(ValueError, "record why"):
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+
+        # A null value is malformed, matching plan()/bundle.check().
+        self._set_indexed_subsets(None)
+        with self.assertRaisesRegex(ValueError, "not null"):
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+
+        # A declaration missing a required field, or with a bad checksum, errors.
+        self._set_indexed_subsets([{"name": "hm3"}])
+        with self.assertRaisesRegex(ValueError, "requires a non-empty string"):
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self._set_indexed_subsets([{
+            "name": "hm3",
+            "resource_id": "hapmap3-hg38",
+            "variant_list": "/list.txt",
+            "reference_assembly": "GRCh38",
+            "checksum": "not-a-sha256",
+        }])
+        with self.assertRaisesRegex(ValueError, "64-character hex sha256"):
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+
+        # A Ragged release may never declare one.
+        self._set_indexed_subsets([{
+            "name": "hm3",
+            "resource_id": "hapmap3-hg38",
+            "variant_list": "/list.txt",
+            "reference_assembly": "GRCh38",
+        }])
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["build"]["layout"] = "ragged"
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        with self.assertRaisesRegex(ValueError, "Ragged"):
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+
+    def test_indexed_subsets_reviewed_opt_out_is_recorded_in_release_notes(self) -> None:
+        self._set_indexed_subsets([])
+        self._set_indexed_subsets_opt_out("pilot predates the maintained HapMap3 list")
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        bundle = self.fixture.registry_root / STORE_ID
+        build = yaml.safe_load((bundle / "build.yaml").read_text())
+        self.assertEqual(build["indexed_subsets"], [])
+        release = yaml.safe_load((bundle / "release.yaml").read_text())
+        self.assertIn("Indexed Variant Subsets (#210)", release["notes"])
+        self.assertIn("intentionally omitted", release["notes"])
+        self.assertIn("pilot predates the maintained HapMap3 list", release["notes"])
+
+    # -- Store composition / MAF-filtered admission (issue #203) --------------
+
+    def _maf_filtered_fixture(self):
+        """A synthetic pair: one MAF-filtered Analysis, one with no applied floor."""
+        filtered = _synthetic_inventory_row()
+        unfiltered = replace(
+            filtered, analysis_id="GCST90000002", data_file="/mirror/second.gz"
+        )
+        filtered_record = _synthetic_resolver_record()
+        filtered_record["analysis_id"] = filtered.analysis_id
+        filtered_record["diagnostics"].update(
+            maf_state="filtered",
+            build_eligible_rows=100,
+            build_eligible_rows_off_variant_reference=40,
+        )
+        filtered_record["fingerprints"] = {
+            "resolution_config": {"maf_threshold": 0.005}
+        }
+        unfiltered_record = _synthetic_resolver_record()
+        unfiltered_record["analysis_id"] = unfiltered.analysis_id
+        unfiltered_record["diagnostics"].update(
+            maf_state="unavailable",
+            build_eligible_rows=200,
+            build_eligible_rows_off_variant_reference=50,
+        )
+        declarations = [
+            ResolverRow(
+                filtered.analysis_id, "/mirror/GCST90000001.h.tsv.gz",
+                "opengwasdb.gwas-ssf", "sd", "estimated_from_source_maf", "5000",
+                "a" * 64, "sha256", "100", maf_threshold="0.005",
+            ),
+            ResolverRow(
+                unfiltered.analysis_id, "/mirror/second.gz", "opengwasdb.gwas-ssf",
+                "sd", "estimated_from_source_maf", "5000", "b" * 64, "sha256",
+                "100", maf_threshold="NaN",
+            ),
+        ]
+        return filtered, unfiltered, [filtered_record, unfiltered_record], declarations
+
+    def _store_composition_outcomes(self, config: object, records: list[dict]):
+        filtered = _synthetic_inventory_row()
+        unfiltered = replace(
+            filtered, analysis_id="GCST90000002", data_file="/mirror/second.gz"
+        )
+        return apply_release_policy(
+            [filtered, unfiltered],
+            config,
+            {
+                row.analysis_id: _synthetic_candidate_metadata()
+                for row in (filtered, unfiltered)
+            },
+            {record["analysis_id"]: record for record in records},
+            self._maf_filtered_fixture()[3],
+        )
+
+    def test_store_composition_excludes_unfiltered_and_keeps_maf_filtered(self) -> None:
+        config = replace(
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            require_maf_filtered=True,
+            maf_threshold="0.005",
+        )
+        filtered, unfiltered, records, declarations = self._maf_filtered_fixture()
+        outcomes = apply_release_policy(
+            [filtered, unfiltered],
+            config,
+            {
+                row.analysis_id: _synthetic_candidate_metadata()
+                for row in (filtered, unfiltered)
+            },
+            {record["analysis_id"]: record for record in records},
+            declarations,
+        )
+        by_id = {outcome.analysis_id: outcome for outcome in outcomes}
+        self.assertTrue(by_id["GCST90000001"].included)
+        self.assertEqual(by_id["GCST90000001"].maf_threshold, "0.005")
+        routed = by_id["GCST90000002"]
+        self.assertFalse(routed.included)
+        self.assertEqual(routed.exclusion_reason, "not_maf_filtered")
+        # The last gate keeps the other decided fields: the reason is only Store
+        # composition, not an ancestry or effect-scale failure.
+        self.assertEqual(routed.assigned_ancestry, "EUR")
+        self.assertEqual(routed.original_sd, "1")
+        self.assertEqual(
+            routed.exclusion_detail,
+            "no MAF floor applied (requested maf_threshold=NaN, resolver "
+            "maf_state=unavailable, genotyping_technology=unrecorded); 50 of 200 "
+            "build-eligible rows are off the variant reference (#203)",
+        )
+        tables = build_candidate_tables(
+            inventory_rows=[filtered, unfiltered],
+            outcomes=outcomes,
+            config=config,
+            index_summary={},
+        )
+        self.assertEqual(dict(tables.exclusion_counts), {"not_maf_filtered": 1})
+        (excluded,) = csv.DictReader(io.StringIO(tables.exclusions_tsv), delimiter="\t")
+        self.assertEqual(excluded["category"], "store_composition")
+        self.assertEqual(excluded["reason"], "not_maf_filtered")
+
+    def test_store_composition_keeps_a_stronger_existing_exclusion(self) -> None:
+        config = replace(
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            require_maf_filtered=True,
+            maf_threshold="0.005",
+        )
+        filtered, unfiltered, records, declarations = self._maf_filtered_fixture()
+        # The unfiltered Analysis already fails the target-ancestry gate.
+        records[1]["ancestry"]["assigned_ancestry"] = "EAS"
+        outcomes = apply_release_policy(
+            [filtered, unfiltered],
+            config,
+            {
+                row.analysis_id: _synthetic_candidate_metadata()
+                for row in (filtered, unfiltered)
+            },
+            {record["analysis_id"]: record for record in records},
+            declarations,
+        )
+        by_id = {outcome.analysis_id: outcome for outcome in outcomes}
+        self.assertEqual(by_id["GCST90000002"].exclusion_reason, "ancestry_not_eur")
+
+    def test_store_composition_refuses_to_run_without_manifest_rows(self) -> None:
+        config = replace(
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            require_maf_filtered=True,
+            maf_threshold="0.005",
+        )
+        filtered, unfiltered, records, _ = self._maf_filtered_fixture()
+        # Without the manifest no Analysis can show an applied floor, so the rule
+        # would exclude every one of them; that must fail, not empty the Store.
+        with self.assertRaisesRegex(CandidateError, "resolver manifest rows"):
+            apply_release_policy(
+                [filtered, unfiltered],
+                config,
+                {
+                    row.analysis_id: _synthetic_candidate_metadata()
+                    for row in (filtered, unfiltered)
+                },
+                {record["analysis_id"]: record for record in records},
+            )
+
+    def test_store_composition_detail_names_a_missing_declaration(self) -> None:
+        config = replace(
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            require_maf_filtered=True,
+            maf_threshold="0.005",
+        )
+        filtered, unfiltered, records, declarations = self._maf_filtered_fixture()
+        outcomes = apply_release_policy(
+            [filtered, unfiltered],
+            config,
+            {
+                row.analysis_id: _synthetic_candidate_metadata()
+                for row in (filtered, unfiltered)
+            },
+            {record["analysis_id"]: record for record in records},
+            declarations[:1],
+        )
+        by_id = {outcome.analysis_id: outcome for outcome in outcomes}
+        self.assertEqual(by_id["GCST90000002"].exclusion_reason, "not_maf_filtered")
+        # An absent manifest row is not the same fact as a declared NaN request.
+        self.assertIn(
+            "requested maf_threshold=undeclared", by_id["GCST90000002"].exclusion_detail
+        )
+
+    def test_store_composition_off_warns_about_unfiltered_inclusion(self) -> None:
+        config = replace(
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            maf_threshold="0.005",
+        )
+        self.assertFalse(config.require_maf_filtered)
+        filtered, unfiltered, records, declarations = self._maf_filtered_fixture()
+        outcomes = apply_release_policy(
+            [filtered, unfiltered],
+            config,
+            {
+                row.analysis_id: _synthetic_candidate_metadata()
+                for row in (filtered, unfiltered)
+            },
+            {record["analysis_id"]: record for record in records},
+            declarations,
+        )
+        by_id = {outcome.analysis_id: outcome for outcome in outcomes}
+        self.assertTrue(by_id["GCST90000002"].included)
+        self.assertEqual(by_id["GCST90000002"].maf_threshold, "NaN")
+        tables = build_candidate_tables(
+            inventory_rows=[filtered, unfiltered],
+            outcomes=outcomes,
+            config=config,
+            index_summary={},
+        )
+        self.assertIn(
+            "1 included Analysis/Analyses had no MAF floor applied, so their "
+            "off-reference rows enter the shared variant axis unfiltered (#203); "
+            "see store_composition in validation.yaml",
+            tables.warnings,
+        )
+
+    def test_store_composition_summary_values_and_missing_sums(self) -> None:
+        base = replace(
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            require_maf_filtered=True,
+            maf_threshold="0.005",
+        )
+        axis = replace(
+            base, build_options={**base.build_options, "variant-reference": "/axis.gz"}
+        )
+        filtered, unfiltered, records, declarations = self._maf_filtered_fixture()
+        outcomes = self._store_composition_outcomes(axis, records)
+        tables = build_candidate_tables(
+            inventory_rows=[filtered, unfiltered],
+            outcomes=outcomes,
+            config=axis,
+            index_summary={},
+        )
+        self.assertEqual(
+            tables.store_composition,
+            {
+                "require_maf_filtered": True,
+                "maf_floor": "0.005",
+                "unfiltered_included": 0,
+                "unfiltered_included_off_reference_rows": 0,
+                "unfiltered_routed": 1,
+                "unfiltered_routed_off_reference_rows": 50,
+            },
+        )
+        # No declared variant-reference: absence is never summed as zero.
+        no_axis = build_candidate_tables(
+            inventory_rows=[filtered, unfiltered],
+            outcomes=outcomes,
+            config=base,
+            index_summary={},
+        )
+        self.assertIsNone(
+            no_axis.store_composition["unfiltered_routed_off_reference_rows"]
+        )
+        # A counted Analysis without a valid off-reference count makes the sum
+        # unknown, not zero.
+        del records[1]["diagnostics"]["build_eligible_rows_off_variant_reference"]
+        missing = build_candidate_tables(
+            inventory_rows=[filtered, unfiltered],
+            outcomes=self._store_composition_outcomes(axis, records),
+            config=axis,
+            index_summary={},
+        )
+        self.assertIsNone(
+            missing.store_composition["unfiltered_routed_off_reference_rows"]
+        )
+        # Rule off: the unfiltered Analysis is included and its off-reference
+        # rows are counted, while nothing is routed.
+        off_axis = replace(axis, require_maf_filtered=False)
+        included_tables = build_candidate_tables(
+            inventory_rows=[filtered, unfiltered],
+            outcomes=self._store_composition_outcomes(off_axis, records),
+            config=off_axis,
+            index_summary={},
+        )
+        self.assertEqual(included_tables.store_composition["unfiltered_included"], 1)
+        self.assertEqual(included_tables.store_composition["unfiltered_routed"], 0)
+
+    def test_store_composition_configuration_parsing(self) -> None:
+        self.assertFalse(
+            load_candidate_configuration(
+                self.fixture.config_path, REPO_ROOT
+            ).require_maf_filtered
+        )
+        self._set_store_composition({"require_maf_filtered": True})
+        # The rule needs a positive default floor or no Analysis can be filtered.
+        with self.assertRaisesRegex(ValueError, "positive.*maf_threshold"):
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self._set_maf_threshold(0.005)
+        self.assertTrue(
+            load_candidate_configuration(
+                self.fixture.config_path, REPO_ROOT
+            ).require_maf_filtered
+        )
+        self._set_maf_threshold(0)
+        with self.assertRaisesRegex(ValueError, "positive.*maf_threshold"):
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        for invalid, message in (
+            (["require_maf_filtered"], "store_composition must be a mapping"),
+            ({"unknown": True}, "unknown key"),
+            ({"require_maf_filtered": "yes"}, "must be a boolean"),
+            ({"require_maf_filtered": 1}, "must be a boolean"),
+        ):
+            with self.subTest(invalid=invalid):
+                self._set_store_composition(invalid)
+                with self.assertRaisesRegex(ValueError, message):
+                    load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+
+    def test_store_composition_rule_does_not_change_the_resolution_contract(self) -> None:
+        self._set_maf_threshold(0.005)
+        off = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        on = replace(off, require_maf_filtered=True)
+        self.assertEqual(
+            compute_resolution_contract(off), compute_resolution_contract(on)
+        )
+
+    def test_store_composition_documents_carry_the_rule(self) -> None:
+        config = replace(
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            require_maf_filtered=True,
+            maf_threshold="0.005",
+        )
+        filtered, unfiltered, records, declarations = self._maf_filtered_fixture()
+        outcomes = apply_release_policy(
+            [filtered, unfiltered],
+            config,
+            {
+                row.analysis_id: _synthetic_candidate_metadata()
+                for row in (filtered, unfiltered)
+            },
+            {record["analysis_id"]: record for record in records},
+            declarations,
+        )
+        tables = build_candidate_tables(
+            inventory_rows=[filtered, unfiltered],
+            outcomes=outcomes,
+            config=config,
+            index_summary={},
+        )
+        validation = render_validation_yaml(
+            tables=tables,
+            index_summary={},
+            validated_at="now",
+            validator_name="test",
+        )
+        self.assertEqual(validation["store_composition"], dict(tables.store_composition))
+        release = render_release_yaml(
+            store_id=STORE_ID,
+            config=config,
+            tables=tables,
+            created_at="2026-01-01T00:00:00Z",
+            inventory_sha256="a" * 64,
+            preflight_report=Path("preflight.json"),
+            index_summary={},
+            generator_version="test",
+        )
+        self.assertIn(
+            "Store composition (#203): this shared Store admits only Analyses whose "
+            "rows were MAF-filtered; an included Analysis with no applied MAF floor "
+            "is excluded as not_maf_filtered.",
+            release["notes"],
+        )
+
+    def test_committed_store_composition_requires_maf_filtering(self) -> None:
+        config = load_candidate_configuration(
+            REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/config-full.yaml",
+            REPO_ROOT,
+        )
+        self.assertTrue(config.require_maf_filtered)
 
     def test_zero_build_eligible_rows_is_excluded_and_not_missing(self) -> None:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
@@ -1915,20 +2472,47 @@ class CandidateWorkflowTests(unittest.TestCase):
         overlap = list(csv.DictReader(io.StringIO(tables.reference_overlap_tsv), delimiter="\t"))
         self.assertEqual([row["build_eligible_rows"] for row in overlap], ["50", "0"])
         self.assertEqual([row["exclude_from_build"] for row in overlap], ["", "true"])
-        validation = yaml.safe_load(render_validation_yaml(
+        validation = render_validation_yaml(
             tables=tables, index_summary={}, validated_at="now", validator_name="test"
-        ))
+        )
         self.assertEqual(validation["checks"]["reference_overlap"], "passed")
         self.assertEqual(validation["errors"], [])
 
-    def test_invalid_build_eligible_counts_still_fail_the_overlap_gate(self) -> None:
+    def test_invalid_build_eligible_counts_refuse_or_fail_the_overlap_gate(self) -> None:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
         config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
         row = _synthetic_inventory_row()
-        invalid = {
-            "absent": {},
-            "non-integer": {"build_eligible_rows": "50"},
-            "negative": {"build_eligible_rows": -1},
+
+        def record_with(diagnostics):
+            record = _synthetic_resolver_record()
+            record["analysis_id"] = row.analysis_id
+            record["diagnostics"].pop("build_eligible_rows")
+            record["diagnostics"].update(
+                ancestry_rows_read=100, ancestry_reference_rows_matched=100,
+            )
+            record["diagnostics"].update(diagnostics)
+            return record
+
+        # An unusable count is no evidence the Analysis has rows to build, so
+        # the build_eligible_rows Quality Check refuses to let it be included
+        # (#285); before, it was included and only the overlap gate caught it.
+        refused = {
+            "absent": ({}, "unmeasured"),
+            "non-integer": ({"build_eligible_rows": "50"}, "not a non-negative integer"),
+            "negative": ({"build_eligible_rows": -1}, "not a non-negative integer"),
+        }
+        for name, (diagnostics, message) in refused.items():
+            with self.subTest(case=name):
+                with self.assertRaises(CandidateError) as raised:
+                    apply_release_policy(
+                        [row], config, {row.analysis_id: _synthetic_candidate_metadata()},
+                        {row.analysis_id: record_with(diagnostics)},
+                    )
+                self.assertIn(row.analysis_id, str(raised.exception))
+                self.assertIn(message, str(raised.exception))
+
+        # A valid count with an unusable on/off split is the overlap gate's.
+        partitions = {
             "inconsistent-partition": {
                 "build_eligible_rows": 50,
                 "build_eligible_rows_on_variant_reference": 20,
@@ -1940,21 +2524,12 @@ class CandidateWorkflowTests(unittest.TestCase):
                 "build_eligible_rows_off_variant_reference": -10,
             },
         }
-        for name, diagnostics in invalid.items():
+        for name, diagnostics in partitions.items():
             with self.subTest(case=name):
-                record = _synthetic_resolver_record()
-                record["analysis_id"] = row.analysis_id
-                record["diagnostics"].update(
-                    ancestry_rows_read=100, ancestry_reference_rows_matched=100,
-                )
-                record["diagnostics"].update(diagnostics)
                 outcomes = apply_release_policy(
                     [row], config, {row.analysis_id: _synthetic_candidate_metadata()},
-                    {row.analysis_id: record},
+                    {row.analysis_id: record_with(diagnostics)},
                 )
-                # Only an explicit integer zero is a policy exclusion; every other
-                # unusable count stays an included Analysis whose measurement is
-                # missing, exactly as before #176.
                 self.assertTrue(outcomes[0].included, outcomes[0].exclusion_reason)
                 tables = build_candidate_tables(
                     inventory_rows=[row], outcomes=outcomes, config=config, index_summary={}
@@ -2025,14 +2600,6 @@ class CandidateWorkflowTests(unittest.TestCase):
         blank = "GCST1\tsd\ttotal\tanalysis_level\t\tsd\testimated_from_source_maf\taf_assigned\n"
         self.assertTrue(validate_candidate_analyses(header + blank))
 
-    def test_staged_candidate_check_detects_invalid_bundle(self) -> None:
-        staging_parent = self.fixture.root / "staging"
-        store_dir = staging_parent / STORE_ID
-        store_dir.mkdir(parents=True)
-        (store_dir / "release.yaml").write_text("store_id: OGS-99001\n", encoding="utf-8")
-        errors = check_staged_candidate(STORE_ID, staging_parent)
-        self.assertTrue(errors)
-
     # -- snakemake wiring ------------------------------------------------------
 
     @unittest.skipUnless(
@@ -2072,6 +2639,18 @@ class CandidateWorkflowTests(unittest.TestCase):
         )
         self.assertNotEqual(missing.returncode, 0)
         self.assertIn("store_id", missing.stderr + missing.stdout)
+
+
+class SharedVocabularyTests(unittest.TestCase):
+    """The workflow uses the contract's and Manifest Generation's vocabulary, not its own copy (#250)."""
+
+    def test_super_population_codes_come_from_the_contract(self) -> None:
+        self.assertIs(candidate_workflow.SUPERPOPULATIONS, bundle_module.SUPERPOPULATIONS)
+
+    def test_info_score_vocabulary_comes_from_the_generation_rules(self) -> None:
+        from manifest_generation import generation_rules
+
+        self.assertIs(candidate_workflow.INFO_SCORE_KINDS, generation_rules.INFO_SCORE_KINDS)
 
 
 if __name__ == "__main__":

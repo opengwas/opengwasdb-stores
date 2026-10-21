@@ -49,7 +49,7 @@ string on the release, and this directory holds data files
 | `error` | Unexpected exception during acquisition. | no |
 
 Only `ok` and `already_present` are ready. The vocabulary is owned by
-`resources/generators/lib/source_inventory.py` (`READY_STATUSES`,
+`src/manifest_generation/source_inventory.py` (`READY_STATUSES`,
 `KNOWN_READINESS_STATUSES`) so that "ready" has exactly one spelling, and an
 unknown status is a loud failure rather than an implied "not ready".
 
@@ -119,3 +119,35 @@ Its machine-readable report is written under the release's work root
 a preflight, it is the resolution run's job. It also never treats a non-ready row
 whose file has since appeared as ready — that only signals the frozen snapshot is
 stale and should be re-frozen deliberately.
+
+## The shared freeze (ADR 0036)
+
+`python3 -m manifest_generation.freeze` writes a Source Inventory in these same
+columns from a Source Collection's two connector files -- its **Source Metadata
+Table** (intent) and its **Acquisition Manifest** (what acquisition produced)
+-- and a release config's **Selection** (#283). It also writes the selected
+rows of both connector files beside the snapshot
+(`<snapshot-id>.source-metadata.tsv`, `<snapshot-id>.acquisition-manifest.tsv`),
+and its provenance sidecar records the Selection and each connector's frozen
+and original sha256 instead of the candidate table and the acquisition passes;
+the GWAS Catalog's passes are recorded beside its Acquisition Manifest by the
+writer that overlays them, and that record's sha256 is in the provenance too.
+[`docs/spec/source-connectors.md`](../../docs/spec/source-connectors.md) is the
+authority on its inputs and provenance.
+
+Re-freezing `gwas-catalog-ssf-eur-hybrid-2026-09-22` through it, with
+`selection: {where: {store_key: hybrid__European}}`, reproduces the committed
+TSV byte for byte. `inventory-freeze` above remains until #287 moves the GWAS
+Catalog release onto the shared freeze.
+
+## Declared-selection inventories
+
+Not every Source Collection is described by acquisition manifests. The `ukb-b`
+batch (#219) has a fixed, declared membership: `src/manifest_generation/providers/ukb_b/inventory.py`
+reads the registry's own declared selection as intent, discovers the local
+`.vcf.gz` files, and reconciles the two against the old built baseline. There a
+glob is never intention: a declared Analysis missing from the mirror is a copy
+failure that blocks the freeze, not a smaller release. Its readiness vocabulary
+is local (`ok`, `missing_file`, `missing_index`) and its freeze records a
+sha256, size and mtime per Analysis, anchored to the upstream batch count from
+the unsecured OpenGWAS `/api/batches` endpoint (saved as evidence).

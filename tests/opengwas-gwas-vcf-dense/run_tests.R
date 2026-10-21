@@ -177,15 +177,19 @@ unlink(tmp_path)
 # generator's registry-only structural checks).
 schema_tmp <- tempfile(pattern = "dense-schema-")
 dir.create(schema_tmp)
+# The working bundle lives in the work root, <artifact-root>/<id>/generate (#248).
+Sys.setenv(OPENGWASDB_ARTIFACT_ROOT = schema_tmp)
+schema_work <- file.path(schema_tmp, "OGS-99021", "generate")
+dir.create(schema_work, recursive = TRUE)
 schema_config <- file.path(schema_tmp, "config.yaml")
-writeLines(c("output:", paste0("  release_dir: ", schema_tmp)), schema_config)
+writeLines(c("output:", "  store_id: OGS-99021"), schema_config)
 valid_schema_row <- fread(
   "families/ukb-b/releases/dense-observed-vcf-c128-resolved/analyses.tsv",
   sep = "\t", na.strings = "", colClasses = list(character = "exclude_from_build")
 )[analysis_id == "ukb-b-19953"]
-fwrite(valid_schema_row, file.path(schema_tmp, "analyses.tsv"), sep = "\t", na = "")
+fwrite(valid_schema_row, file.path(schema_work, "analyses.tsv"), sep = "\t", na = "")
 writeLines(c("checks:", "  schema: not_run", "warnings: []", "errors: []"),
-           file.path(schema_tmp, "validation.yaml"))
+           file.path(schema_work, "validation.yaml"))
 run_dense_validate <- function() {
   output <- suppressWarnings(system2("Rscript", c(
     "resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/generate.R",
@@ -196,15 +200,42 @@ run_dense_validate <- function() {
 }
 check(run_dense_validate() == 0L, "dense schema: conforming manifest should pass")
 
+# --mode=emit-registry projects that working bundle into the current contract
+# and emits it through the one emitter as a candidate (#248).
+registry_config <- file.path(schema_tmp, "registry-config.yaml")
+yaml::write_yaml(list(
+  label = "ukb-b-pilot-fixture",
+  access_posture = "public",
+  description = "vcf-dense fixture candidate",
+  source = list(source_snapshot_id = "opengwas-fixture"),
+  output = list(store_id = "OGS-99021", registry_root = file.path(schema_tmp, "registry")),
+  build = list(
+    layout = "dense", completion_state = "observed_only", command = "build-dense-vcf",
+    options = list(`source-reader-capability` = "opengwasdb.gwas-vcf", `source-assembly` = "hg19"),
+    post = list(top_hits = TRUE, overview = TRUE)
+  )
+), registry_config)
+registry_output <- suppressWarnings(system2("Rscript", c(
+  "resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/generate.R",
+  paste0("--config=", registry_config), "--mode=emit-registry"
+), stdout = TRUE, stderr = TRUE))
+registry_status <- attr(registry_output, "status")
+check(is.null(registry_status) || registry_status == 0L,
+      "dense emit-registry failed:\n%s", paste(registry_output, collapse = "\n"))
+emitted_release <- yaml::read_yaml(file.path(schema_tmp, "registry", "OGS-99021", "release.yaml"))
+check(identical(emitted_release$status, "candidate"), "dense emit-registry should emit a candidate")
+check(any(grepl("--mode=emit-registry", unlist(emitted_release$generator$commands))),
+      "dense emit-registry should record its own command")
+
 bad_vocab <- copy(valid_schema_row)
 bad_vocab[, original_sd_method := "invented_method"]
-fwrite(bad_vocab, file.path(schema_tmp, "analyses.tsv"), sep = "\t", na = "")
+fwrite(bad_vocab, file.path(schema_work, "analyses.tsv"), sep = "\t", na = "")
 check(run_dense_validate() != 0L, "dense schema: shared out-of-vocabulary value should fail")
-check(grepl("schema: failed", paste(readLines(file.path(schema_tmp, "validation.yaml")), collapse = "\n")),
+check(grepl("schema: failed", paste(readLines(file.path(schema_work, "validation.yaml")), collapse = "\n")),
       "dense schema: validation.yaml should record checks.schema=failed")
 
 missing_shared <- copy(valid_schema_row)[, original_effect_scale := NULL]
-fwrite(missing_shared, file.path(schema_tmp, "analyses.tsv"), sep = "\t", na = "")
+fwrite(missing_shared, file.path(schema_work, "analyses.tsv"), sep = "\t", na = "")
 check(run_dense_validate() != 0L, "dense schema: missing shared required column should fail")
 
 # --- apply_trait_ontology_mapping(): opengwas-gwas-vcf-dense supplies no

@@ -1,7 +1,7 @@
 store_id: OGS-00005
 label: eur-hybrid-quant-pilot-10
 access_posture: public
-status: built
+status: validated
 derived_from: null
 created_at: '2026-08-18T00:50:57Z'
 description: 'First 10 quantitative-trait Analyses from the hybrid__European candidate pool (resources/data/derived/store-candidates-analyses.tsv)
@@ -48,5 +48,58 @@ notes: 'original_sd_method starts at `unavailable` (never `declared_standardised
   "European" rather than the registry-normalised super-population code "EUR". Corrected in analyses.tsv;
   source_ancestry_label remains "European" as source provenance.
   No Store artifact was rebuilt or rewritten by this registry metadata correction.
+
+
+  Rebuilt and re-registered, 8 Oct 2026 (issue #195): through the release workflow,
+  `pixi run release OGS-00005 --config force=1`, at opengwasdb 7b0c42d. Why: the
+  18 Sep 2026 Store failed `opengwasdb validate`, because five variants were labelled
+  chromosome 23 rather than the canonical X, so validation''s tabix round-trip could not
+  fetch them. Two fixes made a rebuild through the workflow possible. opengwasdb#256
+  (opengwasdb#255) makes this recipe''s plain-ALID `--variant-reference` build collect
+  the sources'' rsids, where it previously wrote a Store with none. Stores #196 added
+  the force path, which replaces a published release crash-safely and archives the old
+  one. The replaced release (its Store, records and validation.yaml) is archived, and
+  never deleted, at /data/opengwasdb/stores/OGS-00005/replaced/20261008T225216Z/.
+
+
+  Measured against the archived release (every file, array, variant table row and
+  decoded Analysis):
+
+  - five shared variants are relabelled 23 -> X (#chromosome, alid, source_alid), and
+    no chromosome 23 remains;
+
+  - 17,106 EAF cells of GCST007406 that held exactly 0.0 or 1.0 are now missing
+    (16,906 Ragged Overflow and 200 Dense), by opengwasdb''s rule that a source
+    frequency of exactly 0 or 1 is a placeholder (stores #176); the same rule changes
+    17 top-hit EAF values, all GCST007406;
+
+  - eaf_orientation shifts in three Analyses: GCST004162 n 18,879 -> 18,871 and
+    r 0.998447 -> 0.998450; GCST007406 n 18,308 -> 18,302 and r 0.999132 -> 0.999151;
+    GCST007436 n 18,998 -> 18,990 and r 0.998739 -> 0.998743 (consensus sites
+    141,807 -> 141,830); every outcome is unchanged;
+
+  - rsids are identical: 14,162,879 of the 14,763,864 shared variants, and 9,246,830
+    of the 9,847,807 Dense Component variants;
+
+  - z, SE, association rows, variant order and every count are identical in all
+    10 Analyses;
+
+  - the manifest names the single-pass builder and the variant reference it was built
+    against, where the 18 Sep Store was a two-pass `--reference-panel` build.
+
+
+  One provenance difference is a known opengwasdb defect, accepted and documented
+  here rather than fixed (opengwas/opengwasdb#261). The 600,977 panel variants that
+  no Analysis observed now record their own ALID as source_alid, instead of ".",
+  because the single-pass `--variant-reference` path takes the reference as their
+  source. They carry no association, so no value, rsid or count is affected.
+
+
+  Status is now `validated`: validate passed with one warning (GCST003898''s EAF
+  orientation is unverified, with 120 overlapping variants, fewer than 500), and the
+  spec maps passed_with_warnings to validated (#195). This supersedes the "Status is
+  `built`" paragraph above. The opengwasdb#86 gap it describes is not present in the
+  rebuilt Store, whose analyses.tsv carries sample_size_kind, sample_size_scope and
+  original_effect_scale, and records ancestry_assignment_method source_trusted_no_af.
 
   '

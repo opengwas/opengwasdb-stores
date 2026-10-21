@@ -37,19 +37,24 @@ than invoking a bare interpreter or a sibling checkout's virtualenv.
 
 ```text
 Source Collection
-  -> Manifest Generator            (Phase B: resources/generators/)
+  -> Manifest Generation           (src/manifest_generation/)
   -> accepted Release Bundle       stores/OGS-00042/
-  -> Store Release                 (Phase A)
+  -> Store Release Build           (src/ogstores/, workflow/)
 ```
 
 Two workflows, meeting at the accepted Release Bundle and sharing no DAG.
 Phase A is specified in
 [`docs/spec/store-release-workflow.md`](docs/spec/store-release-workflow.md).
-Phase B generation runs today as per-source-format Manifest Generator scripts
-under `resources/generators/`, and each release records the commands it ran in
-`release.yaml:generator.commands`. What is still open is a Phase B Snakemake
-DAG (`workflow/generate.smk`), whose four boundary rules are fixed so Phase A
-is not built against a moving target.
+Manifest Generation is the `manifest_generation` package under
+`src/manifest_generation/` (#249): the shared candidate workflow and emitter at
+its root, and each Source Provider's connector code (acquisition, metadata
+adapters, provider-specific generators) under `providers/`. Each generator's
+config and reviewed inputs stay under `resources/generators/<generator>/`, and
+each release records the commands it ran in `release.yaml:generator.commands`.
+The legacy R generators also remain under `resources/generators/` until they
+retire (ADR 0036). What is still open is a Manifest Generation Snakemake
+DAG (`workflow/generate.smk`), whose four boundary rules are fixed so Store
+Release Build is not built against a moving target.
 
 The single rule everything else follows from (ADR 0023):
 
@@ -68,19 +73,26 @@ layer here.
 stores/<store-id>/       accepted Release Bundles plus generated summary.yaml
 stores.tsv  STORES.md    generated master list and human view
 workflow/                Snakefile (Phase A), generate.smk (Phase B)
-src/ogstores/            bundle.py  plan.py  paths.py  run.py  index.py
+src/ogstores/            Store Release Build: bundle.py  plan.py  paths.py  run.py  index.py
+src/manifest_generation/ Manifest Generation: candidate workflow, emitter, inventory
+  providers/               per-Source-Provider connectors (gwas_catalog, ukb_b,
+                           dbgap, finngen, eqtlgen, opengwas)
 resources/
   reference-resources/     LD panels, reference AF, trait mappings, QC panels
   annotations/             curated metadata that evolves after release
-  generators/              Phase B: bundle producers
+  inventories/             frozen Source Inventories
+  generators/              Manifest Generation inputs: per-generator configs, reviewed TSVs,
+                           generation receipts; legacy R generators
   scripts/                 toolchains and repository tooling
 docs/adr/  docs/spec/    decisions and specifications
 CONTEXT.md               project language
 ```
 
 The organising split is output versus input: `stores/` is what this repository
-produces, `workflow/` and `src/` are the machinery, and `resources/` holds the
-inputs and the things that make inputs. `CONTRIBUTING.md` documents each one.
+produces, `workflow/` and `src/` are the machinery (Store Release Build in
+`src/ogstores`, Manifest Generation in `src/manifest_generation`, which meet
+only at the Release Bundle), and `resources/` holds the inputs and the things
+that make inputs. `CONTRIBUTING.md` documents each one.
 
 ## Store Release identity
 
@@ -126,6 +138,8 @@ resolving a parent Store from `derived_from` needs no registry lookup:
   records/<step>.json       one per executed step
   store.opengwasdb          the Store Release
   store.opengwasdb.partial  transient staged destination
+  publication.json          transient: a publication in progress
+  replaced/<UTC>/           a release a forced run replaced, kept until a person deletes it
 <artifact-root>/by-label/   generated symlinks
 ```
 

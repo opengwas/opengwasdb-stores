@@ -282,7 +282,11 @@ class StubChooser(Chooser):
         self,
         trait_label: str,
         candidates: list[Candidate],
+        *,
+        trait_context: str = "",
     ) -> ChoiceResult:
+        # A stub replays a recorded decision, so per-trait context is
+        # deliberately ignored: the fixture already encodes the choice.
         recorded = self._choices.get(trait_label)
         if recorded is None:
             raise StubChooserError(

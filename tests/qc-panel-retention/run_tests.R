@@ -29,6 +29,13 @@ output_with <- file.path(fixtures_dir, "output-with-panel")
 output_without <- file.path(fixtures_dir, "output-without-panel")
 unlink(output_with, recursive = TRUE)
 unlink(output_without, recursive = TRUE)
+# The generator's working bundle lives in the work root,
+# <artifact-root>/<id>/generate (#248); filtered sources still go to data_dir.
+artifact_root <- tempfile("qc-panel-artifacts-")
+Sys.setenv(OPENGWASDB_ARTIFACT_ROOT = artifact_root)
+on.exit(unlink(artifact_root, recursive = TRUE), add = TRUE)
+work_with <- file.path(artifact_root, "OGS-99031", "generate")
+work_without <- file.path(artifact_root, "OGS-99032", "generate")
 
 status <- system2("Rscript", c(shQuote(file.path(fixtures_dir, "generate_fixtures.R"))))
 if (status != 0) fail("Fixture generation failed")
@@ -55,14 +62,14 @@ run_release("config-with-panel.yaml")
 run_release("config-without-panel.yaml")
 
 # --- With the QC panel enabled: exactly the 15 panel positions retained ---
-regions_with <- fread(file.path(output_with, "sidecars", "sparse_regions.tsv"), sep = "\t", na.strings = "")
-analyses_with <- fread(file.path(output_with, "analyses.tsv"), sep = "\t", na.strings = "")
+regions_with <- fread(file.path(work_with, "sidecars", "sparse_regions.tsv"), sep = "\t", na.strings = "")
+analyses_with <- fread(file.path(work_with, "analyses.tsv"), sep = "\t", na.strings = "")
 check(all(analyses_with$assigned_ancestry == "EUR"),
       "assigned_ancestry should be the super-population code EUR, not the source label European")
 check(all(is.na(analyses_with$n_cases)) && all(is.na(analyses_with$n_controls)),
       "a non-case-control Analysis must leave n_cases/n_controls blank, not 0")
 filtered_with <- fread(file.path(output_with, "filtered", analyses_with$filtered_file[1]), sep = "\t")
-summary_with <- fread(file.path(output_with, "sidecars", "filter_summary.tsv"), sep = "\t", na.strings = "")
+summary_with <- fread(file.path(work_with, "sidecars", "filter_summary.tsv"), sep = "\t", na.strings = "")
 
 check(nrow(regions_with[region_kind == "cis"]) == 0, "no cis regions expected (no gene target)")
 check(nrow(regions_with[region_kind %in% c("significant_trans", "suggestive_trans")]) == 0,
@@ -80,24 +87,28 @@ check(all(filtered_with$p_value == 0.4), "QC-panel rows should be retained despi
 check(summary_with$qc_panel_rows[1] == 15, "filter_summary.qc_panel_rows should be 15, got %d", summary_with$qc_panel_rows[1])
 check(summary_with$retained_rows[1] == 15, "filter_summary.retained_rows should be 15, got %d", summary_with$retained_rows[1])
 
-build_with <- read_yaml(file.path(output_with, "build.yaml"))
+build_with <- read_yaml(file.path(work_with, "build.yaml"))
 check(identical(build_with$qc_panel$enabled, TRUE), "build.yaml qc_panel.enabled should be TRUE")
 check(identical(build_with$qc_panel$resource_id, "qc-panel-fixture"), "build.yaml qc_panel.resource_id should round-trip")
 check(any(vapply(build_with$reference_resources, function(r) identical(r$kind, "qc_panel"), logical(1))),
       "build.yaml reference_resources should include the qc_panel entry")
+# Ragged releases have no Dense Component and must not declare an Indexed Variant
+# Subset (stores #210).
+check(is.null(build_with$indexed_subsets),
+      "Ragged build.yaml must not declare an Indexed Variant Subset (#210)")
 
 # --- Without the QC panel configured: nothing retained (prior behaviour) ---
-regions_without <- fread(file.path(output_without, "sidecars", "sparse_regions.tsv"), sep = "\t", na.strings = "")
-analyses_without <- fread(file.path(output_without, "analyses.tsv"), sep = "\t", na.strings = "")
+regions_without <- fread(file.path(work_without, "sidecars", "sparse_regions.tsv"), sep = "\t", na.strings = "")
+analyses_without <- fread(file.path(work_without, "analyses.tsv"), sep = "\t", na.strings = "")
 filtered_without <- fread(file.path(output_without, "filtered", analyses_without$filtered_file[1]), sep = "\t")
-summary_without <- fread(file.path(output_without, "sidecars", "filter_summary.tsv"), sep = "\t", na.strings = "")
+summary_without <- fread(file.path(work_without, "sidecars", "filter_summary.tsv"), sep = "\t", na.strings = "")
 
 check(nrow(regions_without) == 0, "expected zero sparse regions with no signal and no QC panel configured")
 check(nrow(filtered_without) == 0, "expected zero retained rows with no signal and no QC panel configured")
 check(summary_without$qc_panel_rows[1] == 0, "filter_summary.qc_panel_rows should be 0 when not configured")
 check(summary_without$retained_rows[1] == 0, "filter_summary.retained_rows should be 0 when not configured")
 
-build_without <- read_yaml(file.path(output_without, "build.yaml"))
+build_without <- read_yaml(file.path(work_without, "build.yaml"))
 check(is.null(build_without$qc_panel), "build.yaml qc_panel should be absent when not configured")
 
 # --- Source Ancestry Label -> super-population mapping (issue #133) ---

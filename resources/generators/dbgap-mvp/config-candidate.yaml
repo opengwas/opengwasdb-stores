@@ -1,0 +1,173 @@
+# Candidate configuration for the separate MVP ancestry and META Release
+# Bundles (#221), from the dbGaP phs002453 acquisition of PMID 39024449.
+#
+# This file is a PROVISIONAL DRAFT. It plans *unbuilt, acceptance-pending
+# candidates*. It never accepts, registers, builds, completes or publishes
+# anything, and it never rewrites an existing Store or identity.
+#
+# Terminology: the 6,022 rows below are the INTENDED BOUND membership from the
+# accepted dbGaP mapping. The acquisition is NOT accepted and no Source
+# Inventory is frozen; membership, Analytical Metadata and every reference are
+# pending owner acceptance and qualification.
+#
+# Identity allocation is owner-authorised (2026-10-13):
+#   observed single-ancestry   OGS-00012 EUR, OGS-00013 AFR, OGS-00014 AMR, OGS-00015 EAS
+#   META observed-only         OGS-00016
+#   lineage-linked completed   OGS-00018 EUR, OGS-00019 AFR, OGS-00020 AMR, OGS-00021 EAS
+#   FinnGen                    OGS-00017 (migrated from OGS-00016)
+#
+# The owner decision "reorder the IDs" (2026-10-13) placed META ahead of
+# FinnGen. FinnGen's bundle was migrated OGS-00016 -> OGS-00017 under ADR
+# 0022's owner-authorized-renumbering amendment; its membership, recipe and
+# association/index artifacts are unchanged.
+
+id_allocation_status: owner-authorized-2026-10-13
+owner_ordering_approved: true
+publication_pmid: '39024449'
+access_posture: public
+layout: dense
+# The Source Inventory is not yet frozen; this placeholder is deliberately
+# obvious so a candidate cannot be mistaken for an accepted, frozen input.
+source_snapshot_id: dbgap-phs002453-candidate-pending
+# dbGaP is the owner-chosen canonical source; the GWAS Catalog rows are
+# provenance only.
+source_repository: dbGaP phs002453 (GIA)
+source_reader_capability: opengwasdb.gwas-ssf
+source_assembly: GRCh38
+intended_bound_total: 6022
+
+# Current metadata-only evidence root (parent refresh, 2026-10-13). The four
+# store manifests and the regular sidecars beneath it are the planned
+# file-path/membership source. No association data was opened, nothing was
+# promoted, and no Source Inventory is frozen: `acceptance` is technical
+# metadata evidence only, not scientific or release acceptance.
+metadata:
+  root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z
+  code_sha: baf141c8061a8d7f63c369b7b0ff499747e3dabc
+  output_metadata_content_sha256: 1f14b88c2c383d8bac97215a8807503ef600fed2d2a019067e9962777438310f
+  membership: 6022
+  association_opens: 0
+  acceptance: technical metadata evidence only; not scientific/release acceptance
+  candidates_table: resources/data/derived/store-candidates-analyses.tsv
+  mapping: /data/opengwasdb/work/epic232/220/conversion-retry-20261012T223021Z/mapping.tsv
+generator_commands:
+  - python3 -m manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 map --candidates resources/data/derived/store-candidates-analyses.tsv
+  - python3 -m manifest_generation.providers.dbgap.mvp.generate_candidate
+
+# One entry per intended Store.
+#
+# `completion_reference` records the DECLARED reference only. A declaration of
+# `status: available` is not a qualification or a science PASS: `qualification`
+# and `activation` are separate, and are `pending`/`blocked` for every reference
+# here. The emitter never promotes a reference to qualified from this file, and
+# a missing suggested panel does not prevent a pending completed definition.
+stores:
+  EUR:
+    observed_store_id: OGS-00012
+    completed_store_id: OGS-00018
+    candidate_store_key: dense__pmid-39024449__European
+    label: mvp-phs002453-eur
+    assigned_ancestry: EUR
+    source_ancestry_label: European
+    intended_members: 1669
+    # The European manifest still carries the legacy combined bucket; EUR and
+    # META are distinguished by the mapping ancestry, not by this file.
+    planned_manifest: dense-pmid-39024449-European-download-manifest.tsv
+    resolution: pending
+    completion_reference:
+      resource_id: gpm-hg38-eur-ld
+      ancestry: EUR
+      declared_status: available
+      qualification: pending
+      activation: pending
+      # PROPOSED canonical EUR location; the actual alias is NOT active and the
+      # whole-panel qualification/activation is pending (#239). Retained only as
+      # a truthful suggested path, never as a qualified reference.
+      suggested_ld_panel: /data/opengwasdb/reference/ld
+  AFR:
+    observed_store_id: OGS-00013
+    completed_store_id: OGS-00019
+    candidate_store_key: dense__pmid-39024449__African
+    label: mvp-phs002453-afr
+    assigned_ancestry: AFR
+    source_ancestry_label: African
+    intended_members: 1368
+    planned_manifest: dense-pmid-39024449-African-download-manifest.tsv
+    resolution: pending
+    completion_reference:
+      resource_id: hgdp1kgp-hg38-ld
+      ancestry: AFR
+      declared_status: available
+      qualification: pending
+      activation: pending
+      suggested_ld_panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+  AMR:
+    observed_store_id: OGS-00014
+    completed_store_id: OGS-00020
+    candidate_store_key: dense__pmid-39024449__Hispanic-or-Latin-American
+    label: mvp-phs002453-amr
+    assigned_ancestry: AMR
+    source_ancestry_label: Hispanic or Latin American
+    intended_members: 1053
+    planned_manifest: dense-pmid-39024449-Hispanic-or-Latin-American-download-manifest.tsv
+    resolution: pending
+    completion_reference:
+      # No declared AMR LD Reference Resource exists. An AMR pilot (#241) is
+      # approved but not qualified. The completed child stays a pending,
+      # blocked definition and must not be executed.
+      resource_id: null
+      ancestry: AMR
+      declared_status: absent
+      qualification: hold
+      activation: blocked
+      suggested_ld_panel: null
+  EAS:
+    observed_store_id: OGS-00015
+    completed_store_id: OGS-00021
+    candidate_store_key: dense__pmid-39024449__East-Asian
+    label: mvp-phs002453-eas
+    assigned_ancestry: EAS
+    source_ancestry_label: East Asian
+    intended_members: 241
+    planned_manifest: dense-pmid-39024449-East-Asian-download-manifest.tsv
+    resolution: pending
+    completion_reference:
+      resource_id: hgdp1kgp-hg38-ld
+      ancestry: EAS
+      declared_status: available
+      qualification: pending
+      activation: pending
+      suggested_ld_panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+  META:
+    observed_store_id: OGS-00016
+    completed_store_id: null
+    candidate_store_key: dense__pmid-39024449__Multi-ancestry
+    label: mvp-phs002453-meta-observed-only
+    assigned_ancestry: null
+    source_ancestry_label: META
+    intended_members: 1691
+    # META shares the combined European manifest with EUR.
+    planned_manifest: dense-pmid-39024449-European-download-manifest.tsv
+    resolution: pending
+    # Explicit policy: cross-ancestry membership is observed-only and must not
+    # be eligible for automatic Reference Completion, even though an EUR panel
+    # exists. This is enforced by the emitter, not just documented.
+    observed_only: true
+    completion_reference:
+      resource_id: null
+      ancestry: null
+      declared_status: absent
+      qualification: not_applicable
+      activation: blocked
+      suggested_ld_panel: null
+
+# FinnGen was renumbered OGS-00016 -> OGS-00017 by the owner-authorized
+# reordering (2026-10-13). Its artifact relocation is an operational step.
+finngen:
+  current_store_id: OGS-00017
+  previous_store_id: OGS-00016
+  renumbered_to: OGS-00017
+  note: >-
+    Owner-authorized renumbering: the existing OGS-00016 bundle moved to
+    OGS-00017 so META can take OGS-00016. Membership and recipe are unchanged;
+    see the release.yaml migration block and the migration evidence doc.

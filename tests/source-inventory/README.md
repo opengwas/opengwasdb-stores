@@ -1,9 +1,9 @@
 # Source Inventory test suite
 
 Test suite for the Phase B frozen Source Inventory seam (issue #151), owned by
-[`resources/generators/lib/source_inventory.py`](../../resources/generators/lib/source_inventory.py)
+[`src/manifest_generation/source_inventory.py`](../../src/manifest_generation/source_inventory.py)
 and driven by
-[`resources/generators/gwas-catalog-eur-hybrid/inventory.py`](../../resources/generators/gwas-catalog-eur-hybrid/inventory.py).
+[`src/manifest_generation/inventory.py`](../../src/manifest_generation/inventory.py).
 See [`resources/inventories/README.md`](../../resources/inventories/README.md)
 for the column contract and the readiness vocabulary.
 

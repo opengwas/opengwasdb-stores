@@ -10,7 +10,7 @@ defaults:
   stored_effect_scale: sd
 
 output:
-  release_dir: tests/effect-scale-validation/fixtures/release
+  store_id: OGS-99051
   data_dir: tests/effect-scale-validation/fixtures/release
 
 reference_resources:

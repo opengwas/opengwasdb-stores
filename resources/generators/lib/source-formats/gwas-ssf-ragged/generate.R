@@ -585,7 +585,7 @@ emit_bundle <- function(cfg, root) {
   ancestry_map <- read_source_label_map(root)
   analyses <- manifest_rows(cfg, selected, target_summary, paths, has_targets = has_targets, canonical_table = canonical_table, ancestry_map = ancestry_map)
 
-  release_dir <- path_abs(root, cfg$output$release_dir)
+  release_dir <- cfg$.work_root
   sidecar_dir <- file.path(release_dir, "sidecars")
   dir.create(sidecar_dir, recursive = TRUE, showWarnings = FALSE)
   fwrite(analyses, file.path(release_dir, "analyses.tsv"), sep = "\t", na = "")
@@ -664,7 +664,7 @@ emit_bundle <- function(cfg, root) {
 }
 
 refresh_artifact_paths <- function(cfg, root) {
-  release_dir <- path_abs(root, cfg$output$release_dir)
+  release_dir <- cfg$.work_root
   paths <- artifact_paths(cfg, root)
   analyses_path <- file.path(release_dir, "analyses.tsv")
   if (!file.exists(analyses_path)) stop("Missing analyses.tsv: ", analyses_path)
@@ -970,7 +970,7 @@ failed_summary_row <- function(row, message) {
 
 filter_release <- function(cfg, root, max_analyses = NA_integer_, only_analysis_id = "",
                             parallel_workers = NA_integer_) {
-  release_dir <- path_abs(root, cfg$output$release_dir)
+  release_dir <- cfg$.work_root
   analyses_path <- file.path(release_dir, "analyses.tsv")
   if (!file.exists(analyses_path)) emit_bundle(cfg, root)
   analyses <- fread(analyses_path, sep = "\t", na.strings = "")
@@ -1090,7 +1090,7 @@ filter_release <- function(cfg, root, max_analyses = NA_integer_, only_analysis_
 }
 
 validate_emit <- function(cfg, root) {
-  release_dir <- path_abs(root, cfg$output$release_dir)
+  release_dir <- cfg$.work_root
   analyses_path <- file.path(release_dir, "analyses.tsv")
   analyses <- fread(analyses_path, sep = "\t", na.strings = "")
   has_targets <- has_gene_targets(cfg)
@@ -1129,7 +1129,7 @@ validate_emit <- function(cfg, root) {
     stop("trait_chr and trait_bp are required for every selected analysis")
   }
 
-  schema <- validate_against_opengwasdb_schema(analyses_path, root)
+  schema <- validate_against_opengwasdb_schema(analyses_path)
   if (!schema$passed) {
     merge_validation_checks(
       release_dir, list(schema = "failed", errors = schema$errors),
@@ -1185,7 +1185,7 @@ merge_validation_checks <- function(release_dir, checks, validator_name) {
 }
 
 effect_scale_stage <- function(cfg, root) {
-  release_dir <- path_abs(root, cfg$output$release_dir)
+  release_dir <- cfg$.work_root
   paths <- artifact_paths(cfg, root)
   reference_resources <- resolve_reference_resources_from_config(cfg)
   thresholds <- default_thresholds(cfg$effect_scale_validation)
@@ -1206,7 +1206,7 @@ effect_scale_stage <- function(cfg, root) {
 }
 
 refresh_build_mode <- function(cfg, root) {
-  release_dir <- path_abs(root, cfg$output$release_dir)
+  release_dir <- cfg$.work_root
   paths <- artifact_paths(cfg, root)
   write_build_yaml(cfg, root, release_dir, paths)
   cat(sprintf("Refreshed build.yaml for %s\n", release_dir))
@@ -1222,8 +1222,11 @@ source(path_abs(root, "resources/generators/lib/build_environment.R"))
 source(path_abs(root, "resources/generators/lib/schema_validate.R"))
 source(path_abs(root, "resources/generators/lib/metadata_resolvers/ontology_contract.R"))
 source(path_abs(root, "resources/generators/lib/metadata_resolvers/canonical_trait_table.R"))
+source(path_abs(root, "resources/generators/lib/emit_registry.R"))
 cfg <- read_yaml(path_abs(root, args$config))
 cfg$.config_path <- args$config
+# Resolved once: every mode reads and writes the working bundle there (#248).
+cfg$.work_root <- generation_work_root(cfg)
 
 if (args$mode == "emit") {
   emit_bundle(cfg, root)
@@ -1239,6 +1242,8 @@ if (args$mode == "emit") {
   refresh_build_mode(cfg, root)
 } else if (args$mode == "effect-scale") {
   effect_scale_stage(cfg, root)
+} else if (args$mode == "emit-registry") {
+  emit_registry(cfg, root, "resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R")
 } else if (args$mode == "all") {
   emit_bundle(cfg, root)
   validate_emit(cfg, root)

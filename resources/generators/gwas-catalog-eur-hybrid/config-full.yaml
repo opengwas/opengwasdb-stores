@@ -10,7 +10,7 @@
 # Membership comes from the frozen Source Inventory at
 # `source.inventory.path`, not from a glob over the acquisition mirror. Which
 # readiness values count as "has a verified source file" is owned by
-# `resources/generators/lib/source_inventory.py` (READY_STATUSES) rather than
+# `src/manifest_generation/source_inventory.py` (READY_STATUSES) rather than
 # restated here, so the vocabulary has one spelling.
 #
 # Acquisition is already done: the mirror under
@@ -83,7 +83,11 @@ build:
     # defect, not a speedup. 32 gives the best measured throughput with sharing at
     # 2.1x, inside tolerance. #154 also recorded PSS over its self-imposed 68.7 GB
     # budget at 32 and 64; that budget is not binding on this host (1,006 GB RAM).
-    n-workers: 32
+    # 24, not 32: this build shares the host with the OGS-00017 build, and
+    # throughput is flat above 8 workers anyway.  --checkpoint keeps each build
+    # phase's output so a failed build can --resume (#227) instead of restarting.
+    n-workers: 24
+    checkpoint: true
     source-reader-capability: opengwasdb.gwas-ssf
     source-assembly: hg38
   post:
@@ -123,11 +127,20 @@ source:
   # frequency as missing and a MAF floor would compare against a fabricated
   # zero (#176, 2026-09-29). Absent = no Analysis is exempt.
   maf_filter_exempt_analyses: resources/generators/gwas-catalog-eur-hybrid/maf-filter-exemptions.tsv
+  # Reviewed per-Analysis exclusions (analysis_id, reason) for sources that
+  # write an unestimated effect as +-2.2250738585072014e-308 with
+  # standard_error 0. Core derives the missing standard error from that effect
+  # and the p-value (opengwasdb#236), storing an effect of ~0 with a standard
+  # error of ~1e-308, so every Analysis carrying such a row is excluded as
+  # effect_placeholder_rows until core refuses the placeholder itself. The 27
+  # listed are every included Analysis with at least one such row in a
+  # full-file scan (2026-09-30). Absent = nothing is excluded this way.
+  effect_placeholder_exclusions: resources/generators/gwas-catalog-eur-hybrid/effect-placeholder-exclusions.tsv
   inventory:
     snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-22
     path: resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv
     provenance_path: resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.meta.yaml
-    # Written by resources/scripts/download-ebi-gwas-catalog-eur-hybrid.py.
+    # Written by src/manifest_generation/providers/gwas_catalog/download_ebi_gwas_catalog_eur_hybrid.py.
     # The retry pass re-attempted the 99 transiently failed accessions; its rows
     # are authoritative for every analysis_id they cover.
     #
@@ -147,6 +160,18 @@ source:
       # `data_absent_upstream` -- listed in the index but served as HTTP 404.
       - role: rescue_upstream_harmonised
         path: /data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-rescue-upstream-harmonised-manifest.tsv
+
+# Store composition (issue #203, levers A and B; ADR 0033). A shared Store's variant
+# axis is the union of its Analyses' variants, so an Analysis whose rows were never
+# frequency-filtered puts its whole rare tail on every per-variant structure. The
+# sequencing Analyses exempted from the MAF floor above (148 in OGS-00011: 97 WGS,
+# 51 WES) add 49.5 M of the 150.6 M off-panel variants on 64 M rows (2 %). They
+# report EAF; they were exempted, not unfilterable. With this rule an included
+# Analysis with no applied MAF floor is excluded as `not_maf_filtered`; it belongs
+# in a separate sequencing Store. Emit-time only: it does not change the resolver
+# manifest or the resolution receipt.
+store_composition:
+  require_maf_filtered: true
 
 defaults:
   # Facts this release asserts about every source, carried into analyses.tsv.

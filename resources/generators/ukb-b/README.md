@@ -1,20 +1,22 @@
 # ukb-b Manifest Generator
 
 This Store Family's Manifest Generator resolves analyses from the
-`opengwas-gwas-vcf` Source Collection and emits a candidate release bundle
-(`../releases/<family-release-id>/`).
+`opengwas-gwas-vcf` Source Collection and keeps a working bundle in its work root,
+`<artifact-root>/<output.store_id>/generate`; `--mode=emit-registry` emits the
+candidate into `stores/<output.store_id>/` through the one emitter (#248).
+`config-pilot-10.yaml` is registered as `OGS-00008`.
 
 It is a **thin family-specific wrapper** over the shared engine at
 `resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/`. The engine is generic
 across dense-observed OpenGWAS-GWAS-VCF batches; only this family's inputs
 differ, held here as:
 
-- `config.yaml` - the candidate manifest to resolve
-  (`../releases/dense-observed-vcf-c128/analyses.tsv`, the existing
-  hand-reverse-engineered bundle for this batch), source/output paths, and
-  release identity.
+- `config-pilot-10.yaml` - the candidate manifest to resolve
+  (`families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv`, the
+  existing hand-reverse-engineered bundle for this batch), the 10-Analysis
+  selection, and release identity (`OGS-00008`).
 - `generate.R` - a one-call driver that runs the shared engine with
-  `config.yaml`.
+  `config-pilot-10.yaml`.
 
 ## What this generator does (and does not do)
 
@@ -56,7 +58,14 @@ Requires an OpenGWAS API JWT (see <https://api.opengwas.io/>) in the
 ```sh
 pixi run Rscript resources/generators/ukb-b/generate.R --mode=emit
 pixi run Rscript resources/generators/ukb-b/generate.R --mode=validate
+pixi run Rscript resources/generators/ukb-b/generate.R --mode=emit-registry
 ```
+
+The legacy driver runs `config-pilot-10.yaml` (`ukb-b-pilot-10`, `OGS-00008`)
+and keeps its working bundle in `<artifact-root>/OGS-00008/generate`;
+`emit-registry` emits it into `stores/OGS-00008/` through the one emitter
+(#248). The full ukb-b release comes from `generate_candidate.py` below; the
+legacy full-batch `config.yaml` was removed in #248.
 
 For smoke tests, pass `--max-analyses=N` or
 `--only-analysis-id=ukb-b-...,ukb-b-...`; both request only a subset of the
@@ -78,6 +87,46 @@ pixi run Rscript resources/scripts/download-opengwas-vcfs.R \
   --ids=ukb-b-10787,ukb-b-11842,ukb-b-19953 \
   --out-dir=/data/opengwasdb/wip/ukb-b-vcf
 
-pixi run python resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/annotate.py \
-  --release-dir=families/ukb-b/releases/dense-observed-vcf-c128-resolved
+pixi run python3 -m manifest_generation.providers.opengwas.annotate \
+  --release-dir="$(pixi run python3 -m manifest_generation.emit work-root OGS-00008)"
 ```
+
+## Restored full membership (#219, current bundle shape)
+
+The legacy R driver above writes a family-shaped bundle. The restored full
+release is instead frozen and emitted through the current Release Bundle shape
+by two pure-Python tools:
+
+- `inventory.py` reconciles the **declared** intended selection
+  (`families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv`, whose
+  `inclusion_reason` cites the OpenGWAS IGD `data/ukb-b/manifest.tsv`) against
+  the local VCF mirror and the old built baseline, then freezes a checksummed
+  `resources/inventories/<snapshot>.{tsv,meta.yaml}`. It never treats a glob as
+  intent, refuses to freeze a partial copy, and hashes with at most two reader
+  threads using a resumable receipt.
+- `generate_candidate.py` renders `release.yaml`, `build.yaml`, `analyses.tsv`
+  and `validation.yaml` from that frozen inventory plus the recorded
+  resolution, and emits them into `<registry-root>/<store-id>/` (default
+  `stores/`) through the shared emitter (#248), which checks the bundle against
+  the Release Bundle contract and writes `summary.yaml`. A re-run replaces an
+  earlier candidate; a bundle that has been accepted is refused. Store Release
+  Build does not build a candidate until it is accepted (#247).
+
+```sh
+python3 -m manifest_generation.providers.ukb_b.inventory reconcile \
+  --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b \
+  --built-baseline stores/OGS-00009/analyses.tsv
+
+python3 -m manifest_generation.providers.ukb_b.inventory freeze \
+  --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b \
+  --snapshot-id ukb-b-restored-2026-10-11 \
+  --upstream-batch-evidence resources/inventories/ukb-b-restored-2026-10-11.upstream-batches.json
+
+python3 -m manifest_generation.providers.ukb_b.generate_candidate OGS-00017
+```
+
+The intended membership is anchored to the upstream batch count from the
+unsecured `GET https://api.opengwas.io/api/batches`, saved as evidence beside
+the inventory. Live `POST /api/gwasinfo` resolution needs a valid `OPENGWAS_JWT`;
+when it is unavailable the emitter consumes the recorded resolution output
+(snapshot `opengwas-api-r2026-08-10`) and says so in `validation.yaml`.
