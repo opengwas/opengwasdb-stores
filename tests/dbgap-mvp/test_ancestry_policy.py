@@ -162,6 +162,17 @@ class MultiAncestrySelectionTests(PolicyTestCase):
                 self.assertEqual(outcome.ancestry_assignment_method, "unassigned")
                 self.assertIs(findings["assigned_ancestry"].result, Result.NOT_APPLICABLE)
 
+    def test_a_multi_ancestry_selection_never_emits_ancestry_on_an_exclusion(self) -> None:
+        """The EAF-orientation exclusion is kept, but its emitted ancestry is blanked too."""
+        config = self.configuration(selection_superpopulation="multi-ancestry")
+        record = _record("GCST1", assigned="EUR")
+        record["ancestry"]["eaf_orientation"] = "failed"
+        outcome, findings = self.decide(config, record)
+        self.assertFalse(outcome.included)
+        self.assertEqual(outcome.exclusion_reason, "orientation_failure")
+        self.assertEqual(outcome.assigned_ancestry, "")
+        self.assertEqual(outcome.ancestry_assignment_method, "unassigned")
+
     def test_a_multi_ancestry_selection_is_the_shipped_meta_config(self) -> None:
         config = load_candidate_configuration(GENERATORS / "release-meta.yaml", REPO_ROOT)
         self.assertEqual(config.target_ancestry, "multi-ancestry")
@@ -222,6 +233,18 @@ class PolicyGrammarTests(PolicyTestCase):
                 else:
                     with self.assertRaisesRegex(ReleaseConfigError, "multi-ancestry"):
                         load_release_config(path, REPO_ROOT)
+
+    def test_the_keep_opt_in_is_refused_under_multi_ancestry(self) -> None:
+        """A Selection that never assigns ancestry has nothing to keep."""
+        document = copy.deepcopy(self.document)
+        document["release_policy"]["selection_superpopulation"] = "multi-ancestry"
+        document["release_policy"]["keep_unassigned_ancestry_as_warning"] = True
+        path = self.root / "multi-ancestry-opt-in.yaml"
+        path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+        with self.assertRaisesRegex(
+            ReleaseConfigError, "keep_unassigned_ancestry_as_warning.*nothing to keep"
+        ):
+            load_release_config(path, REPO_ROOT)
 
     def test_the_keep_opt_in_is_a_boolean(self) -> None:
         document = copy.deepcopy(self.document)

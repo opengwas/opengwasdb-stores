@@ -2317,16 +2317,20 @@ def _decide(
     # failure and never a refusal here.
 
     assigned = str(record_section(record, "ancestry").get("assigned_ancestry") or "").strip()
+    # A multi-ancestry Selection never emits an Assigned Ancestry (#290), on an
+    # excluded row as much as an included one: the fit it measured stays in the
+    # sidecar, and the audit row carries no assignment.
+    multi_ancestry = config.target_ancestry == quality_checks.MULTI_ANCESTRY_SELECTION
+    carried = "" if multi_ancestry else assigned
 
     # Slot ANCESTRY_READ: EAF orientation. The audit row keeps the value read.
     failed = quality_checks.first_exclusion(findings, Stage.ANCESTRY_READ)
     if failed is not None:
-        return excluded_by(failed, assigned=assigned)
+        return excluded_by(failed, assigned=carried)
 
     # Slot SELECTION: the Assigned Ancestry check (ADR 0036). An assignment that
     # is a super-population code is carried as af_assigned, even when it is
     # not the Selection's.
-    multi_ancestry = config.target_ancestry == quality_checks.MULTI_ANCESTRY_SELECTION
     failed = quality_checks.first_exclusion(findings, Stage.SELECTION)
     if failed is not None:
         if assigned in SUPERPOPULATIONS and not multi_ancestry:
