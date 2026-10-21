@@ -1,6 +1,6 @@
 # Reference completion replaces its Store under the same id
 
-Status: proposed
+Status: accepted
 
 Supersedes [0007](0007-reference-completion-as-release-lineage.md).
 
