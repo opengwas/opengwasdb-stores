@@ -439,9 +439,10 @@ def stage_render(
         outcomes=outcomes,
         config=pipeline.config,
         index_summary=index,
-        # A region-filtered release carries its filtering's plan and counts (#300).
+        # A region-filtered release carries its filtering's plan and counts (#300),
+        # and only from files filtered to its own region policy (#282 review).
         acquisition_evidence=acquisition_evidence(
-            pipeline.config.base.inventory_provenance_path, [row.analysis_id for row in rows if row.ready]
+            pipeline.config.base, [row.analysis_id for row in rows if row.ready]
         ),
     )
     print(

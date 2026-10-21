@@ -923,7 +923,7 @@ def preflight(
     metadata_gate_failed: list[str] = []
     metadata_build_undeclared: list[str] = []
     no_metadata_sidecar: list[str] = []
-    frozen_table, _frozen_manifest = _frozen_connectors(provenance_path, failures)
+    frozen_table, frozen_manifest = _frozen_connectors(provenance_path, failures)
     expected_builds = _declared_builds(frozen_table)
     gate_expected: set[str] = set()
     not_ready_with_present_file: list[str] = []
@@ -999,6 +999,10 @@ def preflight(
             f"{len(metadata_gate_failed)} ready Analysis metadata file(s) declare a "
             f"genome_assembly that is not {declared_build}: {', '.join(metadata_gate_failed[:10])}"
         )
+
+    # --- region-filtered acquisition ----------------------------------------
+    if frozen_manifest is not None:
+        failures.extend(_region_lineage_problems(provenance_path, config, frozen_table, frozen_manifest))
 
     # --- Reference Resources -------------------------------------------------
     declared = discover_reference_resources(repo_root)
@@ -1236,6 +1240,27 @@ def _frozen_connectors(provenance_path: Path, failures: list[str]) -> tuple[Any,
     except (FreezeError, OSError) as exc:
         failures.append(f"the frozen connectors cannot be read: {exc}")
         return None, None
+
+
+def _region_lineage_problems(provenance_path: Path, config: Any, table: Any, manifest: Any) -> list[str]:
+    """Why the frozen acquisition is not filtered to the release's region policy (#282 review).
+
+    ADR 0036 (clarified by #300) filters a release's files to its own policy, so
+    preflight refuses, before resolution, files filtered under another policy,
+    QC panel or target, a policy declared over unfiltered files, and region-filtered
+    files under a config that declares none
+    (``region_filtered_acquisition.region_lineage_problems``).
+    """
+    from manifest_generation.region_filtered_acquisition import (
+        frozen_evidence,
+        region_lineage_problems,
+    )
+
+    try:
+        evidence = frozen_evidence(provenance_path)
+    except InventoryError as exc:
+        return [f"acquisition's region-filtering evidence cannot be read: {exc}"]
+    return region_lineage_problems(config, table, manifest, evidence)
 
 
 def _declared_builds(table: Any) -> dict[str, str]:

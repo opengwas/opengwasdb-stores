@@ -83,6 +83,7 @@ from manifest_generation.resolution_area import (
 from manifest_generation.safe_write import atomic_write_bytes
 from manifest_generation.source_inventory import (
     INVENTORY_COLUMNS,
+    InventoryError,
     SourceInventoryRow,
     duplicate_content_groups,
 )
@@ -92,9 +93,8 @@ from manifest_generation.freeze import (
     OriginalMissingError,
     load_collection_intent,
     load_frozen_connectors,
-    load_provenance,
-    original_path,
 )
+from manifest_generation.region_filtered_acquisition import frozen_evidence, region_lineage_problems
 from manifest_generation.trait_ontology_mapping import (
     CanonicalTraitMappingTable,
     SourceTrait,
@@ -851,54 +851,42 @@ ACQUISITION_EVIDENCE_SIDECARS: Mapping[str, str] = {
 }
 
 
-def acquisition_evidence(provenance_path: Path, analysis_ids: Iterable[str]) -> dict[str, str]:
+def acquisition_evidence(config: ReleaseConfig, analysis_ids: Iterable[str]) -> dict[str, str]:
     """The Selection's rows of what acquisition recorded about its filtering, as sidecars (#300).
 
     A region-filtered acquisition records each file's plan and counts and
     checksums them in its run record (``evidence``), which freeze checksums
     into the provenance as the pass lineage. Each file's header and the rows
     of ``analysis_ids`` are carried verbatim, in file order, after both
-    checksums are checked. A file changed since, or a selected Analysis the
-    summary does not cover, is refused. No pass lineage, or one without
-    ``evidence``, carries nothing.
+    checksums are checked. A release with no region policy carries nothing.
+
+    Nothing is carried, and the candidate is refused, unless the frozen
+    acquisition is filtered to this release config's region policy
+    (``region_filtered_acquisition.region_lineage_problems``, #282 review).
+    Preflight checks the same, and this checks it again however the stages
+    were run.
     """
+    provenance_path = config.inventory_provenance_path
     try:
-        lineage = load_provenance(provenance_path)["acquisition_manifest"]["original"]["pass_lineage"]
-    except (FreezeError, KeyError, TypeError) as exc:
-        raise CandidateError(f"{provenance_path} records no acquisition pass lineage: {exc}") from exc
-    if lineage is None:
-        return {}
-    run = yaml.safe_load(_verified(original_path(lineage["path"]), lineage["sha256"], provenance_path))
+        table, manifest = load_frozen_connectors(provenance_path)
+        evidence = frozen_evidence(provenance_path)
+    except InventoryError as exc:
+        raise CandidateError(
+            f"cannot check the frozen acquisition against the release's region policy: {exc}"
+        ) from exc
+    problems = region_lineage_problems(config, table, manifest, evidence)
+    if problems:
+        raise CandidateError(
+            "the frozen acquisition is not filtered to the release's region policy:\n  - "
+            + "\n  - ".join(problems)
+        )
     wanted = set(analysis_ids)
     carried: dict[str, str] = {}
     for name, sidecar in ACQUISITION_EVIDENCE_SIDECARS.items():
-        entry = ((run or {}).get("evidence") or {}).get(name)
-        if entry is None:
-            continue
-        lines = _verified(original_path(entry["path"]), entry["sha256"], provenance_path).splitlines(True)
-        kept = [line for line in lines[1:] if line.split("\t", 1)[0] in wanted]
-        if name == "filter_summary":
-            summarised = {line.split("\t", 1)[0] for line in kept}
-            missing = sorted(wanted - summarised)
-            if missing:
-                raise CandidateError(
-                    f"acquisition's filter summary {entry['path']} records no filtering of "
-                    f"{len(missing)} selected Analysis/Analyses: {', '.join(missing[:10])}"
-                )
-        carried[sidecar] = "".join(lines[:1] + kept)
+        if name in evidence:
+            lines = evidence[name][1].splitlines(True)
+            carried[sidecar] = "".join(lines[:1] + [line for line in lines[1:] if line.split("\t", 1)[0] in wanted])
     return carried
-
-
-def _verified(path: Path, sha256: str, provenance_path: Path) -> str:
-    """``path``'s text, refused unless it has the sha256 the frozen inventory bound."""
-    if not path.is_file():
-        raise CandidateError(f"{path}, which {provenance_path} binds, is not on this host")
-    actual = sha256_file(path)
-    if actual != sha256:
-        raise CandidateError(
-            f"{path} has sha256 {actual}, but {provenance_path} binds {sha256}: it changed after the freeze"
-        )
-    return path.read_text(encoding="utf-8")
 
 
 def trait_sources(metadata: Mapping[str, AnalysisMetadata]) -> list[SourceTrait]:

@@ -133,6 +133,12 @@ The policy is per release config.
 | `suggestive_lead_min_distance_bp` | Yes | How far apart, strictly more than, the suggestive leads kept on one chromosome are. |
 | `qc_panel_resource_id` | Yes | A declared `qc_panel` Reference Resource, whose positions every filtered file keeps so Analysis Resolution can measure ancestry and SD. Preflight requires it present. |
 
+The frozen acquisition must have been filtered to exactly this policy:
+preflight and rendering refuse a file whose lineage records another policy,
+another QC panel sha256 or another target span, a policy declared over
+unfiltered files, and region-filtered files under a config that declares no
+`region_policy` ([source connectors](source-connectors.md#region-filtered-acquisition)).
+
 ### Reference Resources
 
 `reference_resources` lists each resource the run uses: `resource_id`, `kind`
