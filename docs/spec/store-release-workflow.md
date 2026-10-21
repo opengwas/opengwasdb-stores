@@ -853,14 +853,14 @@ All layouts (Dense, Hybrid, Ragged SSF, and BESD) are unblocked on `opengwasdb@d
 
 ### The pinned current-format runtime (stores#218)
 
-Since stores#218 the active pin is the immutable core revision
-`4e922566d7fa4c13a11be3637069da63e48be28c` (core `dev`, opengwas/opengwasdb PR
-#276, repinned from the initial #218 pin `1be2a15` when core #254 merged). It
-carries the format-0.2.0 builders, the required Ragged/Overflow `by_variant/`
+Since stores#218 the active pin is an immutable core revision. [The release
+runtime](../runtime.md) records which one, with its full identity, how it was
+coordinated and what upgrading it does not do; this specification does not
+repeat the revision, so a repin cannot leave it stale. The active pin carries
+the format-0.2.0 builders, the required Ragged/Overflow `by_variant/`
 index, Indexed Variant Subset support, the shared HM3 benchmark seam and the
 bounded Dense-validation memory work. `pixi.lock` resolves it with Python 3.12,
-`zarr>=3.4,<4` and `numcodecs>=0.17`; [the release runtime](../runtime.md)
-records the full identity and what upgrading it does not do.
+`zarr>=3.4,<4` and `numcodecs>=0.17`.
 
 Two consequences are contract, not incidental:
 
