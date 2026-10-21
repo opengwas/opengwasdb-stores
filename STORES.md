@@ -23,8 +23,8 @@ Generated master list of Store Releases in this registry.
 | `OGS-00015` | mvp-phs002453-eas | false | dense | observed_only | accepted | - | 241 | 0 | - | - | not_run |
 | `OGS-00016` | mvp-phs002453-meta-observed-only | false | dense | observed_only | accepted | - | 1,691 | 0 | - | - | not_run |
 | `OGS-00017` | r13-full | false | dense | observed_only | accepted | - | 2,754 | 0 | - | - | passed |
-| `OGS-00022` | eur-hybrid-pilot-10-completed | false | hybrid | reference_completed | validated | - | 9 | 1 | - | - | passed |
-| `OGS-00023` | eur-hybrid-quant-pilot-10-completed | false | hybrid | reference_completed | validated | - | 10 | 0 | - | - | passed |
+| `OGS-00022` | eur-hybrid-pilot-10-completed | true | hybrid | reference_completed | validated | - | 9 | 1 | - | - | passed |
+| `OGS-00023` | eur-hybrid-quant-pilot-10-completed | true | hybrid | reference_completed | validated | - | 10 | 0 | - | - | passed |
 | `OGS-00024` | 2023-chen-full-african | false | ragged | observed_only | built | - | 1,034 | 0 | - | - | passed_with_warnings |
 | `OGS-00025` | 2023-chen-full-east-asian | false | ragged | observed_only | built | - | 1,038 | 0 | - | - | passed |
 | `OGS-00026` | 2023-chen-full-south-asian | false | ragged | observed_only | built | - | 971 | 0 | - | - | passed_with_warnings |
