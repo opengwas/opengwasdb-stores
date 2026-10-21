@@ -26,7 +26,10 @@ from unittest import mock
 import yaml
 
 from manifest_generation.acquisition_manifest import AcquisitionManifestError
+from manifest_generation import REPO_ROOT
 from manifest_generation.freeze import (
+    original_path,
+    recorded_path,
     FreezeError,
     ReconciliationError,
     freeze,
@@ -294,6 +297,26 @@ class FreezeSuccessTest(FreezeFixture):
             first[1].read_text(encoding="utf-8").replace("/first/", "/second/"),
             second[1].read_text(encoding="utf-8"),
         )
+
+
+class RecordedOriginalPathTest(unittest.TestCase):
+    """A connector original committed in the checkout is recorded relative to it (#300).
+
+    A frozen snapshot is committed, so its provenance must name the same
+    original in every checkout: an absolute path into one checkout would name
+    a file another checkout does not have. An original elsewhere -- a read-only
+    directory on /data -- keeps its absolute path.
+    """
+
+    def test_an_original_in_the_checkout_is_recorded_relative_to_it(self) -> None:
+        inside = REPO_ROOT / "resources/generators/gwas-catalog-ragged/connectors/sun-2018.source-metadata.tsv"
+        self.assertEqual(
+            recorded_path(inside), "resources/generators/gwas-catalog-ragged/connectors/sun-2018.source-metadata.tsv"
+        )
+        self.assertEqual(original_path(recorded_path(inside)), inside)
+        outside = Path("/data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-20/x.tsv")
+        self.assertEqual(recorded_path(outside), str(outside))
+        self.assertEqual(original_path(str(outside)), outside)
 
 
 class FreezeFailureTest(FreezeFixture):

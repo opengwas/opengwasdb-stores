@@ -87,7 +87,7 @@ from manifest_generation.source_inventory import (
 )
 from manifest_generation.release_config import ReleaseConfig, load_release_config
 from manifest_generation.connector_tsv import FreezeError
-from manifest_generation.freeze import load_frozen_connectors
+from manifest_generation.freeze import load_frozen_connectors, original_path
 from manifest_generation.trait_ontology_mapping import (
     CanonicalTraitMappingTable,
     SourceTrait,
@@ -170,6 +170,36 @@ ANALYSES_COLUMNS: tuple[str, ...] = (
     "maf_threshold",
     "inclusion_reason",
     "exclude_from_build",
+)
+
+#: The target annotation columns (#300): the target span as cis coordinates
+#: and how the target was resolved. A release with no targeted Analysis omits
+#: them entirely (docs/release-metadata-schema.md); in one that has some, an
+#: Analysis with no target leaves them blank.
+TARGET_ANALYSES_COLUMNS: tuple[str, ...] = (
+    "trait_chr", "trait_bp", "mhc", "target_resolution_method", "n_target_rows",
+)
+#: The measured tissue and assay context, rendered when any Analysis has one.
+CONTEXT_ANALYSES_COLUMNS: tuple[str, ...] = ("tissue", "context")
+#: Where those columns go after ``ANALYSES_COLUMNS``, when present: OGS-00007's order.
+OPTIONAL_ANALYSES_COLUMNS: tuple[str, ...] = (
+    "trait_chr", "trait_bp", "tissue", "context", "mhc", "target_resolution_method", "n_target_rows",
+)
+
+#: ``sidecars/analysis_targets.tsv`` (#300): every targeted Analysis's target
+#: annotation from the Source Metadata Table. Absent when no Analysis has one.
+ANALYSIS_TARGETS_COLUMNS: tuple[str, ...] = (
+    "analysis_id",
+    "target_assay_id",
+    "target_symbol",
+    "target_ensembl_gene_id",
+    "target_chromosome",
+    "target_start",
+    "target_end",
+    "target_mhc",
+    "target_is_aggregate",
+    "target_resolution_method",
+    "target_rows",
 )
 
 #: ``sidecars/source_readiness.tsv``: the frozen inventory's 14 columns plus the
@@ -713,6 +743,20 @@ class AnalysisMetadata:
     consortium: str = ""
     license: str = ""
     source_genome_build: str = ""
+    #: The target annotation (``ANALYSIS_TARGETS_COLUMNS`` but ``analysis_id``),
+    #: blank for an Analysis with no molecular target (#300).
+    target_assay_id: str = ""
+    target_symbol: str = ""
+    target_ensembl_gene_id: str = ""
+    target_chromosome: str = ""
+    target_start: str = ""
+    target_end: str = ""
+    target_mhc: str = ""
+    target_is_aggregate: str = ""
+    target_resolution_method: str = ""
+    target_rows: str = ""
+    tissue: str = ""
+    context: str = ""
     #: The Store's Analysis id, when the table declares one (``analysis_id``,
     #: #288). Blank means the pipeline's default, ``analysis_id`` above: a Source
     #: Collection whose ids are namespaced, or otherwise not its source's, says
@@ -722,6 +766,17 @@ class AnalysisMetadata:
     #: config's collection-wide default.
     analysis_group_id: str = ""
     trait_ontology: TraitOntologyMapping | None = None
+
+    @property
+    def targeted(self) -> bool:
+        return any(getattr(self, column) for column in ANALYSIS_TARGETS_COLUMNS[1:])
+
+    @property
+    def analysis_label(self) -> str:
+        """The Analysis Label: the target gene's symbol, the assay for an aggregate (#141)."""
+        if self.target_is_aggregate == "true":
+            return self.target_assay_id
+        return self.target_symbol or self.source_label
 
 
 def read_analysis_metadata(
@@ -770,8 +825,70 @@ def read_analysis_metadata(
             consortium=row.get("consortium", ""),
             license=row.get("license", ""),
             source_genome_build=row.get("source_genome_build", ""),
+            tissue=row.get("tissue", ""),
+            context=row.get("context", ""),
+            **{column: row.get(column, "") for column in ANALYSIS_TARGETS_COLUMNS[1:]},
         )
     return found
+
+
+#: Acquisition's evidence a bundle carries (#300): the run record's
+#: ``evidence`` key -> the sidecar it becomes.
+ACQUISITION_EVIDENCE_SIDECARS: Mapping[str, str] = {
+    "filter_summary": "filter_summary.tsv",
+    "sparse_regions": "sparse_regions.tsv",
+}
+
+
+def acquisition_evidence(provenance_path: Path, analysis_ids: Iterable[str]) -> dict[str, str]:
+    """The Selection's rows of what acquisition recorded about its filtering, as sidecars (#300).
+
+    A region-filtered acquisition records each file's plan and counts and
+    checksums them in its run record (``evidence``), which freeze checksums
+    into the provenance as the pass lineage. Each file's header and the rows
+    of ``analysis_ids`` are carried verbatim, in file order, after both
+    checksums are checked. A file changed since, or a selected Analysis the
+    summary does not cover, is refused. No pass lineage, or one without
+    ``evidence``, carries nothing.
+    """
+    try:
+        document = yaml.safe_load(Path(provenance_path).read_text(encoding="utf-8"))
+        lineage = document["acquisition_manifest"]["original"]["pass_lineage"]
+    except (OSError, KeyError, TypeError) as exc:
+        raise CandidateError(f"{provenance_path} records no acquisition pass lineage: {exc}") from exc
+    if lineage is None:
+        return {}
+    run = yaml.safe_load(_verified(original_path(lineage["path"]), lineage["sha256"], provenance_path))
+    wanted = set(analysis_ids)
+    carried: dict[str, str] = {}
+    for name, sidecar in ACQUISITION_EVIDENCE_SIDECARS.items():
+        entry = ((run or {}).get("evidence") or {}).get(name)
+        if entry is None:
+            continue
+        lines = _verified(original_path(entry["path"]), entry["sha256"], provenance_path).splitlines(True)
+        kept = [line for line in lines[1:] if line.split("\t", 1)[0] in wanted]
+        if name == "filter_summary":
+            summarised = {line.split("\t", 1)[0] for line in kept}
+            missing = sorted(wanted - summarised)
+            if missing:
+                raise CandidateError(
+                    f"acquisition's filter summary {entry['path']} records no filtering of "
+                    f"{len(missing)} selected Analysis/Analyses: {', '.join(missing[:10])}"
+                )
+        carried[sidecar] = "".join(lines[:1] + kept)
+    return carried
+
+
+def _verified(path: Path, sha256: str, provenance_path: Path) -> str:
+    """``path``'s text, refused unless it has the sha256 the frozen inventory bound."""
+    if not path.is_file():
+        raise CandidateError(f"{path}, which {provenance_path} binds, is not on this host")
+    actual = sha256_file(path)
+    if actual != sha256:
+        raise CandidateError(
+            f"{path} has sha256 {actual}, but {provenance_path} binds {sha256}: it changed after the freeze"
+        )
+    return path.read_text(encoding="utf-8")
 
 
 def trait_sources(metadata: Mapping[str, AnalysisMetadata]) -> list[SourceTrait]:
@@ -830,7 +947,7 @@ def collection_analysis_ids(provenance_path: Path) -> frozenset[str] | None:
     try:
         document = yaml.safe_load(Path(provenance_path).read_text(encoding="utf-8"))
         original = document["source_metadata_table"]["original"]
-        path, expected = Path(original["path"]), original["sha256"]
+        path, expected = original_path(original["path"]), original["sha256"]
     except (OSError, KeyError, TypeError) as exc:
         raise CandidateError(
             f"{provenance_path} records no original Source Metadata Table: {exc}"
@@ -1174,6 +1291,19 @@ class ResolverRun:
     log_path: Path
 
 
+#: Numerical libraries' thread pools. The resolver parallelises by worker
+#: processes, so each worker gets one thread unless the operator set otherwise:
+#: unlimited, 32 workers on the 224-core host ran ~190 threads each (#300).
+RESOLVER_THREAD_VARIABLES: tuple[str, ...] = (
+    "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS",
+)
+
+
+def resolver_environment(environ: Mapping[str, str] = os.environ) -> dict[str, str]:
+    """The resolver subprocess's environment: ``environ``, one thread per worker by default."""
+    return {**{name: "1" for name in RESOLVER_THREAD_VARIABLES}, **environ}
+
+
 def run_resolver(
     argv: Sequence[str], *, cwd: Path, log_path: Path, pass_fds: Sequence[int] = ()
 ) -> ResolverRun:
@@ -1184,7 +1314,8 @@ def run_resolver(
     resolver's declared contract. The raw output goes straight to the log, so
     a failure is auditable without re-running it, and the resolver never
     writes into a pipe that dies with this process. ``pass_fds`` hands it
-    descriptors to hold, such as the Resolution Area's lock.
+    descriptors to hold, such as the Resolution Area's lock. It runs with
+    :func:`resolver_environment`.
     """
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("w", encoding="utf-8") as log:
@@ -1194,6 +1325,7 @@ def run_resolver(
             stdout=log,
             stderr=subprocess.STDOUT,
             pass_fds=tuple(pass_fds),
+            env=resolver_environment(),
             check=False,
         )
     return ResolverRun(argv=list(argv), returncode=completed.returncode, log_path=log_path)
@@ -2251,6 +2383,13 @@ def _decide(
             original_sd="",
             sd_method="binary_trait",
         )
+    # A scale the method tier declares has no SD to estimate (#300): included
+    # on the tier's method with original_sd blank, as OGS-00007 carries it.
+    if any(
+        finding.name == "phenotype_sd" and finding.result is quality_checks.Result.NOT_APPLICABLE
+        for finding in findings
+    ):
+        return make(included=True, assigned=assigned, method=method, original_sd="")
     # The phenotype_sd check passed, so this is a positive finite estimate.
     estimate = record_section(record_section(record, "phenotype_sd"), "estimate")
     return make(
@@ -2305,6 +2444,10 @@ class CandidateTables:
     warnings: tuple[str, ...]
     #: ``sidecars/quality_checks.tsv``: one row per selected Analysis (#285).
     quality_checks_tsv: str = ""
+    #: ``sidecars/analysis_targets.tsv`` (#300), or empty when no Analysis has a target.
+    analysis_targets_tsv: str = ""
+    #: Acquisition's evidence (:func:`acquisition_evidence`): sidecar name -> text.
+    acquisition_evidence: Mapping[str, str] = field(default_factory=dict)
     #: Each applied Quality Check's summary, keyed by name (#285).
     quality_checks: Mapping[str, CheckSummary] = field(default_factory=dict)
 
@@ -2315,8 +2458,11 @@ def build_candidate_tables(
     outcomes: Sequence[AnalysisOutcome],
     config: CandidateConfiguration,
     index_summary: Mapping[str, Any],
+    acquisition_evidence: Mapping[str, str] | None = None,
 ) -> CandidateTables:
     """Render every bundle table/sidecar in manifest order, deterministically.
+
+    ``acquisition_evidence`` is carried as it is (:func:`acquisition_evidence`).
 
     Nothing here depends on completion order or worker count: rows are indexed
     by the frozen inventory's order and every derived value is a pure function
@@ -2369,9 +2515,15 @@ def build_candidate_tables(
     warnings.extend(_store_composition_warnings(store_composition))
     quality_checks_tsv, quality_check_summary = _quality_check_tables(outcomes, config)
     warnings.extend(quality_checks.warning_lines(quality_check_summary))
+    targets = [
+        {"analysis_id": outcome.analysis_id}
+        | {column: getattr(outcome.metadata, column) for column in ANALYSIS_TARGETS_COLUMNS[1:]}
+        for outcome in outcomes
+        if outcome.metadata.targeted
+    ]
 
     return CandidateTables(
-        analyses_tsv=_render_tsv(ANALYSES_COLUMNS, analyses_rows),
+        analyses_tsv=_render_tsv(analyses_columns(outcomes, analyses_rows), analyses_rows),
         source_readiness_tsv=_render_tsv(SOURCE_READINESS_COLUMNS, readiness_rows),
         ancestry_tsv=_render_tsv(ANCESTRY_SIDECAR_COLUMNS, ancestry_rows),
         sd_estimation_tsv=_render_tsv(SD_ESTIMATION_SIDECAR_COLUMNS, sd_rows),
@@ -2390,7 +2542,21 @@ def build_candidate_tables(
         warnings=tuple(warnings),
         quality_checks_tsv=quality_checks_tsv,
         quality_checks=quality_check_summary,
+        analysis_targets_tsv=_render_tsv(ANALYSIS_TARGETS_COLUMNS, targets) if targets else "",
+        acquisition_evidence=dict(acquisition_evidence or {}),
     )
+
+
+def analyses_columns(
+    outcomes: Sequence[AnalysisOutcome], rows: Sequence[Mapping[str, str]]
+) -> tuple[str, ...]:
+    """``ANALYSES_COLUMNS``, and the optional columns this release has (#300)."""
+    present = set()
+    if any(outcome.metadata.targeted for outcome in outcomes):
+        present.update(TARGET_ANALYSES_COLUMNS)
+    if any(row[column] for row in rows for column in CONTEXT_ANALYSES_COLUMNS):
+        present.update(CONTEXT_ANALYSES_COLUMNS)
+    return ANALYSES_COLUMNS + tuple(column for column in OPTIONAL_ANALYSES_COLUMNS if column in present)
 
 
 def _quality_check_tables(
@@ -2683,7 +2849,7 @@ def _analyses_row(
         "analysis_id": outcome.store_analysis_id,
         "source_analysis_id": row.analysis_id,
         "source_label": resolved.source_label or row.trait,
-        "analysis_label": resolved.source_label or row.trait,
+        "analysis_label": resolved.analysis_label or row.trait,
         "trait_ontology_label": trait_ontology.trait_ontology_label,
         "trait_ontology_id": trait_ontology.trait_ontology_id,
         "trait_ontology_mapping_method": str(trait_ontology.method),
@@ -2726,6 +2892,13 @@ def _analyses_row(
         "maf_threshold": outcome.maf_threshold,
         "inclusion_reason": inclusion_reason,
         "exclude_from_build": exclude,
+        "trait_chr": resolved.target_chromosome,
+        "trait_bp": resolved.target_start,
+        "tissue": _or_default(resolved.tissue, config, "tissue"),
+        "context": _or_default(resolved.context, config, "context"),
+        "mhc": resolved.target_mhc,
+        "target_resolution_method": resolved.target_resolution_method,
+        "n_target_rows": resolved.target_rows,
     }
 
 
@@ -3136,7 +3309,9 @@ def render_validation_yaml(
             "exclusions": "sidecars/exclusions.tsv",
             "reference_overlap": "sidecars/reference_overlap.tsv",
             "quality_checks": "sidecars/quality_checks.tsv",
-        },
+        }
+        | ({"analysis_targets": "sidecars/analysis_targets.tsv"} if tables.analysis_targets_tsv else {})
+        | {name.removesuffix(".tsv"): f"sidecars/{name}" for name in sorted(tables.acquisition_evidence)},
         "warnings": list(tables.warnings),
         "errors": list(tables.reference_overlap_errors),
     }
@@ -3227,8 +3402,13 @@ def _int_or_empty(value: Any) -> str:
 
 
 __all__ = [
+    "ACQUISITION_EVIDENCE_SIDECARS",
+    "ANALYSIS_TARGETS_COLUMNS",
+    "acquisition_evidence",
     "ANCESTRY_SIDECAR_COLUMNS",
     "ANALYSES_COLUMNS",
+    "OPTIONAL_ANALYSES_COLUMNS",
+    "analyses_columns",
     "CANDIDATE_STATUS",
     "EFFECT_PLACEHOLDER_EXCLUSION_COLUMNS",
     "MAF_FILTER_EXEMPTION_COLUMNS",

@@ -22,9 +22,9 @@ Covered by `tests/emit-registry/run_tests.R`:
   - `summary.yaml` is written, and `validated_at` is the emit's time.
 - Emitting over a bundle that has been accepted is refused, and the bundle is
   untouched.
-- `gwas-ssf-hybrid`, `gwas-ssf-ragged` and `opengwas-gwas-vcf-dense` each
-  emit through `--mode=emit-registry`, record their own command, and take
-  their layout from their config. FinnGen's `emit-registry` is covered in
+- `opengwas-gwas-vcf-dense` emits through `--mode=emit-registry`, records its
+  own command, and takes its layout from its config (the R `gwas-ssf-ragged`
+  and `gwas-ssf-hybrid` generators retired with #300). FinnGen's `emit-registry` is covered in
   `tests/finngen-r13-pilot`; the BESD generator's in
   `tests/eqtlgen-besd-ragged/test_emit_registry.py`.
 

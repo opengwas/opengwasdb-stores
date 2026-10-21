@@ -356,17 +356,22 @@ membership decision and only at emit, so toggling it needs `--stage emit` and
 never a re-resolve. See
 [ADR 0033](adr/0033-shared-stores-admit-only-maf-filtered-analyses.md).
 
-Some generators add release-specific columns beyond this table, such as the
-`gwas-ssf-ragged` generator's single-gene-target columns (`trait_chr`,
-`trait_bp`, `n`, `mhc`, `target_resolution_method`, `n_target_rows`) for
-proteomics releases whose Analyses each have one resolvable encoding gene. A
-release with no such target (for example small-molecule metabolomics, issue
-#26) omits these columns entirely rather than filling them with placeholder or
-`NA` values — their absence is how a reviewer tells the two shapes apart. These
-columns remain release-specific with no shared-core equivalent.
+A release whose Analyses each measure one molecular target -- proteomics,
+such as Sun 2018's SomaScan pQTLs -- adds the target columns `trait_chr`,
+`trait_bp`, `mhc`, `target_resolution_method` and `n_target_rows`, rendered
+from the Source Metadata Table's target annotation (#300; the retired R
+`gwas-ssf-ragged` generator also wrote `n`). A release with no such target (for
+example small-molecule metabolomics, issue #26) omits these columns entirely
+rather than filling them with placeholder or `NA` values — their absence is how
+a reviewer tells the two shapes apart. `tissue` and `context` likewise appear
+only in a release that declares them. These columns remain release-specific
+with no shared-core equivalent.
 
-The target-resolution sidecar retains the source trait mapping and raw Ensembl
-fields as evidence; they are not duplicate Analysis columns.
+The target sidecar, `sidecars/analysis_targets.tsv`, lists each targeted
+Analysis's target annotation (assay, gene symbol and Ensembl id, span, MHC
+flag, whether the assay is an aggregate, how the target was resolved); it is
+evidence, not duplicate Analysis columns. Bundles emitted by the R generator
+carry its wider form, with the raw SomaScan and Ensembl fields.
 
 ### Accepted build rows
 
@@ -946,7 +951,17 @@ Store Release Build never reads it: membership is already decided in
 ### Sparse-region sidecar
 
 Suggested path: `sidecars/sparse_regions.tsv`. One row per retained region for
-ragged stores.
+ragged stores. A region-filtered release carries it from acquisition (#300):
+acquisition records each filtered file's plan beside its Acquisition Manifest
+(`manifest_generation.region_filtered_acquisition`), checksummed through the
+frozen inventory's provenance, and the candidate carries the Selection's rows
+verbatim, in acquisition's order, refusing a file changed since the freeze
+(`candidate_workflow.acquisition_evidence`). Regions are listed cis, then
+significant-trans ranges by chromosome (as text) and start, then suggestive
+leads and QC-panel chromosomes in file order; `region_id` is
+`<analysis_id>__<cis|sig_trans|suggestive|qc_panel>__<nnn>`, numbered per kind.
+A release acquired from the retired R generator's files carries that bundle's
+own file.
 
 | Field | Required | Description |
 |---|---:|---|
@@ -963,6 +978,28 @@ ragged stores.
 | `pvalue_threshold` | No | Threshold used to define signal-derived regions. |
 | `n_variants_retained` | No | Number of variants retained in the filtered source file for this region. |
 | `region_policy_id` | Yes | Named sparse-region policy declared in generator configuration. |
+
+### Filter-summary sidecar
+
+Suggested path: `sidecars/filter_summary.tsv`. One row per region-filtered
+source file, carried from acquisition as the sparse-region sidecar is (#300).
+A release acquired from the retired R generator's files carries that bundle's
+own file, whose further columns (`attempt`, `retry_count` and per-run timings)
+the shared filter does not write, so the same files give the same bytes.
+
+| Field | Required | Description |
+|---|---:|---|
+| `analysis_id` | Yes | Registry Analysis ID matching `analyses.tsv`. |
+| `status`, `error` | Yes | `ok` and blank for a filtered file. |
+| `source_url` | No | Where the original was fetched from. |
+| `downloaded_bytes` | No | The original's size. |
+| `input_rows` | Yes | Source rows with a position and a p-value. |
+| `retained_rows`, `retained_fraction` | Yes | Rows kept, and their fraction of `input_rows` to 6 decimal places. |
+| `cis_rows` | Yes | Rows kept in the cis window (0 for a signals-only policy). |
+| `significant_trans_regions`, `significant_trans_rows` | Yes | Merged significant-trans ranges and the rows kept in them. |
+| `suggestive_leads` | Yes | Suggestive leads kept. |
+| `qc_panel_rows` | Yes | Rows kept at QC-panel positions. |
+| `output_file`, `output_bytes`, `checksum_algorithm`, `checksum` | Yes | The filtered file, as the Acquisition Manifest records it. |
 
 ### General derivation sidecar
 
@@ -1358,7 +1395,14 @@ validation was never attempted.
 
 ### QC panel configuration
 
-A generator config's `filter.qc_panel` block configures unconditional retention
+The shared pipeline keeps the QC panel in every region-filtered file: a release
+config's `region_policy.qc_panel_resource_id` names it, and acquisition records
+the panel's identity in each file's lineage (#300,
+[release config](spec/release-config.md#region_policy)). The R generators'
+`filter.qc_panel` block, described below for the bundles they emitted, retired
+with them.
+
+A generator config's `filter.qc_panel` block configured unconditional retention
 of the fixed QC variant panel (issue #28/#29/#30) for one release. Unlike the
 signal-driven sparse regions (`cis`/`significant_trans`/`suggestive_trans`), the
 QC panel is retained regardless of an Analysis's `p_value` distribution, so
