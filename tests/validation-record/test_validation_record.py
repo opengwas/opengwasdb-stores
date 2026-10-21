@@ -42,6 +42,12 @@ This suite asserts the container migration:
      naming a variant reference, as OGS-00005's re-registration is, carries
      `variant_reference` legitimately. Any other extra key is not the register
      shape.
+  8. `observed.completion_state` is the completion state of the Store the
+     record's publication published, not the bundle's declaration (#307,
+     ADR 0037): `observed_only` for a single-id release's build phase,
+     `reference_completed` for its completion phase, and `reference_completed`
+     for a two-id child. The records committed before it was written do not
+     carry it and are not migrated.
 
 Run from the repository root:
     pixi run python tests/validation-record/test_validation_record.py
@@ -49,7 +55,9 @@ Run from the repository root:
 
 from __future__ import annotations
 
+import json
 import re
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -57,10 +65,13 @@ import yaml
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
+from ogstores import bundle as bundle_module
+from ogstores.plan import BUILD_PHASE, COMPLETION_PHASE, plan
 from ogstores.register import (
     BUILD_ENVIRONMENT_FIELDS,
     OBSERVED_FIELDS,
     VALIDATOR_NAME,
+    harvest_observed_measurements,
 )
 
 STORES: tuple[str, ...] = tuple(f"OGS-{i:05d}" for i in range(1, 8))
@@ -78,6 +89,17 @@ CONDITIONAL_OBSERVED_VALUES: dict[str, frozenset[object]] = {
     "variant_reference": frozenset({"provided", "extracted"}),
     "resumed": frozenset({True}),
 }
+
+# The observed key #307 added: the completion state of the Store the record's
+# publication published (ADR 0037). It is in `OBSERVED_FIELDS`, so `register`
+# writes it on every publication from #307 on, but the records committed before
+# it were written by a `register` that did not know it. They are not migrated:
+# the master list reports their bundle's declared state instead, so they keep
+# the values they recorded (issue #307).
+COMPLETION_STATE_FIELD = "completion_state"
+PUBLISHED_COMPLETION_STATES: frozenset[str] = frozenset(
+    {"observed_only", "reference_completed"}
+)
 
 # The adapter ADR 0023 deleted. A Validation Record must never name it.
 DELETED_ADAPTERS: tuple[str, ...] = ("build-store.py",)
@@ -171,12 +193,21 @@ class TestCommittedValidationRecords(unittest.TestCase):
                 f"{store_id}.build_environment must carry exactly the register keys",
             )
             observed = record["observed"]
+            # `completion_state` postdates these records; every other register
+            # key is present, with an absent measurement recorded as null.
             self.assertEqual(
-                set(OBSERVED_FIELDS) - set(observed),
+                set(OBSERVED_FIELDS) - set(observed) - {COMPLETION_STATE_FIELD},
                 set(),
                 f"{store_id}.observed must carry every register key, with absent "
                 "measurements recorded as null",
             )
+            if COMPLETION_STATE_FIELD in observed:
+                self.assertIn(
+                    observed[COMPLETION_STATE_FIELD],
+                    PUBLISHED_COMPLETION_STATES,
+                    f"{store_id}.observed.{COMPLETION_STATE_FIELD} is not a "
+                    "completion state a Store can be published in",
+                )
             extra = set(observed) - set(OBSERVED_FIELDS)
             self.assertEqual(
                 extra - set(CONDITIONAL_OBSERVED_VALUES),
@@ -268,7 +299,8 @@ class TestCommittedValidationRecords(unittest.TestCase):
             record = self.load(store_id)
             observed = record["observed"]
             for field in OBSERVED_FIELDS:
-                if field == "validate_status":
+                if field == "validate_status" or field not in observed:
+                    # `completion_state` postdates these records (#307).
                     continue
                 self.assertIsNone(
                     observed[field],
@@ -301,6 +333,134 @@ class TestCommittedValidationRecords(unittest.TestCase):
                 ("not_run", "passed", "failed", "passed_with_warnings"),
                 f"{store_id}.status must be a documented verdict",
             )
+
+
+class TestPublishedCompletionState(unittest.TestCase):
+    """A record's `observed.completion_state` is the Store that was published (#307, ADR 0037).
+
+    Under single-id completion a bundle declares `reference_completed` while
+    its Observed-Only Store is what is published, so the declaration is not the
+    published state. `register` records the phase it publishes: the build
+    phase publishes the Observed-Only Store, the completion phase publishes the
+    completed one, and a two-id child's only phase publishes its completed
+    Store. The record says which; the master list reports it.
+    """
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.td = Path(self.temp_dir.name)
+        self.stores = self.td / "stores"
+        self.artifacts = self.td / "artifacts"
+        self.stores.mkdir()
+        self.artifacts.mkdir()
+
+    def make_bundle(
+        self,
+        store_id: str,
+        *,
+        completion_state: str = "observed_only",
+        derived_from: str | None = None,
+    ):
+        """A minimal Release Bundle on disk, with both blocks when it completes its own Store."""
+        store_dir = self.stores / store_id
+        store_dir.mkdir(parents=True)
+        release = {
+            "store_id": store_id,
+            "label": f"label-{store_id}",
+            "status": "candidate",
+            "derived_from": derived_from,
+            "created_at": "2026-08-18T08:51:59Z",
+            "description": "mock",
+            "source_snapshot_id": "mock-snapshot",
+            "generator": {"commands": ["generate.py"]},
+        }
+        build: dict = {
+            "store_id": store_id,
+            "layout": "dense",
+            "completion_state": completion_state,
+            "post": {"top_hits": False, "overview": True, "validate": True},
+        }
+        if completion_state == "reference_completed":
+            build["complete"] = {
+                "command": "complete-dense",
+                "options": {"ancestry": "EUR"},
+            }
+            if derived_from is None:
+                build["build"] = {
+                    "command": "build-dense-vcf",
+                    "options": {"source-assembly": "hg38"},
+                }
+        else:
+            build["build"] = {
+                "command": "build-dense-vcf",
+                "options": {"source-assembly": "hg38"},
+            }
+        (store_dir / "release.yaml").write_text(yaml.safe_dump(release), encoding="utf-8")
+        (store_dir / "build.yaml").write_text(yaml.safe_dump(build), encoding="utf-8")
+        (store_dir / "analyses.tsv").write_text(
+            "analysis_id\tsource_file\nana1\t/path/to/file1.vcf.gz\n", encoding="utf-8"
+        )
+        return bundle_module.load(store_id, registry_root=self.stores)
+
+    def records_for(self, store_id: str, steps: list) -> dict:
+        """The step records a register job reads: elapsed time, and validate's JSON verdict."""
+        records: dict[str, dict] = {}
+        for step in steps:
+            stdout = ""
+            if step.name in ("validate", "completion-validate"):
+                stdout = json.dumps({"errors": [], "ok": True, "warnings": []}) + "\n"
+            records[step.name] = {
+                "step": step.name,
+                "store_id": store_id,
+                "exit_code": 0,
+                "success": True,
+                "elapsed_seconds": 1.0,
+                "stdout": stdout,
+                "stderr": "",
+                "record_path": f"records/{step.name}.json",
+            }
+        return records
+
+    def observed_for(self, store_id: str, phase: str, **bundle_kwargs) -> dict:
+        b = self.make_bundle(store_id, **bundle_kwargs)
+        steps = plan(b, artifact_root=self.artifacts)
+        phase_steps = [s for s in steps if s.phase == phase]
+        self.assertTrue(phase_steps, f"{store_id} must have a {phase} phase")
+        return harvest_observed_measurements(
+            phase_steps, self.records_for(store_id, phase_steps), b
+        )
+
+    def test_a_single_id_build_phase_records_the_observed_only_store(self) -> None:
+        """The build phase publishes the Observed-Only Store, whatever the bundle declares."""
+        observed = self.observed_for(
+            "OGS-00081", BUILD_PHASE, completion_state="reference_completed"
+        )
+        self.assertEqual(observed[COMPLETION_STATE_FIELD], "observed_only")
+
+    def test_a_single_id_completion_phase_records_the_completed_store(self) -> None:
+        """The completion phase replaces it with the reference-completed Store."""
+        observed = self.observed_for(
+            "OGS-00082", COMPLETION_PHASE, completion_state="reference_completed"
+        )
+        self.assertEqual(observed[COMPLETION_STATE_FIELD], "reference_completed")
+
+    def test_a_two_id_child_records_the_completed_store(self) -> None:
+        """A two-id child's one phase publishes a completed Store (ADR 0007)."""
+        parent = self.make_bundle("OGS-00083")
+        self.assertIsNotNone(parent)
+        observed = self.observed_for(
+            "OGS-00084",
+            BUILD_PHASE,
+            completion_state="reference_completed",
+            derived_from="OGS-00083",
+        )
+        self.assertEqual(observed[COMPLETION_STATE_FIELD], "reference_completed")
+
+    def test_an_observed_only_release_records_the_store_it_publishes(self) -> None:
+        observed = self.observed_for("OGS-00085", BUILD_PHASE)
+        self.assertEqual(observed[COMPLETION_STATE_FIELD], "observed_only")
+        self.assertIn(COMPLETION_STATE_FIELD, OBSERVED_FIELDS)
 
 
 if __name__ == "__main__":
