@@ -142,7 +142,7 @@ SUITE_COST: dict[str, float] = {
     "opengwas-gwas-vcf-dense": 2.5,
     "finngen-r13-pilot": 2.5,
     "ld-panel-eigendecomposition": 2.0,
-    "dbgap-mvp/test-end-to-end": 3.0,
+    "dbgap-mvp/end-to-end": 3.0,
 }
 
 THREAD_ENV: dict[str, str] = {
