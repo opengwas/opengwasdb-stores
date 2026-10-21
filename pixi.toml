@@ -279,7 +279,7 @@ snakemake-minimal = ">=9,<10"
 #
 # This feature is deliberately kept out of the `main` solve group so retrieval
 # and model-client dependencies can never change what a Manifest Generator or a
-# build resolves. The lexical candidate generation in `curation/` is pure
+# build resolves. The lexical candidate generation in `src/curation/` is pure
 # Python standard library and needs none of these; they seed the isolated
 # environment for the stages that follow:
 #   - rapidfuzz: fuzzy lexical scoring available to retrieval as its channels
@@ -352,17 +352,17 @@ preflight = { cmd = "python3 -m manifest_generation.inventory preflight" }
 concordance-sample = { cmd = "python3 -m manifest_generation.sample_concordance" }
 
 [feature.dev.tasks]
-test = { cmd = "python3 resources/scripts/run_all_tests.py" }
-test-python = { cmd = "python3 resources/scripts/run_all_tests.py --only python" }
-test-r = { cmd = "python3 resources/scripts/run_all_tests.py --only r" }
+test = { cmd = "python3 tests/run_all_tests.py" }
+test-python = { cmd = "python3 tests/run_all_tests.py --only python" }
+test-r = { cmd = "python3 tests/run_all_tests.py --only r" }
 concordance-run = { cmd = "python3 -m manifest_generation.run_concordance_study" }
-bundle-check = { cmd = "python3 resources/scripts/check_bundles.py" }
-audit-indexed-subsets = { cmd = "python3 resources/scripts/audit_indexed_subsets.py" }
-env-check = { cmd = "python3 resources/scripts/env_check.py" }
+bundle-check = { cmd = "python3 -m manifest_generation.check_bundles" }
+audit-indexed-subsets = { cmd = "python3 -m ogstores.audit_indexed_subsets" }
+env-check = { cmd = "python3 tools/env_check.py" }
 index-ci = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
 [feature.r.tasks]
-materialise-gwas-ssf-ragged = { cmd = "Rscript resources/scripts/materialise-gwas-ssf-ragged.R" }
+materialise-gwas-ssf-ragged = { cmd = "Rscript src/manifest_generation/providers/gwas_catalog/materialise-gwas-ssf-ragged.R" }
 
 [feature.workflow.tasks]
 # Phase A. `release` takes one or more Store Release ids; lineage order is
@@ -387,18 +387,18 @@ release-dry = { cmd = "python3 workflow/release.py --dry-run" }
 index = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
 [feature.reporting.tasks]
-docs = { cmd = "bash resources/scripts/build-site.sh" }
+docs = { cmd = "bash tools/build-site.sh" }
 # The full `docs` task needs raw GWAS Catalog source data that is not tracked
 # in this repository (resources/data/*.tsv, "download separately" per
 # .gitignore) to build ebi-studies.qmd/make-dashboard.r's inputs. docs-smoke
 # renders only beta-scale-estimation.qmd, which is fully self-contained (no
 # external data reads), so it is safe to run from a bare checkout — this is
 # what CI uses as its documentation smoke test.
-docs-smoke = { cmd = "quarto render resources/scripts/beta-scale-estimation.qmd --to html" }
+docs-smoke = { cmd = "quarto render docs/reports/beta-scale-estimation.qmd --to html" }
 
 [feature.ld-panel.tasks]
-ld-acquire = { cmd = "python3 resources/scripts/ld-panel/acquire_hgdp1kgp.py" }
-ld-materialize = { cmd = "python3 resources/scripts/ld-panel/materialize_reference.py" }
+ld-acquire = { cmd = "python3 tools/ld-panel/acquire_hgdp1kgp.py" }
+ld-materialize = { cmd = "python3 tools/ld-panel/materialize_reference.py" }
 
 [feature.curation.tasks]
 # Curation stages (issues #161/#164/#165). Run in the isolated curation

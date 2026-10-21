@@ -1008,7 +1008,7 @@ class DiscrepancyLedgerTests(unittest.TestCase):
     def test_committed_ledger_is_resolved_with_owner_citation(self) -> None:
         import yaml
 
-        ledger = REPO_ROOT / "resources/scripts/dbgap-phs002453-key-discrepancies.yaml"
+        ledger = REPO_ROOT / "resources/generators/dbgap-mvp/dbgap-phs002453-key-discrepancies.yaml"
         raw = yaml.safe_load(ledger.read_text(encoding="utf-8"))
         citation = "issues/220#issuecomment-6132878250"
         timestamp = "2026-10-12T21:24:22Z"

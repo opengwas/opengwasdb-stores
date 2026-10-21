@@ -90,7 +90,7 @@ so a collection that declares neither keeps the pipeline's defaults.
 ### The GWAS Catalog adapter
 
 `src/manifest_generation/providers/gwas_catalog/source_metadata_adapter.py`
-converts `resources/scripts/ebi-studies.r`'s candidate table, unchanged, and
+converts `src/manifest_generation/providers/gwas_catalog/ebi-studies.r`'s candidate table, unchanged, and
 loads the result back through the canonical loader; a table it refuses is
 removed.
 

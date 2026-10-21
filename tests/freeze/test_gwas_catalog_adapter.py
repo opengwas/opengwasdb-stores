@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The GWAS Catalog metadata adapter: candidate table -> Source Metadata Table (#283).
 
-`resources/scripts/ebi-studies.r` writes the GWAS Catalog candidate table
+`providers/gwas_catalog/ebi-studies.r` writes the GWAS Catalog candidate table
 (`STUDY.ACCESSION`, `DISEASE.TRAIT`, `MAPPED_TRAIT_URI`, ...). The adapter
 converts it, unchanged, into the canonical Source Metadata Table the shared
 freeze reads. The fixture is seven real rows of that table, chosen for their

@@ -1,7 +1,7 @@
 # HM3 release benchmark report tests (stores #212, epic #214)
 
 Executable proof that the release-side report
-(`resources/scripts/release-benchmark-report.py`) passes the core HM3 statuses
+(`tools/benchmarks/release-benchmark-report.py`) passes the core HM3 statuses
 through unchanged:
 
 1. a missing or partial `--opengwasdb-checkout` is refused with the missing
@@ -21,7 +21,7 @@ and fingerprint are recorded; the tracked runtime now provides the capability
 (stores#218):
 
 ```bash
-pixi run -e dev python <stores>/resources/scripts/release-benchmark-report.py \
+pixi run -e dev python <stores>/tools/benchmarks/release-benchmark-report.py \
   --opengwasdb-checkout /path/to/opengwasdb \
   --all --hm3-only \
   --output docs/benchmark-output/opengwasdb_hm3_release_benchmark.json \

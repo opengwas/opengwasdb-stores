@@ -38,7 +38,7 @@ pixi run python3 -m manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002
 # 2. bind each Analysis to its candidate-table row; writes mapping.tsv,
 #    mapping-report.tsv and the mapping-review.tsv trait queue, and exits
 #    non-zero unless the bijection is complete (the default
-#    --discrepancies ledger is resources/scripts/dbgap-phs002453-key-discrepancies.yaml)
+#    --discrepancies ledger is resources/generators/dbgap-mvp/dbgap-phs002453-key-discrepancies.yaml)
 pixi run python3 -m manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 map \
   --candidates resources/data/derived/store-candidates-analyses.tsv
 

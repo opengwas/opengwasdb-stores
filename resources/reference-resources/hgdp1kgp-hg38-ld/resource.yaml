@@ -23,8 +23,8 @@ source:
     SAS: 783
   variant_inclusion: MAC >= 50
   population_map: populations_to_superpop.tsv
-  acquisition: resources/scripts/ld-panel/acquire_hgdp1kgp.py
-  generator: resources/scripts/ld-panel/
+  acquisition: tools/ld-panel/acquire_hgdp1kgp.py
+  generator: tools/ld-panel/
 description: >
   Ancestry-specific LD Reference Panels for AFR, EAS and SAS, for reference
   completion of Analyses whose Assigned Ancestry matches. Natively GRCh38, so no

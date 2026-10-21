@@ -18,8 +18,8 @@ Covered by `test_generation_rules.py`:
 - An excluded audit row's requests are checked too: the shared schema reads
   only the rows that will be built, these rules read every row.
 - An unreadable `analyses.tsv` is an error, never an exception.
-- `check_bundles.py` reports a generation-rule failure and a contract failure
-  in one run over a registry.
+- `manifest_generation.check_bundles` (`pixi run bundle-check`) reports a
+  generation-rule failure and a contract failure in one run over a registry.
 
 ```sh
 pixi run test --suite generation-rules

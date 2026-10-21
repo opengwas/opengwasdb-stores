@@ -1135,7 +1135,7 @@ agnostic to which provider it is talking to.
 
 Three implementations exist:
 
-- `resources/generators/lib/metadata_resolvers/gwas_catalog_ssf.R`
+- `src/manifest_generation/providers/gwas_catalog/gwas_catalog_ssf.R`
   (`resolve_gwas_catalog_ssf_metadata()`) resolves GWAS Catalog's free-text
   "INITIAL SAMPLE SIZE" study field: a study whose parsed components include any
   `cases`/`controls` counts resolves as `case_control` with
@@ -1293,7 +1293,7 @@ external location, never inside this repository (ADR 0015). A `kind: variant_lis
 resource is the same shape for an Indexed Variant Subset build input: the
 `hapmap3-hg38` declaration records the canonical-ALID list's `row_count` and
 byte checksums, its LDSC source checksum and snapshot, and the rsID
-reconciliation, and `resources/reference-resources/hapmap3-hg38/verify_hm3_resource.py`
+reconciliation, and `tools/reference-resources/hapmap3-hg38/verify_hm3_resource.py`
 is the executable check of all of them.
 
 ### Indexed Variant Subset defaults

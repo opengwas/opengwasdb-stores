@@ -27,7 +27,7 @@ hashing, no separate SD re-scan of any source.
 | Candidate table | `resources/data/derived/store-candidates-analyses.tsv` (primary checkout) |
 | Core runtime | `opengwasdb` 0.3.0 @ `4e922566d7fa4c13a11be3637069da63e48be28c` (verified 218 env) |
 | Source assembly | GRCh38 (native; no liftover) |
-| Owner decisions | `resources/scripts/dbgap-phs002453-key-discrepancies.yaml` (D1/D2/traits; dbGaP authoritative) |
+| Owner decisions | `resources/generators/dbgap-mvp/dbgap-phs002453-key-discrepancies.yaml` (D1/D2/traits; dbGaP authoritative) |
 
 **State is tracked definitions only.** There is **no real emitted candidate
 Release Bundle**: `resources/generators/dbgap-mvp/candidates.yaml` is a tracked

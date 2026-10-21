@@ -80,7 +80,7 @@ built from all 3,202 would include 698 non-independent individuals.
 ### 2.3 gnomAD v3.1.2 HGDP + 1kGP subset (cached candidate)
 
 The registry already acquires this joint GRCh38 genome-wide callset
-([`acquire_hgdp1kgp.py`](../resources/scripts/ld-panel/acquire_hgdp1kgp.py),
+([`acquire_hgdp1kgp.py`](../tools/ld-panel/acquire_hgdp1kgp.py),
 gnomAD v3.1.2). The primary description of the subset's sample QC and
 relatedness handling is **Koenig et al. 2024**, *Genome Research* 34(5):796–809
 (DOI 10.1101/gr.278378.123; PMID 38749656; PMC11216312). Their pipeline reduces

@@ -35,8 +35,8 @@ it here.
 Regenerate from the repository root with:
 
 ```sh
-pixi run Rscript resources/generators/somascan/generate-somascan-targets.R
-pixi run Rscript resources/generators/somascan/generate-somascan-analysis-targets.R \
+pixi run Rscript tools/reference-resources/somascan/generate-somascan-targets.R
+pixi run Rscript tools/reference-resources/somascan/generate-somascan-analysis-targets.R \
   --pubmed-id=29875488 \
   --output=resources/reference-resources/somascan/sun-2018-analysis-targets.tsv
 ```

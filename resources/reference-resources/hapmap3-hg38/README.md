@@ -77,7 +77,7 @@ reconciliation counts must be recorded together.
 ## Verify a local copy
 
 ```sh
-pixi run python resources/reference-resources/hapmap3-hg38/verify_hm3_resource.py
+pixi run python tools/reference-resources/hapmap3-hg38/verify_hm3_resource.py
 ```
 
 The verifier refuses loudly — naming the path and line number — when the list is

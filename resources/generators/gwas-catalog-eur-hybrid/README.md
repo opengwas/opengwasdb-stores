@@ -24,7 +24,7 @@ The Source Collection plugs in through two connector files
 ([source connectors](../../../docs/spec/source-connectors.md)):
 
 ```sh
-# The Source Metadata Table, from resources/scripts/ebi-studies.r's candidate table:
+# The Source Metadata Table, from providers/gwas_catalog/ebi-studies.r's candidate table:
 pixi run python3 -m manifest_generation.providers.gwas_catalog.source_metadata_adapter \
   --candidates resources/data/derived/store-candidates-analyses.tsv \
   --out <dir>/gwas-catalog-ssf.source-metadata.tsv

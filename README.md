@@ -43,7 +43,7 @@ Source Collection
 ```
 
 Two workflows, meeting at the accepted Release Bundle and sharing no DAG.
-Phase A is specified in
+Store Release Build is specified in
 [`docs/spec/store-release-workflow.md`](docs/spec/store-release-workflow.md).
 Manifest Generation is the `manifest_generation` package under
 `src/manifest_generation/` (#249): the shared candidate workflow and emitter at
@@ -70,29 +70,40 @@ layer here.
 ## Repository Layout
 
 ```text
-stores/<store-id>/       accepted Release Bundles plus generated summary.yaml
+stores/<store-id>/       Release Bundles plus generated summary.yaml
 stores.tsv  STORES.md    generated master list and human view
-workflow/                Snakefile (Phase A), generate.smk (Phase B)
-src/ogstores/            Store Release Build: bundle.py  plan.py  paths.py  run.py  index.py
-src/manifest_generation/ Manifest Generation: candidate workflow, emitter, inventory
-  providers/               per-Source-Provider connectors (gwas_catalog, ukb_b,
-                           dbgap, finngen, eqtlgen, opengwas)
-resources/
+src/                     all importable Python
+  ogstores/                Store Release Build and the Release Bundle contract;
+                           the readiness and indexed-subset audit CLIs
+  manifest_generation/     Manifest Generation: the shared pipeline, the emitter,
+                           the bundle-check CLI
+    providers/               per-Source-Provider connectors (gwas_catalog, ukb_b,
+                             dbgap, finngen, eqtlgen, opengwas), in any language
+  curation/                Canonical Trait Mapping Table curation
+workflow/                Snakemake wiring: Snakefile and release.py (Store Release
+                         Build), generate.smk (Manifest Generation)
+resources/               inputs only
   reference-resources/     LD panels, reference AF, trait mappings, QC panels
   annotations/             curated metadata that evolves after release
   inventories/             frozen Source Inventories
-  generators/              Manifest Generation inputs: per-generator configs, reviewed TSVs,
-                           generation receipts; legacy R generators
-  scripts/                 toolchains and repository tooling
-docs/adr/  docs/spec/    decisions and specifications
+  generators/              release configs, reviewed tables, generation receipts;
+                           the legacy R generators until stage 2 of epic #282
+tools/                   repository tooling: ld-panel/, benchmarks/,
+                         reference-resources/, the env check, the site build, spikes
+tests/                   the suites, and run_all_tests.py behind `pixi run test`
+docs/                    adr/ decisions, spec/ specifications, reports/ report
+                         sources, and the rendered site
+.github/workflows/       CI: the suites, bundle-check, the index and the docs smoke test
 CONTEXT.md               project language
 ```
 
-The organising split is output versus input: `stores/` is what this repository
-produces, `workflow/` and `src/` are the machinery (Store Release Build in
-`src/ogstores`, Manifest Generation in `src/manifest_generation`, which meet
-only at the Release Bundle), and `resources/` holds the inputs and the things
-that make inputs. `CONTRIBUTING.md` documents each one.
+Each kind of thing has one home (ADR 0038). `stores/` is what this repository
+produces. `src/` holds all its importable code: Store Release Build
+(`src/ogstores`) and Manifest Generation (`src/manifest_generation`) meet only
+at the Release Bundle. `workflow/` wires them, `resources/` holds only their
+inputs, and `tools/` holds the tooling that is neither.
+`tests/packaging/test_layout.py` keeps it that way, and `CONTRIBUTING.md`
+documents each directory.
 
 ## Store Release identity
 
@@ -168,9 +179,7 @@ therefore be built on CI, a laptop, or the production host without editing it.
 
 ```text
 stores/OGS-00003/                  finngen-r13 / r13-pilot-20, dense observed-only
-resources/generators/finngen-r13/  the finngen-r13 Phase B generator
+resources/generators/finngen-r13/  its Manifest Generation inputs, and the legacy R generator
 ```
 
-`stores/README.md` lists all seven migrated Trial Store Releases. A further
-thirteen bundles remain under `families/` awaiting triage; that directory goes
-when it empties.
+`stores/README.md` lists all seven migrated Trial Store Releases.

@@ -76,7 +76,7 @@ sets the old one aside, swaps them, and archives the old records.
 
 This check was run by hand against the existing two-id pair on 2026-10-21, with
 opengwasdb 0.3.0 (seed 20261021). It took 684 s, a median of 0.61 s per band.
-The prototype is `resources/scripts/observed-view-check.py`, and its summary
+The prototype is `tools/benchmarks/observed-view-check.py`, and its summary
 is `docs/benchmark-output/ogs00009_ogs00010_observed_view_check.json`. The
 implementation is specified in #302.
 

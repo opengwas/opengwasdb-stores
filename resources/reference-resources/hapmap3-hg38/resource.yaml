@@ -74,7 +74,7 @@ notes: >
   holds the 18.9 MB ALID list and the unmodified 5.2 MB LDSC source snapshot.
   Nothing here is tracked in the repository.
 
-  Verify with `resources/reference-resources/hapmap3-hg38/verify_hm3_resource.py`,
+  Verify with `tools/reference-resources/hapmap3-hg38/verify_hm3_resource.py`,
   which refuses a missing, malformed, duplicate, non-canonical, wrong-length or
   checksum-mismatched list. The rule it applies is the pinned opengwasdb
   `parse_canonical_alid` round-trip, so it reads the same canonical-ALID
