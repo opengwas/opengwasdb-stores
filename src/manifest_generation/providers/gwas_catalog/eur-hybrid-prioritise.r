@@ -33,7 +33,7 @@ STORE_BYTES_PER_CELL <- 2.5
 derived_dir <- "resources/data/derived"
 analyses_path <- file.path(derived_dir, "store-candidates-analyses.tsv")
 if (!file.exists(analyses_path)) {
-  stop("Run `Rscript resources/scripts/ebi-studies.r` first to build ",
+  stop("Run `Rscript src/manifest_generation/providers/gwas_catalog/ebi-studies.r` first to build ",
        analyses_path)
 }
 

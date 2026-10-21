@@ -95,7 +95,7 @@ from manifest_generation.providers.dbgap.metadata import (
 
 DEFAULT_OUT = "/data/opengwasdb/raw/dbgap-phs002453"
 DEFAULT_CANDIDATES = "resources/data/derived/store-candidates-analyses.tsv"
-DEFAULT_DISCREPANCIES = str(REPO_ROOT / "resources/scripts/dbgap-phs002453-key-discrepancies.yaml")
+DEFAULT_DISCREPANCIES = str(REPO_ROOT / "resources/generators/dbgap-mvp/dbgap-phs002453-key-discrepancies.yaml")
 PUBMED_ID = "39024449"
 
 #: Dispositions a key-discrepancy ledger record may carry.  Anything else is an

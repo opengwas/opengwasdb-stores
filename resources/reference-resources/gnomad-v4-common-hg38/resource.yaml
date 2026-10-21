@@ -26,8 +26,8 @@ source:
     nfe: Non-Finnish European
     remaining: "heterogeneous remainder; composes no super-population"
     sas: South Asian
-  acquisition: resources/reference-resources/gnomad-v4-common-hg38/build_common_panel.py
-  generator: resources/reference-resources/gnomad-v4-common-hg38/build_common_panel.py
+  acquisition: tools/reference-resources/gnomad-v4-common-hg38/build_common_panel.py
+  generator: tools/reference-resources/gnomad-v4-common-hg38/build_common_panel.py
   mirror: none
 description: >
   Per-ancestry common-variant axes for the Dense Component of a Hybrid or Dense

@@ -33,7 +33,7 @@ accession <- "GCST90477290"
 url <- paste0("http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/",
               "GCST90477001-GCST90478000/", accession,
               "/harmonised/", accession, ".h.tsv.gz")
-data_dir <- "../data/mvp-example"
+data_dir <- "../../resources/data/mvp-example"
 local_gz <- file.path(data_dir, basename(url))
 
 ## Store-size translation (matches ebi-studies.r).

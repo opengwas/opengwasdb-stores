@@ -21,7 +21,7 @@ library(ggplot2)
 library(jsonlite)
 library(DT)
 
-data_dir <- if (dir.exists("docs/data")) "docs/data" else "../../docs/data"
+data_dir <- if (dir.exists("docs/data")) "docs/data" else "../data"
 read_tsv_df <- function(name) {
   read.delim(file.path(data_dir, name), sep = "\t", quote = "",
              stringsAsFactors = FALSE, na.strings = "")
@@ -431,10 +431,10 @@ pixi run -e curation round-reduce --round-dir <dir>
 pixi run -e curation round-promote --round-dir <dir>
 
 # this report's data, then the page
-pixi run -e curation python resources/scripts/export-trait-mapping-report.py \
+pixi run -e curation python3 -m curation.export_trait_mapping_report \
     --index <index> --validation <ogs-00011.tsv> \
     --validation-round <validation dir> --production-round <ukb-b dir>
-pixi run --environment docs quarto render resources/scripts/trait-mapping-report.qmd --to html
+pixi run --environment docs quarto render docs/reports/trait-mapping-report.qmd --to html
 ```
 
 Pins for both rounds: EFO `r summary_json$production$round$ontology_release`;

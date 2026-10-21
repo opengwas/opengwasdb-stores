@@ -4,10 +4,10 @@
 Reads two finished curation rounds (a validation round over a harvested
 source-provided set, and a production round) plus the pinned ontology index,
 and writes small per-label tables and a summary JSON under docs/data/ for
-resources/scripts/trait-mapping-report.qmd. Round directories are gitignored,
+docs/reports/trait-mapping-report.qmd. Round directories are gitignored,
 so the exports are what the report (and GitHub Pages) can depend on.
 
-    pixi run -e curation python resources/scripts/export-trait-mapping-report.py \
+    pixi run -e curation python3 -m curation.export_trait_mapping_report \
         --index .cache/curation/efo-v3.94.0.index.json \
         --validation .cache/curation/validation/ogs-00011.tsv \
         --validation-round .cache/curation/rounds/validation-ogs-00011 \
@@ -24,10 +24,10 @@ from pathlib import Path
 
 import yaml
 
-ROOT = Path(__file__).resolve().parents[2]
+from curation.gap_scan import normalize_trait_label
+from curation.ontology import load_index
 
-from curation.gap_scan import normalize_trait_label  # noqa: E402
-from curation.ontology import load_index  # noqa: E402
+ROOT = Path(__file__).resolve().parents[2]
 
 NONE_SUITABLE = "none_suitable"
 

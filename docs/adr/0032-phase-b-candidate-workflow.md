@@ -86,7 +86,7 @@ It runs five stages — `preflight`, `prepare`, `resolve`, `verify`, `emit` — 
   status and never invokes Phase A.
 
 - **Resolved metadata is joined, not re-selected.** The candidate table
-  (`resources/scripts/ebi-studies.r`'s output, already checksummed by the #151
+  (`src/manifest_generation/providers/gwas_catalog/ebi-studies.r`'s output, already checksummed by the #151
   freeze) supplies the labels, publication identity, total N and the
   case/control counts the schema requires for `log_or` rows. Membership remains
   the frozen inventory's; the join cannot add or drop a member.

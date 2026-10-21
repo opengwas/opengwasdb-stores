@@ -93,7 +93,7 @@ from curation.jev_chooser import DEFAULT_JEV_CONTEXT, DEFAULT_JEV_MODEL
 from curation.ontology import IndexFormatError, OntologyIndex, load_index
 from curation.ukb import ShowcaseResolver
 
-REPO_ROOT: Path = Path(__file__).resolve().parents[1]
+REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
 #: Default root under which round directories live. Gitignored, like every
 #: other intermediate curation artifact.

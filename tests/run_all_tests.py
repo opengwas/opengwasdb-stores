@@ -25,7 +25,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 Suite = tuple[str, str, list[str]]  # (label, kind, command relative to REPO_ROOT)
 # A Python file run as named halves: file -> [(label, extra arguments)].

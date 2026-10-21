@@ -94,7 +94,7 @@ from curation.choice import PROPOSAL_COLUMNS, read_shortlists
 from curation.chooser import NONE_SUITABLE, Candidate, ChoiceError
 from curation.ontology import is_curie, normalise_ontology_id
 
-REPO_ROOT: Path = Path(__file__).resolve().parents[1]
+REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
 # The one Reference Resource promotion may write, and the files inside it.
 DEFAULT_RESOURCE_DIR: Path = (

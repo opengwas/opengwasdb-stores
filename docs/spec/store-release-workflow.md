@@ -28,7 +28,7 @@ workflow/generate.smk                      Phase B: coarse wiring for one candid
 resources/reference-resources/<id>/        resource.yaml
 resources/annotations/                     post-release curated metadata
 resources/generators/<family-id>/          Phase B
-resources/scripts/                         toolchains and repository tooling
+tools/                                     repository tooling, neither a package nor an input (ADR 0038)
 tests/
 ```
 
@@ -534,7 +534,7 @@ planning metadata only: it adds no Analysis and changes no `release.yaml`
 status, lineage or `analyses.tsv`, so it mints no new Store Release and rebuilds
 no primary data; building the derived namespace for an already-published Store
 is a deliberate capability-runtime run, not part of this migration.
-`resources/scripts/audit_indexed_subsets.py` (`pixi run
+`ogstores.audit_indexed_subsets` (`pixi run
 audit-indexed-subsets`) prints the full in-scope list and refuses a
 Dense-component bundle that is neither migrated nor explicitly opted out
 (`indexed_subsets: []`), and a Ragged-only bundle that declares a subset. It
@@ -549,10 +549,10 @@ An Indexed Variant Subset is an optional derived artifact, so a routine release
 benchmark must be able to report a Store that has none without failing. That is
 the contract of opengwas/opengwasdb#272's shared
 `benchmarks._query_shapes.measure_hm3_extract`, and the registry-side report is
-`resources/scripts/release-benchmark-report.py` (stores#212, epic #214):
+`tools/benchmarks/release-benchmark-report.py` (stores#212, epic #214):
 
 ```text
-pixi run -e dev python <stores>/resources/scripts/release-benchmark-report.py \
+pixi run -e dev python <stores>/tools/benchmarks/release-benchmark-report.py \
   --opengwasdb-checkout /path/to/opengwasdb --all --hm3-only \
   --output docs/benchmark-output/opengwasdb_hm3_release_benchmark.json \
   --report docs/benchmark-output/opengwasdb_hm3_release_benchmark.md
@@ -563,7 +563,7 @@ core seam and records the core status verbatim: `measured` carries the timing
 and result count, and `missing`, `not_applicable` (Ragged-only) and
 `unsupported` are non-failing operational statuses. It never times a query or
 reimplements classification. Where a per-Store anchor exists
-(`resources/scripts/release-benchmark-anchors.yaml`) the core generic harness
+(`tools/benchmarks/release-benchmark-anchors.yaml`) the core generic harness
 surfaces the seven query shapes beside HM3; otherwise the shapes are marked
 `not_configured` and the run continues. Because the tracked pin predates the
 capability, the report is run against an explicit `--opengwasdb-checkout` and
@@ -649,7 +649,7 @@ excluded manifest rows visible (issue #217).
 
 ### Readiness reconciliation (issue #217)
 
-`readiness.py` (driven by `resources/scripts/release_readiness.py`) renders a
+`readiness.py` (driven by `python3 -m ogstores.release_readiness`) renders a
 reconciliation view that separates manifest, admitted, excluded and intended
 bundle membership from what was actually published, and keeps each kind of
 evidence on its own channel: Release Status, source acquisition, intended

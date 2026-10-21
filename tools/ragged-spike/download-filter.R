@@ -13,7 +13,7 @@
 ##   MHC analytes: standard window + mhc=true flag
 ##
 ## Provisional location: final home decided by the interface ticket (#8).
-## Run: Rscript resources/scripts/ragged-spike/download-filter.R
+## Run: Rscript tools/ragged-spike/download-filter.R
 ##   MAX_ANALYTES=3 Rscript ...   # process only the first N (for a quick pass)
 
 suppressPackageStartupMessages(library(data.table))

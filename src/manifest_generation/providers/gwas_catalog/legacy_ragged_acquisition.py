@@ -113,6 +113,9 @@ def write_legacy_manifest(bundle: Path, store_id: str, out: Path, rematerialised
         if sha256 == recorded["checksum"]:
             tool = f"{R_GENERATOR} {version}"
         elif (analysis_id, recorded["checksum"], sha256) in reviewed:
+            # The tool as it was when it ran, like R_GENERATOR: lineage records
+            # history, and the frozen Chen inventory carries this string. The
+            # script now lives beside this module (#317).
             tool = (
                 "resources/scripts/materialise-gwas-ssf-ragged.R, from "
                 f"{store_id} sidecars/sparse_regions.tsv (2026-09-15); generate.R recorded sha256 "

@@ -31,7 +31,7 @@ Output is a plain ALID list per ancestry -- the simplest of the three forms
 `opengwasdb.variants.reference.read_variant_reference` accepts -- so the axis
 is inspectable with `zcat` and carries no format of its own to drift.
 
-    pixi run python resources/reference-resources/gnomad-v4-common-hg38/build_common_panel.py \
+    pixi run python tools/reference-resources/gnomad-v4-common-hg38/build_common_panel.py \
       --out-dir /data/opengwasdb/reference/gnomad-v4-common-hg38 \
       --min-maf 0.01 --jobs 12
 """

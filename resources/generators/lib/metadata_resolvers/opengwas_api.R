@@ -136,11 +136,11 @@ resolve_opengwas_api_metadata <- function(gwasinfo) {
 #' OpenGWASDB's build engine never needs to call this API itself (by build
 #' time, the resolved scalars already live in analyses.tsv). Registry-side
 #' network acquisition of external build-input data already has precedent
-#' in this repository (resources/scripts/ld-panel/acquire_hgdp1kgp.py).
+#' in this repository (tools/ld-panel/acquire_hgdp1kgp.py).
 #'
 #' Not exercised by this repository's automated tests: this repository's
 #' test suites are documented as data-only and network-free (see
-#' resources/scripts/run_all_tests.py), and a live call additionally needs a
+#' tests/run_all_tests.py), and a live call additionally needs a
 #' per-user secret token. resolve_opengwas_api_metadata() above is the
 #' tested, independently callable part of this resolver; this function is
 #' the thin, untested transport it is deliberately decoupled from.

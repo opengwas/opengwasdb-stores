@@ -19,16 +19,16 @@ execute:
 library(data.table)
 library(ggplot2)
 
-derived_dir <- "../data/derived"
+derived_dir <- "../../resources/data/derived"
 summary_path <- file.path(derived_dir, "store-candidates-summary.tsv")
 analyses_path <- file.path(derived_dir, "store-candidates-analyses.tsv")
 
 # The curation itself lives in ebi-studies.r and writes the two TSVs below.
 # Parsing the free-text sample-size field over the whole catalogue takes ~1
 # minute, so this report reads the pre-computed outputs rather than re-running
-# the pipeline. Regenerate them with:  Rscript resources/scripts/ebi-studies.r
+# the pipeline. Regenerate them with:  Rscript src/manifest_generation/providers/gwas_catalog/ebi-studies.r
 if (!file.exists(summary_path) || !file.exists(analyses_path)) {
-  stop("Derived tables not found. Run `Rscript resources/scripts/ebi-studies.r` first.")
+  stop("Derived tables not found. Run `Rscript src/manifest_generation/providers/gwas_catalog/ebi-studies.r` first.")
 }
 
 store_summary <- fread(summary_path, sep = "\t", na.strings = "")
@@ -243,7 +243,7 @@ if (file.exists(prio_path)) {
               max(prio$cluster_rank[prio$recommendation == "keep"]),
               fmt_int(n_drop), 100 * n_drop / nrow(prio), gb_drop, gb_all))
 } else {
-  cat("Run `Rscript resources/scripts/eur-hybrid-prioritise.r` to generate the prioritisation table.\n")
+  cat("Run `Rscript src/manifest_generation/providers/gwas_catalog/eur-hybrid-prioritise.r` to generate the prioritisation table.\n")
 }
 ```
 

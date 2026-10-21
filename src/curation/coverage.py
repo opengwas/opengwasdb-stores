@@ -89,7 +89,7 @@ from curation.gap_scan import (
     resolve_manifest_path,
 )
 
-REPO_ROOT: Path = Path(__file__).resolve().parents[1]
+REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
 #: Canonical Trait Mapping Table filename inside its Reference Resource dir.
 MAPPING_FILENAME: str = "mapping.tsv"

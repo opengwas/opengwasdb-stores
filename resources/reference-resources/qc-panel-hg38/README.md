@@ -16,7 +16,7 @@ every region-filtered file (#300).
 Run by `build_qc_panel.py` against `ukb-ancestry-mixture-hg38`:
 
 ```sh
-pixi run python resources/reference-resources/qc-panel-hg38/build_qc_panel.py \
+pixi run python tools/reference-resources/qc-panel-hg38/build_qc_panel.py \
   --out=resources/reference-resources/qc-panel-hg38/qc_panel.tsv
 ```
 

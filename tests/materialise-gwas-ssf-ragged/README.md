@@ -1,6 +1,7 @@
 # materialise-gwas-ssf-ragged tests
 
-Offline black-box tests for `resources/scripts/materialise-gwas-ssf-ragged.R`.
+Offline black-box tests for
+`src/manifest_generation/providers/gwas_catalog/materialise-gwas-ssf-ragged.R`.
 
 The fixture verifies the core source-materialisation interface:
 

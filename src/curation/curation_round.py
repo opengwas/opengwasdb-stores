@@ -51,7 +51,7 @@ from curation.embedding import (
 from curation.jev_chooser import DEFAULT_JEV_CONTEXT, DEFAULT_JEV_MODEL
 from curation.ontology import IndexFormatError, load_index
 
-REPO_ROOT: Path = Path(__file__).resolve().parents[1]
+REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
 #: The committed ukb-b Dense observed VCF Release Manifest: the corpus this
 #: pipeline was built to curate.

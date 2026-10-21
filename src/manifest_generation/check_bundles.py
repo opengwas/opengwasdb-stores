@@ -5,6 +5,13 @@ The contract (`ogstores.bundle.check`) is what both workflows share; Manifest
 Generation's own rules (`manifest_generation.generation_rules`) are not
 part of it, but every committed bundle came through a generator, so CI holds
 it to both (#250).
+
+    pixi run bundle-check
+    python3 -m manifest_generation.check_bundles [--registry-root stores]
+
+It lives here rather than in `ogstores` because it applies Manifest
+Generation's rules, and Store Release Build imports nothing from Manifest
+Generation (ADR 0035).
 """
 
 from __future__ import annotations
@@ -13,9 +20,7 @@ import argparse
 from pathlib import Path
 
 from ogstores import bundle
-from manifest_generation import generation_rules
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from manifest_generation import REPO_ROOT, generation_rules
 
 
 def main(argv: list[str] | None = None) -> int:

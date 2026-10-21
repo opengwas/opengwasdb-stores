@@ -18,7 +18,7 @@ library(jsonlite)
 derived_dir <- "resources/data/derived"
 summary_path <- file.path(derived_dir, "store-candidates-summary.tsv")
 if (!file.exists(summary_path)) {
-  stop("Run `Rscript resources/scripts/ebi-studies.r` first to build ", summary_path)
+  stop("Run `Rscript src/manifest_generation/providers/gwas_catalog/ebi-studies.r` first to build ", summary_path)
 }
 
 s <- fread(summary_path, sep = "\t", na.strings = "")

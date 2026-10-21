@@ -13,4 +13,7 @@ Each subdirectory records one Reference Resource declaration (`resource.yaml`): 
 - `hapmap3-hg38/` - the maintained HapMap3 GRCh38 canonical ALID list (1,206,903 rows, `kind: variant_list`), the build input for the default `hm3` Indexed Variant Subset (epic #214, ticket #208). The 18.9 MB list and the unmodified LDSC source snapshot live outside Git under the reference root; `resource.yaml` records the source provenance, row count, source checksum and derived-ALID checksum, and `verify_hm3_resource.py` refuses a missing, malformed, duplicate, non-canonical, wrong-length or checksum-mismatched copy. See its README for the rsID reconciliation and the #209 consumer contract.
 - `canonical-trait-mapping-efo/` - a curated `trait_label` -> `trait_ontology_id`/`trait_ontology_label` exact-match lookup, consulted by Manifest Generators when a Source Collection doesn't supply its own trait ontology mapping (issue: Trait Ontology Mapping). Tracked directly in this repository, like `qc-panel-hg38`; starts empty pending real curated rows.
 
-Generation and maintenance tooling for LD panels lives in `resources/scripts/ld-panel/`.
+Generation and maintenance tooling for LD panels lives in `tools/ld-panel/`, and
+the other resources' build and verify scripts in
+`tools/reference-resources/<resource_id>/`: this directory holds inputs only
+(ADR 0038).

@@ -33,12 +33,11 @@ from typing import Any
 
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "resources" / "scripts"))
+from ogstores import audit_indexed_subsets as audit
+from ogstores import bundle
+from ogstores.plan import plan
 
-import audit_indexed_subsets as audit  # noqa: E402
-from ogstores import bundle  # noqa: E402
-from ogstores.plan import plan  # noqa: E402
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 n_checks = 0
 

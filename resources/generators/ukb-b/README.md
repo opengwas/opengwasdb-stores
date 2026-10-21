@@ -83,7 +83,7 @@ stage. It uses OpenGWASDB's GWAS-VCF reader to extract AF and SE together, then
 feeds that extraction to OpenGWASDB's ancestry and phenotype-SD modules:
 
 ```sh
-pixi run Rscript resources/scripts/download-opengwas-vcfs.R \
+pixi run Rscript src/manifest_generation/providers/opengwas/download-opengwas-vcfs.R \
   --ids=ukb-b-10787,ukb-b-11842,ukb-b-19953 \
   --out-dir=/data/opengwasdb/wip/ukb-b-vcf
 

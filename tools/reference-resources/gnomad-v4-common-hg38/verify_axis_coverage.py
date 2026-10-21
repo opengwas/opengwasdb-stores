@@ -6,7 +6,7 @@ This measures that directly on a sample of the release's own source files, and
 compares two axes on the same sample so a replacement can be judged against the
 thing it replaces rather than on its variant count alone.
 
-    pixi run python resources/reference-resources/gnomad-v4-common-hg38/verify_axis_coverage.py \
+    pixi run python tools/reference-resources/gnomad-v4-common-hg38/verify_axis_coverage.py \
       --inventory resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv \
       --axis /data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz \
       --axis /data/opengwasdb/reference/alid-panel/EUR-variants.tsv.gz \

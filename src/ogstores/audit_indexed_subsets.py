@@ -25,6 +25,9 @@ Out of scope: the unmigrated ``families/*/releases/*`` bundles are not
 registered Release Bundles (retired family-first schema, no ``OGS-`` id) and
 are not planned by the workflow, so they are deliberately not audited here.
 See stores#211.
+
+    pixi run audit-indexed-subsets
+    python3 -m ogstores.audit_indexed_subsets [--registry-root DIR] [--repo-root DIR]
 """
 
 from __future__ import annotations
@@ -38,12 +41,11 @@ from typing import Any
 
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from ogstores.paths import REPO_ROOT, STORE_ID_PATTERN
 
 # A registered bundle is a directory named by an opaque OGS- identifier that
-# carries a release.yaml. The id grammar mirrors ogstores.paths; copied here so
-# the audit stays a standalone repository check with no opengwasdb import.
-STORE_ID_RE: re.Pattern[str] = re.compile(r"\AOGS-\d{5}\Z")
+# carries a release.yaml.
+STORE_ID_RE: re.Pattern[str] = STORE_ID_PATTERN
 
 INDEXED_SUBSETS_KEY = "indexed_subsets"
 DENSE_COMPONENT_LAYOUTS: frozenset[str] = frozenset({"dense", "hybrid"})
@@ -392,7 +394,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--repo-root",
         default=None,
-        help="repository root holding resources/reference-resources (default: repo of this script)",
+        help="repository root holding resources/reference-resources (default: this checkout)",
     )
     args = parser.parse_args(argv)
 

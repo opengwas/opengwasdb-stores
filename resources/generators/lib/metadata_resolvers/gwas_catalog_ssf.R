@@ -5,7 +5,7 @@
 # Catalog's own study-level metadata (the "INITIAL SAMPLE SIZE" free-text
 # field), never from the harmonised summary-statistics file itself.
 #
-# Extracted from resources/scripts/ebi-studies.r's original inline
+# Extracted from src/manifest_generation/providers/gwas_catalog/ebi-studies.r's original inline
 # parse_sample_size()/summarise_sample_size() so the same detection logic is
 # independently testable and reusable outside store-candidate categorisation.
 # Deliberately depends only on base R + data.table (not tidyverse): callers

@@ -8,8 +8,8 @@ manifest metadata, and ``--built`` reads each Store's Analysis IDs via
 ``read_analyses(open_store(path).analyses_path)`` for built-ID reconciliation.
 Neither opens a Store directly, runs a build, or runs a Store validation.
 
-  python3 resources/scripts/release_readiness.py --format markdown
-  python3 resources/scripts/release_readiness.py --info --built --format yaml
+  python3 -m ogstores.release_readiness --format markdown
+  python3 -m ogstores.release_readiness --info --built --format yaml
 """
 
 from __future__ import annotations
@@ -17,8 +17,6 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from ogstores import paths, readiness
 
@@ -67,7 +65,7 @@ def _collect_built(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--registry-root", type=Path, default=REPO_ROOT / "stores")
+    parser.add_argument("--registry-root", type=Path, default=paths.REPO_ROOT / "stores")
     parser.add_argument("--ledger", type=Path, default=readiness.DEFAULT_LEDGER)
     parser.add_argument("--artifact-root", type=Path, default=None)
     parser.add_argument(

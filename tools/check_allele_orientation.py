@@ -48,7 +48,7 @@ Outputs land in ``stores/OGS-00011/sidecars/allele-check/``.
 
 Run from the repository root::
 
-    pixi run python resources/scripts/check_allele_orientation.py --workers 16
+    pixi run python tools/check_allele_orientation.py --workers 16
 
 This is a review aid: it writes evidence and a recommended upstream fix. It never
 edits a source file and never changes release membership.

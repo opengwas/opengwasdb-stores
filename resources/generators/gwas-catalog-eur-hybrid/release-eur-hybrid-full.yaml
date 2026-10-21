@@ -9,7 +9,7 @@
 # ~1.8 TB, never copied). That snapshot is the shared freeze (#283) of the
 # GWAS Catalog's two connector files for this Selection:
 #   - the Source Metadata Table the GWAS Catalog adapter writes from
-#     resources/scripts/ebi-studies.r's candidate table (sha256 aef4dbe2...,
+#     providers/gwas_catalog/ebi-studies.r's candidate table (sha256 aef4dbe2...,
 #     the table the 2026-09-22 snapshot froze against);
 #   - the Acquisition Manifest the GWAS Catalog writer overlays from the three
 #     download passes the 2026-09-22 snapshot froze (base, retry_transient,

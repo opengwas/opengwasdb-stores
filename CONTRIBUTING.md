@@ -349,7 +349,7 @@ directory when that holds no other Python suite, when it is a `run_tests.py`,
 or when the file is named after the directory; otherwise
 `<directory>/<file>`, without `test_` and with `-` for `_`, which is also the
 fallback when an R suite already has the directory's name. Adding one needs no
-list edit; an R suite is listed in `resources/scripts/run_all_tests.py`.
+list edit; an R suite is listed in `tests/run_all_tests.py`.
 Repository code imports from the installed package: nothing inserts the
 repository root or `src/` into `sys.path` or hands them to a subprocess
 through `PYTHONPATH`. `tests/packaging` enforces both rules.

@@ -24,7 +24,7 @@ Selection procedure:
      across reference-panel updates that only add density, not new regions.
 
 Usage:
-  pixi run python resources/reference-resources/qc-panel-hg38/build_qc_panel.py \
+  pixi run python tools/reference-resources/qc-panel-hg38/build_qc_panel.py \
     --out=resources/reference-resources/qc-panel-hg38/qc_panel.tsv
 
 Re-run with the same arguments any time ukb-ancestry-mixture-hg38 is rebuilt

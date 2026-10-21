@@ -6,7 +6,7 @@ The list is a Reference Resource: a large build input that lives outside Git at
 by ``opengwasdb build-indexed-subset --variant-list``. This tool answers the one
 question an operator has before a build: *is the local copy the expected one?*
 
-    pixi run python resources/reference-resources/hapmap3-hg38/verify_hm3_resource.py
+    pixi run python tools/reference-resources/hapmap3-hg38/verify_hm3_resource.py
 
 It refuses loudly -- naming the path and, for a bad line, its number -- when the
 list is missing, malformed, duplicated, non-canonical, the wrong length, or does
@@ -40,7 +40,10 @@ import yaml
 
 from opengwasdb.variants.axis import parse_canonical_alid
 
-DEFAULT_RESOURCE = Path(__file__).resolve().parent / "resource.yaml"
+# The declaration it verifies: an input, so under resources/ (ADR 0038).
+DEFAULT_RESOURCE = (
+    Path(__file__).resolve().parents[3] / "resources" / "reference-resources" / "hapmap3-hg38" / "resource.yaml"
+)
 
 
 class VerificationError(Exception):

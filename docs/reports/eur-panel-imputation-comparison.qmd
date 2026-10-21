@@ -170,13 +170,13 @@ masks, allele-frequency strata, and traits from non-UKB cohorts.
 
 ```{bash}
 #| eval: false
-../opengwasdb/.venv/bin/python resources/scripts/ld-panel/compare_eur_imputation.py \
+../opengwasdb/.venv/bin/python tools/ld-panel/compare_eur_imputation.py \
   --store /data/opengwasdb/wip/ukb-b-c128.opengwasdb \
   --ukb-panel /data/opengwasdb/reference/ukb-hg38 \
   --hgdp-panel /data/opengwasdb/reference/hgdp1kgp-hg38/panel \
   --out docs/data/eur-panel-imputation-comparison.csv \
   --mask-fraction 0.2 --seed 20260806 --thresh 0.9 --jobs 10
 
-quarto render resources/scripts/eur-panel-imputation-comparison.qmd \
+quarto render docs/reports/eur-panel-imputation-comparison.qmd \
   --output-dir docs
 ```
