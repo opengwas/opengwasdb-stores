@@ -60,6 +60,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import threading
 import time
 import tomllib
 import unittest
@@ -1471,6 +1472,23 @@ def observed_view(store_p: Path, analysis_id: str) -> dict[str, tuple[float, flo
 _SINGLE_ID_COMPLETION: dict[str, Any] | None = None
 
 
+def kill_release_run(proc: subprocess.Popen, pause: Path) -> None:
+    """SIGKILL an entry-point run started in a session of its own, and the job paused at `pause`; reap it.
+
+    A paused job is in Snakemake's session, which the entry point's death
+    takes down only afterwards, through its supervisor (ADR 0026), so its
+    group is killed directly too. The caller's own group never is.
+    """
+    groups = {proc.pid}
+    with contextlib.suppress(OSError, ValueError):
+        groups.add(os.getpgid(int(pause.read_text(encoding="utf-8").strip())))
+    groups.discard(os.getpgrp())
+    for group in groups:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(group, signal.SIGKILL)
+    proc.wait()
+
+
 def single_id_completion_template() -> dict[str, Any]:
     """The one single-id completed release this process builds, built on first use (#304).
 
@@ -1489,6 +1507,8 @@ def single_id_completion_template() -> dict[str, Any]:
     `check_started` (`stores`, `artifacts`), for a test that tampers with the
     staged Store before its own run checks it. Each is None when the run
     never got there. The snapshot is never written either: a test copies it.
+    Should anything raise meanwhile, the run is killed and reaped
+    (`kill_release_run`), its pause file removed, and the error raised.
 
     The rerun is part of the template, not of a test, because only a rerun in
     place reads the Snakemake metadata the build recorded, and a test that
@@ -1530,10 +1550,15 @@ def single_id_completion_template() -> dict[str, Any]:
                     shutil.copytree(artifacts, check_started["artifacts"])
                 pause.unlink()
             if proc.poll() is None and time.monotonic() >= deadline:
-                os.killpg(proc.pid, signal.SIGKILL)
+                kill_release_run(proc, pause)
+            returncode = proc.wait(timeout=600)
+        except BaseException:
+            # A run given up on is never let go: unpaused, it would stop at its
+            # next pause point and wait there for good.
+            kill_release_run(proc, pause)
+            raise
         finally:
             pause.unlink(missing_ok=True)
-            returncode = proc.wait(timeout=600)
         out.seek(0)
         err.seek(0)
         release_result = subprocess.CompletedProcess(argv, returncode, out.read(), err.read())
@@ -1563,8 +1588,9 @@ def copy_snapshot(snapshot: dict[str, Path], *, built: dict[str, Any], into: Pat
     Returns the copy's `stores` and `artifacts`. A snapshot's records name the
     directories its run was built in (`built["stores"]`, `built["artifacts"]`),
     and the steps left to run check their predecessors' argv against the plan
-    under the run's own root. So each record's mention of them is rewritten to
-    the copy's, keeping its mtime, which a run on a copy decides by (#303).
+    under the run's own root. So each path in a record under either of them
+    is moved to the copy's (`moved_paths`), keeping the record's mtime, which
+    a run on a copy decides by (#303).
     Inputs the bundle names outside those two trees, such as the LD panel,
     are the template's and are only read.
     """
@@ -1574,12 +1600,168 @@ def copy_snapshot(snapshot: dict[str, Path], *, built: dict[str, Any], into: Pat
     moves = {str(built["stores"]): str(stores), str(built["artifacts"]): str(artifacts)}
     for record_p in artifacts.glob("*/records/*.json"):
         written = record_p.stat()
-        text = record_p.read_text(encoding="utf-8")
-        for old, new in moves.items():
-            text = text.replace(old, new)
-        record_p.write_text(text, encoding="utf-8")
+        record = json.loads(record_p.read_text(encoding="utf-8"))
+        # As `run` writes a record.
+        record_p.write_text(json.dumps(moved_paths(record, moves), indent=2) + "\n", encoding="utf-8")
         os.utime(record_p, ns=(written.st_atime_ns, written.st_mtime_ns))
     return stores, artifacts
+
+
+def moved_paths(value: Any, moves: dict[str, str]) -> Any:
+    """`value` with every string that is one of `moves`' roots, or a path under one, under its new root.
+
+    Only whole paths move: a string that merely contains a root, or names a
+    sibling that shares its prefix (`/x/stores-extra` beside `/x/stores`), is
+    left as it is.
+    """
+    if isinstance(value, str):
+        for old, new in moves.items():
+            if value == old or value.startswith(old + "/"):
+                return new + value[len(old):]
+        return value
+    if isinstance(value, list):
+        return [moved_paths(item, moves) for item in value]
+    if isinstance(value, dict):
+        return {key: moved_paths(item, moves) for key, item in value.items()}
+    return value
+
+
+class TestWorkflowSingleIdTemplateMachinery(unittest.TestCase):
+    """What `single_id_completion_template` and `copy_snapshot` do around a release, shown without building one."""
+
+    # Stands in for an entry-point run: a process of its own group whose job
+    # runs in a session of its own, as Snakemake's does, and crosses the
+    # template's two pause points through `run.fault_boundary`, as a step does.
+    ENTRY_POINT = (
+        "import os, subprocess, sys\n"
+        "from pathlib import Path\n"
+        "Path(sys.argv[1]).write_text(str(os.getpid()))\n"
+        "sys.exit(subprocess.Popen([sys.executable, sys.argv[2]], start_new_session=True).wait())\n"
+    )
+    JOB = (
+        "from ogstores import run\n"
+        "for point in ('complete-started', 'completion-observed-view-check-started'):\n"
+        "    run.fault_boundary(point)\n"
+    )
+
+    def test_a_failure_while_the_run_is_paused_kills_and_reaps_it_and_raises(self) -> None:
+        """Nothing resumes into the next pause: the run's processes are killed and reaped, the pause file removed."""
+        scripts = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, scripts, True)
+        (scripts / "entry_point.py").write_text(self.ENTRY_POINT, encoding="utf-8")
+        (scripts / "job.py").write_text(self.JOB, encoding="utf-8")
+        entry_pid_p = scripts / "entry_point.pid"
+        seen: dict[str, Any] = {}
+
+        def prepare(root: Path, store_id: str) -> tuple[Path, Path]:
+            seen["pause"] = root / "paused"
+            for tree in ("stores", "artifacts"):
+                (root / tree).mkdir()
+            return root / "stores", root / "artifacts"
+
+        def unreadable(store_p: Path, analysis_id: str) -> dict:
+            seen["job"] = int(seen["pause"].read_text(encoding="utf-8").strip())
+            raise OSError("the observed view could not be read")
+
+        def kill_leftovers() -> None:
+            """Only while the run is known to be paused: a pid already reaped may be reused."""
+            for pid in (seen.get("job"), int(entry_pid_p.read_text()) if entry_pid_p.exists() else None):
+                if pid is not None:
+                    with contextlib.suppress(ProcessLookupError):
+                        os.killpg(pid, signal.SIGKILL)
+
+        # The template's own directory is kept, so the pause file's absence
+        # shows something; this test cleans it, not the garbage collector.
+        made: list[tempfile.TemporaryDirectory] = []
+        real_temporary_directory = tempfile.TemporaryDirectory
+
+        def temporary_directory() -> tempfile.TemporaryDirectory:
+            made.append(real_temporary_directory())
+            return made[-1]
+
+        self.addCleanup(lambda: [directory.cleanup() for directory in made])
+        outcome: dict[str, BaseException] = {}
+
+        def build() -> None:
+            try:
+                single_id_completion_template()
+            except BaseException as exc:
+                outcome["raised"] = exc
+
+        with mock.patch.multiple(
+            sys.modules[__name__],
+            _SINGLE_ID_COMPLETION=None,
+            prepare_single_id_signal_release=prepare,
+            release_argv=lambda *args, **kwargs: [
+                sys.executable, str(scripts / "entry_point.py"), str(entry_pid_p), str(scripts / "job.py")
+            ],
+            observed_view=unreadable,
+            run_release=mock.Mock(side_effect=AssertionError("the template ran on past the failure")),
+        ), mock.patch.object(tempfile, "TemporaryDirectory", temporary_directory):
+            builder = threading.Thread(target=build, daemon=True)
+            builder.start()
+            builder.join(timeout=30)
+            hung = builder.is_alive()
+            if hung:
+                kill_leftovers()
+                builder.join(timeout=30)
+
+        self.assertFalse(hung, "the template did not raise within 30 s of a failure at its first pause")
+        self.assertIsInstance(outcome.get("raised"), OSError, outcome)
+        self.assertEqual(str(outcome["raised"]), "the observed view could not be read")
+        self.assertTrue(seen["pause"].parent.is_dir(), "the template's directory outlives the failure")
+        self.assertFalse(seen["pause"].exists(), "the pause file is removed")
+        for name, pid in (("entry point", int(entry_pid_p.read_text())), ("job", seen["job"])):
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                try:
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.1)
+            else:
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(pid, signal.SIGKILL)
+                self.fail(f"the stand-in {name} (pid {pid}) is still there")
+
+    def test_copy_snapshot_moves_whole_paths_only(self) -> None:
+        """A template root is replaced as a path or a path's prefix, never inside another name or string."""
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, True)
+        snapshot = {tree: root / "snapshot" / tree for tree in ("stores", "artifacts")}
+        snapshot["stores"].mkdir(parents=True)
+        record_p = snapshot["artifacts"] / "OGS-00001" / "records" / "step.json"
+        record_p.parent.mkdir(parents=True)
+        record = {
+            "record_path": "/x/artifacts/OGS-00001/records/step.json",
+            "argv": ["opengwasdb", "validate", "/x/artifacts/OGS-00001/store.opengwasdb", "/x/stores-extra/OGS-00001"],
+            "inputs": ["/x/stores"],
+            "stdout": "checked /x/artifacts/OGS-00001/store.opengwasdb",
+            "nested": {"paths": ["/x/stores/OGS-00001/build.yaml", "/x/artifactsX/OGS-00001"]},
+            "elapsed_seconds": 1.5,
+        }
+        written = json.dumps(record, indent=2) + "\n"
+        record_p.write_text(written, encoding="utf-8")
+        os.utime(record_p, ns=(1_000_000_000, 2_000_000_000))
+
+        stores, artifacts = copy_snapshot(
+            snapshot, built={"stores": Path("/x/stores"), "artifacts": Path("/x/artifacts")}, into=root / "copy"
+        )
+
+        copied_p = artifacts / "OGS-00001" / "records" / "step.json"
+        self.assertEqual(
+            json.loads(copied_p.read_text(encoding="utf-8")),
+            {
+                "record_path": f"{artifacts}/OGS-00001/records/step.json",
+                "argv": ["opengwasdb", "validate", f"{artifacts}/OGS-00001/store.opengwasdb", "/x/stores-extra/OGS-00001"],
+                "inputs": [str(stores)],
+                "stdout": "checked /x/artifacts/OGS-00001/store.opengwasdb",
+                "nested": {"paths": [f"{stores}/OGS-00001/build.yaml", "/x/artifactsX/OGS-00001"]},
+                "elapsed_seconds": 1.5,
+            },
+        )
+        self.assertEqual(copied_p.stat().st_mtime_ns, 2_000_000_000, "the copy keeps the record's mtime")
+        self.assertEqual(record_p.read_text(encoding="utf-8"), written, "the snapshot is not written")
 
 
 class TestWorkflowSingleIdReferenceCompletion(unittest.TestCase):
