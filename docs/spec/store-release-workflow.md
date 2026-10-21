@@ -1103,7 +1103,11 @@ resolver, decides membership. A ready Analysis whose Assigned Ancestry is not
 the super-population the Selection expects (`release_policy.selection_superpopulation`,
 `EUR` for OGS-00011), is unassigned, or was gated out on an EAF
 orientation failure is excluded; a quantitative Analysis on the computable
-`estimated_from_source_maf` tier whose phenotype SD is unavailable is excluded;
+`estimated_from_source_maf` tier whose phenotype SD is unavailable is excluded,
+while one whose tier declares its scale (`declared_standardised`, Sun 2018) has
+no SD to estimate -- the resolver reports `scale_already_declared`, the
+`phenotype_sd` check is `not_applicable`, and it is included with `original_sd`
+blank (#300);
 a resolver `controlled_failure` is excluded. Each excluded row stays in
 `analyses.tsv` with `exclude_from_build: true` and a machine-checkable reason in
 `inclusion_reason`, and is explained in `sidecars/exclusions.tsv`. The

@@ -2231,6 +2231,13 @@ def _decide(
             original_sd="",
             sd_method="binary_trait",
         )
+    # A scale the method tier declares has no SD to estimate (#300): included
+    # on the tier's method with original_sd blank, as OGS-00007 carries it.
+    if any(
+        finding.name == "phenotype_sd" and finding.result is quality_checks.Result.NOT_APPLICABLE
+        for finding in findings
+    ):
+        return make(included=True, assigned=assigned, method=method, original_sd="")
     # The phenotype_sd check passed, so this is a positive finite estimate.
     estimate = record_section(record_section(record, "phenotype_sd"), "estimate")
     return make(
