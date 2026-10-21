@@ -13,8 +13,8 @@ See [`docs/spec/store-release-workflow.md`](../../docs/spec/store-release-workfl
 The suite builds a temporary mirror, the Source Collection's two connector
 files (a Source Metadata Table and an Acquisition Manifest), a release config
 (`docs/spec/release-config.md`) and, for most tests, the Source Inventory the
-shared freeze writes from them, and drives the real operator entry point as a
-subprocess.
+shared freeze writes from them, and drives the real operator entry point (in
+this process for most tests -- see "Where the entry point runs" below).
 `fixtures/fake_resolver.py` stands in for `opengwasdb resolve-analyses`: it
 reproduces only the resolver's *contract* (atomic per-Analysis records, a
 deterministic `index.json` in manifest order, fingerprint inputs, `--resume`
@@ -147,3 +147,9 @@ pipeline and an unchanged second run go through `python3 -m` (`_run_cli_subproce
 the legacy-config test proves it fails without a traceback, and the killed-run
 test starts the entry point with `Popen` so its resolver can outlive it. The fake
 resolver, and the real one where a test uses it, always run as subprocesses.
+
+The `RealResolver*` classes resolve once for the class, not once per test: their
+kept records and receipt depend on the resolver settings, not on the release
+policy `RealResolverNoAlleleFrequencyTests` varies, so each of its tests enters
+the pipeline at `emit` over the class's Work Root with its own config and
+registry (#282).
