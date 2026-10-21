@@ -31,6 +31,8 @@ from manifest_generation.acquisition_manifest import (
     load_acquisition_manifest,
     pass_lineage_path,
 )
+from manifest_generation.freeze import freeze
+from manifest_generation.selection import parse_selection
 
 ROOT = Path(__file__).resolve().parents[2]
 CLI = ("-m", "manifest_generation.providers.finngen.acquire")
@@ -212,12 +214,58 @@ class FinnGenAcquisitionManifestTest(unittest.TestCase):
         self.assertEqual(entry.status, "data_failed")
         self.assertTrue(entry.error)
 
+    def test_a_file_whose_bytes_moved_is_refused_by_name(self) -> None:
+        """A recorded digest is identity evidence, not a field to overwrite.
+
+        The manifest a run recorded is what a later run is held to: a file whose
+        bytes no longer match it is refused by Analysis, and the new digest is
+        never written in its place.
+        """
+        first = self.run_acquire("--only-analysis-id", "PRESENT")
+        self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+        recorded = load_acquisition_manifest(self.out).entry("PRESENT")
+        target = self.source_dir / "finngen_R13_PRESENT.gz"
+        tampered = self.payload[:-21] + b"tampered bytes\n"
+        target.write_bytes(tampered)
+
+        second = self.run_acquire("--only-analysis-id", "PRESENT")
+        self.assertEqual(second.returncode, 1, second.stdout + second.stderr)
+        entry = load_acquisition_manifest(self.out).entry("PRESENT")
+        self.assertFalse(entry.ready)
+        self.assertEqual(entry.sha256, "")
+        self.assertEqual(entry.location, "")
+        self.assertEqual(entry.bytes, None)
+        for fragment in (
+            "PRESENT",
+            recorded.sha256,
+            hashlib.sha256(tampered).hexdigest(),
+        ):
+            self.assertIn(fragment, entry.error)
+
     def test_the_written_manifest_is_what_the_shared_freeze_reads(self) -> None:
+        """The real seam: the shared freeze reconciles the table against it."""
         self.run_acquire()
-        self.assertEqual(
-            load_acquisition_manifest(self.out).readiness_counts,
-            {"ok": 1, "data_absent_upstream": 1},
+        table = self.tmp / "source-metadata.tsv"
+        table.write_text(
+            "source_analysis_id\tsource_trait_label\tstudy_design\n"
+            "PRESENT\tTrait PRESENT\tcase-control\n"
+            "ABSENT\tTrait ABSENT\tcase-control\n",
+            encoding="utf-8",
         )
+        frozen = freeze(
+            snapshot_id="fixture-snapshot",
+            source_collection_id="finngen-r13",
+            metadata_table=table,
+            acquisition_manifest=self.out,
+            selection=parse_selection({"all": True}),
+        )
+        readiness = {row.analysis_id: row for row in frozen.rows}
+        self.assertTrue(readiness["PRESENT"].ready)
+        self.assertEqual(readiness["PRESENT"].data_file,
+                         str(self.source_dir / "finngen_R13_PRESENT.gz"))
+        self.assertEqual(readiness["PRESENT"].data_bytes, str(len(self.payload)))
+        self.assertFalse(readiness["ABSENT"].ready)
+        self.assertEqual(readiness["ABSENT"].readiness_status, "data_absent_upstream")
 
 
 if __name__ == "__main__":

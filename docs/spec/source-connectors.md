@@ -230,6 +230,48 @@ GCST000028          ok                              /data/…/17463246-GCST00002
 GCST000803          missing_remote_harmonised_yaml
 ```
 
+### The FinnGen acquisition writer
+
+`src/manifest_generation/providers/finngen/acquire.py` has two interfaces. The
+canonical one is the writer a release config's connectors name:
+
+```sh
+python3 -m manifest_generation.providers.finngen.acquire \
+  --manifest <provider endpoint manifest> --source-dir <dir> --out <acquisition manifest>
+```
+
+It fetches every listed endpoint's file into `--source-dir` (resumable: `.part`
+files and HTTP Range; a complete file is checksummed and kept, never refetched)
+and writes the manifest above, plus `<manifest-stem>.meta.yaml` pass lineage. An
+endpoint upstream no longer serves is `data_absent_upstream`; a failed transfer
+is `data_failed`; the manifest is written either way and the run exits non-zero,
+so an unattended retry reuses every completed file.
+
+The second is a **compatibility mode**, kept only until the R generator retires
+with FinnGen's acceptance criterion 1 (#288), because that generator emits a
+working bundle before acquisition runs:
+
+```sh
+python3 -m manifest_generation.providers.finngen.acquire --release-dir=<dir>
+```
+
+It reads `<dir>/analyses.tsv`, fetches each row's `source_url` into its
+`source_file` with the same downloader, writes the rows back with `checksum` and
+`size_bytes` filled, writes `<dir>/sidecars/downloads.tsv` with the download
+evidence, merges `checks.files` into `<dir>/validation.yaml`, and records the
+same acquisition as the shared Acquisition Manifest at
+`<dir>/acquisition-manifest.tsv`. The two interfaces are exclusive: combining
+`--release-dir` with `--manifest`, `--source-dir` or `--out` is refused.
+
+**A recorded digest is identity evidence.** In the canonical mode, the manifest
+at `--out` is the pin: an existing file whose bytes no longer match the `sha256`
+that manifest already records for its Analysis is refused by name -- status
+`data_failed`, its `location`, `bytes` and `sha256` left empty, the error naming
+the Analysis and both digests -- and never re-hashed into a fresh row. In
+compatibility mode a row's own `checksum` is the pin, as the R emitter leaves it
+blank on a fresh emit: a mismatch refuses the bytes before promotion, leaving
+the staged `.part` file and the recorded checksum untouched.
+
 ## Selection
 
 A release config declares exactly one form in its `selection` block:
