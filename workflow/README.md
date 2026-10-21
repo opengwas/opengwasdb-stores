@@ -88,14 +88,18 @@ own Store (ADR 0037). One `pixi run release <ID>` does both phases, with no
    queryable while completion runs.
 2. **Completion phase:** `complete` reads that published Store and writes
    `<ID>/store.opengwasdb.partial`, the completion's post steps and
-   validation run there, and `completion-register` replaces the Observed-Only
+   validation run there, `completion-observed-view-check` confirms the staged
+   Store keeps every observed association of the published one (a failing
+   check publishes nothing and leaves the published Store as it was; read
+   `<ID>/work/observed-view-check.json`), and `completion-register` replaces the Observed-Only
    Store with the completed one through the same publication transaction. The
    completed Store keeps the id as its Store identity and has its own release
    identity, `<ID>-completed`.
 
 The completion phase's records are `complete`, `completion-rho`,
 `completion-indexed-subset-<name>`, `completion-overview`,
-`completion-validate` and `completion-register`. They never overwrite the
+`completion-validate`, `completion-observed-view-check` and
+`completion-register`. They never overwrite the
 build phase's, and both sets stay in `records/`. The completion phase takes
 no records snapshot. Its archive, `replaced/<UTC>/` (suffixed `-2`, `-3`, …
 when that name is taken), holds the replaced Observed-Only Store, a copy of

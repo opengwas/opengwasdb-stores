@@ -84,7 +84,13 @@ from ogstores.bundle import (
     Bundle,
     is_valid_indexed_subset_name,
 )
-from ogstores.plan import COMPLETION_STEP_PREFIX, REGISTER_STEPS, Step, completion_step_name
+from ogstores.plan import (
+    COMPLETION_STEP_PREFIX,
+    OBSERVED_VIEW_CHECK_STEP,
+    REGISTER_STEPS,
+    Step,
+    completion_step_name,
+)
 
 STORE_PRODUCING_STEPS: frozenset[str] = frozenset({"build", "complete"})
 VARIANT_REFERENCE_STEP: str = "variant-reference"
@@ -99,6 +105,7 @@ VALID_STEP_NAMES: frozenset[str] = frozenset({
     "overview",
     "validate",
     *(completion_step_name(name) for name in ("rho", "overview", "validate")),
+    OBSERVED_VIEW_CHECK_STEP,
     *REGISTER_STEPS.values(),
     "unknown",
 })
@@ -1544,12 +1551,44 @@ def execute_step(
         )
 
     if not success and check:
-        raise StepExecutionError(
-            f"Step {step.name!r} for {store_id} failed with exit code {exit_code}:\n{stderr_captured}",
-            result,
-        )
+        if step.name == OBSERVED_VIEW_CHECK_STEP:
+            message = observed_view_check_failure(
+                step, store_id, executed_argv, exit_code, stdout_captured or "", stderr_captured or ""
+            )
+        else:
+            message = f"Step {step.name!r} for {store_id} failed with exit code {exit_code}:\n{stderr_captured}"
+        raise StepExecutionError(message, result)
 
     return result
+
+
+def observed_view_check_failure(
+    step: Step, store_id: str, argv: list[str], exit_code: int, stdout: str, stderr: str
+) -> str:
+    """What the operator reads when the Observed-View Check does not pass (ADR 0037).
+
+    Exit 1 is a mismatch: the command printed its verdict, so the message
+    names the failing counters with their counts, and where the verdict is
+    kept. Exit 2 is a refusal, which prints no verdict: it is reported as
+    one, with the command's stderr. Anything else is an ordinary failure.
+    """
+    where = f"Step {step.name!r} for {store_id}"
+    if exit_code == 2:
+        return f"{where} was refused by {step.argv[1]} (exit 2):\n{stderr}"
+    try:
+        # The first object: a step that exits non-zero has its output captured twice.
+        verdict, _ = json.JSONDecoder().raw_decode(stdout.lstrip())
+        totals = verdict["totals"]
+        # An axis or Analyses failure has no counter of its own: name it alone.
+        failing = ", ".join(f"{name}={totals[name]}" if name in totals else name for name in verdict["failures"])
+    except (ValueError, KeyError, TypeError):
+        return f"{where} failed with exit code {exit_code}:\n{stderr}"
+    output = argv[argv.index("--output") + 1] if "--output" in argv else "(no --output)"
+    return (
+        f"{where} found the completed Store differs from the published one in what was observed "
+        f"(exit {exit_code}); failing counters: {failing or 'none named'}; verdict: {output}\n"
+        f"Nothing was published and the published Store is as it was.\n{stderr}"
+    )
 
 
 def run_step(

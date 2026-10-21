@@ -29,6 +29,10 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
    completes it into the id's staged path and publishes the completed Store
    at the same path, archiving the replaced Store, its register record and its
    Validation Record; a re-run executes 0 jobs.
+13. The Observed-View Check gates that swap (#306): a staged completed Store
+   that fails it is refused, `completion-register` never runs, and the
+   published Observed-Only Store is byte-for-byte untouched; a passing check
+   leaves its verdict as the step's record.
 """
 
 from __future__ import annotations
@@ -1485,7 +1489,10 @@ class TestWorkflowSingleIdReferenceCompletion(unittest.TestCase):
     shows to be real, so this class asserts only what one id changes.
     """
 
-    PHASE_RECORDS = ["build", "validate", "register", "complete", "completion-validate", "completion-register"]
+    PHASE_RECORDS = [
+        "build", "validate", "register", "complete", "completion-validate",
+        "completion-observed-view-check", "completion-register",
+    ]
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -1573,6 +1580,28 @@ class TestWorkflowSingleIdReferenceCompletion(unittest.TestCase):
             [str(built_store), str(paths.partial_store_path(self.STORE_ID, root=self.template_artifacts))],
         )
 
+    def test_the_observed_view_check_passed_before_the_swap_and_its_verdict_is_its_record(self) -> None:
+        """The record holds the verdict the command printed, with the seed and `passed: true` (ADR 0037)."""
+        rec_dir = paths.records_dir(self.STORE_ID, root=self.artifact_root)
+        record = json.loads((rec_dir / "completion-observed-view-check.json").read_text(encoding="utf-8"))
+        verdict = json.loads(record["stdout"])
+        self.assertIs(verdict["passed"], True)
+        self.assertEqual(verdict["failures"], [])
+        self.assertEqual(verdict["seed"], 20261021)
+        self.assertEqual(verdict["n_random"], 1000)
+        self.assertEqual(verdict["source"]["release_id"], self.STORE_ID)
+        self.assertEqual(verdict["target"]["release_id"], f"{self.STORE_ID}-completed")
+        work_dir = paths.work_dir(self.STORE_ID, root=self.template_artifacts)
+        self.assertEqual(record["argv"][-2:], ["--output", str(work_dir / "observed-view-check.json")])
+        self.assertEqual(record["argv"][2], str(paths.store_path(self.STORE_ID, root=self.template_artifacts)))
+        self.assertEqual(
+            record["argv"][3], str(paths.partial_store_path(self.STORE_ID, root=self.template_artifacts))
+        )
+        self.assertEqual(
+            json.loads((paths.work_dir(self.STORE_ID, root=self.artifact_root) / "observed-view-check.json").read_text()),
+            verdict,
+        )
+
     def test_the_completed_store_keeps_the_id_and_takes_its_own_release_id(self) -> None:
         """Completion inherits its source's Store identity, here the id itself (opengwasdb ADR 0011)."""
         manifest_doc = self.manifest(paths.store_path(self.STORE_ID, root=self.artifact_root))
@@ -1636,6 +1665,111 @@ class TestWorkflowSingleIdReferenceCompletion(unittest.TestCase):
         self.assertIn("nothing to be done", res.stdout)
         for rec_p, mtime in before.items():
             self.assertEqual(rec_p.stat().st_mtime_ns, mtime, f"{rec_p.name} was rewritten in the copy")
+
+
+class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
+    """A completed Store that fails the Observed-View Check is not published (#306, ADR 0037).
+
+    The run is paused as the check starts, with the completed Store staged and
+    validated, and an observed Z of it is perturbed through opengwasdb's plane
+    `patch` API. The check then fails, `completion-register` never runs, and
+    the Observed-Only Store the build phase published is exactly as it was.
+    """
+
+    STORE_ID = "OGS-00111"
+    CHECK_STEP = "completion-observed-view-check"
+
+    @staticmethod
+    def hash_tree(root: Path) -> dict[str, str]:
+        import hashlib
+
+        return {
+            str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted(root.rglob("*"))
+            if p.is_file()
+        }
+
+    def test_a_tampered_completed_store_is_refused_and_the_observed_only_store_survives(self) -> None:
+        import numpy as np
+        import time
+        import yaml
+        from opengwasdb.encoding import DenseZPlane
+        from opengwasdb.store.open import open_store
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            stores, artifacts = root / "stores", root / "artifacts"
+            stores.mkdir()
+            artifacts.mkdir()
+            create_dense_fixture_store(
+                stores,
+                store_id=self.STORE_ID,
+                artifact_root=artifacts,
+                vcf_path=create_signal_fixture_vcf(root / "signal.vcf.gz"),
+                post_top_hits=False,
+                post_overview=False,
+            )
+            amend_to_complete_own_store(stores, self.STORE_ID, ld_panel=create_signal_ld_panel(root / "ld-panel"))
+            pause = root / "paused"
+            log = root / "run.log"
+            env = {**os.environ, run.PAUSE_AT_ENV: f"{self.CHECK_STEP}-started", run.PAUSE_FILE_ENV: str(pause)}
+            with log.open("w") as handle:
+                proc = subprocess.Popen(
+                    release_argv([self.STORE_ID], registry_root=stores, artifact_root=artifacts),
+                    cwd=REPO_ROOT, stdout=handle, stderr=subprocess.STDOUT, env=env, start_new_session=True,
+                )
+                self.addCleanup(lambda: proc.poll() is None and os.killpg(proc.pid, 9))
+                deadline = time.monotonic() + 600
+                while not pause.exists():
+                    if proc.poll() is not None:
+                        self.fail(f"the run ended before its check started:\n{log.read_text()}")
+                    if time.monotonic() > deadline:
+                        self.fail(f"the run never reached its check:\n{log.read_text()}")
+                    time.sleep(0.2)
+
+                store_p = paths.store_path(self.STORE_ID, root=artifacts)
+                staged_p = paths.partial_store_path(self.STORE_ID, root=artifacts)
+                self.assertEqual(
+                    json.loads((store_p / "manifest.json").read_text())["completion_state"], "observed_only"
+                )
+                published_before = self.hash_tree(store_p)
+                register_before = (paths.records_dir(self.STORE_ID, root=artifacts) / "register.json").read_bytes()
+                validation_before = (stores / self.STORE_ID / "validation.yaml").read_bytes()
+
+                # Perturb one observed Z of the staged completed Store.
+                found = query_store(staged_p).lookup([SIGNAL_ALID[0]], [f"test_analysis_{self.STORE_ID}"])
+                rows, cols = np.array([int(found["variant_index"][0])]), np.array([int(found["analysis_index"][0])])
+                opened = open_store(staged_p)
+                plane = DenseZPlane.open(opened.arrays(mode="r+"), opened.manifest.encoding)
+                plane.patch(rows, cols, plane.points(rows, cols) + 1.0)
+                pause.unlink()
+                returncode = proc.wait(timeout=600)
+
+            output = log.read_text()
+            self.assertNotEqual(returncode, 0, output)
+
+            # The error names the failing counters and the verdict.
+            verdict_p = paths.work_dir(self.STORE_ID, root=artifacts) / "observed-view-check.json"
+            verdict = json.loads(verdict_p.read_text(encoding="utf-8"))
+            self.assertIs(verdict["passed"], False)
+            self.assertIn("z_mismatch", verdict["failures"])
+            self.assertIn("z_mismatch", output)
+            self.assertIn(str(verdict_p), output)
+
+            # The check failed, so nothing registered and nothing was published.
+            rec_dir = paths.records_dir(self.STORE_ID, root=artifacts)
+            # Snakemake removes a failed job's record, so the verdict file is the evidence.
+            self.assertFalse((rec_dir / f"{self.CHECK_STEP}.json").exists())
+            self.assertFalse((rec_dir / "completion-register.json").exists())
+            self.assertEqual(self.hash_tree(store_p), published_before)
+            self.assertEqual((rec_dir / "register.json").read_bytes(), register_before)
+            self.assertEqual((stores / self.STORE_ID / "validation.yaml").read_bytes(), validation_before)
+            self.assertFalse((paths.store_dir(self.STORE_ID, root=artifacts) / "replaced").exists())
+            self.assertFalse(paths.publication_marker(self.STORE_ID, root=artifacts).exists())
+            self.assertEqual(
+                yaml.safe_load((stores / self.STORE_ID / "validation.yaml").read_text())["observed"]["n_variants"],
+                len(SIGNAL_POSITIONS) - 1,
+            )
 
 
 class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):
