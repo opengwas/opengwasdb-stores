@@ -57,6 +57,8 @@ EXEMPT_TESTS: dict[str, str] = {
     "tests/hm3-migration/test_hm3_migration.py": "the indexed-subset audit script (resources/scripts)",
     "tests/hm3-benchmark-report/test_release_benchmark_report.py": "release-benchmark-report.py, which imports another checkout",
     "tests/packaging/test_discovery.py": "the test runner, run_all_tests.py",
+    "tests/finngen-r13-pipeline/test_pipeline_end_to_end.py":
+        "the phase-b-candidate stage-test fixtures, whose directory is not a package",
     "tests/workflow/test_release_faults.py": "Store Release Build tests importing their sibling test module",
 }
 
