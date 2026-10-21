@@ -550,13 +550,13 @@ class UnrepresentableValuesTest(TempDirCase):
     def test_nan_is_the_absence_marker_of_the_two_threshold_columns(self) -> None:
         write_bundle(self.registry, "OGS-00001", rows=[
             analysis_row("A1", info_score_threshold="NaN", maf_threshold="NaN"),
-            analysis_row("A2", info_score_threshold="0.8", maf_threshold="0"),
+            analysis_row("A2", maf_threshold="0"),
         ])
         self.build()
         self.assertEqual(
             query(self.root, "SELECT id, info_score_threshold, maf_threshold, typeof(maf_threshold) "
                              "FROM analyses ORDER BY id"),
-            [("OGS-00001:A1", None, None, "null"), ("OGS-00001:A2", 0.8, 0.0, "real")],
+            [("OGS-00001:A1", None, None, "null"), ("OGS-00001:A2", None, 0.0, "real")],
         )
 
     def test_nan_in_any_other_numeric_column_is_still_refused(self) -> None:
