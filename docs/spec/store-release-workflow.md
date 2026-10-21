@@ -717,7 +717,7 @@ The only thing deliberately excluded is anything whose answer changes without a 
 `stores.tsv` columns:
 
 ```text
-derived   store_id  label  layout  completion_state  status  derived_from
+derived   store_id  label  layout  completion_state  status  derived_from  trial
           store_uri  created_at  opengwasdb_rev  generator_command  build_command
           n_analyses  n_manifest  n_excluded  first_author  publication_pmid
           tissue  context  assigned_ancestry  sample_size  source_url
@@ -727,6 +727,12 @@ observed  format_version  n_variants  n_associations  store_bytes
 
 `n_analyses` is admitted membership; `n_manifest` and `n_excluded` keep the
 excluded manifest rows visible (issue #217).
+
+`trial` is `release.yaml`'s marker, rendered `true` or `false` rather than left
+empty when absent: whether a release is a Trial Store Release is the fact the
+Analysis Catalog's serving policy reads, so the list says it outright instead of
+leaving a reader to notice a "pilot" label (#321). `STORES.md` carries it as a
+Trial column.
 
 `completion_state` is the completion state of the Store users can query, not
 the bundle's declaration (issue #307, ADR 0037). `register` records it as

@@ -49,6 +49,7 @@ def create_mock_bundle(
     completion_state: str = "observed_only",
     status: str = "built",
     derived_from: str | None = None,
+    trial: bool = False,
     validation_data: dict[str, Any] | None = None,
     options: dict[str, Any] | None = None,
 ) -> Bundle:
@@ -66,6 +67,9 @@ def create_mock_bundle(
         "source_snapshot_id": "mock-snap",
         "generator": {"commands": [f"generate.py --config={label}.yaml"]},
     }
+    if trial:
+        # Absent means not a trial, so only the marked case is written (#321).
+        rel_dict["trial"] = True
 
     bld_dict: dict[str, Any] = {
         "store_id": store_id,
@@ -114,7 +118,7 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
 
     def test_canonical_columns_present_in_order(self) -> None:
         """stores.tsv contains exactly the canonical columns in defined order."""
-        self.assertEqual(len(COLUMNS), 27)
+        self.assertEqual(len(COLUMNS), 28)
         expected = (
             "store_id",
             "label",
@@ -122,6 +126,7 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
             "completion_state",
             "status",
             "derived_from",
+            "trial",
             "store_uri",
             "created_at",
             "opengwasdb_rev",
@@ -163,6 +168,34 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         self.assertIn("--n-workers 16", row["build_command"])
         self.assertIn("--chunk-variants 5000", row["build_command"])
         self.assertIn("--source-assembly hg38", row["build_command"])
+
+    def test_a_malformed_trial_stops_the_master_list(self) -> None:
+        """The index does not gate on `check()`, so a bad marker must not render as `false` (#321)."""
+        make = create_mock_bundle(self.stores_dir, "OGS-00021", label="quoted-trial")
+        path = make.root / "release.yaml"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace("status: built", 'status: built\ntrial: "yes"'),
+            encoding="utf-8",
+        )
+        with self.assertRaises(ValueError) as caught:
+            render_stores_row(bundle.load("OGS-00021", registry_root=self.stores_dir))
+        self.assertIn("trial", str(caught.exception))
+        self.assertIn("OGS-00021", str(caught.exception))
+
+    def test_trial_column_reports_the_release_marker(self) -> None:
+        """The master list carries the `trial` fact, not a reading of the label (#321)."""
+        trial = create_mock_bundle(
+            self.stores_dir, "OGS-00019", label="eqtlgen-pilot-10", trial=True
+        )
+        full = create_mock_bundle(self.stores_dir, "OGS-00020", label="eqtlgen-full")
+        rows = [render_stores_row(b) for b in (trial, full)]
+        self.assertEqual([row["trial"] for row in rows], ["true", "false"])
+
+        md = render_stores_md([trial, full], rows)
+        header = next(line for line in md.splitlines() if line.startswith("| Store ID"))
+        self.assertIn("Trial", header)
+        self.assertIn("| `OGS-00019` | eqtlgen-pilot-10 | true |", md)
+        self.assertIn("| `OGS-00020` | eqtlgen-full | false |", md)
 
     def test_configured_artifact_root_renders_build_command_and_store_uri(self) -> None:
         """The master list derives artifact paths from configuration, not the Build Recipe (issue #126)."""
@@ -404,8 +437,8 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         # Verify STORES.md content
         md_text = md_p.read_text(encoding="utf-8")
         self.assertIn("# OpenGWASDB Store Releases", md_text)
-        self.assertIn("| `OGS-00001` | pilot-1 | dense |", md_text)
-        self.assertIn("| `OGS-00002` | pilot-2 | dense |", md_text)
+        self.assertIn("| `OGS-00001` | pilot-1 | false | dense |", md_text)
+        self.assertIn("| `OGS-00002` | pilot-2 | false | dense |", md_text)
         self.assertIn("## Derived membership summaries", md_text)
 
         # Verify stores/by-label/ symlinks
@@ -497,7 +530,7 @@ class TestPublishedCompletionState(unittest.TestCase):
 
         md = render_stores_md([b], [row])
         self.assertIn(
-            "| `OGS-00041` | single-id | dense | observed_only (completion pending) |",
+            "| `OGS-00041` | single-id | false | dense | observed_only (completion pending) |",
             md,
             "the row must show that a completion is on its way",
         )
@@ -570,7 +603,7 @@ class TestPublishedCompletionState(unittest.TestCase):
         self.assertEqual(row["n_variants"], "100", "the Observed-Only Store's variants")
         md = render_stores_md([legacy], [row])
         self.assertIn(
-            "| `OGS-00044` | legacy-single-id | dense | observed_only (completion pending) |",
+            "| `OGS-00044` | legacy-single-id | false | dense | observed_only (completion pending) |",
             md,
         )
         tsv_cells = render_stores_tsv([legacy], artifact_root="/art").splitlines()[1].split("\t")
@@ -638,7 +671,8 @@ class TestPublishedCompletionState(unittest.TestCase):
                 [
                     "\t".join(COLUMNS),
                     "OGS-00042\tlegacy-parent\tdense\tobserved_only\tbuilt\t\t"
-                    "/art/OGS-00042/store.opengwasdb\t2026-08-18T08:51:59Z\t\t"
+                    "false\t/art/OGS-00042/store.opengwasdb\t"
+                    "2026-08-18T08:51:59Z\t\t"
                     "generate.py --config=legacy-parent.yaml\t"
                     "opengwasdb build-dense-vcf /art/OGS-00042/work/analyses.tsv "
                     "/art/OGS-00042/store.opengwasdb --store-id OGS-00042 "
@@ -646,7 +680,7 @@ class TestPublishedCompletionState(unittest.TestCase):
                     "0.2.0\t1\t1\t0\t100\t180\t4096\t12.5\tpassed\t"
                     "NA\tNA\tNA\tNA\tNA\tNA\tNA",
                     "OGS-00043\tlegacy-child\tdense\treference_completed\tbuilt\t"
-                    "OGS-00042\t/art/OGS-00043/store.opengwasdb\t"
+                    "OGS-00042\tfalse\t/art/OGS-00043/store.opengwasdb\t"
                     "2026-08-18T08:51:59Z\t\tgenerate.py --config=legacy-child.yaml\t"
                     "opengwasdb complete-dense /art/OGS-00042/store.opengwasdb "
                     "/art/OGS-00043/store.opengwasdb --release-id OGS-00043 "
@@ -659,12 +693,12 @@ class TestPublishedCompletionState(unittest.TestCase):
         )
         md = render_stores_md([parent, child], rows)
         self.assertIn(
-            "| `OGS-00042` | legacy-parent | dense | observed_only | built | "
+            "| `OGS-00042` | legacy-parent | false | dense | observed_only | built | "
             "0.2.0 | 1 | 0 | 100 | 180 | passed |",
             md,
         )
         self.assertIn(
-            "| `OGS-00043` | legacy-child | dense | reference_completed | built | "
+            "| `OGS-00043` | legacy-child | false | dense | reference_completed | built | "
             "0.2.0 | 1 | 0 | 100 | 180 | passed |",
             md,
         )
@@ -742,6 +776,39 @@ class TestIndexStrictSeamAndTripwires(unittest.TestCase):
 
 class TestRepoIndexCleanTree(unittest.TestCase):
     """Verify every generated index view matches the committed files."""
+
+    def test_the_committed_master_list_marks_exactly_the_trial_store_releases(
+        self,
+    ) -> None:
+        """`trial` is a column of the committed list, true for the seven and nobody else (#321)."""
+        rows = list(
+            csv.DictReader(
+                (REPO_ROOT / "stores.tsv").read_text(encoding="utf-8").splitlines(),
+                delimiter="\t",
+            )
+        )
+        self.assertIn("trial", rows[0])
+        self.assertEqual(
+            [row["store_id"] for row in rows if row["trial"] == "true"],
+            [
+                "OGS-00001",
+                "OGS-00002",
+                "OGS-00003",
+                "OGS-00004",
+                "OGS-00005",
+                "OGS-00007",
+                "OGS-00008",
+            ],
+        )
+        self.assertEqual(
+            {row["trial"] for row in rows}, {"true", "false"}, "every row says which"
+        )
+        md = (REPO_ROOT / "STORES.md").read_text(encoding="utf-8")
+        header = next(
+            line for line in md.splitlines() if line.startswith("| Store ID")
+        )
+        self.assertIn("Trial", header)
+        self.assertIn("| `OGS-00001` | pilot-10 | true |", md)
 
     def test_current_repo_index_matches_committed_files_with_clean_tree(self) -> None:
         """Regenerating index matches master files, summaries, and symlinks exactly."""
