@@ -26,6 +26,7 @@ from __future__ import annotations
 import csv
 import gzip
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -600,17 +601,97 @@ class AcquisitionTest(unittest.TestCase):
         )
         self.assertEqual(ready["original_bytes"], str(original.stat().st_size))
         script = REPO_ROOT / "src/manifest_generation/providers/dbgap/mvp/acquire_dbgap_phs002453.py"
+        receipts = sorted((self.root / "GIA" / "convert-receipts").glob("*.json"))
+        commit = json.loads(receipts[-1].read_text(encoding="utf-8"))["code_sha"]
         self.assertEqual(
             ready["reformat_tool"],
             "manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 "
-            f"sha256:{hashlib.sha256(script.read_bytes()).hexdigest()}",
+            f"sha256:{hashlib.sha256(script.read_bytes()).hexdigest()} code:{commit}",
         )
         # An explained absence carries no lineage: there is no file to trace.
         self.assertEqual(rows["GCST90479999"]["original_location"], "")
         # The shared loader accepts the lineage it wrote.
         load_acquisition_manifest(self.root / "acquisition-manifest.tsv")
 
-    def test_13_manifest_refuses_a_rewritten_file_whose_original_is_gone(self) -> None:
+    def test_13_a_duplicate_toc_is_refused_by_the_deposit_rule(self) -> None:
+        """A refused deposit names its rule, never a NameError (#290 review)."""
+        self.ensure_mapping_and_conversion()
+        meta = self.root / "GIA" / "meta"
+        original = meta / f"{TAR}.table_of_contents.txt"
+        duplicate = meta / "second-tar.table_of_contents.txt"
+        duplicate.write_text(original.read_text(encoding="utf-8"), encoding="utf-8")
+        self.addCleanup(duplicate.unlink)
+        result = run(self.root, "manifest", "--mapping", str(self.root / "mapping.tsv"))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("listed in more than one table of contents", result.stderr)
+        self.assertNotIn("NameError", result.stderr)
+
+    def test_14_convert_records_the_version_that_rewrote_each_file(self) -> None:
+        """A future acquisition records the converter's identity at conversion (#290 review)."""
+        self.ensure_mapping_and_conversion()
+        receipts = [
+            json.loads(path.read_text(encoding="utf-8"))
+            for path in sorted((self.root / "GIA" / "convert-receipts").glob("*.json"))
+        ]
+        self.assertTrue(receipts, "convert wrote no receipt")
+        receipt = next(
+            entry for entry in receipts if "GCST90475097" in entry["analyses"]
+        )
+        script = REPO_ROOT / "src/manifest_generation/providers/dbgap/mvp/acquire_dbgap_phs002453.py"
+        self.assertEqual(
+            receipt["module_sha256"], hashlib.sha256(script.read_bytes()).hexdigest()
+        )
+        # Each run names the files it wrote, and the code commit it ran.
+        self.assertIn("GCST90477833", [i for entry in receipts for i in entry["analyses"]])
+        for entry in receipts:
+            self.assertRegex(entry["code_sha"], r"^[0-9a-f]{40}$")
+            self.assertRegex(entry["recorded_at"], r"^\d{4}-\d{2}-\d{2}T")
+
+        result = run(self.root, "manifest", "--mapping", str(self.root / "mapping.tsv"))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        rows = {row["source_analysis_id"]: row for row in self.rows(self.root / "acquisition-manifest.tsv")}
+        self.assertEqual(
+            rows["GCST90475097"]["reformat_tool"],
+            "manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 "
+            f"sha256:{receipt['module_sha256']} code:{receipt['code_sha']}",
+        )
+
+    def test_15_a_historical_conversion_version_is_recovered_or_honestly_unrecorded(self) -> None:
+        """Only a run record that names its code can stamp a version (#290 review)."""
+        self.ensure_mapping_and_conversion()
+        history = self.root / "conversion-history"
+        history.mkdir()
+        (history / "parent-run-summary.json").write_text(
+            json.dumps({"code_sha": "b" * 40}), encoding="utf-8"
+        )
+        (history / "refresh-receipt.tsv").write_text(
+            "analysis_id\tmember\tstore_key\taction\n"
+            f"GCST90475097\tmember-a\t{STORE_KEY}\tnew-conversion\n"
+            f"GCST90477833\tmember-b\t{STORE_KEY}\tcanonicalised\n",
+            encoding="utf-8",
+        )
+        # No conversion receipts: this workspace's own conversions are set aside.
+        for receipt in (self.root / "GIA" / "convert-receipts").glob("*.json"):
+            receipt.rename(receipt.with_suffix(".set-aside"))
+        self.addCleanup(
+            lambda: [
+                path.rename(path.with_suffix(".json"))
+                for path in (self.root / "GIA" / "convert-receipts").glob("*.set-aside")
+            ]
+        )
+        result = run(
+            self.root, "manifest", "--mapping", str(self.root / "mapping.tsv"),
+            "--conversion-history", str(history),
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        rows = {row["source_analysis_id"]: row for row in self.rows(self.root / "acquisition-manifest.tsv")}
+        tool = "manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453"
+        self.assertEqual(rows["GCST90475097"]["reformat_tool"], f"{tool} code:{'b' * 40}")
+        unrecorded = rows["GCST90477833"]["reformat_tool"]
+        self.assertTrue(unrecorded.startswith(f"{tool} sha256:unrecorded"), unrecorded)
+        self.assertIn("no conversion-time code identity", unrecorded)
+
+    def test_16_manifest_refuses_a_rewritten_file_whose_original_is_gone(self) -> None:
         """No durable original identity means stop, not invent one (#290 review)."""
         self.ensure_mapping_and_conversion()
         original = self.root / "GIA" / "extracted" / f"{INNER}/MVP_R4.1000G_AGR.A1C_Min_INT.EUR.GIA.dbGaP.txt.gz"

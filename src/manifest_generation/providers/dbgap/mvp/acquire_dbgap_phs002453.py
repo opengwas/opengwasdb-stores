@@ -56,6 +56,7 @@ from __future__ import annotations
 import argparse
 import collections
 import csv
+import json
 import os
 import re
 import subprocess
@@ -1217,6 +1218,7 @@ def command_convert(args: argparse.Namespace) -> int:
 
     started = time.monotonic()
     counts: dict[str, int] = {}
+    statuses: dict[str, str] = {}
     failures = 0
     with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
         futures = {
@@ -1230,6 +1232,7 @@ def command_convert(args: argparse.Namespace) -> int:
             except Exception as exc:  # noqa: BLE001 - keep a long batch alive
                 status, error, seconds = "error", repr(exc), 0.0
             counts[status] = counts.get(status, 0) + 1
+            statuses[row["analysis_id"]] = status
             if status == "error":
                 failures += 1
             print(
@@ -1237,6 +1240,13 @@ def command_convert(args: argparse.Namespace) -> int:
                 flush=True,
             )
     elapsed = time.monotonic() - started
+    # The files this run's code wrote, recorded at conversion time (#290 review).
+    converted = [
+        analysis_id for analysis_id, status in statuses.items() if status == "converted"
+    ]
+    receipt = write_convert_receipt(out, converted)
+    if receipt is not None:
+        print(f"convert: version receipt {receipt}")
     print("convert: " + ", ".join(f"{key}={value}" for key, value in sorted(counts.items())))
     print(f"convert: {elapsed:.1f}s wall for {len(rows)} Analysis(es)")
     return 1 if failures else 0
@@ -1251,10 +1261,110 @@ def command_convert(args: argparse.Namespace) -> int:
 REFORMAT_TOOL_MODULE = "manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453"
 
 
+#: Where ``convert`` keeps the receipts that say which code wrote each file.
+CONVERT_RECEIPTS_DIRNAME = Path("GIA") / "convert-receipts"
+
+#: The version a file's converter carries when no run recorded one.
+UNRECORDED_VERSION = (
+    "sha256:unrecorded (no conversion-time code identity recorded; searched the conversion "
+    "runs and the metadata-refresh run records; see #290)"
+)
+
+
+def module_sha256() -> str:
+    """This module's own digest: the converter's version when nothing better is recorded."""
+    return sha256_file(Path(__file__).resolve())
+
+
+def code_sha() -> str:
+    """The repository commit executing this code, or ``""`` when it cannot be read."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"],
+            capture_output=True, text=True, check=False,
+        )
+    except OSError:  # pragma: no cover - a host without git
+        return ""
+    commit = result.stdout.strip()
+    return commit if result.returncode == 0 and re.fullmatch(r"[0-9a-f]{40}", commit) else ""
+
+
 def reformat_tool() -> str:
     """The rewrite tool and its version: this module's name and its own sha256 (#290 review)."""
-    script = Path(__file__).resolve()
-    return f"{REFORMAT_TOOL_MODULE} sha256:{sha256_file(script)}"
+    return f"{REFORMAT_TOOL_MODULE} sha256:{module_sha256()}"
+
+
+def write_convert_receipt(out: Path, analysis_ids: Sequence[str]) -> Path | None:
+    """Record which code converted which files in this run (#290 review).
+
+    The version is the module's digest and the commit executing it, written at
+    conversion time: a later ``manifest`` run reads it instead of stamping its
+    own version onto files it did not write.
+    """
+    if not analysis_ids:
+        return None
+    directory = out / CONVERT_RECEIPTS_DIRNAME
+    directory.mkdir(parents=True, exist_ok=True)
+    recorded_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    path = directory / f"{recorded_at.replace(':', '')}-{os.getpid()}.json"
+    document = {
+        "tool": REFORMAT_TOOL_MODULE,
+        "module_sha256": module_sha256(),
+        "code_sha": code_sha(),
+        "recorded_at": recorded_at,
+        "analyses": sorted(analysis_ids),
+    }
+    path.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
+def recorded_versions(out: Path) -> dict[str, str]:
+    """``analysis_id -> reformat_tool`` from the conversion receipts convert wrote."""
+    versions: dict[str, str] = {}
+    for path in sorted((out / CONVERT_RECEIPTS_DIRNAME).glob("*.json")):
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise AcquisitionError(f"{path} is not a conversion receipt: {exc}") from exc
+        digest = document.get("module_sha256")
+        if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise AcquisitionError(f"{path} records no module_sha256")
+        tool = f"{REFORMAT_TOOL_MODULE} sha256:{digest}"
+        commit = document.get("code_sha")
+        if isinstance(commit, str) and re.fullmatch(r"[0-9a-f]{40}", commit):
+            tool += f" code:{commit}"
+        for analysis_id in document.get("analyses") or []:
+            versions[str(analysis_id)] = tool
+    return versions
+
+
+def historical_versions(directory: Path) -> dict[str, str]:
+    """``analysis_id -> reformat_tool`` from a conversion run's own record (#290 review).
+
+    A metadata-refresh run records its code commit and, per Analysis, what it
+    did: a file it converted carries that commit as its version, while a file it
+    only canonicalised was converted by an earlier run whose code identity the
+    record does not name. Nothing is inferred beyond what the record says.
+    """
+    summary_path = directory / "parent-run-summary.json"
+    receipt_path = directory / "refresh-receipt.tsv"
+    if not summary_path.is_file() or not receipt_path.is_file():
+        raise AcquisitionError(
+            f"--conversion-history {directory} records no parent-run-summary.json and "
+            "refresh-receipt.tsv pair"
+        )
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    commit = summary.get("code_sha")
+    if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise AcquisitionError(f"{summary_path} records no code_sha")
+    versions: dict[str, str] = {}
+    for row in read_tsv(receipt_path):
+        analysis_id = row.get("analysis_id", "")
+        if not analysis_id:
+            raise AcquisitionError(f"{receipt_path}: a row has no analysis_id")
+        if row.get("action") == "new-conversion":
+            versions[analysis_id] = f"{REFORMAT_TOOL_MODULE} code:{commit}"
+    return versions
 
 
 def reformat_lineage(
@@ -1264,6 +1374,7 @@ def reformat_lineage(
     extracted: Path,
     original_sha256: str,
     original_size: int,
+    tool: str = "",
 ) -> dict[str, str]:
     """The tar member a converted file was rewritten from, and what changed it.
 
@@ -1295,17 +1406,20 @@ def reformat_lineage(
     return {
         "original_location": f"{tars_dir / tar}#{member}",
         "original_sha256": original_sha256,
-        "reformat_tool": reformat_tool(),
+        "reformat_tool": tool or reformat_tool(),
         "original_bytes": str(original_size),
     }
 
 
 def member_sizes(out: Path) -> dict[str, int]:
-    """``member -> size`` from the deposit's tables of contents (empty when absent)."""
-    try:
-        return {member: size for member, (_tar, size) in load_toc(out).items()}
-    except (DbgapError, OSError):
-        return {}
+    """``member -> size`` from the deposit's tables of contents.
+
+    An empty deposit (no tables of contents) is no sizes, not an error; a bad
+    one -- a duplicate member, an unsafe path -- is the deposit's own refusal
+    (``AcquisitionError``), which names its rule and must not be swallowed
+    (#290 review).
+    """
+    return {member: size for member, (_tar, size) in load_toc(out).items()}
 
 
 def manifest_row(
@@ -1467,6 +1581,9 @@ def command_manifest(args: argparse.Namespace) -> int:
         }
         for future in as_completed(futures):
             original_digests[futures[future]] = future.result()
+    versions = recorded_versions(out)
+    for directory in args.conversion_history or []:
+        versions.update(historical_versions(Path(directory)))
     lineage_by_id: dict[str, dict[str, str]] = {}
     for row in ready_rows:
         analysis_id = row["analysis_id"]
@@ -1480,6 +1597,7 @@ def command_manifest(args: argparse.Namespace) -> int:
         lineage_by_id[analysis_id] = reformat_lineage(
             row, tars_dir=tars_dir, extracted=extracted,
             original_sha256=original_digests[analysis_id], original_size=size,
+            tool=versions.get(analysis_id, f"{REFORMAT_TOOL_MODULE} {UNRECORDED_VERSION}"),
         )
     rows = [
         manifest_row(
@@ -1975,6 +2093,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="the acquisition's per-store download manifests, whose sha256 values are reused",
     )
     manifest.add_argument("--manifest", help="output TSV (default: <out>/acquisition-manifest.tsv)")
+    manifest.add_argument(
+        "--conversion-history",
+        action="append",
+        help=(
+            "a conversion run's own record (parent-run-summary.json and refresh-receipt.tsv) "
+            "whose code_sha and per-Analysis actions recover a historical converter version"
+        ),
+    )
     manifest.add_argument("--jobs", type=int, default=8)
     manifest.add_argument("--analysis", action="append")
     manifest.add_argument("--limit", type=int)

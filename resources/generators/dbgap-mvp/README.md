@@ -11,9 +11,18 @@ connectors/acquisition-manifest.tsv     the acquisition's shared Acquisition Man
 Every ready manifest row also carries the reformatting lineage ADR 0036 requires:
 `original_location` names the published tar and the member inside it
 (`<tar path>#<member>`), `original_sha256` and `original_bytes` are the extracted
-member's own, and `reformat_tool` names the module that rewrote it with its
-digest. A rewritten file whose extracted original is gone is refused rather than
-given an invented identity.
+member's own, and `reformat_tool` names the module that rewrote it with the
+version recorded *at conversion*. A rewritten file whose extracted original is
+gone is refused rather than given an invented identity.
+
+The converter's version is never the version of the run that writes the
+manifest (#290 review). `convert` writes a receipt under `GIA/convert-receipts/`
+with its `module_sha256` and the executing `code_sha`, so a later acquisition's
+files carry the code that wrote them. For the 6,022 files acquired before that,
+`--conversion-history` reads the metadata-refresh run's own record: the two
+files it converted carry that run's `code_sha` (`baf141c…`), and the other 6,020
+carry `sha256:unrecorded` with the evidence searched, because no conversion-time
+record names the code that wrote them.
 
 The adapter is `manifest_generation.providers.dbgap.mvp.source_metadata_adapter`;
 it joins the acquisition's `mapping.tsv` with the deposit's
@@ -37,7 +46,7 @@ metadata parsing both the acquisition and adapter use.
 `expect_rows` is the retired partition's bound count, now a check on the
 Selection (#290): freeze refuses a different number and preflight re-checks the
 frozen inventory. The frozen snapshots are
-`resources/inventories/dbgap-phs002453-{eur,afr,amr,eas,meta}-2026-10-21b.*`.
+`resources/inventories/dbgap-phs002453-{eur,afr,amr,eas,meta}-2026-10-21c.*`.
 
 All five configs regenerate as **comparison-only** candidates into a temporary
 registry; OGS-00012–16 are accepted and are never replaced.

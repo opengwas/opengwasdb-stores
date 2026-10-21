@@ -330,9 +330,16 @@ review). The original is a member of a published tar, so `original_location` is
 `<tar path>#<member>`; `original_sha256` and `original_bytes` are the extracted
 member's own, cross-checked against the deposit's table of contents (the tar
 itself is deleted after extraction, so only its recorded md5 survives, and it
-identifies the container rather than these bytes); and `reformat_tool` is
-`manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:<the
-module's own digest>`. A rewritten file whose extracted original is gone is
+identifies the container rather than these bytes); and `reformat_tool` names
+the code that actually rewrote the file, never the code writing the manifest
+(#290 review). `convert` records its own `module_sha256` and the executing
+commit in a receipt under `GIA/convert-receipts/`, which a later `manifest` run
+reads; for files acquired before that, `--conversion-history` reads a
+conversion run's own record (`parent-run-summary.json`'s `code_sha` and
+`refresh-receipt.tsv`'s per-Analysis action), so a file it converted carries
+that commit and a file it only re-canonicalised carries
+`sha256:unrecorded` with the evidence searched, because no conversion-time
+record names that code. A rewritten file whose extracted original is gone is
 refused by name rather than given an invented identity.
 
 ## Selection
