@@ -69,6 +69,7 @@ from manifest_generation.candidate_workflow import (  # noqa: E402
     RESOLVER_MANIFEST_COLUMNS,
     USABLE_MAF_STATES,
     AnalysisMetadata,
+    CandidateConfiguration,
     CandidateError,
     ResolverRow,
     account_records,
@@ -92,6 +93,7 @@ from manifest_generation.candidate_workflow import (  # noqa: E402
     render_validation_yaml,
     render_resolver_manifest,
     resolver_argv,
+    resolver_settings,
     validate_candidate_analyses,
     verify_records,
 )
@@ -191,6 +193,10 @@ META_TEMPLATE = "gwas_id: {analysis_id}\ngenome_assembly: GRCh38\nis_harmonised:
 # A fixture Canonical Trait Mapping Table (#286): the candidate tests never read
 # the tracked one, so curating it cannot change them.
 TRAIT_TABLE_RESOURCE_ID = "canonical-trait-mapping-efo"
+# The Ancestry Reference Panel names the tracked declaration, whose genome_build
+# the resolver is passed (opengwasdb#277), and stands in a fixture panel for its
+# location, as the trait table above does.
+ANCESTRY_RESOURCE_ID = "ukb-ancestry-mixture-hg38"
 TRAIT_TABLE_TEXT = (
     "trait_label\ttrait_ontology_id\ttrait_ontology_label\n"
     "weight\tEFO:0004338\tbody weight\n"
@@ -382,7 +388,7 @@ class FixtureBuilder:
             "release_policy": {"selection_superpopulation": "EUR"},
             "reference_resources": [
                 {
-                    "resource_id": "fixture-ancestry-mixture",
+                    "resource_id": ANCESTRY_RESOURCE_ID,
                     "kind": "ancestry_mixture",
                     "ancestry": "multi",
                     "super_populations": ["AFR", "AMR", "EAS", "EUR", "MID", "NAF", "SAS"],
@@ -401,7 +407,7 @@ class FixtureBuilder:
                 },
             ],
             "ancestry_assignment": {
-                "reference_resource_id": "fixture-ancestry-mixture",
+                "reference_resource_id": ANCESTRY_RESOURCE_ID,
                 "maf_floor": 0.01,
                 "extraction_panel": None,
                 "gates": {"tau": 0.50, "delta": 0.20, "n_min": 5000, "residual_max": 0.06},
@@ -2183,6 +2189,53 @@ class CandidateWorkflowTests(unittest.TestCase):
             self.assertIn(flag, argv)
         self.assertEqual(argv[argv.index("--n-workers") + 1], "64")
         self.assertNotIn("--af-reference", argv)  # source-AF-only policy (#152)
+
+    def _with_ancestry_declaration(self, text: str) -> tuple[CandidateConfiguration, Path]:
+        """The fixture config, its Ancestry Reference Panel declared by ``text``."""
+        declaration = self.fixture.root / "ancestry-declaration" / "resource.yaml"
+        declaration.parent.mkdir()
+        declaration.write_text(text, encoding="utf-8")
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        return replace(config, ancestry_reference_declaration=declaration), declaration
+
+    def test_the_resolver_is_passed_the_ancestry_panels_declared_build(self) -> None:
+        """opengwasdb#277: the panel's build is its resource.yaml's, never a guess."""
+        config, _ = self._with_ancestry_declaration(
+            f"resource_id: {ANCESTRY_RESOURCE_ID}\nkind: ancestry_mixture\ngenome_build: GRCh38\n"
+        )
+        argv = resolver_argv(
+            resolver_bin="opengwasdb",
+            manifest_path=Path("/tmp/analyses.tsv"),
+            records_dir=Path("/tmp/records"),
+            config=config,
+            cores=1,
+        )
+        self.assertEqual(argv[argv.index("--reference-build") + 1], "GRCh38")
+        self.assertNotIn("--source-build", argv)
+
+    def test_each_manifest_row_carries_its_analysis_declared_build_else_the_default(self) -> None:
+        """opengwasdb#277: each Analysis's build is the one `render` emits, never `--source-build`."""
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        rows = read_inventory(self.fixture.inventory_path)
+        metadata = read_analysis_metadata(
+            self.fixture.provenance_path, [row.analysis_id for row in rows if row.ready]
+        )
+        declared, *blank = sorted(metadata)
+        metadata[declared] = replace(metadata[declared], source_genome_build="GRCh37")
+
+        manifest = derive_resolver_manifest(rows, config, metadata)
+
+        builds = {row.analysis_id: row.source_genome_build for row in manifest}
+        self.assertEqual(builds, {declared: "GRCh37", **{analysis_id: "GRCh38" for analysis_id in blank}})
+        header = render_resolver_manifest(manifest).splitlines()[0].split("\t")
+        self.assertIn("source_genome_build", header)
+
+    def test_a_panel_declaring_no_build_is_refused_naming_its_declaration(self) -> None:
+        config, declaration = self._with_ancestry_declaration(
+            f"resource_id: {ANCESTRY_RESOURCE_ID}\nkind: ancestry_mixture\n"
+        )
+        with self.assertRaisesRegex(CandidateError, f"{declaration}.*genome_build"):
+            resolver_settings(config)
 
     def test_resolver_manifest_uses_exact_inventory_paths(self) -> None:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)

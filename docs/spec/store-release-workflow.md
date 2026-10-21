@@ -1059,8 +1059,9 @@ always find the same area and the same lock.
   resolver with `--resume`; the candidate entry point has no switch for it and
   refuses `--resume`. The resolver skips an Analysis whose existing successful
   record carries the fingerprint this run would produce, and re-resolves one
-  whose file (path, checksum, size or mtime), references (ancestry reference,
-  group map, extraction panel, Variant Reference, reference-AF resources),
+  whose file (path, checksum, size or mtime), references (ancestry reference
+  and its declared build, group map, extraction panel, Variant Reference,
+  reference-AF resources),
   settings (method tier, sample size, gates, MAF and INFO requests) or tool
   revision changed. A `controlled_failure` record is re-run on every run, as
   the resolver has always done; nothing else is.
@@ -1108,8 +1109,13 @@ the total N from the Source Metadata Table frozen beside the inventory, which
 the provenance checksums (#287). Every per-Analysis metadata value the bundle
 carries comes from that frozen table, with the release config's `defaults`
 filling the collection-wide ones (`source_genome_build`, `license`,
-`publication_doi`, `consortium`) where a cell is blank. Reading it is a join on
-an already-frozen Selection, never a second selection: membership is still the
+`publication_doi`, `consortium`) where a cell is blank. Each manifest row
+declares that `source_genome_build`, and the resolver is passed the Ancestry
+Reference Panel's `genome_build` from its `resource.yaml` as
+`--reference-build`: the pinned resolver takes no build on trust
+(opengwasdb#277), so a missing one is refused rather than guessed, and no
+`--source-build` fallback is passed. Reading the table is a join on an
+already-frozen Selection, never a second selection: membership is still the
 inventory's. An inventory frozen without its connectors (the pre-#283
 candidate-table freeze) is refused.
 

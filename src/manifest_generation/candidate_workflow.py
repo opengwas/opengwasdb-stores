@@ -124,6 +124,7 @@ RESOLVER_MANIFEST_COLUMNS: tuple[str, ...] = (
     "checksum",
     "checksum_algorithm",
     "size_bytes",
+    "source_genome_build",
     "info_score_threshold",
     "imputation_score_column",
     "imputation_score_kind",
@@ -455,6 +456,10 @@ class CandidateConfiguration:
     #: ``release_policy.keep_unassigned_ancestry_as_warning`` (#290): an Analysis
     #: the ancestry gates left unassigned is kept, unassigned, as a warning.
     keep_unassigned_ancestry_as_warning: bool = False
+    #: The Ancestry Reference Panel's declaration,
+    #: ``resources/reference-resources/<id>/resource.yaml``: its ``genome_build``
+    #: is the resolver's ``--reference-build`` (opengwasdb#277).
+    ancestry_reference_declaration: Path | None = None
 
 
 #: The Ancestry Assignment Method of an Analysis whose source has no allele
@@ -514,6 +519,10 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         quality_check_overrides=dict(base.quality_check_overrides),
         trust_source_ancestry_without_af=base.trust_source_ancestry_without_af,
         keep_unassigned_ancestry_as_warning=base.keep_unassigned_ancestry_as_warning,
+        ancestry_reference_declaration=(
+            Path(repo_root) / "resources" / "reference-resources"
+            / base.ancestry_reference_resource_id / "resource.yaml"
+        ),
     )
 
 
@@ -1037,6 +1046,10 @@ class ResolverRow:
     checksum: str
     checksum_algorithm: str
     size_bytes: str
+    #: The Analysis's declared build, else the release config's default: the
+    #: value ``render`` emits. The resolver refuses a row without one
+    #: (opengwasdb#277), and is never handed a ``--source-build`` fallback.
+    source_genome_build: str = ""
     info_score_threshold: str = "NaN"
     imputation_score_column: str = ""
     imputation_score_kind: str = ""
@@ -1096,6 +1109,9 @@ def derive_resolver_manifest(
                 checksum=row.sha256,
                 checksum_algorithm="sha256",
                 size_bytes=row.data_bytes,
+                source_genome_build=_or_default(
+                    resolved.source_genome_build if resolved else "", config, "source_genome_build"
+                ),
                 info_score_threshold=config.info_score_threshold if column else "NaN",
                 imputation_score_column=column,
                 imputation_score_kind=kind,
@@ -1130,6 +1146,31 @@ def _resolve_af_reference_specs(config: CandidateConfiguration) -> list[str]:
     return specs
 
 
+def ancestry_reference_build(config: CandidateConfiguration) -> str:
+    """The Ancestry Reference Panel's declared genome build, from its ``resource.yaml``.
+
+    The resolver refuses to guess a build (opengwasdb#277), and so does this:
+    a declaration that is missing, or that names no ``genome_build``, is refused.
+    """
+    path = config.ancestry_reference_declaration
+    if path is None or not path.is_file():
+        raise CandidateError(
+            f"Reference Resource {config.base.ancestry_reference_resource_id!r} has no "
+            f"declaration at {path}; the resolver needs its declared genome_build"
+        )
+    try:
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        raise CandidateError(f"{path} is not valid YAML: {exc}") from exc
+    build = document.get("genome_build") if isinstance(document, Mapping) else None
+    if not isinstance(build, str) or not build.strip():
+        raise CandidateError(
+            f"{path} declares no genome_build; the resolver's --reference-build is the "
+            "Ancestry Reference Panel's declared build and is never guessed"
+        )
+    return build
+
+
 def resolver_settings(config: CandidateConfiguration) -> list[str]:
     """The ``opengwasdb resolve-analyses`` flags that apply to every Analysis.
 
@@ -1161,6 +1202,8 @@ def resolver_settings(config: CandidateConfiguration) -> list[str]:
         ancestry_resource.location,
         "--ancestry-groups",
         fine_group_map,
+        "--reference-build",
+        ancestry_reference_build(config),
     ]
     extraction_panel = config.ancestry_block.get("extraction_panel")
     if extraction_panel:

@@ -156,9 +156,11 @@ def build(root: Path) -> Path:
             },
         },
         "release_policy": {"selection_superpopulation": "EUR"},
+        # The tracked panel declaration gives the resolver its genome_build
+        # (opengwasdb#277); a fixture panel stands in for its file.
         "reference_resources": [
             {
-                "resource_id": "fixture-ancestry-mixture", "kind": "ancestry_mixture",
+                "resource_id": "ukb-ancestry-mixture-hg38", "kind": "ancestry_mixture",
                 "location": str(reference / "ref_freqs.tsv.gz"),
                 "fine_group_map": str(reference / "ancestry_groups.tsv"), "version": "fixture",
             },
@@ -168,7 +170,7 @@ def build(root: Path) -> Path:
             },
         ],
         "ancestry_assignment": {
-            "reference_resource_id": "fixture-ancestry-mixture",
+            "reference_resource_id": "ukb-ancestry-mixture-hg38",
             "maf_floor": 0.01,
             "extraction_panel": None,
             "gates": {"tau": 0.50, "delta": 0.20, "n_min": 5000, "residual_max": 0.06},
