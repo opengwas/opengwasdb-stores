@@ -508,7 +508,19 @@ def _dump_yaml(data: dict[str, Any]) -> str:
 
 
 def _write_text_atomically(text: str, dest_path: Path) -> None:
-    """Atomically write text to dest_path using a temporary file and os.replace."""
+    """Atomically write text to dest_path using a temporary file and os.replace.
+
+    A file that already holds exactly `text` is left alone. Its mtime is
+    evidence: a record rewritten with identical bytes looks newer than the job
+    that consumed it, and Snakemake then reschedules that job (#303). Atomic
+    writes mean an existing file holds either the previous content or the new
+    one, never a half-written mix, so this comparison never sees a torn file.
+    """
+    try:
+        if dest_path.read_bytes() == text.encode("utf-8"):
+            return
+    except OSError:
+        pass
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = dest_path.with_name(f".{dest_path.name}.tmp.{os.getpid()}.{time.time_ns()}")
     with open(temp_path, "w", encoding="utf-8") as f:
@@ -517,6 +529,19 @@ def _write_text_atomically(text: str, dest_path: Path) -> None:
         os.fsync(f.fileno())
     os.replace(temp_path, dest_path)
     run._fsync_dir(dest_path.parent)
+
+
+def _record_already_written(record_p: Path, record_data: dict[str, Any]) -> bool:
+    """Whether `record_p` already holds exactly `record_data`.
+
+    The same argument as `_write_text_atomically`: an identical rewrite would
+    only bump the record's mtime, and a step record's mtime is what tells
+    Snakemake whether the job that consumed it is still up to date (#303).
+    """
+    try:
+        return json.loads(record_p.read_text(encoding="utf-8")) == record_data
+    except (OSError, ValueError):
+        return False
 
 
 def _exists(path: Path) -> bool:
@@ -643,9 +668,9 @@ def complete_publication(
 
     _write_text_atomically(marker["validation_yaml"], Path(marker["bundle_validation"]))
     run.fault_boundary("record-written")
-    run._write_record_atomically(
-        marker["register_record"], paths.record_path(store_id, "register", root=resolved_root)
-    )
+    register_record_p = paths.record_path(store_id, "register", root=resolved_root)
+    if not _record_already_written(register_record_p, marker["register_record"]):
+        run._write_record_atomically(marker["register_record"], register_record_p)
     run.fault_boundary("register-record-written")
     if finalize:
         remove_publication_marker(store_id, resolved_root)
