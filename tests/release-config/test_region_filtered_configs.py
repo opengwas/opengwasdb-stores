@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import csv
 import unittest
+from pathlib import Path
 
 from manifest_generation import REPO_ROOT
 from manifest_generation.freeze import load_frozen_connectors
@@ -57,6 +58,29 @@ class RegionFilteredConfigTests(unittest.TestCase):
         self.assertEqual(config.method_tiers["quantitative"].original_sd_method, "declared_standardised")
         selected = self.selected(config)
         self.assertEqual(selected, bundle_analyses("OGS-00007"))
+
+    def test_every_frozen_file_was_filtered_to_its_configs_policy_and_qc_panel(self) -> None:
+        """ADR 0036 (#300): a region-filtered release's files keep the QC panel, without exception."""
+        for name in ("release-chen-2023-european.yaml", "release-sun-2018-pilot-10.yaml"):
+            with self.subTest(config=name):
+                config = load_release_config(RAGGED / name, REPO_ROOT)
+                _table, manifest = load_frozen_connectors(config.inventory_provenance_path)
+                self.assertEqual(policy_problems(config, manifest), [])
+
+
+def policy_problems(config, manifest) -> list[str]:
+    """Each frozen file whose recorded policy is not the config's, with its QC panel's identity."""
+    from manifest_generation.region_filter import load_qc_panel
+    from manifest_generation.region_filtered_acquisition import policy_record
+
+    resource = config.reference_resources[config.qc_panel_resource_id]
+    expected = policy_record(config.region_policy, load_qc_panel(Path(resource.location), resource.resource_id), None)
+    return [
+        entry.source_analysis_id
+        for entry in manifest.entries
+        if entry.lineage is None
+        or {key: value for key, value in entry.lineage.region_policy.items() if key != "target"} != expected
+    ]
 
 
 if __name__ == "__main__":

@@ -15,12 +15,16 @@
 #     GWAS Catalog's table (frozen read-only on /data for OGS-00011),
 #     resources/reference-resources/somascan/sun-2018-analysis-targets.tsv and
 #     somascan-targets.tsv;
-#   - the Acquisition Manifest lists the 10 files the R generator filtered, as
-#     they are, with lineage from OGS-00007's filter_summary.tsv. R kept no QC
-#     panel for Sun, so these files are not yet this policy's: acquiring them
-#     afresh (manifest_generation.region_filtered_acquisition, which keeps the
-#     panel) is a re-freeze under a new snapshot id. Sun has no allele
-#     frequencies and a declared scale, so the panel changes no measurement.
+#   - the Acquisition Manifest lists the 10 files the shared region filter
+#     wrote to this policy, QC panel kept, into the read-only
+#     /data/opengwasdb/raw/ebi-sun-pqtl-10/filtered-qc-2026-10-21/
+#     (manifest_generation.region_filtered_acquisition). It filtered scratch
+#     copies of the originals in /data/opengwasdb/raw/ebi-sun-pqtl-10/, which
+#     OGS-00007 still cites and which were not touched; the originals'
+#     manifest beside it records each copy's sha256, the originals' own. Its
+#     run record checksums the plan and summary the candidate carries
+#     (sparse_regions.tsv, filter_summary.tsv). Each file holds the rows R's
+#     filter kept for OGS-00007, plus 8,690 to 8,705 QC-panel rows.
 
 release_config_version: 1
 
@@ -43,7 +47,7 @@ source_collection:
     source_metadata_table: resources/generators/gwas-catalog-ragged/connectors/sun-2018.source-metadata.tsv
     acquisition_manifest: resources/generators/gwas-catalog-ragged/connectors/sun-2018-pilot-10.acquisition-manifest.tsv
   inventory:
-    snapshot_id: gwas-catalog-ssf-sun-2018-pilot-10-2026-10-21
+    snapshot_id: gwas-catalog-ssf-sun-2018-pilot-10-2026-10-21b
     directory: resources/inventories
 
 # OGS-00007's 10: a deterministic prefix of the candidate table, written out

@@ -25,7 +25,8 @@ releases; the GWAS Catalog's whole Source Metadata Table is read-only on
 |---|---|
 | `sun-2018.source-metadata.tsv` | `python3 -m manifest_generation.providers.gwas_catalog.somascan_targets --source-metadata-table /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-20/gwas-catalog-ssf.source-metadata.tsv --analysis-targets resources/reference-resources/somascan/sun-2018-analysis-targets.tsv --somascan-targets resources/reference-resources/somascan/somascan-targets.tsv --out ...`: the 3,283 Sun Analyses with their target annotation |
 | `chen-2023-european.acquisition-manifest.tsv` | `python3 -m manifest_generation.providers.gwas_catalog.legacy_ragged_acquisition OGS-00006 --out ...` |
-| `sun-2018-pilot-10.acquisition-manifest.tsv` | `python3 -m manifest_generation.providers.gwas_catalog.legacy_ragged_acquisition OGS-00007 --out ...` |
+| `sun-2018-pilot-10.acquisition-manifest.tsv`, with its `.sparse-regions.tsv`, `.filter-summary.tsv` and `.meta.yaml` | `python3 -m manifest_generation.region_filtered_acquisition`, below |
+| `sun-2018-pilot-10.originals.acquisition-manifest.tsv` | the scratch copies of Sun's 10 originals it filtered |
 
 Chen's Acquisition Manifest lists the files the R generator filtered, as they
 are, with lineage from OGS-00006's `filter_summary.tsv`: the originals were
@@ -38,17 +39,23 @@ are exactly R's `retained_rows` (225 sibling rows over the 198); the 16 whose
 originals survive in `/data/opengwasdb/raw/ebi-chen-10/` were also re-filtered
 row for row. Its run record (`.meta.yaml`) checksums the list and OGS-00006's
 `sparse_regions.tsv` and `filter_summary.tsv`, which a regenerated candidate
-carries unchanged. R kept no QC
-panel for Sun: to acquire Sun's files to this policy, filter its originals with
-the shared region filter, which deletes each original once the filtered file is
-recorded, and re-freeze under a new snapshot id:
+carries unchanged. Sun's files were acquired to its policy by the shared region filter, which
+keeps the QC panel R never kept for Sun. The originals in
+`/data/opengwasdb/raw/ebi-sun-pqtl-10/` are OGS-00007's, so the filter read
+scratch copies of them (`sun-2018-pilot-10.originals.acquisition-manifest.tsv`
+records each copy's sha256, which is the original's) and deleted only those:
 
 ```sh
 pixi run python3 -m manifest_generation.region_filtered_acquisition \
   --config resources/generators/gwas-catalog-ragged/release-sun-2018-pilot-10.yaml \
-  --originals <Acquisition Manifest of the downloaded originals> \
-  --out-dir <filtered files> --out <Acquisition Manifest> --workers 8
+  --originals resources/generators/gwas-catalog-ragged/connectors/sun-2018-pilot-10.originals.acquisition-manifest.tsv \
+  --out-dir /data/opengwasdb/raw/ebi-sun-pqtl-10/filtered-qc-2026-10-21 \
+  --out resources/generators/gwas-catalog-ragged/connectors/sun-2018-pilot-10.acquisition-manifest.tsv --workers 4
 ```
+
+The directory was then made read-only. Each file keeps exactly the rows R's
+filter kept for OGS-00007, plus the QC-panel rows, and its cis, trans and lead
+regions equal OGS-00007's `sparse_regions.tsv`.
 
 ## Generate a candidate
 

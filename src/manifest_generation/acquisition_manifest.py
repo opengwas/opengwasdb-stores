@@ -265,6 +265,12 @@ def _row_problems(row: Mapping[str, str]) -> list[str]:
 
 
 def _region_policy_problems(text: str) -> list[str]:
+    """Why a recorded region policy is not a complete one (docs/spec/source-connectors.md).
+
+    It names the policy, its coverage, its flanks and thresholds, the QC panel
+    every policy keeps (``resource_id`` and ``sha256``), and for a cis policy
+    its flank and the ``target`` span it was applied to.
+    """
     try:
         policy = json.loads(text)
     except ValueError:
@@ -272,13 +278,48 @@ def _region_policy_problems(text: str) -> list[str]:
     if not isinstance(policy, dict):
         return [f"region_policy {text!r} is not a JSON object"]
     problems = []
+
+    def whole(value: Any) -> bool:
+        return type(value) is int and value >= 1
+
+    def probability(value: Any) -> bool:
+        return type(value) in (int, float) and 0 < value <= 1
+
     if not isinstance(policy.get("region_policy_id"), str) or not policy["region_policy_id"]:
         problems.append("region_policy names no region_policy_id")
-    if policy.get("association_coverage") not in ASSOCIATION_COVERAGES:
+    coverage = policy.get("association_coverage")
+    if coverage not in ASSOCIATION_COVERAGES:
         problems.append(
-            f"region_policy association_coverage {policy.get('association_coverage')!r} is not one "
+            f"region_policy association_coverage {coverage!r} is not one "
             f"of {', '.join(ASSOCIATION_COVERAGES)}"
         )
+    for key, valid, what in (
+        ("trans_flank_bp", whole, "a whole number of bases"),
+        ("suggestive_lead_min_distance_bp", whole, "a whole number of bases"),
+        ("significant_p", probability, "a p-value in (0, 1]"),
+        ("suggestive_p", probability, "a p-value in (0, 1]"),
+    ):
+        if not valid(policy.get(key)):
+            problems.append(f"region_policy {key} {policy.get(key)!r} is not {what}")
+    panel = policy.get("qc_panel")
+    if not (
+        isinstance(panel, dict)
+        and isinstance(panel.get("resource_id"), str) and panel["resource_id"]
+        and isinstance(panel.get("sha256"), str) and _SHA256.match(panel["sha256"])
+    ):
+        problems.append(f"region_policy qc_panel {panel!r} names no resource_id and sha256")
+    if coverage == "cis_plus_signals":
+        if not whole(policy.get("cis_flank_bp")):
+            problems.append(f"region_policy cis_flank_bp {policy.get('cis_flank_bp')!r} is not a whole number of bases")
+        target = policy.get("target")
+        if not (
+            isinstance(target, dict)
+            and isinstance(target.get("chromosome"), str) and target["chromosome"]
+            and whole(target.get("start")) and whole(target.get("end"))
+        ):
+            problems.append(f"region_policy target {target!r} is not a chromosome, start and end")
+    elif "cis_flank_bp" in policy or "target" in policy:
+        problems.append(f"region_policy cis_flank_bp and target belong to cis_plus_signals, not {coverage!r}")
     return problems
 
 

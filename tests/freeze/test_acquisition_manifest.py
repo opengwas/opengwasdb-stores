@@ -16,6 +16,7 @@ Run from the repository root:
 
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -65,6 +66,24 @@ REFORMATTED = {
     "original_sha256": SHA_ORIGINAL,
     "reformat_tool": "split-by-analysis 1.2.0",
 }
+#: A complete signals-only region policy, as acquisition records it (#300).
+SIGNALS_ONLY_POLICY = {
+    "region_policy_id": "sig-trans-1mb_suggestive-leads",
+    "association_coverage": "signals_only",
+    "trans_flank_bp": 1000000,
+    "significant_p": 5e-08,
+    "suggestive_p": 1e-05,
+    "suggestive_lead_min_distance_bp": 100000,
+    "qc_panel": {"resource_id": "qc-panel-hg38", "sha256": "e" * 64},
+}
+#: The same policy with a cis flank around the Analysis's target.
+CIS_POLICY = dict(
+    SIGNALS_ONLY_POLICY,
+    region_policy_id="cis-1mb_sig-trans-1mb_suggestive-leads",
+    association_coverage="cis_plus_signals",
+    cis_flank_bp=1000000,
+    target={"chromosome": "2", "start": 172555373, "end": 172628598},
+)
 #: A file acquisition filtered to a release's region policy, then deleted the original (#300).
 FILTERED = {
     "source_analysis_id": "A4",
@@ -75,8 +94,7 @@ FILTERED = {
     "original_location": "/mirror/A4.h.tsv.gz",
     "original_sha256": "e" * 64,
     "reformat_tool": "manifest_generation.region_filter sha256:" + "f" * 64,
-    "region_policy": '{"association_coverage":"signals_only",'
-                     '"region_policy_id":"sig-trans-1mb_suggestive-leads","trans_flank_bp":1000000}',
+    "region_policy": json.dumps(SIGNALS_ONLY_POLICY, sort_keys=True, separators=(",", ":")),
 }
 
 
@@ -185,12 +203,35 @@ class AcquisitionManifestTest(unittest.TestCase):
 
     def test_a_region_filtered_file_records_the_policy_it_was_filtered_to(self) -> None:
         lineage = load_acquisition_manifest(write_manifest(self.tmp, [FILTERED])).entry("A4").lineage
-        self.assertEqual(
-            lineage.region_policy,
-            {"association_coverage": "signals_only",
-             "region_policy_id": "sig-trans-1mb_suggestive-leads", "trans_flank_bp": 1000000},
-        )
+        self.assertEqual(lineage.region_policy, SIGNALS_ONLY_POLICY)
         self.assertEqual(lineage.as_dict()["region_policy"]["trans_flank_bp"], 1000000)
+        cis = dict(FILTERED, region_policy=json.dumps(CIS_POLICY))
+        self.assertEqual(load_acquisition_manifest(write_manifest(self.tmp, [cis])).entry("A4")
+                         .lineage.region_policy["target"]["start"], 172555373)
+
+    def test_an_incomplete_region_policy_is_refused(self) -> None:
+        """docs/spec/source-connectors.md: the thresholds, the QC panel and a cis policy's target."""
+        def without(policy, *keys):
+            return dict(FILTERED, region_policy=json.dumps({k: v for k, v in policy.items() if k not in keys}))
+
+        for key in ("trans_flank_bp", "significant_p", "suggestive_p", "suggestive_lead_min_distance_bp",
+                    "qc_panel"):
+            with self.subTest(missing=key):
+                self.assertRefused([without(SIGNALS_ONLY_POLICY, key)], "region_policy", key, "A4")
+        for key in ("cis_flank_bp", "target"):
+            with self.subTest(missing=key):
+                self.assertRefused([without(CIS_POLICY, key)], "region_policy", key, "A4")
+        for bad, fragment in (
+            (dict(SIGNALS_ONLY_POLICY, qc_panel={"resource_id": "qc-panel-hg38"}), "qc_panel"),
+            (dict(SIGNALS_ONLY_POLICY, qc_panel={"resource_id": "", "sha256": "e" * 64}), "qc_panel"),
+            (dict(SIGNALS_ONLY_POLICY, trans_flank_bp=0), "trans_flank_bp"),
+            (dict(SIGNALS_ONLY_POLICY, significant_p="5e-8"), "significant_p"),
+            (dict(SIGNALS_ONLY_POLICY, suggestive_p=2), "suggestive_p"),
+            (dict(CIS_POLICY, target={"chromosome": "2", "start": 10}), "target"),
+            (dict(SIGNALS_ONLY_POLICY, cis_flank_bp=1000000), "cis_flank_bp"),
+        ):
+            with self.subTest(bad=fragment):
+                self.assertRefused([dict(FILTERED, region_policy=json.dumps(bad))], fragment, "A4")
 
     def test_a_region_policy_that_is_not_a_policy_is_refused(self) -> None:
         self.assertRefused([dict(FILTERED, region_policy="sig-trans")], "region_policy", "not JSON")
