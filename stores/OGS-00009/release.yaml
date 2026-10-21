@@ -1,15 +1,37 @@
 store_id: OGS-00009
-label: ukb-b-full-observed
+label: ukb-b-full
 access_posture: public
-status: candidate
+status: accepted
 derived_from: null
-created_at: '2026-09-18T16:00:00Z'
-source_snapshot_id: opengwas-gwas-vcf-ukb-b
-description: Full dense observed-only Store Release containing all 2,024 UK Biobank
-  (ukb-b) GWAS-VCF traits available in the OpenGWAS raw collection.
+created_at: '2026-10-21T22:20:44Z'
+accepted_at: '2026-10-21T22:23:58Z'
+source_snapshot_id: ukb-b-restored-2026-10-11
+source_snapshot:
+  source_collection_id: opengwas-gwas-vcf
+  inventory_path: resources/inventories/ukb-b-restored-2026-10-11.tsv
+  inventory_sha256: 48207ab8da03324e98e62b87767b9b90381ac8457b0c8585b952648c0d7a5a26
+  resolution_path: resources/inventories/ukb-b-provider-resolution-2026-10-11.tsv
+  resolution_sha256: 62e04f578afaa90f45a44a1042d168986482099b43e65f7a19ad4a85024c9e18
+  resolution_snapshot_id: ukb-b-provider-json-2026-10-11
+  n_analyses: 2514
+  n_buildable: 2514
 generator:
+  name: manifest_generation.providers.ukb_b.generate_candidate
+  version: sha256:fdec97e9e80b0ab33cc869465c0b06b8bc82ed850ea4ead42f87827b54d7905b
   commands:
-  - Rscript resources/generators/ukb-b/generate.R --config=resources/generators/ukb-b/config.yaml
-    --mode=emit
-notes: Comprehensive UK Biobank GWAS-VCF observed-only store containing all 2,024
-  traits with raw data in /data/opengwasdb/raw/gwas-vcf/ukb-b.
+  - python3 -m manifest_generation.providers.ukb_b.generate_candidate OGS-00009
+description: Full dense Store Release of all 2,514 UK Biobank (ukb-b) GWAS-VCF Analyses declared in the
+  OpenGWAS IGD collection and verified present in /data/opengwasdb/raw/gwas-vcf/ukb-b, reference-completed
+  under its own id against the UKB EUR LD panel (ADR 0037).
+notes: 'Membership is the frozen Source Inventory ukb-b-restored-2026-10-11: 2,514 Analyses, each with
+  a recorded sha256, size and mtime. It replaces the incomplete 2,024-Analysis candidate previously registered
+  under this id, adding the 490 Analyses that candidate was missing and removing none; its two-id completed
+  child OGS-00010 is retired, as are the successor ids OGS-00030/31 #219 reserved (#312). The Store is
+  built observed-only, then completed against the UKB EUR LD panel (ukb-hg38-eur-ld) and replaced under
+  the same id once the observed-view check passes. Analytical Metadata is resolved from each Analysis''s
+  provider JSON sidecar (exact-ID checked, batch checked, sha256-bound); that resolution agrees with the
+  recorded opengwas-api-r2026-08-10 resolution on every one of the 2,511 rows it covered and supplies
+  the three rows it had left unresolved. Ancestry is the provider''s own population label (source_fallback),
+  not an AF-based assignment; the ukb-b VCFs do carry FORMAT/AF, so the historical source_trusted_no_af
+  value is not reproduced. The owner accepted these source labels (all EUR) for this build, with no AF
+  assignment first (#312, 2026-10-21).'

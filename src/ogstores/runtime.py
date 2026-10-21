@@ -58,11 +58,11 @@ from ogstores.plan import plan
 #: Repinned from `1be2a15` (PR #275) to `4e922566` (PR #276) with core #254's
 #: bounded Dense-validation memory work; the Store format stays 0.2.0. Then to
 #: `023774a7` for `check-observed-view` (core #289, stores #306), which gates a
-#: single-id completion's swap. It stays there: PR #291 merged it into core
-#: `dev` as `d405de0`, of which it is the second parent, so it is an ancestor of
-#: `dev`, and `d405de0` also brings core #288 (the strand-aware hg19 lift),
-#: which stores epic #282 holds until the #222 build lands.
-PINNED_OPENGWASDB_REVISION: str = "023774a7881940c497e3bdb6710637819b023755"
+#: single-id completion's swap. Then to `d405de0a`, the core `dev` merge of PR
+#: #291 whose first parent is PR #288's merge: stores #312's OGS-00009 rebuild
+#: needs #288's strand-aware hg19 lift. The range `023774a..d405de0` is #288's
+#: commits and merge plus the #291 merge; #288 is its only functional change.
+PINNED_OPENGWASDB_REVISION: str = "d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c"
 OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
 
 #: The Store format the pinned builders write and the only format Reference

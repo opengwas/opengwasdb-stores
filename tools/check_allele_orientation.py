@@ -35,7 +35,7 @@ For every OGS-00011 study whose ``eaf_orientation`` is ``failed``:
    p-value the file reports);
 2. find independent analyses of the same trait among the *included* analyses of
    OGS-00011 (matched by trait ontology id, then by normalised trait label) or
-   among the UK Biobank analyses of OGS-00010 (matched by normalised label);
+   among the UK Biobank analyses of OGS-00009 (matched by normalised label);
 3. harmonise both sides' effects to the canonical allele (``chr:pos:a1:a2``,
    ``a1 < a2``) and correlate;
 4. write one YAML per study plus a ``summary.tsv``.
@@ -85,6 +85,7 @@ from typing import Any, Iterable, Mapping, Sequence  # noqa: E402
 
 import numpy as np  # noqa: E402
 import yaml  # noqa: E402
+from ogstores.readiness import store_built_ids  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 STORE_ID = "OGS-00011"
@@ -92,8 +93,15 @@ INVENTORY_SIDECARS = REPO_ROOT / "stores" / STORE_ID / "sidecars"
 ANCESTRY_TSV = INVENTORY_SIDECARS / "ancestry.tsv"
 SOURCE_READINESS_TSV = INVENTORY_SIDECARS / "source_readiness.tsv"
 ANALYSES_TSV = REPO_ROOT / "stores" / STORE_ID / "analyses.tsv"
-COMPARISON_ANALYSES_TSV = REPO_ROOT / "stores" / "OGS-00010" / "analyses.tsv"
-COMPARISON_STORE = Path("/data/opengwasdb/stores/OGS-00010/store.opengwasdb")
+# The UK Biobank pool. It was OGS-00010, the completed child of the 2,024-Analysis
+# OGS-00009, until #312 made OGS-00009 one single-id release of all 2,514 ukb-b
+# Analyses and retired OGS-00010; the committed allele-check sidecars name
+# OGS-00010 because that is what they compared against. Until #312's rebuild
+# replaces it, the Store published at this path is still the earlier 2,024, so
+# a run refuses (`require_pool_in_store`) rather than look up the 490 it lacks.
+COMPARISON_BUNDLE = "OGS-00009"
+COMPARISON_ANALYSES_TSV = REPO_ROOT / "stores" / COMPARISON_BUNDLE / "analyses.tsv"
+COMPARISON_STORE = Path(f"/data/opengwasdb/stores/{COMPARISON_BUNDLE}/store.opengwasdb")
 DEFAULT_OUT_DIR = INVENTORY_SIDECARS / "allele-check"
 
 #: The per-study top-variant count both sides are compared over.
@@ -251,7 +259,7 @@ class TargetStudy:
 
 @dataclass(frozen=True)
 class ComparisonStudy:
-    """One candidate comparison analysis, from OGS-00011 or OGS-00010."""
+    """One candidate comparison analysis, from OGS-00011 or the UK Biobank pool."""
 
     source_bundle: str
     analysis_id: str
@@ -328,11 +336,28 @@ def load_targets(ancestry_tsv: Path, readiness_tsv: Path) -> list[TargetStudy]:
     return sorted(targets, key=lambda study: study.analysis_id)
 
 
+def require_pool_in_store(pool: Sequence[ComparisonStudy], store_ids: Iterable[str], store: Path) -> None:
+    """Refuse a UK Biobank pool with Analyses the queried Store does not hold.
+
+    A lookup of an Analysis the Store lacks returns no rows, which a comparison
+    reads as "no overlapping variants" rather than as a missing Analysis (#312).
+    """
+    held = set(store_ids)
+    missing = [study.analysis_id for study in pool if study.analysis_id not in held]
+    if missing:
+        raise SystemExit(
+            f"{len(missing)} of the {len(pool)} {COMPARISON_BUNDLE} comparison Analyses are not in "
+            f"the Store at {store}, so their lookups would come back empty: "
+            f"{', '.join(missing[:5])}{f' and {len(missing) - 5} more' if len(missing) > 5 else ''}. "
+            "Rebuild the Store from its bundle before comparing against it."
+        )
+
+
 def load_comparison_pools() -> tuple[list[ComparisonStudy], list[ComparisonStudy]]:
-    """``(OGS-00011 included analyses, OGS-00010 UK Biobank analyses)``.
+    """``(OGS-00011 included analyses, OGS-00009 UK Biobank analyses)``.
 
     OGS-00011's pool is the same batch's *included* analyses: they passed the
-    orientation gate, so they are the honest internal reference. OGS-00010's pool
+    orientation gate, so they are the honest internal reference. OGS-00009's pool
     is a different collection entirely, which makes it the stronger independent
     check wherever a trait can be matched at all.
     """
@@ -358,7 +383,7 @@ def load_comparison_pools() -> tuple[list[ComparisonStudy], list[ComparisonStudy
         stripped = strip_ukb_label_prefix(label)
         ukb.append(
             ComparisonStudy(
-                source_bundle="OGS-00010",
+                source_bundle=COMPARISON_BUNDLE,
                 analysis_id=row["analysis_id"],
                 trait=label,
                 publication_pmid="",
@@ -412,7 +437,7 @@ class Matcher:
 
     1. an OGS-00011 *included* analysis sharing a trait ontology id;
     2. an OGS-00011 included analysis with the same normalised trait label;
-    3. an OGS-00010 analysis whose stripped label matches the target trait.
+    3. an OGS-00009 analysis whose stripped label matches the target trait.
 
     Within a tier, an independent match is preferred (a different publication,
     or a different collection), then a closer trait label, then the lowest
@@ -751,12 +776,12 @@ class StudyResult:
 
 
 # ---------------------------------------------------------------------------
-# OGS-00010 lookups
+# UK Biobank (OGS-00009) lookups
 # ---------------------------------------------------------------------------
 
 
 def _store_effects(identifiers: Sequence[str], analysis_id: str) -> dict[str, float]:
-    """Canonical-allele effects from an OGS-00010 analysis, as ``z * se``.
+    """Canonical-allele effects from an OGS-00009 analysis, as ``z * se``.
 
     The store's ``z`` is already aligned to the canonical allele and ``se`` is
     positive, so ``z * se`` is the aligned effect on the source's own scale. A
@@ -807,7 +832,7 @@ def _build_notes(
     parts: list[str] = []
     definitive = [c for c in comparisons if c.check.get("verdict") in {"flip_frequency", "swap_alleles"}]
     if not comparisons:
-        parts.append("no independent analysis of this trait was found in OGS-00011's included analyses or in OGS-00010")
+        parts.append(f"no independent analysis of this trait was found in OGS-00011's included analyses or in {COMPARISON_BUNDLE}")
         return "; ".join(parts)
 
     if any(not comparison.match.independent for comparison in comparisons):
@@ -868,7 +893,7 @@ def run(args: argparse.Namespace) -> int:
 
     print(
         f"targets: {len(targets)} | OGS-00011 comparison pool: {len(catalogue)} | "
-        f"OGS-00010 comparison pool: {len(ukb)}",
+        f"{COMPARISON_BUNDLE} comparison pool: {len(ukb)}",
         flush=True,
     )
 
@@ -901,6 +926,9 @@ def run(args: argparse.Namespace) -> int:
 
     if args.plan_only:
         return 0
+
+    store_ids, _runtime = store_built_ids(COMPARISON_STORE)
+    require_pool_in_store(ukb, store_ids, COMPARISON_STORE)
 
     # -- phase 1: top variants of every target ---------------------------------
     print("scanning target sources...", flush=True)
@@ -960,7 +988,7 @@ def run(args: argparse.Namespace) -> int:
                     "no_matching_trait",
                     {},
                     "no independent analysis of this trait was found in OGS-00011's included analyses or in "
-                    "OGS-00010; the orientation failure stays an exclusion",
+                    f"{COMPARISON_BUNDLE}; the orientation failure stays an exclusion",
                     measured_at,
                 )
             )
