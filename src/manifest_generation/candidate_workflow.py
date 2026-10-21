@@ -54,6 +54,7 @@ import math
 import os
 import statistics
 import subprocess
+import time
 from dataclasses import dataclass, field, replace
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
@@ -1734,22 +1735,41 @@ def sha256_file(path: Path) -> str:
 
     One run hashes each reference for its settings digest, the contract it
     binds and the contract it verifies, so a digest is remembered for the
-    process, keyed by the file's identity and modification time.
+    process. This is an integrity boundary, so it is remembered only where it
+    can never answer for bytes the file no longer holds (#282 review): keyed by
+    the file's identity, size, mtime and ctime -- any write changes ctime, and
+    ``utime`` cannot restore it -- and never for a file that changed while it
+    was read, or whose ctime has not settled. A kernel stamps times at its
+    clock's tick, so a second write within a tick of the first keeps its ctime.
     """
-    stat = Path(path).stat()
-    key = (str(Path(path).resolve()), stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
-    cached = _SHA256_BY_FILE_IDENTITY.get(key)
+    path = Path(path)
+    started_ns = time.time_ns()
+    identity = _file_identity(path)
+    cached = _SHA256_BY_FILE_IDENTITY.get(identity)
     if cached is not None:
         return cached
     digest = hashlib.sha256()
-    with Path(path).open("rb") as fh:
+    with path.open("rb") as fh:
         for chunk in iter(lambda: fh.read(1024 * 1024), b""):
             digest.update(chunk)
-    _SHA256_BY_FILE_IDENTITY[key] = digest.hexdigest()
-    return _SHA256_BY_FILE_IDENTITY[key]
+    if _file_identity(path) == identity and identity[-1] < started_ns - _DIGEST_SETTLE_NS:
+        _SHA256_BY_FILE_IDENTITY[identity] = digest.hexdigest()
+    return digest.hexdigest()
 
 
-_SHA256_BY_FILE_IDENTITY: dict[tuple[str, int, int, int, int], str] = {}
+def _file_identity(path: Path) -> tuple[str, int, int, int, int, int]:
+    stat = path.stat()
+    return (
+        str(path.resolve()), stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns,
+    )
+
+
+#: How old a file's ctime must be before its digest is remembered: coarser than
+#: the timestamp granularity of the filesystems generation runs on (XFS stamps
+#: at the kernel's tick, a millisecond here).
+_DIGEST_SETTLE_NS: int = 1_000_000_000
+
+_SHA256_BY_FILE_IDENTITY: dict[tuple[str, int, int, int, int, int], str] = {}
 
 
 def _opengwasdb_tool_identity() -> tuple[str, str | None]:
