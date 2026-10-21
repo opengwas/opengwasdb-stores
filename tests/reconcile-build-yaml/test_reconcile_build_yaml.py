@@ -12,8 +12,11 @@ the real active opengwasdb CLI/API (pinned at dev SHA a9e8bc8 via issue #106):
      including Ragged SSF sample_size/source_file and BESD .epi probe derivation.
      BESD probe derivation for OGS-00001 is validated unconditionally via a committed fixture
      tests/reconcile-build-yaml/fixtures/pilot-10.epi (a 10-row provenance slice of authentic
-     eQTLGen pilot probe records), verifying probe ID derivation and ::{tissue} namespace
-     qualification portably in CI without relying on /data/besd.
+     eQTLGen pilot probe records), reconciling each committed manifest against the ids
+     opengwasdb's builder derives from its own recipe: `::{tissue}` where the recipe passes a
+     `tissue`, bare probe ids otherwise, portably in CI without relying on /data/besd.
+     Since issue #319 an `analysis_id` never contains ':' (`bundle.check()` enforces it); only
+     the two tolerated legacy releases keep the namespaced names.
   4. Each of the seven releases is derived as executable today against the real CLI.
   5. The source_genome_build/source_assembly mismatch is resolved live via
      --source-assembly, with the option value matching the normalized build of
@@ -230,27 +233,32 @@ def test_reconcile_stores() -> None:
         elif cmd == "build-ragged-besd":
             # Validates --analyses overlay contract and probe derivation (opengwasdb#173)
             require_columns(fieldnames, analyses_file, "analysis_id")
-            aid_col = "analysis_id" if "analysis_id" in fieldnames else "trait_id"
-
-            tissue = options.get("tissue")
-            check(bool(tissue), f"{store_id} build.options declares tissue for probe ID namespace qualification")
-
-            # Check that analysis_ids are non-empty and formatted with tissue namespace
-            for r in analyses_table.rows:
-                val = r.get(aid_col, "")
-                check(bool(val) and f"::{tissue}" in val, f"{store_id} {aid_col} {val!r} qualified with ::{tissue}")
 
             # Unconditional portable probe derivation validation using committed fixture
             # (a 10-row provenance slice of authentic eQTLGen pilot probe records)
             fixture_epi_path = FIXTURES_DIR / "pilot-10.epi"
             check(fixture_epi_path.is_file(), f"Portable BESD .epi fixture exists at {fixture_epi_path}")
 
+            # The expected ids are what opengwasdb's builder derives from this
+            # recipe: a `tissue` option namespaces them `<probe>::<tissue>`, and
+            # without one they are the bare probe ids (opengwasdb
+            # `build_besd.py`). Only OGS-00001 and OGS-00002 may still be built
+            # namespaced, because an accepted bundle is not edited (ADR 0004);
+            # `bundle.check()` enforces that an analysis_id never contains ':'
+            # elsewhere (issue #319), so this test reconciles the manifest
+            # against the builder's naming rather than repeating the rule.
+            tissue = options.get("tissue")
             probes = read_epi(fixture_epi_path)
-            expected_ids = {f"{p.probe_id}::{tissue}" if tissue else p.probe_id for p in probes}
-            manifest_ids = {r[aid_col] for r in analyses_table.rows}
+            expected_ids = (
+                {f"{p.probe_id}::{tissue}" for p in probes} if tissue
+                else {p.probe_id for p in probes}
+            )
+            manifest_ids = {r["analysis_id"] for r in analyses_table.rows}
             check(
                 manifest_ids == expected_ids,
-                f"{store_id} portable .epi probes + tissue match analyses.tsv analysis_ids exactly",
+                f"{store_id} analysis_ids must be exactly the .epi probe ids the "
+                f"builder names: unexpected {sorted(manifest_ids - expected_ids)}, "
+                f"missing {sorted(expected_ids - manifest_ids)}",
             )
             analyses_valid = manifest_ids == expected_ids
 

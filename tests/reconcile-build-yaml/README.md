@@ -16,8 +16,11 @@ CLI (pinned to `dev` SHA `a9e8bc8` via issue #106):
    `original_sd_method`, `sample_size`, `analysis_index`) are consumed as-is without registry-side projection.
    BESD probe derivation for `OGS-00001` is validated unconditionally via a committed fixture
    `tests/reconcile-build-yaml/fixtures/pilot-10.epi` (a 10-row provenance slice of authentic eQTLGen
-   pilot probe records), verifying probe ID derivation and `::{tissue}` namespace qualification
-   portably in CI without relying on `/data/besd`.
+   pilot probe records), reconciling each committed manifest against the ids opengwasdb's builder
+   derives from its own recipe: `::{tissue}` where the recipe passes a `tissue`, bare probe ids
+   otherwise. Since issue #319 an `analysis_id` never contains `:`, which `bundle.check()` enforces;
+   only the two tolerated legacy releases (`OGS-00001`, `OGS-00002`) keep the namespaced names, and
+   they record the tissue in the manifest's `tissue` column.
 4. **Derived Executability:** Derives and verifies that all seven store releases are executable today
    against the active pinned environment.
 5. **Assembly Mismatch Resolution:** Confirms that for Dense and Hybrid releases (`OGS-00003`,

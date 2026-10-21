@@ -11,8 +11,8 @@ Covered:
   - a name an R suite already has falls back to the file form;
   - a split suite runs as its named parts, and in this repository every
     test of a split file runs in exactly one part;
-  - a suite in `PER_TEST_SUITES` runs as one process per test, and one that
-    selects no test is refused;
+  - a suite in `SHARDED_SUITES` runs as up to one process per job, its
+    tests cut in listed order, and one that selects no test is refused;
   - in this repository every Python test file is exactly one suite, and the
     suite names CI uses are kept.
 - `test_discovery.py` also checks that two suites sharing a name are

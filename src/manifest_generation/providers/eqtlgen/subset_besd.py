@@ -5,8 +5,11 @@ Command-line interface::
 
     python3 -m manifest_generation.providers.eqtlgen.subset_besd ANALYSES_TSV INPUT_PREFIX OUTPUT_PREFIX
 
-``analysis_id`` supplies the probe ID; an optional ``::tissue`` suffix is
-removed. Rows whose ``exclude_from_build`` value is true are ignored.
+``source_probe_id`` supplies the probe ID where the manifest has the column and
+that row fills it, and the bare ``analysis_id`` otherwise. Nothing splits an
+``analysis_id`` on ``::``: since issue #319 an ``analysis_id`` never contains
+``:``, so a namespaced value is a manifest error, not a shorthand. Rows whose
+``exclude_from_build`` value is true are ignored.
 
 `opengwasdb.layouts.ragged.besd_reader` (`BESDReader`/`read_esi`/`read_epi`)
 already reads this format correctly and `build_ragged_from_besd` already
@@ -66,7 +69,14 @@ class BesdSubsetResult:
 
 
 def probe_ids_from_analyses(analyses_path: str | Path) -> list[str]:
-    """Return buildable BESD probe IDs in ``analyses.tsv`` row order."""
+    """Return buildable BESD probe IDs in ``analyses.tsv`` row order.
+
+    ``source_probe_id`` is the BESD probe a row came from, and is authoritative
+    where it is present (opengwasdb#283); otherwise the ``analysis_id`` is the
+    probe ID, because a BESD Analysis is named by its probe (issue #319). A
+    legacy namespaced manifest (``<probe>::<tissue>``) therefore no longer
+    resolves: no production caller routes one through here.
+    """
     analyses_path = Path(analyses_path)
     with analyses_path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
@@ -81,7 +91,7 @@ def probe_ids_from_analyses(analyses_path: str | Path) -> list[str]:
             analysis_id = str(row.get("analysis_id") or "").strip()
             if not analysis_id:
                 raise ValueError(f"{analyses_path}:{line_number}: analysis_id is empty")
-            probe_id = analysis_id.split("::", 1)[0]
+            probe_id = str(row.get("source_probe_id") or "").strip() or analysis_id
             if probe_id in seen:
                 raise ValueError(
                     f"{analyses_path}:{line_number}: duplicate BESD probe id {probe_id!r}"
