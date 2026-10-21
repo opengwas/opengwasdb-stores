@@ -20,6 +20,11 @@ Staged release transaction lifecycle (ADR 0022, ADR 0023):
   completion-phase step of a release that completes its own Store (ADR 0037) names
   the published Store and the staged one with the same token; the argument its Step
   marks as the published Store (`published_store_arg`) is left as it is.
+* Completion resume (#305): before a fresh `complete-dense` starts, its planned argv
+  is recorded (`paths.completion_start_path`). An interrupted one leaves its checkpoint
+  beside the staged Store; the next `complete` runs `complete-dense-resume` from it
+  (`resume_argv_for_completion`) when that record holds the argv planned now, and
+  refuses, naming the difference, when it does not or there is none.
 * Rejection of invalid paths: Non-canonical equivalent tokens, embedded substrings,
   symlinks (both live and dangling), or non-directories are rejected before execution via lstat/no-follow.
 * Publication gating: Publication is permitted ONLY on the terminal 'validate' step
@@ -64,6 +69,7 @@ See docs/spec/store-release-workflow.md and ADRs 0022, 0023, 0026.
 from __future__ import annotations
 
 import datetime
+import difflib
 import glob
 import json
 import os
@@ -510,6 +516,83 @@ def rewrite_argv_for_staging(
         )
 
     return rewritten
+
+
+def argv_change(before: list[str], now: list[str]) -> str:
+    """The token runs that differ between two argv, each with the flag it belongs to."""
+    changes: list[str] = []
+    matcher = difflib.SequenceMatcher(a=before, b=now, autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        old, new = before[i1:i2], now[j1:j2]
+        if i1 > 0 and before[i1 - 1].startswith("-") and not (old or new)[0].startswith("-"):
+            old, new = [before[i1 - 1], *old], [before[i1 - 1], *new]
+        changes.append(f"`{' '.join(old) or 'nothing'}` became `{' '.join(new) or 'nothing'}`")
+    return "; ".join(changes)
+
+
+COMPLETE_DENSE: str = "complete-dense"
+# `complete-dense-resume` takes the checkpoint and, besides it, only how many
+# workers to run (opengwasdb CLI). A planned `--n-workers` is passed on, so a
+# resumed completion runs as the plan asked; it sets how the work runs, not
+# what it computes.
+_RESUME_PASSES_ON: tuple[str, ...] = ("--n-workers",)
+
+
+def _started_completion_argv(store_id: str, root: Path | str) -> list[str] | None:
+    """The planned argv this workflow recorded when it started the completion whose checkpoint exists."""
+    try:
+        recorded = json.loads(paths.completion_start_path(store_id, root=root).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    argv = recorded.get("planned_argv") if isinstance(recorded, dict) else None
+    return argv if isinstance(argv, list) else None
+
+
+def resume_argv_for_completion(
+    step: Step, executed_argv: list[str], store_id: str, artifact_root: Path | str
+) -> list[str]:
+    """Resume an interrupted `complete-dense` from its checkpoint, or return its argv unchanged (#305).
+
+    `complete-dense` keeps a checkpoint beside the staged Store it writes
+    (`paths.completion_checkpoint_path`) and refuses to start while one
+    exists. Completion takes hours at UKB-B scale, so an interrupted one is
+    resumed, not restarted, with `complete-dense-resume <checkpoint>`, which
+    takes every parameter from the checkpoint. `execute_step` records the
+    step's planned argv before it starts a fresh `complete-dense`
+    (`paths.completion_start_path`), so a checkpoint is resumed only when that
+    record holds the argv planned now. A different plan, or a checkpoint this
+    workflow has no record of starting, is refused, naming it, and nothing
+    runs. Only stores' own planned argv is compared: no `opengwasdb` option or
+    checkpoint key is interpreted here (ADR 0023). An unforced run never
+    discards a checkpoint, even for a planned `--overwrite`; a forced run's
+    preflight does (`prepare_release_run`). `register` accepts the
+    substitution and records the release as resumed.
+    """
+    checkpoint = paths.completion_checkpoint_path(store_id, root=artifact_root)
+    if step.name != "complete" or executed_argv[1:2] != [COMPLETE_DENSE] or not _lstat_exists(checkpoint):
+        return executed_argv
+    started = _started_completion_argv(store_id, artifact_root)
+    if started is None:
+        raise ValueError(
+            f"Step {step.name!r} for {store_id} finds the checkpoint {checkpoint}, but this workflow has no "
+            f"record of starting it ({paths.completion_start_path(store_id, root=artifact_root)}): it was "
+            "made outside this workflow, or by an older one. Nothing was resumed. `--config force=1` "
+            "discards it and rebuilds the release."
+        )
+    if started != list(step.argv):
+        raise ValueError(
+            f"Step {step.name!r} for {store_id} would resume the checkpoint {checkpoint}, but it was started "
+            f"from another plan: {argv_change(started, list(step.argv))}. Nothing was resumed. "
+            "`--config force=1` discards it and rebuilds the release."
+        )
+    resume = [executed_argv[0], "complete-dense-resume", str(checkpoint)]
+    for i, token in enumerate(executed_argv):
+        name = token.split("=", 1)[0]
+        if name in _RESUME_PASSES_ON:
+            resume.extend([token] if "=" in token else executed_argv[i:i + 2])
+    return resume
 
 
 def variant_reference_partial_path(target: Path | str) -> Path:
@@ -1033,6 +1116,14 @@ def prepare_release_run(
         if store_dir_p.is_dir():
             for stale in store_dir_p.glob(f".{paths.FORCE_SNAPSHOT_PREFIX}*.copying"):
                 shutil.rmtree(stale)
+        # A forced run rebuilds the Store an interrupted completion was reading,
+        # so it discards that completion's checkpoint, and the record of its
+        # start, rather than resume it. Nothing else discards one (#305).
+        checkpoint = paths.completion_checkpoint_path(store_id, root=root)
+        if store_id in forced_ids and _lstat_exists(checkpoint):
+            shutil.rmtree(checkpoint)
+        if store_id in forced_ids:
+            _remove_path_if_exists(paths.completion_start_path(store_id, root=root))
 
     run_stamp = stamp or utc_stamp()
     snapshots: list[Path] = []
@@ -1314,6 +1405,7 @@ def execute_step(
             executed_argv = rewrite_argv_for_variant_reference(step, ref_target_p)
         else:
             executed_argv = rewrite_argv_for_staging(step, store_id, artifact_root=resolved_root)
+            executed_argv = resume_argv_for_completion(step, executed_argv, store_id, resolved_root)
     except ValueError as rewrite_err:
         # Preflight failure record: write failed record before raising
         err_res = StepResult(
@@ -1378,6 +1470,15 @@ def execute_step(
         )
         _write_record_atomically(skip_result.to_dict(), record_p)
         return skip_result
+
+    # A fresh `complete-dense` records the plan it starts from before it can
+    # write a checkpoint, so an interrupted one is resumed only from that plan.
+    starts_completion = step.name == "complete" and executed_argv[1:2] == [COMPLETE_DENSE]
+    if starts_completion:
+        _write_record_atomically(
+            {"planned_argv": list(step.argv), "checkpoint": str(paths.completion_checkpoint_path(store_id, root=resolved_root))},
+            paths.completion_start_path(store_id, root=resolved_root),
+        )
 
     # A test-only pause or crash point: the step's record is gone and its
     # command has not started, so a run stopped here is mid-step (#195).
@@ -1569,6 +1670,10 @@ def execute_step(
             stderr_captured = (stderr_captured or "") + f"\nPublication error: {exc}"
             publication_error = exc
 
+    # A finished completion, fresh or resumed, has no checkpoint left to resume.
+    if success and step.name == "complete" and executed_argv[1:2] in ([COMPLETE_DENSE], ["complete-dense-resume"]):
+        _remove_path_if_exists(paths.completion_start_path(store_id, root=resolved_root))
+
     # 9. Construct StepResult and atomically write record
     result = StepResult(
         step=step.name,
@@ -1721,6 +1826,7 @@ __all__ = [
     "VALID_STEP_NAMES",
     "VARIANT_REFERENCE_STEP",
     "archive_force_snapshot",
+    "argv_change",
     "completing_own_stores",
     "execute_step",
     "fault_boundary",
@@ -1740,6 +1846,7 @@ __all__ = [
     "refuse_pending_force_snapshots",
     "refuse_rebuilding_published_releases",
     "restore_force_snapshot",
+    "resume_argv_for_completion",
     "rewrite_argv_for_staging",
     "rewrite_argv_for_variant_reference",
     "run_plan",

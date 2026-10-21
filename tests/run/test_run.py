@@ -1584,6 +1584,140 @@ class TestCompletingAPublishedObservedOnlyStore(unittest.TestCase):
         self.assertEqual(run.completing_own_stores(jobs, registry_root=self.registry), frozenset())
         record_check()
 
+    def test_a_forced_run_discards_an_interrupted_completions_checkpoint(self) -> None:
+        """A forced run rebuilds both phases, so it never resumes the old completion; an unforced one may."""
+        self.write_bundle(self.STORE_ID)
+        self.publish(self.STORE_ID, "build", "validate", "register")
+        checkpoint = paths.store_dir(self.STORE_ID, root=self.root) / ".store.opengwasdb.partial.checkpoint"
+        (checkpoint / "blocks").mkdir(parents=True)
+        (checkpoint / "build_params.json").write_text("{}\n", encoding="utf-8")
+        started = paths.completion_start_path(self.STORE_ID, root=self.root)
+        started.parent.mkdir(parents=True)
+        started.write_text('{"planned_argv": []}\n', encoding="utf-8")
+        scheduled = [(self.root, self.STORE_ID)]
+
+        run.prepare_release_run(scheduled, completing=frozenset({self.STORE_ID}), stamp=self.STAMP)
+        self.assertTrue(checkpoint.is_dir(), "an unforced run keeps the checkpoint to resume")
+        self.assertTrue(started.is_file())
+
+        run.prepare_release_run(scheduled, forced=frozenset({self.STORE_ID}), stamp=self.STAMP)
+        self.assertFalse(checkpoint.exists(), "a forced run discards it")
+        self.assertFalse(started.exists(), "and the record of the plan that started it")
+        record_check()
+
+
+class TestResumingAnInterruptedCompletion(unittest.TestCase):
+    """`complete` resumes the checkpoint an interrupted `complete-dense` left, only from the plan that made it (#305).
+
+    Before a fresh `complete-dense` starts, `execute_step` records the step's
+    planned argv beside the release's work. A checkpoint is resumed with
+    `complete-dense-resume` only when that record names the argv planned now.
+    These tests run a fake `opengwasdb` that writes down how it was called.
+    """
+
+    STORE_ID = "OGS-00110"
+
+    def setUp(self) -> None:
+        self.test_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.test_dir.name)
+        self.store = paths.store_path(self.STORE_ID, root=self.root)
+        self.store.mkdir(parents=True)
+        self.checkpoint = paths.store_dir(self.STORE_ID, root=self.root) / ".store.opengwasdb.partial.checkpoint"
+        self.evidence = self.root / "called.json"
+        self.interrupt = self.root / "interrupt"
+        self.fake = self.root / "opengwasdb"
+        # Told to be interrupted, it writes its checkpoint, as `complete-dense`
+        # does before its long work, and exits as SIGINT would leave it.
+        self.fake.write_text(
+            f"#!{sys.executable}\n"
+            "import json, sys\n"
+            "from pathlib import Path\n"
+            f"started = sorted(str(p) for p in Path({str(paths.work_dir(self.STORE_ID, root=self.root))!r}).glob('*'))\n"
+            f"if Path({str(self.interrupt)!r}).exists():\n"
+            f"    Path({str(self.checkpoint)!r}).mkdir()\n"
+            "    raise SystemExit(130)\n"
+            f"Path({str(self.evidence)!r}).write_text(json.dumps({{'argv': sys.argv[1:], 'work': started}}))\n"
+            f"Path({str(paths.partial_store_path(self.STORE_ID, root=self.root))!r}).mkdir(exist_ok=True)\n",
+            encoding="utf-8",
+        )
+        self.fake.chmod(0o755)
+
+    def tearDown(self) -> None:
+        self.test_dir.cleanup()
+
+    def complete(self, *options: str) -> Step:
+        return Step(
+            name="complete",
+            argv=[str(self.fake), "complete-dense", str(self.store), str(self.store), "--release-id", "X", *options],
+            inputs=[self.store],
+            outputs=[self.store],
+            phase=plan.COMPLETION_PHASE,
+            published_store_arg=2,
+        )
+
+    def interrupted(self, started_by: Step | None) -> None:
+        """A checkpoint an interrupted completion left: started from `started_by`, or by nothing this workflow ran."""
+        if started_by is None:
+            self.checkpoint.mkdir()
+            return
+        self.interrupt.touch()
+        with self.assertRaises(StepExecutionError):
+            execute_step(started_by, self.STORE_ID, artifact_root=self.root, resume=True)
+        self.interrupt.unlink()
+        self.assertTrue(self.checkpoint.is_dir())
+
+    def called(self) -> list[str] | None:
+        return json.loads(self.evidence.read_text())["argv"] if self.evidence.exists() else None
+
+    def test_a_fresh_completion_records_its_plan_before_it_starts(self) -> None:
+        execute_step(self.complete("--min-cor", "0.5"), self.STORE_ID, artifact_root=self.root, resume=True)
+
+        called = json.loads(self.evidence.read_text())
+        self.assertEqual(called["argv"][0], "complete-dense")
+        self.assertEqual(len(called["work"]), 1, "the plan is recorded before the command starts")
+        record_check()
+
+    def test_a_checkpoint_started_from_the_same_plan_is_resumed(self) -> None:
+        step = self.complete("--min-cor", "0.5", "--n-workers", "4")
+        self.interrupted(started_by=step)
+
+        execute_step(step, self.STORE_ID, artifact_root=self.root, resume=True)
+
+        self.assertEqual(self.called(), ["complete-dense-resume", str(self.checkpoint), "--n-workers", "4"])
+        record_check()
+
+    def test_a_checkpoint_started_from_another_plan_is_refused_naming_the_difference(self) -> None:
+        self.interrupted(started_by=self.complete("--min-cor", "0.0"))
+
+        with self.assertRaises(ValueError) as ctx:
+            execute_step(self.complete("--min-cor", "0.5"), self.STORE_ID, artifact_root=self.root, resume=True)
+
+        self.assertIn("`--min-cor 0.0` became `--min-cor 0.5`", str(ctx.exception))
+        self.assertIsNone(self.called(), "nothing ran")
+        self.assertTrue(self.checkpoint.is_dir())
+        record_check()
+
+    def test_a_checkpoint_this_workflow_did_not_start_is_refused(self) -> None:
+        self.interrupted(started_by=None)
+
+        with self.assertRaises(ValueError) as ctx:
+            execute_step(self.complete(), self.STORE_ID, artifact_root=self.root, resume=True)
+
+        self.assertIn("--config force=1", str(ctx.exception))
+        self.assertIsNone(self.called(), "nothing ran")
+        self.assertTrue(self.checkpoint.is_dir())
+        record_check()
+
+    def test_an_unforced_run_never_discards_a_checkpoint(self) -> None:
+        """A planned `--overwrite`, which would discard the checkpoint, still resumes it or is refused."""
+        step = self.complete("--overwrite")
+        self.interrupted(started_by=step)
+
+        execute_step(step, self.STORE_ID, artifact_root=self.root, resume=True)
+
+        self.assertEqual(self.called(), ["complete-dense-resume", str(self.checkpoint)])
+        record_check()
+
 
 class TestProvenanceAndSequentialPlan(unittest.TestCase):
     """Test provenance derivation bound to executable environment, tripwires, resumption, and sequential execution."""
@@ -2031,6 +2165,7 @@ def main() -> None:
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPublicationRollbackAndCrashRecovery))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestForcedRunGuard))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestCompletingAPublishedObservedOnlyStore))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestResumingAnInterruptedCompletion))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestProvenanceAndSequentialPlan))
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)

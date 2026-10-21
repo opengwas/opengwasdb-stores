@@ -105,8 +105,16 @@ archive.
 
 A failed or interrupted completion leaves the Observed-Only Store published
 and the build phase's records untouched. The next `pixi run release <ID>`,
-with no `--config force=1`, reruns its missing completion-phase records
-(#305).
+with no `--config force=1`, resumes it from the missing completion-phase step
+(#305). An interrupted `complete` is resumed from its checkpoint,
+`<ID>/.store.opengwasdb.partial.checkpoint`, with
+`opengwasdb complete-dense-resume`, so hours of imputation are not repeated.
+The workflow records the planned argv a completion starts from, in
+`<ID>/work/complete.started.json`, and resumes only when that is the argv
+planned now. If the bundle's `complete` block has changed since, or the
+checkpoint was not started by this workflow, the run refuses, naming why,
+and keeps the checkpoint. Only `--config force=1` discards a checkpoint; it
+then rebuilds both phases.
 
 The preflight lets an unforced run through only when every job it schedules
 for a published release is a completion-phase job, and the release's records

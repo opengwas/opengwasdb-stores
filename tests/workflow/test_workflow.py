@@ -31,8 +31,9 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
    Validation Record; a re-run executes 0 jobs.
 13. Completing a published Observed-Only Store later (#305, ADR 0037): a
    Store built by the workflow as it was before #304 completes, once its
-   bundle gains a `complete` block, with no build-phase job scheduled, and an
-   unforced rebuild of its build phase is still refused.
+   bundle gains a `complete` block, with no build-phase job scheduled; an
+   unforced rebuild of an amended release's build phase is still refused;
+   and a forced run of a completed single-id release rebuilds both phases.
 """
 
 from __future__ import annotations
@@ -1919,6 +1920,75 @@ class TestWorkflowCompletingAStoreBuiltBefore304(PublishedReleaseCopies):
             "replaced Store, its records and its validation.yaml are archived under replaced/<UTC>/ beside it "
             "(#195).\n",
         )
+
+
+class TestWorkflowForcedRunOfACompletedSingleIdRelease(unittest.TestCase):
+    """`--config force=1` on a completed single-id release rebuilds both phases (#305, ADR 0037).
+
+    Re-completing against a new reference panel is a forced run: the build
+    phase rebuilds the Observed-Only Store and replaces the completed one, as
+    #195 replaces any release, and the completion phase then completes the new
+    Store and replaces it in turn. The completion's records are rebuilt with
+    it, never left over from the completion they described.
+    """
+
+    def setUp(self) -> None:
+        template = single_id_completion_template()
+        self.store_id: str = template["store_id"]
+        self.temp_dir = tempfile.TemporaryDirectory()
+        td = Path(self.temp_dir.name)
+        self.stores, self.artifacts = td / "stores", td / "artifacts"
+        shutil.copytree(template["stores"], self.stores)
+        shutil.copytree(template["artifacts"], self.artifacts)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def test_a_forced_run_rebuilds_both_phases_and_replaces_the_store(self) -> None:
+        store_dir = paths.store_dir(self.store_id, root=self.artifacts)
+        # A fresh checkout: every bundle file newer than the release's files.
+        day_ns = 86_400 * 10**9
+        for p in store_dir.rglob("*"):
+            if p.is_file():
+                st = p.stat()
+                os.utime(p, ns=(st.st_atime_ns - day_ns, st.st_mtime_ns - day_ns))
+        records = paths.records_dir(self.store_id, root=self.artifacts)
+        old_records = {p.name: p.read_bytes() for p in records.iterdir()}
+        old_manifest = (paths.store_path(self.store_id, root=self.artifacts) / "manifest.json").read_bytes()
+        old_archives = {p.name for p in (store_dir / "replaced").iterdir()}
+
+        res = run_release(
+            [self.store_id], registry_root=self.stores, artifact_root=self.artifacts, config={"force": "1"}
+        )
+
+        self.assertEqual(res.returncode, 0, f"forced run failed:\n{res.stdout}\n{res.stderr}")
+        for name in TestWorkflowSingleIdReferenceCompletion.PHASE_RECORDS:
+            record = json.loads((records / f"{name}.json").read_text(encoding="utf-8"))
+            self.assertTrue(record["success"], name)
+            self.assertNotEqual((records / f"{name}.json").read_bytes(), old_records[f"{name}.json"], f"{name} was not rebuilt")
+        store_p = paths.store_path(self.store_id, root=self.artifacts)
+        self.assertEqual(json.loads((store_p / "manifest.json").read_text())["completion_state"], "reference_completed")
+        self.assertNotEqual((store_p / "manifest.json").read_bytes(), old_manifest, "a new completed Store is published")
+
+        # The build phase archived the completed Store with the records that
+        # described it; the completion phase archived the Observed-Only Store it replaced.
+        new_archives = sorted(p for p in (store_dir / "replaced").iterdir() if p.name not in old_archives)
+        self.assertEqual(len(new_archives), 2, new_archives)
+        forced, completed = new_archives
+        self.assertEqual((forced / "store.opengwasdb" / "manifest.json").read_bytes(), old_manifest)
+        self.assertEqual({p.name: p.read_bytes() for p in (forced / "records").iterdir()}, old_records)
+        observed_only = json.loads((completed / "store.opengwasdb" / "manifest.json").read_text())
+        self.assertEqual(observed_only["completion_state"], "observed_only")
+        self.assertEqual(
+            json.loads((records / "completion-register.json").read_text())["replaced_archive"], str(completed)
+        )
+        for leftover in (
+            paths.partial_store_path(self.store_id, root=self.artifacts),
+            paths.publication_marker(self.store_id, root=self.artifacts),
+            paths.completion_checkpoint_path(self.store_id, root=self.artifacts),
+        ):
+            self.assertFalse(leftover.exists(), leftover)
+        self.assertEqual(run.pending_force_snapshots(self.store_id, self.artifacts), [])
 
 
 class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):
