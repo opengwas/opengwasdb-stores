@@ -208,28 +208,11 @@ class TestEvidenceChannels(unittest.TestCase):
         )
         self.assertIn("candidate-generation", record.channels["store_validation"].detail)
 
-    def test_validation_record_completeness_names_each_null_measurement(self) -> None:
-        observed = {
-            "n_analyses": 1,
-            "n_variants": 10,
-            "n_associations": None,
-            "association_coverage": None,
-            "reference_assembly": None,
-        }
-        b = create_mock_bundle(
-            self.stores,
-            "OGS-00006",
-            validation_data={**STORE_VALIDATION, "observed": observed},
-        )
-        record = self._reconcile(b, {"releases": {}})
-        channel = record.channels["validation_record_completeness"]
-        # A record the catalog cannot fully describe is a gap, and it names
-        # exactly what is null: absence is not zero (#326).
-        self.assertEqual(channel.state, EvidenceState.MISSING)
-        self.assertTrue(channel.is_gap)
-        self.assertIn("n_associations, association_coverage, reference_assembly", channel.detail)
-        self.assertNotIn("n_analyses", channel.detail)
+    def _completeness(self, store_id: str, **kwargs: Any):
+        b = create_mock_bundle(self.stores, store_id, **kwargs)
+        return self._reconcile(b, {"releases": {}}).channels["validation_record_completeness"]
 
+    def _store_record(self, **observed: Any) -> dict[str, Any]:
         complete = {
             "n_analyses": 1,
             "n_variants": 10,
@@ -237,27 +220,55 @@ class TestEvidenceChannels(unittest.TestCase):
             "association_coverage": "full_gwas",
             "reference_assembly": "GRCh38",
         }
-        b = create_mock_bundle(
-            self.stores,
-            "OGS-00007",
-            validation_data={**STORE_VALIDATION, "observed": complete},
+        return {**STORE_VALIDATION, "observed": {**complete, **observed}}
+
+    def test_validation_record_completeness_names_each_null_measurement(self) -> None:
+        channel = self._completeness(
+            "OGS-00006",
+            validation_data=self._store_record(
+                n_associations=None, association_coverage=None, reference_assembly=None
+            ),
         )
-        record = self._reconcile(b, {"releases": {}})
+        # A record the catalog cannot fully describe is a gap, and it names
+        # exactly what is null: absence is not zero (#326).
+        self.assertEqual(channel.state, EvidenceState.MISSING)
+        self.assertTrue(channel.is_gap)
         self.assertEqual(
-            record.channels["validation_record_completeness"].state, EvidenceState.PASS
+            channel.detail, "recorded null: n_associations, association_coverage, reference_assembly"
+        )
+        self.assertEqual(
+            self._completeness("OGS-00007", validation_data=self._store_record()).state,
+            EvidenceState.PASS,
         )
 
-    def test_validation_record_completeness_is_missing_without_a_store_validation(self) -> None:
-        none = create_mock_bundle(self.stores, "OGS-00008")
-        candidate = create_mock_bundle(
-            self.stores, "OGS-00009", validation_data=CANDIDATE_EVIDENCE
-        )
-        for b in (none, candidate):
-            record = self._reconcile(b, {"releases": {}})
-            self.assertEqual(
-                record.channels["validation_record_completeness"].state,
-                EvidenceState.MISSING,
+    def test_validation_record_completeness_names_null_counts_one_at_a_time(self) -> None:
+        for field in ("n_analyses", "n_variants"):
+            channel = self._completeness(
+                f"OGS-0001{1 if field == 'n_analyses' else 2}",
+                validation_data=self._store_record(**{field: None}),
             )
+            self.assertEqual(channel.state, EvidenceState.MISSING)
+            self.assertEqual(channel.detail, f"recorded null: {field}")
+
+    def test_validation_record_completeness_counts_zero_as_recorded(self) -> None:
+        channel = self._completeness(
+            "OGS-00013", validation_data=self._store_record(n_associations=0)
+        )
+        self.assertEqual(channel.state, EvidenceState.PASS)
+
+    def test_validation_record_completeness_gives_three_distinct_explanations(self) -> None:
+        none = self._completeness("OGS-00008")
+        candidate = self._completeness("OGS-00009", validation_data=CANDIDATE_EVIDENCE)
+        nulls = self._completeness(
+            "OGS-00010", validation_data=self._store_record(n_variants=None)
+        )
+        for channel in (none, candidate, nulls):
+            self.assertEqual(channel.state, EvidenceState.MISSING)
+        self.assertIn("no committed Validation Record", none.detail)
+        self.assertNotIn("candidate-generation", none.detail)
+        self.assertIn("candidate-generation evidence", candidate.detail)
+        self.assertNotIn("recorded null", candidate.detail)
+        self.assertEqual(nulls.detail, "recorded null: n_variants")
 
     def test_markdown_shows_validation_record_completeness(self) -> None:
         ledger = readiness.load_ledger()
@@ -699,6 +710,11 @@ class TestEvidenceChannels(unittest.TestCase):
             record.channels["required_variant_index"].state, EvidenceState.NOT_APPLICABLE
         )
         self.assertEqual(record.channels["format_migration"].state, EvidenceState.MISSING)
+        # The format identifier does not say whether `validate` accepts a Store at
+        # the pin: neither "valid" nor "invalid" is asserted from it (#326).
+        detail = record.channels["format_migration"].detail
+        self.assertNotRegex(detail, r"\bvalid\b|invalidity")
+        self.assertIn("validate", detail)
         record = self._reconcile(
             b, {"releases": {"OGS-00035": {"published_format": "0.2.0"}}}
         )

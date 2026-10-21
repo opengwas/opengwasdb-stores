@@ -624,11 +624,13 @@ def _format_migration_channel(
     info: Mapping[str, Any] | None,
     entry: Mapping[str, Any],
 ) -> Channel:
-    """The format-0.1.0 -> 0.2.0 migration gap, separate from baseline validity.
+    """The format-0.1.0 -> 0.2.0 migration gap, separate from validity.
 
-    A 0.1.0 artifact is valid as 0.1.0; the gap is that new builds (and the
-    required Ragged/Overflow ``by_variant`` index) need the adopted 0.2.0
-    runtime (issue #218). This is not Store invalidity.
+    The gap is that new builds (and the required Ragged/Overflow ``by_variant``
+    index) need the adopted 0.2.0 runtime (issue #218). Whether ``validate`` at
+    the pin accepts a 0.1.0 Store is what its Validation Record says, not
+    something the format identifier implies: the pin rejects a 0.1.0 Ragged
+    Store that has no ``by_variant`` group (#326).
     """
     fmt = _published_format(info, entry)
     if fmt.startswith("0.2"):
@@ -636,9 +638,10 @@ def _format_migration_channel(
     if fmt.startswith("0.1"):
         return Channel(
             EvidenceState.MISSING,
-            f"published format {fmt} is valid as {fmt}, but migration to 0.2.0 "
-            "(sharding and required variant indexes) is pending the adopted "
-            "runtime (#218); not a 0.1.0 invalidity",
+            f"published format {fmt}: migration to 0.2.0 (sharding and required "
+            "variant indexes) is pending the adopted runtime (#218); whether "
+            "`validate` at the pin accepts this Store is what its Validation "
+            "Record states, not what the format identifier implies",
         )
     return Channel(EvidenceState.UNKNOWN, f"published format {fmt or 'unknown'}")
 
