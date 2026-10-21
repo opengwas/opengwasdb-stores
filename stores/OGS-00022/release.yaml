@@ -24,7 +24,7 @@ notes: |
   The pre-fix broken build (which failed validate_store with "disjoint-partition violated") was kept at hybrid__European__pilot10-cc-completed-broken-pre99fix alongside this store for reference, pending deletion.
 
   Migration (#252): migrated from the retired family-first
-  `gwas-catalog-eur-hybrid/eur-hybrid-pilot-10-completed` layout to OGS-00023, in
+  `gwas-catalog-eur-hybrid/eur-hybrid-pilot-10-completed` layout to OGS-00022, in
   the current bundle schema. Its Release Manifest, `validated` Release Status,
   Validation Record and recorded completion command are unchanged: nothing was
   rebuilt, revalidated or rewritten. `derived_from: OGS-00004` names the parent

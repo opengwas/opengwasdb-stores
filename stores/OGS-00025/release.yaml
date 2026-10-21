@@ -25,12 +25,12 @@ notes: |
   code. No Store artifact was rebuilt or rewritten.
 
   Migration (#252): migrated from the retired family-first
-  `metabolome-plasma-2023/2023-chen-full-east-asian` layout to OGS-00026, in the current bundle
+  `metabolome-plasma-2023/2023-chen-full-east-asian` layout to OGS-00025, in the current bundle
   schema (`store_id`, `label`, `derived_from`; `build.yaml` with a `build` block).
   Its 1,038-Analysis Release Manifest, `built` Release Status and
   Validation Record are the ones the Store was released with; nothing was rebuilt,
   revalidated or rewritten. `derived_from` is null: the Chen ancestry slices are
   siblings of one Source Collection, not children of one another. The recorded
   generator command is the one that ran, path included, even though that config
-  path went with the directory; the generator's configs are now read from
-  `resources/generators/metabolome-plasma-2023/`.
+  path went with the directory; the Chen Source Collection's release config
+  lives under `resources/generators/gwas-catalog-ragged/`.

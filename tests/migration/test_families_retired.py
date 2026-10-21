@@ -385,6 +385,38 @@ class TestMigratedBundlesAreRegistered(unittest.TestCase):
                     (STORES / store_id).resolve(),
                 )
 
+    def test_each_migration_note_names_its_own_bundle(self) -> None:
+        """A note rewritten after a renumbering must not keep the previous id.
+
+        The five kept bundles were renumbered once (#252 fix round 1), and every
+        migration note then still named the next id along -- a reader following
+        it would look for a bundle that does not exist, or describe the wrong
+        one.
+        """
+        for store_id, _, derived_from, *_ in MIGRATED_BUNDLES:
+            with self.subTest(store_id=store_id):
+                notes = self.load(store_id).release.get("notes") or ""
+                self.assertIn("Migration (#252)", notes)
+                paragraph = notes.split("Migration (#252)", 1)[1].split("\n\n")[0]
+                migrated_to = re.search(r"layout to\s+(OGS-\d{5})", paragraph)
+                self.assertIsNotNone(migrated_to, paragraph)
+                self.assertEqual(migrated_to.group(1), store_id)
+                named = set(re.findall(r"OGS-\d{5}", paragraph))
+                self.assertLessEqual(named, {store_id, derived_from} - {None}, paragraph)
+
+    def test_every_generator_path_a_note_names_exists(self) -> None:
+        """A note may not point at a directory that has since been retired.
+
+        `#300` removed `resources/generators/metabolome-plasma-2023/`; a
+        migration note that still sent a reader there was describing a tree
+        that no longer exists.
+        """
+        for store_id, *_ in MIGRATED_BUNDLES:
+            notes = self.load(store_id).release.get("notes") or ""
+            for path in re.findall(r"resources/generators/[\w./-]+", notes):
+                with self.subTest(store_id=store_id, path=path):
+                    self.assertTrue((REPO_ROOT / path.rstrip(".")).exists(), path)
+
     def test_migrated_membership_tables_are_unchanged_in_row_count(self) -> None:
         for store_id, _, _, _, _, _, expected in MIGRATED_BUNDLES:
             with self.subTest(store_id=store_id):
