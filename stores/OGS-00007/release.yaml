@@ -2,6 +2,7 @@ store_id: OGS-00007
 label: 2018-sun-pilot-10
 access_posture: public
 status: built
+trial: true
 derived_from: null
 created_at: '2026-08-17T14:32:13Z'
 description: 'First 10 Sun et al. INTERVAL SomaScan plasma-proteome pQTL analyses (PMID 29875488) -- a

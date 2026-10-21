@@ -33,6 +33,71 @@ def record_check() -> None:
     n_checks += 1
 
 
+def write_bundle(
+    registry: Path,
+    store_id: str = "OGS-00090",
+    *,
+    release: dict[str, Any] | None = None,
+    build: dict[str, Any] | None = None,
+    analyses: str | None = None,
+    status: str = "accepted",
+) -> bundle.Bundle:
+    """Write one minimal Release Bundle under `registry` and load it.
+
+    Module-level so a class testing one part of the contract can sit beside the
+    tests it belongs with instead of inheriting every test of the class that
+    first needed the fixture.
+    """
+    root = registry / store_id
+    root.mkdir(parents=True, exist_ok=True)
+    release_data: dict[str, Any] = {
+        "store_id": store_id,
+        "label": "fixture",
+        "status": status,
+        "source_snapshot_id": "fixture-snapshot-v1",
+        "derived_from": None,
+        "created_at": "2026-09-17T00:00:00Z",
+        "description": "Fixture Release Bundle",
+        "generator": {"commands": ["fixtures/generate.py"]},
+    }
+    if release:
+        release_data.update(release)
+    build_data: dict[str, Any] = {
+        "store_id": store_id,
+        "layout": "dense",
+        "completion_state": "observed_only",
+        "build": {"command": "build-dense-vcf", "options": {}},
+        "post": {
+            "top_hits": False,
+            "rho": False,
+            "overview": True,
+            "validate": True,
+        },
+    }
+    if build:
+        build_data.update(build)
+    if analyses is None:
+        analyses = (
+            "analysis_id\tstored_effect_scale\tsample_size_kind\t"
+            "sample_size_scope\tsample_size\toriginal_effect_scale\t"
+            "original_sd_method\tassigned_ancestry\t"
+            "ancestry_assignment_method\tchecksum\tchecksum_algorithm\t"
+            "source_file\n"
+            "FIXTURE_1\tsd\ttotal\tanalysis_level\t1000\tsd\t"
+            "declared_standardised\tEUR\taf_assigned\t"
+            f"{'a' * 64}\tsha256\t/data/source/fixture.tsv\n"
+        )
+
+    (root / "release.yaml").write_text(
+        yaml.safe_dump(release_data), encoding="utf-8"
+    )
+    (root / "build.yaml").write_text(
+        yaml.safe_dump(build_data), encoding="utf-8"
+    )
+    (root / "analyses.tsv").write_text(analyses, encoding="utf-8")
+    return bundle.load(store_id, registry_root=registry)
+
+
 class TestBundleContract(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp_dir = Path(tempfile.mkdtemp(prefix="ogstores_bundle_"))
@@ -49,54 +114,14 @@ class TestBundleContract(unittest.TestCase):
         analyses: str | None = None,
         status: str = "accepted",
     ) -> bundle.Bundle:
-        root = self.tmp_dir / store_id
-        root.mkdir(parents=True, exist_ok=True)
-        release_data: dict[str, Any] = {
-            "store_id": store_id,
-            "label": "fixture",
-            "status": status,
-            "source_snapshot_id": "fixture-snapshot-v1",
-            "derived_from": None,
-            "created_at": "2026-09-17T00:00:00Z",
-            "description": "Fixture Release Bundle",
-            "generator": {"commands": ["fixtures/generate.py"]},
-        }
-        if release:
-            release_data.update(release)
-        build_data: dict[str, Any] = {
-            "store_id": store_id,
-            "layout": "dense",
-            "completion_state": "observed_only",
-            "build": {"command": "build-dense-vcf", "options": {}},
-            "post": {
-                "top_hits": False,
-                "rho": False,
-                "overview": True,
-                "validate": True,
-            },
-        }
-        if build:
-            build_data.update(build)
-        if analyses is None:
-            analyses = (
-                "analysis_id\tstored_effect_scale\tsample_size_kind\t"
-                "sample_size_scope\tsample_size\toriginal_effect_scale\t"
-                "original_sd_method\tassigned_ancestry\t"
-                "ancestry_assignment_method\tchecksum\tchecksum_algorithm\t"
-                "source_file\n"
-                "FIXTURE_1\tsd\ttotal\tanalysis_level\t1000\tsd\t"
-                "declared_standardised\tEUR\taf_assigned\t"
-                f"{'a' * 64}\tsha256\t/data/source/fixture.tsv\n"
-            )
-
-        (root / "release.yaml").write_text(
-            yaml.safe_dump(release_data), encoding="utf-8"
+        return write_bundle(
+            self.tmp_dir,
+            store_id,
+            release=release,
+            build=build,
+            analyses=analyses,
+            status=status,
         )
-        (root / "build.yaml").write_text(
-            yaml.safe_dump(build_data), encoding="utf-8"
-        )
-        (root / "analyses.tsv").write_text(analyses, encoding="utf-8")
-        return bundle.load(store_id, registry_root=self.tmp_dir)
 
     def test_manifest_generation_rules_are_not_the_contracts(self) -> None:
         """Manifest Generation's rules are its own (#250).
@@ -888,7 +913,16 @@ class TestBundleContract(unittest.TestCase):
         )
         for status in sorted(bundle.VALID_STATUSES - bundle.BUILDABLE_STATUSES):
             with self.subTest(status=status):
-                checked = self.make_bundle(status=status, analyses=unresolved)
+                # A `superseded` release must name its successor, so the fixture
+                # registers one to name (#321).
+                release = (
+                    {"superseded_by": write_bundle(self.tmp_dir, "OGS-00089").store_id}
+                    if status == "superseded"
+                    else None
+                )
+                checked = self.make_bundle(
+                    status=status, release=release, analyses=unresolved
+                )
                 result = bundle.check(checked, registry_root=self.tmp_dir)
                 record_check()
                 self.assertEqual(result, [])
@@ -1383,6 +1417,159 @@ class TestBundleContract(unittest.TestCase):
         finally:
             for patch in helper_patches:
                 patch.stop()
+
+
+class TestTrialAndSupersededBy(unittest.TestCase):
+    """`release.yaml` records whether a release is a trial, and what replaced it (#321).
+
+    Both are descriptive facts about a Store Release, not serving decisions
+    (ADR 0008): the Analysis Catalog's serving policy reads them, so
+    `bundle.check()` holds them to a checked vocabulary rather than free text.
+    """
+
+    def setUp(self) -> None:
+        self.tmp_dir = Path(tempfile.mkdtemp(prefix="ogstores_bundle_markers_"))
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def test_trial_must_be_a_boolean(self) -> None:
+        """A quoted `trial: "yes"` and a numeric `trial: 1` are refused, not read either way."""
+        for value in ("yes", "true", 1, 0):
+            checked = write_bundle(
+                self.tmp_dir, release={"trial": value}
+            )
+            errors = bundle.check(checked, registry_root=self.tmp_dir)
+            record_check()
+            self.assertTrue(any("trial" in error for error in errors), (value, errors))
+
+    def test_trial_is_false_when_the_field_is_absent(self) -> None:
+        """An unmarked release is not a trial, so no bundle needed a `trial: false` backfill."""
+        self.assertFalse(write_bundle(self.tmp_dir, "OGS-00091").trial)
+        self.assertFalse(
+            write_bundle(self.tmp_dir, "OGS-00092", release={"trial": False}).trial
+        )
+
+    def test_a_malformed_trial_stops_a_reader_instead_of_reading_false(self) -> None:
+        """`check()` is not every reader's gate: `.trial` refuses a value it cannot read.
+
+        Coercing `trial: "yes"`, `1` or `null` to false is exactly the silent
+        substitution CONTRIBUTING forbids: a Trial Store Release would be served.
+        """
+        for value in ("yes", 1, 0, None):
+            checked = write_bundle(
+                self.tmp_dir, "OGS-00102", release={"trial": value}
+            )
+            with self.assertRaises(ValueError, msg=repr(value)) as caught:
+                checked.trial
+            self.assertIn("trial", str(caught.exception), value)
+            self.assertIn(checked.store_id, str(caught.exception), value)
+
+    def test_a_quoted_trial_spelling_is_refused_as_written(self) -> None:
+        """The literal text `trial: "yes"` is a string, so it is refused (#321)."""
+        checked = write_bundle(self.tmp_dir, "OGS-00103", release={"trial": True})
+        path = checked.root / "release.yaml"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace("trial: true", 'trial: "yes"'),
+            encoding="utf-8",
+        )
+        reloaded = bundle.load("OGS-00103", registry_root=self.tmp_dir)
+        errors = bundle.check(reloaded, registry_root=self.tmp_dir)
+        record_check()
+        self.assertTrue(any("trial" in error for error in errors), errors)
+
+    def test_an_unquoted_yaml_boolean_spelling_is_read_as_true(self) -> None:
+        """YAML 1.1's `yes` is a boolean, which is what the documentation says (#321)."""
+        checked = write_bundle(self.tmp_dir, "OGS-00104", release={"trial": True})
+        path = checked.root / "release.yaml"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace("trial: true", "trial: yes"),
+            encoding="utf-8",
+        )
+        reloaded = bundle.load("OGS-00104", registry_root=self.tmp_dir)
+        self.assertIs(reloaded.trial, True)
+        self.assertEqual(bundle.check(reloaded, registry_root=self.tmp_dir), [])
+        record_check()
+
+    def test_a_trial_store_release_passes_the_contract(self) -> None:
+        trial = write_bundle(self.tmp_dir, "OGS-00093", release={"trial": True})
+        self.assertTrue(trial.trial)
+        self.assertEqual(bundle.check(trial, registry_root=self.tmp_dir), [])
+        record_check()
+
+    def test_a_superseded_release_names_its_successor(self) -> None:
+        """A `superseded` release with no successor leaves a reader nowhere to go (#323)."""
+        write_bundle(self.tmp_dir, "OGS-00094")
+        orphan = write_bundle(self.tmp_dir, "OGS-00095", status="superseded")
+        errors = bundle.check(orphan, registry_root=self.tmp_dir)
+        record_check()
+        self.assertTrue(any("superseded_by" in error for error in errors), errors)
+
+    def test_superseded_by_is_only_for_a_superseded_release(self) -> None:
+        """A live release that names a successor contradicts its own Release Status."""
+        successor = write_bundle(self.tmp_dir, "OGS-00096")
+        live = write_bundle(
+            self.tmp_dir, "OGS-00097", release={"superseded_by": successor.store_id}
+        )
+        errors = bundle.check(live, registry_root=self.tmp_dir)
+        record_check()
+        self.assertTrue(any("superseded_by" in error for error in errors), errors)
+
+    def test_a_superseded_pair_passes_the_contract(self) -> None:
+        successor = write_bundle(self.tmp_dir, "OGS-00100")
+        old = write_bundle(
+            self.tmp_dir,
+            "OGS-00101",
+            status="superseded",
+            release={"superseded_by": successor.store_id},
+        )
+        self.assertEqual(old.superseded_by, successor.store_id)
+        self.assertEqual(bundle.check(old, registry_root=self.tmp_dir), [])
+        record_check()
+
+    def test_superseded_by_must_name_a_registered_release(self) -> None:
+        """A successor that is not in the registry is a dangling pointer, not a fact."""
+        for value, fragment in (
+            ("OGS-00999", "unresolvable superseded_by"),
+            ("not-a-store-id", "not a valid store_id"),
+        ):
+            old = write_bundle(
+                self.tmp_dir,
+                release={"superseded_by": value},
+                status="superseded",
+            )
+            errors = bundle.check(old, registry_root=self.tmp_dir)
+            record_check()
+            self.assertTrue(any(fragment in error for error in errors), (value, errors))
+
+    # The Trial Store Releases of the committed registry, as a literal: the
+    # seven releases that exercise a Source Collection, Source Format or Store
+    # Layout while the generic release pipeline is developed (CONTEXT.md).
+    TRIAL_STORE_RELEASES = (
+        "OGS-00001",
+        "OGS-00002",
+        "OGS-00003",
+        "OGS-00004",
+        "OGS-00005",
+        "OGS-00007",
+        "OGS-00008",
+    )
+
+    def test_the_committed_registry_marks_exactly_the_trial_store_releases(self) -> None:
+        """Marked in the bundle, not inferred from a "pilot" label (issue #321)."""
+        registry = REPO_ROOT / "stores"
+        marked, errors = [], []
+        for path in sorted(registry.iterdir()):
+            if not path.is_dir() or not paths.is_valid_store_id(path.name):
+                continue
+            loaded = bundle.load(path.name, registry_root=registry)
+            if loaded.trial:
+                marked.append(path.name)
+                result = bundle.check(loaded, registry_root=registry)
+                record_check()
+                errors.extend(f"{path.name}: {error}" for error in result)
+        self.assertEqual(tuple(marked), self.TRIAL_STORE_RELEASES)
+        self.assertEqual(errors, [])
 
 
 class TestAnalysisIdRule(unittest.TestCase):

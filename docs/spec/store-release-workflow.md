@@ -66,7 +66,9 @@ store_id: OGS-00042
 label: r13-pilot-20                 # source-natural display name; not an identifier
 access_posture: public
 status: built                       # candidate|accepted|built|validated|superseded|withdrawn
+trial: false                        # true on a Trial Store Release: deliberately small, never served (#321)
 derived_from: ~                     # a two-id completed child's parent (ADR 0007); none when a release completes its own Store
+superseded_by: ~                    # on a superseded release, the release that replaced it (#321)
 created_at: '2026-08-18T08:51:59Z'
 source_snapshot_id: finngen-r13-manifest-2026-05-12
 generator:                          # how the bundle was produced (Phase B)
@@ -79,6 +81,28 @@ notes: |
 
 The file trims to identity, lineage, Release Status, creation time, source
 snapshot identity, the generation command log, and prose (issue #136, ADR 0029).
+
+`trial` is the one fact that separates a Trial Store Release from a production
+one: a deliberately small Store Release that exercises a Source Collection,
+Source Format or Store Layout while the generic release pipeline is being
+developed and tested. It is descriptive, so it is not a Release Status and not a
+serving decision; the Analysis Catalog's serving policy excludes every Trial
+Store Release (ADR 0008, #323). Absent means `false`. Only a YAML boolean is
+accepted: the loader follows YAML 1.1, so the unquoted spellings `true`, `yes`
+and `on` (and `false`, `no`, `off`) are booleans, while a quoted `trial: "yes"`
+is a string and `trial: 1` a number. `bundle.check()` refuses those, and a
+reader that does not gate on `check()` -- the master list, the catalog -- raises
+rather than read one as `false`, because either reading would serve a Trial
+Store Release or hide one.
+
+`superseded_by` pairs with the `superseded` Release Status: it is required
+there, and refused on a release in any other status. It names the Store Release
+that replaced this one, which is what lets the Analysis Catalog keep an old
+identifier resolvable by pointing it at its successor (#323). Like `trial` it is
+a descriptive fact about the release rather than a serving decision, so the
+registry records it and the catalog decides what to do with it (ADR 0008). The
+successor must be a registered Release Bundle, which `bundle.check()` resolves
+exactly as it resolves `derived_from` (both are the Release Lineage stage).
 
 ### Status lifecycle and transitions
 
@@ -711,7 +735,7 @@ The only thing deliberately excluded is anything whose answer changes without a 
 `stores.tsv` columns:
 
 ```text
-derived   store_id  label  layout  completion_state  status  derived_from
+derived   store_id  label  layout  completion_state  status  derived_from  trial
           store_uri  created_at  opengwasdb_rev  generator_command  build_command
           n_analyses  n_manifest  n_excluded  first_author  publication_pmid
           tissue  context  assigned_ancestry  sample_size  source_url
@@ -721,6 +745,12 @@ observed  format_version  n_variants  n_associations  store_bytes
 
 `n_analyses` is admitted membership; `n_manifest` and `n_excluded` keep the
 excluded manifest rows visible (issue #217).
+
+`trial` is `release.yaml`'s marker, rendered `true` or `false` rather than left
+empty when absent: whether a release is a Trial Store Release is the fact the
+Analysis Catalog's serving policy reads, so the list says it outright instead of
+leaving a reader to notice a "pilot" label (#321). `STORES.md` carries it as a
+Trial column.
 
 `completion_state` is the completion state of the Store users can query, not
 the bundle's declaration (issue #307, ADR 0037). `register` records it as

@@ -4,25 +4,25 @@ Generated master list of Store Releases in this registry.
 
 > Generated from Release Bundles in `stores/`. Do not edit by hand; regenerate with `pixi run index`.
 
-| Store ID | Label | Layout | Completion | Status | Format | Analyses (admitted) | Excluded | Variants | Associations | Validated |
-|:---|:---|:---|:---|:---|:---|:---|---:|---:|---:|:---|
-| `OGS-00001` | pilot-10 | ragged | observed_only | built | 0.1.0 | 10 | 0 | 86,376 | 86,373 | passed |
-| `OGS-00002` | pilot-10-completed | ragged | reference_completed | validated | 0.1.0 | 10 | 0 | 207,764 | 207,761 | passed |
-| `OGS-00003` | r13-pilot-20 | dense | observed_only | built | 0.1.0 | 10 | 0 | 21,230,615 | 212,306,150 | passed |
-| `OGS-00004` | eur-hybrid-pilot-10 | hybrid | observed_only | built | - | 9 | 1 | - | - | passed_with_warnings |
-| `OGS-00005` | eur-hybrid-quant-pilot-10 | hybrid | observed_only | validated | - | 10 | 0 | 14,763,864 | - | passed_with_warnings |
-| `OGS-00006` | 2023-chen-full-european | ragged | observed_only | built | - | 1,400 | 0 | - | - | passed_with_warnings |
-| `OGS-00007` | 2018-sun-pilot-10 | ragged | observed_only | built | - | 10 | 0 | - | - | passed |
-| `OGS-00008` | ukb-b-pilot-10 | dense | observed_only | candidate | - | 10 | 0 | - | - | - |
-| `OGS-00009` | ukb-b-full-observed | dense | observed_only | candidate | - | 2,024 | 0 | - | - | - |
-| `OGS-00010` | ukb-b-full-completed | dense | reference_completed | candidate | - | 2,024 | 0 | - | - | - |
-| `OGS-00011` | eur-hybrid-full | hybrid | observed_only | accepted | - | 3,169 | 1,614 | - | - | passed_with_warnings |
-| `OGS-00012` | mvp-phs002453-eur | dense | observed_only | accepted | - | 1,669 | 0 | - | - | not_run |
-| `OGS-00013` | mvp-phs002453-afr | dense | observed_only | accepted | - | 1,368 | 0 | - | - | not_run |
-| `OGS-00014` | mvp-phs002453-amr | dense | observed_only | accepted | - | 1,053 | 0 | - | - | not_run |
-| `OGS-00015` | mvp-phs002453-eas | dense | observed_only | accepted | - | 241 | 0 | - | - | not_run |
-| `OGS-00016` | mvp-phs002453-meta-observed-only | dense | observed_only | accepted | - | 1,691 | 0 | - | - | not_run |
-| `OGS-00017` | r13-full | dense | observed_only | accepted | - | 2,754 | 0 | - | - | passed |
+| Store ID | Label | Trial | Layout | Completion | Status | Format | Analyses (admitted) | Excluded | Variants | Associations | Validated |
+|:---|:---|:---|:---|:---|:---|:---|:---|---:|---:|---:|:---|
+| `OGS-00001` | pilot-10 | true | ragged | observed_only | built | 0.1.0 | 10 | 0 | 86,376 | 86,373 | passed |
+| `OGS-00002` | pilot-10-completed | true | ragged | reference_completed | validated | 0.1.0 | 10 | 0 | 207,764 | 207,761 | passed |
+| `OGS-00003` | r13-pilot-20 | true | dense | observed_only | built | 0.1.0 | 10 | 0 | 21,230,615 | 212,306,150 | passed |
+| `OGS-00004` | eur-hybrid-pilot-10 | true | hybrid | observed_only | built | - | 9 | 1 | - | - | passed_with_warnings |
+| `OGS-00005` | eur-hybrid-quant-pilot-10 | true | hybrid | observed_only | validated | - | 10 | 0 | 14,763,864 | - | passed_with_warnings |
+| `OGS-00006` | 2023-chen-full-european | false | ragged | observed_only | built | - | 1,400 | 0 | - | - | passed_with_warnings |
+| `OGS-00007` | 2018-sun-pilot-10 | true | ragged | observed_only | built | - | 10 | 0 | - | - | passed |
+| `OGS-00008` | ukb-b-pilot-10 | true | dense | observed_only | candidate | - | 10 | 0 | - | - | - |
+| `OGS-00009` | ukb-b-full-observed | false | dense | observed_only | candidate | - | 2,024 | 0 | - | - | - |
+| `OGS-00010` | ukb-b-full-completed | false | dense | reference_completed | candidate | - | 2,024 | 0 | - | - | - |
+| `OGS-00011` | eur-hybrid-full | false | hybrid | observed_only | accepted | - | 3,169 | 1,614 | - | - | passed_with_warnings |
+| `OGS-00012` | mvp-phs002453-eur | false | dense | observed_only | accepted | - | 1,669 | 0 | - | - | not_run |
+| `OGS-00013` | mvp-phs002453-afr | false | dense | observed_only | accepted | - | 1,368 | 0 | - | - | not_run |
+| `OGS-00014` | mvp-phs002453-amr | false | dense | observed_only | accepted | - | 1,053 | 0 | - | - | not_run |
+| `OGS-00015` | mvp-phs002453-eas | false | dense | observed_only | accepted | - | 241 | 0 | - | - | not_run |
+| `OGS-00016` | mvp-phs002453-meta-observed-only | false | dense | observed_only | accepted | - | 1,691 | 0 | - | - | not_run |
+| `OGS-00017` | r13-full | false | dense | observed_only | accepted | - | 2,754 | 0 | - | - | passed |
 
 ## Derived membership summaries
 
