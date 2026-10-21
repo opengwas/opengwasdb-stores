@@ -184,7 +184,9 @@ dir.create(schema_work, recursive = TRUE)
 schema_config <- file.path(schema_tmp, "config.yaml")
 writeLines(c("output:", "  store_id: OGS-99021"), schema_config)
 valid_schema_row <- fread(
-  "families/ukb-b/releases/dense-observed-vcf-c128-resolved/analyses.tsv",
+  # The row is a fixture under tests/ since #252: the bundle it came from
+  # (dense-observed-vcf-c128-resolved) was retired with families/.
+  "tests/opengwas-gwas-vcf-dense/fixtures/ukb-b-19953.analyses.tsv",
   sep = "\t", na.strings = "", colClasses = list(character = "exclude_from_build")
 )[analysis_id == "ukb-b-19953"]
 fwrite(valid_schema_row, file.path(schema_work, "analyses.tsv"), sep = "\t", na = "")

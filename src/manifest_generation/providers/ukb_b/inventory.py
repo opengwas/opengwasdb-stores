@@ -5,7 +5,7 @@ Issue #219. The restored full UKB (`ukb-b`) collection is the one Source
 Collection whose intended membership is a *declared selection* rather than an
 acquisition-manifest merge: the batch is fixed upstream, and the registry
 already records the exact analyses it intends to release
-(`families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv`, whose
+(`resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv`, whose
 `inclusion_reason` cites the OpenGWAS IGD `data/ukb-b/manifest.tsv`). A
 directory glob must never be the intention: if a file is missing, the release
 loses a declared member, and that is a copy failure, not a smaller release.
@@ -70,6 +70,16 @@ INDEX_SUFFIX: str = ".vcf.gz.tbi"
 #: The canonical upstream id shape. A file that does not match is reported, never
 #: silently coerced into a member.
 ANALYSIS_ID_PATTERN = re.compile(r"^ukb-b-\d+$")
+
+#: The declared intended selection for the restored UKB release. It is a Source
+#: Inventory input, not a Release Bundle's membership table: the frozen
+#: inventory (`ukb-b-restored-2026-10-11`) declares the Selection it was frozen
+#: for, and the receipt pins this file's sha256. It moved here from the retired
+#: `families/` archive in #252; its bytes, and so every recorded hash, are
+#: unchanged.
+DEFAULT_DECLARED_SELECTION: str = (
+    "resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv"
+)
 
 #: The maximum concurrent readers the operator granted this ticket. A larger
 #: request is a configuration error, not a faster run.
@@ -992,7 +1002,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     shared.add_argument("--source-dir", required=True, help="the ukb-b VCF mirror")
     shared.add_argument(
         "--declared",
-        default="families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv",
+        default=DEFAULT_DECLARED_SELECTION,
         help="the declared intended selection (never a glob)",
     )
     shared.add_argument("--built-baseline", help="a built bundle's analyses.tsv for the explicit comparison")

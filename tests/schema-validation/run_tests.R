@@ -12,11 +12,13 @@
 #      controlled value and a missing required column -- each fail
 #      src/manifest_generation/schema_validate.py directly with a message identifying
 #      the violation, checked in isolation from the full generator pipeline.
-#   4. The real, already-accepted release bundles this repository tracks
-#      (pqtl-interval-2018, metabolome-plasma-2023) still conform to
+#   4. The real, already-accepted release bundles this repository tracks --
+#      every registered Store Release under stores/ -- still conform to
 #      opengwasdb's shared schema (issue #51 AC4) -- checked directly
 #      against src/manifest_generation/schema_validate.py without mutating the
-#      tracked release bundles' own validation.yaml.
+#      tracked release bundles' own validation.yaml. The two legacy BESD Trial
+#      Store Releases are excluded: their blank required values are the known
+#      issue #134 gap, tolerated only for those ids.
 
 suppressPackageStartupMessages(library(yaml))
 
@@ -52,11 +54,17 @@ check(any(grepl("sample_size_scope", missing_column$output, fixed = TRUE)),
       paste(missing_column$output, collapse = "\n"))
 
 # --- Real, already-accepted release bundles still conform (issue #51 AC4) ---
-real_bundles <- c(
-  "families/pqtl-interval-2018/releases/2018-sun-pilot-100/analyses.tsv",
-  Sys.glob("families/metabolome-plasma-2023/releases/*/analyses.tsv")
+# Every registered Release Bundle, read from the one home for Release Bundles
+# (stores/, #252), except the two legacy BESD Trial Store Releases whose blank
+# required Analysis values are the documented issue #134 gap.
+LEGACY_BESD_RELEASES <- c("OGS-00001", "OGS-00002")
+real_bundles <- Filter(
+  function(path) !(basename(dirname(path)) %in% LEGACY_BESD_RELEASES),
+  Sys.glob("stores/OGS-*/analyses.tsv")
 )
-check(length(real_bundles) >= 5, "expected to find pqtl-interval-2018 + 5 metabolome-plasma-2023 release bundles, found %d", length(real_bundles))
+check(length(real_bundles) >= 5, "expected to find the registered Release Bundles under stores/, found %d", length(real_bundles))
+check(all(c("OGS-00006", "OGS-00007") %in% basename(dirname(real_bundles))),
+      "expected the metabolome-plasma-2023 and pqtl-interval-2018 bundles among them")
 for (bundle in real_bundles) {
   result <- system2("python3", c("-m", "manifest_generation.schema_validate", shQuote(bundle)), stdout = TRUE, stderr = TRUE)
   status <- attr(result, "status") %||% 0L
