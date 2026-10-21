@@ -156,7 +156,7 @@ release from its bundle as it now stands.
 
 ### Temporary files
 
-Steps write temporary files to `<artifact root>/<store id>/tmp`, and the Snakemake run itself to `<artifact root>/.tmp`, never `/tmp`: `/tmp` is on a small root filesystem and a large build's spill fills it (#312). The release sets `TMPDIR`, `TMP` and `TEMP`; there is nothing to configure.
+Steps write temporary files to `<artifact root>/<store id>/tmp`, and the Snakemake run itself to `<artifact root>/.tmp`, never `/tmp`: `/tmp` is on a small root filesystem and a large build's spill fills it (#312). The release sets `TMPDIR`, `TMP` and `TEMP`; there is nothing to configure. A step killed mid-run (a signal, or `ENOSPC`) leaves its spill there until it is removed by hand (#316).
 
 ### Production Execution vs. Fixture-Scale Tests
 

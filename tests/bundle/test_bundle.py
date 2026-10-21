@@ -1447,7 +1447,7 @@ class TestBundleContract(unittest.TestCase):
             if (
                 location == root
                 or root in location.parents
-                or any(part.endswith(".opengwasdb") for part in location.parts)
+                or any(".opengwasdb" in part for part in location.parts)
             ):
                 raise AssertionError(f"artifact path inspected: {text}")
 

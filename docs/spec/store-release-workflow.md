@@ -182,7 +182,7 @@ A workflow config override and the environment variable are per-invocation overr
 
 ### Temporary files stay on the artifact root
 
-Every step's subprocess runs with `TMPDIR`, `TMP` and `TEMP` set to `<artifact root>/<store id>/tmp` (`paths.tmp_dir`, set once in `run.step_env`), and the entry point's own Snakemake run uses `<artifact root>/.tmp` (`paths.entry_point_tmp_dir`). `opengwasdb` spills through `tempfile`, which follows `TMPDIR`, and `/tmp` is on a small root filesystem: OGS-00009's release died with `No space left on device` that way (#312). Both directories are created when missing, with no configuration. Their contents belong to the step that wrote them, which removes them; nothing here deletes the directory.
+Every step's subprocess runs with `TMPDIR`, `TMP` and `TEMP` set to `<artifact root>/<store id>/tmp` (`paths.tmp_dir`, set once in `run.step_env`), and the entry point's own Snakemake run uses `<artifact root>/.tmp` (`paths.entry_point_tmp_dir`). `opengwasdb` spills through `tempfile`, which follows `TMPDIR`, and `/tmp` is on a small root filesystem: OGS-00009's release died with `No space left on device` that way (#312). Both directories are created when missing, with no configuration. Their contents belong to the step that wrote them, which removes them; nothing here deletes the directory. A step killed mid-run (a signal, or `ENOSPC`) leaves its spill there until it is removed by hand (#316).
 
 ### The passthrough rule
 
