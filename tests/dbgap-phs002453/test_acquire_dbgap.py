@@ -691,6 +691,34 @@ class AcquisitionTest(unittest.TestCase):
         self.assertTrue(unrecorded.startswith(f"{tool} sha256:unrecorded"), unrecorded)
         self.assertIn("no conversion-time code identity", unrecorded)
 
+    def test_17_a_conversion_receipt_outranks_historical_evidence(self) -> None:
+        """Historical recovery fills gaps; it never overrides the code that wrote the file (#290 review)."""
+        self.ensure_mapping_and_conversion()
+        receipts = sorted((self.root / "GIA" / "convert-receipts").glob("*.json"))
+        receipt = json.loads(receipts[-1].read_text(encoding="utf-8"))
+        history = self.root / "conversion-history"
+        history.mkdir(exist_ok=True)
+        (history / "parent-run-summary.json").write_text(
+            json.dumps({"code_sha": "b" * 40}), encoding="utf-8"
+        )
+        (history / "refresh-receipt.tsv").write_text(
+            "analysis_id\tmember\tstore_key\taction\n"
+            f"GCST90475097\tmember-a\t{STORE_KEY}\tnew-conversion\n",
+            encoding="utf-8",
+        )
+        result = run(
+            self.root, "manifest", "--mapping", str(self.root / "mapping.tsv"),
+            "--conversion-history", str(history),
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        rows = {row["source_analysis_id"]: row for row in self.rows(self.root / "acquisition-manifest.tsv")}
+        self.assertEqual(
+            rows["GCST90475097"]["reformat_tool"],
+            "manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 "
+            f"sha256:{receipt['module_sha256']} code:{receipt['code_sha']}",
+        )
+        self.assertNotIn("b" * 40, rows["GCST90475097"]["reformat_tool"])
+
     def test_16_manifest_refuses_a_rewritten_file_whose_original_is_gone(self) -> None:
         """No durable original identity means stop, not invent one (#290 review)."""
         self.ensure_mapping_and_conversion()

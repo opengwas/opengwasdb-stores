@@ -1581,9 +1581,12 @@ def command_manifest(args: argparse.Namespace) -> int:
         }
         for future in as_completed(futures):
             original_digests[futures[future]] = future.result()
+    # A conversion-time receipt names the code that wrote the file; historical
+    # recovery only fills the gaps it leaves (#290 review).
     versions = recorded_versions(out)
     for directory in args.conversion_history or []:
-        versions.update(historical_versions(Path(directory)))
+        for analysis_id, tool in historical_versions(Path(directory)).items():
+            versions.setdefault(analysis_id, tool)
     lineage_by_id: dict[str, dict[str, str]] = {}
     for row in ready_rows:
         analysis_id = row["analysis_id"]
