@@ -21,7 +21,7 @@ Generated master list of Store Releases in this registry.
 | `OGS-00014` | mvp-phs002453-amr | dense | observed_only | accepted | - | 1,053 | 0 | - | - | not_run |
 | `OGS-00015` | mvp-phs002453-eas | dense | observed_only | accepted | - | 241 | 0 | - | - | not_run |
 | `OGS-00016` | mvp-phs002453-meta-observed-only | dense | observed_only | accepted | - | 1,691 | 0 | - | - | not_run |
-| `OGS-00017` | r13-full | dense | observed_only | accepted | - | 2,754 | 0 | - | - | passed |
+| `OGS-00017` | r13-full | dense | reference_completed | accepted | - | 2,754 | 0 | - | - | passed |
 | `OGS-00022` | eur-hybrid-pilot-10-completed | hybrid | reference_completed | validated | - | 9 | 1 | - | - | passed |
 | `OGS-00023` | eur-hybrid-quant-pilot-10-completed | hybrid | reference_completed | validated | - | 10 | 0 | - | - | passed |
 | `OGS-00024` | 2023-chen-full-african | ragged | observed_only | built | - | 1,034 | 0 | - | - | passed_with_warnings |
