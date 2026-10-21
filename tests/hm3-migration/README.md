@@ -2,8 +2,8 @@
 
 Executable proof for stores#211 (epic #214), the registry-side migration that
 makes the `hm3` Indexed Variant Subset the default Dense-component artifact
-across the existing registry. The audit script lives at
-`resources/scripts/audit_indexed_subsets.py`; this suite tests it and the
+across the existing registry. The audit is the `ogstores.audit_indexed_subsets`
+module (`pixi run audit-indexed-subsets`); this suite tests it and the
 migrated bundles.
 
 ## What was migrated
@@ -39,7 +39,7 @@ ordinary "absent from the axis" case the builder counts and records.
 
 ## The audit
 
-`resources/scripts/audit_indexed_subsets.py` prints the full in-scope list and
+`ogstores.audit_indexed_subsets` prints the full in-scope list and
 fails (non-zero) when:
 
 - a Dense-component bundle has no `indexed_subsets` key and no explicit opt-out;
@@ -52,8 +52,8 @@ fails (non-zero) when:
 It reads only `build.yaml` and the small `resource.yaml`; it never opens the
 18.9 MB variant list, a Store, or an association body, so it is CI-safe where
 the reference root is absent. The exhaustive byte/row-count check remains the
-runtime preflight (`ogstores.resources`) and the resource's own
-`verify_hm3_resource.py`.
+runtime preflight (`ogstores.resources`) and the resource's own verifier,
+`tools/reference-resources/hapmap3-hg38/verify_hm3_resource.py`.
 
 An intentional opt-out is a present, empty `indexed_subsets: []` — a reviewable
 statement in the bundle that distinguishes "declared none" from "not migrated".
@@ -62,16 +62,12 @@ generator-facing default/opt-out; if it adopts a different marker, this audit
 must adopt that marker too.
 
 ```sh
-pixi run python resources/scripts/audit_indexed_subsets.py
+pixi run audit-indexed-subsets
 pixi run python tests/hm3-migration/test_hm3_migration.py
 ```
 
-## Scope limitation
+## Scope
 
-The unmigrated `families/*/releases/*` bundles are **not** audited. They use the
-retired family-first schema (`store_family_id`, `store_layout`,
-`builder.entrypoint`) that `bundle.check()` and `plan()` reject, carry no
-`OGS-` id, and are not planned by the workflow. stores#211 is registry-only;
-those bundles get an `indexed_subsets` declaration when they are migrated to
-`stores/<store-id>/`, which is separate work (ADR 0028). The audit prints this
-limitation so an empty failure list is not mistaken for coverage of them.
+Every registered Release Bundle under `stores/` is audited: since #252 that is
+the only home for Release Bundles. The audit prints its scope, so an empty
+failure list cannot be mistaken for coverage of bundles nobody registered.

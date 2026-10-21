@@ -12,7 +12,7 @@
 
 suppressPackageStartupMessages(library(data.table))
 
-source("resources/generators/lib/metadata_resolvers/gwas_catalog_ssf.R")
+source("src/manifest_generation/providers/gwas_catalog/gwas_catalog_ssf.R")
 
 fail <- function(...) stop(sprintf(...), call. = FALSE)
 n_checks <- 0L

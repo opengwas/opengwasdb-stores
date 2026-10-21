@@ -30,8 +30,9 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RESOURCE_DIR = REPO_ROOT / "resources" / "reference-resources" / "hapmap3-hg38"
-if str(RESOURCE_DIR) not in sys.path:
-    sys.path.insert(0, str(RESOURCE_DIR))
+VERIFIER_DIR = REPO_ROOT / "tools" / "reference-resources" / "hapmap3-hg38"
+if str(VERIFIER_DIR) not in sys.path:
+    sys.path.insert(0, str(VERIFIER_DIR))
 
 import verify_hm3_resource as verifier  # noqa: E402
 

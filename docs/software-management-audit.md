@@ -1,5 +1,10 @@
 # Software management audit
 
+> **Historical record.** This audit was written on 2026-08-05 and is kept as
+> written. Its relative links into the family-first bundle archive are dead:
+> that directory was retired in #252, and each bundle it held is now registered
+> in `stores/<store-id>/` or retired with git history keeping it.
+
 Date: 2026-08-05
 
 ## Executive summary

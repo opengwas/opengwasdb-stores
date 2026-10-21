@@ -60,8 +60,13 @@ a wrong Store Family attribution sends the review to the wrong place.
    resolver's `trimws(tolower(x))`; case/whitespace variants collapse and their
    occurrence counts sum.
 3. **Attribution**: `store_families` is derived from a sibling `release.yaml`
-   (`store_family_id`/`family`), a `releases/` or `families/` path segment, or
-   the bundle directory name, and is rendered sorted and comma-separated.
+   (`store_family_id`/`family`), else from the Store Release id of the
+   `stores/<store-id>/` bundle the Manifest sits in (the one home for a Release
+   Bundle since #252), and is rendered sorted and comma-separated. It is
+   derived from the bundle directory alone -- never from an earlier `stores`
+   component in the path -- and there is no fallback: a Manifest anywhere else
+   raises `UnsupportedManifestLocationError` naming the directory, because a
+   guessed label merges distinct releases into one bucket.
 4. **Ordering**: the queue is descending by `occurrence_count` with an
    alphabetical tie-break, so output is deterministic.
 5. **Empty is not an error**: a Manifest with no unmapped rows, or with no
@@ -478,7 +483,7 @@ pixi run -e curation round-init \
     --index .cache/curation/efo-v3.94.0.index.json \
     --ontology-embeddings .cache/curation/efo-v3.94.0--BioLORD-2023.ontology-embeddings \
     --chooser jev \
-    --manifests families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv \
+    --manifests stores/OGS-00009/analyses.tsv \
     --threshold-evidence "conf 0.85 / margin 0.20 from the validation curve"
 
 # 3. derive the queue, excluding labels already in the mapping table
@@ -692,7 +697,7 @@ pixi run -e curation curation-round \
 
 # report coverage from an existing round's artifacts (read-only)
 pixi run -e curation coverage \
-    --manifests families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv \
+    --manifests stores/OGS-00009/analyses.tsv \
     --mapping resources/reference-resources/canonical-trait-mapping-efo/mapping.tsv \
     --work-queue .cache/curation/round/work-queue.tsv \
     --shortlists .cache/curation/round/shortlists.tsv \

@@ -1296,7 +1296,7 @@ class TestStrictBoundaries(PromotionTestCase):
         stores = self.base / "stores" / "OGS-00001"
         stores.mkdir(parents=True)
         (stores / "analyses.tsv").write_text("analysis_id\ttrait\n", encoding="utf-8")
-        bundle = self.base / "families" / "fam" / "releases" / "rel"
+        bundle = self.base / "stores" / "OGS-99004"
         bundle.mkdir(parents=True)
         (bundle / "analyses.tsv").write_text("analysis_id\ttrait\n", encoding="utf-8")
         rows = [

@@ -16,7 +16,8 @@ description: >
   (issue #28/#29), common (minimum allele frequency >= 0.05) in every one of
   that panel's 7 super-populations (AFR, AMR, EAS, EUR, MID, NAF, SAS) and
   spaced at least 250,000bp apart per chromosome. Retained unconditionally
-  by Store Families that opt in via `filter.qc_panel` (issue #30), so AF-based
+  by every region-filtered release (region_policy.qc_panel_resource_id, #300;
+  formerly the R generators' `filter.qc_panel`, issue #30), so AF-based
   ancestry assignment and reference-AF effect-scale validation have a stable
   variant backbone even for Analyses with few or no genome-wide-significant
   hits, rather than depending entirely on whatever survives the signal-driven

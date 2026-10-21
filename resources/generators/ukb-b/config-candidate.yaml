@@ -13,7 +13,7 @@ source_snapshot_id: ukb-b-restored-2026-10-11
 resolution_snapshot_id: ukb-b-provider-json-2026-10-11
 inventory: resources/inventories/ukb-b-restored-2026-10-11.tsv
 resolution: resources/inventories/ukb-b-provider-resolution-2026-10-11.tsv
-declared: families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv
+declared: resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv
 label: ukb-b-full-observed-restored
 description: >
   Restored full dense observed-only Store Release containing all 2,514 ukb-b

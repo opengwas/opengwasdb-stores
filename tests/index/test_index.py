@@ -780,7 +780,7 @@ class TestRepoIndexCleanTree(unittest.TestCase):
     def test_the_committed_master_list_marks_exactly_the_trial_store_releases(
         self,
     ) -> None:
-        """`trial` is a column of the committed list, true for the seven and nobody else (#321)."""
+        """`trial` is a column of the committed list, true for the nine and nobody else (#321)."""
         rows = list(
             csv.DictReader(
                 (REPO_ROOT / "stores.tsv").read_text(encoding="utf-8").splitlines(),
@@ -798,6 +798,8 @@ class TestRepoIndexCleanTree(unittest.TestCase):
                 "OGS-00005",
                 "OGS-00007",
                 "OGS-00008",
+                "OGS-00022",
+                "OGS-00023",
             ],
         )
         self.assertEqual(

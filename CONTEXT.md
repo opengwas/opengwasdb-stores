@@ -34,7 +34,7 @@ The frozen reconciliation, for one Selection, of the Analyses a Source Collectio
 _Avoid_: release manifest, store manifest, discovered file list
 
 **Acquisition Manifest**:
-What acquisition produced for a Source Collection: each file fetched, extracted or converted, with its location, size and checksum. It records what is available, never what is intended. A row may instead record why a file could not be acquired, with a non-ready readiness status and the error, so freeze can tell an explained absence from a silent one. A file acquisition had to reformat before any reader could open it -- a structural change a Column Map cannot express, such as splitting one file into one per Analysis -- also records the original it came from, with that original's location and checksum and the tool that reformatted it, so a Release Bundle traces back to what the provider published.
+What acquisition produced for a Source Collection: each file fetched, extracted or converted, with its location, size and checksum. It records what is available, never what is intended. A row may instead record why a file could not be acquired, with a non-ready readiness status and the error, so freeze can tell an explained absence from a silent one. A file acquisition changed also records the original it came from, with that original's location and checksum and the tool that changed it, so a Release Bundle traces back to what the provider published. Acquisition changes a file only for a structural change a Column Map cannot express, such as splitting one file into one per Analysis, or to filter it to its release's region policy, for scale: then the lineage also records the policy's parameters, the QC-panel positions are always kept so Analysis Resolution can still measure ancestry and phenotype SD, and the original is deleted once the filtered file's checksum is recorded. One exception is historical: a file whose original was deleted before acquisition recorded lineage -- Chen 2023's, filtered by the retired R generator -- records the original's size instead of its checksum, with the evidence committed at the time. No checksum is ever invented, and every new acquisition records one.
 _Avoid_: download log, source inventory
 
 **Selection**:
@@ -77,6 +77,10 @@ _Avoid_: metadata resolution (fetching source metadata is not resolution)
 What Analysis Resolution measured for one Analysis's source file under one set of references and settings. It belongs to the Analysis, kept once per Source Collection, not to a Store Release: every Selection that takes the Analysis reuses a matching record, and a changed file, reference or setting makes a new one. Each candidate Release Bundle names the records its decisions came from.
 _Avoid_: resolver output, QC report
 
+**Resolution Area**:
+Where a Source Collection's Resolution Records are kept, `<resolution-root>/<source_collection_id>/`: shared by every Selection of the collection, resolved into by one run at a time, and never read by Store Release Build. Its kept records are write-once; a candidate's resolution receipt names the ones it used. The resolution root is deployment configuration, like the Artifact Root, never a release config value.
+_Avoid_: shared records dir, resolver cache
+
 **Quality Check**:
 A named release-policy test of one measurement of an Analysis, from its Resolution Record except where OpenGWASDB does not measure it yet (then a reviewed listing), against a threshold or, for a status, the values it accepts, with its consequence fixed when the check is defined: an exclusion (the Analysis stays in the Release Manifest as an `exclude_from_build` audit row with the check's reason) or a warning (the Analysis stays in and the finding is recorded). OpenGWASDB measures; Manifest Generation holds the threshold, a shared default a release may override and records, and records every Analysis's measurement whether it passes or not. An exclusion decides membership, so Quality Checks run before the Release Bundle exists; checks on a built Store are Store Release Build's validation and cannot change membership. Release policy that tests no measurement, such as a missing Resolution Record, is not a Quality Check.
 _Avoid_: QC panel (a variant extraction panel, not a check), validation (of a built Store)
@@ -86,7 +90,7 @@ The workflow that turns an accepted Release Bundle into a built, validated and p
 _Avoid_: Phase A, release pipeline, build phase
 
 **Release Bundle**:
-The Store Registry directory `stores/<store-id>/` that Manifest Generation and Store Release Build meet at, and the only thing they share: `release.yaml` (identity, lineage, Release Status and provenance), `build.yaml` (the Build Recipe), `analyses.tsv` (the Release Manifest), `validation.yaml` (the Validation Record), and sidecars. Manifest Generation emits it as a candidate, a human accepts it, and Store Release Build consumes it. A candidate and an accepted Release Bundle are the same thing at different Release Statuses. An accepted Release Bundle is immutable, with one exception: an Observed-Only bundle may gain a completion block to declare reference completion (ADR 0037).
+The Store Registry directory `stores/<store-id>/` that Manifest Generation and Store Release Build meet at, and the only thing they share: `release.yaml` (identity, lineage, Release Status and provenance), `build.yaml` (the Build Recipe), `analyses.tsv` (the Release Manifest), `validation.yaml` (the Validation Record), sidecars, and, for a Source Collection read through a Column Map, that map (in `column_maps/`, checksummed by the Build Recipe). Manifest Generation emits it as a candidate, a human accepts it, and Store Release Build consumes it. A candidate and an accepted Release Bundle are the same thing at different Release Statuses. An accepted Release Bundle is immutable, with one exception: an Observed-Only bundle may gain a completion block to declare reference completion (ADR 0037).
 _Avoid_: Release Manifest Candidate, candidate bundle (as a separate kind), release directory
 
 **Release Manifest**:
@@ -162,8 +166,8 @@ The deployment-configured directory under which every Store Release's Release Ar
 _Avoid_: output directory, data root
 
 **Work Root**:
-Where a Manifest Generator keeps its working files for one Store Release, `<artifact-root>/<store-id>/generate` (`paths.generation_dir`). A legacy generator's working bundle lives there and is emitted from there; Store Release Build never reads it.
-_Avoid_: release directory, families/ release dir
+Where Manifest Generation keeps its working files for one Store Release: for the shared pipeline, `<output.work_root>/<store-id>/` (its freeze and preflight reports, resolver manifest, log, the run's resolver index and resolution receipt, and the rendered bundle before it is emitted); for a legacy generator, `<artifact-root>/<store-id>/generate` (`paths.generation_dir`), where its working bundle lives and is emitted from. Resolution Records are not kept here but in the Resolution Area. Store Release Build never reads a Work Root.
+_Avoid_: release directory, family bundle directory
 
 **Release Lineage**:
 The `derived_from` relationship between Store Releases, such as corrected releases and other derived releases. Reference completion is no longer a lineage edge: it replaces a Store under its own id (ADR 0037). Two-id pairs from before that decision keep their `derived_from` edge.
@@ -222,7 +226,7 @@ The ancestry or population label supplied by the upstream Source Collection and 
 _Avoid_: assigned ancestry
 
 **Assigned Ancestry**:
-The registry-normalised ancestry label used for store inclusion checks, grouping, and ancestry-specific build choices. It never moves an Analysis into a different Store Release: a Store's Selection decides which Analyses it considers, and a disagreement between Assigned Ancestry and that Selection is a Quality Check. It is one controlled vocabulary on every Analysis — one of the ancestry mixture's super-population codes (AFR, AMR, EAS, EUR, MID, NAF, SAS) or empty when unassigned — so a free-text Source Ancestry Label such as European is never stored here.
+The registry-normalised ancestry label used for store inclusion checks, grouping, and ancestry-specific build choices. It never moves an Analysis into a different Store Release: a Store's Selection decides which Analyses it considers, and a disagreement between Assigned Ancestry and that Selection is a Quality Check. It is one controlled vocabulary on every Analysis — one of the ancestry mixture's super-population codes (AFR, AMR, EAS, EUR, MID, NAF, SAS) or empty when unassigned — so a free-text Source Ancestry Label such as European is never stored here. It is measured from allele frequencies; only when an Analysis's Resolution Record shows its source has none may a release that opts in take the Source Metadata Table's super-population instead, as `source_trusted_no_af` with a warning-level Quality Check result, and a measured ancestry never takes the source's label. A Selection that names no single super-population (`multi-ancestry`) never assigns it at all: the fit is measured and recorded, and Assigned Ancestry stays empty, so nothing is excluded for ancestry. A release that names one may instead opt in to keeping an Analysis the ancestry gates left unassigned, still unassigned, as a recorded warning.
 _Avoid_: source ancestry label
 
 **Ancestry Assignment Method**:

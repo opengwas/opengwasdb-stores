@@ -1,40 +1,48 @@
-"""Phase B candidate workflow: frozen Source Inventory -> candidate Release Bundle (issue #153).
+"""The shared Manifest Generation pipeline: frozen Source Inventory -> candidate Release Bundle.
 
-This module is the registry-owned orchestration between the frozen Source
-Inventory (issue #151) and an OpenGWASDB Store Release Candidate. It owns four
-things and nothing else:
+The pipeline every Source Collection uses (ADR 0036), first written for the
+GWAS Catalog (issue #153) and generalised onto any release config by #287. It
+is the registry-owned orchestration between a frozen Source Inventory, with
+its connector files frozen beside it (#283), and a candidate Release Bundle.
+It owns five things and nothing else:
 
+- **reading the release config** (``manifest_generation.release_config``) and
+  the reviewed per-Analysis listings it names;
 - **deriving the canonical resolver manifest** from the frozen inventory's exact
-  ``data_file`` paths and the release's per-study-design method tiers, plus the
-  resolved per-Analysis metadata the OpenGWASDB Analysis schema needs;
+  ``data_file`` paths and the release's per-study-design method tiers, with
+  the per-Analysis metadata of the frozen Source Metadata Table;
 - **invoking the upstream resolver subprocess** and recording the argv that
   actually ran. The reference panel, the worker pool and per-Analysis
   checkpointing are owned by ``opengwasdb resolve-analyses`` (opengwasdb#208);
   this module never loads a reference, forks a worker, or computes an ancestry,
   allele alignment, or phenotype SD itself;
 - **accounting for every record** before anything is written: exactly one record
-  per selected Analysis, no missing/stale/duplicate/extra records, and every
+  per selected Analysis, no missing/stale/duplicate records, and every
   record's source identity and method tier matching the manifest that was
-  resolved;
+  resolved. Records are kept once per Source Collection and reused by every
+  Selection (#284, ``manifest_generation.resolution_area``); the resolution
+  receipt names exactly the kept records a candidate is decided from;
 - **applying the registry's release membership and exclusion policy** -- the
   decisions in ADR 0025 (``exclude_from_build`` audit rows), issue #152
   (full-reference ancestry assignment; source-AF-only quantitative estimation;
-  non-EUR/unassigned/orientation/SD-unavailable/resolution failures become
-  controlled, explained exclusions), and the pinned OpenGWASDB Analysis schema.
+  non-target/unassigned/orientation/SD-unavailable/resolution failures become
+  controlled, explained exclusions), the Quality Checks (#285), and the pinned
+  OpenGWASDB Analysis schema.
 
 Output is a **candidate-only** Release Bundle, rendered deterministically and
-emitted through the shared emitter (``manifest_generation.emit``, #248). It never builds, validates
-or materialises a Store, never redownloads or copies a source body, never
-invokes Phase A, and never infers an accepted status.
+emitted through the shared emitter (``manifest_generation.emit``, #248). It
+never builds, validates or materialises a Store, never redownloads or copies a
+source body, never invokes Store Release Build, and never infers an accepted
+status.
 
 Where a value is the statistics (ancestry fit, allele alignment, phenotype-SD
 estimate) it comes from the resolver record; where a value is a release decision
 (membership, method tier, exclusion) it is made here. That line is ADR 0012 /
 ADR 0017's, not this module's invention.
 
-See ``docs/spec/store-release-workflow.md`` (Phase B) and
-``resources/generators/gwas-catalog-eur-hybrid/README.md``; the operator entry
-point is ``manifest_generation.generate_candidate``.
+See ``docs/spec/store-release-workflow.md`` (Manifest Generation) and
+``docs/spec/release-config.md``; the operator entry point is
+``manifest_generation.generate_candidate``.
 """
 
 from __future__ import annotations
@@ -46,11 +54,12 @@ import math
 import os
 import statistics
 import subprocess
+import time
 from dataclasses import dataclass, field, replace
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 import yaml
 
@@ -66,14 +75,33 @@ from manifest_generation.quality_checks import (
 from manifest_generation.ancestry_sidecar import format_sidecar_float
 from manifest_generation.generation_rules import INFO_SCORE_KINDS
 from manifest_generation.indexed_subsets import resolve_indexed_subsets
-from manifest_generation.source_ancestry import SOURCE_LABEL_MAP_RELATIVE_PATH, load_source_label_map
+from manifest_generation.resolution_area import (
+    KeptRecord,
+    ResolutionArea,
+    ResolutionAreaError,
+)
+from manifest_generation.safe_write import atomic_write_bytes
 from manifest_generation.source_inventory import (
     INVENTORY_COLUMNS,
-    PreflightConfigError,
-    ReleaseConfiguration,
+    InventoryError,
     SourceInventoryRow,
     duplicate_content_groups,
-    load_release_configuration,
+)
+from manifest_generation.release_config import ReleaseConfig, load_release_config
+from manifest_generation.connector_tsv import FreezeError
+from manifest_generation.freeze import (
+    OriginalMissingError,
+    load_collection_intent,
+    load_frozen_connectors,
+)
+from manifest_generation.region_filtered_acquisition import frozen_evidence, region_lineage_problems
+from manifest_generation.trait_ontology_mapping import (
+    CanonicalTraitMappingTable,
+    SourceTrait,
+    TraitOntologyMapping,
+    TraitOntologyMappingError,
+    TraitOntologyMappingRun,
+    map_trait_ontologies,
 )
 
 # ---------------------------------------------------------------------------
@@ -96,6 +124,7 @@ RESOLVER_MANIFEST_COLUMNS: tuple[str, ...] = (
     "checksum",
     "checksum_algorithm",
     "size_bytes",
+    "source_genome_build",
     "info_score_threshold",
     "imputation_score_column",
     "imputation_score_kind",
@@ -149,6 +178,36 @@ ANALYSES_COLUMNS: tuple[str, ...] = (
     "maf_threshold",
     "inclusion_reason",
     "exclude_from_build",
+)
+
+#: The target annotation columns (#300): the target span as cis coordinates
+#: and how the target was resolved. A release with no targeted Analysis omits
+#: them entirely (docs/release-metadata-schema.md); in one that has some, an
+#: Analysis with no target leaves them blank.
+TARGET_ANALYSES_COLUMNS: tuple[str, ...] = (
+    "trait_chr", "trait_bp", "mhc", "target_resolution_method", "n_target_rows",
+)
+#: The measured tissue and assay context, rendered when any Analysis has one.
+CONTEXT_ANALYSES_COLUMNS: tuple[str, ...] = ("tissue", "context")
+#: Where those columns go after ``ANALYSES_COLUMNS``, when present: OGS-00007's order.
+OPTIONAL_ANALYSES_COLUMNS: tuple[str, ...] = (
+    "trait_chr", "trait_bp", "tissue", "context", "mhc", "target_resolution_method", "n_target_rows",
+)
+
+#: ``sidecars/analysis_targets.tsv`` (#300): every targeted Analysis's target
+#: annotation from the Source Metadata Table. Absent when no Analysis has one.
+ANALYSIS_TARGETS_COLUMNS: tuple[str, ...] = (
+    "analysis_id",
+    "target_assay_id",
+    "target_symbol",
+    "target_ensembl_gene_id",
+    "target_chromosome",
+    "target_start",
+    "target_end",
+    "target_mhc",
+    "target_is_aggregate",
+    "target_resolution_method",
+    "target_rows",
 )
 
 #: ``sidecars/source_readiness.tsv``: the frozen inventory's 14 columns plus the
@@ -244,7 +303,7 @@ EXCLUSION_COLUMNS: tuple[str, ...] = (
 
 #: Exclusion reasons that are release policy rather than a Quality Check (#285),
 #: with their sidecar ``category``: a missing or failed Resolution Record has
-#: nothing to measure, missing counts are candidate-table metadata, and the
+#: nothing to measure, missing counts are Source Metadata Table facts, and the
 #: Store Composition Rule is a release-level admission rule (ADR 0033). Every
 #: other reason is declared by a Quality Check (``quality_checks``).
 POLICY_EXCLUSION_CATEGORIES: Mapping[str, str] = {
@@ -273,10 +332,33 @@ _RESOLVER_RECORD_STATUSES: tuple[str, ...] = ("success", "controlled_failure")
 #: interpreted field-by-field against a schema it was not written for.
 SUPPORTED_RECORD_SCHEMA_VERSION: int = 1
 
-#: The resolution-receipt schema this module writes and reads.
-RECEIPT_SCHEMA_VERSION: int = 1
+#: The resolution-receipt schema this module writes and reads. Version 2 (#284)
+#: names each Analysis's kept Resolution Record in the Source Collection's
+#: resolution area -- fingerprint digest, record checksum and path.
+RECEIPT_SCHEMA_VERSION: int = 2
 
-#: Filename of the registry-side resolution receipt, beside the resolver records.
+#: Every key a resolution receipt carries. A receipt with any other key is
+#: refused; a later release-policy key (#285) is added here explicitly.
+RECEIPT_KEYS: frozenset[str] = frozenset(
+    {
+        "receipt_schema_version",
+        "record_schema_version",
+        "manifest_sha256",
+        "analysis_ids",
+        "resolver",
+        "contract",
+        "resolution_area",
+        "records",
+    }
+)
+
+#: Receipt versions written before #284, whose records lived in the Store
+#: Release's Work Root (``resolver/records/``). Receipts of emitted candidates
+#: (``source_snapshot.resolver_receipt`` in their ``release.yaml``) remain their
+#: provenance; reading one again is refused by name rather than as corrupt.
+HISTORICAL_RECEIPT_SCHEMA_VERSIONS: tuple[int, ...] = (1,)
+
+#: Filename of the registry-side resolution receipt in the run's Work Root.
 RECEIPT_FILENAME: str = "resolution_receipt.json"
 
 
@@ -297,28 +379,35 @@ class CandidateError(ValueError):
 
 @dataclass(frozen=True)
 class CandidateConfiguration:
-    """The full-release config reduced to the facts candidate generation needs.
+    """A release config reduced to the facts candidate generation needs (#287).
 
-    ``base`` is the #151 ``ReleaseConfiguration`` (inventory, method tiers,
-    Reference Resources, runtime). Everything else here is the release identity
-    and Build Recipe shape the Candidate Bundle carries, plus the raw blocks this
-    module passes to the resolver unchanged.
+    ``base`` is the loaded release config (``manifest_generation.release_config``):
+    the Source Collection and its frozen inventory, the Selection, method
+    tiers, Reference Resources and runtime, which preflight reads too, so a
+    candidate and its preflight cannot disagree about them. The fields here
+    are the release identity, the Build Recipe shape and the release policy in
+    the form this module applies them, with the reviewed listings read.
     """
 
-    base: ReleaseConfiguration
+    base: ReleaseConfig
     label: str
     access_posture: str
     description: str
     notes: str
+    #: The collection-wide Analytical Metadata defaults (``defaults``): an
+    #: Analysis whose Source Metadata Table cell is blank takes the default.
     defaults: Mapping[str, Any]
     layout: str
     completion_state: str
     build_command: str
     build_options: Mapping[str, Any]
     post: Mapping[str, Any]
+    #: ``maf_floor``, ``extraction_panel`` and ``gates``, as the resolver is passed them.
     ancestry_block: Mapping[str, Any]
+    #: ``maf_min``, ``maf_max`` and ``dispersion_max``, where declared.
     effect_scale_block: Mapping[str, Any]
     reader_capability: str
+    #: The super-population the Selection expects (``release_policy.selection_superpopulation``).
     target_ancestry: str
     info_score_threshold: str
     imputation_score_declarations: Path | None
@@ -326,27 +415,28 @@ class CandidateConfiguration:
     #: ``defaults.maf_threshold`` is omitted (= no MAF filter at all).
     maf_threshold: str | None
     #: Genotyping technologies whose Analyses are exempt from the default MAF
-    #: floor (``source.maf_filter_exempt_genotyping_technologies``). An Analysis
-    #: is exempt when it has non-empty technology metadata and every technology
-    #: is in this list.
+    #: floor (``release_policy.maf_filter_exempt_genotyping_technologies``). An
+    #: Analysis is exempt when it has non-empty technology metadata and every
+    #: technology is in this list.
     maf_filter_exempt_genotyping_technologies: tuple[str, ...]
     #: The reviewed per-Analysis MAF-floor exemption file
-    #: (``source.maf_filter_exempt_analyses``), or ``None`` when the key is
-    #: absent (= no Analysis is exempt).
+    #: (``release_policy.maf_filter_exempt_analyses``), or ``None`` when the key
+    #: is absent (= no Analysis is exempt).
     maf_filter_exempt_analyses_path: Path | None
     #: ``analysis_id -> recorded reason`` read from that file. An exempt
     #: Analysis emits literal ``NaN`` exactly as an exempt technology does, and
     #: the reason is carried into the resolution receipt.
     maf_filter_exempt_analyses: Mapping[str, str]
     #: The reviewed effect-placeholder exclusion file
-    #: (``source.effect_placeholder_exclusions``), or ``None`` when absent.
+    #: (``release_policy.effect_placeholder_exclusions``), or ``None`` when absent.
     effect_placeholder_exclusions_path: Path | None = None
     #: ``analysis_id -> recorded reason`` read from that file; each listed
     #: Analysis is excluded as ``effect_placeholder_rows``.
     effect_placeholder_exclusions: Mapping[str, str] = field(default_factory=dict)
-    #: ``store_composition.require_maf_filtered`` (issue #203): a shared Store
-    #: admits only Analyses whose rows were MAF-filtered, so an included Analysis
-    #: with no applied MAF floor is excluded as ``not_maf_filtered``.
+    #: ``release_policy.store_composition.require_maf_filtered`` (issue #203): a
+    #: shared Store admits only Analyses whose rows were MAF-filtered, so an
+    #: included Analysis with no applied MAF floor is excluded as
+    #: ``not_maf_filtered``.
     require_maf_filtered: bool = False
     #: The ``indexed_subsets`` declarations to emit (stores #210). ``None`` means
     #: emit no key at all (a Ragged release); the default is the maintained
@@ -359,243 +449,85 @@ class CandidateConfiguration:
     #: #285): check name -> parsed threshold. Empty means every check uses its
     #: shared default. Recorded in the resolution receipt and validation.yaml.
     quality_check_overrides: Mapping[str, Any] = field(default_factory=dict)
+    #: ``release_policy.trust_source_ancestry_without_af`` (#287): an Analysis
+    #: whose record shows no allele frequency takes the Source Metadata Table's
+    #: super-population as Assigned Ancestry (``source_trusted_no_af``).
+    trust_source_ancestry_without_af: bool = False
+    #: ``release_policy.keep_unassigned_ancestry_as_warning`` (#290): an Analysis
+    #: the ancestry gates left unassigned is kept, unassigned, as a warning.
+    keep_unassigned_ancestry_as_warning: bool = False
+    #: The Ancestry Reference Panel's declaration,
+    #: ``resources/reference-resources/<id>/resource.yaml``: its ``genome_build``
+    #: is the resolver's ``--reference-build`` (opengwasdb#277).
+    ancestry_reference_declaration: Path | None = None
 
 
-def _require(document: Mapping[str, Any], key: str, where: str) -> Any:
-    value = document.get(key)
-    if value is None or value == "":
-        raise PreflightConfigError(f"{where} is missing required key {key!r}")
-    return value
+#: The Ancestry Assignment Method of an Analysis whose source has no allele
+#: frequencies and whose release trusts its source super-population (#287).
+SOURCE_TRUSTED_NO_AF: str = "source_trusted_no_af"
+
+#: The reader a release uses when its Build Recipe names none.
+DEFAULT_SOURCE_READER_CAPABILITY: str = "opengwasdb.gwas-ssf"
 
 
 def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfiguration:
-    """Load the release config and the candidate-specific facts it declares.
+    """Load the release config (``release_config``) and read the reviewed listings it names.
 
-    The #151 facts are loaded by ``load_release_configuration`` unchanged, so a
-    candidate and a preflight cannot disagree about the inventory, method tiers,
-    Reference Resources or runtime. Candidate-specific keys that would otherwise
-    be implicit -- the release identity, the Hybrid Build Recipe, and the
-    Source Ancestry Label -> Assigned Ancestry translation -- are checked, never
-    defaulted to a guessed value.
+    The schema is the release config's: an unknown key, a missing required
+    fact or a legacy Selection is refused there (#287). What is added here is
+    only what candidate generation derives from it -- the resolver's reader
+    capability and blocks, and the reviewed per-Analysis listings' contents.
     """
-    base = load_release_configuration(path, repo_root)
-    document = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(document, dict):
-        raise PreflightConfigError(f"release config {path} is not a YAML mapping")
-
-    label = str(_require(document, "label", str(path)))
-    access_posture = str(document.get("access_posture") or "public")
-    if access_posture not in {"public", "controlled", "embargoed"}:
-        raise PreflightConfigError(
-            f"{path}: access_posture {access_posture!r} is not public/controlled/embargoed"
-        )
-
-    defaults = _require(document, "defaults", str(path))
-    build = document.get("build") or {}
-    if not isinstance(build, dict):
-        raise PreflightConfigError(f"{path}:build must be a mapping")
-    options = build.get("options") or {}
-    if not isinstance(options, dict):
-        raise PreflightConfigError(f"{path}:build.options must be a mapping")
-    post = build.get("post") or {}
-    if not isinstance(post, dict):
-        raise PreflightConfigError(f"{path}:build.post must be a mapping")
-
-    reader_capability = str(options.get("source-reader-capability") or "opengwasdb.gwas-ssf")
-    info_score_threshold = parse_info_score_threshold(
-        defaults.get("info_score_threshold", 0.6)
-    )
-    maf_threshold = parse_maf_threshold(defaults.get("maf_threshold"))
-    require_maf_filtered = parse_store_composition(
-        document.get("store_composition"), maf_threshold, path
-    )
-    target_ancestry = read_source_label_map(repo_root, base.ancestry_group)
-    source = _mapping(document.get("source"))
-    maf_filter_exempt = parse_maf_filter_exempt_technologies(
-        source.get("maf_filter_exempt_genotyping_technologies")
-    )
-    exemption_input = source.get("maf_filter_exempt_analyses")
-    if exemption_input is not None and (
-        not isinstance(exemption_input, str) or not exemption_input.strip()
-    ):
-        raise PreflightConfigError(
-            "source.maf_filter_exempt_analyses must be a non-empty TSV path"
-        )
-    exemption_path = Path(exemption_input) if exemption_input else None
-    if exemption_path is not None and not exemption_path.is_absolute():
-        exemption_path = repo_root / exemption_path
-    maf_filter_exempt_analyses = read_maf_filter_exempt_analyses(exemption_path)
-    placeholder_input = source.get("effect_placeholder_exclusions")
-    if placeholder_input is not None and (
-        not isinstance(placeholder_input, str) or not placeholder_input.strip()
-    ):
-        raise PreflightConfigError(
-            "source.effect_placeholder_exclusions must be a non-empty TSV path"
-        )
-    placeholder_path = Path(placeholder_input) if placeholder_input else None
-    if placeholder_path is not None and not placeholder_path.is_absolute():
-        placeholder_path = repo_root / placeholder_path
-    effect_placeholder_exclusions = read_effect_placeholder_exclusions(placeholder_path)
-    declaration_input = source.get("imputation_score_declarations")
-    if declaration_input is not None and (
-        not isinstance(declaration_input, str) or not declaration_input.strip()
-    ):
-        raise PreflightConfigError(
-            "source.imputation_score_declarations must be a non-empty TSV path"
-        )
-    declaration_path = Path(declaration_input) if declaration_input else None
-    if declaration_path is not None and not declaration_path.is_absolute():
-        declaration_path = repo_root / declaration_path
-
-    quality_check_overrides = parse_quality_check_overrides(
-        document.get("quality_checks"), path
-    )
-
-    layout = str(build.get("layout") or "hybrid")
-    indexed_subsets, indexed_subsets_opt_out = resolve_indexed_subsets(
-        document, layout, repo_root
-    )
-
+    base = load_release_config(path, repo_root)
     return CandidateConfiguration(
         base=base,
-        label=label,
-        access_posture=access_posture,
-        description=str(document.get("description") or ""),
-        notes=str(document.get("notes") or ""),
-        defaults=defaults,
-        layout=layout,
-        completion_state=str(build.get("completion_state") or "observed_only"),
-        build_command=str(build.get("command") or "build-hybrid"),
-        build_options=dict(options),
-        post=dict(post),
-        ancestry_block=_mapping(document.get("ancestry_assignment") or {}),
-        effect_scale_block=_mapping(document.get("effect_scale_validation") or {}),
-        reader_capability=reader_capability,
-        target_ancestry=target_ancestry,
-        info_score_threshold=info_score_threshold,
-        imputation_score_declarations=declaration_path,
-        maf_threshold=maf_threshold,
-        maf_filter_exempt_genotyping_technologies=maf_filter_exempt,
-        maf_filter_exempt_analyses_path=exemption_path,
-        maf_filter_exempt_analyses=maf_filter_exempt_analyses,
-        effect_placeholder_exclusions_path=placeholder_path,
-        effect_placeholder_exclusions=effect_placeholder_exclusions,
-        require_maf_filtered=require_maf_filtered,
-        indexed_subsets=(
-            tuple(indexed_subsets) if indexed_subsets is not None else None
+        label=base.label,
+        access_posture=base.access_posture,
+        description=base.description,
+        notes=base.notes,
+        defaults=dict(base.defaults),
+        layout=base.build.layout,
+        completion_state=base.build.completion_state,
+        build_command=base.build.command,
+        build_options=dict(base.build.options),
+        post=dict(base.build.post),
+        ancestry_block={
+            "maf_floor": base.ancestry_maf_floor,
+            "extraction_panel": base.ancestry_extraction_panel,
+            "gates": dict(base.ancestry_gates),
+        },
+        effect_scale_block=dict(base.effect_scale),
+        reader_capability=str(
+            base.build.options.get("source-reader-capability") or DEFAULT_SOURCE_READER_CAPABILITY
         ),
-        indexed_subsets_opt_out=indexed_subsets_opt_out,
-        quality_check_overrides=quality_check_overrides,
+        target_ancestry=base.selection_superpopulation,
+        info_score_threshold=base.info_score_threshold,
+        imputation_score_declarations=base.imputation_score_declarations,
+        maf_threshold=base.maf_threshold,
+        maf_filter_exempt_genotyping_technologies=base.maf_filter_exempt_genotyping_technologies,
+        maf_filter_exempt_analyses_path=base.maf_filter_exempt_analyses_path,
+        maf_filter_exempt_analyses=read_maf_filter_exempt_analyses(
+            base.maf_filter_exempt_analyses_path
+        ),
+        effect_placeholder_exclusions_path=base.effect_placeholder_exclusions_path,
+        effect_placeholder_exclusions=read_effect_placeholder_exclusions(
+            base.effect_placeholder_exclusions_path
+        ),
+        require_maf_filtered=base.require_maf_filtered,
+        indexed_subsets=base.indexed_subsets,
+        indexed_subsets_opt_out=base.indexed_subsets_opt_out,
+        quality_check_overrides=dict(base.quality_check_overrides),
+        trust_source_ancestry_without_af=base.trust_source_ancestry_without_af,
+        keep_unassigned_ancestry_as_warning=base.keep_unassigned_ancestry_as_warning,
+        ancestry_reference_declaration=(
+            Path(repo_root) / "resources" / "reference-resources"
+            / base.ancestry_reference_resource_id / "resource.yaml"
+        ),
     )
-
-
-def parse_quality_check_overrides(value: Any, path: Path) -> dict[str, Any]:
-    """Validate the release's ``quality_checks:`` threshold overrides (#285).
-
-    Each key names a registered Quality Check with a threshold; its value
-    replaces that check's shared default for this release. Absent means no
-    override. Anything else is a config error, never silently ignored.
-    """
-    try:
-        return quality_checks.parse_overrides(value, f"{path}:quality_checks")
-    except quality_checks.QualityCheckError as exc:
-        raise PreflightConfigError(str(exc)) from exc
-
-
-def parse_info_score_threshold(value: Any) -> str:
-    """Validate the requested INFO floor; zero disables filtering explicitly."""
-    if isinstance(value, bool) or value is None or not str(value).strip():
-        raise PreflightConfigError("defaults.info_score_threshold must be a number in [0,1]")
-    try:
-        number = Decimal(str(value).strip())
-    except InvalidOperation as exc:
-        raise PreflightConfigError(
-            "defaults.info_score_threshold must be a number in [0,1]"
-        ) from exc
-    if not number.is_finite() or not 0 <= number <= 1:
-        raise PreflightConfigError("defaults.info_score_threshold must be a number in [0,1]")
-    return format(number, "f")
-
-
-def parse_maf_threshold(value: Any) -> str | None:
-    """Validate the requested MAF floor; omitted disables it for every Analysis.
-
-    ``None`` (an omitted or null key) means no MAF filter at all and every
-    manifest row emits literal ``NaN``. A numeric value must be finite and in
-    ``[0, 0.5]``; ``0`` disables filtering explicitly, exactly as the INFO floor
-    does. The canonical string is returned so the manifest and fingerprint bind
-    the same spelling the operator wrote.
-    """
-    if value is None:
-        return None
-    if isinstance(value, bool) or not str(value).strip():
-        raise PreflightConfigError("defaults.maf_threshold must be a number in [0,0.5]")
-    try:
-        number = Decimal(str(value).strip())
-    except InvalidOperation as exc:
-        raise PreflightConfigError(
-            "defaults.maf_threshold must be a number in [0,0.5]"
-        ) from exc
-    if not number.is_finite() or not 0 <= number <= Decimal("0.5"):
-        raise PreflightConfigError("defaults.maf_threshold must be a number in [0,0.5]")
-    return format(number, "f")
-
-
-def parse_store_composition(value: Any, maf_threshold: str | None, path: Path) -> bool:
-    """Validate the top-level ``store_composition`` block (issue #203).
-
-    An absent block (or an absent ``require_maf_filtered``) defaults to ``False``,
-    so a Store that has not opted in is unchanged. The block accepts exactly one
-    key; an unknown key is an error rather than being ignored. Turning the rule
-    on also requires a positive ``defaults.maf_threshold``: with no floor (or an
-    explicit zero floor) no Analysis can be MAF-filtered, so the rule would
-    silently empty the Store or admit everything.
-    """
-    if value is None:
-        return False
-    if not isinstance(value, dict):
-        raise PreflightConfigError(f"{path}:store_composition must be a mapping")
-    unknown = sorted(set(value) - {"require_maf_filtered"})
-    if unknown:
-        raise PreflightConfigError(
-            f"{path}:store_composition has unknown key(s): {', '.join(unknown)}"
-        )
-    require = value.get("require_maf_filtered", False)
-    if not isinstance(require, bool):
-        raise PreflightConfigError(
-            f"{path}:store_composition.require_maf_filtered must be a boolean"
-        )
-    if require and (maf_threshold is None or Decimal(maf_threshold) == 0):
-        raise PreflightConfigError(
-            f"{path}:store_composition.require_maf_filtered needs a positive "
-            "defaults.maf_threshold; with no floor (or a disabled floor of 0) no "
-            "Analysis can be MAF-filtered"
-        )
-    return require
-
-
-def parse_maf_filter_exempt_technologies(value: Any) -> tuple[str, ...]:
-    """Validate the genotyping technologies exempt from the default MAF floor.
-
-    A list of non-empty technology labels (for example
-    ``'Whole genome sequencing'``). An Analysis is exempt only when it has
-    non-empty technology metadata and *every* technology is in this list; an
-    omitted key means no Analysis is exempt.
-    """
-    if value is None:
-        return ()
-    if not isinstance(value, list) or any(
-        not isinstance(item, str) or not item.strip() for item in value
-    ):
-        raise PreflightConfigError(
-            "source.maf_filter_exempt_genotyping_technologies must be a list of "
-            "non-empty technology labels"
-        )
-    return tuple(item.strip() for item in value)
 
 
 #: The exact reviewed MAF-floor exemption table header
-#: (``source.maf_filter_exempt_analyses``); see ``analysis_maf_threshold``.
+#: (``release_policy.maf_filter_exempt_analyses``); see ``analysis_maf_threshold``.
 MAF_FILTER_EXEMPTION_COLUMNS: tuple[str, ...] = ("analysis_id", "reason")
 
 
@@ -613,7 +545,7 @@ def read_maf_filter_exempt_analyses(path: Path | None) -> dict[str, str]:
 
 
 #: The exact reviewed effect-placeholder exclusion table header
-#: (``source.effect_placeholder_exclusions``); same shape as the MAF exemptions.
+#: (``release_policy.effect_placeholder_exclusions``); same shape as the MAF exemptions.
 EFFECT_PLACEHOLDER_EXCLUSION_COLUMNS: tuple[str, ...] = MAF_FILTER_EXEMPTION_COLUMNS
 
 
@@ -770,10 +702,10 @@ def read_genotyping_technologies(yaml_file: str) -> list[str]:
 def analysis_maf_threshold(row: SourceInventoryRow, config: CandidateConfiguration) -> str:
     """The manifest ``maf_threshold`` for one Analysis: the default or ``NaN``.
 
-    An Analysis is exempt when ``source.maf_filter_exempt_analyses`` lists it
+    An Analysis is exempt when ``release_policy.maf_filter_exempt_analyses`` lists it
     (the operator's reviewed reason is carried into the resolution receipt), or
     when it has non-empty technology metadata and *every* technology is in
-    ``source.maf_filter_exempt_genotyping_technologies``. Missing technology
+    ``release_policy.maf_filter_exempt_genotyping_technologies``. Missing technology
     metadata is never an exemption (#176).
     """
     if config.maf_threshold is None:
@@ -788,130 +720,216 @@ def analysis_maf_threshold(row: SourceInventoryRow, config: CandidateConfigurati
     return config.maf_threshold
 
 
-def read_source_label_map(repo_root: Path, label: str) -> str:
-    """Translate a Source Ancestry Label to its super-population code.
-
-    A label absent from the tracked map is an error, not a silent pass-through:
-    an unnormalised value is not a valid Assigned Ancestry (issue #133).
-    """
-    code = load_source_label_map(repo_root).get(label)
-    if not code:
-        raise PreflightConfigError(
-            f"no tracked Source Ancestry Label -> super-population mapping for {label!r} "
-            f"in {repo_root / SOURCE_LABEL_MAP_RELATIVE_PATH}"
-        )
-    return code
-
-
 # ---------------------------------------------------------------------------
-# Resolved per-Analysis metadata (the candidate table)
+# Per-Analysis source metadata (the frozen Source Metadata Table)
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
-class CandidateMetadata:
-    """Resolved Analytical Metadata for one Analysis, from the candidate table.
+class AnalysisMetadata:
+    """One Analysis's source metadata, from the frozen Source Metadata Table (#283, #287).
 
-    The frozen Source Inventory (#151) records selection identity, the exact
-    source path and readiness; it deliberately does not carry the resolved
-    labels, publication identity, case/control split or total N. Those are the
-    metadata resolver's output (`resources/scripts/ebi-studies.r`), materialised
-    into the candidate table the freeze already accounts every inventory row
-    against and checksums into the provenance sidecar. Reading them here is a
-    join on an already-frozen selection, not a second selection: membership is
-    still the inventory's.
+    The frozen Source Inventory records selection identity, the exact source
+    path and readiness; the per-Analysis metadata is the Source Metadata
+    Table's, frozen beside the inventory and checksummed into its provenance
+    (``freeze.load_frozen_connectors``). Reading it is a join on an already
+    frozen Selection, not a second selection: membership is the inventory's.
+    A blank cell means the source supplied no value; the release config's
+    ``defaults`` fill the collection-wide ones when rows are rendered.
+
+    The source's own ontology term is carried verbatim. Its Trait Ontology
+    Mapping is the shared step's (#286, ADR 0036 step 5), run after
+    verification by :func:`map_candidate_trait_ontologies`; until then
+    ``trait_ontology`` is ``None`` and a bundle row cannot be rendered.
     """
 
     analysis_id: str
+    #: The Source Trait Label (``source_trait_label``).
     source_label: str
-    trait_ontology_label: str
-    trait_ontology_id: str
-    trait_ontology_mapping_method: str
+    #: ``source_trait_ontology_id``, verbatim: a CURIE, a URI or a comma-separated list.
+    source_trait_ontology_id: str
+    #: ``source_trait_ontology_label``, verbatim.
+    source_trait_ontology_label: str
     publication_pmid: str
     first_author: str
     n_cases: str
     n_controls: str
     sample_size: str
+    #: The Source Ancestry Label, verbatim provenance; never Assigned Ancestry.
+    source_ancestry_label: str = ""
+    #: The super-population the source declares; never Assigned Ancestry.
+    source_superpopulation: str = ""
+    publication_doi: str = ""
+    consortium: str = ""
+    license: str = ""
+    source_genome_build: str = ""
+    #: The target annotation (``ANALYSIS_TARGETS_COLUMNS`` but ``analysis_id``),
+    #: blank for an Analysis with no molecular target (#300).
+    target_assay_id: str = ""
+    target_symbol: str = ""
+    target_ensembl_gene_id: str = ""
+    target_chromosome: str = ""
+    target_start: str = ""
+    target_end: str = ""
+    target_mhc: str = ""
+    target_is_aggregate: str = ""
+    target_resolution_method: str = ""
+    target_rows: str = ""
+    tissue: str = ""
+    context: str = ""
+    #: The Store's Analysis id, when the table declares one (``analysis_id``,
+    #: #288). Blank means the pipeline's default, ``analysis_id`` above: a Source
+    #: Collection whose ids are namespaced, or otherwise not its source's, says
+    #: so here, and this is the id the bundle reports.
+    store_analysis_id: str = ""
+    #: ``analysis_group_id`` when the table declares one (#288); else the release
+    #: config's collection-wide default.
+    analysis_group_id: str = ""
+    trait_ontology: TraitOntologyMapping | None = None
+
+    @property
+    def targeted(self) -> bool:
+        return any(getattr(self, column) for column in ANALYSIS_TARGETS_COLUMNS[1:])
+
+    @property
+    def analysis_label(self) -> str:
+        """The Analysis Label: the target gene's symbol, the assay for an aggregate (#141)."""
+        if self.target_is_aggregate == "true":
+            return self.target_assay_id
+        return self.target_symbol or self.source_label
 
 
-def _obo_uri_to_curie(uri: str) -> str:
-    """Turn an OBO PURL into a CURIE, or pass any other id through unchanged.
+def read_analysis_metadata(
+    provenance_path: Path, analysis_ids: Iterable[str]
+) -> dict[str, AnalysisMetadata]:
+    """Read ``analysis_ids``' rows of the Source Metadata Table frozen with the inventory.
 
-    ``http://purl.obolibrary.org/obo/MONDO_0005148`` -> ``MONDO:0005148``. A URI
-    that does not match the PURL shape is left verbatim rather than guessed.
+    The frozen table is checked against the sha256 its provenance records
+    before it is read. A selected ready Analysis with no row cannot have
+    schema-valid metadata, so it fails loudly rather than being emitted with a
+    guessed label or a fabricated case count.
     """
-    value = (uri or "").strip()
-    prefix = "http://purl.obolibrary.org/obo/"
-    if value.startswith(prefix):
-        tail = value[len(prefix):]
-        if "_" in tail:
-            namespace, _, local = tail.partition("_")
-            if namespace and local:
-                return f"{namespace}:{local}"
-    return value
-
-
-def read_candidate_metadata(
-    path: Path, analysis_ids: Iterable[str]
-) -> dict[str, CandidateMetadata]:
-    """Read resolved metadata for ``analysis_ids`` from the candidate table.
-
-    A selected ready Analysis with no row here cannot have schema-valid metadata,
-    so it fails loudly rather than being emitted with a guessed label or a
-    fabricated case count.
-    """
-    if not path.is_file():
-        raise CandidateError(f"candidate metadata table not found: {path}")
-    wanted = set(analysis_ids)
-    found: dict[str, CandidateMetadata] = {}
-    with path.open(newline="", encoding="utf-8") as fh:
-        reader = csv.DictReader(fh, delimiter="\t")
-        fieldnames = reader.fieldnames or []
-        if "STUDY.ACCESSION" not in fieldnames:
-            raise CandidateError(
-                f"candidate metadata table {path} is missing required column 'STUDY.ACCESSION'"
-            )
-        for raw in reader:
-            accession = (raw.get("STUDY.ACCESSION") or "").strip()
-            if accession not in wanted:
-                continue
-            mapped_uri = (raw.get("MAPPED_TRAIT_URI") or "").strip()
-            mapped_label = (raw.get("MAPPED_TRAIT") or "").strip()
-            if mapped_uri and mapped_label:
-                ontology_id = _obo_uri_to_curie(mapped_uri)
-                ontology_label = mapped_label
-                method = "source_provided"
-            else:
-                ontology_id = ""
-                ontology_label = ""
-                method = "unmapped"
-            found[accession] = CandidateMetadata(
-                analysis_id=accession,
-                source_label=(raw.get("DISEASE.TRAIT") or "").strip(),
-                trait_ontology_label=ontology_label,
-                trait_ontology_id=ontology_id,
-                trait_ontology_mapping_method=method,
-                publication_pmid=(raw.get("PUBMED.ID") or "").strip(),
-                first_author=(raw.get("FIRST.AUTHOR") or "").strip(),
-                n_cases=_clean_number(raw.get("n_cases")),
-                n_controls=_clean_number(raw.get("n_controls")),
-                sample_size=_clean_number(raw.get("sample_size")),
-            )
-    missing = sorted(wanted - set(found))
+    try:
+        table, _manifest = load_frozen_connectors(provenance_path)
+    except FreezeError as exc:
+        raise CandidateError(
+            f"cannot read the frozen Source Metadata Table: {exc}. Freeze the Source "
+            "Inventory with the shared freeze (pixi run inventory-freeze, or the "
+            "pipeline's freeze stage) so its connectors are frozen beside it"
+        ) from exc
+    wanted = sorted(set(analysis_ids))
+    missing = [analysis_id for analysis_id in wanted if analysis_id not in table]
     if missing:
         raise CandidateError(
-            f"candidate metadata table {path} has no row for {len(missing)} selected "
-            f"ready Analysis/Analyses: {', '.join(missing[:10])}"
+            f"the frozen Source Metadata Table {table.path} has no row for {len(missing)} "
+            f"selected ready Analysis/Analyses: {', '.join(missing[:10])}"
+        )
+    found: dict[str, AnalysisMetadata] = {}
+    for analysis_id in wanted:
+        row = table.row(analysis_id)
+        found[analysis_id] = AnalysisMetadata(
+            analysis_id=analysis_id,
+            store_analysis_id=row.get("analysis_id", ""),
+            analysis_group_id=row.get("analysis_group_id", ""),
+            source_label=row.get("source_trait_label", ""),
+            source_trait_ontology_id=row.get("source_trait_ontology_id", ""),
+            source_trait_ontology_label=row.get("source_trait_ontology_label", ""),
+            publication_pmid=row.get("publication_pmid", ""),
+            first_author=row.get("first_author", ""),
+            n_cases=row.get("n_cases", ""),
+            n_controls=row.get("n_controls", ""),
+            sample_size=row.get("sample_size", ""),
+            source_ancestry_label=row.get("source_ancestry_label", ""),
+            source_superpopulation=row.get("source_superpopulation", ""),
+            publication_doi=row.get("publication_doi", ""),
+            consortium=row.get("consortium", ""),
+            license=row.get("license", ""),
+            source_genome_build=row.get("source_genome_build", ""),
+            tissue=row.get("tissue", ""),
+            context=row.get("context", ""),
+            **{column: row.get(column, "") for column in ANALYSIS_TARGETS_COLUMNS[1:]},
         )
     return found
 
 
-def _clean_number(value: str | None) -> str:
-    """Normalise a numeric cell to its canonical string, or empty when absent."""
-    text = (value or "").strip()
-    if not text or text.lower() in {"na", "nan", "null", "none"}:
-        return ""
-    return text
+#: Acquisition's evidence a bundle carries (#300): the run record's
+#: ``evidence`` key -> the sidecar it becomes.
+ACQUISITION_EVIDENCE_SIDECARS: Mapping[str, str] = {
+    "filter_summary": "filter_summary.tsv",
+    "sparse_regions": "sparse_regions.tsv",
+}
+
+
+def acquisition_evidence(config: ReleaseConfig, analysis_ids: Iterable[str]) -> dict[str, str]:
+    """The Selection's rows of what acquisition recorded about its filtering, as sidecars (#300).
+
+    A region-filtered acquisition records each file's plan and counts and
+    checksums them in its run record (``evidence``), which freeze checksums
+    into the provenance as the pass lineage. Each file's header and the rows
+    of ``analysis_ids`` are carried verbatim, in file order, after both
+    checksums are checked. A release with no region policy carries nothing.
+
+    Nothing is carried, and the candidate is refused, unless the frozen
+    acquisition is filtered to this release config's region policy
+    (``region_filtered_acquisition.region_lineage_problems``, #282 review).
+    Preflight checks the same, and this checks it again however the stages
+    were run.
+    """
+    provenance_path = config.inventory_provenance_path
+    try:
+        table, manifest = load_frozen_connectors(provenance_path)
+        evidence = frozen_evidence(provenance_path)
+    except InventoryError as exc:
+        raise CandidateError(
+            f"cannot check the frozen acquisition against the release's region policy: {exc}"
+        ) from exc
+    problems = region_lineage_problems(config, table, manifest, evidence)
+    if problems:
+        raise CandidateError(
+            "the frozen acquisition is not filtered to the release's region policy:\n  - "
+            + "\n  - ".join(problems)
+        )
+    wanted = set(analysis_ids)
+    carried: dict[str, str] = {}
+    for name, sidecar in ACQUISITION_EVIDENCE_SIDECARS.items():
+        if name in evidence:
+            lines = evidence[name][1].splitlines(True)
+            carried[sidecar] = "".join(lines[:1] + [line for line in lines[1:] if line.split("\t", 1)[0] in wanted])
+    return carried
+
+
+def trait_sources(metadata: Mapping[str, AnalysisMetadata]) -> list[SourceTrait]:
+    """The Trait Ontology Mapping step's input: each Analysis's source trait columns."""
+    return [
+        SourceTrait(
+            analysis_id=analysis_id,
+            label=resolved.source_label,
+            ontology_id=resolved.source_trait_ontology_id,
+            ontology_label=resolved.source_trait_ontology_label,
+        )
+        for analysis_id, resolved in sorted(metadata.items())
+    ]
+
+
+def map_candidate_trait_ontologies(
+    metadata: Mapping[str, AnalysisMetadata],
+    table: CanonicalTraitMappingTable,
+) -> tuple[dict[str, AnalysisMetadata], TraitOntologyMappingRun]:
+    """Run the shared Trait Ontology Mapping step over every Analysis (#286).
+
+    Returns the metadata with each Analysis's ``trait_ontology`` set, and the
+    run, whose provenance validation.yaml records. A source term in a form the
+    step cannot normalise fails the run, naming the Analysis and the term.
+    """
+    try:
+        run = map_trait_ontologies(trait_sources(metadata), table)
+    except TraitOntologyMappingError as exc:
+        raise CandidateError(f"Trait Ontology Mapping failed: {exc}") from exc
+    mapped = {
+        analysis_id: replace(resolved, trait_ontology=run.mappings[analysis_id])
+        for analysis_id, resolved in metadata.items()
+    }
+    return mapped, run
 
 
 # ---------------------------------------------------------------------------
@@ -925,12 +943,38 @@ SCORE_DECLARATION_COLUMNS: tuple[str, ...] = (
 )
 
 
+def collection_analysis_ids(provenance_path: Path) -> frozenset[str] | None:
+    """Every Analysis the Source Collection intends, from the connector originals freeze read.
+
+    A frozen inventory keeps only its Selection's rows; the collection is the
+    originals its provenance names and checksums (``freeze.load_collection_intent``).
+    A completeness proof refuses a missing original; a caller here can do
+    without the collection, so it gives ``None`` when an original is not on
+    this host. One there with another checksum is not the collection that was
+    frozen, and is refused.
+    """
+    try:
+        return frozenset(load_collection_intent(provenance_path).analysis_ids)
+    except OriginalMissingError:
+        return None
+    except FreezeError as exc:
+        raise CandidateError(f"cannot read the Source Collection's intent: {exc}") from exc
+
+
 def read_imputation_score_declarations(
-    path: Path | None, analysis_ids: Iterable[str]
+    path: Path | None,
+    analysis_ids: Iterable[str],
+    collection_ids: Callable[[], frozenset[str] | None] | None = None,
 ) -> dict[str, tuple[str, str, str]]:
     """Read reviewed per-Analysis provider citations, never source-header guesses.
 
     A citation is required but its scientific independence requires human review.
+
+    The table is the Source Collection's, so several Selections can share it
+    (#287): a declaration may name an Analysis outside ``analysis_ids`` when the
+    collection intends it (``collection_ids``), and only the Selection's are
+    returned. A declaration the collection does not intend is refused, and so
+    is one outside the Selection when the collection cannot be read to check it.
     """
     if path is None:
         return {}
@@ -938,6 +982,7 @@ def read_imputation_score_declarations(
         raise CandidateError(f"imputation score declaration table not found: {path}")
     known = set(analysis_ids)
     found: dict[str, tuple[str, str, str]] = {}
+    outside: list[tuple[int, str]] = []
     with path.open(newline="", encoding="utf-8") as fh:
         reader = csv.DictReader(fh, delimiter="\t")
         if reader.fieldnames != list(SCORE_DECLARATION_COLUMNS):
@@ -948,7 +993,7 @@ def read_imputation_score_declarations(
             if None in row or any(value is None for value in row.values()):
                 raise CandidateError(f"{path}:{number}: malformed declaration row")
             analysis_id = row["analysis_id"].strip()
-            if not analysis_id or analysis_id not in known:
+            if not analysis_id:
                 raise CandidateError(f"{path}:{number}: unknown analysis_id {analysis_id!r}")
             if analysis_id in found:
                 raise CandidateError(f"{path}:{number}: duplicate analysis_id {analysis_id!r}")
@@ -968,7 +1013,24 @@ def read_imputation_score_declarations(
                     "independent provider evidence"
                 )
             found[analysis_id] = (column, kind, provenance)
-    return found
+            if analysis_id not in known:
+                outside.append((number, analysis_id))
+    if outside:
+        collection = collection_ids() if collection_ids is not None else None
+        if collection is None:
+            raise CandidateError(
+                f"{path}: {len(outside)} declaration(s) name Analyses outside this Selection "
+                f"(first {outside[0][1]!r}, line {outside[0][0]}), and the collection's Source "
+                "Metadata Table and Acquisition Manifest are not available to check that the "
+                "collection intends them"
+            )
+        for number, analysis_id in outside:
+            if analysis_id not in collection:
+                raise CandidateError(
+                    f"{path}:{number}: unknown analysis_id {analysis_id!r}: the Source "
+                    "Collection does not intend it"
+                )
+    return {analysis_id: found[analysis_id] for analysis_id in found if analysis_id in known}
 
 
 @dataclass(frozen=True)
@@ -984,6 +1046,10 @@ class ResolverRow:
     checksum: str
     checksum_algorithm: str
     size_bytes: str
+    #: The Analysis's declared build, else the release config's default: the
+    #: value ``render`` emits. The resolver refuses a row without one
+    #: (opengwasdb#277), and is never handed a ``--source-build`` fallback.
+    source_genome_build: str = ""
     info_score_threshold: str = "NaN"
     imputation_score_column: str = ""
     imputation_score_kind: str = ""
@@ -999,7 +1065,7 @@ class ResolverRow:
 def derive_resolver_manifest(
     rows: Sequence[SourceInventoryRow],
     config: CandidateConfiguration,
-    metadata: Mapping[str, CandidateMetadata],
+    metadata: Mapping[str, AnalysisMetadata],
 ) -> list[ResolverRow]:
     """Derive the canonical resolver manifest from the frozen exact paths.
 
@@ -1011,7 +1077,9 @@ def derive_resolver_manifest(
     metadata. ``data_file`` is used verbatim; nothing here opens it.
     """
     declarations = read_imputation_score_declarations(
-        config.imputation_score_declarations, (row.analysis_id for row in rows)
+        config.imputation_score_declarations,
+        (row.analysis_id for row in rows),
+        lambda: collection_analysis_ids(config.base.inventory_provenance_path),
     )
     manifest: list[ResolverRow] = []
     for row in rows:
@@ -1041,6 +1109,9 @@ def derive_resolver_manifest(
                 checksum=row.sha256,
                 checksum_algorithm="sha256",
                 size_bytes=row.data_bytes,
+                source_genome_build=_or_default(
+                    resolved.source_genome_build if resolved else "", config, "source_genome_build"
+                ),
                 info_score_threshold=config.info_score_threshold if column else "NaN",
                 imputation_score_column=column,
                 imputation_score_kind=kind,
@@ -1075,22 +1146,41 @@ def _resolve_af_reference_specs(config: CandidateConfiguration) -> list[str]:
     return specs
 
 
-def resolver_argv(
-    *,
-    resolver_bin: str,
-    manifest_path: Path,
-    records_dir: Path,
-    config: CandidateConfiguration,
-    cores: int,
-    resume: bool,
-) -> list[str]:
-    """Compose the exact ``opengwasdb resolve-analyses`` argv.
+def ancestry_reference_build(config: CandidateConfiguration) -> str:
+    """The Ancestry Reference Panel's declared genome build, from its ``resource.yaml``.
 
-    Only registry facts and declared config values are composed: the manifest
-    and records paths, the declared ancestry reference and its fine-group map,
-    the declared gates, and the worker count. Everything else is the resolver's
-    own default. Per ADR 0023 the registry names a subcommand and passes flags
-    through, and does not mirror a parameter schema.
+    The resolver refuses to guess a build (opengwasdb#277), and so does this:
+    a declaration that is missing, or that names no ``genome_build``, is refused.
+    """
+    path = config.ancestry_reference_declaration
+    if path is None or not path.is_file():
+        raise CandidateError(
+            f"Reference Resource {config.base.ancestry_reference_resource_id!r} has no "
+            f"declaration at {path}; the resolver needs its declared genome_build"
+        )
+    try:
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        raise CandidateError(f"{path} is not valid YAML: {exc}") from exc
+    build = document.get("genome_build") if isinstance(document, Mapping) else None
+    if not isinstance(build, str) or not build.strip():
+        raise CandidateError(
+            f"{path} declares no genome_build; the resolver's --reference-build is the "
+            "Ancestry Reference Panel's declared build and is never guessed"
+        )
+    return build
+
+
+def resolver_settings(config: CandidateConfiguration) -> list[str]:
+    """The ``opengwasdb resolve-analyses`` flags that apply to every Analysis.
+
+    Only registry facts and declared config values are composed: the declared
+    ancestry reference and its fine-group map, the extraction panel, the
+    Variant Reference axis, reference-AF resources and the declared gates and
+    floors. Everything else is the resolver's own default. Per ADR 0023 the
+    registry names a subcommand and passes flags through, and does not mirror a
+    parameter schema. The manifest, the records directory and the worker count
+    are a run's, not settings, and :func:`resolver_argv` adds them.
     """
     ancestry_resource = config.base.reference_resources.get(
         config.base.ancestry_reference_resource_id
@@ -1107,25 +1197,23 @@ def resolver_argv(
         )
 
     gates = _mapping(config.ancestry_block.get("gates"))
-    argv: list[str] = [
-        resolver_bin,
-        RESOLVER_SUBCOMMAND,
-        str(manifest_path),
-        str(records_dir),
+    settings: list[str] = [
         "--ancestry-reference",
         ancestry_resource.location,
         "--ancestry-groups",
         fine_group_map,
+        "--reference-build",
+        ancestry_reference_build(config),
     ]
     extraction_panel = config.ancestry_block.get("extraction_panel")
     if extraction_panel:
-        argv.extend(["--extraction-panel", str(extraction_panel)])
+        settings.extend(["--extraction-panel", str(extraction_panel)])
     axis = config.build_options.get("variant-reference")
     if axis:
-        argv.extend(["--variant-reference", str(axis)])
+        settings.extend(["--variant-reference", str(axis)])
     for spec in _resolve_af_reference_specs(config):
-        argv.extend(["--af-reference", spec])
-    argv.extend(
+        settings.extend(["--af-reference", spec])
+    settings.extend(
         [
             "--default-source-reader-capability",
             config.reader_capability,
@@ -1139,13 +1227,80 @@ def resolver_argv(
             str(gates.get("n_min", 5000)),
             "--residual-max",
             str(gates.get("residual_max", 0.06)),
-            "--n-workers",
-            str(cores),
         ]
     )
-    if resume:
-        argv.append("--resume")
-    return argv
+    return settings
+
+
+def resolver_argv(
+    *,
+    resolver_bin: str,
+    manifest_path: Path,
+    records_dir: Path,
+    config: CandidateConfiguration,
+    cores: int,
+) -> list[str]:
+    """Compose the exact ``opengwasdb resolve-analyses`` argv.
+
+    The resolver always resumes: it reuses every record whose fingerprint still
+    matches and re-resolves the rest (#284).
+    """
+    return [
+        resolver_bin,
+        RESOLVER_SUBCOMMAND,
+        str(manifest_path),
+        str(records_dir),
+        *resolver_settings(config),
+        "--n-workers",
+        str(cores),
+        "--resume",
+    ]
+
+
+#: Resolver flags whose value is a file the resolver reads, so the settings
+#: digest binds the file's content and not only its path.
+_RESOLVER_FILE_FLAGS: tuple[str, ...] = (
+    "--ancestry-reference",
+    "--ancestry-groups",
+    "--extraction-panel",
+    "--variant-reference",
+)
+
+
+def resolver_settings_digest(settings: Sequence[str]) -> str:
+    """The digest that routes a run to its checkpoint in the Resolution Area (#284).
+
+    It covers the resolver settings that enter every record's fingerprint:
+    :func:`resolver_settings` as passed, the content checksum of every file
+    they name, and the installed resolver's identity. It is only a routing key
+    -- the resolver checks each Analysis's full fingerprint on ``--resume`` --
+    so a setting it misses causes a re-resolve, never a wrong reuse.
+    """
+    files: dict[str, str] = {}
+    for position, token in enumerate(settings[:-1]):
+        value = settings[position + 1]
+        if token in _RESOLVER_FILE_FLAGS:
+            path = value
+        elif token == "--af-reference":
+            path = value.partition("=")[2]
+        else:
+            continue
+        if not Path(path).is_file():
+            raise CandidateError(
+                f"resolver setting {token} names {path}, which is not a file; refusing "
+                "to resolve against it"
+            )
+        files[path] = sha256_file(Path(path))
+    version, resolver_sha256 = _opengwasdb_tool_identity()
+    payload = {
+        "settings": list(settings),
+        "file_sha256": files,
+        "opengwasdb_version": version,
+        "opengwasdb_resolver_sha256": resolver_sha256,
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -1162,28 +1317,47 @@ class ResolverRun:
     log_path: Path
 
 
-def run_resolver(argv: Sequence[str], *, cwd: Path, log_path: Path) -> ResolverRun:
-    """Run the resolver subprocess, teeing its output to a durable log.
+#: Numerical libraries' thread pools. The resolver parallelises by worker
+#: processes, so each worker gets one thread unless the operator set otherwise:
+#: unlimited, 32 workers on the 224-core host ran ~190 threads each (#300).
+RESOLVER_THREAD_VARIABLES: tuple[str, ...] = (
+    "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS",
+)
+
+
+def resolver_environment(environ: Mapping[str, str] = os.environ) -> dict[str, str]:
+    """The resolver subprocess's environment: ``environ``, one thread per worker by default."""
+    return {**{name: "1" for name in RESOLVER_THREAD_VARIABLES}, **environ}
+
+
+def run_resolver(
+    argv: Sequence[str], *, cwd: Path, log_path: Path, pass_fds: Sequence[int] = ()
+) -> ResolverRun:
+    """Run the resolver subprocess, writing its output to a durable log.
 
     The registry does not parse the resolver's stdout for accounting: the
     accounting comes from the records and ``index.json``, which are the
-    resolver's declared contract. The raw output is kept so a failure is
-    auditable without re-running it.
+    resolver's declared contract. The raw output goes straight to the log, so
+    a failure is auditable without re-running it, and the resolver never
+    writes into a pipe that dies with this process. ``pass_fds`` hands it
+    descriptors to hold, such as the Resolution Area's lock. It runs with
+    :func:`resolver_environment`.
     """
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    completed = subprocess.run(
-        list(argv),
-        cwd=str(cwd),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        check=False,
-    )
-    log_path.write_text(completed.stdout or "", encoding="utf-8")
+    with log_path.open("w", encoding="utf-8") as log:
+        completed = subprocess.run(
+            list(argv),
+            cwd=str(cwd),
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            pass_fds=tuple(pass_fds),
+            env=resolver_environment(),
+            check=False,
+        )
     return ResolverRun(argv=list(argv), returncode=completed.returncode, log_path=log_path)
 
 
-def _recompute_fingerprint_digest(fingerprints: Mapping[str, Any]) -> str:
+def recompute_fingerprint_digest(fingerprints: Mapping[str, Any]) -> str:
     """Recompute the resolver's canonical fingerprint digest over a record.
 
     This mirrors ``opengwasdb.build.resolve_manifest.compute_fingerprint_digest``:
@@ -1229,46 +1403,178 @@ def account_records(
     manifest_rows: Sequence[ResolverRow],
     records_dir: Path,
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Account the resolver records against the manifest that was resolved.
+    """Account one resolver run's output against the manifest it resolved.
 
+    ``records_dir`` is the directory the resolver wrote: its ``index.json`` must
+    describe exactly this manifest, and it must hold one record per manifest row.
     Returns ``(records, failures)`` where ``records`` is in manifest order and
-    ``failures`` lists every way the records are missing, duplicated, extra or
+    ``failures`` lists every way the records are missing, duplicated or
     incompatible with the pinned record schema. This is the resolver's own
-    contract, checked without reference to the resolution receipt; the receipt
-    check in :func:`verify_records` is what detects a record set produced under
-    a different contract.
+    contract, checked without reference to the resolution receipt.
+
+    The directory is a Source Collection's checkpoint, shared by every Selection
+    (#284), so a record there for an Analysis outside this manifest belongs to
+    another Selection and is not a failure. What a candidate was decided from is
+    what its resolution receipt names, and :func:`verify_records` refuses a
+    receipt that names any record outside the manifest.
+    """
+    failures = _duplicate_manifest_ids(manifest_rows)
+    index_failures, index_usable = _account_index(manifest_rows, records_dir / "index.json")
+    failures.extend(index_failures)
+    if not index_usable:
+        return [], failures
+    records: list[dict[str, Any]] = []
+    for row in manifest_rows:
+        record, row_failures = _account_record(row, records_dir / f"{row.analysis_id}.json")
+        failures.extend(row_failures)
+        if record is not None:
+            records.append(record)
+    return records, failures
+
+
+def verify_records(
+    manifest_rows: Sequence[ResolverRow],
+    *,
+    config: CandidateConfiguration,
+    manifest_path: Path,
+    receipt_path: Path,
+    index_path: Path,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Account the records a receipt names *and* prove they are current.
+
+    The resolution receipt names, per Analysis, the kept Resolution Record the
+    candidate is decided from: its fingerprint digest and its checksum in the
+    Source Collection's Resolution Area (#284). This reads exactly those
+    records, requires each to be byte-for-byte the record the receipt bound, and
+    accounts each against its manifest row as :func:`account_records` does for
+    a fresh run. ``index_path`` is the run's copy of the resolver's index.
+
+    A record's own fingerprint digest only proves it is internally consistent.
+    A record set produced under different gates, ancestry reference/group map,
+    extraction panel, reference-AF resources or tool revision is still
+    internally consistent, so this function also recomputes the current
+    resolution contract and requires the receipt to match it. Any failure means
+    the candidate is not emitted: a partial, stale or extra-contract record set
+    is exactly the silently-wrong bundle this repository exists to prevent.
+    """
+    failures = _duplicate_manifest_ids(manifest_rows)
+    failures.extend(_account_index(manifest_rows, index_path)[0])
+    try:
+        receipt = read_resolution_receipt(receipt_path)
+        area = ResolutionArea.from_receipt(receipt["resolution_area"])
+    except (CandidateError, ResolutionAreaError) as exc:
+        return [], failures + [str(exc)]
+    kept, parse_failures = parse_receipt_records(manifest_rows, receipt["records"])
+    failures.extend(parse_failures)
+    records, record_failures = account_kept_records(manifest_rows, area, kept)
+    failures.extend(record_failures)
+    failures.extend(
+        _verify_receipt(
+            manifest_rows=manifest_rows,
+            records=records,
+            kept=kept,
+            receipt=receipt,
+            config=config,
+            manifest_path=manifest_path,
+            receipt_path=receipt_path,
+        )
+    )
+    return records, failures
+
+
+def parse_receipt_records(
+    manifest_rows: Sequence[ResolverRow], named: Any
+) -> tuple[dict[str, KeptRecord], list[str]]:
+    """Parse a receipt's ``records`` into one :class:`KeptRecord` per Analysis."""
+    if not isinstance(named, Mapping):
+        return {}, ["the resolution receipt's records is not a mapping"]
+    failures: list[str] = []
+    expected = {row.analysis_id for row in manifest_rows}
+    outside = [str(analysis_id) for analysis_id in named if analysis_id not in expected]
+    if outside:
+        failures.append(
+            f"the resolution receipt names {len(outside)} record(s) for Analyses outside "
+            f"this Selection's manifest: {', '.join(outside[:10])}"
+        )
+    kept: dict[str, KeptRecord] = {}
+    for row in manifest_rows:
+        if row.analysis_id not in named:
+            failures.append(
+                f"{row.analysis_id}: the resolution receipt names no Resolution Record for "
+                "this Analysis; re-run resolution"
+            )
+            continue
+        try:
+            kept[row.analysis_id] = KeptRecord.from_receipt_entry(
+                row.analysis_id, named[row.analysis_id]
+            )
+        except ResolutionAreaError as exc:
+            failures.append(str(exc))
+    return kept, failures
+
+
+def account_kept_records(
+    manifest_rows: Sequence[ResolverRow],
+    area: ResolutionArea,
+    kept: Mapping[str, KeptRecord],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Read and account the kept Resolution Records a receipt names, in manifest order."""
+    failures: list[str] = []
+    records: list[dict[str, Any]] = []
+    for row in manifest_rows:
+        record_ref = kept.get(row.analysis_id)
+        if record_ref is None:
+            continue  # parse_receipt_records already reported this.
+        try:
+            data = area.read_kept(record_ref)
+        except ResolutionAreaError as exc:
+            failures.append(str(exc))
+            continue
+        record, row_failures = _account_record(row, area.record_path(record_ref), data)
+        failures.extend(row_failures)
+        if record is not None:
+            records.append(record)
+    return records, failures
+
+
+def _duplicate_manifest_ids(manifest_rows: Sequence[ResolverRow]) -> list[str]:
+    expected_ids = [row.analysis_id for row in manifest_rows]
+    duplicate_ids = sorted({aid for aid in expected_ids if expected_ids.count(aid) > 1})
+    if duplicate_ids:
+        return [f"resolver manifest has duplicate analysis_id: {', '.join(duplicate_ids)}"]
+    return []
+
+
+def _account_index(
+    manifest_rows: Sequence[ResolverRow], index_path: Path
+) -> tuple[list[str], bool]:
+    """Check a resolver ``index.json`` describes exactly this manifest.
+
+    Returns ``(failures, usable)``; ``usable`` is false when the index is
+    missing or unreadable, so there is nothing to account against.
     """
     failures: list[str] = []
     expected_ids = [row.analysis_id for row in manifest_rows]
-    expected_set = set(expected_ids)
-    duplicate_ids = sorted({aid for aid in expected_ids if expected_ids.count(aid) > 1})
-    if duplicate_ids:
-        failures.append(f"resolver manifest has duplicate analysis_id: {', '.join(duplicate_ids)}")
-
-    index_path = records_dir / "index.json"
     if not index_path.is_file():
-        failures.append(f"resolver index is missing: {index_path}")
-        return [], failures
+        return [f"resolver index is missing: {index_path}"], False
     try:
         index = json.loads(index_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        failures.append(f"resolver index {index_path} is not valid JSON: {exc}")
-        return [], failures
+        return [f"resolver index {index_path} is not valid JSON: {exc}"], False
     if not isinstance(index, Mapping):
-        failures.append(f"resolver index {index_path} is not a JSON mapping")
-        return [], failures
+        return [f"resolver index {index_path} is not a JSON mapping"], False
     index_schema_version = index.get("record_schema_version")
     if index_schema_version != SUPPORTED_RECORD_SCHEMA_VERSION:
         failures.append(
             f"resolver index {index_path} declares record_schema_version "
-            f"{index_schema_version!r}; this registry finalises only "
+            f"{index_schema_version!r}; this registry accepts only "
             f"{SUPPORTED_RECORD_SCHEMA_VERSION}"
         )
 
     recorded = index.get("analyses")
     if not isinstance(recorded, list):
         failures.append(f"resolver index {index_path} has no 'analyses' list")
-        return [], failures
+        return failures, False
     index_ids = [str(entry.get("analysis_id", "")) for entry in recorded if isinstance(entry, dict)]
     if index_ids != expected_ids:
         failures.append(
@@ -1284,98 +1590,43 @@ def account_records(
     duplicate_index_ids = sorted({aid for aid in index_ids if index_ids.count(aid) > 1})
     if duplicate_index_ids:
         failures.append(f"resolver index has duplicate analysis_id: {', '.join(duplicate_index_ids)}")
-
-    # Extra record files: a records dir reused across a changed manifest leaves
-    # records the current manifest does not account for.
-    extra = sorted(
-        path.name
-        for path in records_dir.glob("*.json")
-        if path.name != "index.json"
-        and path.stem not in expected_set
-        and not path.name.startswith(".tmp_")
-    )
-    if extra:
-        failures.append(
-            f"{len(extra)} extra resolver record(s) for analyses outside the manifest: "
-            f"{', '.join(extra[:10])}"
-        )
-
-    records: list[dict[str, Any]] = []
-    by_id: dict[str, dict[str, Any]] = {}
-    for row in manifest_rows:
-        record_path = records_dir / f"{row.analysis_id}.json"
-        if not record_path.is_file():
-            failures.append(f"{row.analysis_id}: resolver record is missing ({record_path})")
-            continue
-        try:
-            record = json.loads(record_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            failures.append(f"{row.analysis_id}: resolver record is not valid JSON: {exc}")
-            continue
-        if not isinstance(record, Mapping):
-            failures.append(f"{row.analysis_id}: resolver record is not a JSON mapping")
-            continue
-        record_schema_version = record.get("record_schema_version")
-        if record_schema_version != SUPPORTED_RECORD_SCHEMA_VERSION:
-            failures.append(
-                f"{row.analysis_id}: resolver record declares record_schema_version "
-                f"{record_schema_version!r}; this registry finalises only "
-                f"{SUPPORTED_RECORD_SCHEMA_VERSION}"
-            )
-            continue
-        if record.get("analysis_id") != row.analysis_id:
-            failures.append(
-                f"{row.analysis_id}: resolver record names analysis_id "
-                f"{record.get('analysis_id')!r}"
-            )
-            continue
-        status = record.get("status")
-        if status not in _RESOLVER_RECORD_STATUSES:
-            failures.append(
-                f"{row.analysis_id}: resolver record has unexpected status {status!r}"
-            )
-            continue
-        failures.extend(_verify_fingerprints(row, record))
-        by_id[row.analysis_id] = record
-
-    for row in manifest_rows:
-        if row.analysis_id in by_id:
-            records.append(by_id[row.analysis_id])
-    return records, failures
+    return failures, True
 
 
-def verify_records(
-    manifest_rows: Sequence[ResolverRow],
-    records_dir: Path,
-    *,
-    config: CandidateConfiguration,
-    manifest_path: Path,
-    receipt_path: Path,
-) -> tuple[list[dict[str, Any]], list[str]]:
-    """Account the records *and* prove they were produced under the current contract.
+def _account_record(
+    row: ResolverRow, record_path: Path, data: bytes | None = None
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """Read one resolver record and check it against its manifest row.
 
-    The record-level accounting in :func:`account_records` only proves each
-    record is internally consistent. A record set produced under different
-    gates, ancestry reference/group map, extraction panel, reference-AF
-    resources or tool revision is still internally consistent, so this function
-    additionally recomputes the current resolution contract and requires the
-    successful resolver's resolution receipt to match it, with every record's
-    fingerprint digest equal to the digest the receipt bound. Any failure means
-    the candidate is not written: a partial, stale or extra-contract record set
-    is exactly the silently-wrong bundle this repository exists to prevent.
+    ``data`` is the record's bytes when the caller has already read them.
+    Returns the record, or ``None`` when it cannot be used at all.
     """
-    records, failures = account_records(manifest_rows, records_dir)
-    failures.extend(
-        _verify_receipt(
-            manifest_rows=manifest_rows,
-            records=records,
-            config=config,
-            manifest_path=manifest_path,
-            receipt_path=receipt_path,
-        )
-    )
-    return records, failures
-
+    if data is None:
+        if not record_path.is_file():
+            return None, [f"{row.analysis_id}: resolver record is missing ({record_path})"]
+        data = record_path.read_bytes()
+    try:
+        record = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return None, [f"{row.analysis_id}: resolver record is not valid JSON: {exc}"]
+    if not isinstance(record, Mapping):
+        return None, [f"{row.analysis_id}: resolver record is not a JSON mapping"]
+    record_schema_version = record.get("record_schema_version")
+    if record_schema_version != SUPPORTED_RECORD_SCHEMA_VERSION:
+        return None, [
+            f"{row.analysis_id}: resolver record declares record_schema_version "
+            f"{record_schema_version!r}; this registry accepts only "
+            f"{SUPPORTED_RECORD_SCHEMA_VERSION}"
+        ]
+    if record.get("analysis_id") != row.analysis_id:
+        return None, [
+            f"{row.analysis_id}: resolver record names analysis_id "
+            f"{record.get('analysis_id')!r}"
+        ]
+    status = record.get("status")
+    if status not in _RESOLVER_RECORD_STATUSES:
+        return None, [f"{row.analysis_id}: resolver record has unexpected status {status!r}"]
+    return dict(record), _verify_fingerprints(row, record)
 
 
 def _first_mismatch(actual: Sequence[str], expected: Sequence[str]) -> str:
@@ -1401,7 +1652,7 @@ def _verify_fingerprints(row: ResolverRow, record: Mapping[str, Any]) -> list[st
     if not isinstance(fingerprints, Mapping):
         return [f"{row.analysis_id}: resolver record has no fingerprints mapping"]
     digest = fingerprints.get("fingerprint_digest")
-    if digest != _recompute_fingerprint_digest(fingerprints):
+    if digest != recompute_fingerprint_digest(fingerprints):
         failures.append(
             f"{row.analysis_id}: resolver fingerprint digest does not match its own "
             "fingerprint inputs (record was edited or is stale)"
@@ -1492,19 +1743,54 @@ def _verify_source_file_unchanged(
 # candidate. After every successful resolver invocation the registry therefore
 # persists a resolution receipt: the resolver manifest's checksum, the
 # registry-recomputable slice of the resolution contract, the tool identity the
-# resolver reported, and every analysis_id bound to the fingerprint digest the
-# resolver wrote. Standalone verify/emit recompute the contract from the current
-# config, references and installed tool and require it to equal the receipt;
-# they never re-derive the resolver's statistics.
+# resolver reported, and every analysis_id bound to the kept Resolution Record
+# it was decided from -- fingerprint digest and record checksum, in the Source
+# Collection's resolution area (#284). Standalone verify/emit recompute the
+# contract from the current config, references and installed tool and require
+# it to equal the receipt, and read exactly the records it names; they never
+# re-derive the resolver's statistics.
 
 
 def sha256_file(path: Path) -> str:
-    """SHA-256 hex digest of a file, streamed so a genome-scale reference fits."""
+    """SHA-256 hex digest of a file, streamed so a genome-scale reference fits.
+
+    One run hashes each reference for its settings digest, the contract it
+    binds and the contract it verifies, so a digest is remembered for the
+    process. This is an integrity boundary, so it is remembered only where it
+    can never answer for bytes the file no longer holds (#282 review): keyed by
+    the file's identity, size, mtime and ctime -- any write changes ctime, and
+    ``utime`` cannot restore it -- and never for a file that changed while it
+    was read, or whose ctime has not settled. A kernel stamps times at its
+    clock's tick, so a second write within a tick of the first keeps its ctime.
+    """
+    path = Path(path)
+    started_ns = time.time_ns()
+    identity = _file_identity(path)
+    cached = _SHA256_BY_FILE_IDENTITY.get(identity)
+    if cached is not None:
+        return cached
     digest = hashlib.sha256()
     with path.open("rb") as fh:
         for chunk in iter(lambda: fh.read(1024 * 1024), b""):
             digest.update(chunk)
+    if _file_identity(path) == identity and identity[-1] < started_ns - _DIGEST_SETTLE_NS:
+        _SHA256_BY_FILE_IDENTITY[identity] = digest.hexdigest()
     return digest.hexdigest()
+
+
+def _file_identity(path: Path) -> tuple[str, int, int, int, int, int]:
+    stat = path.stat()
+    return (
+        str(path.resolve()), stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns,
+    )
+
+
+#: How old a file's ctime must be before its digest is remembered: coarser than
+#: the timestamp granularity of the filesystems generation runs on (XFS stamps
+#: at the kernel's tick, a millisecond here).
+_DIGEST_SETTLE_NS: int = 1_000_000_000
+
+_SHA256_BY_FILE_IDENTITY: dict[tuple[str, int, int, int, int, int], str] = {}
 
 
 def _opengwasdb_tool_identity() -> tuple[str, str | None]:
@@ -1631,7 +1917,8 @@ def compute_resolution_contract(config: CandidateConfiguration) -> dict[str, Any
     # The effective Quality Check thresholds, defaults included, and the
     # release's overrides (#285): changing a shared default or an override makes
     # the receipt stale. A receipt written before #285 lacks the key and is
-    # stale too; re-resolving with --resume rewrites it.
+    # stale too. Re-running the resolve stage rewrites it, reusing every record:
+    # thresholds are not in the resolver's fingerprint (#284).
     contract["quality_checks"] = quality_checks.receipt_contract(config.quality_check_overrides)
     return contract
 
@@ -1641,33 +1928,46 @@ def build_resolution_receipt(
     manifest_rows: Sequence[ResolverRow],
     config: CandidateConfiguration,
     manifest_path: Path,
-    records_dir: Path,
+    area: ResolutionArea,
+    kept: Mapping[str, KeptRecord],
     argv: Sequence[str],
+    settings_digest: str,
     index: Mapping[str, Any],
+    override: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Bind a successful resolver run to the contract and record digests it produced."""
+    """Bind a successful resolver run to its contract and the records it kept.
+
+    ``override`` is the executable that ran in place of the pinned
+    ``opengwasdb`` (its ``path`` and ``sha256``), or ``None``: the
+    verification-only ``--resolver`` flag (#287), recorded so a receipt made by
+    another resolver is never mistaken for the pinned one's.
+
+    ``records`` names, in manifest order, each Analysis's kept Resolution Record
+    in the Source Collection's resolution area: its fingerprint digest, its
+    checksum and its path in the area (#284). It names exactly this Selection's
+    records, whether this run resolved them or reused them. ``settings_digest``
+    names the checkpoint the run resolved into.
+    """
     contract = compute_resolution_contract(config)
-    index_version = str(index.get("opengwasdb_version") or "")
+    index_version = index.get("opengwasdb_version")
+    index_git_hash = index.get("opengwasdb_git_hash")
+    if not isinstance(index_version, str) or not isinstance(index_git_hash, str):
+        raise CandidateError(
+            "resolver index does not report its opengwasdb_version and "
+            "opengwasdb_git_hash; refusing to write a resolution receipt"
+        )
     if index_version != contract["opengwasdb_version"]:
         raise CandidateError(
             "resolver index reports opengwasdb version "
             f"{index_version!r} but the installed opengwasdb is "
             f"{contract['opengwasdb_version']!r}; refusing to write a resolution receipt"
         )
-    record_digests: dict[str, str] = {}
+    records: dict[str, dict[str, str]] = {}
     for row in manifest_rows:
-        record_path = records_dir / f"{row.analysis_id}.json"
-        try:
-            record = json.loads(record_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise CandidateError(
-                f"{row.analysis_id}: cannot read resolver record for the receipt: {exc}"
-            ) from exc
-        fingerprints = record.get("fingerprints")
-        digest = fingerprints.get("fingerprint_digest") if isinstance(fingerprints, Mapping) else None
-        if not isinstance(digest, str) or not digest:
-            raise CandidateError(f"{row.analysis_id}: resolver record has no fingerprint digest")
-        record_digests[row.analysis_id] = digest
+        record = kept.get(row.analysis_id)
+        if record is None:
+            raise CandidateError(f"{row.analysis_id}: no Resolution Record was kept for the receipt")
+        records[row.analysis_id] = record.as_receipt_entry()
     return {
         "receipt_schema_version": RECEIPT_SCHEMA_VERSION,
         "record_schema_version": SUPPORTED_RECORD_SCHEMA_VERSION,
@@ -1675,22 +1975,25 @@ def build_resolution_receipt(
         "analysis_ids": [row.analysis_id for row in manifest_rows],
         "resolver": {
             "argv": list(argv),
+            "settings_digest": settings_digest,
             "opengwasdb_version": index_version,
-            "opengwasdb_git_hash": str(index.get("opengwasdb_git_hash") or ""),
+            "opengwasdb_git_hash": index_git_hash,
+            "override": dict(override) if override is not None else None,
         },
         "contract": contract,
-        "record_digests": record_digests,
+        "resolution_area": str(area.root),
+        "records": records,
     }
 
 
 def write_resolution_receipt(path: Path, receipt: Mapping[str, Any]) -> None:
-    """Write the receipt through a temporary sibling and an atomic rename."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".tmp_{path.name}")
-    temporary.write_text(
-        json.dumps(receipt, indent=2, sort_keys=False) + "\n", encoding="utf-8"
+    """Write the receipt atomically and durably, replacing an earlier run's."""
+    atomic_write_bytes(
+        path,
+        (json.dumps(receipt, indent=2, sort_keys=False) + "\n").encode("utf-8"),
+        path.parent,
+        overwrite=True,
     )
-    os.replace(temporary, path)
 
 
 def read_resolution_receipt(path: Path) -> dict[str, Any]:
@@ -1707,6 +2010,14 @@ def read_resolution_receipt(path: Path) -> dict[str, Any]:
     if not isinstance(receipt, Mapping):
         raise CandidateError(f"resolution receipt {path} is not a JSON mapping")
     receipt_schema_version = receipt.get("receipt_schema_version")
+    if receipt_schema_version in HISTORICAL_RECEIPT_SCHEMA_VERSIONS:
+        raise CandidateError(
+            f"resolution receipt {path} has receipt_schema_version "
+            f"{receipt_schema_version!r}: a historical receipt, whose records lived in "
+            "the Store Release's own Work Root before Resolution Records were kept per "
+            "Source Collection (#284). It stays the provenance of the candidate it "
+            "produced but cannot be verified again; re-run the resolve stage"
+        )
     if receipt_schema_version != RECEIPT_SCHEMA_VERSION:
         raise CandidateError(
             f"resolution receipt {path} has incompatible receipt_schema_version "
@@ -1720,9 +2031,15 @@ def read_resolution_receipt(path: Path) -> dict[str, Any]:
             f"{record_schema_version!r}; this registry finalises "
             f"{SUPPORTED_RECORD_SCHEMA_VERSION}"
         )
-    for key in ("manifest_sha256", "analysis_ids", "contract", "record_digests"):
-        if key not in receipt:
-            raise CandidateError(f"resolution receipt {path} is missing key {key!r}")
+    missing = sorted(RECEIPT_KEYS - set(receipt))
+    if missing:
+        raise CandidateError(f"resolution receipt {path} is missing key(s) {missing}")
+    unknown = sorted(set(receipt) - RECEIPT_KEYS)
+    if unknown:
+        raise CandidateError(
+            f"resolution receipt {path} has unknown key(s) {unknown}; this registry "
+            f"reads only {sorted(RECEIPT_KEYS)}"
+        )
     return dict(receipt)
 
 
@@ -1730,6 +2047,8 @@ def _verify_receipt(
     *,
     manifest_rows: Sequence[ResolverRow],
     records: Sequence[Mapping[str, Any]],
+    kept: Mapping[str, KeptRecord],
+    receipt: Mapping[str, Any],
     config: CandidateConfiguration,
     manifest_path: Path,
     receipt_path: Path,
@@ -1741,11 +2060,6 @@ def _verify_receipt(
     compares them to the receipt the successful run wrote, and requires each
     record to still carry the exact digest that run bound.
     """
-    try:
-        receipt = read_resolution_receipt(receipt_path)
-    except CandidateError as exc:
-        return [str(exc)]
-
     failures: list[str] = []
     try:
         current_contract = compute_resolution_contract(config)
@@ -1777,26 +2091,18 @@ def _verify_receipt(
             f"manifest ({receipt_ids!r} != {expected_ids!r})"
         )
 
-    record_digests = receipt.get("record_digests")
-    if not isinstance(record_digests, Mapping):
-        failures.append(f"resolution receipt {receipt_path} has no record_digests mapping")
-        return failures
     by_id = {record.get("analysis_id"): record for record in records}
     for row in manifest_rows:
         record = by_id.get(row.analysis_id)
-        if record is None:
-            continue  # account_records already reported this.
+        record_ref = kept.get(row.analysis_id)
+        if record is None or record_ref is None:
+            continue  # parse_receipt_records or account_kept_records reported this.
         fingerprints = record.get("fingerprints")
         digest = (
             fingerprints.get("fingerprint_digest") if isinstance(fingerprints, Mapping) else None
         )
-        expected_digest = record_digests.get(row.analysis_id)
-        if expected_digest is None:
-            failures.append(
-                f"{row.analysis_id}: the resolution receipt binds no fingerprint digest "
-                "for this Analysis; re-run resolution"
-            )
-        elif digest != expected_digest:
+        expected_digest = record_ref.fingerprint_digest
+        if digest != expected_digest:
             failures.append(
                 f"{row.analysis_id}: resolver fingerprint digest is {digest!r} but the "
                 f"successful resolution bound {expected_digest!r}; the record is stale or "
@@ -1831,7 +2137,7 @@ class AnalysisOutcome:
     """One selected ready Analysis after the release policy was applied."""
 
     row: SourceInventoryRow
-    metadata: CandidateMetadata
+    metadata: AnalysisMetadata
     record: Mapping[str, Any] | None
     included: bool
     exclusion_reason: str
@@ -1862,6 +2168,16 @@ class AnalysisOutcome:
         return self.row.analysis_id
 
     @property
+    def store_analysis_id(self) -> str:
+        """The Store's Analysis id: the connector's when it declares one (#288).
+
+        Resolution, the resolver manifest and the Resolution Records stay keyed
+        by the source's id (``analysis_id``); this is the id the bundle's
+        ``analyses.tsv`` and its sidecars report.
+        """
+        return self.metadata.store_analysis_id or self.row.analysis_id
+
+    @property
     def maf_filtered(self) -> bool:
         """True when a MAF floor was emitted on resolver evidence (#203)."""
         return self.maf_threshold != "NaN"
@@ -1870,7 +2186,7 @@ class AnalysisOutcome:
 def apply_release_policy(
     rows: Sequence[SourceInventoryRow],
     config: CandidateConfiguration,
-    metadata: Mapping[str, CandidateMetadata],
+    metadata: Mapping[str, AnalysisMetadata],
     records: Mapping[str, Mapping[str, Any]],
     manifest_rows: Sequence[ResolverRow] = (),
 ) -> list[AnalysisOutcome]:
@@ -1966,7 +2282,7 @@ def _not_maf_filtered_detail(
 def _decide(
     *,
     row: SourceInventoryRow,
-    resolved: CandidateMetadata,
+    resolved: AnalysisMetadata,
     tier: Any,
     record: Mapping[str, Any] | None,
     config: CandidateConfiguration,
@@ -1993,6 +2309,9 @@ def _decide(
             stored_effect_scale=stored_effect_scale,
             selection_ancestry=config.target_ancestry,
             effect_placeholder_reason=config.effect_placeholder_exclusions.get(row.analysis_id),
+            source_superpopulation=resolved.source_superpopulation,
+            trust_source_ancestry_without_af=config.trust_source_ancestry_without_af,
+            keep_unassigned_ancestry_as_warning=config.keep_unassigned_ancestry_as_warning,
         ),
         config.quality_check_overrides,
     )
@@ -2059,20 +2378,47 @@ def _decide(
     # failure and never a refusal here.
 
     assigned = str(record_section(record, "ancestry").get("assigned_ancestry") or "").strip()
+    # A multi-ancestry Selection never emits an Assigned Ancestry (#290), on an
+    # excluded row as much as an included one: the fit it measured stays in the
+    # sidecar, and the audit row carries no assignment.
+    multi_ancestry = config.target_ancestry == quality_checks.MULTI_ANCESTRY_SELECTION
+    carried = "" if multi_ancestry else assigned
 
     # Slot ANCESTRY_READ: EAF orientation. The audit row keeps the value read.
     failed = quality_checks.first_exclusion(findings, Stage.ANCESTRY_READ)
     if failed is not None:
-        return excluded_by(failed, assigned=assigned)
+        return excluded_by(failed, assigned=carried)
 
     # Slot SELECTION: the Assigned Ancestry check (ADR 0036). An assignment that
     # is a super-population code is carried as af_assigned, even when it is
     # not the Selection's.
     failed = quality_checks.first_exclusion(findings, Stage.SELECTION)
     if failed is not None:
-        if assigned in SUPERPOPULATIONS:
+        if assigned in SUPERPOPULATIONS and not multi_ancestry:
             return excluded_by(failed, assigned=assigned, method="af_assigned")
         return excluded_by(failed)
+    # A warning-level Assigned Ancestry result is a declared policy that keeps
+    # the Analysis: #287's source-trusted assignment takes the Source Metadata
+    # Table's super-population, while #290's keeps it unassigned. A
+    # multi-ancestry Selection (#290) records the fit and never assigns it.
+    method = "af_assigned"
+    if multi_ancestry:
+        assigned, method = "", "unassigned"
+    else:
+        warning = next(
+            (
+                finding
+                for finding in findings
+                if finding.name == "assigned_ancestry"
+                and finding.result is quality_checks.Result.WARNING
+            ),
+            None,
+        )
+        if warning is not None:
+            if quality_checks.kept_unassigned(warning):
+                assigned, method = "", "unassigned"
+            else:
+                assigned, method = resolved.source_superpopulation, SOURCE_TRUSTED_NO_AF
 
     # From here the Analysis has the Selection's ancestry; the only remaining
     # question is whether its effects are on the release's scale.
@@ -2082,13 +2428,13 @@ def _decide(
             reason="missing_case_control_counts",
             detail=f"n_cases={n_cases or 'empty'} n_controls={n_controls or 'empty'}",
             assigned=assigned,
-            method="af_assigned",
+            method=method,
         )
 
     # Slot TARGET_ANCESTRY: the phenotype SD.
     failed = quality_checks.first_exclusion(findings, Stage.TARGET_ANCESTRY)
     if failed is not None:
-        return excluded_by(failed, assigned=assigned, method="af_assigned")
+        return excluded_by(failed, assigned=assigned, method=method)
 
     # Nothing excluded it, so every exclusion check must have tested it.
     quality_checks.require_measured(findings, row.analysis_id)
@@ -2096,16 +2442,23 @@ def _decide(
         return make(
             included=True,
             assigned=assigned,
-            method="af_assigned",
+            method=method,
             original_sd="",
             sd_method="binary_trait",
         )
+    # A scale the method tier declares has no SD to estimate (#300): included
+    # on the tier's method with original_sd blank, as OGS-00007 carries it.
+    if any(
+        finding.name == "phenotype_sd" and finding.result is quality_checks.Result.NOT_APPLICABLE
+        for finding in findings
+    ):
+        return make(included=True, assigned=assigned, method=method, original_sd="")
     # The phenotype_sd check passed, so this is a positive finite estimate.
     estimate = record_section(record_section(record, "phenotype_sd"), "estimate")
     return make(
         included=True,
         assigned=assigned,
-        method="af_assigned",
+        method=method,
         original_sd=format_sidecar_float(float(estimate["sd"])),
         sd_method=str(estimate.get("method") or tier.original_sd_method),
     )
@@ -2154,6 +2507,10 @@ class CandidateTables:
     warnings: tuple[str, ...]
     #: ``sidecars/quality_checks.tsv``: one row per selected Analysis (#285).
     quality_checks_tsv: str = ""
+    #: ``sidecars/analysis_targets.tsv`` (#300), or empty when no Analysis has a target.
+    analysis_targets_tsv: str = ""
+    #: Acquisition's evidence (:func:`acquisition_evidence`): sidecar name -> text.
+    acquisition_evidence: Mapping[str, str] = field(default_factory=dict)
     #: Each applied Quality Check's summary, keyed by name (#285).
     quality_checks: Mapping[str, CheckSummary] = field(default_factory=dict)
 
@@ -2164,8 +2521,11 @@ def build_candidate_tables(
     outcomes: Sequence[AnalysisOutcome],
     config: CandidateConfiguration,
     index_summary: Mapping[str, Any],
+    acquisition_evidence: Mapping[str, str] | None = None,
 ) -> CandidateTables:
     """Render every bundle table/sidecar in manifest order, deterministically.
+
+    ``acquisition_evidence`` is carried as it is (:func:`acquisition_evidence`).
 
     Nothing here depends on completion order or worker count: rows are indexed
     by the frozen inventory's order and every derived value is a pure function
@@ -2212,15 +2572,23 @@ def build_candidate_tables(
         raise CandidateError(f"internal error: uncontrolled exclusion reason(s): {unknown}")
 
     ancestry_check, sd_check, effect_scale_check, warnings = _derive_checks(
-        outcomes, sd_rows, exclusion_counts, duplicate_membership
+        outcomes, sd_rows, exclusion_counts, duplicate_membership, config
     )
     store_composition = _store_composition(outcomes, config)
     warnings.extend(_store_composition_warnings(store_composition))
     quality_checks_tsv, quality_check_summary = _quality_check_tables(outcomes, config)
     warnings.extend(quality_checks.warning_lines(quality_check_summary))
+    targets = [
+        # The Store's Analysis id, like every other sidecar: this one joins to
+        # ``analyses.tsv`` (#288).
+        {"analysis_id": outcome.store_analysis_id}
+        | {column: getattr(outcome.metadata, column) for column in ANALYSIS_TARGETS_COLUMNS[1:]}
+        for outcome in outcomes
+        if outcome.metadata.targeted
+    ]
 
     return CandidateTables(
-        analyses_tsv=_render_tsv(ANALYSES_COLUMNS, analyses_rows),
+        analyses_tsv=_render_tsv(analyses_columns(outcomes, analyses_rows), analyses_rows),
         source_readiness_tsv=_render_tsv(SOURCE_READINESS_COLUMNS, readiness_rows),
         ancestry_tsv=_render_tsv(ANCESTRY_SIDECAR_COLUMNS, ancestry_rows),
         sd_estimation_tsv=_render_tsv(SD_ESTIMATION_SIDECAR_COLUMNS, sd_rows),
@@ -2239,7 +2607,21 @@ def build_candidate_tables(
         warnings=tuple(warnings),
         quality_checks_tsv=quality_checks_tsv,
         quality_checks=quality_check_summary,
+        analysis_targets_tsv=_render_tsv(ANALYSIS_TARGETS_COLUMNS, targets) if targets else "",
+        acquisition_evidence=dict(acquisition_evidence or {}),
     )
+
+
+def analyses_columns(
+    outcomes: Sequence[AnalysisOutcome], rows: Sequence[Mapping[str, str]]
+) -> tuple[str, ...]:
+    """``ANALYSES_COLUMNS``, and the optional columns this release has (#300)."""
+    present = set()
+    if any(outcome.metadata.targeted for outcome in outcomes):
+        present.update(TARGET_ANALYSES_COLUMNS)
+    if any(row[column] for row in rows for column in CONTEXT_ANALYSES_COLUMNS):
+        present.update(CONTEXT_ANALYSES_COLUMNS)
+    return ANALYSES_COLUMNS + tuple(column for column in OPTIONAL_ANALYSES_COLUMNS if column in present)
 
 
 def _quality_check_tables(
@@ -2263,7 +2645,7 @@ def _quality_check_tables(
             )
     rows = [
         quality_checks.sidecar_row(
-            outcome.analysis_id,
+            outcome.store_analysis_id,
             outcome.included,
             outcome.exclusion_reason,
             outcome.check_results,
@@ -2406,7 +2788,7 @@ def _reference_overlap(
         )
         fingerprints = record_section(outcome.record, "fingerprints")
         row = {
-            "analysis_id": outcome.analysis_id,
+            "analysis_id": outcome.store_analysis_id,
             "ancestry_reference_id": str(fingerprints.get("ancestry_reference_id") or ""),
             "ancestry_rows_scanned": str(ancestry_n) if success and type(ancestry_n) is int and ancestry_n >= 0 else "",
             "ancestry_rows_matched": str(ancestry_matched) if anc_valid else "",
@@ -2521,15 +2903,21 @@ def _analyses_row(
         inclusion_reason = f"excluded: {outcome.exclusion_reason}: {outcome.exclusion_detail}"
         exclude = "true"
     tier = config.base.method_tiers[row.study_design]
+    trait_ontology = resolved.trait_ontology
+    if trait_ontology is None:
+        raise CandidateError(
+            f"{row.analysis_id}: no Trait Ontology Mapping; run "
+            "map_candidate_trait_ontologies after verification (#286)"
+        )
     return {
         "analysis_index": str(index),
-        "analysis_id": row.analysis_id,
+        "analysis_id": outcome.store_analysis_id,
         "source_analysis_id": row.analysis_id,
         "source_label": resolved.source_label or row.trait,
-        "analysis_label": resolved.source_label or row.trait,
-        "trait_ontology_label": resolved.trait_ontology_label,
-        "trait_ontology_id": resolved.trait_ontology_id,
-        "trait_ontology_mapping_method": resolved.trait_ontology_mapping_method,
+        "analysis_label": resolved.analysis_label or row.trait,
+        "trait_ontology_label": trait_ontology.trait_ontology_label,
+        "trait_ontology_id": trait_ontology.trait_ontology_id,
+        "trait_ontology_mapping_method": str(trait_ontology.method),
         "source_file": row.data_file,
         "source_reader_capability": config.reader_capability,
         "source_url": row.data_url,
@@ -2538,13 +2926,15 @@ def _analyses_row(
         "checksum": row.sha256,
         "checksum_algorithm": "sha256",
         "size_bytes": row.data_bytes,
-        "source_genome_build": str(config.defaults.get("source_genome_build", "GRCh38")),
-        "license": str(config.defaults.get("license", "")),
-        "publication_doi": "",
+        # Collection-wide facts: the Analysis's own value, else the release
+        # config's default (#287). Neither is ever guessed here.
+        "source_genome_build": _or_default(resolved.source_genome_build, config, "source_genome_build"),
+        "license": _or_default(resolved.license, config, "license"),
+        "publication_doi": _or_default(resolved.publication_doi, config, "publication_doi"),
         "publication_pmid": resolved.publication_pmid or row.publication_pmid,
-        "consortium": "",
+        "consortium": _or_default(resolved.consortium, config, "consortium"),
         "first_author": resolved.first_author,
-        "source_ancestry_label": config.base.ancestry_group,
+        "source_ancestry_label": resolved.source_ancestry_label,
         "assigned_ancestry": outcome.assigned_ancestry,
         "ancestry_assignment_method": outcome.ancestry_assignment_method,
         "original_effect_scale": tier.original_effect_scale,
@@ -2556,7 +2946,10 @@ def _analyses_row(
         "sample_size": outcome.sample_size,
         "n_cases": outcome.n_cases,
         "n_controls": outcome.n_controls,
-        "analysis_group_id": str(config.defaults.get("analysis_group_id", "")),
+        "analysis_group_id": (
+            resolved.analysis_group_id
+            or str(config.defaults.get("analysis_group_id", ""))
+        ),
         "info_score_threshold": outcome.info_score_threshold,
         "imputation_score_column": outcome.info_score_column,
         "imputation_score_kind": outcome.info_score_kind,
@@ -2564,7 +2957,19 @@ def _analyses_row(
         "maf_threshold": outcome.maf_threshold,
         "inclusion_reason": inclusion_reason,
         "exclude_from_build": exclude,
+        "trait_chr": resolved.target_chromosome,
+        "trait_bp": resolved.target_start,
+        "tissue": _or_default(resolved.tissue, config, "tissue"),
+        "context": _or_default(resolved.context, config, "context"),
+        "mhc": resolved.target_mhc,
+        "target_resolution_method": resolved.target_resolution_method,
+        "n_target_rows": resolved.target_rows,
     }
+
+
+def _or_default(value: str, config: CandidateConfiguration, key: str) -> str:
+    """An Analysis's own value, or the release config's collection-wide default."""
+    return value or str(config.defaults.get(key, ""))
 
 
 def _ancestry_row(
@@ -2573,9 +2978,9 @@ def _ancestry_row(
     record = outcome.record
     ancestry = record_section(record, "ancestry")
     row: dict[str, str] = {name: "" for name in ANCESTRY_SIDECAR_COLUMNS}
-    row["analysis_id"] = outcome.analysis_id
+    row["analysis_id"] = outcome.store_analysis_id
     row["source_analysis_id"] = outcome.analysis_id
-    row["source_ancestry_label"] = config.base.ancestry_group
+    row["source_ancestry_label"] = outcome.metadata.source_ancestry_label
     row["assigned_ancestry"] = outcome.assigned_ancestry
     row["ancestry_assignment_method"] = outcome.ancestry_assignment_method
     if record is None:
@@ -2604,6 +3009,12 @@ def _ancestry_row(
         row["source_assigned_mismatch"] = (
             "false" if outcome.assigned_ancestry == config.target_ancestry else "true"
         )
+    elif outcome.included:
+        row["ancestry_notes"] = (
+            "multi-ancestry Selection: measured ancestry recorded, never assigned (#290)"
+            if config.target_ancestry == quality_checks.MULTI_ANCESTRY_SELECTION
+            else "kept unassigned by release_policy.keep_unassigned_ancestry_as_warning (#290)"
+        )
     composition = ancestry.get("superpop_composition")
     if isinstance(composition, Mapping):
         for superpop in SUPERPOPULATIONS:
@@ -2619,7 +3030,7 @@ def _sd_row(
     record = outcome.record
     pheno = record_section(record, "phenotype_sd")
     row: dict[str, str] = {name: "" for name in SD_ESTIMATION_SIDECAR_COLUMNS}
-    row["analysis_id"] = outcome.analysis_id
+    row["analysis_id"] = outcome.store_analysis_id
     row["source_analysis_id"] = outcome.analysis_id
     row["original_sd_method"] = outcome.original_sd_method
     row["maf_min"] = str(config.effect_scale_block.get("maf_min", ""))
@@ -2686,7 +3097,7 @@ def _af_source(original_sd_method: str) -> str:
 def _exclusion_row(outcome: AnalysisOutcome) -> dict[str, str]:
     record_status = str((outcome.record or {}).get("status") or "missing")
     return {
-        "analysis_id": outcome.analysis_id,
+        "analysis_id": outcome.store_analysis_id,
         "source_analysis_id": outcome.analysis_id,
         "study_design": outcome.row.study_design,
         "category": controlled_exclusion_categories()[outcome.exclusion_reason],
@@ -2702,6 +3113,7 @@ def _derive_checks(
     sd_rows: Sequence[Mapping[str, str]],
     exclusion_counts: Mapping[str, int],
     duplicate_membership: Mapping[str, str],
+    config: CandidateConfiguration,
 ) -> tuple[str, str, str, list[str]]:
     """Derive the validation checks and warnings from the decided outcomes."""
     warnings: list[str] = []
@@ -2710,7 +3122,39 @@ def _derive_checks(
         + exclusion_counts.get("ancestry_not_eur", 0)
         + exclusion_counts.get("orientation_failure", 0)
     )
-    ancestry_check = "passed" if ancestry_problem == 0 else "passed_with_warnings"
+    source_trusted = sum(
+        1
+        for outcome in outcomes
+        if outcome.included and outcome.ancestry_assignment_method == SOURCE_TRUSTED_NO_AF
+    )
+    # #290: an Analysis kept unassigned by the release's opt-in. A
+    # multi-ancestry Selection leaves every included Analysis unassigned on
+    # purpose, which is not a warning.
+    multi_ancestry = config.target_ancestry == quality_checks.MULTI_ANCESTRY_SELECTION
+    kept_unassigned = sum(
+        1
+        for outcome in outcomes
+        if outcome.included
+        and outcome.ancestry_assignment_method == "unassigned"
+        and not multi_ancestry
+    )
+    ancestry_check = (
+        "passed"
+        if ancestry_problem == 0 and source_trusted == 0 and kept_unassigned == 0
+        else "passed_with_warnings"
+    )
+    if kept_unassigned:
+        warnings.append(
+            f"{kept_unassigned} included Analysis/Analyses have no measured Assigned Ancestry "
+            "and are kept unassigned by release_policy.keep_unassigned_ancestry_as_warning "
+            "(#290); see sidecars/quality_checks.tsv"
+        )
+    if source_trusted:
+        warnings.append(
+            f"{source_trusted} included Analysis/Analyses carry no allele frequencies, so their "
+            "Assigned Ancestry is the Source Metadata Table's super-population "
+            f"({SOURCE_TRUSTED_NO_AF}, #287); see sidecars/quality_checks.tsv"
+        )
     if ancestry_problem:
         warnings.append(
             f"{ancestry_problem} Analysis/Analyses excluded by ancestry policy "
@@ -2906,12 +3350,15 @@ def render_validation_yaml(
     index_summary: Mapping[str, Any],
     validated_at: str,
     validator_name: str,
+    trait_ontology_mapping: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Render the candidate Validation Record as the emitter's ``validation.yaml`` document.
 
     No Store was built, so every ``observed`` measurement is ``null``: absence is
     recorded, never guessed (issue #135). The checks describe the Phase B
-    evidence that does exist.
+    evidence that does exist. ``trait_ontology_mapping`` is the Trait Ontology
+    Mapping run's provenance (#286): the Canonical Trait Mapping Table's
+    identity, the method counts and any rejected source terms.
     """
     status = ("failed" if tables.reference_overlap_errors else
               "passed_with_warnings" if tables.warnings else "passed")
@@ -2945,6 +3392,7 @@ def render_validation_yaml(
         "quality_checks": {
             name: summary.as_dict() for name, summary in tables.quality_checks.items()
         },
+        "trait_ontology_mapping": dict(trait_ontology_mapping),
         "reports": {
             "source_readiness": "sidecars/source_readiness.tsv",
             "ancestry": "sidecars/ancestry.tsv",
@@ -2952,7 +3400,9 @@ def render_validation_yaml(
             "exclusions": "sidecars/exclusions.tsv",
             "reference_overlap": "sidecars/reference_overlap.tsv",
             "quality_checks": "sidecars/quality_checks.tsv",
-        },
+        }
+        | ({"analysis_targets": "sidecars/analysis_targets.tsv"} if tables.analysis_targets_tsv else {})
+        | {name.removesuffix(".tsv"): f"sidecars/{name}" for name in sorted(tables.acquisition_evidence)},
         "warnings": list(tables.warnings),
         "errors": list(tables.reference_overlap_errors),
     }
@@ -3043,8 +3493,13 @@ def _int_or_empty(value: Any) -> str:
 
 
 __all__ = [
+    "ACQUISITION_EVIDENCE_SIDECARS",
+    "ANALYSIS_TARGETS_COLUMNS",
+    "acquisition_evidence",
     "ANCESTRY_SIDECAR_COLUMNS",
     "ANALYSES_COLUMNS",
+    "OPTIONAL_ANALYSES_COLUMNS",
+    "analyses_columns",
     "CANDIDATE_STATUS",
     "EFFECT_PLACEHOLDER_EXCLUSION_COLUMNS",
     "MAF_FILTER_EXEMPTION_COLUMNS",
@@ -3053,25 +3508,31 @@ __all__ = [
     "USABLE_MAF_STATES",
     "CandidateConfiguration",
     "CandidateError",
-    "CandidateMetadata",
+    "AnalysisMetadata",
     "CandidateTables",
     "EXCLUSION_COLUMNS",
+    "HISTORICAL_RECEIPT_SCHEMA_VERSIONS",
     "POLICY_EXCLUSION_CATEGORIES",
     "RECEIPT_FILENAME",
+    "RECEIPT_KEYS",
     "RECEIPT_SCHEMA_VERSION",
     "RESOLVER_MANIFEST_COLUMNS",
     "SD_ESTIMATION_SIDECAR_COLUMNS",
     "SOURCE_READINESS_COLUMNS",
+    "SOURCE_TRUSTED_NO_AF",
     "SUPERPOPULATIONS",
     "SUPPORTED_RECORD_SCHEMA_VERSION",
     "AnalysisOutcome",
     "ResolverRow",
     "ResolverRun",
+    "account_kept_records",
     "account_records",
+    "parse_receipt_records",
     "analysis_maf_threshold",
     "apply_release_policy",
     "build_candidate_tables",
     "build_resolution_receipt",
+    "collection_analysis_ids",
     "compute_resolution_contract",
     "controlled_exclusion_categories",
     "derive_resolver_manifest",
@@ -3079,19 +3540,21 @@ __all__ = [
     "load_candidate_configuration",
     "maf_threshold_emission",
     "now_utc",
-    "parse_quality_check_overrides",
-    "parse_store_composition",
-    "read_candidate_metadata",
+    "read_analysis_metadata",
+    "trait_sources",
+    "map_candidate_trait_ontologies",
     "read_genotyping_technologies",
     "read_effect_placeholder_exclusions",
     "read_maf_filter_exempt_analyses",
     "read_resolution_receipt",
-    "read_source_label_map",
+    "recompute_fingerprint_digest",
     "render_build_yaml",
     "render_release_yaml",
     "render_resolver_manifest",
     "render_validation_yaml",
     "resolver_argv",
+    "resolver_settings",
+    "resolver_settings_digest",
     "run_resolver",
     "sha256_file",
     "sha256_text",

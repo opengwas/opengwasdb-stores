@@ -1,0 +1,24 @@
+acquisition_manifest: resources/generators/gwas-catalog-ragged/connectors/sun-2018-pilot-10.acquisition-manifest.tsv
+written_by: manifest_generation.region_filtered_acquisition
+originals:
+  path: resources/generators/gwas-catalog-ragged/connectors/sun-2018-pilot-10.originals.acquisition-manifest.tsv
+  sha256: 6737d0b3ee2869c55fe4cd30b1ef7a19366730cda0a5f2eca20b55e5046d7ace
+filter_tool: manifest_generation.region_filter sha256:4c323a5eda49fa295a1a2d40a4f058ed3b734fcc925c75c9dae3aa1a085f3b10
+region_policy:
+  region_policy_id: cis-1mb_sig-trans-1mb_suggestive-leads
+  association_coverage: cis_plus_signals
+  trans_flank_bp: 1000000
+  significant_p: 5.0e-08
+  suggestive_p: 1.0e-05
+  suggestive_lead_min_distance_bp: 100000
+  qc_panel:
+    resource_id: qc-panel-hg38
+    sha256: 0bfe49c9f8083b7f8a3c9bb79b40b7540e8eb47f3e5e9524dbd0d591dc5bca88
+  cis_flank_bp: 1000000
+evidence:
+  filter_summary:
+    path: resources/generators/gwas-catalog-ragged/connectors/sun-2018-pilot-10.acquisition-manifest.filter-summary.tsv
+    sha256: c212b7c0ce28e6139d57abd59b5160c9fc6810f895305170b9ac0095149b05cf
+  sparse_regions:
+    path: resources/generators/gwas-catalog-ragged/connectors/sun-2018-pilot-10.acquisition-manifest.sparse-regions.tsv
+    sha256: 322632b80ecb987faec98104d5dae57017d9a1a76e8328d3482616e714a6f7ef

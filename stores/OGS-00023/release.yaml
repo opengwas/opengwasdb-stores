@@ -1,0 +1,40 @@
+store_id: OGS-00023
+label: eur-hybrid-quant-pilot-10-completed
+access_posture: public
+status: validated
+trial: true
+derived_from: OGS-00005
+created_at: '2026-08-18T19:00:37Z'
+accepted_at: '2026-08-18T20:00:00Z'
+source_snapshot_id: gwas-catalog-v1.0.3.1-r2026-07-10
+description: |
+  Reference-Completed sibling of eur-hybrid-quant-pilot-10: the same 10 quantitative-trait Analyses' Hybrid Observed-Only Store, reference-completed against the real HGDP+1kGP hg38 EUR LD panel via opengwasdb's complete_hybrid_store() (Dense Component only, ADR 0026). Second real Hybrid Reference-Completed release this session, proving the pipeline on a quantitative-trait Analysis mix as well as the case-control mix in eur-hybrid-pilot-10-completed.
+generator:
+  version: opengwasdb@553aee3a5ef32ac4f23ffed142808807cf350fd7
+  commands:
+    - opengwasdb complete-hybrid /data/opengwasdb/gwas-catalog-eur-hybrid/releases/eur-hybrid-quant-pilot-10/store/hybrid__European__pilot10-quant /data/opengwasdb/gwas-catalog-eur-hybrid/releases/eur-hybrid-quant-pilot-10/store/hybrid__European__pilot10-quant-completed --ld-panel /data/opengwasdb/reference/hgdp1kgp-hg38/panel --ancestry European --n-workers 32
+notes: |
+  Same --ancestry European / EUR-panel-symlink workaround as eur-hybrid-pilot-10-completed, for the same reason (opengwasdb#98). See that release's notes for detail.
+
+  This build also exercises the opengwasdb#99 crossover fix (opengwasdb@553aee3): 925,755 off-panel associations crossed onto the newly-extended Dense panel and were folded in as real observations, 902,943 of which had already been LD-imputed there and are now corrected to the real value. `opengwasdb validate` reports valid.
+
+  From the built manifest: 17,291,528 shared variants (12,719,981 on-panel + 4,571,547 off-panel), 50,210,079 imputed dense cells (post-fold), 5,636,468 Ragged Overflow associations (observed-only, post-fold). Inherits eur-hybrid-quant-pilot-10's known caveats: the same opengwasdb#86 gap as eur-hybrid-pilot-10-completed, and the opengwasdb-stores#71 SD-estimator popen-limit workaround (bounded 2,000-variant sampling) used to produce this Family's original_sd values -- both unresolved upstream, unaffected by completion.
+
+  A Dense Rho Matrix was built for this completed store's Dense Component (opengwasdb build-dense-rho .../dense, n_workers=32).
+
+  The pre-fix broken build (which failed validate_store with "disjoint-partition violated") was kept at hybrid__European__pilot10-quant-completed-broken-pre99fix alongside this store for reference, pending deletion.
+
+  Migration (#252): migrated from the retired family-first
+  `gwas-catalog-eur-hybrid/eur-hybrid-quant-pilot-10-completed` layout to
+  OGS-00023, in the current bundle schema. Its Release Manifest, `validated`
+  Release Status, Validation Record and recorded completion command are unchanged:
+  nothing was rebuilt, revalidated or rewritten. `derived_from: OGS-00005` names
+  the parent Observed-Only Store, whose 10 Analyses are exactly this bundle's 10.
+
+  Release Erratum (issue #133, applied here during the #252 migration):
+  `assigned_ancestry` was recorded as the free-text Source Ancestry Label
+  "European" rather than the registry-normalised super-population code "EUR", as
+  it was in the parent bundle before its own #133 correction.
+  `source_ancestry_label` remains "European" as source provenance. No Store
+  artifact was rebuilt or rewritten. The recorded completion command keeps
+  `--ancestry European`, because that is what ran (opengwasdb#98).

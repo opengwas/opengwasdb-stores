@@ -168,31 +168,36 @@ See `docs/spec/store-release-workflow.md`.
 
 ## Phase B Operator Interface
 
-The candidate workflow (issue #153) is driven by the Manifest
-Generation entry point, `python3 -m manifest_generation.generate_candidate`
+Manifest Generation's one pipeline (issues #153, #287) is driven by its entry
+point, `python3 -m manifest_generation.generate_candidate`
 (`src/manifest_generation/generate_candidate.py`), exposed as one Pixi task. It
-runs any candidate-workflow config:
+runs any release config (`docs/spec/release-config.md`): freeze, preflight,
+prepare, resolve, verify, render and emit.
 
 ```sh
 pixi run generate-candidate OGS-00011 \
-  --config resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
-  --cores 64 \
-  --resume
+  --config resources/generators/gwas-catalog-eur-hybrid/release-eur-hybrid-full.yaml \
+  --cores 64
 ```
 
-See `resources/generators/gwas-catalog-eur-hybrid/README.md` for the stage
-(`--stage`), resume, finalise and human-review details. `workflow/generate.smk` wires the same stages as an optional coarse DAG
-for a future multi-release batch:
+See `docs/spec/store-release-workflow.md` for the stages (`--stage`), reuse,
+emit and human-review details. `workflow/generate.smk` wires the same stages as
+an optional coarse DAG for a future multi-release batch:
 
 ```sh
 snakemake --snakefile workflow/generate.smk --cores 64 \
   --config store_id=OGS-00011 \
-           config=resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
-           snapshot_id=gwas-catalog-ssf-eur-hybrid-2026-09-22 \
+           config=resources/generators/gwas-catalog-eur-hybrid/release-eur-hybrid-full.yaml \
+           snapshot_id=gwas-catalog-ssf-eur-hybrid-2026-10-20 \
            work_root=/data/opengwasdb/work/gwas-catalog-eur-hybrid \
            registry_root=stores
 ```
 
 The per-Analysis pool and checkpoints stay inside the resolver
 (`opengwasdb resolve-analyses`), so the DAG never loads a genome-scale reference
-once per Analysis.
+once per Analysis. Its records are kept in the Source Collection's Resolution
+Area under the resolution root (`resolution_root=<dir>`, default
+`OPENGWASDB_RESOLUTION_ROOT`, else `ogstores.yaml`) and shared by every
+Selection (#284); every run reuses them, so there is no resume switch. The
+`resolve` rule's output is the Work Root's resolution receipt. Store Release
+Build never reads the Resolution Area.

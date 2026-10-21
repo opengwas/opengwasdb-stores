@@ -28,7 +28,7 @@ workflow/generate.smk                      Phase B: coarse wiring for one candid
 resources/reference-resources/<id>/        resource.yaml
 resources/annotations/                     post-release curated metadata
 resources/generators/<family-id>/          Phase B
-resources/scripts/                         toolchains and repository tooling
+tools/                                     repository tooling, neither a package nor an input (ADR 0038)
 tests/
 ```
 
@@ -635,14 +635,13 @@ planning metadata only: it adds no Analysis and changes no `release.yaml`
 status, lineage or `analyses.tsv`, so it mints no new Store Release and rebuilds
 no primary data; building the derived namespace for an already-published Store
 is a deliberate capability-runtime run, not part of this migration.
-`resources/scripts/audit_indexed_subsets.py` (`pixi run
+`ogstores.audit_indexed_subsets` (`pixi run
 audit-indexed-subsets`) prints the full in-scope list and refuses a
 Dense-component bundle that is neither migrated nor explicitly opted out
 (`indexed_subsets: []`), and a Ragged-only bundle that declares a subset. It
 reads only `build.yaml` and the small resource declaration, so it runs in CI
-without the reference root. The unmigrated `families/*/releases/*` bundles are
-out of scope: they are unregistered, use the retired family-first schema, and
-are not planned by the workflow.
+without the reference root. Its scope is every registered Release Bundle under
+`stores/`, which since #252 is the only home for one.
 
 ### HM3 benchmark reporting
 
@@ -650,10 +649,10 @@ An Indexed Variant Subset is an optional derived artifact, so a routine release
 benchmark must be able to report a Store that has none without failing. That is
 the contract of opengwas/opengwasdb#272's shared
 `benchmarks._query_shapes.measure_hm3_extract`, and the registry-side report is
-`resources/scripts/release-benchmark-report.py` (stores#212, epic #214):
+`tools/benchmarks/release-benchmark-report.py` (stores#212, epic #214):
 
 ```text
-pixi run -e dev python <stores>/resources/scripts/release-benchmark-report.py \
+pixi run -e dev python <stores>/tools/benchmarks/release-benchmark-report.py \
   --opengwasdb-checkout /path/to/opengwasdb --all --hm3-only \
   --output docs/benchmark-output/opengwasdb_hm3_release_benchmark.json \
   --report docs/benchmark-output/opengwasdb_hm3_release_benchmark.md
@@ -664,7 +663,7 @@ core seam and records the core status verbatim: `measured` carries the timing
 and result count, and `missing`, `not_applicable` (Ragged-only) and
 `unsupported` are non-failing operational statuses. It never times a query or
 reimplements classification. Where a per-Store anchor exists
-(`resources/scripts/release-benchmark-anchors.yaml`) the core generic harness
+(`tools/benchmarks/release-benchmark-anchors.yaml`) the core generic harness
 surfaces the seven query shapes beside HM3; otherwise the shapes are marked
 `not_configured` and the run continues. Because the tracked pin predates the
 capability, the report is run against an explicit `--opengwasdb-checkout` and
@@ -771,7 +770,7 @@ child's id -- is refused rather than published.
 
 ### Readiness reconciliation (issue #217)
 
-`readiness.py` (driven by `resources/scripts/release_readiness.py`) renders a
+`readiness.py` (driven by `python3 -m ogstores.release_readiness`) renders a
 reconciliation view that separates manifest, admitted, excluded and intended
 bundle membership from what was actually published, and keeps each kind of
 evidence on its own channel: Release Status, source acquisition, intended
@@ -949,7 +948,7 @@ Their outputs also live in different places and are reviewed differently. Phase 
 | Phase A | *derived* from a declarative `build.yaml` by `plan()` | regenerable, CI-checkable, verified against `records/` |
 | Phase B | *not derivable* -- family-specific imperative code calling several scripts in sequence | must be **recorded as it runs** |
 
-`release.yaml` now holds `generator: {version, commands}` -- an executed command log (a list), because generation calls acquire, select, assign-ancestry, estimate-SD and emit in turn and a single command string is wrong as soon as more than one step runs (issue #136). The previous `generator.name` path and the `--config=families/...` argument pointed at files that no longer exist and were corrected in the same change. That is the per-store script that Phase A does not need, and it is a log rather than a prediction.
+`release.yaml` now holds `generator: {version, commands}` -- an executed command log (a list), because generation calls acquire, select, assign-ancestry, estimate-SD and emit in turn and a single command string is wrong as soon as more than one step runs (issue #136). The previous `generator.name` path and a family-first `--config=...` argument pointed at files that no longer exist and were corrected in the same change. That is the per-store script that Phase A does not need, and it is a log rather than a prediction.
 
 ### The five fixed rules
 
@@ -961,7 +960,7 @@ Their outputs also live in different places and are reviewed differently. Phase 
 
 **Acquisition is separate from selection.** Acquisition is per Source Collection and is the expensive resumable part. Selection is per Store Release. The Source Collection is a grouping string recorded on the release, not a directory (ADR 0028).
 
-**Every generator emits through one emitter** (#248, ADR 0035). `src/manifest_generation/emit.py` is the only code that writes a candidate into `stores/<id>/`. A Python generator builds a `CandidateBundle` and calls `emit()`. A legacy R or BESD generator keeps a family-shaped working bundle in its work root, `<artifact-root>/<output.store_id>/generate` (`paths.generation_dir`, reported by `python3 -m manifest_generation.emit work-root <id>`), and its `--mode=emit-registry` projects the current contract from that working bundle and the config's `build:` block (`manifest_generation.emit project`, called from R through `resources/generators/lib/emit_registry.R`). A directory rendered elsewhere can be emitted with `python3 -m manifest_generation.emit <id> --from <dir> --command ...`; anything a bundle does not hold is refused. No generator config names a `families/` path as output or work root; tracked inputs still under `families/` move with #252. The emitter:
+**Every generator emits through one emitter** (#248, ADR 0035). `src/manifest_generation/emit.py` is the only code that writes a candidate into `stores/<id>/`. A Python generator builds a `CandidateBundle` and calls `emit()`. A legacy R or BESD generator keeps a family-shaped working bundle in its work root, `<artifact-root>/<output.store_id>/generate` (`paths.generation_dir`, reported by `python3 -m manifest_generation.emit work-root <id>`), and its `--mode=emit-registry` projects the current contract from that working bundle and the config's `build:` block (`manifest_generation.emit project`, called from R through `resources/generators/lib/emit_registry.R`). A directory rendered elsewhere can be emitted with `python3 -m manifest_generation.emit <id> --from <dir> --command ...`; anything a bundle does not hold is refused. No generator config names a path outside `stores/` for the *emitted* bundle; a Work Root may be external, such as the artifact root's `<store-id>/generate`, the resolution root, or a `/data/opengwasdb/work/...` directory a release config declares. The emitter:
 
 - writes every YAML document in one style, with `status: candidate` and `generator.commands`, and refuses a rendered status or command log that disagrees;
 - stages the bundle under `stores/.staging/<id>/`, checks it against the Release Bundle contract with lineage resolved in the real registry, and writes `summary.yaml`;
@@ -992,14 +991,14 @@ A generator has the same shape as the build workflow: discover upstream, select 
 
 ### The Source Inventory seam
 
-Selection starts at a **frozen Source Inventory**, not at a glob over an acquisition mirror (issue #151). Acquisition writes a status manifest per pass; freezing merges the retry pass over the base pass, accounts every row against the candidate pool, and writes one row per discovered Analysis with its readiness status and the exact local source path. `resources/inventories/README.md` is the contract; `src/manifest_generation/source_inventory.py` owns the merge rule and the readiness vocabulary (`ok` and `already_present` are ready, nothing else is).
+Selection starts at a **frozen Source Inventory**, not at a glob over an acquisition mirror (issues #151, #283). A Source Collection's acquisition writes an **Acquisition Manifest** and its metadata adapter a **Source Metadata Table** ([source connectors](source-connectors.md)); the shared freeze reconciles the release config's **Selection** of the table against the manifest and writes the inventory, with both connector files' selected rows frozen beside it. `resources/inventories/README.md` is the contract; `src/manifest_generation/source_inventory.py` owns the readiness vocabulary (`ok` and `already_present` are ready, nothing else is).
 
-Two operator commands sit at this seam, and both are cheap:
+Two operator commands sit at this seam, both take a release config ([release config](release-config.md), #287), and both are cheap:
 
-- `pixi run inventory-freeze` turns acquisition output into the frozen snapshot plus a provenance sidecar recording the inputs' checksums, the per-status counts of each pass, and the duplicate-content groups awaiting review;
-- `pixi run preflight` re-derives the plan from a frozen snapshot and the release config — per-status counts, ready count/bytes and design split, planned method tier per study design, expected exclusions, duplicate groups, Reference Resource presence, requested cores, work root and free space — reading only the inventory, small per-Analysis metadata and filesystem metadata. It never opens an association body and never checksums the source corpus. This Phase B inventory-readiness gate is distinct from a Phase A **Preflight Run** (`CONTEXT.md`), which executes a representative subset within the production build workflow.
+- `pixi run inventory-freeze --config <release config>` writes the frozen snapshot, its frozen connectors and a provenance sidecar recording the Selection, both connectors' checksums and the duplicate-content groups awaiting review. It never overwrites a snapshot;
+- `pixi run preflight --config <release config>` re-derives the plan from a frozen snapshot and the release config — per-status counts, ready count/bytes and design split, planned method tier per study design, expected exclusions, duplicate groups, Reference Resource presence, requested cores, work root and free space — reading only the inventory, small per-Analysis metadata and filesystem metadata, and refusing a snapshot not frozen for the config's Source Collection and Selection, or whose frozen connectors are gone or no longer have the sha256 its provenance records, or whose frozen acquisition is not filtered to the config's region policy ([source connectors](source-connectors.md#region-filtered-acquisition)). It never opens an association body and never checksums the source corpus. This inventory-readiness gate is distinct from Store Release Build's preflight and from a **Rehearsal Run** (`CONTEXT.md`).
 
-A snapshot is frozen so membership cannot move underneath a proposal: re-freezing after further acquisition creates a new snapshot, and the config is repointed deliberately. Duplicate source content across accessions is reported for a human decision rather than collapsed.
+A snapshot is frozen so membership cannot move underneath a proposal: re-freezing after further acquisition, or for a changed Selection, creates a new snapshot id, and the config is repointed deliberately. Duplicate source content across accessions is reported for a human decision rather than collapsed.
 
 ### Who implements the statistics
 
@@ -1019,55 +1018,168 @@ Deferring instead -- building first and correcting the Store afterwards -- is no
 
 That CLI wiring is provided upstream by `estimate-phenotype-sd` ([opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176)), now available on `dev` and active via #106; Manifest Generation must invoke the upstream CLI command rather than keeping local estimation shims or per-family connectors. The previous `src/manifest_generation/phenotype_sd_estimate.py` was a 47-line shim taking JSON arrays on the command line, which forced each family to open source files and extract `se`/`af`/`beta` itself; that is how `resources/generators/lib/effect_scale_validation.R` grew to 562 lines, of which roughly 60 are the acceptance policy that genuinely belongs here and the rest re-implements reference-panel access and allele harmonisation `opengwasdb` already owns.
 
-### The resumable candidate workflow (issue #153)
+### The shared pipeline (issues #153, #287)
 
-The first implemented Phase B workflow is the EBI GWAS Catalog `hybrid__European`
-candidate generator. It is deliberately thin: it turns the frozen Source
-Inventory into a candidate Release Bundle by invoking OpenGWASDB for the
+Manifest Generation is one pipeline fed by source connectors (ADR 0036), first
+written for the EBI GWAS Catalog `hybrid__European` release (#153) and run for
+any release config since #287. It is deliberately thin: it turns a frozen
+Source Inventory into a candidate Release Bundle by invoking OpenGWASDB for the
 statistics, and it never builds, validates or registers a Store (ADR 0012,
 ADR 0017). One operator entry point runs every stage:
 
 ```sh
 pixi run generate-candidate OGS-00011 \
-  --config resources/generators/gwas-catalog-eur-hybrid/config-full.yaml \
-  --cores 64 \
-  --resume
+  --config resources/generators/gwas-catalog-eur-hybrid/release-eur-hybrid-full.yaml \
+  --cores 64
 ```
 
-The stages, and what they do not do:
+The stages, and what they do not do (`--stage <name>` runs one; a later stage
+run alone repeats the in-memory steps it needs, never `freeze`, `preflight` or
+`resolve`):
 
 | Stage | Reads | Writes | Never does |
 |---|---|---|---|
+| `freeze` | the release config's connector files and Selection | the frozen inventory, its frozen connectors and provenance, when absent; `<work-root>/<id>/freeze/<snapshot>.json` | overwrite a frozen snapshot, or accept one frozen for another Selection |
 | `preflight` | frozen inventory, provenance, config, filesystem metadata | `<work-root>/<id>/preflight/<snapshot>.json` | open an association body; checksum the corpus |
-| `prepare` | frozen inventory, candidate metadata table | `<work-root>/<id>/resolver/analyses.tsv` | reconstruct a source path or re-select membership |
-| `resolve` | the resolver manifest | `records/<analysis_id>.json`, `index.json`, `resolve.log` | load a reference, fork a worker, or compute ancestry/SD here |
-| `verify` | the resolver records | nothing | accept a missing, stale, duplicate or extra record |
-| `emit` | inventory, records, config | a staged bundle, then `stores/<id>/` | build, validate or accept a Store; write a non-`candidate` status |
+| `prepare` | frozen inventory, frozen Source Metadata Table | `<work-root>/<id>/resolver/analyses.tsv` | reconstruct a source path or re-select membership |
+| `resolve` | the resolver manifest | records in the Source Collection's Resolution Area; `<work-root>/<id>/resolver/{index.json,resolve.log,resolution_receipt.json}` | load a reference, fork a worker, or compute ancestry/SD here |
+| `verify` | the records the receipt names | nothing | accept a missing, stale, edited or duplicate record, or one outside the Selection |
+| `render` | records, frozen Source Metadata Table, the Canonical Trait Mapping Table, config | Trait Ontology Mapping, then the release policy, then `<work-root>/<id>/bundle/` | compute a statistic; write into `stores/`; carry files filtered to another region policy |
+| `emit` | the rendered bundle | a staged bundle, then `stores/<id>/` | build, validate or accept a Store; write a non-`candidate` status |
+
+Re-running a stopped run repeats nothing costly: `freeze` finds the frozen
+snapshot and `resolve` reuses every record whose fingerprint still matches.
 
 The resolver subprocess is `opengwasdb resolve-analyses` (opengwasdb#208). It
 owns the process pool, the single genome-scale reference load, and the atomic,
-fingerprint-aware per-Analysis checkpoints; `--resume` is passed to it, so a
-second run reuses every successful record whose fingerprint still matches and
-re-runs the rest. The registry pins that resolver by immutable commit in
-`pixi.toml` rather than vendoring it (ADR 0023).
+fingerprint-aware per-Analysis checkpoints. It parallelises by worker
+processes, so it runs with `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`,
+`MKL_NUM_THREADS` and `NUMEXPR_NUM_THREADS` set to 1 unless the operator has set
+them: unlimited, each worker's numerical libraries start a thread per core
+(#300). The registry pins that resolver by
+immutable commit in `pixi.toml` rather than vendoring it (ADR 0023).
+
+**`--resolver` is verification-only.** The hidden flag runs another resolver
+executable in place of the pinned one: the hermetic tests' fake resolver, or
+the resolver a past run's records were made with. The OGS-00011 regeneration
+(#287) used it to resume records whose fingerprints carry opengwasdb `a0656c0`
+while the pin was `4e92256`, which would otherwise re-resolve every Analysis. The
+receipt records the override (`resolver.override`: the executable's `path` and
+`sha256`, beside the version and git hash its index reported), and `emit`
+refuses such a receipt into the repository's own `stores/`: a verification run
+emits into a temporary `--registry-root`. A receipt into `stores/` must record
+`resolver.override: null`; one without the key -- written before #287, or
+stripped of it -- is refused there too, and re-running the `resolve` stage
+rewrites it while reusing every matching record. A relative `--resolver` path
+is resolved once, against the caller's working directory, and that absolute
+path is both the one run and the one recorded.
+
+**Resolution Records are kept per Source Collection (#284, ADR 0036).** A
+Resolution Record belongs to the Analysis, not to a Store Release, so a Trial
+Store Release, a full release and each ancestry split of one collection share
+them. The `resolve` stage resolves into the Source Collection's Resolution
+Area under the resolution root. The root is deployment configuration, resolved
+as the Artifact Root is: `--resolution-root`, else `OPENGWASDB_RESOLUTION_ROOT`,
+else `ogstores.yaml`'s `resolution_root` (`/data/opengwasdb/work/resolution`),
+else the same built-in default. A release config cannot name it
+(`output.resolution_root` is refused), so two releases over one collection
+always find the same area and the same lock.
+
+```text
+<resolution-root>/<source_collection_id>/       the Resolution Area
+  .lock                       flock held by the resolving run and its resolver
+  checkpoint/<settings-digest>/
+                              resolve-analyses' records directory for one set
+    <analysis_id>.json          of resolver settings: the latest record per
+    index.json                  Analysis, and the last run's index only
+  records/<analysis_id>/<fingerprint_digest>/<record_sha256>.json
+                              kept Resolution Records, write-once
+
+<work-root>/<store-id>/       this Store Release's Work Root
+  preflight/<snapshot>.json
+  resolver/analyses.tsv       this Selection's resolver manifest
+  resolver/resolve.log
+  resolver/index.json         the resolver's index for this run
+  resolver/resolution_receipt.json
+```
+
+- **Reuse is automatic, and the resolver decides it.** Every run invokes the
+  resolver with `--resume`; the candidate entry point has no switch for it and
+  refuses `--resume`. The resolver skips an Analysis whose existing successful
+  record carries the fingerprint this run would produce, and re-resolves one
+  whose file (path, checksum, size or mtime), references (ancestry reference
+  and its declared build, group map, extraction panel, Variant Reference,
+  reference-AF resources),
+  settings (method tier, sample size, gates, MAF and INFO requests) or tool
+  revision changed. A `controlled_failure` record is re-run on every run, as
+  the resolver has always done; nothing else is.
+- **One checkpoint per set of resolver settings.** A checkpoint holds one
+  record per Analysis. If one checkpoint served every setting, a Selection
+  resolved under other settings would evict another's records, and its next
+  run would re-resolve them into new records (the resolver's timings differ)
+  for an unchanged fingerprint, so two Stores could name different records of
+  one measurement. So the run resolves into `checkpoint/<settings-digest>/`. The
+  digest covers the flags `resolver_settings` passes (everything but the
+  manifest, records directory and worker count), the content checksum of each
+  file they name, and the installed resolver's identity; it is recorded in the
+  receipt as `resolver.settings_digest`. It is only a routing key: the
+  resolver still checks every Analysis's full fingerprint, so a setting the
+  digest misses causes a re-resolve, never a wrong reuse. Per-Analysis inputs
+  (file, method tier, sample size, MAF and INFO requests) are not in the
+  digest. Two Selections that disagree on them for one Analysis share a
+  checkpoint and re-resolve it, while the kept records of both survive.
+- **A record is kept, never replaced.** After accounting its records, a run
+  copies each of its Selection's records into `records/`, addressed by
+  fingerprint digest and checksum, through an exclusive temporary, a rename and
+  a directory sync. An existing kept file must hold the same bytes; a
+  difference is refused. A receipt never names a checkpoint file.
+- **One run at a time per collection.** A checkpoint's `index.json` is one file
+  and its records are written in place, so two runs sharing an area would
+  interleave. The `resolve` stage takes an exclusive, non-blocking `flock` on
+  `.lock` and refuses a second run at once, quoting the holder. The locked
+  descriptor is handed to the resolver subprocess, so the lock is held until
+  both the run and its resolver have exited: a killed run cannot let another
+  run interleave with its still-running resolver. Nothing removes the lock
+  file; the kernel releases the lock when the last holder exits. The area must
+  live on a filesystem that honours `flock` across every host running
+  Manifest Generation: a local filesystem, or NFS with locking. `/data` on the
+  generation host is XFS (`stat -f -c %T /data`), a local filesystem. `verify`
+  and `emit` read only kept records and take no lock.
+- **Store Release Build reads nothing here.** A record reaches a Store only
+  through the emitted bundle; `tests/packaging/test_boundary.py` refuses any
+  reference to the Resolution Area from `src/ogstores`, `workflow/Snakefile`
+  or `workflow/release.py`.
 
 **Canonical resolver manifest.** The manifest is derived from the frozen
 inventory's *exact* `data_file` paths — no filename is reconstructed from an
 accession — with the per-design method tier from `defaults.by_study_design` and
-the resolved total N from the candidate table the freeze already checksums. The
-candidate table is the metadata resolver's output (`resources/scripts/ebi-studies.r`),
-so reading it is a join on an already-frozen selection, never a second selection:
-membership is still the inventory's.
+the total N from the Source Metadata Table frozen beside the inventory, which
+the provenance checksums (#287). Every per-Analysis metadata value the bundle
+carries comes from that frozen table, with the release config's `defaults`
+filling the collection-wide ones (`source_genome_build`, `license`,
+`publication_doi`, `consortium`) where a cell is blank. Each manifest row
+declares that `source_genome_build`, and the resolver is passed the Ancestry
+Reference Panel's `genome_build` from its `resource.yaml` as
+`--reference-build`: the pinned resolver takes no build on trust
+(opengwasdb#277), so a missing one is refused rather than guessed, and no
+`--source-build` fallback is passed. Reading the table is a join on an
+already-frozen Selection, never a second selection: membership is still the
+inventory's. An inventory frozen without its connectors (the pre-#283
+candidate-table freeze) is refused.
 
-**Record accounting.** Finalisation fails before anything replaces a prior
-candidate when a selected Analysis has no record, when a record names an
-Analysis the manifest does not, when a record appears twice, when a record
-declares a `record_schema_version` this registry does not finalise, or when a
-record's source checksum/size/file, method tier and reader capability no longer
-match the manifest that was resolved. The fingerprint digest is recomputed over
-the record's own inputs, and the source file's recorded size/mtime are re-checked
-against disk, so an edited, replaced or stale record is caught. This is the
-"wrong answer that looks like a right answer" guard applied to membership.
+**Record accounting.** `verify` fails, and `emit` refuses before anything
+replaces a prior candidate, when a selected Analysis has no record, when the
+receipt names a record for an Analysis outside the Selection's manifest, when
+an Analysis appears twice, when a kept record's bytes no longer match the
+checksum the receipt bound, when a record declares a `record_schema_version`
+this registry does not accept, or when a record's source checksum/size/file,
+method tier and reader capability no longer match the manifest that was
+resolved. Records in a shared checkpoint for Analyses outside the Selection
+belong to other Selections and are not a failure. The fingerprint digest is
+recomputed over the record's own inputs, and the source file's recorded
+size/mtime are re-checked against disk, so an edited, replaced or stale record
+is caught. This is the "wrong answer that looks like a right answer" guard
+applied to membership.
 
 **Resolution receipt.** A record's self-digest only proves it is internally
 consistent. A record produced under different gates, ancestry reference or
@@ -1075,25 +1187,78 @@ fine-group map, extraction panel, reference-AF resources or resolver revision
 still recomputes a valid self-digest, so a standalone `verify`/`emit` that only
 recomputed it could freeze a stale Analysis. After a successful resolver
 invocation the `resolve` stage therefore atomically writes
-`<work-root>/<id>/resolver/resolution_receipt.json`: the resolver manifest's
-checksum, the registry-recomputable slice of the resolution contract (declared
-gates, MAF floor, reader capability, extraction panel, ancestry
-reference/group-map and reference-AF resource content fingerprints), the
-installed resolver's content identity, the actual `opengwasdb resolve-analyses`
-argv, and every `analysis_id` bound to the fingerprint digest the resolver wrote
-for it. Standalone `verify`/`emit` recompute the contract from the current
-config, references and installed tool and require it to equal the receipt, and
-require every record digest to match the receipt; a `--stage emit` without a
-prior successful `resolve` fails rather than trusting hand-assembled records.
-The registry never re-derives the resolver's statistics; it binds and re-checks
-the inputs that determine them. Core count and `--resume` are recorded as
-evidence but are not part of the contract, so neither changes it.
+`<work-root>/<id>/resolver/resolution_receipt.json` (`receipt_schema_version`
+2), with exactly these keys:
+
+- `manifest_sha256` and `analysis_ids`: the resolver manifest's checksum and
+  the Selection's Analyses in manifest order;
+- `resolver`: the actual `opengwasdb resolve-analyses` argv, the settings
+  digest, the opengwasdb version and git hash its index reported, and
+  `override`: null, or the `path` and `sha256` of a `--resolver` executable
+  that ran instead of the pinned one;
+- `contract`: the registry-recomputable slice of the resolution contract
+  (declared gates, MAF floor, reader capability, extraction panel, ancestry
+  reference/group-map and reference-AF resource content fingerprints, and the
+  installed resolver's content identity);
+- `resolution_area`: the Source Collection's Resolution Area, an absolute path;
+- `records`: for every `analysis_id`, the kept Resolution Record it was decided
+  from, as `fingerprint_digest`, `record_sha256` and `record` (its path in the
+  area);
+- `receipt_schema_version` and `record_schema_version`.
+
+A receipt with a missing or unknown key, a missing or relative
+`resolution_area`, or a malformed record entry is refused; the accepted key set
+is the constant `RECEIPT_KEYS`, which a new key extends explicitly. The receipt
+names exactly the Selection's records, whether this run resolved or reused
+them. Standalone `verify`/`emit` recompute the contract from the current
+config, references and installed tool and require it to equal the receipt, read
+exactly the records it names, and require each record's checksum and digest to
+match it; a `--stage emit` without a prior successful `resolve` fails rather
+than trusting hand-assembled records. The registry never re-derives the
+resolver's statistics; it binds and re-checks the inputs that determine them.
+Core count and the resolution root are recorded as evidence but are not part
+of the contract, so neither changes it.
+
+Receipts written before #284 (`receipt_schema_version` 1) bound records in the
+Store Release's own Work Root, `<work-root>/<id>/resolver/records/`. They remain
+the provenance of the candidates they produced: each emitted `release.yaml`
+records its receipt's path and checksum in `source_snapshot.resolver_receipt`,
+and nothing in Store Release Build reads them. This registry refuses to verify
+one again, by name, rather than misreading it; a regeneration re-runs `resolve`.
+To spare that run the work, an operator may first copy the old Work Root's
+`resolver/records/<analysis_id>.json` files (not its `index.json`) into the
+checkpoint the run will use, `checkpoint/<settings-digest>/`, while no run holds
+the lock. `python3 -m manifest_generation.resolution_area_import --config
+<release config> --source <old records directory>` does that for one or more
+such directories (#290): it routes the records to the checkpoint the config's
+resolver settings select, writes each atomically, keeps each through the area's
+write-once path, and refuses, by name, a record that is not one the run could
+have written (#290 review). The run's own evidence must be present and must
+corroborate the record: a run with no `index.json`, a run with no receipt in the
+Work Root's sibling `receipt/`, or an index naming no Analysis is refused, never
+treated as nothing to check. A record must be named by that index, its
+measurements (`assigned_ancestry`, `gate_reason`, `status`, `original_sd` and
+`original_sd_method`, and its file name) must be the ones the index recorded,
+and, when the receipt binds per-record sha256 (`record_digests`), its bytes must
+match too. It must also be an Analysis of the Source Collection's checksummed
+intent, its fingerprint must digest to the value it stores, and the
+`source_file`/`source_recorded_sha256`/`source_recorded_bytes` it bound must be
+the ones the collection's Acquisition Manifest records. Only a successful record
+is seeded; a failed one would claim a measurement it does not have. The digest is
+`resolver_settings_digest(resolver_settings(config))` in
+`manifest_generation.candidate_workflow`. The resolver resumes each record whose
+fingerprint still matches, and re-resolves the rest, exactly as it would its own.
 
 **Release policy and controlled exclusions (issue #152).** The registry, not the
 resolver, decides membership. A ready Analysis whose Assigned Ancestry is not
-the release's target (`EUR`), is unassigned, or was gated out on an EAF
+the super-population the Selection expects (`release_policy.selection_superpopulation`,
+`EUR` for OGS-00011), is unassigned, or was gated out on an EAF
 orientation failure is excluded; a quantitative Analysis on the computable
-`estimated_from_source_maf` tier whose phenotype SD is unavailable is excluded;
+`estimated_from_source_maf` tier whose phenotype SD is unavailable is excluded,
+while one whose tier declares its scale (`declared_standardised`, Sun 2018) has
+no SD to estimate -- the resolver reports `scale_already_declared`, the
+`phenotype_sd` check is `not_applicable`, and it is included with `original_sd`
+blank (#300);
 a resolver `controlled_failure` is excluded. Each excluded row stays in
 `analyses.tsv` with `exclude_from_build: true` and a machine-checkable reason in
 `inclusion_reason`, and is explained in `sidecars/exclusions.tsv`. The
@@ -1123,6 +1288,9 @@ stores/OGS-00011/
     exclusions.tsv          # one row per excluded selected Analysis, with its reason
     reference_overlap.tsv   # one row per selected Analysis
     quality_checks.tsv      # one row per selected Analysis: every Quality Check's result
+    analysis_targets.tsv    # only when Analyses have molecular targets: one row per targeted Analysis (#300)
+    sparse_regions.tsv      # only for a region-filtered release: its filtering's plan, from acquisition (#300)
+    filter_summary.tsv      # only for a region-filtered release: one row per filtered file, from acquisition (#300)
 ```
 
 **Determinism and atomicity.** Aggregation is ordered by the frozen inventory,

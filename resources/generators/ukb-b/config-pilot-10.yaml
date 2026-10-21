@@ -21,7 +21,7 @@ source:
   source_snapshot_id: opengwas-api-r2026-08-10
 
 inputs:
-  candidates: families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv
+  candidates: resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv
 
 defaults:
   source_genome_build: GRCh37

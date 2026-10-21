@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """GWAS Catalog metadata adapter: candidate table -> Source Metadata Table (#283, ADR 0036).
 
-``resources/scripts/ebi-studies.r`` curates the GWAS Catalog studies into a
+``ebi-studies.r``, beside this module, curates the GWAS Catalog studies into a
 candidate table (``STUDY.ACCESSION``, ``DISEASE.TRAIT``, ``MAPPED_TRAIT_URI``,
 ``store_key``, ...), one row per full-summary-statistics Analysis. This adapter
 converts that table, as written, into the canonical Source Metadata Table the

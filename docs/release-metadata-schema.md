@@ -34,6 +34,7 @@ stores/OGS-00042/
   summary.yaml      generated review view derived only from analyses.tsv
   validation.yaml   evidence, written back by the register step
   sidecars/         optional generated evidence (ancestry, SD, sparse regions)
+  column_maps/      the Column Map a mapped Source Collection is read through
 ```
 
 The `store_id` is the opaque `OGS-` identifier (ADR 0022). It is the directory
@@ -261,7 +262,24 @@ authority name standing in for the label: gene/target identity is annotation
 (`analysis_label` for a single-target Analysis; `trait_chr`/`trait_bp` and the
 target sidecar for the target itself). `bundle.check()` rejects a gene- or
 protein-shaped `trait_ontology_id` (Ensembl, HGNC, Entrez/NCBI Gene, UniProt)
-and the matching authority name in `trait_ontology_label` (issue #141).
+and the matching authority name in `trait_ontology_label` (issue #141). It
+checks each term of a list, so a gene identifier cannot hide behind an ontology
+term. The label is checked whole and never split, because a term's own label
+may contain a comma (`osteoarthritis, hip`).
+
+One split rule serves the contract and Manifest Generation alike
+(`trait_ontology_id_terms`): split on every comma and strip each part. A value
+is in canonical form only when its parts are all CURIEs and rejoining them with
+`", "` gives the value back, so `EFO:1,EFO:2`, padding and empty terms are
+refused.
+
+`bundle.check()` also rejects a `trait_ontology_id` term that is not a CURIE,
+such as a raw `http://` URI (#286). `OGS-00011` was accepted before this check
+with GWAS Catalog's raw EFO and ORDO URIs in 2,972 rows. An accepted bundle is
+never rewritten, so those values are tolerated for that release by name
+(`LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES`) and reported on `check()`'s
+second channel with their count. Every other bundle, buildable or not, is held
+to the CURIE form.
 
 ### Column reference
 
@@ -272,10 +290,10 @@ and the matching authority name in `trait_ontology_label` (issue #141).
 | `source_label` | Yes | Upstream trait or phenotype label preserved as source provenance. Registry-only; kept separate from `analysis_label` even when both hold the same source text. |
 | `analysis_label` | Yes | Free-text, non-unique display label for the Analysis, carried into the built store. Typically the same source text as `source_label`; for a single-target gene-centric Analysis it is the resolved gene symbol, and for an aggregate assay it is the SomaScan SeqId, SomaLogic's stable assay identifier (issue #141). |
 | `trait_ontology_label` | No | Human-readable label of the ontology term itself that `trait_ontology_id` identifies, exactly as the defining ontology or controlled vocabulary names it — for example `carnitine measurement` (`EFO:0010469`) or `multiple sclerosis` (`MONDO:0005301`). It is never an identifier-authority or vocabulary label such as `Ensembl`, `EFO`, `MONDO`, or `OBA`: those name the vocabulary, not the Trait, and `bundle.check()` rejects an authority-name label (issue #141). Named `trait_ontology_name` before OpenGWASDB ADR 0034. |
-| `trait_ontology_id` | No | Ontology or controlled-vocabulary identifier for the analysed Trait, when available. CURIE format, for example `EFO:0001073`; blank when unmapped. Never a gene or protein identifier: `bundle.check()` rejects Ensembl, HGNC, Entrez/NCBI Gene, and UniProt identifiers, bare or authority-qualified (issue #141). Not required to be unique. |
+| `trait_ontology_id` | No | Ontology or controlled-vocabulary identifier for the analysed Trait, when available. CURIE format, for example `EFO:0001073`, `OBA:VT0001253` or `Orphanet:101960`; blank when unmapped. When the source maps the Trait to several terms, the CURIEs are joined by exactly `", "` in the source's order (`MONDO:0005150, EFO:1001492`), and `trait_ontology_label` keeps the source's label verbatim: labels are not split per term, because a term's own label may contain a comma (#286). Never a URI. Never a gene or protein identifier: `bundle.check()` rejects Ensembl, HGNC, Entrez/NCBI Gene, and UniProt identifiers, bare or authority-qualified (issue #141). Not required to be unique. |
 | `trait_ontology_mapping_method` | Yes | Controlled value describing how `trait_ontology_id`/`trait_ontology_label` were resolved: `source_provided`, `canonical_table_lookup`, or `unmapped`. The #130 `external_authority_lookup` value is retired: gene/target identity is annotation, not a Trait Ontology Mapping (issue #141). Registry-only. |
 | `source_file` | Yes | Source file or filtered source file consumed by the builder. Omitted in legacy monolithic BESD releases (`OGS-00001` and `OGS-00002`), where source identity is currently recorded only as an unverified path prefix (a known integrity gap tracked in issue #134). |
-| `source_reader_capability` | No | The OpenGWASDB reader that consumes `source_file` (for example `opengwasdb.gwas-ssf`). The builder reads it per row and falls back to the Build Recipe's `source-reader-capability` when absent. Required on any row with a numeric `info_score_threshold`. |
+| `source_reader_capability` | No | The OpenGWASDB reader that consumes `source_file` (for example `opengwasdb.gwas-ssf`). The builder reads it per row and falls back to the Build Recipe's `source-reader-capability` when absent. Required on any row with a numeric `info_score_threshold`. `opengwasdb.column-map` reads the row through the bundle's Column Map, which the Build Recipe must then bind; see "Column Map binding". |
 | `source_bundle_id` | No | Identifier for a multi-file Source Bundle when one file is insufficient. |
 | `checksum` | Yes | Checksum for `source_file` or source bundle manifest. Omitted in legacy monolithic BESD releases (`OGS-00001` and `OGS-00002`; known integrity gap tracked in issue #134). When both `checksum` and `checksum_algorithm` are present, `bundle.check()` validates the digest length for `md5` (32), `sha1` (40), or `sha256` (64) hex; an unsupported algorithm is rejected. |
 | `checksum_algorithm` | Yes | Algorithm used for `checksum`, for example `sha256`. |
@@ -322,7 +340,7 @@ therefore also carry `source_reader_capability` = `opengwasdb.gwas-ssf`. The
 Phase B candidate generator writes that column on every row.
 
 For the Phase B GWAS Catalog EUR Hybrid candidate generator, a separate optional
-`source.imputation_score_declarations` TSV supplies explicit, independently
+`release_policy.imputation_score_declarations` TSV supplies explicit, independently
 sourced per-Analysis score semantics to the **resolver input**. Its exact
 headers are `analysis_id`, `imputation_score_column`,
 `imputation_score_kind`, `imputation_score_provenance`; kinds are
@@ -341,7 +359,7 @@ entirely.
 The MAF floor is a `defaults.maf_threshold` release decision applied per
 Analysis: an Analysis is exempt (and emits `NaN`) when its source metadata
 YAML's `genotyping_technology` list is non-empty and every technology is in
-`source.maf_filter_exempt_genotyping_technologies`; missing technology
+`release_policy.maf_filter_exempt_genotyping_technologies`; missing technology
 metadata is never an exemption. The resolver manifest carries the derived
 `maf_threshold` per Analysis and the resolver record's `maf_state` plus its
 fingerprint binding decide the emitted candidate value, exactly as for INFO.
@@ -358,17 +376,22 @@ membership decision and only at emit, so toggling it needs `--stage emit` and
 never a re-resolve. See
 [ADR 0033](adr/0033-shared-stores-admit-only-maf-filtered-analyses.md).
 
-Some generators add release-specific columns beyond this table, such as the
-`gwas-ssf-ragged` generator's single-gene-target columns (`trait_chr`,
-`trait_bp`, `n`, `mhc`, `target_resolution_method`, `n_target_rows`) for
-proteomics releases whose Analyses each have one resolvable encoding gene. A
-release with no such target (for example small-molecule metabolomics, issue
-#26) omits these columns entirely rather than filling them with placeholder or
-`NA` values — their absence is how a reviewer tells the two shapes apart. These
-columns remain release-specific with no shared-core equivalent.
+A release whose Analyses each measure one molecular target -- proteomics,
+such as Sun 2018's SomaScan pQTLs -- adds the target columns `trait_chr`,
+`trait_bp`, `mhc`, `target_resolution_method` and `n_target_rows`, rendered
+from the Source Metadata Table's target annotation (#300; the retired R
+`gwas-ssf-ragged` generator also wrote `n`). A release with no such target (for
+example small-molecule metabolomics, issue #26) omits these columns entirely
+rather than filling them with placeholder or `NA` values — their absence is how
+a reviewer tells the two shapes apart. `tissue` and `context` likewise appear
+only in a release that declares them. These columns remain release-specific
+with no shared-core equivalent.
 
-The target-resolution sidecar retains the source trait mapping and raw Ensembl
-fields as evidence; they are not duplicate Analysis columns.
+The target sidecar, `sidecars/analysis_targets.tsv`, lists each targeted
+Analysis's target annotation (assay, gene symbol and Ensembl id, span, MHC
+flag, whether the assay is an aggregate, how the target was resolved); it is
+evidence, not duplicate Analysis columns. Bundles emitted by the R generator
+carry its wider form, with the raw SomaScan and Ensembl fields.
 
 ### Accepted build rows
 
@@ -450,6 +473,7 @@ registry fact or an `opengwasdb` flag. It does not record *where* artifacts land
 | `build.options` / `complete.options` | No | `opengwasdb` flag names passed through verbatim; see "The passthrough rule". |
 | `post` | Yes | Post-processing choices: `top_hits`, `rho`, `overview`, `validate`. `rho` defaults off and `validate` defaults on (`plan.POST_DEFAULTS`); a recipe states only what it chooses differently. `top_hits` and `overview` are always explicit because they vary per release. |
 | `indexed_subsets` | No | Optional named Indexed Variant Subset declarations (stores #209, epic #214). A list of `{name, resource_id, variant_list, reference_assembly, checksum?, options?}`. Dense and Hybrid only; a Ragged release rejects any declaration. Every declaration adds one `build-indexed-subset` Step before `overview` and `validate`. See "Indexed Variant Subset declarations". |
+| `column_map` | When an Analysis reads through `opengwasdb.column-map` | The Column Map binding `{name, sha256, file}` (#292), with no `file` for a built-in map. Required exactly when an `analyses.tsv` row names `opengwasdb.column-map`, or leaves its reader blank under a recipe `source-reader-capability` of `opengwasdb.column-map`. See "Column Map binding". |
 
 A Build Recipe must **not** declare an `artifacts` block: `bundle.check()`
 rejects it, because the artifact root is deployment configuration (issue #126).
@@ -569,6 +593,86 @@ point needs no `PATH` overlay. See
 [ADR 0034](adr/0034-indexed-variant-subsets-in-release-planning.md) and the
 workflow specification's "Indexed Variant Subsets".
 
+### Column Map binding
+
+A tabular Source Collection read through OpenGWASDB's generic tabular reader
+has a **Column Map**: a TOML file declaring which provider column supplies each
+field and the collection's conventions (opengwasdb ADR 0063). ADR 0036 has it
+travel in the Release Bundle, checksummed, so Analysis Resolution and Store
+Release Build read every file the same way (#292).
+
+An Analysis **reads through a Column Map** when its `source_reader_capability`
+is `opengwasdb.column-map`. A row that leaves `source_reader_capability` blank,
+or has no such column, inherits the Build Recipe's
+`build`/`complete` `options.source-reader-capability`. Both values are compared
+with surrounding whitespace stripped. A bundle with at least one such Analysis
+is **mapped**. A recipe default of `opengwasdb.column-map` does not map a
+bundle whose every row names its own reader. A mapped bundle's Build Recipe
+binds exactly one map, since files that need different maps belong to different
+Source Collections:
+
+```yaml
+column_map:
+  name: dbgap-phs002453-mvp-gia
+  sha256: 3f0c...e9a1   # 64 lower-case hex characters
+  file: dbgap-phs002453-mvp-gia.toml
+```
+
+| Field | Required | Description |
+|---|---:|---|
+| `name` | Yes | The map's own `name`, as its TOML declares it. Any non-empty string, as OpenGWASDB accepts. |
+| `sha256` | Yes | The sha256 of the map file's bytes, as 64 lower-case hex characters. |
+| `file` | Yes, except for a built-in | The file the bundle carries the map in, under `column_maps/`. A file name, not a path: the Indexed Variant Subset grammar `[A-Za-z0-9][A-Za-z0-9._-]{0,127}` with no `..`, ending `.toml`. |
+
+`name` and `sha256` are the fingerprint OpenGWASDB records in a mapped
+Resolution Record (`resolution_config.column_map`) and in a mapped Store's
+`manifest.json` (`provenance.column_map`). The three can therefore be compared
+field for field. `file` is kept apart from `name` so that a map's name never
+has to be a safe file name.
+
+**Built-in maps.** OpenGWASDB ships two maps, `gwas-ssf` and `finngen-r13`.
+A binding with no `file` names one of them, and the bundle carries nothing for
+it, because the pinned OpenGWASDB package holds the bytes. Its `sha256` records
+the built-in's checksum as the Resolution Records report it. A binding with no
+`file` and any other `name` is refused. A carried copy of a built-in, bound with
+a `file`, is an ordinary carried map. A bundle whose rows use the dedicated
+readers `opengwasdb.gwas-ssf` or `opengwasdb.finngen-r13` is not mapped and
+needs neither a binding nor a file. That covers every bundle registered before
+#292.
+
+`bundle.check()` (`_check_column_map`) refuses, reporting every one it finds in
+one pass:
+
+- a mapped bundle whose Build Recipe binds no `column_map`;
+- a binding in a bundle that is not mapped: a map no Analysis reads through;
+- a bound `file` the bundle does not carry at `column_maps/<file>`, or one that
+  is a symbolic link or not a regular file;
+- a carried map whose bytes do not hash to the bound `sha256`;
+- any other entry in `column_maps/`: a carried map that is not bound;
+- a `column_maps` that is a symbolic link or not a directory;
+- a malformed binding: not a mapping, `null` (omit the key to bind none), an
+  unknown key, an empty `name`, a `sha256` that is not 64 lower-case hex
+  characters, a `file` outside the grammar, or no `file` with a `name` that is
+  not a built-in;
+- `column-map` in `build.options` or `complete.options`. The flag will be
+  composed from the checksummed binding, never passed through around it.
+
+The contract checks a carried map **shallowly**. It must be UTF-8 TOML with a
+`column_map_version` and a `name` equal to the binding's. Its full validation,
+covering fields, conventions and refusals, belongs to OpenGWASDB, which applies
+it at Analysis Resolution and at every build that reads through the map. The
+contract does not copy those rules.
+
+A built-in binding's `sha256` must be that of the map file the pinned
+OpenGWASDB ships: `bundle.check()` takes the built-in names, and each file's
+checksum, from `opengwasdb.readers.column_map` and refuses any other value,
+naming both.
+
+Store Release Build does not yet pass the map to OpenGWASDB, although the
+pinned `opengwasdb` now has the Column Map reader (opengwasdb#281). The rest of
+#292 part 2 follows: `--column-map` on resolution and on every build command,
+and a changed map making its Resolution Records stale.
+
 ### The passthrough rule
 
 `options` keys are `opengwasdb` flag names. `plan()` renders `key: value` as
@@ -680,6 +784,11 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `store_composition.unfiltered_included_off_reference_rows` | No | Sum of those Analyses' build-eligible rows off the variant reference, or `null` when no `variant-reference` is declared or any counted Analysis lacks the resolver count. |
 | `store_composition.unfiltered_routed` | No | Number of Analyses excluded as `not_maf_filtered`. |
 | `store_composition.unfiltered_routed_off_reference_rows` | No | The same off-reference sum for the routed Analyses, or `null` under the same absence rule. |
+| `trait_ontology_mapping` | No | The Trait Ontology Mapping step's evidence (Manifest Generation record, #286). |
+| `trait_ontology_mapping.canonical_trait_mapping_table` | No | The Canonical Trait Mapping Table the run read: `resource_id`, `version` (from its `resource.yaml`), `location`, `sha256` of the table file, and `rows`. |
+| `trait_ontology_mapping.method_counts` | No | Analyses per `trait_ontology_mapping_method`: `source_provided`, `canonical_table_lookup`, `unmapped`. |
+| `trait_ontology_mapping.source_id_without_label` | No | How many `source_provided` mappings carry a source term with no label. They are kept; the count is for review. |
+| `trait_ontology_mapping.rejected_source_terms` | No | Each source term the #141 guards rejected: `analysis_id`, `source_trait_ontology_id`, `source_trait_ontology_label` and `reason`. Empty when none was rejected. |
 | `quality_checks` | No | The candidate's Quality Check summary (Manifest Generation record, #285; [ADR 0036](adr/0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.md)): one entry per check, keyed by its name. Per-Analysis results are in the [Quality Check sidecar](#quality-check-sidecar). |
 | `quality_checks.<check>.kind` | No | `exclusion` or `warning`, as the check declares it. |
 | `quality_checks.<check>.stage` | No | The precedence slot where a failed exclusion takes effect: `resolved`, `ancestry_read`, `selection` or `target_ancestry` (see the sidecar). |
@@ -687,9 +796,9 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `quality_checks.<check>.threshold` | No | The threshold this release applied, or `null` for a check that tests a status. |
 | `quality_checks.<check>.default_threshold` | No | The shared default, or `null`. |
 | `quality_checks.<check>.overridden` | No | `true` when the generator config's `quality_checks` block overrode the default. |
-| `quality_checks.<check>.results` | No | How many Analyses had each result: `passed`, `failed`, `not_applicable`, `unmeasured`, `invalid`. |
+| `quality_checks.<check>.results` | No | How many Analyses had each result: `passed`, `failed`, `not_applicable`, `unmeasured`, `invalid`, `warning`. |
 | `quality_checks.<check>.excluded` | No | For an exclusion: how many Analyses it excluded. An Analysis that failed it after an earlier rule excluded it is counted under `results.failed` only. |
-| `quality_checks.<check>.warned` | No | For a warning: how many included Analyses failed it. Each warning check that warned also adds one line to `warnings`. |
+| `quality_checks.<check>.warned` | No | For a warning: how many included Analyses failed it. Each warning check that warned also adds one line to `warnings`. For an exclusion that may warn (`assigned_ancestry`, #287): how many included Analyses had a `warning` result. |
 | `reports` | No | URIs or paths to detailed reports. A Phase B record points at its sidecars; `register` writes no top-level `reports` (#195). |
 | `warnings` | No | List of non-blocking warnings. In a `register`-written record, exactly the `warnings` list `opengwasdb validate --format json` printed for this run. Reference-AF effect-scale warnings should name the Analysis and reason, for example low reference-AF overlap, an allele mismatch, unstable implied SD, a missing reference resource for the assigned ancestry, or scale inconsistency versus the declared effect scale. |
 | `errors` | No | List of blocking errors. In a `register`-written record, exactly the `errors` list `opengwasdb validate --format json` printed for this run. |
@@ -847,7 +956,7 @@ records the finding. Every registered check is evaluated for every Analysis.
 | `analysis_id` | Yes | Registry Analysis ID matching `analyses.tsv`. |
 | `exclude_from_build` | Yes | `true` when the Analysis is an audit row, empty when included; as in `analyses.tsv`. |
 | `exclusion_reason` | No | The reason that decided the exclusion, whether a Quality Check's or release policy's; empty when included. |
-| `<check>` | Yes | The check's result, one of: `passed`; `failed`; `not_applicable`, the check does not apply to this Analysis (a phenotype SD on a `log_or` scale), decided before anything is measured, so it wins over `unmeasured`; `unmeasured`, there is no measurement to test (a record check without a successful Resolution Record); `invalid`, the measurement breaks its contract (an unknown `eaf_orientation`, a non-numeric SD), recorded on an Analysis an earlier rule already excluded. |
+| `<check>` | Yes | The check's result, one of: `passed`; `failed`; `not_applicable`, the check does not apply to this Analysis (a phenotype SD on a `log_or` scale), decided before anything is measured, so it wins over `unmeasured`; `unmeasured`, there is no measurement to test (a record check without a successful Resolution Record); `invalid`, the measurement breaks its contract (an unknown `eaf_orientation`, a non-numeric SD), recorded on an Analysis an earlier rule already excluded; `warning`, an exclusion check's measurement fails its test but a policy the release declared keeps the Analysis and records the finding (only `assigned_ancestry`, below). |
 | `<check>_measured` | No | The measurement the result is based on, as the check renders it; empty when there is none. |
 
 The `<check>` column pairs follow the registry's order. The built-in checks are:
@@ -855,9 +964,9 @@ The `<check>` column pairs follow the registry's order. The built-in checks are:
 | Check | Kind | Stage | Measures | Default threshold | Fails when | Reasons |
 |---|---|---|---|---|---|---|
 | `build_eligible_rows` | exclusion | `resolved` | the record's `diagnostics.build_eligible_rows` (rows with a finite effect and positive standard error, after any INFO and MAF floor); `unmeasured` when absent, `invalid` when not a non-negative integer | `1` (minimum rows) | fewer rows than the threshold | `no_build_eligible_rows` |
-| `effect_placeholder_rows` | exclusion | `resolved` | the reviewed `source.effect_placeholder_exclusions` listing, because OpenGWASDB does not count placeholder rows yet (ADR 0036, clarified by #285); `_measured` is the listing's reason, or `not_listed` | none | the Analysis is listed | `effect_placeholder_rows` |
+| `effect_placeholder_rows` | exclusion | `resolved` | the reviewed `release_policy.effect_placeholder_exclusions` listing, because OpenGWASDB does not count placeholder rows yet (ADR 0036, clarified by #285); `_measured` is the listing's reason, or `not_listed` | none | the Analysis is listed | `effect_placeholder_rows` |
 | `eaf_orientation` | exclusion | `ancestry_read` | the record's `ancestry.eaf_orientation`, `gate_reason` and `eaf_orientation_r`; `passed` and `unverified` pass, no outcome is `unmeasured`, a value outside the vocabulary `invalid` | none | `eaf_orientation = failed` or `gate_reason = eaf_orientation` | `orientation_failure` |
-| `assigned_ancestry` | exclusion | `selection` | the record's `ancestry.assigned_ancestry` against the Selection's super-population (from `source.ancestry_group`, today `EUR`) | none | no assignment, or not a super-population code (`ancestry_unassigned`); a different super-population (`ancestry_not_eur`) | `ancestry_unassigned`, `ancestry_not_eur` |
+| `assigned_ancestry` | exclusion | `selection` | the record's `ancestry.assigned_ancestry` against the Selection's super-population (`release_policy.selection_superpopulation`, `EUR` for OGS-00011). A record showing no allele frequency (under a MAF request, `diagnostics.maf_rows_missing` equal to `canonical_rows_observed`, with `ancestry_sites` 0) is unmeasurable: with `release_policy.trust_source_ancestry_without_af` its Source Metadata Table `source_superpopulation` stands in, and matching the Selection is a `warning` result (Ancestry Assignment Method `source_trusted_no_af`, #287) | none | no assignment, or not a super-population code, or unmeasurable without the opt-in or a source super-population (`ancestry_unassigned`); a different super-population, measured or trusted (`ancestry_not_eur`) | `ancestry_unassigned`, `ancestry_not_eur` |
 | `phenotype_sd` | exclusion | `target_ancestry` | the record's `phenotype_sd` status, reason and estimate; `not_applicable` for `log_or`/`log_hazard`; a non-numeric estimate is `invalid` | none | not a positive finite estimate | `sd_no_qualifying_evidence`, `sd_no_reference_resource_for_ancestry`, `sd_no_usable_sample_size`, `sd_failed` |
 
 A check's **stage** is a precedence slot in the release policy: the policy
@@ -907,7 +1016,17 @@ Store Release Build never reads it: membership is already decided in
 ### Sparse-region sidecar
 
 Suggested path: `sidecars/sparse_regions.tsv`. One row per retained region for
-ragged stores.
+ragged stores. A region-filtered release carries it from acquisition (#300):
+acquisition records each filtered file's plan beside its Acquisition Manifest
+(`manifest_generation.region_filtered_acquisition`), checksummed through the
+frozen inventory's provenance, and the candidate carries the Selection's rows
+verbatim, in acquisition's order, refusing a file changed since the freeze
+(`candidate_workflow.acquisition_evidence`). Regions are listed cis, then
+significant-trans ranges by chromosome (as text) and start, then suggestive
+leads and QC-panel chromosomes in file order; `region_id` is
+`<analysis_id>__<cis|sig_trans|suggestive|qc_panel>__<nnn>`, numbered per kind.
+A release acquired from the retired R generator's files carries that bundle's
+own file.
 
 | Field | Required | Description |
 |---|---:|---|
@@ -924,6 +1043,28 @@ ragged stores.
 | `pvalue_threshold` | No | Threshold used to define signal-derived regions. |
 | `n_variants_retained` | No | Number of variants retained in the filtered source file for this region. |
 | `region_policy_id` | Yes | Named sparse-region policy declared in generator configuration. |
+
+### Filter-summary sidecar
+
+Suggested path: `sidecars/filter_summary.tsv`. One row per region-filtered
+source file, carried from acquisition as the sparse-region sidecar is (#300).
+A release acquired from the retired R generator's files carries that bundle's
+own file, whose further columns (`attempt`, `retry_count` and per-run timings)
+the shared filter does not write, so the same files give the same bytes.
+
+| Field | Required | Description |
+|---|---:|---|
+| `analysis_id` | Yes | Registry Analysis ID matching `analyses.tsv`. |
+| `status`, `error` | Yes | `ok` and blank for a filtered file. |
+| `source_url` | No | Where the original was fetched from. |
+| `downloaded_bytes` | No | The original's size. |
+| `input_rows` | Yes | Source rows with a position and a p-value. |
+| `retained_rows`, `retained_fraction` | Yes | Rows kept, and their fraction of `input_rows` to 6 decimal places. |
+| `cis_rows` | Yes | Rows kept in the cis window (0 for a signals-only policy). |
+| `significant_trans_regions`, `significant_trans_rows` | Yes | Merged significant-trans ranges and the rows kept in them. |
+| `suggestive_leads` | Yes | Suggestive leads kept. |
+| `qc_panel_rows` | Yes | Rows kept at QC-panel positions. |
+| `output_file`, `output_bytes`, `checksum_algorithm`, `checksum` | Yes | The filtered file, as the Acquisition Manifest records it. |
 
 ### General derivation sidecar
 
@@ -1059,7 +1200,7 @@ agnostic to which provider it is talking to.
 
 Three implementations exist:
 
-- `resources/generators/lib/metadata_resolvers/gwas_catalog_ssf.R`
+- `src/manifest_generation/providers/gwas_catalog/gwas_catalog_ssf.R`
   (`resolve_gwas_catalog_ssf_metadata()`) resolves GWAS Catalog's free-text
   "INITIAL SAMPLE SIZE" study field: a study whose parsed components include any
   `cases`/`controls` counts resolves as `case_control` with
@@ -1088,8 +1229,69 @@ Three implementations exist:
   `num_controls = 0`; those rows resolve to `sd`/`total` without
   misrepresenting that total as a case count. Any other shape is explicit
   `unresolved`.
+- `src/manifest_generation/providers/finngen/source_metadata_adapter.py`
+  (issue #288, `docs/spec/source-connectors.md`), the same classification as
+  Python, for the shared pipeline. It applies the identical rules and refuses
+  an endpoint it cannot describe honestly rather than leaving it `unresolved`;
+  the release config's method tiers turn `study_design` into
+  `stored_effect_scale`/`sample_size_kind`. Both implementations stay while the
+  R generator is the only path that resolves FinnGen: the pinned `opengwasdb`
+  cannot read the format yet (#288).
 
 ### Trait ontology mapping resolver
+
+**Manifest Generation's shared step (#286, ADR 0036 step 5).** The Python
+pipeline maps every Analysis in
+`src/manifest_generation/trait_ontology_mapping.py`, after the resolver records
+are verified. It reads the source term from the Source Metadata Table's
+`source_trait_ontology_id`/`source_trait_ontology_label` (GWAS Catalog's
+`MAPPED_TRAIT_URI`/`MAPPED_TRAIT`) and the Source Trait Label. Precedence and
+methods are those below:
+- a source term is kept as `source_provided`;
+- otherwise an exact match of the trimmed, lower-cased Source Trait Label is
+  `canonical_table_lookup`;
+- otherwise the Analysis is `unmapped`.
+
+A source term is normalised to CURIEs term by term:
+
+| Source form | CURIE |
+|---|---|
+| `http://www.ebi.ac.uk/efo/EFO_0004839` | `EFO:0004839` |
+| `http://purl.obolibrary.org/obo/MONDO_0005148` (any `NS_local`) | `MONDO:0005148` |
+| `http://www.orpha.net/ORDO/Orphanet_101960` | `Orphanet:101960` |
+| a CURIE | unchanged |
+
+Any other form is refused, naming the Analysis and the term: the run fails
+rather than emitting a URI or a guess. A comma-separated source list stays a
+list, its CURIEs joined by `", "` in the source's order, and the source label is
+kept verbatim (see `trait_ontology_id` above).
+
+A source term is rejected using `ogstores.bundle`'s #141 guards when:
+- any term is gene- or protein-shaped, checked both before and after
+  normalisation, so a PURL `HGNC_1234` is caught as `HGNC:1234`;
+- or its label, taken whole, is an identifier-authority name.
+
+A rejected term falls through to the table, and the rejection and its reason
+are recorded. A source term with no label is kept as `source_provided`, and
+the run counts how many there are.
+
+The table is read from `resources/reference-resources/canonical-trait-mapping-efo/`,
+a directory named explicitly: no network is involved. Its `resource.yaml`
+`location` is resolved against that directory: the declared file must be in
+the resource's own directory, and a declared `location_kind` must be
+`tracked_file`. A malformed curated row fails the load, and the refusal lists
+up to twenty problems and counts the rest:
+- a blank lookup value;
+- a non-CURIE term;
+- a gene-shaped term or an authority-name label;
+- a label listed twice.
+
+The table's identity, the method counts, the count of source terms without a
+label, and the rejected source terms are recorded in `validation.yaml`'s
+`trait_ontology_mapping` block.
+
+**The R generators** still resolve through the R resolver below until they
+retire (epic #282).
 
 A separate resolver family, also under
 `resources/generators/lib/metadata_resolvers/`, resolves Trait Ontology Mapping
@@ -1156,7 +1358,7 @@ external location, never inside this repository (ADR 0015). A `kind: variant_lis
 resource is the same shape for an Indexed Variant Subset build input: the
 `hapmap3-hg38` declaration records the canonical-ALID list's `row_count` and
 byte checksums, its LDSC source checksum and snapshot, and the rsID
-reconciliation, and `resources/reference-resources/hapmap3-hg38/verify_hm3_resource.py`
+reconciliation, and `tools/reference-resources/hapmap3-hg38/verify_hm3_resource.py`
 is the executable check of all of them.
 
 ### Indexed Variant Subset defaults
@@ -1258,7 +1460,14 @@ validation was never attempted.
 
 ### QC panel configuration
 
-A generator config's `filter.qc_panel` block configures unconditional retention
+The shared pipeline keeps the QC panel in every region-filtered file: a release
+config's `region_policy.qc_panel_resource_id` names it, and acquisition records
+the panel's identity in each file's lineage (#300,
+[release config](spec/release-config.md#region_policy)). The R generators'
+`filter.qc_panel` block, described below for the bundles they emitted, retired
+with them.
+
+A generator config's `filter.qc_panel` block configured unconditional retention
 of the fixed QC variant panel (issue #28/#29/#30) for one release. Unlike the
 signal-driven sparse regions (`cis`/`significant_trans`/`suggestive_trans`), the
 QC panel is retained regardless of an Analysis's `p_value` distribution, so

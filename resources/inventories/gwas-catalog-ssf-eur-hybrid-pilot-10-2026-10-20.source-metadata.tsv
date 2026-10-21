@@ -1,0 +1,11 @@
+source_analysis_id	source_trait_label	source_trait_ontology_id	source_trait_ontology_label	source_ancestry_label	source_superpopulation	study_design	sample_size	n_cases	n_controls	publication_pmid	first_author	store_key
+GCST003566	Multiple sclerosis	http://purl.obolibrary.org/obo/MONDO_0005301	multiple sclerosis	European	EUR	case-control	15283	4888	10395	27386562	Andlauer TF	hybrid__European
+GCST005076	Breast cancer (estrogen-receptor negative)	http://purl.obolibrary.org/obo/MONDO_0006513	estrogen-receptor negative breast cancer	European	EUR	case-control	72261	14135	58126	29058716	Milne RL	hybrid__European
+GCST006465	Endometrial cancer (endometrioid histology)	http://purl.obolibrary.org/obo/MONDO_0002447	endometrial carcinoma	European	EUR	case-control	54884	8758	46126	30093612	O'Mara TA	hybrid__European
+GCST007320	Alzheimer's disease or family history of Alzheimer's disease	http://purl.obolibrary.org/obo/MONDO_0004975, http://www.ebi.ac.uk/efo/EFO_0009268	Alzheimer disease, family history of Alzheimer’s disease	European	EUR	case-control	455258	24087	383378	30617256	Jansen IE	hybrid__European
+GCST007435	Carotid plaque	http://www.ebi.ac.uk/efo/EFO_0009783	carotid atherosclerosis	European	EUR	case-control	48434	21540	26894	30510157	Franceschini N	hybrid__European
+GCST009324	Parkinson's disease	http://purl.obolibrary.org/obo/MONDO_0005180	Parkinson disease	European	EUR	case-control	27693	15056	12637	31701892	Nalls MA	hybrid__European
+GCST009325	Parkinson's disease or first degree relation to individual with Parkinson's disease	http://purl.obolibrary.org/obo/MONDO_0005180	Parkinson disease	European	EUR	case-control	482730	33674	449056	31701892	Nalls MA	hybrid__European
+GCST009758	Idiopathic pulmonary fibrosis	http://www.ebi.ac.uk/efo/EFO_0000768	idiopathic pulmonary fibrosis	European	EUR	case-control	11259	2668	8591	31710517	Allen RJ	hybrid__European
+GCST009925	Fecal incontinence	http://www.ebi.ac.uk/efo/EFO_0009523	fecal incontinence	European	EUR	case-control	15881	4247	11634	31729902	Penney KL	hybrid__European
+GCST009926	Urgency urinary incontinence	http://www.ebi.ac.uk/efo/EFO_0006865	urgency urinary incontinence	European	EUR	case-control	6753	1942	4811	31729902	Penney KL	hybrid__European

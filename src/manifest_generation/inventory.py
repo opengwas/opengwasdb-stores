@@ -1,34 +1,33 @@
 #!/usr/bin/env python3
-"""Manifest Generation inventory commands: freeze and preflight a Source Inventory (#151, #249).
+"""Freeze and preflight the Source Inventory a release config names (#151, #283, #287).
 
-Two operator commands, one per direction of the same seam (issue #151):
+Two operator commands, one per direction of the same seam, each taking any
+release config (``docs/spec/release-config.md``):
 
-    pixi run inventory-freeze                 # manifests + candidates -> frozen inventory
-    pixi run preflight                        # frozen inventory -> prove it before reading rows
+    pixi run inventory-freeze --config <release config>   # connectors -> frozen inventory
+    pixi run preflight --config <release config>          # prove it before reading rows
 
-``freeze`` is a pure transform over the acquisition manifests and the candidate
-table: it merges the retry pass over the base pass, accounts every row against
-the candidate pool, and writes the frozen inventory plus its provenance
-sidecar. It never touches the mirror, so re-freezing the same inputs reproduces
-the same bytes.
+``freeze`` runs the shared freeze (``manifest_generation.freeze``, #283) over
+the Source Collection's two connector files and the release's Selection, and
+writes the frozen Source Inventory, its frozen connectors and its provenance
+into ``source_collection.inventory.directory``. A frozen inventory is never
+overwritten: when one already exists under the snapshot id, ``freeze`` checks
+that it was frozen for this Source Collection and this Selection and writes
+nothing. A changed Selection or connector is a new snapshot id.
 
-``preflight`` reads the frozen inventory, the declared Reference Resource
-declarations, small per-Analysis metadata and filesystem metadata. It does not
-open a GWAS-SSF association file, does not recompute a source checksum, and does
-not compute ancestry or effect scale. It exits non-zero on anything that would
-make the run proceed against a snapshot it cannot trust.
+``preflight`` reads the frozen inventory, its provenance, the declared
+Reference Resources, small per-Analysis metadata and filesystem metadata. It
+does not open an association file, does not recompute a source checksum, and
+does not compute ancestry or effect scale. It exits non-zero on anything that
+would make the run proceed against a snapshot it cannot trust.
 
-Both commands take any candidate-workflow config through ``--config``. Without
-it they default to the EBI GWAS Catalog eur-hybrid full-release config, which
-names the snapshot it selects from; the per-input overrides exist for
-re-freezing a later snapshot and for fixture-scale testing.
+The candidate entry point runs both as its first two stages
+(``manifest_generation.generate_candidate``).
 
 Usage:
-    pixi run inventory-freeze
-    pixi run preflight
-    pixi run preflight --cores=32
-    pixi run preflight --config <candidate-workflow config>
-    python3 -m manifest_generation.inventory preflight --config <config>
+    pixi run inventory-freeze --config <release config>
+    pixi run preflight --config <release config> [--cores 32]
+    python3 -m manifest_generation.inventory preflight --config <release config>
 """
 
 from __future__ import annotations
@@ -37,23 +36,102 @@ import argparse
 import dataclasses
 import json
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Sequence
 
 from manifest_generation import REPO_ROOT
+from manifest_generation.freeze import (
+    FreezeError,
+    freeze,
+    frozen_paths,
+    load_collection_intent,
+    load_provenance,
+    write_frozen_inventory,
+)
+from manifest_generation.release_config import ReleaseConfig, load_release_config
 from manifest_generation.source_inventory import (
     InventoryError,
-    build_snapshot,
-    load_release_configuration,
-    parse_pass_arguments,
+    frozen_for_release_problems,
     preflight,
-    read_candidate_selection,
     read_inventory,
     render_preflight_summary,
-    write_snapshot,
+    selection_partition_problems,
 )
 
-#: Any candidate-workflow config runs; without --config, the OGS-00011 release's.
-DEFAULT_CONFIG = "resources/generators/gwas-catalog-eur-hybrid/config-full.yaml"
+
+@dataclass(frozen=True)
+class FreezeOutcome:
+    """What the freeze stage did for one release config."""
+
+    provenance_path: Path
+    inventory_path: Path
+    #: True when this run wrote the inventory; False when it already existed.
+    frozen: bool
+    inventory_sha256: str
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "provenance_path": str(self.provenance_path),
+            "inventory_path": str(self.inventory_path),
+            "frozen_by_this_run": self.frozen,
+            "inventory_tsv_sha256": self.inventory_sha256,
+        }
+
+
+def freeze_release(config: ReleaseConfig, *, frozen_at: str | None = None) -> FreezeOutcome:
+    """Freeze ``config``'s Source Inventory, or prove the existing one is this release's.
+
+    Writes nothing over an existing file. An inventory already under the
+    snapshot id must record the shared freeze of this Source Collection for
+    exactly this Selection; a partial set of frozen files is refused, as is a
+    missing inventory when the config names no connectors to freeze it from.
+    """
+    paths = frozen_paths(config.inventory_directory, config.inventory_snapshot_id)
+    if paths.provenance.is_file():
+        provenance = load_provenance(paths.provenance)
+        if not isinstance(provenance, dict):
+            raise InventoryError(f"{paths.provenance} is not a YAML mapping")
+        problems = frozen_for_release_problems(provenance, paths.provenance, config)
+        if problems:
+            raise InventoryError(
+                f"the frozen Source Inventory {config.inventory_snapshot_id} is not this "
+                "release's: " + "; ".join(problems)
+            )
+        return FreezeOutcome(
+            provenance_path=paths.provenance,
+            inventory_path=paths.inventory,
+            frozen=False,
+            inventory_sha256=str(provenance.get("inventory_tsv_sha256", "")),
+        )
+    leftover = [str(path) for path in paths.all if path.exists()]
+    if leftover:
+        raise FreezeError(
+            f"{', '.join(leftover)} already exist(s) without the provenance that binds them; a "
+            "frozen Source Inventory is never overwritten -- remove the partial freeze or "
+            "freeze under a new snapshot id"
+        )
+    if config.connectors is None:
+        raise InventoryError(
+            f"frozen Source Inventory {paths.provenance} does not exist, and the release config "
+            f"{config.path} names no source_collection.connectors to freeze it from"
+        )
+    frozen = freeze(
+        snapshot_id=config.inventory_snapshot_id,
+        source_collection_id=config.source_collection_id,
+        metadata_table=config.connectors.source_metadata_table,
+        acquisition_manifest=config.connectors.acquisition_manifest,
+        selection=config.selection,
+        frozen_at=frozen_at,
+    )
+    paths.inventory.parent.mkdir(parents=True, exist_ok=True)
+    digest = write_frozen_inventory(frozen, paths.inventory, paths.provenance)
+    return FreezeOutcome(
+        provenance_path=paths.provenance,
+        inventory_path=paths.inventory,
+        frozen=True,
+        inventory_sha256=digest,
+    )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -61,24 +139,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--repo-root", default=str(REPO_ROOT))
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    freeze = subparsers.add_parser("freeze", help="build the frozen Source Inventory from acquisition output")
-    freeze.add_argument("--config", default=DEFAULT_CONFIG)
-    freeze.add_argument(
-        "--manifest",
-        action="append",
-        metavar="ROLE=PATH",
-        help="override the configured acquisition passes; repeatable, and when given at least "
-        "once it replaces the configured list entirely, in the order given",
+    freeze_parser = subparsers.add_parser(
+        "freeze", help="freeze the release's Source Inventory from its connector files"
     )
-    freeze.add_argument("--candidates", help="candidate pool table (default: config)")
-    freeze.add_argument("--snapshot-id", help="freeze a different snapshot id (default: config); without --out-dir it is written beside the configured one")
-    freeze.add_argument("--out-dir", help="write <snapshot-id>.tsv/.meta.yaml here (default: the configured inventory directory)")
-    freeze.add_argument("--frozen-at", help="ISO-8601 freeze timestamp (default: now, UTC)")
+    freeze_parser.add_argument("--config", required=True, help="the release config")
+    freeze_parser.add_argument("--frozen-at", help="ISO-8601 freeze timestamp (default: now, UTC)")
 
     check = subparsers.add_parser("preflight", help="prove the frozen inventory before reading any association row")
-    check.add_argument("--config", default=DEFAULT_CONFIG)
-    check.add_argument("--inventory", help="override the inventory path the config declares")
-    check.add_argument("--provenance", help="override the provenance sidecar path (default: config, or the inventory's sibling)")
+    check.add_argument(
+        "--config",
+        required=True,
+        action="append",
+        help="a release config; repeat to preflight Selections of one Source Collection together",
+    )
     check.add_argument("--cores", type=int, help="planned worker count (default: config runtime.cores)")
     check.add_argument("--work-root", help="override the run's work/log root (default: config output.work_root)")
     check.add_argument("--report", help="machine-readable JSON report path (default: <work-root>/preflight/)")
@@ -86,117 +159,98 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def command_freeze(args: argparse.Namespace, repo_root: Path) -> int:
-    config = load_release_configuration(_config_path(repo_root, args.config), repo_root)
-    snapshot_id = args.snapshot_id or config.inventory_snapshot_id
-    manifests = (
-        parse_pass_arguments(args.manifest, flag="--manifest") if args.manifest else config.freeze_inputs
-    )
-    candidates_path = Path(args.candidates) if args.candidates else config.candidates_path
-
-    candidates = read_candidate_selection(candidates_path, config.store_key)
-    snapshot = build_snapshot(
-        snapshot_id=snapshot_id,
-        source_collection_id=config.source_collection_id,
-        store_key=config.store_key,
-        ancestry_group=config.ancestry_group,
-        manifests=manifests,
-        candidates=candidates,
-        frozen_at=args.frozen_at,
-    )
-    if args.out_dir:
-        out_dir = Path(args.out_dir)
-    elif args.snapshot_id:
-        # A new snapshot id names its own files, beside the configured one.
-        out_dir = config.inventory_path.parent
-    else:
-        out_dir = None
-    if out_dir is None:
-        inventory_path = config.inventory_path
-        provenance_path = config.inventory_provenance_path
-    else:
-        inventory_path = out_dir / f"{snapshot_id}.tsv"
-        provenance_path = out_dir / f"{snapshot_id}.meta.yaml"
-
-    digest = write_snapshot(snapshot, inventory_path, provenance_path)
-    print(f"Frozen Source Inventory {snapshot_id}")
-    print(f"  inventory   {inventory_path}")
-    print(f"  provenance  {provenance_path}")
-    print(f"  sha256      {digest}")
-    print(f"  rows        {len(snapshot.rows)}")
-    print(
-        "  readiness   "
-        + ", ".join(f"{status}={count}" for status, count in snapshot.readiness_counts.items())
-    )
-    print(
-        f"  ready       {len(snapshot.ready_rows)} Analyses, "
-        f"{snapshot.ready_bytes / 1e12:.3f} TB compressed "
-        f"({', '.join(f'{d}={c}' for d, c in snapshot.ready_study_design_counts.items())})"
-    )
-    for entry in snapshot.inputs:
-        print(
-            f"  input {entry.role:14s} {entry.rows} rows, {entry.overrides} overriding "
-            f"({', '.join(f'{s}={c}' for s, c in entry.readiness_counts.items())})"
-        )
-    for group in snapshot.duplicates:
-        print(f"  duplicate content {' = '.join(group.analysis_ids)} ({group.data_bytes} bytes)")
+    config = load_release_config(_config_path(repo_root, args.config), repo_root)
+    outcome = freeze_release(config, frozen_at=args.frozen_at)
+    verb = "Frozen" if outcome.frozen else "Already frozen for this release"
+    print(f"{verb}: Source Inventory {config.inventory_snapshot_id}")
+    print(f"  inventory   {outcome.inventory_path}")
+    print(f"  provenance  {outcome.provenance_path}")
+    print(f"  sha256      {outcome.inventory_sha256}")
+    print(f"  selection   {config.selection.as_dict()}")
+    rows = read_inventory(outcome.inventory_path)
+    print(f"  rows        {len(rows)} ({sum(1 for row in rows if row.ready)} ready)")
     return 0
 
 
 def command_preflight(args: argparse.Namespace, repo_root: Path) -> int:
-    config = load_release_configuration(_config_path(repo_root, args.config), repo_root)
-    if args.work_root:
-        config = dataclasses.replace(config, work_root=Path(args.work_root))
-    inventory_path = Path(args.inventory) if args.inventory else config.inventory_path
-    if not inventory_path.is_file():
+    if args.report and len(args.config) > 1:
         raise InventoryError(
-            f"frozen source inventory not found: {inventory_path}; freeze it first with "
-            "'pixi run inventory-freeze'"
+            "--report names one report path, but several --config values were given; run each "
+            "config separately or omit --report"
         )
-    rows = read_inventory(inventory_path)
-    provenance_path = _provenance_path(args, config, inventory_path)
-
-    result = preflight(
-        inventory_path=inventory_path,
-        provenance_path=provenance_path,
-        rows=rows,
-        config=config,
-        repo_root=repo_root,
-        cores=args.cores,
-    )
-
-    report_path = Path(args.report) if args.report else (
-        config.work_root / "preflight" / f"{inventory_path.stem}.json"
-    )
-    report_error: OSError | None = None
-    try:
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(
-            json.dumps(result.report, indent=2, sort_keys=False) + "\n", encoding="utf-8"
+    ok = True
+    releases: list[tuple[str, str, Sequence[str]]] = []
+    provenances: list[Path] = []
+    for value in args.config:
+        config = load_release_config(_config_path(repo_root, value), repo_root)
+        if args.work_root:
+            config = dataclasses.replace(config, work_root=Path(args.work_root))
+        inventory_path = config.inventory_path
+        if not inventory_path.is_file():
+            raise InventoryError(
+                f"frozen source inventory not found: {inventory_path}; freeze it first with "
+                "'pixi run inventory-freeze --config <release config>'"
+            )
+        rows = read_inventory(inventory_path)
+        result = preflight(
+            inventory_path=inventory_path,
+            provenance_path=config.inventory_provenance_path,
+            rows=rows,
+            config=config,
+            repo_root=repo_root,
+            cores=args.cores,
         )
-    except OSError as exc:
-        report_error = exc
+        releases.append((config.label, config.source_collection_id, [row.analysis_id for row in rows]))
+        provenances.append(config.inventory_provenance_path)
 
-    print(render_preflight_summary(result.report))
-    if report_error is not None:
-        print(f"ERROR: could not write report to {report_path}: {report_error}", file=sys.stderr)
-        return 1
-    print(f"Report: {report_path}")
-    return 0 if result.ok else 1
+        report_path = Path(args.report) if args.report else (
+            config.work_root / "preflight" / f"{inventory_path.stem}.json"
+        )
+        report_error: OSError | None = None
+        try:
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(
+                json.dumps(result.report, indent=2, sort_keys=False) + "\n", encoding="utf-8"
+            )
+        except OSError as exc:
+            report_error = exc
+
+        print(render_preflight_summary(result.report))
+        if report_error is not None:
+            print(f"ERROR: could not write report to {report_path}: {report_error}", file=sys.stderr)
+            ok = False
+            continue
+        print(f"Report: {report_path}")
+        ok = ok and result.ok
+
+    if len(releases) > 1:
+        # The multi-config preflight: Selections of one Source Collection must
+        # partition it, so drift in a rule or a bound fails by name (#290). The
+        # collection's checksummed intent is what proves completeness: an
+        # Analysis no Selection covers, or one no Selection could ever take, is
+        # named even though every Selection's own bound still matches
+        # (#290 review).
+        try:
+            intent = load_collection_intent(provenances[0])
+        except FreezeError as exc:
+            raise InventoryError(str(exc)) from exc
+        problems = selection_partition_problems(releases, collection_ids=intent.analysis_ids)
+        if problems:
+            print("FAILED: the Selections do not partition the Source Collection:", file=sys.stderr)
+            for problem in problems:
+                print(f"  - {problem}", file=sys.stderr)
+            ok = False
+        else:
+            print(
+                f"Selections partition {releases[0][1]}: "
+                f"{len(releases)} Selections, {sum(len(ids) for _label, _c, ids in releases)} rows"
+            )
+    return 0 if ok else 1
 
 
 def _config_path(repo_root: Path, value: str) -> Path:
     path = Path(value)
     return path if path.is_absolute() else repo_root / path
-
-
-def _provenance_path(args: argparse.Namespace, config, inventory_path: Path) -> Path:
-    if args.provenance:
-        return Path(args.provenance)
-    if args.inventory:
-        # An explicitly named inventory carries its sidecar beside it, so a copy
-        # can be preflighted without retargeting the release config.
-        return inventory_path.with_name(f"{inventory_path.stem}.meta.yaml")
-    return config.inventory_provenance_path
 
 
 def main(argv: list[str] | None = None) -> int:

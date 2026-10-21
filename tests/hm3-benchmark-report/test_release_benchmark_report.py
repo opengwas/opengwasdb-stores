@@ -29,7 +29,7 @@ from types import SimpleNamespace
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRIPT_PATH = REPO_ROOT / "resources" / "scripts" / "release-benchmark-report.py"
+SCRIPT_PATH = REPO_ROOT / "tools" / "benchmarks" / "release-benchmark-report.py"
 
 
 def _load_module() -> Any:

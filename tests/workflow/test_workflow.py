@@ -656,7 +656,7 @@ class TestWorkflowSnakefileStaticProperties(unittest.TestCase):
             "run_all_releases.py",
             "batch_runner.py",
         ]
-        for root_dir in [REPO_ROOT / "workflow", REPO_ROOT / "resources" / "scripts"]:
+        for root_dir in [REPO_ROOT / "workflow", REPO_ROOT / "tools"]:
             if not root_dir.is_dir():
                 continue
             for file_path in root_dir.glob("*"):
