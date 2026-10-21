@@ -25,7 +25,8 @@ pixi run catalog [--registry stores] [--artifact-root PATH]
   repository with uncommitted or untracked changes, because the commit it
   records would then be false. A registry that is not a git repository (a test
   fixture) records a `NULL` commit.
-- Run it after a merge to `dev`, from a clean checkout. It prints each
+- Run it on the host after a merge to `dev`, from a dedicated clean checkout of
+  `origin/dev`, not a shared working checkout (ADR 0039). It prints each
   registered Store Release's decision, the version, and whether it published,
   moved `current`, or was a no-op.
 
@@ -52,6 +53,10 @@ one decision and a reason, in `selection`. The first rule that applies decides:
 - `check()` runs first because `Bundle.trial` raises on a malformed `trial`.
 - Rule 5 writes no `analyses` rows yet: placeholder rows, and the
   `superseded_by` they carry, are #324.
+- A value is never coerced or rounded: an integer outside SQLite's signed 64
+  bits, a `NaN` or infinity, and a finite nonzero real that would become `0.0`
+  or `inf` each refuse the Store, naming the Analysis, column and value. A bad
+  cell never stops the build.
 - A value is never coerced: a non-numeric cell in a numeric column refuses its
   Store, naming the Analysis and the column.
 
@@ -61,8 +66,8 @@ One SQLite file, `catalog.sqlite`, built in one transaction into a fresh file.
 The columns and their types are `src/analysis_catalog/columns.py`.
 
 - **`stores`**: one row per **listed** Store Release, with the columns of epic
-  #313. A Store that is excluded, placeholder or refused has no row, so nothing
-  excluded is discoverable here; `selection` is where it is accounted for.
+  #313; #324 adds the placeholder Store Releases' rows. A Store that is
+  excluded or refused has none, so nothing excluded is discoverable here; `selection` is where it is accounted for.
   Facts come from `release.yaml` (`label`, `description`, `status`,
   `superseded_by`, `access_posture`, `source_snapshot_id`, `accepted_at`,
   `notes`), `build.yaml` (`layout`, `completion_state`) and `validation.yaml`
@@ -98,18 +103,17 @@ the summary report is #325.
     catalog.sqlite
     stores.tsv          the stores table, tab-separated, NULL as an empty cell
     analyses.tsv.gz     the analyses table, the same
+    changes.tsv         every added, removed or changed Analysis id (not on a first build)
     report.md           every decision and reason, and the change since the previous version
   current -> versions/<version>
 ```
 
 - **The version** is the first 16 hex digits of a SHA-256 over: the builder's
   version and every `*.py` source file of the package, which includes the
-  serving policy; and per registered bundle its decision and reason, its
-  `release.yaml`, `build.yaml` and `validation.yaml`, and, where the decision
-  rests on the Release Manifest (listed, placeholder, refused), its
-  `analyses.tsv`. It does not include the build time or the registry commit.
-  Editing an excluded Store's manifest changes nothing; changing its decision
-  does.
+  serving policy; and every file of every registered Release Bundle directory,
+  with each Store's decision and reason. That is every file of every registered
+  Release Bundle, plus the builder's source. It does not include the build time
+  or the registry commit.
 - **A rebuild whose version exists writes nothing**, and moves `current` only
   if it names another version.
 - **Publication**: the build is written to `versions/<version>.partial/`,
@@ -123,5 +127,6 @@ the summary report is #325.
   counts; a sentence beginning `No Store Release is listed:` when none is; a
   table of every Store Release's decision and reason; and, against the previous
   `current`, `Analyses added`, `Analyses removed` and `Analyses with changed
-  metadata` as counts, then the ids (the first 200 of each, with the columns
-  that changed), and each Store Release whose decision changed.
+  metadata` as counts, a sample of 20 ids of each (with the columns that
+  changed), and each Store Release whose decision changed. `changes.tsv` holds
+  every id with its `change` (`added`, `removed` or `changed`).

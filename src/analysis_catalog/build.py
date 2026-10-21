@@ -94,7 +94,9 @@ def _write_version(
     if previous is not None:
         connection = sqlite3.connect(path)
         try:
-            change = report.compare(connection, previous[0] / database.DATABASE, previous[1])
+            change = report.compare(
+                connection, previous[0] / database.DATABASE, previous[1], directory / report.CHANGES_TSV
+            )
         finally:
             connection.close()
     database.write_exports(directory)

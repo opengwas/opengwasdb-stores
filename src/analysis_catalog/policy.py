@@ -41,6 +41,10 @@ POLICY: tuple[str, ...] = (
 )
 
 
+# SQLite INTEGER is a signed 64-bit value; a larger one fails at insert.
+INT64_MIN, INT64_MAX = -(2**63), 2**63 - 1
+
+
 class RefusedRow(ValueError):
     """A value the catalog's column type cannot hold."""
 
@@ -53,8 +57,6 @@ class Decision:
     # Present only for a listed Store: its `stores` row and `analyses` rows.
     store: tuple | None = None
     analyses: tuple[tuple, ...] = ()
-    # Whether the decision rests on the Release Manifest, which then belongs in the version.
-    read_manifest: bool = False
 
 
 def decide(bundle: release_bundle.Bundle, registry: Path) -> Decision:
@@ -63,7 +65,7 @@ def decide(bundle: release_bundle.Bundle, registry: Path) -> Decision:
     # `check()` first: `Bundle.trial` raises on a malformed `trial`.
     errors = release_bundle.check(bundle, registry_root=registry)
     if errors:
-        return Decision(store_id, REFUSED, "bundle.check() failed: " + "; ".join(errors), read_manifest=True)
+        return Decision(store_id, REFUSED, "bundle.check() failed: " + "; ".join(errors))
     if bundle.trial:
         return Decision(store_id, EXCLUDED, "Trial Store Release")
     posture = bundle.release.get("access_posture")
@@ -76,7 +78,6 @@ def decide(bundle: release_bundle.Bundle, registry: Path) -> Decision:
         return Decision(
             store_id, PLACEHOLDER,
             f"Release Status is {status}: kept as placeholder rows, not listed",
-            read_manifest=True,
         )
     # check() admits only the six Release Statuses, so this one is `validated`.
     if posture not in SERVED_POSTURES:
@@ -94,22 +95,21 @@ def _list_or_refuse(bundle: release_bundle.Bundle, posture: str) -> Decision:
     table = opengwasdb_analyses.read_analyses(bundle.analyses_path)
     admitted, _ = release_bundle.partition_membership(table)
     if isinstance(expected, bool) or not isinstance(expected, int):
-        return Decision(store_id, REFUSED, "Validation Record has no integer observed.n_analyses", read_manifest=True)
+        return Decision(store_id, REFUSED, "Validation Record has no integer observed.n_analyses")
     if len(admitted) != expected:
         return Decision(
             store_id, REFUSED,
             f"Release Manifest admits {len(admitted)} Analyses but the Validation Record's "
             f"observed.n_analyses is {expected}",
-            read_manifest=True,
         )
     try:
         rows = tuple(_analysis_row(bundle, row) for row in admitted)
         store = _store_row(bundle, observed)
     except RefusedRow as exc:
-        return Decision(store_id, REFUSED, str(exc), read_manifest=True)
+        return Decision(store_id, REFUSED, str(exc))
     return Decision(
         store_id, LISTED, f"Release Status is validated, Access Posture is {posture}",
-        store=store, analyses=rows, read_manifest=True,
+        store=store, analyses=rows,
     )
 
 
@@ -147,8 +147,8 @@ def _store_row(bundle: release_bundle.Bundle, observed: Mapping[str, Any]) -> tu
     for column, kind in STORE_COLUMNS.items():
         value = facts[column]
         if value is not None and kind.startswith("INTEGER"):
-            if isinstance(value, bool) or not isinstance(value, int):
-                raise RefusedRow(f"Validation Record: {column} {value!r} is not an integer")
+            if isinstance(value, bool) or not isinstance(value, int) or not INT64_MIN <= value <= INT64_MAX:
+                raise RefusedRow(f"Validation Record: {column} {value!r} is not an integer SQLite can store")
         elif value is not None:
             value = str(value)
         row.append(value)
@@ -186,10 +186,18 @@ def _typed(analysis_id: str, column: str, kind: str, cell: str | None) -> Any:
         number = Decimal(text)
     except InvalidOperation:
         number = None
+    # Finiteness first: comparing or converting a NaN, sNaN or infinity raises.
     if kind == "INTEGER":
         if number is None or not number.is_finite() or number != number.to_integral_value():
             raise RefusedRow(f"{where} is not an integer")
-        return int(number)
-    if number is None or not isfinite(float(number)):
+        value = int(number)
+        if not INT64_MIN <= value <= INT64_MAX:
+            raise RefusedRow(f"{where} is not an integer SQLite can store")
+        return value
+    if number is None or not number.is_finite():
         raise RefusedRow(f"{where} is not a finite number")
-    return float(number)
+    value = float(number)
+    # A finite, nonzero value must not become 0.0 or inf: that is a wrong value, not a rounded one.
+    if not isfinite(value) or (value == 0.0 and number != 0):
+        raise RefusedRow(f"{where} is not representable as a REAL")
+    return value

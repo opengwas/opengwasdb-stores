@@ -413,6 +413,25 @@ class VersionsTest(TempDirCase):
         finally:
             connection.close()
 
+    def test_every_change_is_in_changes_tsv_beyond_the_reports_sample(self) -> None:
+        write_bundle(self.registry, "OGS-00001", rows=[analysis_row(f"A{n:04d}") for n in range(250)])
+        self.build()
+        write_bundle(self.registry, "OGS-00001", rows=[
+            analysis_row(f"A{n:04d}", source_label="edited") for n in range(250)
+        ] + [analysis_row("Z1")])
+        self.build()
+        version = self.root / "catalog" / "current"
+        with open(version / "changes.tsv", encoding="utf-8", newline="") as handle:
+            rows = list(csv.reader(handle, delimiter="\t"))
+        self.assertEqual(rows[0], ["id", "change"])
+        self.assertEqual(len(rows), 252)
+        self.assertEqual(rows[1], ["OGS-00001:A0000", "changed"])
+        self.assertEqual(rows[-1], ["OGS-00001:Z1", "added"])
+        report = (version / "report.md").read_text(encoding="utf-8")
+        self.assertIn("Analyses with changed metadata: 250", report)
+        self.assertIn("changes.tsv", report)
+        self.assertLess(report.count("- OGS-00001:A"), 250)
+
     def test_an_added_and_a_removed_analysis_are_reported(self) -> None:
         write_bundle(self.registry, "OGS-00001", rows=[analysis_row("A1"), analysis_row("A2")])
         self.build()
@@ -423,6 +442,14 @@ class VersionsTest(TempDirCase):
         self.assertIn("- OGS-00001:A3\n", report)
         self.assertIn("Analyses removed: 1\n", report)
         self.assertIn("- OGS-00001:A1\n", report)
+
+    def test_editing_an_excluded_stores_manifest_gives_a_new_version(self) -> None:
+        write_bundle(self.registry, "OGS-00001")
+        write_bundle(self.registry, "OGS-00002", status="candidate", validation=False)
+        first = self.build()
+        write_bundle(self.registry, "OGS-00002", status="candidate", validation=False,
+                     rows=[analysis_row("B1")])
+        self.assertNotEqual(self.build().version, first.version)
 
     def test_a_change_to_an_excluded_stores_decision_gives_a_new_version(self) -> None:
         write_bundle(self.registry, "OGS-00001")
@@ -478,6 +505,52 @@ class VersionsTest(TempDirCase):
         (stale / "junk").write_text("left by a crashed build")
         self.build()
         self.assertEqual(self.versions(), [probe.version])
+
+
+class UnrepresentableValuesTest(TempDirCase):
+    """A cell the column cannot hold refuses its Store; the build goes on (#323 review)."""
+
+    def refused(self, **cell: str) -> str:
+        write_bundle(self.registry, "OGS-00001")
+        write_bundle(self.registry, "OGS-00002", rows=[analysis_row("A1", **cell)])
+        self.build()
+        self.assertEqual(
+            query(self.root, "SELECT decision FROM selection WHERE store_id = 'OGS-00001'"),
+            [("listed",)],
+        )
+        self.assertEqual(query(self.root, "SELECT COUNT(*) FROM analyses WHERE store_id = 'OGS-00002'"), [(0,)])
+        (decision, reason), = query(self.root, "SELECT decision, reason FROM selection WHERE store_id = 'OGS-00002'")
+        self.assertEqual(decision, "refused")
+        return reason
+
+    def test_a_real_that_underflows_to_zero_is_refused(self) -> None:
+        self.assertEqual(
+            self.refused(original_sd="1e-999"),
+            "analyses.tsv row 'A1': original_sd '1e-999' is not representable as a REAL",
+        )
+
+    def test_a_real_that_overflows_is_refused(self) -> None:
+        self.assertEqual(
+            self.refused(original_sd="1e999"),
+            "analyses.tsv row 'A1': original_sd '1e999' is not representable as a REAL",
+        )
+
+    def test_a_signalling_nan_is_refused_not_raised(self) -> None:
+        self.assertEqual(
+            self.refused(original_sd="sNaN"),
+            "analyses.tsv row 'A1': original_sd 'sNaN' is not a finite number",
+        )
+
+    def test_an_integer_beyond_sqlites_64_bits_is_refused(self) -> None:
+        self.assertEqual(
+            self.refused(trait_bp="9223372036854775808"),
+            "analyses.tsv row 'A1': trait_bp '9223372036854775808' is not an integer SQLite can store",
+        )
+
+    def test_zero_is_still_a_value(self) -> None:
+        write_bundle(self.registry, "OGS-00001", rows=[analysis_row("A1", original_sd="0")])
+        self.build()
+        self.assertEqual(query(self.root, "SELECT original_sd, typeof(original_sd) FROM analyses"), [(0.0, "real")])
 
 
 class EmptyCatalogTest(TempDirCase):

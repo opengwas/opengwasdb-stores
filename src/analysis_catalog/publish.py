@@ -27,7 +27,6 @@ from analysis_catalog.policy import POLICY, Decision
 
 KEEP_VERSIONS = 5
 PARTIAL_SUFFIX = ".partial"
-BUNDLE_INPUTS = ("release.yaml", "build.yaml", "validation.yaml")
 PACKAGE_DIR = Path(__file__).resolve().parent
 
 
@@ -48,17 +47,17 @@ def _feed(digest: "hashlib._Hash", label: str, content: bytes | None) -> None:
 
 
 def _read(path: Path) -> bytes | None:
+    # A symlink is hashed by its target, so a dangling one hashes as absent.
     return path.read_bytes() if path.is_file() else None
 
 
 def compute_version(decisions: Iterable[Decision], registry: Path) -> str:
     """Hash of everything the catalog reads, and the builder that reads it.
 
-    Per registered bundle: its decision and reason, `release.yaml`, `build.yaml`
-    and `validation.yaml`; and the Release Manifest of every Store whose
-    decision rests on it (listed, placeholder, refused). An excluded Store's
-    manifest is not read, so editing one changes nothing; changing an excluded
-    Store's decision does change the version.
+    That is every file of every registered Release Bundle directory (`check()`
+    reads them all, so any can change a decision), each Store's decision and
+    reason, and the builder's source, which includes the serving policy. It
+    leaves out the build time and the registry commit.
     """
     digest = hashlib.sha256()
     _feed(digest, "builder_version", BUILDER_VERSION.encode("utf-8"))
@@ -68,10 +67,8 @@ def compute_version(decisions: Iterable[Decision], registry: Path) -> str:
     for decision in sorted(decisions, key=lambda d: d.store_id):
         root = registry / decision.store_id
         _feed(digest, f"{decision.store_id}/decision", f"{decision.decision}\n{decision.reason}".encode("utf-8"))
-        for name in BUNDLE_INPUTS:
-            _feed(digest, f"{decision.store_id}/{name}", _read(root / name))
-        if decision.read_manifest:
-            _feed(digest, f"{decision.store_id}/analyses.tsv", _read(root / "analyses.tsv"))
+        for path in sorted(p for p in root.rglob("*") if p.is_file() or p.is_symlink()):
+            _feed(digest, f"{decision.store_id}/{path.relative_to(root)}", _read(path))
     return digest.hexdigest()[:16]
 
 

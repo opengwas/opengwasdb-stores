@@ -7,6 +7,7 @@ beside it.
 
 from __future__ import annotations
 
+import csv
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -15,9 +16,10 @@ from analysis_catalog import BUILDER_VERSION
 from analysis_catalog.columns import ANALYSIS_COLUMNS
 from analysis_catalog.policy import EXCLUDED, LISTED, PLACEHOLDER, REFUSED, Decision
 
-# A rebuild after a big Store arrives could add millions of ids; the counts are
-# complete and the lists stop here.
-LIST_LIMIT = 200
+# A rebuild after a big Store arrives could add millions of ids. `changes.tsv`
+# holds every one; the report shows counts and this many of each.
+LIST_LIMIT = 20
+CHANGES_TSV = "changes.tsv"
 
 
 @dataclass
@@ -34,8 +36,13 @@ class Change:
     decisions: list[str] = field(default_factory=list)
 
 
-def compare(connection: sqlite3.Connection, previous: Path, previous_version: str) -> Change:
-    """Compare the new database, open on `connection`, with the previous version's."""
+def compare(
+    connection: sqlite3.Connection, previous: Path, previous_version: str, changes_path: Path
+) -> Change:
+    """Compare the new database, open on `connection`, with the previous version's.
+
+    Every change goes to `changes_path` (`id`, `change`), in id order.
+    """
     connection.execute("ATTACH DATABASE ? AS previous", (f"file:{previous}?mode=ro",))
     try:
         shared = [
@@ -59,6 +66,16 @@ def compare(connection: sqlite3.Connection, previous: Path, previous_version: st
         change.removed = [r[0] for r in connection.execute(
             "SELECT id FROM previous.analyses WHERE id NOT IN (SELECT id FROM main.analyses) "
             "ORDER BY id LIMIT ?", (LIST_LIMIT,))]
+        with open(changes_path, "w", encoding="utf-8", newline="") as handle:
+            writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
+            writer.writerow(["id", "change"])
+            writer.writerows(connection.execute(
+                "SELECT id, 'added' FROM main.analyses WHERE id NOT IN (SELECT id FROM previous.analyses) "
+                "UNION ALL SELECT id, 'removed' FROM previous.analyses "
+                "WHERE id NOT IN (SELECT id FROM main.analyses) "
+                "UNION ALL SELECT n.id, 'changed' FROM main.analyses n JOIN previous.analyses p USING (id) "
+                f"WHERE {differs} ORDER BY 1"
+            ))
         pairs = ", ".join(f"n.{c}, p.{c}" for c in shared)
         for row in connection.execute(
             f"SELECT n.id, {pairs} FROM main.analyses n JOIN previous.analyses p USING (id) "
@@ -141,6 +158,8 @@ def render(
         f"Analyses removed: {change.n_removed}",
         f"Analyses with changed metadata: {change.n_changed}",
         "",
+        f"Every changed id is in `{CHANGES_TSV}` beside this report; the lists below are a sample.",
+        "",
     ]
     for heading, count, entries in (
         ("Added", change.n_added, [f"- {i}" for i in change.added]),
@@ -151,7 +170,7 @@ def render(
             continue
         lines += [f"### {heading}", ""] + entries
         if count > len(entries):
-            lines.append(f"- … and {count - len(entries)} more")
+            lines.append(f"- … and {count - len(entries)} more, all in `{CHANGES_TSV}`")
         lines.append("")
     if change.decisions:
         lines += ["### Store Release decisions changed", ""] + [f"- {d}" for d in change.decisions] + [""]
