@@ -54,23 +54,35 @@ from __future__ import annotations
 import argparse
 import collections
 import csv
-import hashlib
 import os
 import re
 import subprocess
 import sys
-import tarfile
 import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
 
 import yaml
 
 from manifest_generation import REPO_ROOT
+from manifest_generation.providers.dbgap.metadata import (
+    DbgapError as AcquisitionError,
+    TarResult,
+    extract_member,
+    extract_tar,
+    load_toc,
+    md5_file,
+    metadata_path_for,
+    parse_metadata,
+    parse_sample_size,
+    parse_tar_listing,
+    sha256_file,
+    tar_md5,
+)
 
 DEFAULT_OUT = "/data/opengwasdb/raw/dbgap-phs002453"
 DEFAULT_CANDIDATES = "resources/data/derived/store-candidates-analyses.tsv"
@@ -279,29 +291,9 @@ FNR == 1 {
 """
 
 
-class AcquisitionError(RuntimeError):
-    """An acquisition input or output is not usable as declared."""
-
-
 # ---------------------------------------------------------------------------
-# Shared helpers
+# Source Collection helpers
 # ---------------------------------------------------------------------------
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(4 * 1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def md5_file(path: Path) -> str:
-    digest = hashlib.md5()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(4 * 1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def bucket_of(accession: str) -> str:
@@ -359,80 +351,6 @@ def write_tsv_guarded(
 def read_tsv(path: Path) -> list[dict[str, str]]:
     with path.open(newline="", encoding="utf-8") as handle:
         return list(csv.DictReader(handle, delimiter="\t"))
-
-
-def parse_tar_listing(path: Path) -> dict[str, tuple[str, int]]:
-    """``member path -> (tar name, size)`` from one ``tar -tv`` table of contents.
-
-    A TOC line is ``<mode> <owner> <size> <date> <time> <member>``; directories
-    are listed too and are skipped.  The TOC is named ``<tar>.table_of_contents.txt``
-    (keeping the tar's own ``phs002453.`` prefix), so the tar name is the file
-    name with that suffix removed.
-    """
-    tar_name = path.name[: -len(".table_of_contents.txt")]
-    members: dict[str, tuple[str, int]] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        parts = line.split()
-        if len(parts) < 6 or not parts[-1]:
-            continue
-        member = parts[-1]
-        if member.endswith("/"):
-            continue
-        if member.startswith("/") or ".." in Path(member).parts:
-            raise AcquisitionError(f"{path.name}: unsafe member path {member!r}")
-        members[member] = (tar_name, int(parts[2]))
-    return members
-
-
-def load_toc(out: Path) -> dict[str, tuple[str, int]]:
-    meta_dir = out / "GIA" / "meta"
-    members: dict[str, tuple[str, int]] = {}
-    for toc in sorted(meta_dir.glob("*.table_of_contents.txt")):
-        for member, entry in parse_tar_listing(toc).items():
-            if member in members:
-                raise AcquisitionError(f"{member} is listed in more than one table of contents")
-            members[member] = entry
-    return members
-
-
-def tar_md5(tars_dir: Path, tar_name: str) -> str:
-    """The verified MD5 of a tar, as recorded by the fetch script."""
-    for suffix in (".verified", ".md5"):
-        path = tars_dir / f"{tar_name}{suffix}"
-        if path.is_file():
-            text = path.read_text(encoding="utf-8").strip()
-            if text:
-                return text.split()[0]
-    return ""
-
-
-def parse_metadata(path: Path) -> dict[str, str]:
-    """Read one ``*.dbGaP.metadata.txt`` two-column TSV into an Info->Description map."""
-    with path.open(newline="", encoding="utf-8") as handle:
-        reader = csv.reader(handle, delimiter="\t")
-        header = next(reader, None)
-        if header is None or [cell.strip() for cell in header[:2]] != ["Info", "Description"]:
-            raise AcquisitionError(f"{path}: not an Info/Description metadata table")
-        info: dict[str, str] = {}
-        for row in reader:
-            if not row or not row[0].strip():
-                continue
-            info[row[0].strip()] = row[1].strip() if len(row) > 1 else ""
-    return info
-
-
-def parse_sample_size(text: str, path: Path) -> tuple[int, int, int]:
-    """``(N, cases, controls)`` from ``Total Sample Size=N[; Cases=a; Controls=b]``."""
-    total = re.search(r"Total Sample Size\s*=\s*(\d+)", text)
-    if total is None:
-        raise AcquisitionError(f"{path}: cannot parse sample size from {text!r}")
-    cases = re.search(r"Cases\s*=\s*(\d+)", text)
-    controls = re.search(r"Controls\s*=\s*(\d+)", text)
-    return (
-        int(total.group(1)),
-        int(cases.group(1)) if cases else 0,
-        int(controls.group(1)) if controls else 0,
-    )
 
 
 def normalise_trait(text: str) -> str:
@@ -717,83 +635,6 @@ def read_discrepancies(path: Path) -> list[KeyDiscrepancy]:
 # ---------------------------------------------------------------------------
 # extract
 # ---------------------------------------------------------------------------
-
-
-@dataclass
-class TarResult:
-    tar: str
-    extracted: int = 0
-    skipped: int = 0
-    missing: list[str] = field(default_factory=list)
-    unexpected: list[str] = field(default_factory=list)
-
-
-def extract_member(tar: tarfile.TarFile, member: tarfile.TarInfo, target: Path, size: int) -> None:
-    """Write one tar member atomically, verifying the byte count as it streams."""
-    target.parent.mkdir(parents=True, exist_ok=True)
-    partial = target.with_name(target.name + ".partial")
-    handle = tar.extractfile(member)
-    if handle is None:
-        raise AcquisitionError(f"{member.name}: not a regular file in the tar")
-    written = 0
-    try:
-        with partial.open("wb") as out:
-            while True:
-                chunk = handle.read(1024 * 1024)
-                if not chunk:
-                    break
-                written += len(chunk)
-                out.write(chunk)
-    except BaseException:
-        partial.unlink(missing_ok=True)
-        raise
-    finally:
-        handle.close()
-    if written != size:
-        partial.unlink(missing_ok=True)
-        raise AcquisitionError(f"{member.name}: wrote {written} bytes, table of contents says {size}")
-    os.replace(partial, target)
-
-
-def extract_tar(tar_path: Path, out: Path, tocs: dict[str, tuple[str, int]]) -> TarResult:
-    """Stream one tar once and extract its members.
-
-    ``tarfile``'s streaming mode cannot seek, which is the point: a member is
-    only reachable by reading everything before it, so the whole tar is read in
-    one pass rather than once per member.
-    """
-    result = TarResult(tar=tar_path.name)
-    expected = {member: entry for member, entry in tocs.items() if entry[0] == tar_path.name}
-    if not expected:
-        return result
-    pending = {
-        member: size for member, (_, size) in expected.items()
-        if not (out / "GIA" / "extracted" / member).is_file()
-        or (out / "GIA" / "extracted" / member).stat().st_size != size
-    }
-    if not pending:
-        result.skipped = len(expected)
-        return result
-
-    seen: set[str] = set()
-    with tarfile.open(tar_path, mode="r|") as tar:
-        for member in tar:
-            if not member.isfile():
-                continue
-            name = member.name
-            if name not in expected:
-                result.unexpected.append(name)
-                continue
-            seen.add(name)
-            size = expected[name][1]
-            target = out / "GIA" / "extracted" / name
-            if name not in pending and target.is_file() and target.stat().st_size == size:
-                result.skipped += 1
-                continue
-            extract_member(tar, member, target, size)
-            result.extracted += 1
-    result.missing = sorted(set(expected) - seen)
-    return result
 
 
 def command_extract(args: argparse.Namespace) -> int:
@@ -1341,12 +1182,9 @@ def render_metadata_yaml(
 
 def metadata_description(out: Path, member: str) -> str:
     extracted = out / "GIA" / "extracted"
-    metadata = extracted / member.replace(".txt.gz", ".metadata.txt")
-    if not metadata.is_file():
-        found = sorted(extracted.glob("*/" + Path(metadata).name))
-        if len(found) != 1:
-            return ""
-        metadata = found[0]
+    metadata = metadata_path_for(extracted, member)
+    if metadata is None:
+        return ""
     return parse_metadata(metadata).get(METADATA_DESCRIPTION, "")
 
 

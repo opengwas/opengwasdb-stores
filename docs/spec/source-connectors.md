@@ -105,7 +105,7 @@ Its translations, and only these:
 - **Super-population** (`source_ancestry.load_source_label_translation`). A
   label `source_label_map.tsv` lists becomes its code. A label
   `source_label_imprecise.tsv` lists -- `Multiple/Mixed`, `NR/Unknown`,
-  `Other`, `Asian (unspecified)`, each with its reason -- leaves
+  `Other`, `Asian (unspecified)`, `META`, each with its reason -- leaves
   `source_superpopulation` blank on purpose. Any other label is refused by
   name, so a new or misspelt label is never silently blank: map it, or list it
   as imprecise with a reason. Both files live in the
@@ -121,6 +121,34 @@ source_analysis_id  source_trait_label  source_ancestry_label  source_superpopul
 GCST000028          Type 2 diabetes     European               EUR                     case-control  2931         1464     1467        17463246          hybrid__European
 GCST90006908        Anti-human herpes…  European               EUR                     quantitative  8735                             33204752          hybrid__European
 ```
+
+### The dbGaP MVP adapter
+
+`src/manifest_generation/providers/dbgap/mvp/source_metadata_adapter.py`
+joins the acquisition's Analysis/candidate binding (`mapping.tsv`) with the
+deposit's own `*.dbGaP.metadata.txt`, and writes the canonical table. dbGaP is
+a host, not one collection (ADR 0036), so this adapter is the MVP Source
+Collection's; a later dataset shares only `providers/dbgap/metadata.py`.
+
+| Deposit or mapping value | Canonical column |
+|---|---|
+| `analysis_id` | `source_analysis_id` |
+| `Analyzed variable` | `source_trait_label` |
+| `dbgap_trait_code` | `source_trait_id` |
+| member ancestry (`EUR`, `AFR`, `AMR`, `EAS`, `META`) | `source_ancestry_label`: `European`, `African`, `Hispanic or Latin American`, `East Asian`, `META` |
+| that label through `source_label_map.tsv`, or blank for `META` | `source_superpopulation` |
+| `Phenotypic trait type` | `study_design` |
+| `Sample size` | `sample_size`, and `n_cases`/`n_controls` for a case-control study only |
+| the post-split bucket | `store_key`: `dense__pmid-39024449__European`, `__African`, `__Hispanic-or-Latin-American`, `__East-Asian`, `__Multi-ancestry` |
+
+`META` is deliberately imprecise: the cross-ancestry bucket has no single
+super-population, so its `source_superpopulation` is blank and it never maps
+to one. The adapter writes the post-split `store_key` rather than the legacy
+candidate key that folded META into the European bucket, so five Selections
+can each name one bucket on a canonical column. A deposit value that disagrees
+with the mapping, an unknown ancestry in a member name, and a quantitative
+study's `0`/`0` case counts are refused or written as absence, as the GWAS
+Catalog adapter does (#133, #290).
 
 ## Acquisition Manifest
 
