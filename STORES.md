@@ -14,7 +14,7 @@ Generated master list of Store Releases in this registry.
 | `OGS-00006` | 2023-chen-full-european | ragged | observed_only | built | - | 1,400 | 0 | - | - | passed_with_warnings |
 | `OGS-00007` | 2018-sun-pilot-10 | ragged | observed_only | built | - | 10 | 0 | - | - | passed |
 | `OGS-00008` | ukb-b-pilot-10 | dense | observed_only | candidate | - | 10 | 0 | - | - | - |
-| `OGS-00009` | ukb-b-full | dense | reference_completed | candidate | - | 2,514 | 0 | - | - | passed_with_warnings |
+| `OGS-00009` | ukb-b-full | dense | reference_completed | accepted | - | 2,514 | 0 | - | - | passed_with_warnings |
 | `OGS-00011` | eur-hybrid-full | hybrid | observed_only | accepted | - | 3,169 | 1,614 | - | - | passed_with_warnings |
 | `OGS-00012` | mvp-phs002453-eur | dense | observed_only | accepted | - | 1,669 | 0 | - | - | not_run |
 | `OGS-00013` | mvp-phs002453-afr | dense | observed_only | accepted | - | 1,368 | 0 | - | - | not_run |

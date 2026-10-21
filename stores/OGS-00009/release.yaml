@@ -1,10 +1,10 @@
 store_id: OGS-00009
 label: ukb-b-full
 access_posture: public
-status: candidate
+status: accepted
 derived_from: null
 created_at: '2026-10-21T22:20:44Z'
-accepted_at: null
+accepted_at: '2026-10-21T22:23:58Z'
 source_snapshot_id: ukb-b-restored-2026-10-11
 source_snapshot:
   source_collection_id: opengwas-gwas-vcf

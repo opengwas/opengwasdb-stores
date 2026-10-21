@@ -4,6 +4,22 @@ validator:
   name: manifest_generation.providers.ukb_b.generate_candidate
   version: null
 acceptance:
+  status: accepted
+  human_acceptance: pending
+  membership_accepted: true
+  membership_frozen: true
+  frozen_at: '2026-10-21T22:23:58Z'
+  owner_authorization: 'The owner accepted OGS-00009 for building as emitted (opengwas/opengwasdb-stores#312
+    comment 6327843666, https://github.com/opengwas/opengwasdb-stores/issues/312#issuecomment-6327843666):
+    2,514 Analyses from the frozen inventory ukb-b-restored-2026-10-11; ancestry from source labels, EUR;
+    build-dense-vcf from hg19 at 32 workers on opengwasdb d405de0; complete-dense against ukb-hg38-eur-ld
+    (/data/opengwasdb/reference/ld, EUR) at 32 workers as release OGS-00009-completed, then the observed-view
+    check and the swap.'
+  owner_authorization_date: '2026-10-21'
+  note: 'The exact 2,514-Analysis membership is accepted and frozen as the input manifest for the build.
+    human_acceptance keeps the meaning it has in OGS-00012..16: human scientific acceptance of the released
+    Store, which follows its build and validation; the owner''s acceptance for building is status accepted
+    and owner_authorization. No Store has been built or validated from this bundle.'
   completion_reference:
     resource_id: ukb-hg38-eur-ld
     qualification: qualified

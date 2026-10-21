@@ -761,7 +761,14 @@ class TestRegisteredOGS00009(unittest.TestCase):
 
     def test_ogs00009_is_the_frozen_inventory_under_one_single_id_bundle(self) -> None:
         self.assertEqual(list(bundle.check(self.loaded, registry_root=REPO_ROOT / "stores")), [])
-        self.assertEqual(self.loaded.status, "candidate")
+        # Accepted for building by the owner (#312 comment 6327843666), on the bundle as emitted.
+        self.assertEqual(self.loaded.status, "accepted")
+        self.assertTrue(self.loaded.release["accepted_at"])
+        acceptance = self.loaded.validation["acceptance"]
+        self.assertEqual(acceptance["status"], "accepted")
+        self.assertIs(acceptance["membership_accepted"], True)
+        self.assertIs(acceptance["membership_frozen"], True)
+        self.assertIn("issuecomment-6327843666", acceptance["owner_authorization"])
         self.assertEqual(self.loaded.completion_state, "reference_completed")
         self.assertIsNone(self.loaded.derived_from)
         self.assertTrue(self.loaded.completes_own_store)

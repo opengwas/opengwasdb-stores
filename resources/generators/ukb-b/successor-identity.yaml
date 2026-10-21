@@ -11,7 +11,9 @@
 # EUR panel. OGS-00010, OGS-00030 and OGS-00031 are dropped and their ids are
 # retired, never reused (ADR 0022). Nothing external depends on the old pair.
 #
-# This file records identity only. It implies no acceptance and no build.
+# This file records identity only. It implies no build. The owner accepted
+# OGS-00009 for building on 2026-10-21:
+#   https://github.com/opengwas/opengwasdb-stores/issues/312#issuecomment-6327843666
 source_collection_id: opengwas-gwas-vcf
 store_key: ukb-b
 
@@ -22,7 +24,7 @@ store:
   completion_state: reference_completed   # single id, no derived_from (ADR 0037)
   membership: 2514                        # frozen Source Inventory ukb-b-restored-2026-10-11
   completion_reference: ukb-hg38-eur-ld   # /data/opengwasdb/reference/ld, ancestry EUR (EUR -> ukb)
-  status: candidate                       # acceptance is the owner's
+  status: accepted                        # for building, #312 comment 6327843666
   replaces: >-
     the 2,024-Analysis OGS-00009 candidate, re-emitted in place (490 added,
     none removed), and its two-id completed child OGS-00010
@@ -44,7 +46,7 @@ published_stores:
   OGS-00009: 2,024-Analysis observed Store, replaced by the new build phase (a forced run) and deleted once the new OGS-00009 completes
   OGS-00010: 2,024-Analysis completed Store, deleted after the new OGS-00009 completes
 
-acceptance: none-implied
+acceptance: accepted-for-building       # human scientific acceptance still pending
 production_build: not-run
 notes: >
   Ancestry in the bundle is the provider's population label (source_fallback,
