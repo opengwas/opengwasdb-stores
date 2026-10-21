@@ -150,15 +150,17 @@ tools/             repository tooling that is neither a package nor an input
 tests/             the suites, and the runner behind `pixi run test`
 docs/              adr/ decisions, spec/ specifications, reports/ report sources,
                    rendered site
+.github/           CI (workflows/ci.yml)
 ```
 
 Each kind of thing has one home (ADR 0038). `stores/` holds what this
 repository produces. `src/` holds every importable module, `workflow/` wires
 them into the two workflows, and `resources/` holds their inputs and nothing
 else. Code that is neither a workflow's nor a test goes in `tools/`.
-`tests/packaging/test_layout.py` enforces the layout: no importable Python
-outside `src/` and `tests/`, and no code under `resources/` but the listed
-legacy R generators.
+`tests/packaging/test_layout.py` enforces the layout:
+- no Python outside `src/`, `tests/`, `tools/` and `workflow/`;
+- no package outside `src/` and `tests/`;
+- no code under `resources/` but the listed legacy R generators.
 
 To place a new file:
 1. Something the repository produces goes in `stores/`, or in `docs/` if it
@@ -171,9 +173,15 @@ To place a new file:
    everything else in `tools/`.
 
 A move never breaks a path that generation still reads: frozen inventory
-provenance, the originals named there, and config inputs. Re-freeze under a
-new snapshot id, or leave the file where it is. Paths recorded in `stores/`
-and in `generation-*.yaml` receipts are history and are never edited.
+provenance, the originals named there, and config inputs.
+- Re-freeze under a new snapshot id, or leave the file where it is.
+- An input whose content is unchanged may move with its recorded path, and
+  the provenance pin that covers it, updated in place under the same snapshot
+  id (ADR 0038).
+- Any change to an input's content needs a new snapshot id.
+- Paths recorded in `stores/` and in `generation-*.yaml` receipts are history
+  and are never edited, and neither are the commands in a locked or
+  preregistered record.
 
 ### `stores/`
 
@@ -342,11 +350,13 @@ serves. The sources of its rendered reports (`*.qmd`, `make-dashboard.r`) are
 in `reports/`; `pixi run docs` renders each and copies it to the name the
 site publishes, so a published link does not change when its source moves.
 
-### `families/`
+### `.github/`
 
-Not part of the layout. Its remaining Release Bundles, which predate the
-`stores/` registry, retire through #252: each is given a Store Release id or
-marked `superseded`/`withdrawn`, and the directory goes.
+CI, in `workflows/ci.yml`. It installs from the committed `pixi.lock` and
+runs `env-check`, the suites, `bundle-check`, the index regeneration (which
+must leave the tree clean) and the docs smoke test. Each suite that builds
+Stores through the whole release stack runs on a runner of its own (see
+Checks).
 
 ## Metadata and scripts
 

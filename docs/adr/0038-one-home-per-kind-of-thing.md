@@ -30,13 +30,14 @@ src/               all importable Python
   manifest_generation/  the shared pipeline and providers/, with the check_bundles CLI;
                      a provider's acquisition scripts, in any language, under it
   curation/          trait-mapping curation
-workflow/          Snakemake wiring only
+workflow/          Snakemake wiring, and the release entry point
 resources/         inputs only: reference-resources/, annotations/, inventories/,
                    generators/ (release configs, reviewed tables, receipts, and the
                    legacy R generators until stage 2 retires them)
 tools/             repository tooling that is neither a package nor an input
 tests/             the suites, and run_all_tests.py
 docs/              adr/, spec/, reports/ (report sources), and the rendered site
+.github/           CI
 ```
 
 To place a file, ask what it is:
@@ -60,13 +61,24 @@ Three rules keep it true:
 - **Moving a file never breaks a path generation still reads.** Those paths
   are frozen inventory provenance, the originals named there, and config
   inputs. A move that would break one re-freezes under a new snapshot id, or
-  the file stays where it is. Paths recorded in `stores/` and in
-  `generation-*.yaml` receipts are history and are never edited. So is a
-  lineage string that records which tool changed a file.
-- **`tests/packaging/test_layout.py` enforces the layout.** No importable
-  Python package lives outside `src/` and `tests/`. Nothing under
-  `resources/` is code, except the legacy R generators, each listed with the
-  ticket that retires it. `resources/scripts/` does not come back.
+  the file stays where it is.
+  - An input whose content is unchanged may instead move with its recorded
+    path, and the provenance pin that covers it, updated in place under the
+    same snapshot id. This was decided for ukb-b's declared selection (#252),
+    so as not to disrupt the work that uses that inventory.
+  - Any change to an input's content still needs a new snapshot id.
+  - Paths recorded in `stores/` and in `generation-*.yaml` receipts are
+    history and are never edited. So is a lineage string that records which
+    tool changed a file, and so are the commands in a locked or preregistered
+    record, such as the QC Panel Concordance Study's preregistration.
+- **`tests/packaging/test_layout.py` enforces the layout.**
+  - Python lives only in `src/`, `tests/`, `tools/` and `workflow/`. None sits
+    at the repository root, and none hides elsewhere as a namespace package
+    such as `rogue/module.py`.
+  - Only `src/` and `tests/` hold packages.
+  - Nothing under `resources/` is code, except the legacy R generators, each
+    listed with the ticket that retires it.
+  - `resources/scripts/` does not come back.
 
 ## Considered options
 
@@ -102,7 +114,6 @@ Three rules keep it true:
 - An existing checkout picks up the new package location on its next
   `pixi run`, because pixi re-installs the editable package when
   `pyproject.toml` changes.
-- `families/` and `.rebuild133/` are not part of the layout, and retire
-  through #252.
+- #252, in the same pull request, retired `families/` and `.rebuild133/`.
 - ADR 0011 stands. Reference Resources are build inputs. Only their build
   scripts moved, to `tools/`.

@@ -93,6 +93,7 @@ tools/                   repository tooling: ld-panel/, benchmarks/,
 tests/                   the suites, and run_all_tests.py behind `pixi run test`
 docs/                    adr/ decisions, spec/ specifications, reports/ report
                          sources, and the rendered site
+.github/workflows/       CI: the suites, bundle-check, the index and the docs smoke test
 CONTEXT.md               project language
 ```
 
@@ -101,9 +102,8 @@ produces. `src/` holds all its importable code: Store Release Build
 (`src/ogstores`) and Manifest Generation (`src/manifest_generation`) meet only
 at the Release Bundle. `workflow/` wires them, `resources/` holds only their
 inputs, and `tools/` holds the tooling that is neither.
-`tests/packaging/test_layout.py` keeps it that way. `families/` and
-`.rebuild133/` are not part of the layout; they retire through #252.
-`CONTRIBUTING.md` documents each directory.
+`tests/packaging/test_layout.py` keeps it that way, and `CONTRIBUTING.md`
+documents each directory.
 
 ## Store Release identity
 
@@ -182,5 +182,4 @@ stores/OGS-00003/                  finngen-r13 / r13-pilot-20, dense observed-on
 resources/generators/finngen-r13/  its Manifest Generation inputs, and the legacy R generator
 ```
 
-`stores/README.md` lists all seven migrated Trial Store Releases. The bundles
-left under `families/` are being triaged and retired through #252.
+`stores/README.md` lists all seven migrated Trial Store Releases.
