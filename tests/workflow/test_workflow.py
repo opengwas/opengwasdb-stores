@@ -2870,6 +2870,56 @@ class TestWorkflowVariantReferenceDAG(unittest.TestCase):
         self.assertNotIn("variant-reference", scheduled_targets(res.stdout))
 
 
+class TestEntryPointSnakemakeTemporaryFiles(unittest.TestCase):
+    """The entry point's Snakemake runs with TMPDIR on the artifact root, never /tmp (#312)."""
+
+    def test_snakemake_gets_a_tmpdir_under_the_artifact_root(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            expected = str(root / ".tmp")
+            seen: dict[str, Any] = {}
+
+            class FakeProc:
+                def wait(self) -> int:
+                    return 0
+
+            def fake_popen(argv: list[str], **kwargs: Any) -> FakeProc:
+                seen.update(kwargs["env"])
+                return FakeProc()
+
+            with mock.patch.object(release.subprocess, "Popen", fake_popen), \
+                    mock.patch.object(release.run, "_supervised_command", lambda a, *r: a), \
+                    mock.patch.object(release.os, "read", lambda fd, n: b""):
+                release._run_snakemake(["snakemake"], (), root=root)
+            for var in ("TMPDIR", "TMP", "TEMP"):
+                self.assertEqual(seen.get(var), expected, var)
+            self.assertTrue((root / ".tmp").is_dir())
+
+    def test_a_dry_run_names_an_existing_directory_on_the_artifact_root_and_writes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            env = release.snakemake_env(root, create=False)
+            for var in ("TMPDIR", "TMP", "TEMP"):
+                self.assertEqual(env[var], str(root), var)
+            self.assertEqual(sorted(root.rglob("*")), [], "a dry run wrote under the artifact root")
+            (root / ".tmp").mkdir()
+            self.assertEqual(release.snakemake_env(root, create=False)["TMPDIR"], str(root / ".tmp"))
+
+    def test_clearing_snakemake_metadata_runs_with_the_artifact_root_tmpdir(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            seen: dict[str, Any] = {}
+
+            def fake_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+                seen.update(kwargs["env"])
+                return subprocess.CompletedProcess(argv, 0, "", "")
+
+            inv = release.parse_invocation(["OGS-00001"])
+            with mock.patch.object(release.subprocess, "run", fake_run):
+                release._cleanup_metadata(inv, [root / "x"], root=root)
+            self.assertEqual(seen.get("TMPDIR"), str(root / ".tmp"))
+
+
 class TestPixiReleaseTaskPassthrough(unittest.TestCase):
     """`pixi run release <ID> --config key=value` reaches Snakemake's config (#195).
 

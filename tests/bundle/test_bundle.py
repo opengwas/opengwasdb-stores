@@ -1438,15 +1438,17 @@ class TestBundleContract(unittest.TestCase):
         original_is_file = Path.is_file
         original_is_dir = Path.is_dir
 
-        # A checkout may itself live under /data/opengwasdb (work trees on the
-        # production host do), so the registry's own files are not artifacts.
-        checkout = str(REPO_ROOT) + "/"
-
         def reject_artifact(path: object) -> None:
+            # The artifact root and a Store path, not every path under /data/opengwasdb:
+            # a checkout or scratch directory there holds this repository's own bundles.
             text = str(path)
-            if text.startswith(checkout):
-                return
-            if text.startswith("/data/opengwasdb") or ".opengwasdb" in text:
+            location = Path(text)
+            root = Path(paths.DEFAULT_ARTIFACT_ROOT)
+            if (
+                location == root
+                or root in location.parents
+                or any(".opengwasdb" in part for part in location.parts)
+            ):
                 raise AssertionError(f"artifact path inspected: {text}")
 
         def guarded_open(path: object, *args: Any, **kwargs: Any) -> Any:

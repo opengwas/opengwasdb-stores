@@ -180,6 +180,10 @@ The Build Recipe says *what* to build; configuration says *where* it lands. An a
 
 A workflow config override and the environment variable are per-invocation overrides for CI, a developer laptop, or a one-off run. Name the Store Release ids before `--config`, because it takes every word after it as a `key=value`. The `release` and `release-dry` tasks pass those words to Snakemake as given; they once ended in a bare `--`, which made Snakemake read the override as a target (#195). The tracked `ogstores.yaml` names this deployment's default root and is the reviewed place to change it. `plan()` never reads the root from `build.yaml`: the workflow resolves it once and passes it in, and the build command published in the master list is rendered under the same resolved root.
 
+### Temporary files stay on the artifact root
+
+Every step's subprocess runs with `TMPDIR`, `TMP` and `TEMP` set to `<artifact root>/<store id>/tmp` (`paths.tmp_dir`, set once in `run.step_env`), and the entry point's own Snakemake run uses `<artifact root>/.tmp` (`paths.entry_point_tmp_dir`). `opengwasdb` spills through `tempfile`, which follows `TMPDIR`, and `/tmp` is on a small root filesystem: OGS-00009's release died with `No space left on device` that way (#312). Both directories are created when missing, with no configuration. Their contents belong to the step that wrote them, which removes them; nothing here deletes the directory. A step killed mid-run (a signal, or `ENOSPC`) leaves its spill there until it is removed by hand (#316).
+
 ### The passthrough rule
 
 `options` keys are `opengwasdb` flag names. `plan()` renders `key: value` as `--key value`, booleans as bare flags, and never interprets a key. The registry does not know what `--min-cor` means and must not acquire a copy of `opengwasdb`'s parameter schema.
