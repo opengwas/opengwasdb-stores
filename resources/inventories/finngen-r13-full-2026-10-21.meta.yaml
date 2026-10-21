@@ -1,0 +1,48 @@
+snapshot_id: finngen-r13-full-2026-10-21
+source_collection_id: finngen-r13
+frozen_at: '2026-10-21T00:15:58Z'
+frozen_by: manifest_generation.freeze
+selection:
+  all: true
+rows: 2754
+readiness_counts:
+  already_present: 2754
+ready_rows: 2754
+ready_bytes: 2160735169593
+study_design_counts:
+  case-control: 2751
+  quantitative: 3
+ready_study_design_counts:
+  case-control: 2751
+  quantitative: 3
+duplicate_content_groups: []
+inventory_tsv_sha256: 20767e50ec1dd827d9d15d9b90ac60ccc332915ec0d045d36cb44c2793231f1e
+source_metadata_table:
+  frozen:
+    path: finngen-r13-full-2026-10-21.source-metadata.tsv
+    sha256: 1418fd03c87dcb52029342a9e9e64c92af1769477d94edab1c2ae9c6fa39189a
+    bytes: 321514
+    rows: 2754
+  original:
+    path: /data/opengwasdb/raw/finngen-r13/connectors/2026-10-21/finngen-r13.source-metadata.tsv
+    sha256: 1418fd03c87dcb52029342a9e9e64c92af1769477d94edab1c2ae9c6fa39189a
+    bytes: 321514
+    rows: 2754
+acquisition_manifest:
+  frozen:
+    path: finngen-r13-full-2026-10-21.acquisition-manifest.tsv
+    sha256: 7f249fffc3f646b940531a24bdb18a84524db8e1000a7c72d57a78f4439437c7
+    bytes: 842117
+    rows: 2754
+  original:
+    path: /data/opengwasdb/raw/finngen-r13/connectors/2026-10-21/finngen-r13-full.acquisition-manifest.tsv
+    sha256: 7f249fffc3f646b940531a24bdb18a84524db8e1000a7c72d57a78f4439437c7
+    bytes: 842117
+    rows: 2754
+    readiness_counts:
+      already_present: 2754
+    pass_lineage:
+      path: /data/opengwasdb/raw/finngen-r13/connectors/2026-10-21/finngen-r13-full.acquisition-manifest.meta.yaml
+      sha256: e1eb0173b2d9b431c162a61f8505d5e0f830ba53bd8cd2c44049947cdca9ca7e
+  unselected_entries: 0
+lineage: []
