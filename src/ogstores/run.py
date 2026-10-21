@@ -1562,28 +1562,57 @@ def execute_step(
     return result
 
 
+def _observed_view_failure_counts(verdict: Mapping[str, Any]) -> str:
+    """Each name in a verdict's `failures`, with its count where the verdict holds one.
+
+    A counter is in `totals`. The three axis and Analyses failures carry
+    theirs elsewhere: `axis.parent_rows_unmapped`, `axis.order_preserved` and
+    `analyses.identical`.
+    """
+    totals, axis, analyses = verdict["totals"], verdict["axis"], verdict["analyses"]
+    named: list[str] = []
+    for name in verdict["failures"]:
+        if name in totals:
+            named.append(f"{name}={totals[name]}")
+        elif name == "parent_rows_unmapped":
+            named.append(f"parent_rows_unmapped={axis['parent_rows_unmapped']}")
+        elif name == "order_not_preserved":
+            named.append(f"order_preserved={str(axis['order_preserved']).lower()}")
+        elif name == "analyses_mismatch":
+            named.append(
+                f"analyses_identical={str(analyses['identical']).lower()} "
+                f"(n_parent={analyses['n_parent']}, n_child={analyses['n_child']})"
+            )
+        else:
+            named.append(name)
+    return ", ".join(named)
+
+
 def observed_view_check_failure(
     step: Step, store_id: str, argv: list[str], exit_code: int, stdout: str, stderr: str
 ) -> str:
     """What the operator reads when the Observed-View Check does not pass (ADR 0037).
 
-    Exit 1 is a mismatch: the command printed its verdict, so the message
-    names the failing counters with their counts, and where the verdict is
-    kept. Exit 2 is a refusal, which prints no verdict: it is reported as
-    one, with the command's stderr. Anything else is an ordinary failure.
+    Every message names where the verdict is kept. Exit 1 is a mismatch: the
+    command printed its verdict, so the message names the failing counters
+    with their counts. Exit 2 is a refusal, which prints no verdict: it is
+    reported as one, with the command's stderr. A verdict that cannot be read
+    from stdout is said to be unreadable, with the reason and the start of
+    stdout, never replaced by a generic failure.
     """
     where = f"Step {step.name!r} for {store_id}"
+    output = argv[argv.index("--output") + 1] if "--output" in argv else "(no --output)"
     if exit_code == 2:
-        return f"{where} was refused by {step.argv[1]} (exit 2):\n{stderr}"
+        return f"{where} was refused by {step.argv[1]} (exit 2); verdict: {output}\n{stderr}"
     try:
         # The first object: a step that exits non-zero has its output captured twice.
         verdict, _ = json.JSONDecoder().raw_decode(stdout.lstrip())
-        totals = verdict["totals"]
-        # An axis or Analyses failure has no counter of its own: name it alone.
-        failing = ", ".join(f"{name}={totals[name]}" if name in totals else name for name in verdict["failures"])
-    except (ValueError, KeyError, TypeError):
-        return f"{where} failed with exit code {exit_code}:\n{stderr}"
-    output = argv[argv.index("--output") + 1] if "--output" in argv else "(no --output)"
+        failing = _observed_view_failure_counts(verdict)
+    except (ValueError, KeyError, TypeError) as exc:
+        return (
+            f"{where} failed with exit code {exit_code}; verdict unreadable: {exc!r}; "
+            f"verdict: {output}; stdout begins {stdout[:200]!r}\n{stderr}"
+        )
     return (
         f"{where} found the completed Store differs from the published one in what was observed "
         f"(exit {exit_code}); failing counters: {failing or 'none named'}; verdict: {output}\n"
