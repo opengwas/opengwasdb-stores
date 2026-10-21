@@ -182,4 +182,7 @@ stores/OGS-00003/                  finngen-r13 / r13-pilot-20, dense observed-on
 resources/generators/finngen-r13/  its Manifest Generation inputs, and the legacy R generator
 ```
 
-`stores/README.md` lists all seven migrated Trial Store Releases.
+`stores/README.md` describes the registry and lists the Trial Store Releases.
+Since #252 `stores/` is the only home for a Release Bundle: the family-first
+archive that sat beside it is gone, every bundle it held was either registered
+under its own OGS id or retired, and git history keeps the retired ones.

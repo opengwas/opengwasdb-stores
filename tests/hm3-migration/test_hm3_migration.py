@@ -64,7 +64,21 @@ EXPECTED_IN_SCOPE = (
     "OGS-00016",
     "OGS-00017",
 )
-EXPECTED_RAGGED = ("OGS-00001", "OGS-00002", "OGS-00006", "OGS-00007")
+EXPECTED_RAGGED = (
+    "OGS-00001",
+    "OGS-00002",
+    "OGS-00006",
+    "OGS-00007",
+    "OGS-00024",
+    "OGS-00025",
+    "OGS-00026",
+)
+
+# Dense-component Release Bundles that explicitly declare no subset. They were
+# migrated in #252 from the retired family-first archive with an unchanged
+# recipe, and no evidence records an Indexed Variant Subset ever being built
+# against them, so `indexed_subsets: []` is the answer rather than a guess.
+EXPECTED_OPTED_OUT = ("OGS-00022", "OGS-00023")
 
 HAPMAP3_RESOURCE_ID = "hapmap3-hg38"
 HAPMAP3_VARIANT_LIST = "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt"
@@ -231,7 +245,7 @@ def load_build(store_id: str) -> dict[str, Any]:
 
 
 class TestRegistryMigration(unittest.TestCase):
-    """The thirteen Dense-component bundles and the four Ragged-only bundles."""
+    """The Dense-component bundles that declare hm3, and every Ragged-only bundle."""
 
     def test_audit_passes_on_the_real_registry(self) -> None:
         report = audit.audit_registry(REPO_ROOT / "stores", REPO_ROOT)
@@ -239,7 +253,8 @@ class TestRegistryMigration(unittest.TestCase):
         self.assertTrue(report.ok, [b.detail for b in report.failures])
         record_check()
         self.assertEqual(
-            [b.store_id for b in report.in_scope], list(EXPECTED_IN_SCOPE)
+            [b.store_id for b in report.in_scope],
+            list(EXPECTED_IN_SCOPE) + list(EXPECTED_OPTED_OUT),
         )
         record_check()
         self.assertEqual([b.store_id for b in report.ragged], list(EXPECTED_RAGGED))
@@ -254,6 +269,14 @@ class TestRegistryMigration(unittest.TestCase):
             self.assertTrue(row.dense_component, store_id)
             record_check()
             self.assertEqual(row.declared, ("hm3",), store_id)
+
+    def test_opted_out_bundles_declare_an_empty_list(self) -> None:
+        for store_id in EXPECTED_OPTED_OUT:
+            build = load_build(store_id)
+            record_check()
+            self.assertEqual(build.get("indexed_subsets"), [], store_id)
+            record_check()
+            self.assertIn(build.get("layout"), {"dense", "hybrid"}, store_id)
 
     def test_ragged_only_bundles_declare_none(self) -> None:
         for store_id in EXPECTED_RAGGED:
@@ -344,11 +367,11 @@ class TestRegistryMigration(unittest.TestCase):
             record_check()
             self.assertIn(store_id, rendered)
         record_check()
-        self.assertIn("13/13 Dense-component bundles declare hm3", rendered)
+        self.assertIn("13/15 Dense-component bundles declare hm3; 2 explicitly opted out", rendered)
         record_check()
-        self.assertIn("4/4 Ragged-only bundles declare none", rendered)
+        self.assertIn("7/7 Ragged-only bundles declare none", rendered)
         record_check()
-        self.assertIn("families/*/releases/*", rendered)
+        self.assertIn("every registered Release Bundle", rendered)
 
 
 class TestAuditFailures(unittest.TestCase):

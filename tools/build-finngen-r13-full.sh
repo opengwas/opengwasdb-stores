@@ -12,7 +12,7 @@
 # workers, and OpenGWASDB's union-axis Pass 1 is intentionally serial, so wall
 # time does not scale only with worker count. Run it detached and resumable.
 #
-# WARNING recorded by the pilot assessment (OGS-00003, families/.../r13-pilot-20):
+# WARNING recorded by the pilot assessment (OGS-00003, r13-pilot-20):
 # the full R13 collection received a NO-GO because effect-scale/sd_estimation
 # failed for finngen-r13-HEIGHT_IRN. The build itself is unchanged by that
 # finding; the Store is still built and validated. Re-run the assessment after

@@ -1,0 +1,41 @@
+store_id: OGS-00022
+label: eur-hybrid-pilot-10-completed
+access_posture: public
+status: validated
+derived_from: OGS-00004
+created_at: '2026-08-18T19:16:00Z'
+accepted_at: '2026-08-18T20:00:00Z'
+source_snapshot_id: gwas-catalog-v1.0.3.1-r2026-07-10
+description: |
+  Reference-Completed sibling of eur-hybrid-pilot-10: the same 10 case-control Analyses' Hybrid Observed-Only Store, reference-completed against the real HGDP+1kGP hg38 EUR LD panel via opengwasdb's complete_hybrid_store() (Dense Component only, ADR 0026; Ragged Overflow stays observed-only by design). Proves the Hybrid Reference-Completion pipeline end to end with real data, satisfying opengwasdb#89's "at least one Reference-Completed Hybrid release" checklist item.
+generator:
+  version: opengwasdb@553aee3a5ef32ac4f23ffed142808807cf350fd7
+  commands:
+    - opengwasdb complete-hybrid /data/opengwasdb/gwas-catalog-eur-hybrid/releases/eur-hybrid-pilot-10/store/hybrid__European__pilot10-cc /data/opengwasdb/gwas-catalog-eur-hybrid/releases/eur-hybrid-pilot-10/store/hybrid__European__pilot10-cc-completed --ld-panel /data/opengwasdb/reference/hgdp1kgp-hg38/panel --ancestry European --n-workers 32
+notes: |
+  --ancestry European (not the panel's own EUR directory name) is required here because this Store Family's assigned_ancestry column is populated with the free-text label "European", not the ISO/continental code "EUR" -- opengwasdb's ancestry-match filter (opengwasdb.completion.ancestry_filter.derive_impute_analysis_ids) does an exact string match with no vocabulary translation, so passing --ancestry EUR against this Family silently imputed 0 Analyses on a first attempt (all completion work was really happening per-block, but every Analysis was filtered out of the impute set). Filed as opengwasdb#98. Worked around here, not by renaming this Family's ancestry labels, but by adding a `European -> EUR` symlink under the LD panel root so the CLI's --ancestry argument and this Family's real assigned_ancestry values agree; the panel data itself is unchanged (still the real EUR reference).
+
+  This release exercises the one non-trivial Hybrid-completion bug found and fixed this session: LD-panel extension can cross a real observed off-panel (Ragged Overflow) association onto the newly-extended Dense panel, which -- before the fix -- left the store violating its own disjoint-partition invariant (opengwasdb#99, fixed in opengwasdb@553aee3). This build (the fixed re-run) folded 2,723,489 such crossover associations into the Dense Component as real observations, 2,687,338 of which had already been LD-imputed there and are now corrected to the real value. `opengwasdb validate` reports valid.
+
+  From the built manifest: 22,809,242 shared variants (12,719,981 on-panel + 10,089,261 off-panel), 33,037,123 imputed dense cells (post-fold), 25,087,345 Ragged Overflow associations (observed-only, post-fold). Inherits eur-hybrid-pilot-10's known opengwasdb#86 gap (sample_size_kind/sample_size_scope/original_effect_scale dropped from the built Analysis metadata, ancestry_assignment_method fabricated as af_assigned) -- unresolved upstream, unaffected by completion.
+
+  A Dense Rho Matrix was built for this completed store's Dense Component (opengwasdb build-dense-rho .../dense, n_workers=32).
+
+  The pre-fix broken build (which failed validate_store with "disjoint-partition violated") was kept at hybrid__European__pilot10-cc-completed-broken-pre99fix alongside this store for reference, pending deletion.
+
+  Migration (#252): migrated from the retired family-first
+  `gwas-catalog-eur-hybrid/eur-hybrid-pilot-10-completed` layout to OGS-00023, in
+  the current bundle schema. Its Release Manifest, `validated` Release Status,
+  Validation Record and recorded completion command are unchanged: nothing was
+  rebuilt, revalidated or rewritten. `derived_from: OGS-00004` names the parent
+  Observed-Only Store, whose 10 Analyses are exactly this bundle's 10.
+
+  Release Erratum (issue #133, applied here during the #252 migration):
+  `assigned_ancestry` was recorded as the free-text Source Ancestry Label
+  "European" rather than the registry-normalised super-population code "EUR", as
+  it was in the parent bundle before its own #133 correction.
+  `source_ancestry_label` remains "European" as source provenance. No Store
+  artifact was rebuilt or rewritten. The recorded completion command keeps
+  `--ancestry European`, because that is what ran: opengwasdb#98 matched the
+  argument against the stored labels by exact string, so the CLI was given the
+  label, not the code.

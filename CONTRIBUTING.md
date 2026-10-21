@@ -195,6 +195,12 @@ A bundle is immutable once accepted. A material change to membership or to the
 Build Recipe is a **new** Store Release (ADR 0004), not an edit. Correcting
 Analytical Metadata after publication is a Release Erratum.
 
+This is the *only* home for a Release Bundle. The family-first archive that
+once sat beside it held bundles in the pre-ADR-0022 schema and is gone (#252):
+each of its bundles was either registered here under its own `OGS-` id or
+retired, and git history keeps the retired ones. Nothing writes a bundle
+anywhere else.
+
 ### `src/ogstores/`
 
 Store Release Build: `bundle.py` (load and check a bundle), `plan.py` (Bundle

@@ -132,7 +132,9 @@ SUITE_COST: dict[str, float] = {
     "schema-validation": 4.0,
     "plan": 2.5,
     "readiness": 3.0,
-    "migration": 1.0,
+    "migration/id-reorder": 1.0,
+    # The #252 guard walks every tracked file and re-checks six bundles.
+    "migration/families-retired": 6.0,
     "opengwas-gwas-vcf-dense": 2.5,
     "finngen-r13-pilot": 2.5,
     "ld-panel-eigendecomposition": 2.0,

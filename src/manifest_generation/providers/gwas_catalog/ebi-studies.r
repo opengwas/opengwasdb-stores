@@ -27,7 +27,7 @@
 ## This is a curation aid, not a final decision: see `needs_review` in the
 ## summary output for groups where the dense/ragged call or the dominant
 ## ancestry are ambiguous and should be checked by hand before a Store
-## Family is created (see families/_candidates/).
+## Store Release is created (resources/generators/).
 
 library(data.table)
 

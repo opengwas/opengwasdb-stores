@@ -495,8 +495,6 @@ class TestGeneratorConfigs(unittest.TestCase):
                 document = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
                 output = document.get("output") or {}
                 self.assertNotIn("release_dir", output)
-                for key, value in output.items():
-                    self.assertFalse(str(value).startswith("families/"), f"output.{key} names {value}")
                 self.assertEqual("work_root" in output, name in self.OWN_WORK_ROOT)
                 if "build" in document and name not in self.OWN_WORK_ROOT:
                     self.assertTrue(
@@ -529,7 +527,7 @@ class TestWorkRoot(unittest.TestCase):
         self.assertEqual(overridden.stdout.strip(), f"/given/artifacts/{STORE_ID}/generate")
 
     def test_an_invalid_store_id_has_no_work_root(self) -> None:
-        res = self.run_work_root("families/x", env_root="/env/artifacts")
+        res = self.run_work_root("not-a-store-id", env_root="/env/artifacts")
 
         self.assertNotEqual(res.returncode, 0)
         self.assertEqual(res.stdout, "")

@@ -17,9 +17,19 @@ upstream_batch:
   evidence_path: /home/gh13047/repo/opengwasdb-stores-wt/219-restored-ukb/resources/inventories/ukb-b-restored-2026-10-11.upstream-batches.json
   evidence_sha256: f108faee01dbaffe9bd2114cdfbb8e423d852b30ff78ca4e30904d211e641457
 declared_selection:
-  path: /home/gh13047/repo/opengwasdb-stores-wt/219-restored-ukb/families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv
+  path: resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv
   sha256: 0ae5c2d74d46dfcea7b2fcb36f3032e1ca4ae27117a1d6ac6915400cde060284
   rows: 2514
+  path_update:
+    issue: '#252'
+    reason: >-
+      The declared Selection moved out of the retired families/ archive into
+      Source Inventories, where the rest of this snapshot's inputs live. Only
+      its location changed: the sha256 above is the one frozen on
+      2026-10-12T00:48:51Z, the Source Inventory it declares is untouched, and
+      the receipt's declared_selection_path and provenance_sha256 were updated
+      to match.
+    previous_path: /home/gh13047/repo/opengwasdb-stores-wt/219-restored-ukb/families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv
 built_baseline:
   store_id: OGS-00009
   path: /home/gh13047/repo/opengwasdb-stores-wt/219-restored-ukb/stores/OGS-00009/analyses.tsv

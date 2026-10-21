@@ -50,8 +50,12 @@ no longer exist; the other four are at neither location. The derived path is
 still what a build would produce and what a Store found at
 `<artifact-root>/<store-id>/` joins back to.
 
-Thirteen further bundles are still under `families/*/releases/` awaiting
-triage.
+Every Release Bundle lives here; this is the only home for one. The
+family-first archive that once sat beside this directory is gone (#252): each of
+its bundles was either registered here under its own id or retired, and git
+history keeps the retired ones.
+
+The seven Trial Store Releases ADR 0022's one-time migration produced are:
 
 | | label |
 |---|---|

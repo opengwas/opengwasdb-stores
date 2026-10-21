@@ -37,6 +37,7 @@ from curation.gap_scan import (
     MissingManifestError,
     MissingTraitLabelColumnError,
     QueueEntry,
+    UnsupportedManifestLocationError,
     derive_store_family,
     format_queue_tsv,
     normalize_trait_label,
@@ -119,12 +120,12 @@ class TestScanManifest(unittest.TestCase):
                 "trait_ontology_mapping_method": "unmapped",
             },
         ]
-        manifest = make_bundle(self.td, "family-a", "releases", "rel-1", rows=rows)
+        manifest = make_bundle(self.td, "stores", "OGS-99001", rows=rows)
         result = scan_manifest(manifest)
 
         self.assertEqual(list(result), ["queued"])
         self.assertEqual(result["queued"][0], 1)
-        self.assertEqual(result["queued"][1], {"family-a"})
+        self.assertEqual(result["queued"][1], {"OGS-99001"})
 
     def test_labels_collapse_across_case_and_whitespace(self) -> None:
         rows = [
@@ -133,7 +134,7 @@ class TestScanManifest(unittest.TestCase):
             {"source_label": "BODY MASS INDEX  ", "trait_ontology_mapping_method": "unmapped"},
             {"source_label": "Height", "trait_ontology_mapping_method": "unmapped"},
         ]
-        manifest = make_bundle(self.td, "family-a", "releases", "rel-1", rows=rows)
+        manifest = make_bundle(self.td, "stores", "OGS-99001", rows=rows)
         result = scan_manifest(manifest)
 
         self.assertEqual(result["body mass index"][0], 3)
@@ -145,32 +146,59 @@ class TestScanManifest(unittest.TestCase):
             {"source_label": "   ", "trait_ontology_mapping_method": "unmapped"},
             {"source_label": "Real", "trait_ontology_mapping_method": "unmapped"},
         ]
-        manifest = make_bundle(self.td, "family-a", "releases", "rel-1", rows=rows)
+        manifest = make_bundle(self.td, "stores", "OGS-99001", rows=rows)
         result = scan_manifest(manifest)
 
         self.assertEqual(list(result), ["real"])
 
-    def test_store_family_derived_from_releases_path(self) -> None:
+    def test_store_family_is_the_store_release_id_under_the_registry(self) -> None:
+        """`stores/<store-id>/` is the one home for a Release Bundle (#252)."""
         manifest = make_bundle(
-            self.td, "gwas-catalog-eur-hybrid", "releases", "eur-hybrid-pilot-10",
+            self.td, "stores", "OGS-99005",
             rows=[{"source_label": "X", "trait_ontology_mapping_method": "unmapped"}],
         )
-        self.assertEqual(derive_store_family(manifest), "gwas-catalog-eur-hybrid")
+        self.assertEqual(derive_store_family(manifest), "OGS-99005")
 
     def test_store_family_prefers_release_yaml_metadata(self) -> None:
         manifest = make_bundle(
-            self.td, "family-a", "releases", "rel-1",
+            self.td, "stores", "OGS-99001",
             rows=[{"source_label": "X", "trait_ontology_mapping_method": "unmapped"}],
             release={"store_family_id": "declared-family"},
         )
         self.assertEqual(derive_store_family(manifest), "declared-family")
 
-    def test_store_family_falls_back_to_bundle_directory(self) -> None:
+    def test_store_family_ignores_an_earlier_stores_directory_in_the_path(self) -> None:
+        """Only the bundle's own directory attributes it, never an ancestor.
+
+        A checkout at `<root>/home/stores/repo/stores/OGS-99001/` must resolve
+        to OGS-99001: taking the first `stores` component would attribute the
+        Manifest to `repo` and merge every release under it into one bucket.
+        """
         manifest = make_bundle(
-            self.td, "OGS-00099",
+            self.td, "home", "stores", "repo", "stores", "OGS-99001",
             rows=[{"source_label": "X", "trait_ontology_mapping_method": "unmapped"}],
         )
-        self.assertEqual(derive_store_family(manifest), "OGS-00099")
+        self.assertEqual(derive_store_family(manifest), "OGS-99001")
+
+    def test_a_bundle_outside_the_registry_is_refused_by_name(self) -> None:
+        """A working bundle has no Store Release id, so it is refused, loudly."""
+        manifest = make_bundle(
+            self.td, "work", "OGS-00099",
+            rows=[{"source_label": "X", "trait_ontology_mapping_method": "unmapped"}],
+        )
+        with self.assertRaises(UnsupportedManifestLocationError) as caught:
+            derive_store_family(manifest)
+        self.assertIn("OGS-00099", str(caught.exception))
+        self.assertIn("stores/", str(caught.exception))
+
+    def test_a_directory_under_stores_without_a_store_id_is_refused(self) -> None:
+        manifest = make_bundle(
+            self.td, "stores", "not-a-store-id",
+            rows=[{"source_label": "X", "trait_ontology_mapping_method": "unmapped"}],
+        )
+        with self.assertRaises(UnsupportedManifestLocationError) as caught:
+            derive_store_family(manifest)
+        self.assertIn("not-a-store-id", str(caught.exception))
 
     def test_missing_mapping_column_is_skipped_not_an_error(self) -> None:
         manifest = make_bundle(
@@ -227,7 +255,7 @@ class TestScanManifests(unittest.TestCase):
 
     def test_counts_sum_and_families_union_across_manifests(self) -> None:
         m1 = make_bundle(
-            self.td, "family-a", "releases", "rel-1",
+            self.td, "stores", "OGS-99001",
             rows=[
                 {"source_label": "Shared trait", "trait_ontology_mapping_method": "unmapped"},
                 {"source_label": "SHARED TRAIT ", "trait_ontology_mapping_method": "unmapped"},
@@ -235,7 +263,7 @@ class TestScanManifests(unittest.TestCase):
             ],
         )
         m2 = make_bundle(
-            self.td, "family-b", "releases", "rel-2",
+            self.td, "stores", "OGS-99002",
             rows=[
                 {"source_label": "shared trait", "trait_ontology_mapping_method": "unmapped"},
                 {"source_label": "Only B", "trait_ontology_mapping_method": "unmapped"},
@@ -246,13 +274,13 @@ class TestScanManifests(unittest.TestCase):
         by_label = {e.trait_label: e for e in entries}
 
         self.assertEqual(by_label["shared trait"].occurrence_count, 3)
-        self.assertEqual(by_label["shared trait"].store_families, ("family-a", "family-b"))
+        self.assertEqual(by_label["shared trait"].store_families, ("OGS-99001", "OGS-99002"))
         self.assertEqual(by_label["only a"].occurrence_count, 1)
         self.assertEqual(by_label["only b"].occurrence_count, 1)
 
     def test_queue_sorted_descending_then_alphabetical(self) -> None:
         m1 = make_bundle(
-            self.td, "family-a", "releases", "rel-1",
+            self.td, "stores", "OGS-99001",
             rows=[
                 {"source_label": "Alpha", "trait_ontology_mapping_method": "unmapped"},
                 {"source_label": "Alpha", "trait_ontology_mapping_method": "unmapped"},
@@ -270,7 +298,7 @@ class TestScanManifests(unittest.TestCase):
 
     def test_no_unmapped_rows_yields_empty_queue(self) -> None:
         manifest = make_bundle(
-            self.td, "gwas-ssf-ragged", "releases", "rel",
+            self.td, "stores", "OGS-99006",
             rows=[
                 {"source_label": "Mapped", "trait_ontology_mapping_method": "source_provided"},
                 {"source_label": "Looked up",
@@ -281,7 +309,7 @@ class TestScanManifests(unittest.TestCase):
 
     def test_duplicate_labels_in_one_manifest_count_each_row(self) -> None:
         manifest = make_bundle(
-            self.td, "family-a", "releases", "rel-1",
+            self.td, "stores", "OGS-99001",
             rows=[
                 {"source_label": "Same", "trait_ontology_mapping_method": "unmapped"},
                 {"source_label": "same", "trait_ontology_mapping_method": "unmapped"},
@@ -293,15 +321,15 @@ class TestScanManifests(unittest.TestCase):
 
     def test_store_families_are_sorted(self) -> None:
         m1 = make_bundle(
-            self.td, "zeta", "releases", "rel-1",
+            self.td, "stores", "OGS-99003",
             rows=[{"source_label": "X", "trait_ontology_mapping_method": "unmapped"}],
         )
         m2 = make_bundle(
-            self.td, "alpha", "releases", "rel-2",
+            self.td, "stores", "OGS-99004",
             rows=[{"source_label": "X", "trait_ontology_mapping_method": "unmapped"}],
         )
         entries = scan_manifests([m1, m2])
-        self.assertEqual(entries[0].store_families, ("alpha", "zeta"))
+        self.assertEqual(entries[0].store_families, ("OGS-99003", "OGS-99004"))
 
 
 class TestFormatQueueTsv(unittest.TestCase):
@@ -329,7 +357,7 @@ class TestCli(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.td = Path(self.temp_dir.name)
         self.manifest = make_bundle(
-            self.td, "family-a", "releases", "rel-1",
+            self.td, "stores", "OGS-99001",
             rows=[
                 {"source_label": "Trait one", "trait_ontology_mapping_method": "unmapped"},
                 {"source_label": "Trait one", "trait_ontology_mapping_method": "unmapped"},
@@ -353,8 +381,8 @@ class TestCli(unittest.TestCase):
         self.assertEqual(
             out,
             "trait_label\toccurrence_count\tstore_families\n"
-            "trait one\t2\tfamily-a\n"
-            "trait two\t1\tfamily-a\n",
+            "trait one\t2\tOGS-99001\n"
+            "trait two\t1\tOGS-99001\n",
         )
         self.assertEqual(err, "")
 
@@ -364,7 +392,7 @@ class TestCli(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(out, "")
         self.assertTrue(output.is_file())
-        self.assertIn("trait one\t2\tfamily-a", output.read_text(encoding="utf-8"))
+        self.assertIn("trait one\t2\tOGS-99001", output.read_text(encoding="utf-8"))
 
     def test_directory_argument_resolves_analyses_tsv(self) -> None:
         bundle_dir = self.manifest.parent
@@ -374,7 +402,7 @@ class TestCli(unittest.TestCase):
 
     def test_empty_queue_is_success_with_header_only(self) -> None:
         clean = make_bundle(
-            self.td, "gwas-ssf-ragged", "releases", "rel",
+            self.td, "stores", "OGS-99006",
             rows=[{"source_label": "Mapped", "trait_ontology_mapping_method": "source_provided"}],
         )
         code, out, _ = self.run_cli([str(clean)])

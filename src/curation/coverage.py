@@ -53,7 +53,7 @@ CLI
 ::
 
     python3 -m curation.coverage \\
-        --manifests families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv \\
+        --manifests stores/OGS-00009/analyses.tsv \\
         --mapping resources/reference-resources/canonical-trait-mapping-efo/mapping.tsv \\
         [--mapping-before <before.tsv>] \\
         [--work-queue <queue.tsv>] [--shortlists <shortlist.tsv>] \\

@@ -26,9 +26,6 @@ resources/data/gwas-ssf-ragged/
 # smoke test (issue #101 follow-up); regenerated fresh each test run.
 tests/no-cis-region-policy/fixtures/output/store/
 
-# Smoke-test sidecars from partial generator runs.
-families/*/releases/*/sidecars/*.partial.tsv
-
 __pycache__/
 
 # Pixi-managed environments/cache (issue #41): reproduced from pixi.toml +

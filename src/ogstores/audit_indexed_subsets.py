@@ -21,10 +21,9 @@ migrated". An absent key on a Dense-component bundle is a loud miss. stores#210
 owns the generator-facing default/opt-out; if it adopts a different marker, this
 audit must adopt that marker too.
 
-Out of scope: the unmigrated ``families/*/releases/*`` bundles are not
-registered Release Bundles (retired family-first schema, no ``OGS-`` id) and
-are not planned by the workflow, so they are deliberately not audited here.
-See stores#211.
+Scope: every registered Release Bundle under ``stores/`` -- once the single
+home for Release Bundles (#252) -- so a Dense-component bundle that declares
+neither a subset nor an explicit opt-out is a miss with nowhere to hide.
 
     pixi run audit-indexed-subsets
     python3 -m ogstores.audit_indexed_subsets [--registry-root DIR] [--repo-root DIR]
@@ -375,8 +374,8 @@ def render_report(report: AuditReport, repo_root: Path | str) -> str:
         f"{len(ragged_clean)}/{len(report.ragged)} Ragged-only bundles declare none.",
         f"Audited {len(report.bundles)} registered bundles under "
         f"{report.registry_root.relative_to(repo) if report.registry_root.is_relative_to(repo) else report.registry_root}.",
-        "Out of scope: families/*/releases/* are unmigrated, unregistered bundles "
-        "(retired family-first schema, no OGS- id) and are not audited here (stores#211).",
+        "Scope: every registered Release Bundle under stores/, the one home for "
+        "Release Bundles (#252).",
     ]
     if report.failures:
         lines += ["", "FAILURES:"]

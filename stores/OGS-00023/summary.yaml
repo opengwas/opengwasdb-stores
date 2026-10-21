@@ -1,0 +1,11 @@
+n_manifest: 10
+n_admitted: 10
+n_excluded: 0
+n_analyses: 10
+first_author: mixed (8)
+publication_pmid: mixed (8)
+tissue: NA
+context: NA
+assigned_ancestry: EUR
+sample_size: 511-300447
+source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
