@@ -671,6 +671,18 @@ class SummaryRenderTest(TempDirCase):
         self.assertIn("Quarto", str(raised.exception))
         self.assertFalse((self.root / "catalog").exists())
 
+    def test_a_change_to_the_summary_template_gives_a_new_version(self) -> None:
+        write_bundle(self.registry, "OGS-00001")
+        template = self.tmp / "summary.qmd"
+        template.write_text("first template", encoding="utf-8")
+        with mock.patch.object(catalog_build.summary, "SOURCE", template):
+            first = self.build_with(skip_summary)
+            self.assertFalse(self.build_with(skip_summary).published)
+            template.write_text("second template", encoding="utf-8")
+            second = self.build_with(skip_summary)
+        self.assertNotEqual(second.version, first.version)
+        self.assertTrue(second.published)
+
     def test_a_no_op_rebuild_renders_nothing(self) -> None:
         write_bundle(self.registry, "OGS-00001")
         self.build_with(lambda d: (d / "summary.html").write_text("x"))

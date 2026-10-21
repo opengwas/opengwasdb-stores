@@ -170,8 +170,9 @@ WHERE analysis_search MATCH ? ORDER BY rank LIMIT ?
 
 **Indexes** (all partial, `WHERE listed = 1`): `(id)`; `(col, id)` for each
 sortable column `store_id`, `analysis_label`, `trait_ontology_label`,
-`assigned_ancestry`, `tissue`, `stored_effect_scale` and `sample_size` (the
-columns of the website table and its filters, user stories 2 and 3 of epic
+`assigned_ancestry`, `tissue`, `stored_effect_scale`, `sample_size` and the
+derived `ancestry_category`, `outcome_type` and `trait_class` (the columns of the
+website table and its filters, user stories 2 and 3 of epic
 [#313](https://github.com/opengwas/opengwasdb-stores/issues/313)); and
 `(trait_chr, trait_bp, id)` for region lookups. `ORDER BY col, id LIMIT n` and
 `WHERE (col, id) > (?, ?) ORDER BY col, id LIMIT n` use them. A row-value
