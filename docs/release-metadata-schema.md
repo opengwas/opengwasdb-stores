@@ -165,7 +165,9 @@ published artifact path is now a pure function of the identifier.
 | `label` | Yes | Source-natural display name; provenance, never an identifier (ADR 0022). |
 | `access_posture` | No | Declared availability category: `public`, `controlled`, or `embargoed`. The one store-level fact the retired Store Family tier genuinely declared (ADR 0028); every committed bundle declares it, but it is descriptive rather than structurally required. |
 | `status` | Yes | Registry lifecycle state: `candidate`, `accepted`, `built`, `validated`, `superseded`, or `withdrawn`. |
+| `trial` | No | Whether this is a Trial Store Release: a deliberately small Store Release used to exercise a Source Collection, Source Format or Store Layout (issue #321). Absent means `false`. Only a YAML boolean is accepted. The registry's YAML loader follows YAML 1.1, so the unquoted spellings `true`, `yes` and `on` (and `false`, `no`, `off`) are booleans; a quoted `trial: "yes"` is a string and `trial: 1` is a number, and `bundle.check()` refuses both. A reader that does not gate on `check()` refuses them too rather than reading them as `false`: the Analysis Catalog's serving policy excludes every Trial Store Release, and a coerced value would serve one. |
 | `derived_from` | No | Parent `store_id` when this release derives from another release, and the parent must be a registered Release Bundle. A two-id Reference-Completed release names its Observed-Only parent here (ADR 0007); a Reference-Completed release without it completes its own Store (ADR 0037). |
+| `superseded_by` | No | The `store_id` of the Store Release that replaced this one, which must be an `OGS-` id naming a registered Release Bundle. Required on a `superseded` release and refused on any other Release Status, because it names what a reader of the old identifier is sent to (issue #321, #323). It is a fact about the release, not a serving decision (ADR 0008). |
 | `created_at` | Yes | Timestamp when the candidate bundle was generated. |
 | `accepted_at` | No | Timestamp when the bundle was accepted as the release input record. |
 | `source_snapshot_id` | Yes | Dated or provider-native source snapshot used for this release, for example a GWAS Catalog studies-table release date. |
@@ -177,7 +179,13 @@ published artifact path is now a pure function of the identifier.
 | `notes` | No | Free-text release notes. |
 
 `bundle.check()` requires exactly the keys marked Yes above and rejects a
-`generator` that is not a mapping or whose `commands` is empty. Release Status
+`generator` that is not a mapping or whose `commands` is empty. It also holds
+the descriptive facts the Analysis Catalog's serving policy reads (ADR 0008) to
+a checked shape: `trial` must be a YAML boolean, and absent means `false` (a
+quoted `trial: "yes"` or a numeric `trial: 1` is refused, and `Bundle.trial`
+raises rather than answer `false`); and
+`superseded_by` is present on exactly the `superseded` releases, and names a
+registered Release Bundle, like `derived_from` (issue #321). Release Status
 transitions are a separate, optional check (`validate_status_transition`): the
 legal lifecycle graph is `candidate -> accepted -> built -> validated ->
 {superseded, withdrawn}` with `withdrawn` reachable from every state. See the
@@ -243,7 +251,12 @@ releases `OGS-00001` and `OGS-00002` may leave required Analysis values blank
 `bundle.check()` **rejects** any column named by the pinned upstream
 `RETIRED_ANALYSIS_COLUMNS` list: `phenotype_id`, `phenotype_label`, `trait_id`,
 `gene_id`, `gene_name`. The upstream schema is the single retired-column
-contract; the registry does not keep its own copy. A Trait Ontology Mapping
+contract; the registry does not keep its own copy. It also **rejects** any
+`analysis_id` outside `^[A-Za-z0-9][A-Za-z0-9._-]*$`, because the
+[Analysis Catalog](adr/0039-analysis-catalog.md) addresses an Analysis
+`<store_id>:<analysis_id>` and a client must be able to
+split that on `:` into its two parts (issue #319; see "Legacy `analysis_id`
+values" below). A Trait Ontology Mapping
 carries an ontology term and its trait label, never a gene identifier with an
 authority name standing in for the label: gene/target identity is annotation
 (`analysis_label` for a single-target Analysis; `trait_chr`/`trait_bp` and the
@@ -272,7 +285,7 @@ to the CURIE form.
 
 | Field | Required | Description |
 |---|---:|---|
-| `analysis_id` | Yes | Stable registry Analysis ID. Usually source-derived unless the source lacks stable IDs. |
+| `analysis_id` | Yes | Stable registry Analysis ID. Usually source-derived unless the source lacks stable IDs. It is one path segment matching `^[A-Za-z0-9][A-Za-z0-9._-]*$`: the Analysis Catalog ([ADR 0039](adr/0039-analysis-catalog.md)) names an Analysis `<store_id>:<analysis_id>`, so the value must never contain `:`, and it is also the filename of the resolver's per-Analysis record (issue #319). |
 | `source_analysis_id` | No | Upstream analysis identifier, such as a GCST accession or OpenGWAS ID, when the Source Collection provides one. |
 | `source_label` | Yes | Upstream trait or phenotype label preserved as source provenance. Registry-only; kept separate from `analysis_label` even when both hold the same source text. |
 | `analysis_label` | Yes | Free-text, non-unique display label for the Analysis, carried into the built store. Typically the same source text as `source_label`; for a single-target gene-centric Analysis it is the resolved gene symbol, and for an aggregate assay it is the SomaScan SeqId, SomaLogic's stable assay identifier (issue #141). |
@@ -427,6 +440,20 @@ Two deliberate exemptions exist, both narrow:
 This is a known integrity gap, tracked by open issue #134, not an equivalent
 alternative to the per-Analysis checksums and source identity enforced for other
 formats.
+
+### Legacy `analysis_id` values (issue #319)
+
+`bundle.check()` fails a row whose `analysis_id` is not one path segment, and
+names the row. `OGS-00001` and `OGS-00002` are exempt: they carry eQTLGen's
+`<probe>::<tissue>` ids (`ENSG00000175445::whole_blood`), which an accepted
+bundle may not be edited to remove (ADR 0004), so `check()` discloses the count
+as a tolerated gap cited `#319` instead of reporting it as an error. The
+exemption is scoped to exactly those two named releases. Every other release —
+including any future eQTLGen or other ragged-BESD build, which names its
+Analyses by bare probe id and records the tissue in the `tissue` column — must
+satisfy the pattern. Retire the guard in favour of
+`opengwasdb.model.analyses.validate_analyses()` if OpenGWASDB ever validates the
+column (ADR 0017).
 
 ## `build.yaml`
 
@@ -735,7 +762,9 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `observed.format_version` | Yes | OpenGWASDB store format version the build reported, or `null` when it was not recorded. `register` never assumes one. Until #195 it defaulted to `"1.0"`, which is why OGS-00001..3 record `"1.0"` for Stores whose manifests say `0.1.0`. |
 | `observed.n_analyses` | Yes | Analysis count the build reported, or `null` when it was not recorded. |
 | `observed.n_variants` | Yes | Variant count the build reported, or `null` when it was not recorded. |
-| `observed.n_associations` | Yes | Association count the build reported, or `null` when it was not recorded. |
+| `observed.n_associations` | Yes | The association count the producing step (`build` or `complete`) reported, or `null` when it was not recorded. It is the Store's observed association count, never a value `register` derives: until #322 a Dense build that reported none recorded `n_variants × n_analyses`, which counts matrix cells and overstates a Store with empty cells. |
+| `observed.association_coverage` | No | The Association Coverage the producing step reported, or `null` when it did not. The value is opengwasdb's, in opengwasdb's own vocabulary (`full` or `cis_and_signals` today), not this repository's; `register` records it and checks no vocabulary of its own. Read from the step's stdout JSON, never from the Store's `manifest.json` (ADR 0023, #322). A present value that is not a non-empty string is refused, not recorded as `null`. `register` writes the key on every publication from #322 on; records written before it do not carry it and are not migrated. |
+| `observed.reference_assembly` | No | The reference assembly the producing step reported, or `null` when it did not, such as `GRCh37` or `GRCh38`. Read from the step's stdout JSON, never from the Store's `manifest.json` (ADR 0023, #322). A present value that is not a non-empty string is refused, not recorded as `null`. `register` writes the key on every publication from #322 on; records written before it do not carry it and are not migrated. |
 | `observed.store_bytes` | Yes | Store size in bytes the build reported, or `null` when it was not recorded. |
 | `observed.build_elapsed_s` | Yes | Summed step elapsed seconds, or `null` when it was not recorded. For a release that completes its own Store it is the steps of both phases (ADR 0037). |
 | `observed.validate_status` | Yes | The validate verdict the release-level `status` is derived from. |

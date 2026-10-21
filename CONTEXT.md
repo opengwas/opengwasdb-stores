@@ -6,8 +6,16 @@ This context describes the planning and operational language for expected and pr
 
 **Store Registry**:
 The authoritative record of intended and produced Store Releases, including their identity, source inputs, build recipes, release lineage, and operational priority.
-OpenGWASDB's former Analysis Catalogue model is superseded by this registry boundary and by OpenGWASDB-owned store metadata carried with each built Store Release.
-_Avoid_: catalogue, service catalogue
+OpenGWASDB's former Analysis Catalogue model is superseded by this registry boundary and by OpenGWASDB-owned store metadata carried with each built Store Release. The Analysis Catalog, generated from these Release Bundles, separately lists the Analyses of served Store Releases.
+_Avoid_: catalogue, service catalogue (for this registry: it records releases, it does not list Analyses)
+
+**Analysis Catalog**:
+The cross-Store listing of every Analysis of every served Store Release, naming each one `<store_id>:<analysis_id>` so that an identifier always resolves in exactly one Store. It is generated from Release Bundles and never opens a Store, and it holds the serving decisions the registry does not make: which Store Releases are listed, kept as placeholder rows, excluded or refused, and why, with each Store's Store Layout, Association Coverage, completion state and Access Posture. How it is stored, versioned and published is recorded in ADR 0039. Its ancestry breakdown is Assigned Ancestry, with `META` for an unassigned Analysis whose Source Ancestry Label is exactly `META`.
+_Avoid_: store registry, service catalogue, Analysis Catalogue (OpenGWASDB's former model)
+
+**Analysis Type**:
+The classification of an Analysis by outcome type (binary or continuous) and trait class (phenotype or molecular). The Analysis Catalog derives both once, at build time, from the Analysis's own Release Manifest fields: binary when its sample size kind is case-control or its stored effect scale is log odds ratio, continuous for an SD effect on a total sample size, and no outcome type otherwise; molecular when it has a context, tissue or trait chromosome, phenotype otherwise. They are catalog-derived labels for counting and filtering, not registry facts, and no Release Manifest column holds them.
+_Avoid_: trait type, study type
 
 **Access Posture**:
 The declared availability category for a Source Collection or Store Release, such as public, controlled, or embargoed.

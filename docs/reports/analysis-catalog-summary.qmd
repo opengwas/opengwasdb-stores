@@ -1,0 +1,254 @@
+---
+title: "Analysis Catalog summary"
+subtitle: "What this version of the catalog serves, read from its own tables (ADR 0039, #325)"
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    embed-resources: true
+    theme: cosmo
+execute:
+  echo: false
+  warning: false
+  message: false
+params:
+  catalog_dir: ""
+---
+
+```{r setup}
+library(DBI)
+library(RSQLite)
+library(knitr)
+library(ggplot2)
+
+opts_chunk$set(results = "asis")
+
+# Rendered by `analysis_catalog.summary.render` with the version directory as
+# `catalog_dir`. Every number below is a query of that version's catalog.sqlite,
+# or a read of its changes.tsv; nothing is recomputed from the Release Bundles.
+catalog_dir <- params$catalog_dir
+if (!nzchar(catalog_dir)) stop("set the catalog_dir parameter: quarto render ... -P catalog_dir:<version dir>")
+con <- dbConnect(SQLite(), file.path(catalog_dir, "catalog.sqlite"), flags = SQLITE_RO,
+                bigint = "numeric")
+# `bigint = "numeric"`: RSQLite returns integer64 for a count past 2^31, and `format(big.mark=)`
+# prints that without separators. A double holds every integer below 2^53 exactly, and no count
+# here (associations, Analyses, sample sizes) approaches 9e15.
+q <- function(sql) dbGetQuery(con, sql)
+meta <- setNames(q("SELECT key, value FROM catalog_meta")$value, q("SELECT key, value FROM catalog_meta")$key)
+
+# The total of a per-Store figure. A Store that does not report it makes the total
+# unknown: a partial sum is never presented as a total (CONTRIBUTING.md).
+total_of <- function(x) {
+  reporting <- sum(!is.na(x))
+  if (reporting < length(x)) {
+    return(sprintf("unknown (%d of %d Stores report it)", reporting, length(x)))
+  }
+  format(sum(x), big.mark = ",", scientific = FALSE)
+}
+n_fmt <- function(x) format(x, big.mark = ",", scientific = FALSE)
+label_na <- function(x, text) ifelse(is.na(x) | !nzchar(x), text, x)
+
+selection <- q("SELECT store_id, decision, reason FROM selection ORDER BY store_id")
+stores <- q("SELECT * FROM stores ORDER BY store_id")
+listed_stores <- stores[stores$store_id %in% selection$store_id[selection$decision == "listed"], ]
+n_listed_analyses <- q("SELECT COUNT(*) AS n FROM listed_analyses")$n
+```
+
+## This version
+
+```{r version}
+kable(data.frame(
+  Item = c("Catalog version", "Built", "Registry commit", "Builder version"),
+  Value = c(meta[["version"]], meta[["built_at"]],
+            label_na(meta[["registry_commit"]], "none (the registry was not a git checkout)"),
+            meta[["builder_version"]])
+))
+```
+
+## Totals
+
+```{r totals}
+if (nrow(listed_stores) == 0) {
+  cat(sprintf("**No Store is listed in this version.** %d Store Releases are registered; see the excluded and refused Stores below for why none is served.\n",
+              nrow(selection)))
+}
+kable(data.frame(
+  Total = c("Stores", "Analyses", "Associations"),
+  Value = c(n_fmt(nrow(listed_stores)), n_fmt(n_listed_analyses), total_of(listed_stores$n_associations))
+))
+```
+
+Totals count listed Stores. An association total is `unknown` as soon as one listed Store does not report its association count; it is never the sum of the Stores that do.
+
+## Served Stores
+
+Listed Stores, as each reports itself. Association Coverage is a property of the Store Release (`full`, `cis_and_signals`), as reported.
+
+```{r stores}
+if (nrow(listed_stores) == 0) {
+  cat("No Store is listed.\n")
+} else {
+  kable(data.frame(
+    Store = listed_stores$store_id,
+    Layout = label_na(listed_stores$layout, "not reported"),
+    `Association Coverage` = label_na(listed_stores$association_coverage, "not reported"),
+    `Completion state` = label_na(listed_stores$completion_state, "not reported"),
+    `Access posture` = label_na(listed_stores$access_posture, "not reported"),
+    Analyses = ifelse(is.na(listed_stores$n_analyses), "not reported", n_fmt(listed_stores$n_analyses)),
+    Associations = ifelse(is.na(listed_stores$n_associations), "not reported", n_fmt(listed_stores$n_associations)),
+    check.names = FALSE
+  ), row.names = FALSE)
+}
+```
+
+### Resolvable but not listed
+
+Placeholder Stores: their Analyses resolve by identifier but are not listed, and are in none of the totals or counts here.
+
+```{r placeholders}
+ph <- selection[selection$decision == "placeholder", ]
+if (nrow(ph) == 0) {
+  cat("No Store is a placeholder.\n")
+} else {
+  kable(data.frame(Store = ph$store_id, Reason = ph$reason), row.names = FALSE)
+}
+```
+
+## Analyses by Assigned Ancestry
+
+Unassigned Analyses and multi-ancestry (META) Analyses are categories of their own.
+
+```{r ancestry}
+counts_of <- function(dimension, missing_text) {
+  d <- q(sprintf("SELECT value, n_analyses FROM counts WHERE dimension = '%s' ORDER BY n_analyses DESC, value", dimension))
+  d$value <- label_na(d$value, missing_text)
+  names(d) <- c("Category", "Analyses")
+  d$Analyses <- n_fmt(d$Analyses)
+  d
+}
+show_counts <- function(dimension, missing_text) {
+  d <- counts_of(dimension, missing_text)
+  if (nrow(d) == 0) cat("No Analyses are listed.\n") else print(kable(d, row.names = FALSE))
+}
+show_counts("ancestry", "unassigned")
+```
+
+## Analyses by type
+
+### Outcome type
+
+```{r outcome}
+show_counts("outcome_type", "undetermined")
+```
+
+### Trait class
+
+```{r trait-class}
+show_counts("trait_class", "undetermined")
+```
+
+## Association Coverage
+
+The Association Coverage each listed Store reports, with the Analyses it covers.
+
+```{r coverage}
+show_counts("coverage", "not reported")
+```
+
+## Sample-size distribution
+
+```{r sample-size}
+ss <- q("SELECT sample_size_kind AS kind, sample_size FROM listed_analyses")
+if (nrow(ss) == 0) {
+  cat("No Analyses are listed.\n")
+} else {
+  ss$kind <- label_na(ss$kind, "not reported")
+  has <- !is.na(ss$sample_size)
+  cat(sprintf("%s of %s listed Analyses report a sample size.\n\n", n_fmt(sum(has)), n_fmt(nrow(ss))))
+  if (any(has)) {
+    rows <- lapply(split(ss$sample_size[has], ss$kind[has]), function(x) {
+      p <- quantile(x, c(0, 0.25, 0.5, 0.75, 1), names = FALSE)
+      c(Analyses = n_fmt(length(x)), Min = n_fmt(p[1]), `25%` = n_fmt(p[2]), Median = n_fmt(p[3]),
+        `75%` = n_fmt(p[4]), Max = n_fmt(p[5]))
+    })
+    print(kable(data.frame(`Sample size kind` = names(rows), do.call(rbind, rows),
+                           check.names = FALSE, row.names = NULL)))
+    print(ggplot(ss[has & ss$sample_size > 0, ], aes(sample_size, fill = kind)) +
+      geom_histogram(bins = 30) +
+      scale_x_log10(labels = scales::label_comma()) +
+      labs(x = "Sample size (log scale)", y = "Analyses", fill = "Sample size kind") +
+      theme_minimal())
+  }
+}
+```
+
+## Trait Ontology Mapping coverage
+
+```{r mapping}
+m <- q("SELECT trait_class, COUNT(*) AS n, SUM(trait_ontology_id IS NOT NULL AND trait_ontology_id <> '') AS mapped,
+        SUM(analysis_label IS NULL OR TRIM(analysis_label) = '') AS unlabelled,
+        SUM(label_from_source = 1) AS from_source
+        FROM listed_analyses GROUP BY trait_class ORDER BY trait_class")
+if (nrow(m) == 0) {
+  cat("No Analyses are listed.\n")
+} else {
+  all_n <- sum(m$n)
+  cat(sprintf("%s of %s listed Analyses (%.1f%%) are mapped to a trait ontology term.\n\n",
+              n_fmt(sum(m$mapped)), n_fmt(all_n), 100 * sum(m$mapped) / all_n))
+  print(kable(data.frame(
+    `Trait class` = m$trait_class, Analyses = n_fmt(m$n), Mapped = n_fmt(m$mapped),
+    Unmapped = n_fmt(m$n - m$mapped), `Mapped (%)` = sprintf("%.1f", 100 * m$mapped / m$n),
+    check.names = FALSE), row.names = FALSE))
+  methods <- q("SELECT trait_ontology_mapping_method AS method, COUNT(*) AS n FROM listed_analyses
+                WHERE trait_ontology_id IS NOT NULL AND trait_ontology_id <> '' GROUP BY 1 ORDER BY n DESC")
+  if (nrow(methods) > 0) {
+    cat("\nBy mapping method:\n\n")
+    print(kable(data.frame(Method = label_na(methods$method, "not reported"), Analyses = n_fmt(methods$n)),
+                row.names = FALSE))
+  }
+}
+```
+
+### Analyses with no label
+
+```{r unlabelled}
+if (nrow(m) == 0) {
+  cat("No Analyses are listed.\n")
+} else {
+  cat(sprintf("%s of %s listed Analyses have no label at all.\n\n", n_fmt(sum(m$unlabelled)), n_fmt(sum(m$n))))
+  cat(sprintf("%s of %s listed Analyses have no curated label (shown by their source label).\n",
+              n_fmt(sum(m$from_source)), n_fmt(sum(m$n))))
+}
+```
+
+## Excluded and refused Stores
+
+```{r excluded}
+x <- selection[selection$decision %in% c("excluded", "refused"), ]
+if (nrow(x) == 0) {
+  cat("No registered Store Release is excluded or refused.\n")
+} else {
+  kable(data.frame(Store = x$store_id, Decision = x$decision, Reason = x$reason), row.names = FALSE)
+}
+```
+
+## Change since the previous version
+
+```{r change}
+changes_path <- file.path(catalog_dir, "changes.tsv")
+if (!file.exists(changes_path)) {
+  cat("No previous version: nothing to compare.\n")
+} else {
+  ch <- read.delim(changes_path, sep = "\t", quote = "", stringsAsFactors = FALSE, na.strings = character())
+  n <- function(kind) sum(ch$change == kind)
+  print(kable(data.frame(
+    Change = c("Analyses added", "Analyses removed", "Analyses with changed metadata"),
+    Count = n_fmt(c(n("added"), n("removed"), n("changed")))
+  )))
+  cat("\nEvery changed id is in `changes.tsv` beside this report.\n")
+}
+```
+
+```{r teardown}
+dbDisconnect(con)
+```

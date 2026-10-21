@@ -150,6 +150,7 @@ src/               all importable Python
   manifest_generation/  Manifest Generation: sources -> candidate Release Bundle
     providers/         per-Source-Provider connector code
   curation/          Canonical Trait Mapping Table curation
+  analysis_catalog/  Analysis Catalog: reads Release Bundles, publishes the catalog
 workflow/          Snakemake wiring for both workflows, and the release entry point
 resources/         inputs only
   reference-resources/ auxiliary build-time inputs
@@ -427,11 +428,13 @@ Use the Pixi environments pinned by this repository:
 ```bash
 pixi run env-check
 pixi run bundle-check
+pixi run catalog                 # the Analysis Catalog and its summary.html; see docs/spec/analysis-catalog.md
 pixi run test
 pixi run test-python
 pixi run test-r
 pixi run test --suite workflow   # one named suite (repeatable)
 pixi run --environment docs docs-smoke
+pixi run --environment dev catalog-summary-smoke   # smoke render of the catalog summary
 ```
 
 `pixi run test` finds the Python suites itself (#257): every
