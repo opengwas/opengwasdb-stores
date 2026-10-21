@@ -46,6 +46,26 @@ def canonical_alid(chrom: object, pos: object, allele1: str, allele2: str) -> st
     return f"{chrom}:{int(pos)}:{a1}:{a2}"
 
 
+def standardised_ea_dosages(genotypes: np.ndarray, variants: list[dict[str, object]],
+                            rows: list[dict[str, object]]) -> tuple[np.ndarray, np.ndarray]:
+    """Unit-norm centred effect-allele dosages for panel ``rows``, and their EAF.
+
+    ``genotypes`` and ``variants`` are as :func:`construct_block` takes them;
+    each row names its variant by ``SNP`` and its effect allele by ``EA``.
+    Missing calls are mean-imputed, as in construction, so for a block built
+    from these genotypes ``x.T @ x`` is the LD its eigendecomposition stores.
+    """
+    index = {canonical_alid(v["chrom"], v["pos"], str(v["allele1"]), str(v["allele2"])): i
+             for i, v in enumerate(variants)}
+    columns = [index[str(r["SNP"])] for r in rows]
+    alt = np.asarray(genotypes, dtype=np.float64)[:, columns]
+    alt_is_ea = np.array([str(variants[c]["allele2"]).upper() == r["EA"] for c, r in zip(columns, rows)])
+    dosage = np.where(alt_is_ea, alt, 2 - alt)
+    means = np.nanmean(dosage, axis=0)
+    x = np.where(np.isnan(dosage), means, dosage) - means
+    return x / np.sqrt((x * x).sum(axis=0)), means / 2
+
+
 def construct_block(
     genotypes: np.ndarray,
     variants: list[dict[str, object]],

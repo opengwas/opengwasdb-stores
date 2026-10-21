@@ -22,6 +22,9 @@ assert materialize_spec.loader; materialize_spec.loader.exec_module(materialize)
 verify_spec = importlib.util.spec_from_file_location("verify_block", SCRIPT.with_name("verify_block.py"))
 verify = importlib.util.module_from_spec(verify_spec); sys.modules[verify_spec.name] = verify
 assert verify_spec.loader; verify_spec.loader.exec_module(verify)
+calibration_spec = importlib.util.spec_from_file_location("heldout_calibration", SCRIPT.with_name("heldout_calibration.py"))
+calibration = importlib.util.module_from_spec(calibration_spec); sys.modules[calibration_spec.name] = calibration
+assert calibration_spec.loader; calibration_spec.loader.exec_module(calibration)
 
 checks = 0
 def check(value: bool, message: str) -> None:
@@ -160,6 +163,33 @@ def test_verify_block() -> None:
         check("finite" in failures(nan), "a non-finite eigenvector passed")
         check("non_negative" in failures(negative), "a negative eigenvalue passed")
         check(failures(under_resolved) == ["resolved_at_thresh"], "an under-resolved block passed")
+
+
+def test_heldout_calibration() -> None:
+    populations = ["CLM"] * 92 + ["MXL"] * 64 + ["PEL"] * 85 + ["PUR"] * 104
+    test = calibration.split_individuals(populations, test_fraction=1 / 3, seed=1)
+    by_pop = {p: int(sum(t for t, q in zip(test, populations) if q == p)) for p in set(populations)}
+    check(by_pop == {"CLM": 31, "MXL": 21, "PEL": 28, "PUR": 35}, f"the held-out split is not stratified: {by_pop}")
+    check(np.array_equal(test, calibration.split_individuals(populations, test_fraction=1 / 3, seed=1)) and
+          not np.array_equal(test, calibration.split_individuals(populations, test_fraction=1 / 3, seed=2)),
+          "the held-out split is not determined by its seed")
+    g, variants = ld_fixture(n=300)
+    result = calibration.calibrate_block(g, variants, ["POP"] * 300, maf_threshold=.01,
+                                         replicates=5, component_floor=5, seed=3)
+    check(result["n_train"] + result["n_test"] == 300 and result["n_test"] == 100,
+          "train and test individuals must partition the cohort")
+    by_panel = {p: [r for r in result["replicates"] if r["panel"] == p] for p in ("held_out", "test_in_sample")}
+    check(all(len(rows) == 5 for rows in by_panel.values()), "each replicate is evaluated on both panels")
+    check(all(r["accepted"] for rows in by_panel.values() for r in rows) and
+          all(np.median([r["pearson_r"] for r in rows]) > .9 for rows in by_panel.values()),
+          "strong-LD masked z-scores were not recovered")
+    # Without LD a masked z-score is unpredictable, so the metric must say so.
+    rng = np.random.default_rng(4)
+    unlinked = rng.binomial(2, .4, (300, 40)).astype(float)
+    control = calibration.calibrate_block(unlinked, variants, ["POP"] * 300, maf_threshold=.01,
+                                          replicates=5, component_floor=5, seed=3)
+    held_out = [r["pearson_r"] if r["accepted"] else 0.0 for r in control["replicates"] if r["panel"] == "held_out"]
+    check(np.median(held_out) < .5, f"masked z-scores without LD scored as recovered: {held_out}")
 
 
 def test_canonical_effect_allele_ld_orientation() -> None:
@@ -304,11 +334,13 @@ def test_plink_raw_input() -> None:
 
 
 def main() -> None:
-    test_block(); test_maf_floor(); test_verify_block(); test_canonical_effect_allele_ld_orientation()
+    test_block(); test_maf_floor(); test_verify_block(); test_heldout_calibration()
+    test_canonical_effect_allele_ld_orientation()
     test_mapping(); test_membership_keep_format(); test_amr_pilot_mapping(); test_amr_pilot_membership()
     test_index_validation(); test_compressed_pvar_input()
     test_plink_raw_input()
-    for script in ("acquire_hgdp1kgp.py", "construct_block.py", "run_panels.py", "verify_block.py"):
+    for script in ("acquire_hgdp1kgp.py", "construct_block.py", "run_panels.py", "verify_block.py",
+                   "heldout_calibration.py"):
         subprocess.run([sys.executable, str(SCRIPT.with_name(script)), "--help"], check=True,
                        stdout=subprocess.DEVNULL)
     print(f"ok — {checks} checks passed")

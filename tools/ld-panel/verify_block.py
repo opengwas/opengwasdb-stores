@@ -18,7 +18,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from construct_block import _plink_extract, canonical_alid
+from construct_block import _plink_extract, canonical_alid, standardised_ea_dosages
 
 
 def components_at(values: np.ndarray, thresh: float) -> int:
@@ -60,14 +60,8 @@ def verify_block(base: Path, genotypes: np.ndarray, variants: list[dict[str, obj
              for i, v in enumerate(variants)}
     require(all(a in index for a in alids), "binding")
     if finite and "binding" not in failures and "row_count" not in failures:
-        columns = [index[a] for a in alids]
-        alt = np.asarray(genotypes, dtype=np.float64)[:, columns]
-        alt_is_ea = np.array([str(variants[c]["allele2"]).upper() == r["EA"] for c, r in zip(columns, rows)])
-        dosage = np.where(alt_is_ea, alt, 2 - alt)
-        means = np.nanmean(dosage, axis=0)
-        require(np.allclose(means / 2, [float(r["EAF"]) for r in rows], rtol=0, atol=1e-9), "eaf")
-        x = np.where(np.isnan(dosage), means, dosage) - means
-        x /= np.sqrt((x * x).sum(axis=0))
+        x, eaf = standardised_ea_dosages(genotypes, variants, rows)
+        require(np.allclose(eaf, [float(r["EAF"]) for r in rows], rtol=0, atol=1e-9), "eaf")
         projected = ((x @ vectors) ** 2).sum(axis=0)
         binding_error = float(np.max(np.abs(projected - values[:vectors.shape[1]])) / values[0])
         require(binding_error <= rtol, "binding")
