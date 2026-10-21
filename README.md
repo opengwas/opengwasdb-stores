@@ -98,9 +98,15 @@ that make inputs. `CONTRIBUTING.md` documents each one.
 
 Every Store Release has one globally unique opaque identifier, `OGS-` plus
 five digits, allocated sequentially (ADR 0022). It names the registry
-directory, the artifact directory, and the `release_id` in the built Store's
-manifest. There is no Store Family tier: the `OGS-` id is the only identifier,
-and access posture survives as descriptive `release.yaml` metadata (ADR 0028).
+directory and the artifact directory. In the built Store's manifest it is the
+`store_id`, and the `release_id` of an Observed-Only release. A release that
+completes its own Store keeps `store_id` as the id once completed, and the
+completed Store carries `release_id` `<id>-completed`: a new release of the same
+Store (ADR 0037, opengwasdb ADR 0011). A two-id Reference-Completed child
+(ADR 0007) is the exception: its id is the `release_id`, and the `store_id` is
+its parent's. There is no Store Family tier: the `OGS-` id is the only
+identifier, and access posture survives as descriptive `release.yaml` metadata
+(ADR 0028).
 
 Identifiers are opaque so that metadata cannot be stuffed into them and go
 stale, and so the generated master list is the only way to find a release --
