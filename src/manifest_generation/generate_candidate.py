@@ -493,6 +493,7 @@ def stage_render(
             generator_version=generator_version,
             resolver_receipt_path=pipeline.receipt_path,
             resolver_receipt_sha256=receipt_sha256,
+            manifest_rows=manifest,
         ),
         build=render_build_yaml(pipeline.store_id, pipeline.config),
         analyses_tsv=tables.analyses_tsv,

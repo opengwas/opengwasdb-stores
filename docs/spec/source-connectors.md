@@ -73,6 +73,7 @@ value -- never zero and never a default.
 | `target_resolution_method` | No | text | How the target was resolved (`somascan_db_seqid`, `somascan_db_gene_name`, `ensembl_hgnc_symbol`). |
 | `target_rows` | No | positive integer | How many target-table rows the target was resolved from. |
 | `tissue`, `context` | No | text | The measured tissue and assay context (`plasma`, `SomaScan`), as in `analyses.tsv`. |
+| `source_probe_id` | No | text | The `.epi` probe an Analysis reads in a BESD file set (eQTLGen: the Ensembl gene). Required by the resolver for a BESD source and refused for any other. Resolution is keyed by `source_analysis_id`, never inferred from it. |
 
 The target columns are annotation, never a Trait Ontology Mapping: a gene is
 not the Trait (issue #141). They render into `analyses.tsv` (`trait_chr` and

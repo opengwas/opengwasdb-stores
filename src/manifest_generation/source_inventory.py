@@ -932,13 +932,24 @@ def preflight(
             if row.data_file and Path(row.data_file).is_file():
                 not_ready_with_present_file.append(row.analysis_id)
             continue
-        if not row.data_file or not Path(row.data_file).is_file():
-            missing.append(row.analysis_id)
-            continue
-        source = Path(row.data_file)
-        recorded = row.recorded_bytes
-        if recorded is not None and source.stat().st_size != recorded:
-            size_mismatch.append(f"{row.analysis_id} ({source.stat().st_size} != {recorded})")
+        # A BESD Analysis's source is a file set: ``data_file`` is its prefix, and
+        # the Acquisition Manifest records each member, so the members are what
+        # is verified, never the prefix as if it were a file (#291).
+        members = _file_set_members(frozen_manifest, row.analysis_id)
+        if members is not None:
+            absent, changed = file_set_member_problems(row.data_file, members)
+            if absent:
+                missing.append(f"{row.analysis_id} ({', '.join(absent)})")
+                continue
+            size_mismatch.extend(f"{row.analysis_id} ({detail})" for detail in changed)
+        else:
+            if not row.data_file or not Path(row.data_file).is_file():
+                missing.append(row.analysis_id)
+                continue
+            source = Path(row.data_file)
+            recorded = row.recorded_bytes
+            if recorded is not None and source.stat().st_size != recorded:
+                size_mismatch.append(f"{row.analysis_id} ({source.stat().st_size} != {recorded})")
         if not row.yaml_file:
             no_metadata_sidecar.append(row.analysis_id)
             continue
@@ -1220,6 +1231,33 @@ def preflight(
     return PreflightResult(
         report=report, failures=tuple(failures), warnings=tuple(warnings)
     )
+
+
+def _file_set_members(manifest: Any, analysis_id: str) -> Mapping[str, Mapping[str, Any]] | None:
+    """The members the frozen Acquisition Manifest records for ``analysis_id``'s file set, if it is one."""
+    if manifest is None or analysis_id not in manifest:
+        return None
+    return manifest.entry(analysis_id).members
+
+
+def file_set_member_problems(
+    prefix: str, members: Mapping[str, Mapping[str, Any]]
+) -> tuple[list[str], list[str]]:
+    """A BESD file set's member files that are gone, and those whose size is not the recorded one.
+
+    ``prefix`` plus each suffix of ``members`` is a member file; a record names
+    each one's ``bytes``. A checksum is not recomputed here: preflight, like the
+    single-file check, holds a file to the size acquisition recorded.
+    """
+    absent: list[str] = []
+    changed: list[str] = []
+    for suffix, recorded in sorted(members.items()):
+        member = Path(f"{prefix}{suffix}")
+        if not member.is_file():
+            absent.append(suffix)
+        elif member.stat().st_size != recorded["bytes"]:
+            changed.append(f"{suffix} {member.stat().st_size} != {recorded['bytes']}")
+    return absent, changed
 
 
 def _frozen_connectors(provenance_path: Path, failures: list[str]) -> tuple[Any, Any]:
