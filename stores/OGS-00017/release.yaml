@@ -45,3 +45,14 @@ notes: |
   history. The published artifact under the artifact root must be relocated to
   `<artifact-root>/OGS-00017/` as a separate operational step; the registry
   publishes where it should live (ADR 0022).
+
+  Rebuild and completion (2026-10-22): the relocation above was not carried
+  out. The artifact root holds this Store under `<artifact-root>/OGS-00017/`,
+  where the registry publishes it, but its records still name OGS-00016 and it
+  is at format 0.1.0, so the Store is rebuilt under OGS-00017 at format 0.2.0
+  by a forced run, and completed against the UKB EUR LD panel
+  (`ukb-hg38-eur-ld`, `/data/opengwasdb/reference/ld/EUR`, which points to
+  `ukb`; owner decision 2026-10-21) in that same run. The forced run archives
+  the Store it replaces. Every FinnGen Analysis is unassigned, its Source
+  Ancestry Label being Finnish and no Assigned Ancestry having been taken, so
+  `complete-dense` imputes all 2,754 Analyses against the EUR panel.
