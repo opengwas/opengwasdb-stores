@@ -1355,7 +1355,14 @@ validation was never attempted.
 
 ### QC panel configuration
 
-A generator config's `filter.qc_panel` block configures unconditional retention
+The shared pipeline keeps the QC panel in every region-filtered file: a release
+config's `region_policy.qc_panel_resource_id` names it, and acquisition records
+the panel's identity in each file's lineage (#300,
+[release config](spec/release-config.md#region_policy)). The R generators'
+`filter.qc_panel` block, described below for the bundles they emitted, retired
+with them.
+
+A generator config's `filter.qc_panel` block configured unconditional retention
 of the fixed QC variant panel (issue #28/#29/#30) for one release. Unlike the
 signal-driven sparse regions (`cis`/`significant_trans`/`suggestive_trans`), the
 QC panel is retained regardless of an Analysis's `p_value` distribution, so
