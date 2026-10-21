@@ -270,10 +270,12 @@ non-empty `assigned_ancestry` must be one of the ancestry mixture's seven
 super-population codes (a free-text Source Ancestry Label is not an Assigned
 Ancestry), `n_cases`/`n_controls` must be blank on a non-case-control
 Analysis rather than `0` (issue #133), and every row's `analysis_id` must match
-`^[A-Za-z0-9][A-Za-z0-9._-]*$` so that `<store_id>:<analysis_id>` always splits
-on `:` into two parts and the id is a usable filename (issue #319). Excluded
-rows are checked by the `analysis_id` rule too, since the catalogue still names
-them. All three were silent-failure classes found
+`^[A-Za-z0-9][A-Za-z0-9._-]*$` so that the identifier the
+[Analysis Catalog](../adr/0039-analysis-catalog.md) publishes as
+`<store_id>:<analysis_id>` always splits on `:` into two parts and the id is a
+usable filename (issue #319). Excluded
+rows are checked by the `analysis_id` rule too, since the Analysis Catalog still
+names them. All three were silent-failure classes found
 in the committed bundles; the checks make a reintroduction fail `bundle-check`
 rather than a summary. `OGS-00001` and `OGS-00002` keep their `<probe>::<tissue>`
 `analysis_id` values, which an accepted bundle may not be edited to remove

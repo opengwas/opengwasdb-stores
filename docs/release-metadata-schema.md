@@ -243,8 +243,9 @@ releases `OGS-00001` and `OGS-00002` may leave required Analysis values blank
 `RETIRED_ANALYSIS_COLUMNS` list: `phenotype_id`, `phenotype_label`, `trait_id`,
 `gene_id`, `gene_name`. The upstream schema is the single retired-column
 contract; the registry does not keep its own copy. It also **rejects** any
-`analysis_id` outside `^[A-Za-z0-9][A-Za-z0-9._-]*$`, because the catalogue
-addresses an Analysis `<store_id>:<analysis_id>` and a client must be able to
+`analysis_id` outside `^[A-Za-z0-9][A-Za-z0-9._-]*$`, because the
+[Analysis Catalog](adr/0039-analysis-catalog.md) addresses an Analysis
+`<store_id>:<analysis_id>` and a client must be able to
 split that on `:` into its two parts (issue #319; see "Legacy `analysis_id`
 values" below). A Trait Ontology Mapping
 carries an ontology term and its trait label, never a gene identifier with an
@@ -258,7 +259,7 @@ and the matching authority name in `trait_ontology_label` (issue #141).
 
 | Field | Required | Description |
 |---|---:|---|
-| `analysis_id` | Yes | Stable registry Analysis ID. Usually source-derived unless the source lacks stable IDs. It is one path segment matching `^[A-Za-z0-9][A-Za-z0-9._-]*$`: the catalogue names an Analysis `<store_id>:<analysis_id>`, so the value must never contain `:`, and it is also the filename of the resolver's per-Analysis record (issue #319). |
+| `analysis_id` | Yes | Stable registry Analysis ID. Usually source-derived unless the source lacks stable IDs. It is one path segment matching `^[A-Za-z0-9][A-Za-z0-9._-]*$`: the Analysis Catalog ([ADR 0039](adr/0039-analysis-catalog.md)) names an Analysis `<store_id>:<analysis_id>`, so the value must never contain `:`, and it is also the filename of the resolver's per-Analysis record (issue #319). |
 | `source_analysis_id` | No | Upstream analysis identifier, such as a GCST accession or OpenGWAS ID, when the Source Collection provides one. |
 | `source_label` | Yes | Upstream trait or phenotype label preserved as source provenance. Registry-only; kept separate from `analysis_label` even when both hold the same source text. |
 | `analysis_label` | Yes | Free-text, non-unique display label for the Analysis, carried into the built store. Typically the same source text as `source_label`; for a single-target gene-centric Analysis it is the resolved gene symbol, and for an aggregate assay it is the SomaScan SeqId, SomaLogic's stable assay identifier (issue #141). |

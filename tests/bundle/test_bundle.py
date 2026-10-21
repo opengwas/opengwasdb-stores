@@ -1388,7 +1388,7 @@ class TestBundleContract(unittest.TestCase):
 class TestAnalysisIdRule(unittest.TestCase):
     """`analysis_id` is one path segment, so `<store_id>:<analysis_id>` splits (#319).
 
-    The catalogue names an Analysis `<store_id>:<analysis_id>`, and a client splits
+    The Analysis Catalog names an Analysis `<store_id>:<analysis_id>`, and a client splits
     that on `:` to get its two parts -- R `strsplit`, JavaScript `split(":")`,
     Python `str.split(":")`. `analysis_id` is also the filename of the resolver's
     per-Analysis record, and `:` is not legal in a Windows filename. So the value
@@ -1429,7 +1429,7 @@ class TestAnalysisIdRule(unittest.TestCase):
                 self.assertIn("on analyses.tsv row 1", errors[0])
 
     def test_an_excluded_row_is_checked_too(self) -> None:
-        """An excluded Analysis is still named by the catalogue, so it is still checked."""
+        """An excluded Analysis is still named by the Analysis Catalog, so it is still checked."""
         errors = self.check_id("ENSG00000175445::whole_blood", excluded=True)
         self.assertEqual(len(errors), 1, errors)
 

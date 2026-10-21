@@ -153,10 +153,11 @@ LEGACY_BLANK_ANALYSIS_RELEASES: frozenset[str] = frozenset({"OGS-00001", "OGS-00
 # its Analyses by bare probe id and must satisfy the rule.
 LEGACY_ANALYSIS_ID_RELEASES: frozenset[str] = frozenset({"OGS-00001", "OGS-00002"})
 
-# The catalogue names an Analysis ``<store_id>:<analysis_id>``, and a client
-# splits that on ``:`` to get its two parts. ``analysis_id`` is also the
-# filename of the resolver's per-Analysis record, and ``:`` is not legal in a
-# Windows filename. The registry owns this guard because the pinned
+# The Analysis Catalog names an Analysis ``<store_id>:<analysis_id>`` (ADR
+# 0039), and a client splits that on ``:`` to get its two parts.
+# ``analysis_id`` is also the filename of the resolver's per-Analysis record,
+# and ``:`` is not legal in a Windows filename. The registry owns this guard
+# because the pinned
 # ``opengwasdb.model.analyses.validate_analyses()`` accepts any string in the
 # column (ADR 0017); retire it in favour of the upstream validator if
 # OpenGWASDB ever adopts the rule (issue #319).
@@ -1052,7 +1053,7 @@ def _check_analysis_ids(
     contain it -- nor anything else that would make the id two segments or no
     filename: a space, ``/``, or a leading ``.``/``-``. Every row of the Release
     Manifest is judged, excluded ones included, because an excluded Analysis is
-    still named by the catalogue. The value is judged exactly as
+    still named by the Analysis Catalog. The value is judged exactly as
     ``read_analyses`` returned it, never stripped or coerced, so an id padded
     with whitespace cannot pass here and then fail a client's split.
 
