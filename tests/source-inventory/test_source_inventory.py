@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
-"""Tests for the frozen Source Inventory seam (issue #151).
+"""Tests for the frozen Source Inventory seam (issues #151, #283, #287).
 
-Covers the contracts Phase B depends on:
+Covers the contracts Manifest Generation depends on:
 
-1. the retry-overlay precedence rule, and that the base/retry delta is recorded
-   rather than silently replaced;
-2. the readiness vocabulary: every acquisition status is classified explicitly,
+1. the readiness vocabulary: every acquisition status is classified explicitly,
    `ok` and `already_present` are ready, nothing else is;
-3. accounting: duplicate ids, unknown statuses, candidates with no acquisition
-   row, and acquisition rows outside the candidate pool all fail loudly;
-4. determinism: two freezes of the same inputs produce identical bytes, and
-   per-run download timing never reaches the frozen file;
-5. duplicate-content groups are reported and preserved, never collapsed;
-6. preflight passes on a healthy snapshot and reports the plan, and fails on a
+2. the freeze stage over a release config: the shared freeze writes the
+   inventory for the config's Selection, a frozen inventory is never
+   overwritten, one frozen for another Selection or by the pre-#283
+   candidate-table freeze is refused, and a config with no connectors needs an
+   inventory that already exists;
+3. preflight passes on a healthy snapshot and reports the plan, and fails on a
    missing/changed source file, unreadable or mis-declared metadata, an edited
    inventory, an undeclared method tier, a missing required Reference Resource,
-   a bad work root, an over-cap core count, and a missing provenance sidecar;
-7. preflight never opens a GWAS-SSF association body (proven with a tripwire);
-8. the shipped full-release config, inventory and provenance stay consistent,
-   and every declared reference resource in this repository loads.
+   a bad work root, an over-cap core count, a missing provenance sidecar, and a
+   provenance that is not this release's; a ready row without a source URL is
+   a warning, not a failure;
+4. preflight never opens a GWAS-SSF association body (proven with a tripwire);
+5. the pre-#287 config reader the concordance study keeps still reads its
+   ordered acquisition passes, and the committed inventories and every
+   declared reference resource in this repository stay consistent.
 
 Run from the repository root:  python3 tests/source-inventory/test_source_inventory.py
 """
@@ -41,27 +42,33 @@ import yaml
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
+from manifest_generation.freeze import FreezeError  # noqa: E402
+from manifest_generation.inventory import freeze_release  # noqa: E402
+from manifest_generation.providers.gwas_catalog.write_acquisition_manifest import (  # noqa: E402
+    write_from_passes,
+)
+from manifest_generation.release_config import (  # noqa: E402
+    RELEASE_CONFIG_VERSION,
+    ReleaseConfigError,
+    load_release_config,
+)
 from manifest_generation.source_inventory import (  # noqa: E402
     ACQUISITION_MANIFEST_COLUMNS,
-    CANDIDATE_COLUMNS,
-    INVENTORY_COLUMNS,
     MAX_CORES,
     AcquisitionPass,
     InventoryError,
     PreflightConfigError,
-    build_snapshot,
     discover_reference_resources,
-    duplicate_content_groups,
     load_release_configuration,
-    merge_acquisition_manifests,
     preflight,
-    read_candidate_selection,
     read_inventory,
     render_preflight_summary,
-    write_snapshot,
 )
 
-SHIPPED_CONFIG = REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/config-full.yaml"
+#: The pre-#287 generator config the preregistered concordance study is bound to.
+LEGACY_CONFIG = REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/config-full.yaml"
+CANONICAL_TRAIT_MAPPING_TABLE = REPO_ROOT / "resources/reference-resources/canonical-trait-mapping-efo"
+SELECTION = {"where": {"store_key": "hybrid__European"}}
 SHIPPED_INVENTORY = REPO_ROOT / "resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv"
 SHIPPED_PROVENANCE = REPO_ROOT / "resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.meta.yaml"
 #: The snapshot 2026-09-22 supersedes. It stays in git so the rescue delta
@@ -127,7 +134,8 @@ FIXTURE_ANALYSES: tuple[FixtureAnalysis, ...] = (
         # The retry pass is authoritative for the rows it covers even when its
         # outcome is worse than the base pass's -- but only across non-ready
         # outcomes: a later pass may not regress an already-ready Analysis, which
-        # build_snapshot refuses (see TestReadyRegressionGuard).
+        # the GWAS Catalog Acquisition Manifest writer refuses
+        # (tests/freeze/test_gwas_catalog_acquisition_manifest.py).
         retry_status="header_rejected",
         content_key="BETA",
         file_name="GCST90000002.h.tsv.gz",
@@ -211,7 +219,7 @@ FROZEN_AT = "2026-09-10T09:30:00Z"
 
 
 class Workspace:
-    """A hermetic fixture workspace: mirror files, config, inventory and work root."""
+    """A hermetic fixture workspace: mirror files, connectors, release config, work root."""
 
     def __init__(self, root: Path) -> None:
         self.root = root
@@ -219,15 +227,18 @@ class Workspace:
         self.reference = root / "reference"
         self.work_root = root / "work"
         self.config_path = root / "config.yaml"
-        self.candidates_path = root / "candidates.tsv"
+        self.legacy_config_path = root / "legacy-config.yaml"
+        self.source_metadata_table_path = root / "source-metadata.tsv"
+        self.acquisition_manifest_path = root / "acquisition-manifest.tsv"
         self.base_manifest_path = root / "base-manifest.tsv"
         self.retry_manifest_path = root / "retry-manifest.tsv"
         self.rescue_manifest_path = root / "rescue-manifest.tsv"
         self.inventory_path = root / "inventory" / "fixture-snapshot.tsv"
         self.provenance_path = root / "inventory" / "fixture-snapshot.meta.yaml"
         self._build_mirror()
-        self._write_candidates()
+        self._write_source_metadata_table()
         self._write_manifests()
+        write_from_passes(self.configured_passes(), self.acquisition_manifest_path)
         self._write_reference()
         self.write_config()
 
@@ -258,23 +269,29 @@ class Workspace:
                     template.format(analysis_id=entry.analysis_id), encoding="utf-8"
                 )
 
-    def _write_candidates(self) -> None:
-        columns = list(CANDIDATE_COLUMNS) + ["PUBMED.ID", "DISEASE.TRAIT", "ancestry_group"]
+    def _write_source_metadata_table(self) -> None:
+        columns = [
+            "source_analysis_id", "source_trait_label", "source_ancestry_label",
+            "source_superpopulation", "study_design", "sample_size", "publication_pmid",
+            "store_key",
+        ]
         lines = ["\t".join(columns)]
         for entry in FIXTURE_ANALYSES:
             lines.append(
                 "\t".join(
                     [
                         entry.analysis_id,
-                        entry.store_key,
-                        entry.study_design,
-                        f"1{entry.analysis_id[-1]}",
                         f"trait {entry.analysis_id}",
                         "European",
+                        "EUR",
+                        entry.study_design,
+                        entry.sample_size,
+                        f"1{entry.analysis_id[-1]}",
+                        entry.store_key,
                     ]
                 )
             )
-        self.candidates_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        self.source_metadata_table_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     def manifest_row(
         self, entry: FixtureAnalysis, status: str, *, seconds: str = "1.0"
@@ -329,14 +346,8 @@ class Workspace:
         self.retry_manifest_path.write_text(_render_manifest(retry_rows), encoding="utf-8")
         self.rescue_manifest_path.write_text(_render_manifest(rescue_rows), encoding="utf-8")
 
-    def write_manifest(self, name: str, rows: list[dict[str, str]]) -> Path:
-        """Write an ad-hoc manifest (a regression pass, say) into the workspace."""
-        path = self.root / name
-        path.write_text(_render_manifest(rows), encoding="utf-8")
-        return path
-
     def configured_passes(self) -> list[AcquisitionPass]:
-        """The passes the shipped config declares, retargeted at this workspace."""
+        """The GWAS Catalog download passes the fixture's Acquisition Manifest overlays."""
         return [
             AcquisitionPass(role="base", path=self.base_manifest_path),
             AcquisitionPass(role="retry_transient", path=self.retry_manifest_path),
@@ -353,28 +364,72 @@ class Workspace:
 
     # -- config -----------------------------------------------------------
     def config_document(self) -> dict:
-        """The shipped full-release config, retargeted at this workspace."""
-        document = copy.deepcopy(yaml.safe_load(SHIPPED_CONFIG.read_text(encoding="utf-8")))
-        document["source"]["inventory"].update(
-            {
-                "snapshot_id": "fixture-snapshot",
-                "path": str(self.inventory_path),
-                "provenance_path": str(self.provenance_path),
-                "freeze_inputs": [
-                    {"role": "base", "path": str(self.base_manifest_path)},
-                    {"role": "retry_transient", "path": str(self.retry_manifest_path)},
-                ],
-            }
-        )
-        document["source"]["candidates"] = str(self.candidates_path)
-        document["reference_resources"][0]["location"] = str(self.reference / "ref_freqs.hg38.tsv.gz")
-        document["reference_resources"][0]["fine_group_map"] = str(self.reference / "ancestry_groups.tsv")
-        document["runtime"]["cores"] = 8
-        # A host-independent floor: the fixture workspace is a temp directory, so
-        # the shipped default (50 GB) would vary with the machine it runs on.
-        document["runtime"]["min_free_gb"] = 0.001
-        document["output"]["work_root"] = str(self.work_root)
-        return document
+        """A release config over this workspace's connector files."""
+        return {
+            "release_config_version": RELEASE_CONFIG_VERSION,
+            "label": "fixture-release",
+            "description": "A fixture release.",
+            "source_collection": {
+                "source_collection_id": "gwas-catalog-ssf",
+                "connectors": {
+                    "source_metadata_table": str(self.source_metadata_table_path),
+                    "acquisition_manifest": str(self.acquisition_manifest_path),
+                },
+                "inventory": {
+                    "snapshot_id": "fixture-snapshot",
+                    "directory": str(self.inventory_path.parent),
+                },
+            },
+            "selection": copy.deepcopy(SELECTION),
+            # Ragged, so the workspace (passed as the repository root) needs no
+            # Indexed Variant Subset resource; preflight reads no Build Recipe.
+            "build": {
+                "layout": "ragged",
+                "completion_state": "observed_only",
+                "command": "build-ragged-ssf",
+                "options": {"source-reader-capability": "opengwasdb.gwas-ssf"},
+                "post": {"top_hits": False, "overview": True},
+            },
+            "defaults": {
+                "source_genome_build": "GRCh38",
+                "by_study_design": {
+                    "quantitative": {
+                        "stored_effect_scale": "sd",
+                        "original_effect_scale": "sd",
+                        "original_sd_method": "estimated_from_source_maf",
+                        "sample_size_kind": "total",
+                    },
+                    "case-control": {
+                        "stored_effect_scale": "log_or",
+                        "original_effect_scale": "log_or",
+                        "original_sd_method": "binary_trait",
+                        "sample_size_kind": "case_control",
+                    },
+                },
+            },
+            "release_policy": {"selection_superpopulation": "EUR"},
+            "reference_resources": [
+                {
+                    "resource_id": "ukb-ancestry-mixture-hg38",
+                    "kind": "ancestry_mixture",
+                    "location": str(self.reference / "ref_freqs.hg38.tsv.gz"),
+                    "fine_group_map": str(self.reference / "ancestry_groups.tsv"),
+                    "location_kind": "external_file",
+                },
+                {
+                    "resource_id": "canonical-trait-mapping-efo",
+                    "kind": "trait_ontology_mapping",
+                    "location": str(CANONICAL_TRAIT_MAPPING_TABLE),
+                    "version": "3",
+                },
+            ],
+            "ancestry_assignment": {"reference_resource_id": "ukb-ancestry-mixture-hg38"},
+            "effect_scale_validation": {"reference_resources": []},
+            "trait_ontology_mapping": {"reference_resource_id": "canonical-trait-mapping-efo"},
+            # A host-independent floor: the fixture workspace is a temp directory.
+            "runtime": {"cores": 8, "min_free_gb": 0.001},
+            "output": {"work_root": str(self.work_root)},
+        }
 
     def write_config(self, mutate=None) -> Path:
         document = self.config_document()
@@ -386,22 +441,19 @@ class Workspace:
         return self.config_path
 
     def config(self, mutate=None):
-        return load_release_configuration(self.write_config(mutate), self.root)
+        return load_release_config(self.write_config(mutate), self.root)
+
+    def legacy_config(self, mutate=None):
+        """The pre-#287 config the concordance study reads, retargeted at this workspace."""
+        document = copy.deepcopy(yaml.safe_load(LEGACY_CONFIG.read_text(encoding="utf-8")))
+        if mutate is not None:
+            mutate(document)
+        self.legacy_config_path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+        return load_release_configuration(self.legacy_config_path, self.root)
 
     # -- commands under test ----------------------------------------------
-    def freeze(self, *, frozen_at: str = FROZEN_AT, manifests=None):
-        candidates = read_candidate_selection(self.candidates_path, "hybrid__European")
-        snapshot = build_snapshot(
-            snapshot_id="fixture-snapshot",
-            source_collection_id="gwas-catalog-ssf",
-            store_key="hybrid__European",
-            ancestry_group="European",
-            manifests=manifests if manifests is not None else self.configured_passes(),
-            candidates=candidates,
-            frozen_at=frozen_at,
-        )
-        write_snapshot(snapshot, self.inventory_path, self.provenance_path)
-        return snapshot
+    def freeze(self, *, frozen_at: str = FROZEN_AT, config=None):
+        return freeze_release(config or self.config(), frozen_at=frozen_at)
 
     def preflight(self, config=None, **kwargs):
         config = config or self.config()
@@ -447,281 +499,87 @@ class SourceInventoryTestCase(unittest.TestCase):
         self.workspace = Workspace(self.root)
 
 
-class TestFreeze(SourceInventoryTestCase):
-    def test_retry_manifest_is_authoritative_for_the_rows_it_covers(self) -> None:
-        snapshot = self.workspace.freeze()
-        self.assertEqual(
-            snapshot.readiness_counts,
-            {
-                "already_present": 1,
-                "dry_run": 1,
-                "error": 1,
-                "header_rejected": 1,
-                "metadata_rejected": 1,
-                "missing_remote_harmonised_yaml": 1,
-                "ok": 2,
-                "yaml_failed": 1,
-            },
-        )
-        statuses = {row.analysis_id: row.readiness_status for row in snapshot.rows}
-        # Base said `data_failed`, retry said `header_rejected`: the retry wins.
-        self.assertEqual(statuses["GCST90000002"], "header_rejected")
-        # Base said `data_failed`, retry said `ok`: the retry wins.
-        self.assertEqual(statuses["GCST90000003"], "ok")
-        # A row the retry pass did not cover keeps the base outcome.
-        self.assertEqual(statuses["GCST90000001"], "ok")
-        self.assertEqual(statuses["GCST90000009"], "error")
-
-        inputs = {entry.role: entry for entry in snapshot.inputs}
-        self.assertEqual(inputs["base"].rows, 9)
-        self.assertEqual(inputs["retry_transient"].rows, 2)
-        self.assertEqual(inputs["retry_transient"].overrides, 2)
-        # The delta between the passes stays visible in the provenance.
-        self.assertEqual(inputs["base"].readiness_counts["ok"], 1)
-        self.assertEqual(inputs["base"].readiness_counts["data_failed"], 2)
-        self.assertEqual(inputs["retry_transient"].readiness_counts["header_rejected"], 1)
-
+class TestReadinessVocabulary(SourceInventoryTestCase):
     def test_only_ok_and_already_present_are_ready(self) -> None:
-        snapshot = self.workspace.freeze()
-        ready = {row.analysis_id for row in snapshot.ready_rows}
-        self.assertEqual(ready, {"GCST90000001", "GCST90000003", "GCST90000004"})
-        self.assertEqual(snapshot.ready_study_design_counts, {"case-control": 1, "quantitative": 2})
-        expected_bytes = 2 * len(SOURCE_CONTENT["ALPHA"]) + len(SOURCE_CONTENT["GAMMA"])
-        self.assertEqual(snapshot.ready_bytes, expected_bytes)
-        # Unavailable inputs stay inventory rows, not members.
-        self.assertEqual(len(snapshot.rows), 9)
-        self.assertEqual(
-            {row.readiness_status for row in snapshot.rows},
-            {
-                "ok",
-                "already_present",
-                "header_rejected",
-                "missing_remote_harmonised_yaml",
-                "metadata_rejected",
-                "yaml_failed",
-                "dry_run",
-                "error",
-            },
-        )
-
-    def test_freeze_is_deterministic_and_drops_download_timing(self) -> None:
-        first = self.workspace.freeze()
-        text = self.workspace.inventory_path.read_text(encoding="utf-8")
         self.workspace.freeze()
-        self.assertEqual(self.workspace.inventory_path.read_text(encoding="utf-8"), text)
-        self.assertNotIn("seconds", first.rows[0].as_dict())
-        self.assertIn("seconds", self.workspace.base_manifest_path.read_text(encoding="utf-8"))
-        # Rows carry the columns downstream resolves from, in order.
-        self.assertEqual(tuple(text.splitlines()[0].split("\t")), INVENTORY_COLUMNS)
-
-    def test_records_exact_source_paths_for_both_filename_shapes(self) -> None:
-        snapshot = self.workspace.freeze()
-        rows = {row.analysis_id: row for row in snapshot.rows}
-        prefixed = rows["GCST90000001"]
-        canonical = rows["GCST90000004"]
-        self.assertEqual(prefixed.data_file, str(self.workspace.data_path(self.workspace.analysis("GCST90000001"))))
-        self.assertTrue(prefixed.data_file.endswith("1-GCST90000001-EFO_0000001.h.tsv.gz"))
-        self.assertTrue(canonical.data_file.endswith("/GCST90000004.h.tsv.gz"))
-        self.assertEqual(prefixed.data_url, "https://example.invalid/GCST90000001")
+        rows = {row.analysis_id: row for row in read_inventory(self.workspace.inventory_path)}
         self.assertEqual(
-            prefixed.sha256, hashlib.sha256(SOURCE_CONTENT["ALPHA"].encode()).hexdigest()
+            {analysis_id for analysis_id, row in rows.items() if row.ready},
+            {"GCST90000001", "GCST90000003", "GCST90000004"},
         )
+        self.assertEqual(rows["GCST90000004"].readiness_status, "already_present")
+        self.assertEqual(rows["GCST90000008"].readiness_status, "dry_run")
+        self.assertFalse(rows["GCST90000008"].ready)
+        # Not selected: another store_key.
+        self.assertNotIn("GCST90000010", rows)
 
-    def test_provenance_sidecar_records_identity_and_inputs(self) -> None:
-        snapshot = self.workspace.freeze()
+
+class TestFreezeRelease(SourceInventoryTestCase):
+    """The freeze stage over a release config (#283, #287)."""
+
+    def test_freezes_the_configs_selection_with_its_connectors(self) -> None:
+        outcome = self.workspace.freeze()
+        self.assertTrue(outcome.frozen)
         provenance = yaml.safe_load(self.workspace.provenance_path.read_text(encoding="utf-8"))
-        inventory_text = self.workspace.inventory_path.read_text(encoding="utf-8")
-        self.assertEqual(provenance["snapshot_id"], "fixture-snapshot")
+        self.assertEqual(provenance["frozen_by"], "manifest_generation.freeze")
+        self.assertEqual(provenance["selection"], SELECTION)
+        self.assertEqual(provenance["source_collection_id"], "gwas-catalog-ssf")
+        self.assertEqual(outcome.inventory_sha256, provenance["inventory_tsv_sha256"])
         self.assertEqual(provenance["rows"], 9)
-        self.assertEqual(provenance["ready_rows"], 3)
-        self.assertEqual(provenance["frozen_at"], FROZEN_AT)
-        self.assertEqual(
-            provenance["inventory_tsv_sha256"], hashlib.sha256(inventory_text.encode()).hexdigest()
+        for suffix in (".source-metadata.tsv", ".acquisition-manifest.tsv"):
+            self.assertTrue(self.workspace.inventory_path.with_name(f"fixture-snapshot{suffix}").is_file())
+
+    def test_an_existing_inventory_for_this_release_is_never_rewritten(self) -> None:
+        self.workspace.freeze()
+        before = {
+            path.name: path.read_bytes() for path in self.workspace.inventory_path.parent.iterdir()
+        }
+        again = self.workspace.freeze(frozen_at="2030-01-01T00:00:00Z")
+        self.assertFalse(again.frozen)
+        after = {
+            path.name: path.read_bytes() for path in self.workspace.inventory_path.parent.iterdir()
+        }
+        self.assertEqual(before, after)
+
+    def test_an_inventory_frozen_for_another_selection_is_refused(self) -> None:
+        self.workspace.freeze()
+        config = self.workspace.config(
+            lambda document: document.update(selection={"analyses": ["GCST90000001"]})
         )
-        self.assertEqual(
-            {entry["role"] for entry in provenance["inputs"]}, {"base", "retry_transient"}
-        )
-        self.assertEqual(provenance["candidates"]["selected_rows"], 9)
-        self.assertEqual(provenance["duplicate_content_groups"], [group.as_dict() for group in snapshot.duplicates])
+        with self.assertRaises(InventoryError) as caught:
+            self.workspace.freeze(config=config)
+        self.assertIn("a changed Selection is a new freeze", str(caught.exception))
 
-    def test_duplicate_content_is_reported_and_preserved(self) -> None:
-        snapshot = self.workspace.freeze()
-        groups = snapshot.duplicates
-        self.assertEqual(len(groups), 1)
-        self.assertEqual(groups[0].analysis_ids, ("GCST90000001", "GCST90000003"))
-        self.assertEqual(groups[0].sha256, hashlib.sha256(SOURCE_CONTENT["ALPHA"].encode()).hexdigest())
-        # Both accessions remain ready members: collapsing them is a human decision.
-        self.assertIn("GCST90000001", {row.analysis_id for row in snapshot.ready_rows})
-        self.assertIn("GCST90000003", {row.analysis_id for row in snapshot.ready_rows})
-        self.assertEqual(len(duplicate_content_groups(snapshot.rows)), 1)
-
-    def test_round_trip_through_the_written_tsv(self) -> None:
-        snapshot = self.workspace.freeze()
-        self.assertEqual(read_inventory(self.workspace.inventory_path), snapshot.rows)
-
-    def test_freeze_fails_on_duplicate_analysis_id(self) -> None:
-        rows = [self.workspace.manifest_row(self.workspace.analysis("GCST90000001"), "ok")] * 2
-        _write_raw_manifest(self.workspace.retry_manifest_path, rows)
+    def test_an_inventory_from_the_candidate_table_freeze_is_refused(self) -> None:
+        self.workspace.freeze()
+        provenance = yaml.safe_load(self.workspace.provenance_path.read_text(encoding="utf-8"))
+        del provenance["frozen_by"]
+        self.workspace.provenance_path.write_text(yaml.safe_dump(provenance), encoding="utf-8")
         with self.assertRaises(InventoryError) as caught:
             self.workspace.freeze()
-        self.assertIn("duplicate analysis_id", str(caught.exception))
+        self.assertIn("not written by the shared freeze", str(caught.exception))
 
-    def test_freeze_fails_on_unknown_readiness_status(self) -> None:
-        row = self.workspace.manifest_row(self.workspace.analysis("GCST90000001"), "ok")
-        row["status"] = "probably_fine"
-        _write_raw_manifest(self.workspace.retry_manifest_path, [row])
-        with self.assertRaises(InventoryError) as caught:
+    def test_a_partial_freeze_is_never_overwritten(self) -> None:
+        self.workspace.inventory_path.parent.mkdir(parents=True)
+        self.workspace.inventory_path.write_text("leftover\n", encoding="utf-8")
+        with self.assertRaises(FreezeError) as caught:
             self.workspace.freeze()
-        self.assertIn("unknown readiness status", str(caught.exception))
+        self.assertIn("never overwritten", str(caught.exception))
 
-    def test_freeze_fails_when_a_candidate_has_no_acquisition_row(self) -> None:
-        rows = [
-            self.workspace.manifest_row(self.workspace.analysis(entry.analysis_id), entry.base_status)
-            for entry in FIXTURE_ANALYSES
-            if entry.base_status and entry.analysis_id != "GCST90000009"
-        ]
-        _write_raw_manifest(self.workspace.base_manifest_path, rows)
-        with self.assertRaises(InventoryError) as caught:
-            self.workspace.freeze()
-        self.assertIn("have no acquisition row", str(caught.exception))
-        self.assertIn("GCST90000009", str(caught.exception))
-
-    def test_freeze_fails_on_a_manifest_row_outside_the_candidate_pool(self) -> None:
-        extra = self.workspace.manifest_row(self.workspace.analysis("GCST90000001"), "ok")
-        extra["analysis_id"] = "GCST90009999"
-        rows = [
-            self.workspace.manifest_row(self.workspace.analysis(entry.analysis_id), entry.base_status)
-            for entry in FIXTURE_ANALYSES
-            if entry.base_status
-        ] + [extra]
-        _write_raw_manifest(self.workspace.base_manifest_path, rows)
-        with self.assertRaises(InventoryError) as caught:
-            self.workspace.freeze()
-        self.assertIn("outside the", str(caught.exception))
-        self.assertIn("GCST90009999", str(caught.exception))
-
-    def test_freeze_fails_on_duplicate_candidate_accession(self) -> None:
-        text = self.workspace.candidates_path.read_text(encoding="utf-8")
-        body = text.splitlines()[1]
-        self.workspace.candidates_path.write_text(text + body + "\n", encoding="utf-8")
-        with self.assertRaises(InventoryError) as caught:
-            self.workspace.freeze()
-        self.assertIn("duplicate STUDY.ACCESSION", str(caught.exception))
-
-    def test_freeze_fails_on_missing_required_manifest_column(self) -> None:
-        rows = [
-            self.workspace.manifest_row(self.workspace.analysis(entry.analysis_id), entry.base_status)
-            for entry in FIXTURE_ANALYSES
-            if entry.base_status
-        ]
-        for row in rows:
-            row.pop("sha256")
-        _write_raw_manifest(self.workspace.base_manifest_path, rows)
-        with self.assertRaises(InventoryError) as caught:
-            self.workspace.freeze()
-        self.assertIn("missing required column", str(caught.exception))
-
-    def test_candidate_table_is_required_and_the_error_says_how_to_make_it(self) -> None:
-        missing = self.root / "no-such-candidates.tsv"
-        with self.assertRaises(InventoryError) as caught:
-            read_candidate_selection(missing, "hybrid__European")
-        self.assertIn("ebi-studies.r", str(caught.exception))
-
-    def test_freeze_fails_when_ready_row_missing_required_fields(self) -> None:
-        for missing_field in ("data_bytes", "data_file", "data_url", "sha256"):
-            with self.subTest(missing_field=missing_field):
-                row = self.workspace.manifest_row(
-                    self.workspace.analysis("GCST90000001"), "ok"
-                )
-                row[missing_field] = ""
-                _write_raw_manifest(self.workspace.retry_manifest_path, [row])
-                with self.assertRaises(InventoryError) as caught:
-                    self.workspace.freeze()
-                self.assertIn("missing required field", str(caught.exception))
-                self.assertIn(missing_field, str(caught.exception))
-
-    def test_passes_merge_in_order_and_count_overrides_per_role(self) -> None:
-        merged, overrides = merge_acquisition_manifests(
-            [
-                (
-                    "base",
-                    [
-                        {"analysis_id": "A", "status": "data_failed"},
-                        {"analysis_id": "B", "status": "ok"},
-                    ],
-                ),
-                ("retry_transient", [{"analysis_id": "A", "status": "ok"}]),
-                (
-                    "rescue",
-                    [
-                        {"analysis_id": "A", "status": "already_present"},
-                        {"analysis_id": "C", "status": "ok"},
-                    ],
-                ),
-            ]
+    def test_a_config_without_connectors_needs_an_existing_inventory(self) -> None:
+        config = self.workspace.config(
+            lambda document: document["source_collection"].pop("connectors")
         )
-        self.assertEqual([row["analysis_id"] for row in merged], ["A", "B", "C"])
-        # The last pass covering an id wins; a row no later pass covers is kept.
-        self.assertEqual(
-            {row["analysis_id"]: row["status"] for row in merged},
-            {"A": "already_present", "B": "ok", "C": "ok"},
-        )
-        self.assertEqual(overrides, {"base": 0, "retry_transient": 1, "rescue": 1})
-
-    def test_a_third_pass_is_recorded_with_its_own_overrides(self) -> None:
-        passes = self.workspace.configured_passes() + [
-            AcquisitionPass(role="rescue", path=self.workspace.rescue_manifest_path)
-        ]
-        snapshot = self.workspace.freeze(manifests=passes)
-        self.assertEqual(
-            [entry.role for entry in snapshot.inputs], ["base", "retry_transient", "rescue"]
-        )
-        self.assertEqual(snapshot.inputs[2].rows, 1)
-        self.assertEqual(snapshot.inputs[2].overrides, 1)
-        # Base said `dry_run`, rescue said `data_failed`: as the last pass it wins.
-        statuses = {row.analysis_id: row.readiness_status for row in snapshot.rows}
-        self.assertEqual(statuses["GCST90000008"], "data_failed")
-
-
-class TestReadyRegressionGuard(SourceInventoryTestCase):
-    """A later pass may not turn a ready Analysis into a non-ready one (issue #151).
-
-    Overlaying a later pass is safe because it is the later observation of the same
-    file, but it must not discard a verified source file: doing so would silently
-    drop a release member, so the freeze fails instead.
-    """
-
-    def test_a_later_pass_may_not_regress_a_ready_analysis(self) -> None:
-        regressing = self.workspace.write_manifest(
-            "regress-manifest.tsv",
-            [
-                self.workspace.manifest_row(
-                    self.workspace.analysis("GCST90000001"), "header_rejected"
-                )
-            ],
-        )
-        passes = self.workspace.configured_passes() + [
-            AcquisitionPass(role="rescue", path=regressing)
-        ]
         with self.assertRaises(InventoryError) as caught:
-            self.workspace.freeze(manifests=passes)
-        message = str(caught.exception)
-        self.assertIn("GCST90000001", message)
-        # Both statuses and the role that regressed the row are named.
-        self.assertIn("ok -> header_rejected", message)
-        self.assertIn("rescue", message)
-
-    def test_an_earlier_non_ready_outcome_may_still_be_overridden(self) -> None:
-        # The guard is about *ready* rows only: `data_failed` -> `header_rejected`
-        # is a worse outcome but not a regression, and the default fixture proves
-        # it (GCST90000002).
-        snapshot = self.workspace.freeze()
-        statuses = {row.analysis_id: row.readiness_status for row in snapshot.rows}
-        self.assertEqual(statuses["GCST90000002"], "header_rejected")
+            self.workspace.freeze(config=config)
+        self.assertIn("names no source_collection.connectors", str(caught.exception))
+        # Once frozen (by a config that has them), the config without them reads it.
+        self.workspace.freeze()
+        self.assertFalse(self.workspace.freeze(config=config).frozen)
 
 
 class TestFreezeInputConfiguration(SourceInventoryTestCase):
-    """`freeze_inputs` is an ordered list, and its order is the precedence rule."""
+    """The pre-#287 reader keeps `freeze_inputs` an ordered list (the concordance study's config)."""
 
     def test_preserves_the_declared_order(self) -> None:
         def mutate(document):
@@ -730,14 +588,14 @@ class TestFreezeInputConfiguration(SourceInventoryTestCase):
                 {"role": "base", "path": str(self.workspace.base_manifest_path)},
             ]
 
-        config = self.workspace.config(mutate)
+        config = self.workspace.legacy_config(mutate)
         self.assertEqual([pass_.role for pass_ in config.freeze_inputs], ["rescue", "base"])
         self.assertEqual(config.freeze_inputs[0].path, self.workspace.rescue_manifest_path)
         self.assertEqual(config.freeze_inputs[1].path, self.workspace.base_manifest_path)
 
     def test_rejects_an_empty_pass_list(self) -> None:
         with self.assertRaises(PreflightConfigError) as caught:
-            self.workspace.config(
+            self.workspace.legacy_config(
                 lambda document: document["source"]["inventory"].update({"freeze_inputs": []})
             )
         self.assertIn("non-empty ordered list", str(caught.exception))
@@ -750,7 +608,7 @@ class TestFreezeInputConfiguration(SourceInventoryTestCase):
             ]
 
         with self.assertRaises(PreflightConfigError) as caught:
-            self.workspace.config(mutate)
+            self.workspace.legacy_config(mutate)
         self.assertIn("declares role 'base' twice", str(caught.exception))
 
     def test_rejects_an_entry_missing_role_or_path(self) -> None:
@@ -766,7 +624,7 @@ class TestFreezeInputConfiguration(SourceInventoryTestCase):
                     document["source"]["inventory"]["freeze_inputs"] = [entry]
 
                 with self.assertRaises(PreflightConfigError) as caught:
-                    self.workspace.config(mutate)
+                    self.workspace.legacy_config(mutate)
                 self.assertIn("non-empty 'role' and 'path'", str(caught.exception))
 
     def test_rejects_a_non_mapping_entry(self) -> None:
@@ -774,7 +632,7 @@ class TestFreezeInputConfiguration(SourceInventoryTestCase):
             document["source"]["inventory"]["freeze_inputs"] = ["base-manifest.tsv"]
 
         with self.assertRaises(PreflightConfigError) as caught:
-            self.workspace.config(mutate)
+            self.workspace.legacy_config(mutate)
         self.assertIn("is not a mapping", str(caught.exception))
 
 
@@ -827,7 +685,19 @@ class TestPreflight(SourceInventoryTestCase):
         self.assertEqual(report["plan"]["reference_af_fallback_policy"], "none_declared")
         self.assertTrue(report["work_root"]["writable"])
         self.assertGreater(report["work_root"]["free_gb"], 0)
-        self.assertEqual(report["required_reference_resources"], ["ukb-ancestry-mixture-hg38"])
+        self.assertEqual(
+            report["required_reference_resources"],
+            ["ukb-ancestry-mixture-hg38", "canonical-trait-mapping-efo"],
+        )
+        self.assertEqual(
+            report["selection"],
+            {
+                "source_collection_id": "gwas-catalog-ssf",
+                "selection": SELECTION,
+                "expect_rows": None,
+                "config_path": str(self.workspace.config_path),
+            },
+        )
         required = [
             resource
             for resource in report["reference_resources"]
@@ -901,7 +771,7 @@ class TestPreflight(SourceInventoryTestCase):
         self.assertFalse(result.ok)
         failures = " ".join(result.failures)
         self.assertIn("metadata file(s) are unreadable", failures)
-        self.assertIn("no longer declare GRCh38", failures)
+        self.assertIn("not the release's source_genome_build GRCh38", failures)
         self.assertEqual(result.report["source_files"]["metadata_unreadable"], ["GCST90000001 (ParserError)"])
         self.assertEqual(len(result.report["source_files"]["metadata_gate_failed"]), 1)
 
@@ -934,7 +804,9 @@ class TestPreflight(SourceInventoryTestCase):
     def test_fails_when_the_snapshot_is_not_the_one_the_release_declares(self) -> None:
         result = self.workspace.preflight(
             config=self.workspace.config(
-                lambda document: document["source"]["inventory"].update({"snapshot_id": "other-snapshot"})
+                lambda document: document["source_collection"]["inventory"].update(
+                    {"snapshot_id": "other-snapshot"}
+                )
             )
         )
         self.assertFalse(result.ok)
@@ -975,9 +847,9 @@ class TestPreflight(SourceInventoryTestCase):
         def undeclare(document):
             document["ancestry_assignment"]["reference_resource_id"] = "not-declared"
 
-        with self.assertRaises(PreflightConfigError) as caught:
+        with self.assertRaises(ReleaseConfigError) as caught:
             self.workspace.config(undeclare)
-        self.assertIn("does not declare", str(caught.exception))
+        self.assertIn("not a declared Reference Resource", str(caught.exception))
 
     def test_reports_a_declared_fallback_when_one_is_configured(self) -> None:
         def add_fallback(document):
@@ -999,7 +871,7 @@ class TestPreflight(SourceInventoryTestCase):
         self.assertEqual(result.report["plan"]["reference_af_fallback_policy"], "declared")
         self.assertEqual(
             result.report["required_reference_resources"],
-            ["ukb-ancestry-mixture-hg38", "fixture-eur-af"],
+            ["ukb-ancestry-mixture-hg38", "fixture-eur-af", "canonical-trait-mapping-efo"],
         )
 
     def test_rejects_a_core_count_above_the_release_cap(self) -> None:
@@ -1090,6 +962,118 @@ class TestPreflight(SourceInventoryTestCase):
         self.assertIn("has no declared version", summary)
 
 
+class TestPreflightReconciliation(SourceInventoryTestCase):
+    """What the Acquisition Manifest leaves optional, preflight does not require (#287)."""
+
+    def rewrite_manifest(self, edit) -> None:
+        text = self.workspace.acquisition_manifest_path.read_text(encoding="utf-8")
+        lines = [line.split("\t") for line in text.splitlines()]
+        header = lines[0]
+        rows = [dict(zip(header, line)) for line in lines[1:]]
+        for row in rows:
+            edit(row)
+        self.workspace.acquisition_manifest_path.write_text(
+            "\n".join(["\t".join(header)] + ["\t".join(row[name] for name in header) for row in rows])
+            + "\n",
+            encoding="utf-8",
+        )
+
+    def test_a_ready_row_without_a_source_url_is_a_warning(self) -> None:
+        def drop_url(row):
+            if row["source_analysis_id"] == "GCST90000004":
+                row["source_url"] = ""
+
+        self.rewrite_manifest(drop_url)
+        self.workspace.freeze()
+        result = self.workspace.preflight()
+        self.assertTrue(result.ok, result.failures)
+        self.assertEqual(result.report["source_files"]["no_source_url"], ["GCST90000004"])
+        self.assertIn(
+            "1 ready Analysis row(s) record no source URL", " ".join(result.warnings)
+        )
+
+    def test_a_ready_row_with_no_recorded_sidecar_is_counted_not_failed(self) -> None:
+        def drop_sidecar(row):
+            if row["source_analysis_id"] == "GCST90000004":
+                row.update(sidecar_location="", sidecar_url="", sidecar_bytes="")
+
+        self.rewrite_manifest(drop_sidecar)
+        self.workspace.freeze()
+        result = self.workspace.preflight()
+        self.assertTrue(result.ok, result.failures)
+        self.assertEqual(result.report["source_files"]["no_metadata_sidecar"], ["GCST90000004"])
+
+    def rewrite_sidecars(self, text: str) -> None:
+        for analysis_id in ("GCST90000001", "GCST90000003", "GCST90000004"):
+            self.workspace.yaml_path(self.workspace.analysis(analysis_id)).write_text(
+                text.format(analysis_id=analysis_id), encoding="utf-8"
+            )
+
+    def test_a_sidecar_build_is_checked_against_the_releases_declared_build(self) -> None:
+        """Preflight checks the release's build, not GWAS Catalog's acquisition policy (#287 review)."""
+        self.workspace.freeze()
+        self.rewrite_sidecars(BAD_METADATA)  # genome_assembly: GRCh37
+        grch37 = self.workspace.config(
+            lambda document: document["defaults"].update(source_genome_build="GRCh37")
+        )
+        result = self.workspace.preflight(config=grch37)
+        self.assertTrue(result.ok, result.failures)
+        # The same sidecars against a GRCh38 release fail, naming the Analyses.
+        result = self.workspace.preflight()
+        self.assertFalse(result.ok)
+        failures = " ".join(result.failures)
+        self.assertIn("GCST90000001 (genome_assembly='GRCh37')", failures)
+        self.assertIn("not the release's source_genome_build GRCh38", failures)
+
+    def test_is_harmonised_is_not_a_preflight_requirement(self) -> None:
+        """Harmonisation is the GWAS Catalog downloader's gate (status metadata_rejected)."""
+        self.workspace.freeze()
+        self.rewrite_sidecars("gwas_id: {analysis_id}\ngenome_assembly: GRCh38\n")
+        result = self.workspace.preflight()
+        self.assertTrue(result.ok, result.failures)
+
+    def test_a_sidecar_declaring_no_build_is_counted_not_failed(self) -> None:
+        self.workspace.freeze()
+        self.rewrite_sidecars("trait: something\n")
+        result = self.workspace.preflight()
+        self.assertTrue(result.ok, result.failures)
+        self.assertEqual(
+            result.report["source_files"]["metadata_build_undeclared"],
+            ["GCST90000001", "GCST90000003", "GCST90000004"],
+        )
+
+    def test_a_selection_expect_rows_bound_is_checked_against_the_frozen_inventory(self) -> None:
+        """A declared membership bound is a check on the Selection (#290)."""
+        good = self.workspace.config(lambda document: document["selection"].update(expect_rows=9))
+        self.workspace.freeze(config=good)
+        result = self.workspace.preflight(config=good)
+        self.assertTrue(result.ok, result.failures)
+        self.assertEqual(result.report["selection"]["expect_rows"], 9)
+
+        drift = self.workspace.config(lambda document: document["selection"].update(expect_rows=10))
+        result = self.workspace.preflight(config=drift)
+        self.assertFalse(result.ok)
+        self.assertIn("expects 10", " ".join(result.failures))
+
+    def test_a_provenance_frozen_for_another_selection_fails(self) -> None:
+        self.workspace.freeze()
+        config = self.workspace.config(
+            lambda document: document.update(selection={"analyses": ["GCST90000001"]})
+        )
+        result = self.workspace.preflight(config=config)
+        self.assertFalse(result.ok)
+        self.assertIn("a changed Selection is a new freeze", " ".join(result.failures))
+
+    def test_a_provenance_for_another_source_collection_fails(self) -> None:
+        self.workspace.freeze()
+        config = self.workspace.config(
+            lambda document: document["source_collection"].update(source_collection_id="other")
+        )
+        result = self.workspace.preflight(config=config)
+        self.assertFalse(result.ok)
+        self.assertIn("froze Source Collection 'gwas-catalog-ssf'", " ".join(result.failures))
+
+
 class TestCommandLine(SourceInventoryTestCase):
     """The documented operator interface, exercised in process."""
 
@@ -1113,106 +1097,19 @@ class TestCommandLine(SourceInventoryTestCase):
         self.assertEqual(code, 0, output)
         self.assertTrue(self.workspace.inventory_path.is_file())
         self.assertTrue(self.workspace.provenance_path.is_file())
-        self.assertIn("ready       3 Analyses", output)
-        self.assertIn("GCST90000001 = GCST90000003", output)
+        self.assertIn("Frozen: Source Inventory fixture-snapshot", output)
+        self.assertIn("rows        9 (3 ready)", output)
 
-    def test_freeze_command_names_a_new_snapshot_beside_the_configured_one(self) -> None:
-        self.workspace.write_config()
-        code, output = self.run_cli(
-            "freeze",
-            "--config",
-            str(self.workspace.config_path),
-            "--snapshot-id",
-            "fixture-snapshot-next",
-            "--frozen-at",
-            FROZEN_AT,
-        )
+        code, output = self.run_cli("freeze", "--config", str(self.workspace.config_path))
         self.assertEqual(code, 0, output)
-        self.assertTrue(self.workspace.inventory_path.with_name("fixture-snapshot-next.tsv").is_file())
-        self.assertTrue(
-            self.workspace.inventory_path.with_name("fixture-snapshot-next.meta.yaml").is_file()
-        )
-        # The configured snapshot is untouched: re-freezing is explicit.
-        self.assertFalse(self.workspace.inventory_path.exists())
+        self.assertIn("Already frozen for this release", output)
 
-    def test_manifest_flag_replaces_configured_passes_and_is_order_sensitive(self) -> None:
-        self.workspace.write_config()
-        base = str(self.workspace.base_manifest_path)
-        rescue = str(self.workspace.rescue_manifest_path)
-
-        # Base first, rescue last: the rescue pass is the later observation, so its
-        # `data_failed` wins over the base pass's `dry_run` for GCST90000008.
-        code, output = self.run_cli(
-            "freeze",
-            "--config",
-            str(self.workspace.config_path),
-            "--manifest",
-            f"base={base}",
-            "--manifest",
-            f"rescue={rescue}",
-            "--frozen-at",
-            FROZEN_AT,
-        )
-        self.assertEqual(code, 0, output)
-        rows = {row.analysis_id: row for row in read_inventory(self.workspace.inventory_path)}
-        self.assertEqual(rows["GCST90000008"].readiness_status, "data_failed")
-
-        # Same two passes, reversed: the base pass is now last, so `dry_run` wins.
-        code, output = self.run_cli(
-            "freeze",
-            "--config",
-            str(self.workspace.config_path),
-            "--manifest",
-            f"rescue={rescue}",
-            "--manifest",
-            f"base={base}",
-            "--frozen-at",
-            FROZEN_AT,
-        )
-        self.assertEqual(code, 0, output)
-        rows = {row.analysis_id: row for row in read_inventory(self.workspace.inventory_path)}
-        self.assertEqual(rows["GCST90000008"].readiness_status, "dry_run")
-
-    def test_manifest_flag_is_recorded_in_the_provenance(self) -> None:
-        self.workspace.write_config()
-        code, output = self.run_cli(
-            "freeze",
-            "--config",
-            str(self.workspace.config_path),
-            "--manifest",
-            f"base={self.workspace.base_manifest_path}",
-            "--manifest",
-            f"rescue={self.workspace.rescue_manifest_path}",
-            "--frozen-at",
-            FROZEN_AT,
-        )
-        self.assertEqual(code, 0, output)
-        provenance = yaml.safe_load(self.workspace.provenance_path.read_text(encoding="utf-8"))
-        self.assertEqual(
-            [entry["role"] for entry in provenance["inputs"]], ["base", "rescue"]
-        )
-
-    def test_cli_rejects_a_malformed_manifest_flag_without_a_traceback(self) -> None:
-        self.workspace.write_config()
-        code, output = self.run_cli(
-            "freeze", "--config", str(self.workspace.config_path), "--manifest", "no-equals-sign"
-        )
+    def test_freeze_command_reports_a_refusal_without_a_traceback(self) -> None:
+        self.workspace.write_config(lambda document: document["source_collection"].pop("connectors"))
+        code, output = self.run_cli("freeze", "--config", str(self.workspace.config_path))
         self.assertEqual(code, 1)
         self.assertNotIn("Traceback", output)
-        self.assertIn("ERROR: --manifest expects ROLE=PATH", output)
-
-        code, output = self.run_cli(
-            "freeze",
-            "--config",
-            str(self.workspace.config_path),
-            "--manifest",
-            f"base={self.workspace.base_manifest_path}",
-            "--manifest",
-            "base=again.tsv",
-        )
-        self.assertEqual(code, 1)
-        self.assertNotIn("Traceback", output)
-        self.assertIn("--manifest declares role 'base' twice", output)
+        self.assertIn("names no source_collection.connectors", output)
 
     def test_preflight_command_writes_a_report_and_exits_nonzero_on_failure(self) -> None:
         self.workspace.write_config()
@@ -1240,7 +1137,7 @@ class TestCommandLine(SourceInventoryTestCase):
         self.workspace.write_config()
         code, output = self.run_cli("preflight", "--config", str(self.workspace.config_path))
         self.assertEqual(code, 1)
-        self.assertIn("freeze it first with 'pixi run inventory-freeze'", output)
+        self.assertIn("freeze it first with 'pixi run inventory-freeze --config", output)
 
     def test_cli_diagnoses_unusable_work_root_without_traceback(self) -> None:
         self.workspace.write_config()
@@ -1283,7 +1180,7 @@ class TestShippedReleaseArtifacts(unittest.TestCase):
     """The committed full-release config, inventory and sidecar must agree in CI."""
 
     def test_shipped_config_is_loadable_and_points_at_the_shipped_snapshot(self) -> None:
-        config = load_release_configuration(SHIPPED_CONFIG, REPO_ROOT)
+        config = load_release_configuration(LEGACY_CONFIG, REPO_ROOT)
         self.assertEqual(config.store_key, "hybrid__European")
         self.assertEqual(config.source_collection_id, "gwas-catalog-ssf")
         self.assertEqual(config.ancestry_group, "European")

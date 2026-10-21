@@ -275,6 +275,36 @@ class SourceMetadataTableTest(unittest.TestCase):
                 bad = dict(good, **{column: value})
                 self.assertRefused(write_table(self.tmp, [bad], header=header), fragment)
 
+    def test_target_annotation_records_how_the_target_was_resolved(self) -> None:
+        """The MHC flag, the resolution method, the rows it came from, and an aggregate assay (#300).
+
+        GCST90240123 measures the seven-member 14-3-3 family under one SeqId,
+        whose coordinates SomaScan.db maps to YWHAH: an aggregate.
+        """
+        header = (
+            "source_analysis_id", "target_assay_id", "target_symbol", "target_ensembl_gene_id",
+            "target_chromosome", "target_start", "target_end", "target_mhc", "target_is_aggregate",
+            "target_resolution_method", "target_rows",
+        )
+        good = {
+            "source_analysis_id": "GCST90240123", "target_assay_id": "4707-50", "target_symbol": "YWHAH",
+            "target_ensembl_gene_id": "ENSG00000128245", "target_chromosome": "22",
+            "target_start": "31944465", "target_end": "31957603", "target_mhc": "false",
+            "target_is_aggregate": "true", "target_resolution_method": "somascan_db_seqid",
+            "target_rows": "1",
+        }
+        table = load_source_metadata_table(write_table(self.tmp, [good], header=header))
+        self.assertEqual(table.row("GCST90240123")["target_is_aggregate"], "true")
+        for column, value, fragment in (
+            ("target_mhc", "FALSE", "target_mhc"),
+            ("target_is_aggregate", "1", "target_is_aggregate"),
+            ("target_rows", "0", "target_rows"),
+            ("target_assay_id", "", "target_assay_id"),
+        ):
+            with self.subTest(column=column):
+                bad = dict(good, **{column: value})
+                self.assertRefused(write_table(self.tmp, [bad], header=header), fragment)
+
     def test_every_problem_is_reported_at_once(self) -> None:
         rows = with_value("study_design", "binary")
         rows[1]["source_superpopulation"] = "Europe"

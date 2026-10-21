@@ -9,7 +9,13 @@ verify the record was produced against the manifest it is finalising, and
 
 The statistical outcomes are supplied by a JSON file through
 ``FAKE_RESOLVER_OUTCOMES`` (keyed by ``analysis_id``); ``FAKE_RESOLVER_FAIL_AFTER``
-makes it exit non-zero after writing that many records, to test interruption.
+makes it exit non-zero after writing that many records, to test interruption;
+``FAKE_RESOLVER_LOG`` names a file it appends each Analysis it actually resolves
+to (not the ones it resumes), so a test can see what a run re-resolved;
+``FAKE_RESOLVER_PAUSE_FILE`` holds it before it writes anything. Its record
+metrics vary per resolution, as the real resolver's timings do.
+Like the real resolver it re-runs a ``controlled_failure`` record even under
+``--resume``.
 It computes no ancestry, alignment or SD -- that stays OpenGWASDB's, and the
 real resolver is exercised upstream.
 """
@@ -22,6 +28,7 @@ import importlib.metadata
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 RECORD_SCHEMA_VERSION = 1
@@ -64,6 +71,14 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _required_sha256(value: object, flag: str) -> str:
+    """Hash a required reference file, failing as the real resolver does."""
+    path = Path(str(value)) if value else None
+    if path is None or not path.is_file():
+        raise SystemExit(f"fake resolver: {flag} {value!r} is not a file")
+    return sha256_file(path)
+
+
 def parse_args(argv: list[str]) -> dict:
     manifest = argv[0]
     records_dir = argv[1]
@@ -72,6 +87,7 @@ def parse_args(argv: list[str]) -> dict:
     flags = {
         "--ancestry-reference": "ancestry_reference",
         "--ancestry-groups": "ancestry_groups",
+        "--reference-build": "reference_build",
         "--extraction-panel": "extraction_panel",
         "--variant-reference": "variant_reference",
         "--af-reference": "af_reference",
@@ -123,11 +139,28 @@ def compute_fingerprints(row: dict, options: dict) -> dict:
         "source_recorded_bytes": size_bytes,
         "source_file_bytes": file_bytes,
         "source_file_mtime_ns": file_mtime_ns,
+        # Both builds, as the real resolver fingerprints them: a record measured
+        # under one is not resumed under another (opengwasdb#277). The pipeline
+        # passes no chain file.
+        "assembly": {
+            "source_build": row.get("source_genome_build"),
+            "reference_build": options["reference_build"],
+            "chain_file": None,
+            "chain_sha256": None,
+            "chain_bytes": None,
+            "chain_mtime_ns": None,
+        },
         "opengwasdb_version": TOOL_VERSION,
         "opengwasdb_git_hash": "testgithash",
         "ancestry_reference_id": Path(str(options.get("ancestry_reference", "reference"))).name,
-        "ancestry_reference_sha256": "a" * 64,
-        "ancestry_groups_sha256": "b" * 64,
+        # Content hashes, as the real resolver records them, so a changed
+        # reference invalidates a resumed record here as it does upstream.
+        "ancestry_reference_sha256": _required_sha256(
+            options.get("ancestry_reference"), "--ancestry-reference"
+        ),
+        "ancestry_groups_sha256": _required_sha256(
+            options.get("ancestry_groups"), "--ancestry-groups"
+        ),
         "extraction_panel_sha256": None,
         "extraction_panel_variants": None,
         "af_references": [],
@@ -298,7 +331,7 @@ def record_for(row: dict, options: dict, outcome: dict) -> dict:
             "phenotype_sd": None,
             "error": outcome.get("error", "simulated source failure"),
             "warnings": [],
-            "metrics": {"elapsed_seconds": 0.0, "peak_memory_bytes": 0},
+            "metrics": _metrics(),
         }
     return {
         "record_schema_version": RECORD_SCHEMA_VERSION,
@@ -310,8 +343,17 @@ def record_for(row: dict, options: dict, outcome: dict) -> dict:
         "phenotype_sd": phenotype_sd_payload(outcome),
         "error": None,
         "warnings": [],
-        "metrics": {"elapsed_seconds": 0.0, "peak_memory_bytes": 0},
+        "metrics": _metrics(),
     }
+
+
+def _metrics() -> dict:
+    """Run-dependent metrics, as the real resolver records them.
+
+    They differ on every resolution, so a record resolved again under the same
+    fingerprint has different bytes, and a test can tell reuse from re-resolution.
+    """
+    return {"elapsed_seconds": time.perf_counter_ns() / 1e9, "peak_memory_bytes": os.getpid()}
 
 
 def atomic_write_json(path: Path, data: dict) -> None:
@@ -333,6 +375,15 @@ def main(argv: list[str]) -> int:
     records_dir.mkdir(parents=True, exist_ok=True)
     with manifest_path.open(newline="", encoding="utf-8") as fh:
         rows = list(csv.DictReader(fh, delimiter="\t"))
+    # The real resolver takes no build on trust (opengwasdb#277): the panel's
+    # is an explicit flag, and every row declares its own.
+    if not options.get("reference_build"):
+        raise SystemExit("fake resolver: Missing option '--reference-build'")
+    for row in rows:
+        if not row.get("source_genome_build"):
+            raise SystemExit(
+                f"fake resolver: analysis {row.get('analysis_id')!r}: source_genome_build is required"
+            )
 
     outcomes_path = os.environ.get("FAKE_RESOLVER_OUTCOMES")
     outcomes: dict = {}
@@ -340,6 +391,16 @@ def main(argv: list[str]) -> int:
         outcomes = json.loads(Path(outcomes_path).read_text(encoding="utf-8"))
     fail_after = os.environ.get("FAKE_RESOLVER_FAIL_AFTER")
     fail_after_n = int(fail_after) if fail_after else None
+    # A test can hold the resolver mid-run: it writes its pid to
+    # FAKE_RESOLVER_PAUSE_FILE and waits until that file is removed.
+    pause = os.environ.get("FAKE_RESOLVER_PAUSE_FILE")
+    if pause:
+        Path(pause).write_text(str(os.getpid()), encoding="utf-8")
+        while Path(pause).exists():
+            time.sleep(0.05)
+    # Tests observe what a run actually resolved (as opposed to resumed) here.
+    log = os.environ.get("FAKE_RESOLVER_LOG")
+    resolved_log = Path(log) if log else None
 
     analyses = []
     n_success = 0
@@ -374,6 +435,9 @@ def main(argv: list[str]) -> int:
                 return 1
             atomic_write_json(record_path, record)
             written += 1
+            if resolved_log is not None:
+                with resolved_log.open("a", encoding="utf-8") as fh:
+                    fh.write(analysis_id + "\n")
         else:
             n_resumed += 1
 

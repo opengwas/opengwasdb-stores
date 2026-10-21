@@ -22,11 +22,11 @@
 # remains a secondary fallback for datasets with no usable `unit` value.
 #
 # Conforms to the resolver contract established by
-# resources/generators/lib/metadata_resolvers/gwas_catalog_ssf.R (issue #48): one
+# src/manifest_generation/providers/gwas_catalog/gwas_catalog_ssf.R (issue #48): one
 # resolved record per Analysis, resolution_status always explicit.
 
 suppressPackageStartupMessages(library(data.table))
-source("resources/generators/lib/metadata_resolvers/contract.R")
+source("src/manifest_generation/providers/gwas_catalog/contract.R")
 
 # Maps the OpenGWAS API's free-text `unit` field to this resolver's
 # controlled stored_effect_scale vocabulary. Returns NA (not a guess) when
@@ -136,11 +136,11 @@ resolve_opengwas_api_metadata <- function(gwasinfo) {
 #' OpenGWASDB's build engine never needs to call this API itself (by build
 #' time, the resolved scalars already live in analyses.tsv). Registry-side
 #' network acquisition of external build-input data already has precedent
-#' in this repository (resources/scripts/ld-panel/acquire_hgdp1kgp.py).
+#' in this repository (tools/ld-panel/acquire_hgdp1kgp.py).
 #'
 #' Not exercised by this repository's automated tests: this repository's
 #' test suites are documented as data-only and network-free (see
-#' resources/scripts/run_all_tests.py), and a live call additionally needs a
+#' tests/run_all_tests.py), and a live call additionally needs a
 #' per-user secret token. resolve_opengwas_api_metadata() above is the
 #' tested, independently callable part of this resolver; this function is
 #' the thin, untested transport it is deliberately decoupled from.

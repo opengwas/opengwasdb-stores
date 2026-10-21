@@ -21,7 +21,7 @@ description: >
   The resolver reads the lookup columns by name and ignores any extra columns,
   so widening the table never changes lookup behaviour. Rows are added by hand
   as specific traits are curated, or by the curation pipeline's promotion
-  stage (curation/promotion.py, issue #169), which appends a row only when a
+  stage (src/curation/promotion.py, issue #169), which appends a row only when a
   proposal clears both the confidence and runner-up-margin thresholds and
   bumps this resource's `version`.
 status: available

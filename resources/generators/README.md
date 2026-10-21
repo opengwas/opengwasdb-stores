@@ -6,29 +6,38 @@ Collection. Its machinery is the `manifest_generation` package under
 directory holds its **inputs**:
 
 ```text
-<generator>/           a generator's configs, reviewed tables, generation-*.yaml
-                       receipts and README
-<family-id>/generate.R legacy R generators, until epic #282 retires them
+<generator>/           release configs (release-*.yaml, docs/spec/release-config.md),
+                       a legacy generator's configs, reviewed tables,
+                       generation-*.yaml receipts and README
+<family-id>/generate.R legacy R generators, until stage 2 of epic #282 retires
+                       them (FinnGen #288, ukb-b #289)
 lib/*.R                the legacy R generators' shared helpers
 lib/metadata_resolvers/    their metadata resolvers
 lib/source-formats/    their source-format-scoped code
 ```
 
 Recorded config paths and receipts resolve here, so these files do not move.
+The legacy R generators are the only code here: `resources/` holds inputs
+(ADR 0038), and `tests/packaging/test_layout.py` lists each R file with the
+ticket that retires it.
 The code that reads them:
 
 ```text
-src/manifest_generation/              the shared pipeline: candidate workflow,
-                                      generate_candidate (entry point), inventory
-                                      (freeze/preflight), emit, generation_rules
+src/manifest_generation/              the shared pipeline: release_config,
+                                      candidate workflow, generate_candidate (the
+                                      entry point for any release config), freeze
+                                      and inventory (freeze/preflight), emit,
+                                      generation_rules
 src/manifest_generation/providers/    per-Source-Provider connectors:
-  gwas_catalog/   EBI downloads; the OGS-00011 orientation rescue; imputation-score
-                  declarations; ancestry assignment for the R GWAS-SSF Ragged generators
+  gwas_catalog/   EBI downloads; the studies table (ebi-studies.r) and EUR Hybrid
+                  prioritisation; the OGS-00011 orientation rescue; imputation-score
+                  declarations; the R-filtered files' Acquisition Manifest and their
+                  re-materialisation (materialise-gwas-ssf-ragged.R)
   ukb_b/          Source Inventory, provider metadata, candidate generator
   dbgap/mvp/      phs002453 (MVP): acquisition, candidate generator and pilot
   finngen/        R13 acquisition and assessment
   eqtlgen/        BESD generator and subsetter
-  opengwas/       GWAS-VCF annotation
+  opengwas/       GWAS-VCF download (download-opengwas-vcfs.R) and annotation
 ```
 
 Run any of it as a module, `python3 -m manifest_generation.<module>`, or through
@@ -61,7 +70,8 @@ one shared pipeline fed by per-source connector files.
    `--mode=emit-registry` projects the current contract from that and its
    config's `build:` block through `manifest_generation.emit project`
    (`lib/emit_registry.R`).
-   No generator config names a `families/` path as output or work root. The emitter writes `status: candidate` and the
+   No generator config names a path outside the Store Registry as its output or
+   work root. The emitter writes `status: candidate` and the
    generator commands, checks the bundle against the Release Bundle contract,
    writes its `summary.yaml`, and replaces `stores/<id>/` in one step. It
    replaces only an earlier candidate, refuses a bundle that has been accepted

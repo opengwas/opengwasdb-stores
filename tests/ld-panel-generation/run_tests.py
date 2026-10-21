@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / "resources/scripts/ld-panel/construct_block.py"
+SCRIPT = ROOT / "tools/ld-panel/construct_block.py"
 spec = importlib.util.spec_from_file_location("construct_block", SCRIPT)
 module = importlib.util.module_from_spec(spec); sys.modules[spec.name] = module
 assert spec.loader; spec.loader.exec_module(module)

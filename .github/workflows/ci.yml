@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: list
-        run: echo "release_stack=$(python3 resources/scripts/run_all_tests.py --list-release-stack)" >> "$GITHUB_OUTPUT"
+        run: echo "release_stack=$(python3 tests/run_all_tests.py --list-release-stack)" >> "$GITHUB_OUTPUT"
 
   test:
     name: pixi test + docs smoke test

@@ -55,7 +55,7 @@ def listed(values: Sequence[str]) -> str:
     return shown + (f", ... and {more} more" if more > 0 else "")
 
 
-def raise_problems(error: type[InventoryError], subject: str, problems: Sequence[str]) -> None:
+def raise_problems(error: type[Exception], subject: str, problems: Sequence[str]) -> None:
     """Raise ``error`` naming every problem (up to :data:`MAX_LISTED`), so one pass fixes them all."""
     shown = list(problems[:MAX_LISTED])
     if len(problems) > MAX_LISTED:

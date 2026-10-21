@@ -6,7 +6,7 @@
  "checksum_algorithm": "sha256",
  "checksum_receipt_path": "/data/opengwasdb/work/epic232/219/ukb-b-restored-2026-10-11.checksums.json",
  "checksum_receipt_sha256": "0bf039ffc2adda4cf45880d2bfdc32ee643d9188338e0842bd9bd8674c9e52b5",
- "declared_selection_path": "families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv",
+ "declared_selection_path": "resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv",
  "declared_selection_sha256": "0ae5c2d74d46dfcea7b2fcb36f3032e1ca4ae27117a1d6ac6915400cde060284",
  "deep_verify": {
   "checksum_mismatch": 0,
@@ -23,7 +23,7 @@
  "inventory_path": "resources/inventories/ukb-b-restored-2026-10-11.tsv",
  "inventory_sha256": "48207ab8da03324e98e62b87767b9b90381ac8457b0c8585b952648c0d7a5a26",
  "provenance_path": "resources/inventories/ukb-b-restored-2026-10-11.meta.yaml",
- "provenance_sha256": "7695eedc2b837f1c08b5bd81fe241f96bae548b4f2e5c182a5c91e65f5cace59",
+ "provenance_sha256": "b241e9f0b4dc07f84e0acc596e4ee160b19e894ccb9adb628aaaa91159c3f9d5",
  "provider_crosscheck": {
   "disagreements": 0,
   "evaluated": 2511,

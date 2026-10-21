@@ -13,7 +13,13 @@ only ones the resolver reads: `trait_label`, `trait_ontology_id`,
 `trait_ontology_label`. A generator looks up a row's own trait label against
 `trait_label` using an **exact match** on the normalised (trimmed,
 lowercased) string — no fuzzy or semantic matching. See
-`resources/generators/lib/metadata_resolvers/canonical_trait_table.R`.
+`src/manifest_generation/trait_ontology_mapping.py`, Manifest Generation's
+shared step (#286), and
+`resources/generators/lib/metadata_resolvers/canonical_trait_table.R`, which
+the R generators use until they retire. The shared step refuses a malformed
+row (a blank lookup value, a non-CURIE or gene-shaped term, an authority-name
+label, or a label listed twice) and records this table's `version` and sha256
+with every bundle it maps.
 
 `trait_ontology_label` is the human-readable label of the ontology term that
 `trait_ontology_id` identifies — for example `carnitine measurement`
@@ -25,7 +31,7 @@ semantics the committed Release Manifests use (see
 A miss is not an error: the resolver returns `trait_ontology_mapping_method =
 unmapped` and leaves `trait_ontology_id`/`trait_ontology_label` blank, per
 this registry's "never silently default" convention for resolvers (see
-`resources/generators/lib/metadata_resolvers/contract.R` for the precedent this
+`src/manifest_generation/providers/gwas_catalog/contract.R` for the precedent this
 follows).
 
 ## Provenance columns

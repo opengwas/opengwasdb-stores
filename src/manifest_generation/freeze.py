@@ -41,8 +41,10 @@ Freeze never lists a directory and never reads the mirror or a live source:
 intent is the table, availability is the manifest. Two freezes of the same
 inputs write the same bytes.
 
-This is the new path. ``manifest_generation.inventory freeze`` (the
-candidate-table freeze) remains until #287 moves GWAS Catalog onto this one.
+This is the only freeze. A release config drives it through
+``pixi run inventory-freeze --config <release config>`` or the candidate entry
+point's ``freeze`` stage (``manifest_generation.inventory.freeze_release``,
+#287); the command line below takes the connector files directly.
 ``docs/spec/source-connectors.md`` specifies the inputs and the provenance.
 
 Usage:
@@ -60,12 +62,15 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Mapping, Sequence
 
 import yaml
 
+from manifest_generation import REPO_ROOT
 from manifest_generation.acquisition_manifest import (
     ACQUISITION_MANIFEST,
+    AcquisitionEntry,
     AcquisitionManifest,
     Lineage,
     load_acquisition_manifest,
@@ -91,16 +96,23 @@ from manifest_generation.source_metadata_table import (
 __all__ = [
     "FreezeError",
     "FrozenInventory",
+    "OriginalMissingError",
     "ReconciliationError",
     "freeze",
     "frozen_paths",
     "load_frozen_connectors",
     "write_frozen_inventory",
+    "original_path",
+    "recorded_path",
 ]
 
 
 class ReconciliationError(FreezeError):
     """Intent and acquisition do not reconcile: an Analysis without an entry, or an entry without an Analysis."""
+
+
+class OriginalMissingError(FreezeError):
+    """A connector original a frozen snapshot records is not on this host."""
 
 
 @dataclass(frozen=True)
@@ -250,6 +262,25 @@ def write_frozen_inventory(frozen: FrozenInventory, inventory_path: Path, proven
     )
 
 
+def recorded_path(path: Path) -> str:
+    """A connector original's path as provenance records it (#300).
+
+    Relative to the checkout when the original lies inside it, so a committed
+    snapshot names the same file in every checkout; absolute otherwise.
+    """
+    path = Path(path).absolute()
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def original_path(recorded: str) -> Path:
+    """The file a provenance's recorded original path names (:func:`recorded_path`'s inverse)."""
+    path = Path(recorded)
+    return path if path.is_absolute() else REPO_ROOT / path
+
+
 def render_provenance_yaml(
     frozen: FrozenInventory, inventory_sha256: str, frozen_files: Mapping[str, Mapping[str, Any]]
 ) -> str:
@@ -266,7 +297,7 @@ def render_provenance_yaml(
         "source_metadata_table": {
             "frozen": dict(frozen_files["source_metadata_table"]),
             "original": {
-                "path": str(frozen.table.path),
+                "path": recorded_path(frozen.table.path),
                 "sha256": frozen.table.sha256,
                 "bytes": frozen.table.bytes,
                 "rows": len(frozen.table.rows),
@@ -275,13 +306,13 @@ def render_provenance_yaml(
         "acquisition_manifest": {
             "frozen": dict(frozen_files["acquisition_manifest"]),
             "original": {
-                "path": str(frozen.manifest.path),
+                "path": recorded_path(frozen.manifest.path),
                 "sha256": frozen.manifest.sha256,
                 "bytes": frozen.manifest.bytes,
                 "rows": len(frozen.manifest.entries),
                 "readiness_counts": frozen.manifest.readiness_counts,
                 "pass_lineage": (
-                    {"path": str(lineage_path), "sha256": sha256_file(lineage_path)}
+                    {"path": recorded_path(lineage_path), "sha256": sha256_file(lineage_path)}
                     if lineage_path.is_file()
                     else None
                 ),
@@ -295,6 +326,54 @@ def render_provenance_yaml(
     return yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100, allow_unicode=True)
 
 
+class _ProvenanceParses:
+    """Parse-once cache keyed by a provenance's content digest (#290 review).
+
+    A snapshot's provenance is immutable and can be large: the dbGaP MVP
+    sidecars list every selected file's reformat lineage. Hashing the bytes is
+    cheap next to parsing them. The cache stores only parsed documents, and
+    ``parse`` is handed the very bytes whose digest is the key, so no parse can
+    ever be filed under another content's digest. It keeps the
+    ``functools.lru_cache`` surface (`cache_clear`, `cache_info`) the tests use
+    to simulate a fresh process.
+    """
+
+    def __init__(self, maxsize: int = 16) -> None:
+        self._documents: dict[str, Mapping[str, Any]] = {}
+        self._maxsize = maxsize
+
+    def parse(self, digest: str, data: bytes) -> Mapping[str, Any]:
+        """The parse of ``data``, cached under ``digest`` (which must be its sha256)."""
+        document = self._documents.get(digest)
+        if document is None:
+            document = yaml.safe_load(data)
+            if len(self._documents) >= self._maxsize:
+                # A process reads a handful of snapshots; drop rather than grow.
+                self._documents.clear()
+            self._documents[digest] = document
+        return document
+
+    def cache_clear(self) -> None:
+        self._documents.clear()
+
+    def cache_info(self) -> SimpleNamespace:
+        return SimpleNamespace(currsize=len(self._documents))
+
+
+#: The process's parsed provenance documents, by content digest.
+_parsed_provenance = _ProvenanceParses()
+
+
+def load_provenance(provenance_path: Path) -> Mapping[str, Any]:
+    """A frozen snapshot's provenance document, cached by the content it was read from."""
+    path = Path(provenance_path)
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        raise FreezeError(f"frozen Source Inventory provenance not found: {path}") from exc
+    return _parsed_provenance.parse(hashlib.sha256(data).hexdigest(), data)
+
+
 def load_frozen_connectors(provenance_path: Path) -> tuple[SourceMetadataTable, AcquisitionManifest]:
     """Load the connector files a freeze wrote, after checking each against its recorded sha256.
 
@@ -305,7 +384,7 @@ def load_frozen_connectors(provenance_path: Path) -> tuple[SourceMetadataTable, 
     provenance_path = Path(provenance_path)
     if not provenance_path.is_file():
         raise FreezeError(f"frozen Source Inventory provenance not found: {provenance_path}")
-    document = yaml.safe_load(provenance_path.read_text(encoding="utf-8"))
+    document = load_provenance(provenance_path)
     paths: list[Path] = []
     for key in ("source_metadata_table", "acquisition_manifest"):
         try:
@@ -326,6 +405,80 @@ def load_frozen_connectors(provenance_path: Path) -> tuple[SourceMetadataTable, 
             )
         paths.append(path)
     return load_source_metadata_table(paths[0]), load_acquisition_manifest(paths[1])
+
+
+@dataclass(frozen=True)
+class CollectionIntent:
+    """Every Analysis a Source Collection intends, from its two checksummed originals (#290).
+
+    A freeze records both connector originals and their sha256. Reading them
+    back is how a command proves a whole collection is accounted for: the
+    Source Metadata Table is the intent (every Analysis the collection means to
+    publish), and the Acquisition Manifest binds each of those to the file the
+    collection acquired for it. Both are refused if their bytes no longer match
+    what the freeze recorded.
+    """
+
+    provenance_path: Path
+    source_metadata_table: SourceMetadataTable
+    acquisition_manifest: AcquisitionManifest
+
+    @property
+    def analysis_ids(self) -> tuple[str, ...]:
+        """Every Analysis the collection intends, in the table's order."""
+        return self.source_metadata_table.analysis_ids
+
+    def acquired(self, analysis_id: str) -> AcquisitionEntry | None:
+        """The acquisition entry for ``analysis_id``, or ``None`` when it recorded none."""
+        try:
+            return self.acquisition_manifest.entry(analysis_id)
+        except KeyError:
+            return None
+
+
+def load_collection_intent(provenance_path: Path) -> CollectionIntent:
+    """Load a Source Collection's intended membership from the checksummed originals.
+
+    The provenance is a frozen snapshot's: its ``source_metadata_table.original``
+    and ``acquisition_manifest.original`` record where each whole-collection
+    connector lives and the sha256 the freeze saw. A missing original, or one
+    whose bytes changed, is refused by name -- a preflight that cannot read the
+    collection's intent cannot prove completeness (#290 review). A missing one
+    is an :class:`OriginalMissingError`, so a caller for whom the collection is
+    optional can tell it from a changed one.
+    """
+    provenance_path = Path(provenance_path)
+    if not provenance_path.is_file():
+        raise FreezeError(f"frozen Source Inventory provenance not found: {provenance_path}")
+    document = load_provenance(provenance_path) or {}
+    paths: list[Path] = []
+    for key in ("source_metadata_table", "acquisition_manifest"):
+        try:
+            recorded = document[key]["original"]
+            path = original_path(recorded["path"])
+            expected = recorded["sha256"]
+        except (KeyError, TypeError):
+            raise FreezeError(
+                f"{provenance_path} records no original {key}; it was not written by "
+                "manifest_generation.freeze, so the collection's intent cannot be read"
+            ) from None
+        if not path.is_file():
+            raise OriginalMissingError(
+                f"the {key} original {path} named in {provenance_path} is missing, so the "
+                "Source Collection's intent cannot be read"
+            )
+        actual = sha256_file(path)
+        if actual != expected:
+            raise FreezeError(
+                f"the {key} original {path} has sha256 {actual}, but {provenance_path} records "
+                f"{expected}; the collection's intent changed after the freeze"
+            )
+        paths.append(path)
+    return CollectionIntent(
+        provenance_path=provenance_path,
+        source_metadata_table=load_source_metadata_table(paths[0]),
+        acquisition_manifest=load_acquisition_manifest(paths[1]),
+    )
 
 
 def _frozen_file(path: Path, text: str) -> dict[str, Any]:

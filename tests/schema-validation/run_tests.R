@@ -5,24 +5,20 @@
 #
 #   Rscript tests/schema-validation/run_tests.R
 #
-# Proves:
-#   1. A manifest that resolves cleanly against opengwasdb's shared core
-#      schema emits with checks.schema=passed.
-#   2. A manifest with a real schema violation -- stored_effect_scale=log_or
-#      with no n_cases/n_controls, the same shape of gap issue #15's
-#      ieu-a-7 example exposed -- fails loudly (`--mode=emit` exits
-#      non-zero) with a clear message naming the violation, and
-#      validation.yaml records checks.schema=failed with that message,
-#      rather than silently staying not_run or passing regardless.
+# Proves (the generator-driven checks -- a clean manifest emitting with
+# checks.schema=passed and a log_or row without counts failing the emit -- ran
+# the R gwas-ssf-ragged generator, retired with #300):
 #   3. Issue #51 AC3's two named example violations -- an out-of-vocabulary
 #      controlled value and a missing required column -- each fail
 #      src/manifest_generation/schema_validate.py directly with a message identifying
 #      the violation, checked in isolation from the full generator pipeline.
-#   4. The real, already-accepted release bundles this repository tracks
-#      (pqtl-interval-2018, metabolome-plasma-2023) still conform to
+#   4. The real, already-accepted release bundles this repository tracks --
+#      every registered Store Release under stores/ -- still conform to
 #      opengwasdb's shared schema (issue #51 AC4) -- checked directly
 #      against src/manifest_generation/schema_validate.py without mutating the
-#      tracked release bundles' own validation.yaml.
+#      tracked release bundles' own validation.yaml. The two legacy BESD Trial
+#      Store Releases are excluded: their blank required values are the known
+#      issue #134 gap, tolerated only for those ids.
 
 suppressPackageStartupMessages(library(yaml))
 
@@ -35,55 +31,6 @@ check <- function(cond, ...) {
 }
 
 fixtures_dir <- "tests/schema-validation/fixtures"
-output_valid <- file.path(fixtures_dir, "output-valid")
-output_invalid <- file.path(fixtures_dir, "output-invalid")
-unlink(output_valid, recursive = TRUE)
-unlink(output_invalid, recursive = TRUE)
-# The generator's working bundle lives in the work root,
-# <artifact-root>/<id>/generate (#248).
-artifact_root <- tempfile("schema-validation-artifacts-")
-Sys.setenv(OPENGWASDB_ARTIFACT_ROOT = artifact_root)
-on.exit(unlink(artifact_root, recursive = TRUE), add = TRUE)
-work_valid <- file.path(artifact_root, "OGS-99061", "generate")
-work_invalid <- file.path(artifact_root, "OGS-99062", "generate")
-
-run_emit <- function(config_name) {
-  # config-invalid.yaml is expected to exit non-zero -- suppressWarnings()
-  # silences system2()'s routine "had status 1" warning for that case.
-  result <- suppressWarnings(system2(
-    "Rscript",
-    c("resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R",
-      paste0("--config=", file.path(fixtures_dir, config_name)), "--mode=emit"),
-    stdout = TRUE, stderr = TRUE
-  ))
-  list(status = attr(result, "status") %||% 0L, output = result)
-}
-
-# --- A clean manifest emits with checks.schema=passed ---
-valid_run <- run_emit("config-valid.yaml")
-check(valid_run$status == 0L, "config-valid.yaml: expected --mode=emit to succeed, got status %s:\n%s",
-      valid_run$status, paste(valid_run$output, collapse = "\n"))
-
-valid_validation <- read_yaml(file.path(work_valid, "validation.yaml"))
-check(identical(valid_validation$checks$schema, "passed"),
-      "config-valid.yaml: expected checks.schema=passed, got %s", valid_validation$checks$schema)
-
-# --- A manifest with a real opengwasdb schema violation fails loudly ---
-invalid_run <- run_emit("config-invalid.yaml")
-check(invalid_run$status != 0L, "config-invalid.yaml: expected --mode=emit to fail non-zero")
-combined_output <- paste(invalid_run$output, collapse = "\n")
-check(grepl("log_or", combined_output, fixed = TRUE) && grepl("n_cases", combined_output, fixed = TRUE),
-      "config-invalid.yaml: expected the failure message to name the log_or/n_cases violation, got:\n%s",
-      combined_output)
-
-invalid_validation <- read_yaml(file.path(work_invalid, "validation.yaml"))
-check(identical(invalid_validation$checks$schema, "failed"),
-      "config-invalid.yaml: expected checks.schema=failed, got %s", invalid_validation$checks$schema)
-check(length(invalid_validation$errors) > 0,
-      "config-invalid.yaml: expected validation.yaml errors to record the violation, got none")
-check(identical(invalid_validation$status, "failed"),
-      "config-invalid.yaml: expected overall status=failed, got %s", invalid_validation$status)
-
 # --- AC3's two named example violations, checked directly against the
 # validator in isolation (not via the full generator pipeline) ---
 validate_directly <- function(tsv_name) {
@@ -107,19 +54,22 @@ check(any(grepl("sample_size_scope", missing_column$output, fixed = TRUE)),
       paste(missing_column$output, collapse = "\n"))
 
 # --- Real, already-accepted release bundles still conform (issue #51 AC4) ---
-real_bundles <- c(
-  "families/pqtl-interval-2018/releases/2018-sun-pilot-100/analyses.tsv",
-  Sys.glob("families/metabolome-plasma-2023/releases/*/analyses.tsv")
+# Every registered Release Bundle, read from the one home for Release Bundles
+# (stores/, #252), except the two legacy BESD Trial Store Releases whose blank
+# required Analysis values are the documented issue #134 gap.
+LEGACY_BESD_RELEASES <- c("OGS-00001", "OGS-00002")
+real_bundles <- Filter(
+  function(path) !(basename(dirname(path)) %in% LEGACY_BESD_RELEASES),
+  Sys.glob("stores/OGS-*/analyses.tsv")
 )
-check(length(real_bundles) >= 5, "expected to find pqtl-interval-2018 + 5 metabolome-plasma-2023 release bundles, found %d", length(real_bundles))
+check(length(real_bundles) >= 5, "expected to find the registered Release Bundles under stores/, found %d", length(real_bundles))
+check(all(c("OGS-00006", "OGS-00007") %in% basename(dirname(real_bundles))),
+      "expected the metabolome-plasma-2023 and pqtl-interval-2018 bundles among them")
 for (bundle in real_bundles) {
   result <- system2("python3", c("-m", "manifest_generation.schema_validate", shQuote(bundle)), stdout = TRUE, stderr = TRUE)
   status <- attr(result, "status") %||% 0L
   check(status == 0L, "%s: expected to still conform to opengwasdb's shared schema, got:\n%s",
         bundle, paste(result, collapse = "\n"))
 }
-
-unlink(output_valid, recursive = TRUE)
-unlink(output_invalid, recursive = TRUE)
 
 cat(sprintf("ALL %d CHECKS PASSED\n", n_checks))

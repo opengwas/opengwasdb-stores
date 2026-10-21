@@ -1,5 +1,0 @@
-analysis_index	analysis_id	assigned_ancestry	ancestry_assignment_method	source_ancestry_label	stored_effect_scale	sample_size_kind	sample_size_scope	sample_size	original_effect_scale	original_sd_method	source_file	source_genome_build	source_label	source_analysis_id
-0	GCST_meta1		unassigned	META	sd	total	analysis_level	1000	sd	source_provided	{fixture}/meta/gwas-ssf/bucket-META/GCST_meta1/GCST_meta1.tsv.gz	GRCh38	META trait	GCST_meta1
-1	GCST_meta2		unassigned	META	sd	total	analysis_level	1000	sd	source_provided	{fixture}/meta/gwas-ssf/bucket-META/GCST_meta2/GCST_meta2.tsv.gz	GRCh38	META trait	GCST_meta2
-2	GCST_meta3		unassigned	META	sd	total	analysis_level	1000	sd	source_provided	{fixture}/meta/gwas-ssf/bucket-META/GCST_meta3/GCST_meta3.tsv.gz	GRCh38	META trait	GCST_meta3
-3	GCST_meta4		unassigned	META	sd	total	analysis_level	1000	sd	source_provided	{fixture}/meta/gwas-ssf/bucket-META/GCST_meta4/GCST_meta4.tsv.gz	GRCh38	META trait	GCST_meta4

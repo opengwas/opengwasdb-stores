@@ -1,0 +1,243 @@
+---
+title: "Imputation quality filters for high-density stores"
+subtitle: "Choosing MAF / imputation-r² cutoffs before importing TOPMed-imputed summary statistics"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    df-print: paged
+    embed-resources: true
+    code-fold: true
+    theme: cosmo
+execute:
+  warning: false
+  message: false
+  cache: true
+knitr:
+  opts_chunk:
+    cache.lazy: false
+---
+
+```{r setup}
+#| cache: false
+library(data.table)
+library(ggplot2)
+library(scales)
+
+## Parameters ----------------------------------------------------------
+## Point `accession` / `url` at any GWAS-SSF harmonised analysis to re-run.
+## The MVP proteome store (dense__pmid-39024449__European) is the motivating
+## case: ~44.3M variants per analysis, TOPMed-imputed.
+accession <- "GCST90477290"
+url <- paste0("http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/",
+              "GCST90477001-GCST90478000/", accession,
+              "/harmonised/", accession, ".h.tsv.gz")
+data_dir <- "../../resources/data/mvp-example"
+local_gz <- file.path(data_dir, basename(url))
+
+## Store-size translation (matches ebi-studies.r).
+n_analyses_store <- 3360     # analyses in the MVP European store
+bytes_per_cell <- 2.5
+gb <- function(n_variants) n_analyses_store * n_variants * bytes_per_cell / 1e9
+
+fmt_int <- function(x) formatC(x, format = "d", big.mark = ",")
+```
+
+## Why this matters
+
+The MVP store is imputed to ~44.3M variants per analysis. At 2.5 bytes/cell that
+is `r round(gb(44.3e6))` GB for the store — and much of that tail is rare,
+low-confidence imputed variants. This document looks at **one analysis** to
+decide MAF / imputation-r² cutoffs before import. Because size scales linearly
+with the retained variant count, the filter directly sets the store's cost and
+credibility.
+
+> Scope: a single analysis. Imputation r² varies across analyses, so confirm the
+> chosen thresholds on a few more before locking them in — re-run this doc with a
+> different `accession`.
+
+```{r download}
+#| cache: false
+dir.create(data_dir, showWarnings = FALSE, recursive = TRUE)
+if (!file.exists(local_gz)) {
+  options(timeout = 7200)
+  download.file(url, local_gz, mode = "wb", quiet = TRUE)
+}
+sprintf("%s: %.1f GB on disk", basename(local_gz), file.size(local_gz) / 1e9)
+```
+
+```{r load}
+## Read only the two columns we need (fast, low memory on a ~10GB file), derive
+## MAF, and bin it. Cached: this is the slow step; everything below is instant.
+hdr <- names(fread(local_gz, nrows = 0))
+freq_col <- intersect(c("effect_allele_frequency", "EAF", "eaf"), hdr)[1]
+info_col <- intersect(c("r2", "info", "imputation_quality", "INFO", "IMPINFO"), hdr)[1]
+stopifnot(!is.na(freq_col), !is.na(info_col))
+
+dat <- fread(local_gz, select = c(freq_col, info_col))
+setnames(dat, c(freq_col, info_col), c("eaf", "r2"))
+dat <- dat[!is.na(eaf) & !is.na(r2)]
+dat[, maf := pmin(eaf, 1 - eaf)]
+dat <- dat[maf > 0 & maf <= 0.5]
+
+maf_breaks <- c(0, 1e-4, 1e-3, 5e-3, 1e-2, 5e-2, 0.1, 0.2, 0.5)
+maf_labels <- c("<0.0001", "0.0001–0.001", "0.001–0.005", "0.005–0.01",
+                "0.01–0.05", "0.05–0.1", "0.1–0.2", "0.2–0.5")
+dat[, maf_bin := cut(maf, breaks = maf_breaks, labels = maf_labels,
+                     include.lowest = TRUE)]
+n_total <- nrow(dat)
+sprintf("%s variants with MAF and r2 (info column: '%s').", fmt_int(n_total), info_col)
+```
+
+## Distributions
+
+```{r overview}
+knitr::kable(
+  rbind(
+    data.table(metric = "MAF", t(round(quantile(dat$maf, c(0,.25,.5,.75,1)), 4))),
+    data.table(metric = "r2",  t(round(quantile(dat$r2,  c(0,.25,.5,.75,1)), 3)))
+  ),
+  col.names = c("", "min", "Q1", "median", "Q3", "max"),
+  caption = "Distribution of minor allele frequency and imputation r².")
+```
+
+```{r maf-dist, fig.width=8, fig.height=4}
+mafd <- dat[, .(all = .N, pass = sum(r2 >= 0.8)), by = maf_bin][order(maf_bin)]
+mafd <- melt(mafd, id.vars = "maf_bin", variable.name = "set", value.name = "n")
+mafd[, set := factor(set, c("all", "pass"), c("all variants", "r² ≥ 0.8"))]
+ggplot(mafd, aes(maf_bin, n, fill = set)) +
+  geom_col(position = "dodge", width = 0.7) +
+  scale_fill_manual(values = c("all variants" = "#9ec5f4", "r² ≥ 0.8" = "#2a78d6")) +
+  scale_y_continuous(labels = label_number(scale_cut = cut_short_scale())) +
+  labs(x = "MAF bin", y = "Variants", fill = NULL,
+       title = "Most variants sit in the rare bins — and most fail r² ≥ 0.8 there") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+## Imputation r² by MAF bin
+
+The core question: rare variants impute worse, so a single r² cutoff is either too
+lax for common variants or too harsh for rare ones. This is the evidence for a
+**MAF-dependent** threshold.
+
+```{r r2-by-maf-table}
+byb <- dat[, .(
+  n = .N,
+  median_r2 = round(median(r2), 3),
+  q25 = round(quantile(r2, .25), 3),
+  q75 = round(quantile(r2, .75), 3),
+  pct_pass_0.3 = round(100 * mean(r2 >= 0.3), 1),
+  pct_pass_0.8 = round(100 * mean(r2 >= 0.8), 1)
+), by = maf_bin][order(maf_bin)]
+knitr::kable(byb, format.args = list(big.mark = ","),
+  col.names = c("MAF bin", "n", "median r²", "r² Q1", "r² Q3",
+                "% pass 0.3", "% pass 0.8"),
+  caption = "Imputation r² collapses in the rare bins.")
+```
+
+```{r r2-by-maf-plot, fig.width=8, fig.height=4.5}
+byplot <- dat[, .(median_r2 = median(r2),
+                  q25 = quantile(r2, .25), q75 = quantile(r2, .75)), by = maf_bin][order(maf_bin)]
+ggplot(byplot, aes(maf_bin, median_r2, group = 1)) +
+  geom_ribbon(aes(ymin = q25, ymax = q75), fill = "#9ec5f4", alpha = 0.5) +
+  geom_line(colour = "#2a78d6", linewidth = 0.9) +
+  geom_point(colour = "#2a78d6", size = 2.4) +
+  geom_hline(yintercept = 0.8, linetype = "dashed", colour = "#e34948") +
+  scale_y_continuous(limits = c(0, 1)) +
+  labs(x = "MAF bin", y = "Imputation r² (median, IQR band)",
+       title = "Median imputation r² by MAF (dashed line = 0.8)") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+## Retention grid: what survives each (MAF, r²) cutoff
+
+For every combination of a MAF floor and an r² floor, how many variants remain —
+and what would the store cost if imported at that density?
+
+```{r retention}
+maf_thr <- c(0, 1e-4, 1e-3, 5e-3, 1e-2, 5e-2)
+r2_thr <- c(0.3, 0.5, 0.7, 0.8, 0.9)
+retention <- rbindlist(lapply(maf_thr, function(m) {
+  r2v <- dat[maf >= m, r2]
+  data.table(maf_min = m, r2_min = r2_thr,
+             n_retained = vapply(r2_thr, function(r) sum(r2v >= r), numeric(1)))
+}))
+retention[, pct := round(100 * n_retained / n_total, 1)]
+retention[, est_store_gb := round(gb(n_retained))]
+```
+
+```{r retention-heatmap, fig.width=8, fig.height=4.5}
+ggplot(retention, aes(factor(r2_min), factor(maf_min), fill = pct)) +
+  geom_tile(colour = "white", linewidth = 1) +
+  geom_text(aes(label = paste0(pct, "%\n", est_store_gb, "GB")), size = 3) +
+  scale_fill_gradient(low = "#eef4fd", high = "#2a78d6", name = "% kept") +
+  labs(x = "imputation r² floor", y = "MAF floor",
+       title = "Variants retained (% of analysis) and implied store size",
+       subtitle = paste0("Unfiltered: ", fmt_int(n_total), " variants ≈ ",
+                         round(gb(n_total)), " GB for the ", fmt_int(n_analyses_store),
+                         "-analysis store")) +
+  theme_minimal(base_size = 12)
+```
+
+```{r retention-table}
+knitr::kable(
+  dcast(retention, maf_min ~ r2_min, value.var = "pct"),
+  caption = "Percent of variants retained by MAF floor (rows) × r² floor (cols).")
+```
+
+## A tiered proposal
+
+A single cutoff wastes either credibility or common-variant coverage. One
+defensible tiered rule — **stricter r² where imputation is least reliable**:
+
+- MAF ≥ 0.01 → r² ≥ 0.3
+- 0.001 ≤ MAF < 0.01 → r² ≥ 0.8
+- MAF < 0.001 → drop (imputation not trustworthy at this frequency)
+
+```{r tiered}
+dat[, keep_tiered :=
+      (maf >= 0.01 & r2 >= 0.3) |
+      (maf >= 0.001 & maf < 0.01 & r2 >= 0.8)]
+tiered_n <- sum(dat$keep_tiered)
+
+compare <- data.table(
+  policy = c("unfiltered",
+             "flat: MAF≥0.01 & r²≥0.3",
+             "flat: MAF≥0.01 & r²≥0.8",
+             "tiered (above)"),
+  n_variants = c(n_total,
+                 dat[maf >= 0.01 & r2 >= 0.3, .N],
+                 dat[maf >= 0.01 & r2 >= 0.8, .N],
+                 tiered_n)
+)
+compare[, pct_of_unfiltered := round(100 * n_variants / n_total, 1)]
+compare[, est_store_gb := round(gb(n_variants))]
+knitr::kable(compare, format.args = list(big.mark = ","),
+  col.names = c("Policy", "Variants / analysis", "% of unfiltered", "Est. store GB"),
+  caption = "Effect of candidate import policies on variant count and store size.")
+```
+
+## Takeaways
+
+```{r takeaway}
+#| cache: false
+common_lax <- dat[maf >= 0.01 & r2 >= 0.3, .N]
+cat(sprintf(
+"- Unfiltered: %s variants/analysis -> ~%d GB store.\n",
+  fmt_int(n_total), round(gb(n_total))))
+cat(sprintf(
+"- Common, lightly filtered (MAF>=0.01, r2>=0.3): %s variants (%.0f%%) -> ~%d GB.\n",
+  fmt_int(common_lax), 100*common_lax/n_total, round(gb(common_lax))))
+cat(sprintf(
+"- Tiered policy: %s variants (%.0f%%) -> ~%d GB.\n",
+  fmt_int(tiered_n), 100*tiered_n/n_total, round(gb(tiered_n))))
+```
+
+The rare tail is both the bulk of the variant count and the least trustworthy;
+excluding MAF < 0.001 (or applying a strict r² there) removes most of the storage
+and credibility risk while keeping essentially all common-variant signal. Confirm
+the r²-by-MAF profile holds on a couple more analyses before setting a store-wide
+policy.

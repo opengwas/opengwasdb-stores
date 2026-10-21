@@ -46,8 +46,8 @@ Covered by `tests/emit/test_emit.py`:
   byte-identical.
 - `python3 -m manifest_generation.emit work-root <id>` prints `<artifact-root>/<id>/generate`, honouring
   `--artifact-root` over `OPENGWASDB_ARTIFACT_ROOT`; an invalid id has none.
-- No generator config names a `families/` path or a `release_dir`, and every
-  legacy config names the Store Release id it emits.
+- No generator config names a `release_dir`, and every legacy config names the
+  Store Release id it emits.
 
 ```sh
 pixi run test --suite emit

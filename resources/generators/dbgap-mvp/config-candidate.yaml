@@ -19,14 +19,17 @@
 # (one "lineage-linked completed" id per single-ancestry Store). ADR 0037
 # replaces that: completion is published under the Store's own id, so no Store is
 # allocated those ids and none is ever reused. Below they are only this note. The
-# generator refuses a Store that still declares `completed_store_id` (#308).
+# #221 generator refused a Store that still declared `completed_store_id`
+# (#308); #290 retired it, and the shared pipeline's release configs
+# (release-*.yaml) refuse the key as unknown.
 #
 # A Store's completion is declared in its one bundle, with both a `build` and a
 # `complete` block, once its `completion_reference` is `qualified` and `active`.
 # Every reference is pending, on hold or blocked today, so every Store is emitted
-# observed-only and its intended completion recipe is recorded beside the bundle
-# as `<observed id>.completion-plan.yaml`, `blocked` until that reference is
-# eligible (resource, qualification and activation all in place).
+# observed-only. The retired generator recorded the intended completion recipe
+# beside the bundle as `<observed id>.completion-plan.yaml`; the pipeline does
+# not, and a published Observed-Only Store is completed later by ADR 0037's one
+# bundle amendment (#305). See README.md.
 #
 # The owner decision "reorder the IDs" (2026-10-13) placed META ahead of
 # FinnGen. FinnGen's bundle was migrated OGS-00016 -> OGS-00017 under ADR

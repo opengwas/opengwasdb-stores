@@ -7,6 +7,11 @@ Generation is the `manifest_generation` package (`src/manifest_generation`),
 plus the legacy R generators under `resources/generators/` until they retire.
 Store Release Build may not import either, or run them by module or by path.
 
+Store Release Build also reads nothing from the shared resolution area where
+Analysis Resolution keeps Resolution Records (#284): no path under its root and
+no name for it. A Resolution Record reaches a Store only through the Release
+Bundle its candidate was emitted as.
+
 Both sides may import the Release Bundle contract. The `ogstores` modules
 Manifest Generation may import are listed in `CONTRACT_AND_SHARED_LAYOUT`: the
 contract, and the registry layout it shares with Store Release Build.
@@ -30,6 +35,11 @@ GENERATION_MODULES = re.compile(r"^(manifest_generation|resources)(\.|$)")
 # ... and as a string handed to a subprocess: `-m manifest_generation...`, or
 # a path into the package or the legacy generators.
 GENERATION_PATHS = re.compile(r"manifest_generation|resources/generators")
+
+# What a reference to the shared resolution area (#284) looks like by name: its
+# root, the area itself, or the resolution receipt that names its records. Its
+# default location is checked by value as well, from the module that owns it.
+RESOLUTION_AREA_NAMES = re.compile(r"resolution[_ -]?(root|area|receipt)", re.IGNORECASE)
 
 # The `ogstores` modules Manifest Generation may import: the contract and the
 # registry layout it shares. ADR 0035 has each side depend only on the Release
@@ -110,6 +120,27 @@ def code_strings(source: str) -> list[str]:
         for node in ast.walk(tree)
         if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in docstrings
     ]
+
+
+def code_names(source: str) -> list[str]:
+    """Every identifier Python code binds or reads: names, attributes, arguments."""
+    names: list[str] = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Name):
+            names.append(node.id)
+        elif isinstance(node, ast.Attribute):
+            names.append(node.attr)
+        elif isinstance(node, ast.arg):
+            names.append(node.arg)
+        elif isinstance(node, ast.keyword) and node.arg:
+            names.append(node.arg)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.append(node.name)
+    return names
+
+
+def resolution_area_references(texts: list[str], default_root: str) -> list[str]:
+    return [t for t in texts if default_root in t or RESOLUTION_AREA_NAMES.search(t)]
 
 
 def snakefile_code_lines(source: str) -> list[str]:
@@ -214,6 +245,25 @@ class ScannerTest(unittest.TestCase):
         self.assertEqual([s for s in strings if GENERATION_PATHS.search(s)], ["manifest_generation.emit"])
 
 
+    def test_a_reference_to_the_resolution_area_is_found(self) -> None:
+        source = (
+            '"""A docstring may say resolution_root."""\n'
+            "RESOLUTION_ROOT = '/data/opengwasdb/work/resolution/gwas-catalog-ssf'\n"
+            "def read(resolution_area): return paths.resolution_receipt\n"
+            "open('/data/opengwasdb/stores')\n"
+        )
+        texts = code_strings(source) + code_names(source)
+        self.assertEqual(
+            sorted(resolution_area_references(texts, "/data/opengwasdb/work/resolution")),
+            [
+                "/data/opengwasdb/work/resolution/gwas-catalog-ssf",
+                "RESOLUTION_ROOT",
+                "resolution_area",
+                "resolution_receipt",
+            ],
+        )
+
+
 class StoreReleaseBuildBoundaryTest(unittest.TestCase):
     def test_manifest_generation_is_an_installed_package_of_this_checkout(self) -> None:
         import manifest_generation
@@ -239,6 +289,23 @@ class StoreReleaseBuildBoundaryTest(unittest.TestCase):
             strings = snakefile_code_lines(source) if path.name == "Snakefile" else code_strings(source)
             relative = path.relative_to(REPO_ROOT)
             offenders += [f"{relative}: {s.strip()!r}" for s in strings if GENERATION_PATHS.search(s)]
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
+    def test_store_release_build_has_no_reference_to_the_resolution_area(self) -> None:
+        from manifest_generation.resolution_area import DEFAULT_RESOLUTION_ROOT
+
+        offenders = []
+        for path in store_release_build_files():
+            source = path.read_text(encoding="utf-8")
+            if path.name == "Snakefile":
+                texts = snakefile_code_lines(source)
+            else:
+                texts = code_strings(source) + code_names(source)
+            relative = path.relative_to(REPO_ROOT)
+            offenders += [
+                f"{relative}: {t.strip()!r}"
+                for t in resolution_area_references(texts, str(DEFAULT_RESOLUTION_ROOT))
+            ]
         self.assertEqual(offenders, [], "\n".join(offenders))
 
     def test_the_snakefile_includes_nothing_from_manifest_generation(self) -> None:

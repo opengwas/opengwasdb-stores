@@ -12,8 +12,8 @@ across dense-observed OpenGWAS-GWAS-VCF batches; only this family's inputs
 differ, held here as:
 
 - `config-pilot-10.yaml` - the candidate manifest to resolve
-  (`families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv`, the
-  existing hand-reverse-engineered bundle for this batch), the 10-Analysis
+  (`resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv`, the
+  existing hand-reverse-engineered declaration for this batch), the 10-Analysis
   selection, and release identity (`OGS-00008`).
 - `generate.R` - a one-call driver that runs the shared engine with
   `config-pilot-10.yaml`.
@@ -83,7 +83,7 @@ stage. It uses OpenGWASDB's GWAS-VCF reader to extract AF and SE together, then
 feeds that extraction to OpenGWASDB's ancestry and phenotype-SD modules:
 
 ```sh
-pixi run Rscript resources/scripts/download-opengwas-vcfs.R \
+pixi run Rscript src/manifest_generation/providers/opengwas/download-opengwas-vcfs.R \
   --ids=ukb-b-10787,ukb-b-11842,ukb-b-19953 \
   --out-dir=/data/opengwasdb/wip/ukb-b-vcf
 
@@ -98,12 +98,12 @@ release is instead frozen and emitted through the current Release Bundle shape
 by two pure-Python tools:
 
 - `inventory.py` reconciles the **declared** intended selection
-  (`families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv`, whose
-  `inclusion_reason` cites the OpenGWAS IGD `data/ukb-b/manifest.tsv`) against
-  the local VCF mirror and the old built baseline, then freezes a checksummed
-  `resources/inventories/<snapshot>.{tsv,meta.yaml}`. It never treats a glob as
-  intent, refuses to freeze a partial copy, and hashes with at most two reader
-  threads using a resumable receipt.
+  (`resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv`,
+  whose `inclusion_reason` cites the OpenGWAS IGD `data/ukb-b/manifest.tsv`)
+  against the local VCF mirror and the old built baseline, then freezes a
+  checksummed `resources/inventories/<snapshot>.{tsv,meta.yaml}`. It never
+  treats a glob as intent, refuses to freeze a partial copy, and hashes with at
+  most two reader threads using a resumable receipt.
 - `generate_candidate.py` renders `release.yaml`, `build.yaml`, `analyses.tsv`
   and `validation.yaml` from that frozen inventory plus the recorded
   resolution, and emits them into `<registry-root>/<store-id>/` (default

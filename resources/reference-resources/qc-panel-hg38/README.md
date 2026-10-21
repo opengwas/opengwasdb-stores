@@ -7,14 +7,16 @@ genome-wide-significant hits a given Analysis happens to have (issue #28).
 
 `qc_panel.tsv` (10,000 rows, ~450 KB) is tracked directly in this repository
 — see `resource.yaml` for the Reference Resource declaration Store Families
-reference via `filter.qc_panel.resource_id` (issue #30).
+reference via `filter.qc_panel.resource_id` (issue #30); a release config's
+`region_policy.qc_panel_resource_id` now names it, and acquisition keeps it in
+every region-filtered file (#300).
 
 ## Selection procedure
 
 Run by `build_qc_panel.py` against `ukb-ancestry-mixture-hg38`:
 
 ```sh
-pixi run python resources/reference-resources/qc-panel-hg38/build_qc_panel.py \
+pixi run python tools/reference-resources/qc-panel-hg38/build_qc_panel.py \
   --out=resources/reference-resources/qc-panel-hg38/qc_panel.tsv
 ```
 

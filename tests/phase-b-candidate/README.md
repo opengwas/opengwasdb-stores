@@ -10,8 +10,11 @@ See [`docs/spec/store-release-workflow.md`](../../docs/spec/store-release-workfl
 
 ## How it stays hermetic
 
-The suite builds a temporary mirror, candidate metadata table, frozen Source
-Inventory and config, and drives the real operator entry point as a subprocess.
+The suite builds a temporary mirror, the Source Collection's two connector
+files (a Source Metadata Table and an Acquisition Manifest), a release config
+(`docs/spec/release-config.md`) and, for most tests, the Source Inventory the
+shared freeze writes from them, and drives the real operator entry point (in
+this process for most tests -- see "Where the entry point runs" below).
 `fixtures/fake_resolver.py` stands in for `opengwasdb resolve-analyses`: it
 reproduces only the resolver's *contract* (atomic per-Analysis records, a
 deterministic `index.json` in manifest order, fingerprint inputs, `--resume`
@@ -32,15 +35,18 @@ alignment or SD — those stay OpenGWASDB's and are exercised upstream.
 4. **Every selected Analysis is accounted** — one ancestry row and one
    SD-estimation row per selected Analysis; the 6,035-row-style inventory
    evidence stays distinct from membership.
-5. **Accounting failures fail finalisation before replacement** — missing, extra,
+5. **Accounting failures stop emit before replacement** — missing,
    duplicate and incompatible-`record_schema_version` records (unit and
-   end-to-end).
+   end-to-end). Another Selection's record in the shared checkpoint is not a
+   failure.
 6. **The resolution receipt closes the stale-record hole** — the receipt binds
-   the contract and every record digest; changing a gate, the ancestry reference
+   the contract and every kept record's digest and checksum; changing a gate, the ancestry reference
    or fine-group map content, the resolver revision, or forging an
    internally-consistent record with a recomputed self-digest all make
-   `verify`/`emit` fail and preserve a prior candidate.
-   A missing receipt is rejected too. (`--cores` and `--resume` deliberately do
+   `verify`/`emit` fail and preserve a prior candidate. So does a reference
+   rewritten in place to the same length with its mtime restored, in the very
+   next invocation of the entry point.
+   A missing receipt is rejected too. (`--cores` and the resolution root deliberately do
    not change the contract.)
 7. **Resume reuses unchanged records** and reproduces byte-identical tables and
    sidecars.
@@ -81,6 +87,47 @@ alignment or SD — those stay OpenGWASDB's and are exercised upstream.
     the contract (`ogstores.bundle`) and the imputation score kinds from
     Manifest Generation's rules (`generation_rules`), never its own copy (#250).
 
+`SharedResolutionRecordsTests` and `ResolutionRootTests` cover Resolution Records kept per Source
+Collection (#284, ADR 0036):
+
+14. **Selections share records** — a Trial Store Release and then a full release
+    over one collection resolve each shared Analysis once, and each receipt
+    names exactly its Selection's records; the Work Root holds none.
+15. **Reuse and invalidation** — an unchanged run re-resolves nothing; a changed
+    source file re-resolves only its Analysis; a changed reference or gate
+    re-resolves every Analysis, and the records an earlier receipt named are
+    still kept.
+16. **Verification** — a missing, stale (source changed) or edited kept record,
+    a receipt naming a record outside its Selection, and a historical
+    (`receipt_schema_version` 1) receipt all fail `emit`.
+17. **Concurrency** — a run over a locked collection area is refused and writes
+    nothing; verifying a resolved candidate needs no lock.
+18. **The resolution root** — a deployment setting: `--resolution-root`, then
+    `OPENGWASDB_RESOLUTION_ROOT`, then `ogstores.yaml`'s `resolution_root`, then
+    the built-in default. A release config naming `output.resolution_root` is
+    refused.
+19. **Settings never evict** — a trial under one set of settings, the full
+    release under another, then the trial again re-resolves nothing and names
+    the same record checksums. A killed run's resolver keeps the area locked
+    until it exits, and `--resume` is refused because reuse is automatic.
+20. **The real resolver** — `RealResolverReuseTests` runs the pinned
+    `opengwasdb resolve-analyses` on a tiny synthetic panel and GWAS-SSF
+    sources: a second unchanged run resumes every record and the receipt names
+    the same records (skipped when the resolver is not installed).
+
+`EntryPointStageTests` cover the one entry point (#287): starting from the
+connector files alone, each stage in turn -- freeze, preflight, prepare,
+resolve, verify, render, emit -- leaves its file in the Work Root, the rendered
+bundle is what is emitted, a re-run reuses the frozen inventory, a changed
+Selection under the same snapshot id is refused, and a pre-#287 config is
+refused by name.
+
+`fixtures/fake_resolver.py` hashes the ancestry reference and group map as the
+real resolver does (failing if either is missing), re-runs `controlled_failure`
+records under `--resume`, writes run-dependent metrics so a re-resolution
+changes a record's checksum, appends each Analysis it actually resolves to
+`FAKE_RESOLVER_LOG`, and can be held mid-run through `FAKE_RESOLVER_PAUSE_FILE`.
+
 ## Running the suite
 
 ```sh
@@ -88,3 +135,27 @@ pixi run --environment dev python3 tests/phase-b-candidate/test_phase_b_candidat
 # or through the repo orchestrator
 pixi run test-python
 ```
+
+### Where the entry point runs
+
+Tests drive `manifest_generation.generate_candidate.main` in the test process,
+not through `python3 -m`: one fresh interpreter per run costs about 1.4 s here
+(`load_candidate_configuration` imports `opengwasdb`), and a suite of them made
+this one the repository's slowest (#282). The same argparse, the same stages and
+the same files are exercised either way, and `_run_cli` clears the state an
+invocation leaves on the entry point's modules (`_one_invocation`) and reports
+`SystemExit` as a process would: an integer code, `None` for a clean exit, and
+exit code 1 with the value on stderr for anything else (#282 review).
+
+Four tests spawn a process instead, and they are the ones whose subject *is* the
+process: the full mixed-design pipeline and both invocations of the unchanged
+re-run reuse test go through `python3 -m` (`_run_cli_subprocess`), the
+legacy-config test proves the entry point fails without a traceback, and the
+killed-run test starts it with `Popen` so its resolver can outlive it. The fake
+resolver, and the real one where a test uses it, always run as subprocesses.
+
+The `RealResolver*` classes resolve once for the class, not once per test: their
+kept records and receipt depend on the resolver settings, not on the release
+policy `RealResolverNoAlleleFrequencyTests` varies, so each of its tests enters
+the pipeline at `emit` over the class's Work Root with its own config and
+registry (#282).

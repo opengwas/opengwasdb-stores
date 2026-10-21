@@ -30,7 +30,7 @@ run_materialiser <- function(script, store_id, registry_root, qc_panel = NULL, w
 }
 
 root <- normalizePath(".", winslash = "/")
-script <- file.path(root, "resources", "scripts", "materialise-gwas-ssf-ragged.R")
+script <- file.path(root, "src", "manifest_generation", "providers", "gwas_catalog", "materialise-gwas-ssf-ragged.R")
 check(file.exists(script), "materialiser script does not exist: %s", script)
 
 tmp <- tempfile("materialise-gwas-ssf-ragged-")

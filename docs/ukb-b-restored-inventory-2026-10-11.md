@@ -19,7 +19,7 @@ final total.
 
 | Quantity | Value | How it was derived |
 |---|---|---|
-| Intended membership | **2,514** | OpenGWAS `GET /api/batches` (unsecured) reports batch `ukb-b` `count=2514`; the registry's declared selection `families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv` has 2,514 rows whose `inclusion_reason` cites the OpenGWAS IGD `data/ukb-b/manifest.tsv`; the core manifest's **committed blob** (`git rev-parse HEAD:data/ukb-b/manifest.tsv` = `git hash-object` of the worktree file, sha256 `fb504fcc34534ebf9e0af75b261afa3f0f7bbc483ce1d11889b5866d91ed9ab7`) has 2,514 rows. All three id sets are identical. |
+| Intended membership | **2,514** | OpenGWAS `GET /api/batches` (unsecured) reports batch `ukb-b` `count=2514`; the registry's declared selection `resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv` has 2,514 rows whose `inclusion_reason` cites the OpenGWAS IGD `data/ukb-b/manifest.tsv`; the core manifest's **committed blob** (`git rev-parse HEAD:data/ukb-b/manifest.tsv` = `git hash-object` of the worktree file, sha256 `fb504fcc34534ebf9e0af75b261afa3f0f7bbc483ce1d11889b5866d91ed9ab7`) has 2,514 rows. All three id sets are identical. |
 | Available on disk | **2,514** | `discover_source_collection` found exactly 2,514 `ukb-b-<id>.vcf.gz` files, each with its `.vcf.gz.tbi` index, under `/data/opengwasdb/raw/gwas-vcf/ukb-b`. |
 | Old built baseline | **2,024** | Re-read through the **approved core public interface** — `opengwasdb.open_store("/data/opengwasdb/stores/OGS-00009/store.opengwasdb")` + `opengwasdb.model.analyses.read_analyses(store.analyses_path)` on the immutable #218 runtime (commit `1be2a156…`) — into the exact-ID receipt `resources/inventories/ukb-b-built-baseline-ogs00009.receipt.json` (2,024 ids, `analysis_ids_sha256 953ea543…`). The committed bundle `stores/OGS-00009/analyses.tsv` is retained only as the legacy registry record (sha256 `eacfac7d…`), never as the authority for the built set. |
 | Restored delta | **490** (80.4 GB) | intended − built. |
@@ -73,10 +73,10 @@ not_run` with the gap visible.
 | Artifact | sha256 |
 |---|---|
 | Source Inventory `resources/inventories/ukb-b-restored-2026-10-11.tsv` (2,514 rows; 425,402,488,477 data bytes; 3,711,756,173 index bytes) | `48207ab8da03324e98e62b87767b9b90381ac8457b0c8585b952648c0d7a5a26` |
-| Provenance `…2026-10-11.meta.yaml` | `7695eedc2b837f1c08b5bd81fe241f96bae548b4f2e5c182a5c91e65f5cace59` |
+| Provenance `…2026-10-11.meta.yaml` | `b241e9f0b4dc07f84e0acc596e4ee160b19e894ccb9adb628aaaa91159c3f9d5` (was `7695eedc…`; the declared-selection path moved, #252) |
 | Upstream batch evidence `…2026-10-11.upstream-batches.json` (`ukb-b` count 2,514) | `f108faee01dbaffe9bd2114cdfbb8e423d852b30ff78ca4e30904d211e641457` |
-| Declared selection `families/ukb-b/releases/dense-observed-vcf-c128/analyses.tsv` | `0ae5c2d74d46dfcea7b2fcb36f3032e1ca4ae27117a1d6ac6915400cde060284` |
-| Recorded resolution `families/ukb-b/releases/dense-observed-vcf-c128-resolved/analyses.tsv` | `8c5de792dbf8eafb975e75d834b8a67d9aa9034963517a9bf0a1d0d40dcbb5e5` |
+| Declared selection `resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv` | `0ae5c2d74d46dfcea7b2fcb36f3032e1ca4ae27117a1d6ac6915400cde060284` |
+| Recorded resolution `…dense-observed-vcf-c128-resolved/analyses.tsv` (retired bundle, kept in git history) | `8c5de792dbf8eafb975e75d834b8a67d9aa9034963517a9bf0a1d0d40dcbb5e5` |
 | Old baseline `stores/OGS-00009/analyses.tsv` (repo record, not the built-set authority) | `eacfac7d98bf441bd9b35b1ba0779a4cbee26799cb7166c7022e1bf44ea6866a` |
 | Provider resolution `resources/inventories/ukb-b-provider-resolution-2026-10-11.tsv` | `62e04f578afaa90f45a44a1042d168986482099b43e65f7a19ad4a85024c9e18` |
 | Provider resolution receipt | `df97573038149eb978e3b737758505c4b4ed5c9d815a01c977844f08f020dd9b` |
@@ -88,6 +88,12 @@ Each inventory row records the exact `source_file`, `data_bytes`, `sha256`,
 `index_sha256`. The freeze read 410 GB with two reader threads and refuses to
 freeze anything but the exact intent, so a partial copy can never be recorded as
 the frozen input set.
+
+> **Rehomed, not re-frozen (#252).** The declared selection was moved from the
+> retired `families/` archive into `resources/inventories/` when that directory
+> went, so it sits with the snapshot it declares. Its sha256 is unchanged, and
+> the receipt and provenance metadata now record the new path; no checksum, row
+> or frozen artifact changed.
 
 Verification is two separate things and they are reported as such:
 

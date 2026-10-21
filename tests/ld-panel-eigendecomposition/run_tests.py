@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Smoke test for the eigendecomposition backfill tooling (issue #34):
-resources/scripts/ld-panel/backfill_eigendecomposition.py and
-resources/scripts/ld-panel/find_underresolved_blocks.py. Run from the
+tools/ld-panel/backfill_eigendecomposition.py and
+tools/ld-panel/find_underresolved_blocks.py. Run from the
 repository root:
 
   python3 tests/ld-panel-eigendecomposition/run_tests.py
@@ -10,7 +10,8 @@ Regenerates a tiny synthetic panel (fixtures/generate_fixtures.py) and drives
 both scripts as subprocesses exactly as a real backfill run would, asserting
 on the npz files they produce rather than on internal helper functions,
 matching this repository's testing convention (see
-tests/ancestry-assignment/run_tests.py).
+tests/materialise-gwas-ssf-ragged/run_tests.R, which drives its script the
+same way).
 
 Requires numpy/scipy, e.g. via `pixi run test` (feature: python).
 """
@@ -24,7 +25,7 @@ from pathlib import Path
 import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRIPTS_DIR = REPO_ROOT / "resources" / "scripts" / "ld-panel"
+SCRIPTS_DIR = REPO_ROOT / "tools" / "ld-panel"
 FIXTURES_DIR = REPO_ROOT / "tests" / "ld-panel-eigendecomposition" / "fixtures"
 PANEL_DIR = FIXTURES_DIR / "panel"
 CHROM_DIR = PANEL_DIR / "EUR" / "1"

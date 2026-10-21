@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The test runner finds every Python suite itself (#257).
 
-`resources/scripts/run_all_tests.py` no longer keeps a list of Python suites:
+`tests/run_all_tests.py` no longer keeps a list of Python suites:
 a new `tests/**/test_*.py` or `tests/**/run_tests.py` is a suite as soon as it
 exists. Only the R suites, and a suite CI splits in two, are written down.
 
@@ -18,7 +18,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-_spec = importlib.util.spec_from_file_location("run_all_tests", REPO_ROOT / "resources" / "scripts" / "run_all_tests.py")
+_spec = importlib.util.spec_from_file_location("run_all_tests", REPO_ROOT / "tests" / "run_all_tests.py")
 assert _spec and _spec.loader
 runner = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(runner)
