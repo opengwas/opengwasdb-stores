@@ -37,6 +37,7 @@ Run from the repository root:
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import gzip
 import hashlib
@@ -51,6 +52,7 @@ import time
 import unittest
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Iterator
 from unittest import mock
 
 import yaml
@@ -58,6 +60,7 @@ import yaml
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
 import manifest_generation.candidate_workflow as candidate_workflow  # noqa: E402
+import manifest_generation.qc_panel_concordance as qc_panel_concordance  # noqa: E402
 from ogstores import bundle as bundle_module  # noqa: E402
 from ogstores.plan import plan  # noqa: E402
 from manifest_generation.candidate_workflow import (  # noqa: E402
@@ -588,7 +591,79 @@ def _cli_invocation(
     return command, env
 
 
+@contextlib.contextmanager
+def _one_invocation() -> Iterator[None]:
+    """Clear the state the entry point memoises on its modules, before and after a run.
+
+    :func:`_run_cli` drives the entry point in this process, so a cache one
+    invocation fills outlives it, where a subprocess would start empty every
+    time. The content digest memo is keyed by path, device, inode, size and
+    mtime, so a reference rewritten to the same length with its mtime restored
+    would be read as the bytes it used to be, and verification would pass where
+    a process refuses (#282 review).
+    """
+
+    def clear() -> None:
+        candidate_workflow._SHA256_BY_FILE_IDENTITY.clear()
+        # Per-worker concordance state: a single-worker run fills it in this
+        # process. Every run sets it before use, and dropping it after the run
+        # releases the reference the run loaded with it.
+        qc_panel_concordance._WORKER_REF = None
+        qc_panel_concordance._WORKER_PANEL = None
+        qc_panel_concordance._WORKER_GATES = None
+
+    clear()
+    try:
+        yield
+    finally:
+        clear()
+
+
 def _run_cli(fixture: Fixture, *args: str, **kwargs) -> subprocess.CompletedProcess:
+    """Drive the operator entry point in this process, then report as a subprocess would.
+
+    The suite's subject is what the entry point does, not that ``python -m`` can
+    start it: reaching ``generate_candidate.main`` in this interpreter runs the
+    same argparse, the same stages and the same files, starting from the state a
+    fresh process would have (:func:`_one_invocation`). A fresh interpreter for
+    every run costs about 1.4 s here (``load_candidate_configuration`` imports
+    ``opengwasdb``), which made this suite the repository's slowest (#282).
+
+    Tests that assert on the process itself -- an uncaught exception's
+    traceback, a killed run's inherited lock -- use :func:`_run_cli_subprocess`.
+    """
+    command, env = _cli_invocation(fixture, *args, **kwargs)
+    stdout, stderr = io.StringIO(), io.StringIO()
+    previous_cwd = os.getcwd()
+    # The subprocess got exactly this environment; give the in-process run the
+    # same one, so the fake resolver's own variables reach it either way.
+    with mock.patch.dict(os.environ, env, clear=True):
+        os.chdir(REPO_ROOT)
+        try:
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                with _one_invocation():
+                    try:
+                        code = generate_candidate.main(command[3:])
+                    except SystemExit as exc:  # argparse refusing a flag, as `python -m` would
+                        # Python's own exit semantics: an integer is the code, None
+                        # is a clean exit, and anything else is a message on stderr
+                        # with exit code 1.
+                        code = exc.code
+                        if code is not None and not isinstance(code, int):
+                            print(code, file=stderr)
+                            code = 1
+        finally:
+            os.chdir(previous_cwd)
+    # A main that returns None exited cleanly, as it does under `python -m`.
+    return subprocess.CompletedProcess(
+        command, 0 if code is None else code, stdout.getvalue(), stderr.getvalue()
+    )
+
+
+def _run_cli_subprocess(
+    fixture: Fixture, *args: str, **kwargs
+) -> subprocess.CompletedProcess:
+    """Run the entry point as ``python3 -m manifest_generation.generate_candidate``."""
     command, env = _cli_invocation(fixture, *args, **kwargs)
     return subprocess.run(
         command, cwd=str(REPO_ROOT), env=env, capture_output=True, text=True, check=False
@@ -717,7 +792,8 @@ class CandidateWorkflowTests(unittest.TestCase):
     # -- happy path and policy -------------------------------------------------
 
     def test_full_pipeline_mixed_designs_and_controlled_outcomes(self) -> None:
-        result = _run_cli(self.fixture)
+        # Through `python3 -m`: the whole operator entry point, in a new process.
+        result = _run_cli_subprocess(self.fixture)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
 
         bundle_dir = self.fixture.registry_root / STORE_ID
@@ -3214,7 +3290,8 @@ class EntryPointStageTests(unittest.TestCase):
         self.assertEqual(pinned.resolver, "opengwasdb")
 
     def test_a_legacy_config_is_refused_by_the_entry_point(self) -> None:
-        result = _run_cli(
+        # Through `python3 -m`: an operator must see an error, never a traceback.
+        result = _run_cli_subprocess(
             self.fixture,
             config_path=REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/config-full.yaml",
         )
@@ -3280,11 +3357,11 @@ class SharedResolutionRecordsTests(unittest.TestCase):
         config_path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
         return config_path
 
-    def _run(self, *args: str, **kwargs):
+    def _run(self, *args: str, runner=_run_cli, **kwargs):
         """Run the entry point; return (result, the Analyses this run resolved)."""
         self._runs += 1
         log = self.fixture.root / f"resolved-{self._runs}.log"
-        result = _run_cli(self.fixture, *args, resolved_log=log, **kwargs)
+        result = runner(self.fixture, *args, resolved_log=log, **kwargs)
         resolved = log.read_text(encoding="utf-8").split() if log.exists() else []
         return result, sorted(resolved)
 
@@ -3417,13 +3494,15 @@ class SharedResolutionRecordsTests(unittest.TestCase):
     # -- 2. reuse and invalidation ---------------------------------------------
 
     def test_an_unchanged_run_re_resolves_nothing(self) -> None:
+        # Both runs through `python3 -m`: this is the reuse behaviour an operator
+        # sees, including the second run starting from no in-memory state.
         outcomes = self._all_success_outcomes()
-        first, resolved = self._run(outcomes=outcomes)
+        first, resolved = self._run(outcomes=outcomes, runner=_run_cli_subprocess)
         self.assertEqual(first.returncode, 0, first.stderr)
         self.assertEqual(resolved, READY_IDS)
         receipt = self._receipt()
 
-        second, resolved = self._run(outcomes=outcomes)
+        second, resolved = self._run(outcomes=outcomes, runner=_run_cli_subprocess)
         self.assertEqual(second.returncode, 0, second.stderr)
         self.assertEqual(resolved, [])
         self.assertEqual(self._receipt()["records"], receipt["records"])
@@ -3466,6 +3545,24 @@ class SharedResolutionRecordsTests(unittest.TestCase):
             )
             # A record is kept, never overwritten: the old receipt's still exist.
             self.assertTrue((self.area.root / before[analysis_id]["record"]).is_file())
+
+    def test_a_reference_rewritten_in_place_is_caught_by_a_later_invocation(self) -> None:
+        # Same length, same mtime, different bytes. A process recomputes the
+        # reference's digest from the file and refuses to emit; the in-process
+        # runner must not carry a digest memoised by the run before it (#282
+        # review).
+        outcomes = self._all_success_outcomes()
+        self.assertEqual(self._run(outcomes=outcomes)[0].returncode, 0)
+
+        reference = self.fixture.root / "reference" / "ref_freqs.tsv.gz"
+        stat = reference.stat()
+        original = reference.read_bytes()
+        reference.write_bytes(bytes([original[0] ^ 0xFF]) + original[1:])
+        os.utime(reference, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+        self.assertEqual(reference.stat().st_size, stat.st_size)
+        self.assertEqual(reference.stat().st_mtime_ns, stat.st_mtime_ns)
+
+        self._assert_emit_fails("ancestry_reference_sha256")
 
     def test_a_changed_setting_re_resolves_every_analysis(self) -> None:
         outcomes = self._all_success_outcomes()
@@ -3789,28 +3886,66 @@ class RealResolverNoAlleleFrequencyTests(unittest.TestCase):
     ``assigned_ancestry`` result. Without the opt-in it is ``ancestry_unassigned``.
     """
 
-    def setUp(self) -> None:
-        self._tmp = tempfile.TemporaryDirectory(prefix="real-resolver-no-af-")
-        self.fixture = FixtureBuilder(Path(self._tmp.name), bodies=_no_af_fixture_body).build()
-        _write_real_reference(self.fixture)
+    #: One real resolution serves all three tests: the kept records, the resolver
+    #: index and the receipt depend on the resolver settings, not on the release
+    #: policy these tests vary, so a run per test would only re-run the pinned
+    #: resolver to be handed the same records back. Each test then applies its
+    #: policy variant in this process -- its own config and registry, over the
+    #: class's Work Root -- and enters the pipeline at ``emit`` (#282).
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._tmp = tempfile.TemporaryDirectory(prefix="real-resolver-no-af-")
+        cls.root = Path(cls._tmp.name)
+        cls.fixture = FixtureBuilder(cls.root / "fixture", bodies=_no_af_fixture_body).build()
+        _write_real_reference(cls.fixture)
         # A MAF request makes the resolver count the rows with no usable
         # frequency (maf_rows_missing); 0 filters nothing (#287 review).
-        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document = yaml.safe_load(cls.fixture.config_path.read_text())
         document["defaults"]["maf_threshold"] = 0
-        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        cls.fixture.config_path.write_text(yaml.safe_dump(document))
+        resolved = _run_cli(cls.fixture, "--stage", "resolve", resolver=REAL_RESOLVER)
+        if resolved.returncode != 0:
+            raise AssertionError(f"the pinned resolver failed: {resolved.stderr}{resolved.stdout}")
 
-    def tearDown(self) -> None:
-        self._tmp.cleanup()
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._tmp.cleanup()
+
+    def setUp(self) -> None:
+        # A per-test config and registry, so each test writes its own policy and
+        # its own bundle; the Work Root is the class's, because it holds the run
+        # artefacts the resolve stage bound -- the resolver index and the
+        # receipt -- and verify recomputes the contract from the current config,
+        # where the release policy does not appear.
+        self.root = self.__class__.root / self._testMethodName
+        self.config_path = self.root / "config.yaml"
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        self.config_path.write_text(self.fixture.config_path.read_text())
+        self.registry_root = self.root / "stores"
+        self.registry_root.mkdir(parents=True)
+        self.work_root = self.fixture.work_root
 
     def opt_in(self) -> None:
-        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document = yaml.safe_load(self.config_path.read_text())
         document["release_policy"]["trust_source_ancestry_without_af"] = True
-        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        self.config_path.write_text(yaml.safe_dump(document))
 
     def emitted(self) -> tuple[dict, dict, dict]:
-        result = _run_cli(self.fixture, resolver=REAL_RESOLVER)
+        # The release policy is what varies here, and it lives outside the
+        # resolution contract, so this re-renders from the records the class
+        # already resolved rather than running the real resolver again: prepare,
+        # verify, render and emit over the shared resolution (#282).
+        result = _run_cli(
+            self.fixture,
+            "--stage",
+            "emit",
+            resolver=REAL_RESOLVER,
+            config_path=self.config_path,
+            registry_root=self.registry_root,
+            work_root=self.work_root,
+        )
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        bundle_dir = self.fixture.registry_root / STORE_ID
+        bundle_dir = self.registry_root / STORE_ID
         analyses = {row["analysis_id"]: row for row in _read_tsv(bundle_dir / "analyses.tsv")}
         checks = {
             row["analysis_id"]: row
@@ -3820,8 +3955,6 @@ class RealResolverNoAlleleFrequencyTests(unittest.TestCase):
         return analyses, checks, validation
 
     def test_the_record_reports_every_row_without_a_frequency(self) -> None:
-        result = _run_cli(self.fixture, "--stage", "resolve", resolver=REAL_RESOLVER)
-        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         for analysis_id, _, _, _, _, _, _ in READY_ANALYSES:
             record = json.loads(_kept_record(self.fixture, analysis_id).read_text())
             diagnostics = record["diagnostics"]
@@ -3944,6 +4077,64 @@ class ResolutionRootTests(unittest.TestCase):
         for bad in ("", "..", "a/b", ".hidden"):
             with self.assertRaises(ValueError):
                 ResolutionArea.for_collection(self.root, bad)
+
+
+class InProcessEntryPointTests(unittest.TestCase):
+    """``_run_cli`` reports an exit exactly as ``python3 -m`` would (#282 review).
+
+    The in-process runner stands in for a process, so its return code and stderr
+    must be what an operator would see: an integer ``SystemExit`` is that code,
+    ``None`` or ``0`` is a clean exit, and any other value is a message on stderr
+    and exit code 1. Reporting a refusal as success would hide exactly the
+    failures this suite exists to catch.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="in-process-exit-")
+        root = Path(self._tmp.name)
+        # No files: every path here is only rendered into the argv.
+        self.fixture = Fixture(
+            root=root,
+            config_path=root / "config.yaml",
+            inventory_path=root / "inventory.tsv",
+            provenance_path=root / "provenance.json",
+            source_metadata_table_path=root / "metadata.tsv",
+            acquisition_manifest_path=root / "acquisition.tsv",
+            outcomes_path=root / "outcomes.json",
+            registry_root=root / "stores",
+            work_root=root / "work",
+            trait_table_dir=root / "traits",
+            resolution_root=root / "resolution",
+        )
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _run_exiting(self, code) -> subprocess.CompletedProcess:
+        def main(argv: list[str]) -> int:
+            raise SystemExit(code)
+
+        with mock.patch.object(generate_candidate, "main", main):
+            return _run_cli(self.fixture)
+
+    def test_a_string_exit_code_is_a_message_and_exit_code_one(self) -> None:
+        result = self._run_exiting("the resolver is not installed")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(result.stderr, "the resolver is not installed\n")
+
+    def test_no_exit_code_or_zero_is_a_clean_exit(self) -> None:
+        for code in (None, 0):
+            with self.subTest(code=code):
+                result = self._run_exiting(code)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stderr, "")
+
+    def test_an_integer_exit_code_is_that_code(self) -> None:
+        self.assertEqual(self._run_exiting(3).returncode, 3)
+
+    def test_a_returned_none_is_a_clean_exit(self) -> None:
+        with mock.patch.object(generate_candidate, "main", lambda argv: None):
+            self.assertEqual(_run_cli(self.fixture).returncode, 0)
 
 
 def _pid_alive(pid: int) -> bool:
