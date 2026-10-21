@@ -505,6 +505,12 @@ class TestEvidenceChannels(unittest.TestCase):
             },
         )
         self.assertEqual(record.channels["format_runtime"].state, EvidenceState.FAIL)
+        # The same pair is not "completion on its way" for a child: it publishes
+        # only a completed Store, so the completion channel claims nothing.
+        self.assertFalse(
+            record.channels["reference_completion"].state is EvidenceState.PASS,
+            record.channels["reference_completion"].detail,
+        )
 
     def test_a_single_id_release_has_an_observed_build(self) -> None:
         """It builds and publishes an Observed-Only Store first, so that channel applies."""
@@ -570,6 +576,33 @@ class TestEvidenceChannels(unittest.TestCase):
         self.assertEqual(
             bare_record.channels["reference_completion"].state, EvidenceState.UNKNOWN
         )
+
+    def test_a_verified_ledger_beside_an_observed_only_store_fails(self) -> None:
+        """Evidence and artifact must agree: a verified completion is in the completed Store.
+
+        The ledger's `completion_verified` is a host-side fact that cannot be
+        re-derived from git, so the published Store is what refutes a stale
+        entry. Reporting a pass here would be the wrong answer that looks right.
+        """
+        interim = create_mock_bundle(
+            self.stores,
+            "OGS-00048",
+            completion_state="reference_completed",
+            validation_data={
+                "status": "passed",
+                "observed": {"completion_state": "observed_only"},
+            },
+        )
+        record = readiness.reconcile_release(
+            interim,
+            {"releases": {"OGS-00048": {"completion_verified": True}}},
+            {"OGS-00048": interim},
+            set(),
+        )
+        channel = record.channels["reference_completion"]
+        self.assertEqual(channel.state, EvidenceState.FAIL, channel.detail)
+        self.assertIn("Observed-Only", channel.detail)
+        self.assertIn("'OGS-00048'", channel.detail)
 
     def test_store_validation_provenance_is_classified(self) -> None:
         b = create_mock_bundle(

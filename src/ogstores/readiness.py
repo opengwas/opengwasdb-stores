@@ -410,22 +410,6 @@ def recorded_completion_state(bundle_obj: Bundle) -> str:
     return value if isinstance(value, str) else ""
 
 
-def is_interim_completion_state(bundle_obj: Bundle, published: str | None) -> bool:
-    """Whether `published` is the Observed-Only Store a single-id release is completing.
-
-    A release that completes its own Store publishes it twice (ADR 0037): the
-    Observed-Only Store is what users can query until the swap, so a published
-    `observed_only` beside a declared `reference_completed` is the expected
-    state, not a mismatched artifact. A two-id child publishes only the
-    completed Store, so the same pair is a real mismatch there.
-    """
-    return (
-        bundle_obj.completes_own_store
-        and published == "observed_only"
-        and (bundle_obj.completion_state or "") == "reference_completed"
-    )
-
-
 def _completion_channel(
     bundle_obj: Bundle, entry: Mapping[str, Any], published_state: str = ""
 ) -> Channel:
@@ -442,7 +426,7 @@ def _completion_channel(
             EvidenceState.MISSING,
             "reference completion declares no ancestry; reference appropriateness unproven",
         )
-    if is_interim_completion_state(bundle_obj, published_state):
+    if bundle_module.is_completion_pending(bundle_obj, published_state):
         if entry.get("completion_verified") is True:
             return Channel(
                 EvidenceState.FAIL,
@@ -589,7 +573,7 @@ def _format_runtime_channel(
     if layout != (bundle_obj.layout or ""):
         mismatches.append(f"layout {layout!r} != bundle {bundle_obj.layout!r}")
     if completion != (bundle_obj.completion_state or ""):
-        if is_interim_completion_state(bundle_obj, completion):
+        if bundle_module.is_completion_pending(bundle_obj, completion):
             # The order of business under single-id completion, not a mismatch:
             # the Observed-Only Store is what is published until the swap.
             detail += (

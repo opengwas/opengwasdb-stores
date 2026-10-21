@@ -33,7 +33,10 @@ Release Bundle membership, lifecycle and published evidence.
    reports it as declared-and-pending; a two-id child, which publishes only a
    completed Store, still fails on the same difference. Such a release has an
    observed build of its own, so its observed-build channel is not
-   `not_applicable`.
+   `not_applicable`. A ledger `completion_verified: true` beside an
+   Observed-Only Store fails: evidence and artifact must agree. The interim
+   rule is `bundle.is_completion_pending`, the same predicate the master list's
+   pending marker uses.
 7. **Supported core seam**: manifest metadata comes from
    `opengwasdb info --format json`; built IDs come from
    `read_analyses(open_store(path).analyses_path)`. A support probe
