@@ -43,7 +43,9 @@ alignment or SD — those stay OpenGWASDB's and are exercised upstream.
    the contract and every kept record's digest and checksum; changing a gate, the ancestry reference
    or fine-group map content, the resolver revision, or forging an
    internally-consistent record with a recomputed self-digest all make
-   `verify`/`emit` fail and preserve a prior candidate.
+   `verify`/`emit` fail and preserve a prior candidate. So does a reference
+   rewritten in place to the same length with its mtime restored, in the very
+   next invocation of the entry point.
    A missing receipt is rejected too. (`--cores` and the resolution root deliberately do
    not change the contract.)
 7. **Resume reuses unchanged records** and reproduces byte-identical tables and
@@ -140,12 +142,16 @@ Tests drive `manifest_generation.generate_candidate.main` in the test process,
 not through `python3 -m`: one fresh interpreter per run costs about 1.4 s here
 (`load_candidate_configuration` imports `opengwasdb`), and a suite of them made
 this one the repository's slowest (#282). The same argparse, the same stages and
-the same files are exercised either way.
+the same files are exercised either way, and `_run_cli` clears the state an
+invocation leaves on the entry point's modules (`_one_invocation`) and reports
+`SystemExit` as a process would: an integer code, `None` for a clean exit, and
+exit code 1 with the value on stderr for anything else (#282 review).
 
-Tests that assert on the process itself do spawn one: the full mixed-design
-pipeline and an unchanged second run go through `python3 -m` (`_run_cli_subprocess`),
-the legacy-config test proves it fails without a traceback, and the killed-run
-test starts the entry point with `Popen` so its resolver can outlive it. The fake
+Four tests spawn a process instead, and they are the ones whose subject *is* the
+process: the full mixed-design pipeline and both invocations of the unchanged
+re-run reuse test go through `python3 -m` (`_run_cli_subprocess`), the
+legacy-config test proves the entry point fails without a traceback, and the
+killed-run test starts it with `Popen` so its resolver can outlive it. The fake
 resolver, and the real one where a test uses it, always run as subprocesses.
 
 The `RealResolver*` classes resolve once for the class, not once per test: their

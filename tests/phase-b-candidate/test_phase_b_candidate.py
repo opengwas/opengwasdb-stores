@@ -3494,14 +3494,15 @@ class SharedResolutionRecordsTests(unittest.TestCase):
     # -- 2. reuse and invalidation ---------------------------------------------
 
     def test_an_unchanged_run_re_resolves_nothing(self) -> None:
-        # Through `python3 -m`: this is the reuse behaviour an operator sees.
+        # Both runs through `python3 -m`: this is the reuse behaviour an operator
+        # sees, including the second run starting from no in-memory state.
         outcomes = self._all_success_outcomes()
         first, resolved = self._run(outcomes=outcomes, runner=_run_cli_subprocess)
         self.assertEqual(first.returncode, 0, first.stderr)
         self.assertEqual(resolved, READY_IDS)
         receipt = self._receipt()
 
-        second, resolved = self._run(outcomes=outcomes)
+        second, resolved = self._run(outcomes=outcomes, runner=_run_cli_subprocess)
         self.assertEqual(second.returncode, 0, second.stderr)
         self.assertEqual(resolved, [])
         self.assertEqual(self._receipt()["records"], receipt["records"])
@@ -3544,6 +3545,24 @@ class SharedResolutionRecordsTests(unittest.TestCase):
             )
             # A record is kept, never overwritten: the old receipt's still exist.
             self.assertTrue((self.area.root / before[analysis_id]["record"]).is_file())
+
+    def test_a_reference_rewritten_in_place_is_caught_by_a_later_invocation(self) -> None:
+        # Same length, same mtime, different bytes. A process recomputes the
+        # reference's digest from the file and refuses to emit; the in-process
+        # runner must not carry a digest memoised by the run before it (#282
+        # review).
+        outcomes = self._all_success_outcomes()
+        self.assertEqual(self._run(outcomes=outcomes)[0].returncode, 0)
+
+        reference = self.fixture.root / "reference" / "ref_freqs.tsv.gz"
+        stat = reference.stat()
+        original = reference.read_bytes()
+        reference.write_bytes(bytes([original[0] ^ 0xFF]) + original[1:])
+        os.utime(reference, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+        self.assertEqual(reference.stat().st_size, stat.st_size)
+        self.assertEqual(reference.stat().st_mtime_ns, stat.st_mtime_ns)
+
+        self._assert_emit_fails("ancestry_reference_sha256")
 
     def test_a_changed_setting_re_resolves_every_analysis(self) -> None:
         outcomes = self._all_success_outcomes()
