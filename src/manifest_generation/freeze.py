@@ -96,6 +96,7 @@ from manifest_generation.source_metadata_table import (
 __all__ = [
     "FreezeError",
     "FrozenInventory",
+    "OriginalMissingError",
     "ReconciliationError",
     "freeze",
     "frozen_paths",
@@ -108,6 +109,10 @@ __all__ = [
 
 class ReconciliationError(FreezeError):
     """Intent and acquisition do not reconcile: an Analysis without an entry, or an entry without an Analysis."""
+
+
+class OriginalMissingError(FreezeError):
+    """A connector original a frozen snapshot records is not on this host."""
 
 
 @dataclass(frozen=True)
@@ -438,7 +443,9 @@ def load_collection_intent(provenance_path: Path) -> CollectionIntent:
     and ``acquisition_manifest.original`` record where each whole-collection
     connector lives and the sha256 the freeze saw. A missing original, or one
     whose bytes changed, is refused by name -- a preflight that cannot read the
-    collection's intent cannot prove completeness (#290 review).
+    collection's intent cannot prove completeness (#290 review). A missing one
+    is an :class:`OriginalMissingError`, so a caller for whom the collection is
+    optional can tell it from a changed one.
     """
     provenance_path = Path(provenance_path)
     if not provenance_path.is_file():
@@ -456,7 +463,7 @@ def load_collection_intent(provenance_path: Path) -> CollectionIntent:
                 "manifest_generation.freeze, so the collection's intent cannot be read"
             ) from None
         if not path.is_file():
-            raise FreezeError(
+            raise OriginalMissingError(
                 f"the {key} original {path} named in {provenance_path} is missing, so the "
                 "Source Collection's intent cannot be read"
             )

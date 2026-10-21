@@ -40,14 +40,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
-import yaml
-
 from manifest_generation import REPO_ROOT
 from manifest_generation.freeze import (
     FreezeError,
     freeze,
     frozen_paths,
     load_collection_intent,
+    load_provenance,
     write_frozen_inventory,
 )
 from manifest_generation.release_config import ReleaseConfig, load_release_config
@@ -90,7 +89,7 @@ def freeze_release(config: ReleaseConfig, *, frozen_at: str | None = None) -> Fr
     """
     paths = frozen_paths(config.inventory_directory, config.inventory_snapshot_id)
     if paths.provenance.is_file():
-        provenance = yaml.safe_load(paths.provenance.read_text(encoding="utf-8"))
+        provenance = load_provenance(paths.provenance)
         if not isinstance(provenance, dict):
             raise InventoryError(f"{paths.provenance} is not a YAML mapping")
         problems = frozen_for_release_problems(provenance, paths.provenance, config)

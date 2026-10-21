@@ -88,7 +88,13 @@ from manifest_generation.source_inventory import (
 )
 from manifest_generation.release_config import ReleaseConfig, load_release_config
 from manifest_generation.connector_tsv import FreezeError
-from manifest_generation.freeze import load_frozen_connectors, original_path
+from manifest_generation.freeze import (
+    OriginalMissingError,
+    load_collection_intent,
+    load_frozen_connectors,
+    load_provenance,
+    original_path,
+)
 from manifest_generation.trait_ontology_mapping import (
     CanonicalTraitMappingTable,
     SourceTrait,
@@ -857,9 +863,8 @@ def acquisition_evidence(provenance_path: Path, analysis_ids: Iterable[str]) -> 
     ``evidence``, carries nothing.
     """
     try:
-        document = yaml.safe_load(Path(provenance_path).read_text(encoding="utf-8"))
-        lineage = document["acquisition_manifest"]["original"]["pass_lineage"]
-    except (OSError, KeyError, TypeError) as exc:
+        lineage = load_provenance(provenance_path)["acquisition_manifest"]["original"]["pass_lineage"]
+    except (FreezeError, KeyError, TypeError) as exc:
         raise CandidateError(f"{provenance_path} records no acquisition pass lineage: {exc}") from exc
     if lineage is None:
         return {}
@@ -942,37 +947,21 @@ SCORE_DECLARATION_COLUMNS: tuple[str, ...] = (
 
 
 def collection_analysis_ids(provenance_path: Path) -> frozenset[str] | None:
-    """Every Analysis the Source Collection intends, from the Source Metadata Table freeze read.
+    """Every Analysis the Source Collection intends, from the connector originals freeze read.
 
     A frozen inventory keeps only its Selection's rows; the collection is the
-    original table its provenance names and checksums. ``None`` when that file
-    is not on this host. A file there with another checksum is not the
-    collection that was frozen, and is refused.
+    originals its provenance names and checksums (``freeze.load_collection_intent``).
+    A completeness proof refuses a missing original; a caller here can do
+    without the collection, so it gives ``None`` when an original is not on
+    this host. One there with another checksum is not the collection that was
+    frozen, and is refused.
     """
     try:
-        document = yaml.safe_load(Path(provenance_path).read_text(encoding="utf-8"))
-        original = document["source_metadata_table"]["original"]
-        path, expected = original_path(original["path"]), original["sha256"]
-    except (OSError, KeyError, TypeError) as exc:
-        raise CandidateError(
-            f"{provenance_path} records no original Source Metadata Table: {exc}"
-        ) from exc
-    if not path.is_file():
+        return frozenset(load_collection_intent(provenance_path).analysis_ids)
+    except OriginalMissingError:
         return None
-    actual = sha256_file(path)
-    if actual != expected:
-        raise CandidateError(
-            f"the collection's Source Metadata Table {path} has sha256 {actual}, but "
-            f"{provenance_path} froze {expected}; it is not the collection that was frozen"
-        )
-    # A connector file carries no quoting (connector_tsv), so a field is what
-    # lies between tabs; the checksum above proves it is the frozen file.
-    with path.open(encoding="utf-8") as fh:
-        header = fh.readline().rstrip("\n").split("\t")
-        if "source_analysis_id" not in header:
-            raise CandidateError(f"{path} has no source_analysis_id column")
-        column = header.index("source_analysis_id")
-        return frozenset(line.rstrip("\n").split("\t")[column] for line in fh if line.strip())
+    except FreezeError as exc:
+        raise CandidateError(f"cannot read the Source Collection's intent: {exc}") from exc
 
 
 def read_imputation_score_declarations(
@@ -1035,7 +1024,8 @@ def read_imputation_score_declarations(
             raise CandidateError(
                 f"{path}: {len(outside)} declaration(s) name Analyses outside this Selection "
                 f"(first {outside[0][1]!r}, line {outside[0][0]}), and the collection's Source "
-                "Metadata Table is not available to check that the collection intends them"
+                "Metadata Table and Acquisition Manifest are not available to check that the "
+                "collection intends them"
             )
         for number, analysis_id in outside:
             if analysis_id not in collection:

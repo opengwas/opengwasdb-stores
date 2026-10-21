@@ -1078,7 +1078,11 @@ def preflight(
     if not provenance_path.is_file():
         failures.append(f"inventory provenance sidecar is missing: {provenance_path}")
     else:
-        provenance = yaml.safe_load(provenance_path.read_text(encoding="utf-8"))
+        # Freeze's parse, cached by content (#290 review); freeze imports this
+        # module, so it is imported here.
+        from manifest_generation.freeze import load_provenance
+
+        provenance = load_provenance(provenance_path)
         if not isinstance(provenance, dict):
             failures.append(f"inventory provenance sidecar is not a YAML mapping: {provenance_path}")
         else:
