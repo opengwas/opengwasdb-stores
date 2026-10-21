@@ -37,19 +37,20 @@ one decision and a reason, in `selection`. The first rule that applies decides:
 
 | # | Fact | Decision | Reason |
 |---|---|---|---|
-| 1 | `bundle.check()` returns errors | `refused` | `bundle.check() failed: ` and the errors |
-| 2 | `trial: true` | `excluded` | `Trial Store Release` |
-| 3 | Access Posture `embargoed` | `excluded` | `Access Posture is embargoed` |
-| 4 | status `candidate`, `accepted`, `built` | `excluded` | `Release Status is <status>, not validated` |
-| 5 | status `superseded`, `withdrawn`, and the Validation Record's status is not `passed` or `passed_with_warnings`, or it has no `observed.n_analyses` | `excluded` | `retired before validation` |
-| 6 | `validated`, Access Posture neither `public` nor `controlled` | `refused` | `Access Posture is <value>; a listed Store is public or controlled` |
-| 7 | `validated`, `superseded` or `withdrawn`, `observed.n_analyses` not an integer | `refused` | `Validation Record has no integer observed.n_analyses` |
-| 8 | the admitted Release Manifest count differs from `observed.n_analyses` | `refused` | `Release Manifest admits <n> Analyses but the Validation Record's observed.n_analyses is <m>` |
-| 9 | a manifest or Validation Record value its column cannot hold exactly, or `check()` passed the Store only by tolerating `:` in an `analysis_id` (#319) | `refused` | `analyses.tsv row '<analysis_id>': <column> '<value>' is not an integer` (or `a finite number`, and so on), or `bundle.check() tolerates analysis_id values containing ':' for this release (#319), but an Analysis is named <store_id>:<analysis_id>` |
-| 10 | `superseded` or `withdrawn`, otherwise | `placeholder` | `Release Status is <status>: kept as placeholder rows, not listed` |
-| 11 | `validated`, otherwise | `listed` | `Release Status is validated, Access Posture is <public or controlled>` |
+| 1 | bundle.check() returns errors | `refused` | `bundle.check() failed: ` and the errors |
+| 2 | Trial Store Release | `excluded` | `Trial Store Release` |
+| 3 | Access Posture is embargoed | `excluded` | `Access Posture is embargoed` |
+| 4 | Release Status is candidate, accepted or built | `excluded` | `Release Status is <status>, not validated` |
+| 5 | Release Status is superseded or withdrawn, and the Validation Record is not passed or passed_with_warnings | `excluded` | `retired before validation` |
+| 6 | Release Status is validated, and Access Posture is neither public nor controlled | `refused` | `Access Posture is <value>; a listed Store is public or controlled` |
+| 7 | Release Status is validated, superseded or withdrawn, and observed.n_analyses is missing or not an integer | `refused` | `Validation Record has no integer observed.n_analyses` |
+| 8 | the admitted Release Manifest count differs from observed.n_analyses | `refused` | `Release Manifest admits <n> Analyses but the Validation Record's observed.n_analyses is <m>` |
+| 9 | a manifest or Validation Record value cannot be stored exactly, or check() tolerates ':' in an analysis_id under #319 | `refused` | `analyses.tsv row '<analysis_id>': <column> '<value>' is not an integer` (or `a finite number`, and so on), or `the Release Manifest carries analysis_id values containing ':' (<n>), tolerated by bundle.check() under #319` |
+| 10 | Release Status is superseded or withdrawn | `placeholder` | `Release Status is <status>: kept as placeholder rows, not listed` |
+| 11 | Release Status is validated | `listed` | `Release Status is validated, Access Posture is <public or controlled>` |
 
-The table is `analysis_catalog.policy.RULES` in order, which `decide` implements,
+The Fact and Decision columns are `analysis_catalog.policy.RULES` verbatim and in
+order, which `decide` implements,
 `catalog_meta.serving_policy` records, `report.md` quotes when nothing is listed,
 and `tests/catalog/test_catalog.py` checks this table and ADR 0039's list against.
 
@@ -62,9 +63,10 @@ and `tests/catalog/test_catalog.py` checks this table and ADR 0039's list agains
   rules 2 and 3 first, and never becomes a placeholder.
 - A retired release that never passed validation was never served, so it is
   excluded (rule 5), not refused, and has no rows. That is every retired release
-  whose Validation Record is missing, not `passed` or `passed_with_warnings`, or
-  has no `observed.n_analyses`: `check()` does not require a record of a retired
-  release, and a candidate or accepted one that was retired has null counts.
+  whose Validation Record is missing or not `passed` or `passed_with_warnings`:
+  `check()` does not require a record of a retired release, and a candidate or
+  accepted one that was retired has null counts. A retired release that did pass
+  but has no `observed.n_analyses` is refused by rule 7, as a `validated` one is.
 - `check()` reads `superseded_by` only on a `superseded` release (it refuses it
   on any other status), so the catalog reads it through `Bundle.superseded_by` and
   has no rule of its own for a withdrawn one.
@@ -210,13 +212,21 @@ with the row-value form.
   current -> versions/<version>
 ```
 
-- **The version** is the first 16 hex digits of a SHA-256 over: the builder's
-  version and every `*.py` source file of the package, which includes the
-  serving policy; the summary template (`docs/reports/analysis-catalog-summary.qmd`);
-  and every file of every registered Release Bundle directory. Decisions are not
-  hashed: they are a function of those inputs, so the version is known before any
-  Release Manifest row is read. It does not include the build time or the
-  registry commit.
+- **The version** is the first 16 hex digits of a SHA-256 over exactly these
+  inputs, which are everything a decision depends on:
+  - the builder's version and the serving policy;
+  - the sorted list of registered store ids, so an empty directory changes it;
+  - every `*.py` source file of `analysis_catalog` and of `ogstores` (`check()`,
+    `Bundle`, `partition_membership`, `LEGACY_ANALYSIS_ID_RELEASES`);
+  - the installed opengwasdb, whose reader parses the manifest: its distribution
+    version and, when the install records one (`direct_url.json`), its commit;
+  - the summary template (`docs/reports/analysis-catalog-summary.qmd`);
+  - every file of every registered Release Bundle directory, read in fixed-size
+    chunks.
+
+  Decisions are not hashed: they are a function of those inputs, so the version
+  is known before any Release Manifest row is read. It does not include the build
+  time or the registry commit.
 - **A rebuild whose version exists writes nothing**, reads no Release Manifest
   row, and moves `current` only if it names another version. Its decisions are
   those in that version's `selection`.
@@ -224,7 +234,11 @@ with the row-value form.
   renamed to `versions/<version>/`, and `current` is then swapped atomically (a
   temporary symlink, then `os.replace`). A failed build removes its partial
   directory and leaves `current` alone. A `.partial` directory left by a crash
-  is replaced by the next build.
+  is replaced by the next build. The database is written with `synchronous =
+  OFF`, so before the rename every file of the `.partial` directory and the
+  directory itself are fsynced; after it `versions/` is, and after the `current`
+  swap `catalog/` is. A host crash cannot leave a torn version, which is
+  immutable and so would never be rebuilt.
 - **Retention**: the 5 most recent versions (by `built_at`) are kept; the
   version `current` names is never deleted.
 - **`report.md`**: the registered, listed, placeholder, excluded and refused

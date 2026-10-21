@@ -50,13 +50,13 @@ RULES: tuple[Rule, ...] = (
     Rule("Access Posture is embargoed", EXCLUDED),
     Rule("Release Status is candidate, accepted or built", EXCLUDED),
     Rule("Release Status is superseded or withdrawn, and the Validation Record is not passed or "
-         "passed_with_warnings with an n_analyses", EXCLUDED),
+         "passed_with_warnings", EXCLUDED),
     Rule("Release Status is validated, and Access Posture is neither public nor controlled", REFUSED),
     Rule("Release Status is validated, superseded or withdrawn, and observed.n_analyses is "
-         "not an integer", REFUSED),
+         "missing or not an integer", REFUSED),
     Rule("the admitted Release Manifest count differs from observed.n_analyses", REFUSED),
-    Rule("a manifest or Validation Record value cannot be stored exactly, or an analysis_id "
-         "contains ':' (tolerated by check() only under #319)", REFUSED),
+    Rule("a manifest or Validation Record value cannot be stored exactly, or check() tolerates ':' "
+         "in an analysis_id under #319", REFUSED),
     Rule("Release Status is superseded or withdrawn", PLACEHOLDER),
     Rule("Release Status is validated", LISTED),
 )
@@ -68,10 +68,10 @@ POLICY: tuple[str, ...] = tuple(f"{n}. {rule}" for n, rule in enumerate(RULES, s
 INT64_MIN, INT64_MAX = -(2**63), 2**63 - 1
 
 
-# The schema's own absence marker (docs/release-metadata-schema.md:303, :307):
-# a literal `NaN` in these two columns means "unavailable" and "no MAF filter",
-# distinct from `0`, which means filtering was explicitly disabled. So it is
-# NULL here. In any other numeric column `NaN` is still refused.
+# The schema's own absence marker (the `info_score_threshold` and `maf_threshold`
+# rows of docs/release-metadata-schema.md): a literal `NaN` in these two columns
+# means "unavailable" and "no MAF filter", distinct from `0`, which means
+# filtering was explicitly disabled. So it is NULL here. In any other numeric column `NaN` is still refused.
 NAN_IS_ABSENT = frozenset({"info_score_threshold", "maf_threshold"})
 
 
@@ -107,8 +107,7 @@ def decide(bundle: release_bundle.Bundle, registry: Path) -> Decision:
     status = bundle.status
     if status in UNSERVED_STATUSES:
         return Decision(store_id, EXCLUDED, f"Release Status is {status}, not validated")
-    observed = _mapping((bundle.validation or {}).get("observed"))
-    if status in RETIRED_STATUSES and not _was_validated(bundle, observed):
+    if status in RETIRED_STATUSES and not _was_validated(bundle):
         return Decision(store_id, EXCLUDED, "retired before validation")
     # check() admits only the six Release Statuses, so this one is `validated`
     # or retired after validation.
@@ -121,13 +120,9 @@ def decide(bundle: release_bundle.Bundle, registry: Path) -> Decision:
     return _admit(bundle, result, LISTED, f"Release Status is validated, Access Posture is {posture}")
 
 
-def _was_validated(bundle: release_bundle.Bundle, observed: Mapping[str, Any]) -> bool:
-    """Whether the release was served: a passing Validation Record that counts its Analyses."""
-    record = bundle.validation or {}
-    return (
-        record.get("status") in release_bundle.VALIDATED_RECORD_STATUSES
-        and observed.get("n_analyses") is not None
-    )
+def _was_validated(bundle: release_bundle.Bundle) -> bool:
+    """Whether the release was served: it has a passing Validation Record."""
+    return (bundle.validation or {}).get("status") in release_bundle.VALIDATED_RECORD_STATUSES
 
 
 def _admit(
@@ -157,8 +152,8 @@ def _admit(
         if gap.citation == TOLERATED_ANALYSIS_ID_CITATION:
             return Decision(
                 store_id, REFUSED,
-                f"bundle.check() tolerates {gap.detail} for this release ({gap.citation}), "
-                "but an Analysis is named <store_id>:<analysis_id>",
+                f"the Release Manifest carries {gap.detail} ({gap.count}), "
+                f"tolerated by bundle.check() under {gap.citation}",
             )
     try:
         store = _store_row(bundle, observed)

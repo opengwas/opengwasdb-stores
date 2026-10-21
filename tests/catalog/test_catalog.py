@@ -29,7 +29,7 @@ import yaml
 
 from analysis_catalog import build as catalog_build
 from analysis_catalog import publish as catalog_publish
-from analysis_catalog.policy import POLICY
+from analysis_catalog.policy import POLICY, RULES
 from ogstores import paths
 
 SPEC = paths.REPO_ROOT / "docs" / "spec" / "analysis-catalog.md"
@@ -210,6 +210,7 @@ class ServingPolicyTest(unittest.TestCase):
         write_bundle(registry, "OGS-00024", observed_extra={"n_associations": 0})
         write_bundle(registry, "OGS-00025", status="superseded", n_analyses="absent",
                      release={"superseded_by": "OGS-00001"})
+        write_bundle(registry, "OGS-00026", status="withdrawn", n_analyses="absent", validation_status="failed")
         (registry / "by-label").mkdir()
         build_catalog(registry, cls.root)
         cls.selection = {
@@ -225,7 +226,7 @@ class ServingPolicyTest(unittest.TestCase):
         return self.selection[store_id]
 
     def test_every_registered_store_release_has_one_decision(self) -> None:
-        self.assertEqual(sorted(self.selection), [f"OGS-{n:05d}" for n in range(1, 26)])
+        self.assertEqual(sorted(self.selection), [f"OGS-{n:05d}" for n in range(1, 27)])
 
     def test_a_validated_public_store_is_listed(self) -> None:
         self.assertEqual(
@@ -265,13 +266,19 @@ class ServingPolicyTest(unittest.TestCase):
         )
 
     def test_a_retired_store_that_never_passed_validation_is_excluded_not_refused(self) -> None:
-        for store_id in ("OGS-00018", "OGS-00019", "OGS-00020", "OGS-00025"):
+        for store_id in ("OGS-00018", "OGS-00019", "OGS-00020", "OGS-00026"):
             with self.subTest(store_id=store_id):
                 self.assertEqual(self.decision(store_id), ("excluded", "retired before validation"))
         self.assertEqual(
             query(self.root, "SELECT COUNT(*) FROM analyses WHERE store_id IN "
-                             "('OGS-00018', 'OGS-00019', 'OGS-00020', 'OGS-00025')"),
+                             "('OGS-00018', 'OGS-00019', 'OGS-00020', 'OGS-00026')"),
             [(0,)],
+        )
+
+    def test_a_retired_store_that_passed_validation_without_a_count_is_refused(self) -> None:
+        self.assertEqual(
+            self.decision("OGS-00025"),
+            ("refused", "Validation Record has no integer observed.n_analyses"),
         )
 
     def test_a_retired_store_with_a_warned_validation_record_is_a_placeholder(self) -> None:
@@ -361,22 +368,24 @@ class ServingPolicyTest(unittest.TestCase):
         self.assertIsNone(meta["registry_commit"])
         self.assertEqual(json.loads(meta["serving_policy"]), list(POLICY))
 
-    def test_the_recorded_policy_is_the_specs_table_in_order(self) -> None:
+    def test_the_recorded_policy_is_the_specs_table_and_the_adrs_list_verbatim(self) -> None:
         rows = [
             [cell.strip() for cell in line.strip("|\n").split("|")]
             for line in SPEC.read_text(encoding="utf-8").splitlines()
             if re.match(r"\| \d+ \|", line)
         ]
-        self.assertEqual([int(row[0]) for row in rows], list(range(1, len(POLICY) + 1)))
         self.assertEqual(
-            [row[2].strip("`") for row in rows], [rule.split(": ")[-1] for rule in POLICY],
+            [(int(row[0]), row[1], row[2].strip("`")) for row in rows],
+            [(n, rule.fact, rule.decision) for n, rule in enumerate(RULES, start=1)],
         )
-        adr = ADR.read_text(encoding="utf-8")
-        self.assertEqual(
-            [int(n) for n in re.findall(r"^(\d+)\. \*\*", adr.split("**Serving policy.**")[1].split("**Schema")[0], re.M)],
-            list(range(1, len(POLICY) + 1)),
-        )
-
+        self.assertEqual(list(POLICY), [f"{n}. {rule}" for n, rule in enumerate(RULES, start=1)])
+        adr = " ".join(ADR.read_text(encoding="utf-8").split("**Serving policy.**")[1].split("**Schema")[0].split())
+        position = 0
+        for n, rule in enumerate(RULES, start=1):
+            item = f"{n}. {rule.fact} — {rule.decision}"
+            found = adr.find(item, position)
+            self.assertGreaterEqual(found, 0, item)
+            position = found + len(item)
 
 
 class AnalysesTest(unittest.TestCase):
@@ -651,6 +660,76 @@ class ScaleTest(TempDirCase):
         self.assertEqual(seen_at_decision, [[], [2], [2, 2]])
 
 
+class VersionInputsTest(TempDirCase):
+    """The version covers everything a decision depends on, and the publication is durable (#323)."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        write_bundle(self.registry, "OGS-00001")
+
+    def test_a_change_to_the_ogstores_source_gives_a_new_version(self) -> None:
+        copy = self.tmp / "ogstores"
+        shutil.copytree(Path(catalog_publish.OGSTORES_DIR), copy, ignore=shutil.ignore_patterns("__pycache__"))
+        with mock.patch.object(catalog_publish, "OGSTORES_DIR", copy):
+            first = self.build()
+            self.assertFalse(self.build().published)
+            with open(copy / "bundle.py", "a", encoding="utf-8") as handle:
+                handle.write("\n# a change to check()\n")
+            second = self.build()
+        self.assertNotEqual(second.version, first.version)
+        self.assertTrue(second.published)
+
+    def test_a_different_opengwasdb_install_gives_a_new_version(self) -> None:
+        first = self.build()
+        with mock.patch.object(catalog_publish, "opengwasdb_identity", return_value="opengwasdb 9.9.9"):
+            second = self.build()
+        self.assertNotEqual(second.version, first.version)
+
+    def test_the_opengwasdb_identity_names_its_version_and_commit(self) -> None:
+        identity = catalog_publish.opengwasdb_identity()
+        self.assertRegex(identity, r"^opengwasdb \S+")
+        self.assertRegex(identity, r"commit [0-9a-f]{40}")
+
+    def test_a_registered_directory_without_files_changes_the_version(self) -> None:
+        first = self.build()
+        (self.registry / "OGS-00002").mkdir()
+        second = self.build()
+        self.assertNotEqual(second.version, first.version)
+        self.assertEqual([d.store_id for d in second.decisions], ["OGS-00001", "OGS-00002"])
+        self.assertEqual(second.decisions[1].decision, "refused")
+        (self.registry / "OGS-00002").rmdir()
+        self.assertEqual(self.build().version, first.version)
+
+    def test_the_version_does_not_depend_on_the_hashing_chunk_size(self) -> None:
+        first = self.build()
+        with mock.patch.object(catalog_publish, "CHUNK_SIZE", 7):
+            self.assertEqual(catalog_publish.compute_version(self.registry, ["OGS-00001"]), first.version)
+
+    def test_a_published_version_is_fsynced_before_the_rename_and_its_parents_after(self) -> None:
+        real = os.fsync
+        synced: list[str] = []
+
+        def spy(fd: int) -> None:
+            synced.append(os.readlink(f"/proc/self/fd/{fd}"))
+            real(fd)
+
+        with mock.patch("os.fsync", spy):
+            result = self.build()
+        partial_dir = f"{result.version}.partial"
+        before = [Path(p) for p in synced if partial_dir in p]
+        # Every file of the version, and the directory itself, while it is still `.partial`.
+        self.assertEqual(
+            sorted(p.name for p in before if p.name != partial_dir),
+            sorted(p.name for p in result.path.iterdir()),
+        )
+        self.assertIn(partial_dir, [p.name for p in before])
+        # Then `versions/` after the rename, and `catalog/` after the `current` swap.
+        self.assertEqual(
+            [Path(p) for p in synced if partial_dir not in p],
+            [self.root / "catalog" / "versions", self.root / "catalog"],
+        )
+
+
 class ToleratedLegacyIdTest(TempDirCase):
     """`check()` tolerates ':' in the analysis_id of two legacy releases (#319); the catalog does not."""
 
@@ -659,8 +738,8 @@ class ToleratedLegacyIdTest(TempDirCase):
         result = self.build()
         self.assertEqual([(d.decision, d.reason) for d in result.decisions], [(
             "refused",
-            "bundle.check() tolerates analysis_id values containing ':' for this release (#319), "
-            "but an Analysis is named <store_id>:<analysis_id>",
+            "the Release Manifest carries analysis_id values containing ':' (1), "
+            "tolerated by bundle.check() under #319",
         )])
         self.assertEqual(query(self.root, "SELECT COUNT(*) FROM analyses"), [(0,)])
 

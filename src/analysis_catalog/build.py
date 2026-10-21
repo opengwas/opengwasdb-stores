@@ -75,7 +75,11 @@ def build_catalog(
             previous=(publish.versions_dir(artifact_root) / previous, previous) if previous else None,
         )
         renderer(partial)
+        # The database is written with `synchronous = OFF`, so flush it and every
+        # other file before the rename makes the version visible and immutable.
+        publish.fsync_tree(partial)
         partial.rename(final)
+        publish.fsync_path(final.parent)
     except BaseException:
         shutil.rmtree(partial, ignore_errors=True)
         raise
