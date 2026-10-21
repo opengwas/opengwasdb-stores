@@ -110,33 +110,41 @@ The summary report is #325.
 
 **One way to list.** `listed_analyses` is the view
 `SELECT * FROM analyses WHERE listed = 1`. A listing, a keyset page, a region
-lookup and a search join all read it, and every index below is a partial index
-`WHERE listed = 1`, which SQLite uses through the view. A placeholder row is
-reached only by `id` (or `store_id`) on `analyses`.
+lookup all read it, and every index below is a partial index
+`WHERE listed = 1`, which SQLite uses through the view. A search joins
+`analyses` by rowid, because the full-text index holds listed rows only. A
+placeholder row is reached only by `id` (or `store_id`) on `analyses`.
 
-**Analysis type** is two columns of `analyses`, derived once at build
-(`analysis_catalog.policy.outcome_type` and `trait_class`):
+**Analysis type and ancestry category** are three columns of `analyses`, derived
+once at build (`analysis_catalog.policy.outcome_type`, `trait_class` and
+`ancestry_category`):
 
-- `outcome_type`: `binary` for (`stored_effect_scale`, `sample_size_kind`) =
-  (`log_or`, `case_control`); `continuous` for (`sd`, `total`); `NULL` for every
-  other pair, including a blank, a disagreement such as (`sd`, `case_control`),
-  and the scales and kinds with no plain reading (`log_hazard`, `effective`,
-  `variant_level`). Never a guess.
+- `outcome_type`: `binary` when `sample_size_kind` is `case_control` or
+  `stored_effect_scale` is `log_or` (the owner's ruling on #324), so
+  (`sd`, `case_control`) and (`log_hazard`, `case_control`) are binary;
+  `continuous` for (`sd`, `total`); `NULL` otherwise, including a blank and
+  `effective` or `variant_level` without a binary scale. Never a guess.
 - `trait_class`: `molecular` when any of `context`, `tissue` or `trait_chr` is
   set, `phenotype` otherwise. A Store whose bundle lacks the three columns is
   `phenotype`.
+- `ancestry_category`: `assigned_ancestry` when set; `META` when it is empty and
+  `source_ancestry_label` is exactly `META`; `NULL` (unassigned) otherwise. The
+  Assigned Ancestry vocabulary is unchanged: `META` is the catalog's category,
+  never a stored Assigned Ancestry.
 
 **Counts** are the table `counts (dimension, value, n_analyses)`, computed at
 build over listed Analyses only. The dimensions are `store`, `ancestry`
-(`assigned_ancestry`), `tissue`, `effect_scale` (`stored_effect_scale`),
+(`ancestry_category`), `tissue`, `effect_scale` (`stored_effect_scale`),
 `outcome_type`, `trait_class` and `coverage` (the Store's
 `association_coverage` as reported, never relabelled). A `NULL` `value` is a
-category of its own, and any other value, `META` included, is counted as it
+category of its own, and so is `META`; any other value is counted as it
 stands. Each dimension sums to the number of listed Analyses.
 
 **Search** is the FTS5 table `analysis_search` over `analysis_label`,
 `trait_ontology_label`, `consortium` and `first_author`, external-content on
-`analyses` and holding listed rows only. It joins by rowid:
+the view `listed_search_content` (listed rows, exposing the `analyses` rowid),
+so `rebuild` and `integrity-check` agree with what is indexed and a placeholder
+row is never in it. It joins by rowid:
 
 ```sql
 SELECT a.* FROM analysis_search s JOIN analyses a ON a.rowid = s.rowid
@@ -146,7 +154,8 @@ WHERE analysis_search MATCH ? ORDER BY rank LIMIT ?
 **Indexes** (all partial, `WHERE listed = 1`): `(id)`; `(col, id)` for each
 sortable column `store_id`, `analysis_label`, `trait_ontology_label`,
 `assigned_ancestry`, `tissue`, `stored_effect_scale` and `sample_size` (the
-columns of the website table and its filters, stories 2 and 3); and
+columns of the website table and its filters, user stories 2 and 3 of epic
+[#313](https://github.com/opengwas/opengwasdb-stores/issues/313)); and
 `(trait_chr, trait_bp, id)` for region lookups. `ORDER BY col, id LIMIT n` and
 `WHERE (col, id) > (?, ?) ORDER BY col, id LIMIT n` use them. A row-value
 comparison is never true for a `NULL` `col`, so a cursor over a nullable

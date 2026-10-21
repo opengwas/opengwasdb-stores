@@ -687,6 +687,12 @@ class FeaturesTest(unittest.TestCase):
             analysis_row("L5", analysis_label="Odd", stored_effect_scale="", sample_size_kind="total"),
             analysis_row("L6", analysis_label="Hazard", stored_effect_scale="log_hazard",
                          sample_size_kind="case_control", n_cases="5", n_controls="50"),
+            analysis_row("L8", analysis_label="Meta", assigned_ancestry="", source_ancestry_label="META"),
+            analysis_row("L9", analysis_label="Other label", assigned_ancestry="",
+                         source_ancestry_label="European"),
+            analysis_row("L10", analysis_label="Effective", sample_size_kind="effective"),
+            analysis_row("L11", analysis_label="Assigned wins", assigned_ancestry="EAS",
+                         source_ancestry_label="META"),
         ])
         write_bundle(registry, "OGS-00002", release={"access_posture": "controlled"},
                      observed_extra={"association_coverage": "cis_and_signals"}, rows=[
@@ -782,7 +788,7 @@ class FeaturesTest(unittest.TestCase):
     def test_every_count_table_agrees_with_a_group_by_over_listed_analyses(self) -> None:
         dimensions = {
             "store": "a.store_id",
-            "ancestry": "a.assigned_ancestry",
+            "ancestry": "a.ancestry_category",
             "tissue": "a.tissue",
             "effect_scale": "a.stored_effect_scale",
             "outcome_type": "a.outcome_type",
@@ -799,16 +805,19 @@ class FeaturesTest(unittest.TestCase):
                 got = query(self.root, "SELECT value, n_analyses FROM counts WHERE dimension = ? ORDER BY value",
                             dimension)
                 self.assertEqual(got, expected)
-                self.assertEqual(sum(n for _, n in got), 10)
+                self.assertEqual(sum(n for _, n in got), 14)
 
     def test_null_is_a_category_of_its_own(self) -> None:
         self.assertEqual(
             query(self.root, "SELECT value, n_analyses FROM counts WHERE dimension = 'ancestry' ORDER BY value"),
-            [(None, 1), ("AFR", 1), ("EAS", 1), ("EUR", 7)],
+            [(None, 2), ("AFR", 1), ("EAS", 2), ("EUR", 8), ("META", 1)],
         )
+
+    def test_meta_is_counted_as_meta_not_unassigned(self) -> None:
         self.assertEqual(
-            query(self.root, "SELECT value, n_analyses FROM counts WHERE dimension = 'coverage' ORDER BY value"),
-            [("cis_and_signals", 4), ("full", 6)],
+            query(self.root, "SELECT id, ancestry_category FROM analyses WHERE id IN "
+                             "('OGS-00001:L8', 'OGS-00001:L9', 'OGS-00001:L11', 'OGS-00001:L3') ORDER BY id"),
+            [("OGS-00001:L11", "EAS"), ("OGS-00001:L3", None), ("OGS-00001:L8", "META"), ("OGS-00001:L9", None)],
         )
 
     # types
@@ -816,14 +825,18 @@ class FeaturesTest(unittest.TestCase):
     def test_the_analysis_type_columns(self) -> None:
         self.assertEqual(
             query(self.root, "SELECT id, outcome_type, trait_class FROM analyses WHERE store_id IN "
-                             "('OGS-00001', 'OGS-00002') ORDER BY id"),
+                             "('OGS-00001', 'OGS-00002') ORDER BY store_id, length(analysis_id), analysis_id"),
             [
                 ("OGS-00001:L1", "continuous", "phenotype"),
                 ("OGS-00001:L2", "binary", "phenotype"),
                 ("OGS-00001:L3", "continuous", "phenotype"),
-                ("OGS-00001:L4", None, "phenotype"),
+                ("OGS-00001:L4", "binary", "phenotype"),
                 ("OGS-00001:L5", None, "phenotype"),
-                ("OGS-00001:L6", None, "phenotype"),
+                ("OGS-00001:L6", "binary", "phenotype"),
+                ("OGS-00001:L8", "continuous", "phenotype"),
+                ("OGS-00001:L9", "continuous", "phenotype"),
+                ("OGS-00001:L10", None, "phenotype"),
+                ("OGS-00001:L11", "continuous", "phenotype"),
                 ("OGS-00002:E1", "continuous", "molecular"),
                 ("OGS-00002:E2", "continuous", "molecular"),
                 ("OGS-00002:E3", "continuous", "molecular"),
@@ -862,6 +875,41 @@ class FeaturesTest(unittest.TestCase):
     def test_a_lookup_by_id_uses_the_primary_key(self) -> None:
         self.assertRegex(self.plan("SELECT * FROM analyses WHERE id = ?", "OGS-00003:S1"),
                          r"SEARCH analyses USING INDEX sqlite_autoindex")
+
+
+class SearchIntegrityTest(unittest.TestCase):
+    """The full-text index covers listed rows only, with placeholders interleaved before and between them."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.tmp = Path(tempfile.mkdtemp(prefix="analysis_catalog_search_"))
+        registry, cls.root = cls.tmp / "stores", cls.tmp / "root"
+        registry.mkdir()
+        cls.root.mkdir()
+        write_bundle(registry, "OGS-00001", status="withdrawn",
+                     rows=[analysis_row("W1", analysis_label="Gone alpha"), analysis_row("W2", analysis_label="Gone beta")])
+        write_bundle(registry, "OGS-00002", rows=[analysis_row("A1", analysis_label="Kept alpha")])
+        write_bundle(registry, "OGS-00003", status="superseded", release={"superseded_by": "OGS-00004"},
+                     rows=[analysis_row("S1", analysis_label="Old alpha")])
+        write_bundle(registry, "OGS-00004", rows=[analysis_row("B1", analysis_label="Kept beta")])
+        catalog_build.build_catalog(registry, cls.root)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_the_integrity_check_passes(self) -> None:
+        query(self.root, "INSERT INTO analysis_search(analysis_search, rank) VALUES('integrity-check', 1)")
+
+    def test_search_returns_only_listed_rows_with_their_own_text(self) -> None:
+        self.assertEqual(
+            query(self.root, "SELECT a.id, s.analysis_label FROM analysis_search s JOIN analyses a ON a.rowid = s.rowid "
+                             "WHERE analysis_search MATCH 'alpha OR beta' ORDER BY a.id"),
+            [("OGS-00002:A1", "Kept alpha"), ("OGS-00004:B1", "Kept beta")],
+        )
+
+    def test_a_scan_of_the_index_holds_no_placeholder(self) -> None:
+        self.assertEqual(query(self.root, "SELECT COUNT(*) FROM analysis_search"), [(2,)])
 
 
 SORTABLE_COLUMNS = (

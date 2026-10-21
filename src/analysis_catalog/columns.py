@@ -70,6 +70,7 @@ MANIFEST_COLUMNS: dict[str, str] = {
 DERIVED_COLUMNS: dict[str, str] = {
     "outcome_type": "TEXT CHECK (outcome_type IN ('binary', 'continuous'))",
     "trait_class": "TEXT NOT NULL CHECK (trait_class IN ('phenotype', 'molecular'))",
+    "ancestry_category": "TEXT",
 }
 
 ANALYSIS_COLUMNS: dict[str, str] = {
@@ -95,7 +96,7 @@ SORTABLE_COLUMNS: tuple[str, ...] = (
 # The dimensions `counts` holds, and the SQL expression each groups the listed Analyses by.
 COUNT_DIMENSIONS: dict[str, str] = {
     "store": "a.store_id",
-    "ancestry": "a.assigned_ancestry",
+    "ancestry": "a.ancestry_category",
     "tissue": "a.tissue",
     "effect_scale": "a.stored_effect_scale",
     "outcome_type": "a.outcome_type",
@@ -134,12 +135,13 @@ INDEXES: tuple[str, ...] = (
     "CREATE INDEX counts_lookup ON counts (dimension, value)",
 )
 
-# External-content full-text index keyed by the `analyses` rowid; only listed rows are inserted.
+# External-content full-text index over a listed-only view that exposes the `analyses` rowid, so
+# `rebuild` and `integrity-check` agree with what is indexed.
 SEARCH: tuple[str, ...] = (
+    "CREATE VIEW listed_search_content AS SELECT rowid AS analysis_rowid, analysis_label, "
+    "trait_ontology_label, consortium, first_author FROM analyses WHERE listed = 1",
     "CREATE VIRTUAL TABLE analysis_search USING fts5("
     "analysis_label, trait_ontology_label, consortium, first_author, "
-    "content='analyses', content_rowid='rowid')",
-    "INSERT INTO analysis_search (rowid, analysis_label, trait_ontology_label, consortium, first_author) "
-    "SELECT rowid, analysis_label, trait_ontology_label, consortium, first_author "
-    "FROM analyses WHERE listed = 1",
+    "content='listed_search_content', content_rowid='analysis_rowid')",
+    "INSERT INTO analysis_search(analysis_search) VALUES('rebuild')",
 )

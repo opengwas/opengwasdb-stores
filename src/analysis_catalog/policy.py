@@ -164,16 +164,26 @@ def _store_row(bundle: release_bundle.Bundle, observed: Mapping[str, Any]) -> tu
 
 
 def outcome_type(stored_effect_scale: str | None, sample_size_kind: str | None) -> str | None:
-    """`binary` or `continuous` when both fields agree, else None: never a guess.
+    """`binary`, `continuous` or None.
 
-    `log_or` with `case_control` is binary; `sd` with `total` is continuous. Every
-    other pair is None: a disagreement (`sd` with `case_control`), a blank, and
-    the scales and kinds with no plain reading (`log_hazard`, `effective`,
-    `variant_level`).
+    Binary when `sample_size_kind` is `case_control` or `stored_effect_scale` is
+    `log_or` (the owner's ruling on #324): an `sd` effect with case counts is a
+    binary trait stored in SD units. Continuous for `sd` with `total`. None for
+    every other pair, including a blank, rather than a guess.
     """
-    return {("log_or", "case_control"): "binary", ("sd", "total"): "continuous"}.get(
-        (stored_effect_scale, sample_size_kind)
-    )
+    if sample_size_kind == "case_control" or stored_effect_scale == "log_or":
+        return "binary"
+    if stored_effect_scale == "sd" and sample_size_kind == "total":
+        return "continuous"
+    return None
+
+
+def ancestry_category(assigned_ancestry: str | None, source_ancestry_label: str | None) -> str | None:
+    """The catalog's ancestry dimension: Assigned Ancestry when set, `META` when it is
+    empty and the Source Ancestry Label is exactly `META`, None (unassigned) otherwise."""
+    if assigned_ancestry is not None:
+        return assigned_ancestry
+    return "META" if source_ancestry_label == "META" else None
 
 
 def trait_class(context: str | None, tissue: str | None, trait_chr: str | None) -> str:
@@ -198,6 +208,7 @@ def _analysis_row(bundle: release_bundle.Bundle, row: Mapping[str, str], listed:
         status=bundle.status,
         listed=int(listed),
         outcome_type=outcome_type(values["stored_effect_scale"], values["sample_size_kind"]),
+        ancestry_category=ancestry_category(values["assigned_ancestry"], values["source_ancestry_label"]),
         trait_class=trait_class(values["context"], values["tissue"], values["trait_chr"]),
     )
     return tuple(values[column] for column in ANALYSIS_COLUMNS)
