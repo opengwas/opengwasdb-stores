@@ -22,7 +22,12 @@ Variant Subsets. It does two things, both before any expensive work:
   `verify_hm3_resource.py`); this is the cheap guard the registry can run
   without opening a Store.
 
-See docs/adr/0034-indexed-variant-subsets-in-release-planning.md and
+It also holds the capability guard of the Observed-View Check (stores #306): a
+release that completes its own Store is refused on a runtime without
+`opengwasdb check-observed-view`, before anything is written.
+
+See docs/adr/0034-indexed-variant-subsets-in-release-planning.md,
+docs/adr/0037-reference-completion-replaces-its-store.md and
 docs/spec/store-release-workflow.md.
 """
 
@@ -37,9 +42,10 @@ from typing import Any
 import yaml
 
 from ogstores import bundle as bundle_module
-from ogstores import paths, run
+from ogstores import paths, run, runtime
 from ogstores.plan import (
     INDEXED_SUBSET_COMMAND,
+    OBSERVED_VIEW_CHECK_COMMAND,
     IndexedSubsetDeclaration,
     indexed_subset_declarations,
 )
@@ -51,6 +57,10 @@ class ReferenceResourceError(RuntimeError):
 
 class IndexedSubsetRuntimeError(RuntimeError):
     """A declared subset needs an opengwasdb runtime this environment lacks."""
+
+
+class ObservedViewCheckRuntimeError(RuntimeError):
+    """A single-id completion needs an opengwasdb runtime that has the Observed-View Check."""
 
 
 def _resource_declaration_path(
@@ -188,12 +198,21 @@ def verify_variant_list_resource(
 
 def probe_opengwasdb_subset_capability(executable: str | None = None) -> bool:
     """Return True when `opengwasdb` provides the `build-indexed-subset` command."""
+    return _probe_command(INDEXED_SUBSET_COMMAND, executable)
+
+
+def probe_opengwasdb_observed_view_capability(executable: str | None = None) -> bool:
+    """Return True when `opengwasdb` provides the `check-observed-view` command."""
+    return _probe_command(OBSERVED_VIEW_CHECK_COMMAND, executable)
+
+
+def _probe_command(command: str, executable: str | None) -> bool:
     resolved = executable if executable is not None else run.get_opengwasdb_executable()
     if not resolved or resolved == run.UNAVAILABLE:
         return False
     try:
         result = subprocess.run(
-            [str(resolved), INDEXED_SUBSET_COMMAND, "--help"],
+            [str(resolved), command, "--help"],
             capture_output=True,
             text=True,
             timeout=60,
@@ -251,11 +270,47 @@ def verify_indexed_subsets_for_releases(
                 ) from exc
 
 
+def verify_observed_view_check_for_releases(
+    scheduled: Iterable[tuple[str, str]],
+    *,
+    registry_root: Path | str,
+    executable: str | None = None,
+) -> None:
+    """Refuse a single-id completion on a runtime without `check-observed-view`.
+
+    `scheduled` is the Snakemake dry run's `[(artifact_root, store_id)]`. A
+    release that completes its own Store plans the Observed-View Check before
+    its completion phase publishes (ADR 0037), so the runtime must provide it.
+    A run with no such release returns immediately, so a two-id or
+    Observed-Only release is never gated on this command (stores #306).
+    """
+    needing: list[str] = []
+    for _root, store_id in scheduled:
+        if bundle_module.load(store_id, registry_root=registry_root).completes_own_store:
+            needing.append(store_id)
+    if not needing:
+        return
+
+    resolved = executable if executable is not None else run.get_opengwasdb_executable()
+    if not probe_opengwasdb_observed_view_capability(resolved):
+        raise ObservedViewCheckRuntimeError(
+            f"Release(s) {', '.join(sorted(needing))} complete their own Store, whose swap is "
+            f"gated on the Observed-View Check: an opengwasdb runtime providing "
+            f"`{OBSERVED_VIEW_CHECK_COMMAND}` (opengwas/opengwasdb#289). The resolved "
+            f"opengwasdb is {resolved!r}. The repository's pinned runtime "
+            f"({runtime.PINNED_OPENGWASDB_REVISION[:8]}) provides it: install the tracked lock "
+            "with `pixi install` and re-run rather than substituting an executable on PATH."
+        )
+
+
 __all__ = [
     "IndexedSubsetRuntimeError",
+    "ObservedViewCheckRuntimeError",
     "ReferenceResourceError",
     "load_resource_declaration",
+    "probe_opengwasdb_observed_view_capability",
     "probe_opengwasdb_subset_capability",
     "verify_indexed_subsets_for_releases",
+    "verify_observed_view_check_for_releases",
     "verify_variant_list_resource",
 ]

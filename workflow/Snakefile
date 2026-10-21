@@ -213,6 +213,13 @@ onstart:
         resources.ReferenceResourceError,
     ) as exc:
         raise WorkflowError(str(exc))
+    # Defence in depth for a direct `snakemake` run (#306): a release that
+    # completes its own Store gates its swap on the Observed-View Check, which
+    # the resolved runtime must provide.
+    try:
+        resources.verify_observed_view_check_for_releases(scheduled, registry_root=REGISTRY_ROOT)
+    except resources.ObservedViewCheckRuntimeError as exc:
+        raise WorkflowError(str(exc))
 
 
 # `all` is every bundle the contract lets this workflow build, not every

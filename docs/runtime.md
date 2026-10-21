@@ -154,4 +154,8 @@ Core opengwas/opengwasdb#289 adds `opengwasdb check-observed-view`, the
 Observed-View Check that gates a single-id completion's swap (stores #306,
 ADR 0037). The pin was raised to `023774a7`, the head of its PR #291, so the
 tracked runtime has the command; it is re-pinned to the merge commit once that
-PR is on `dev`.
+PR is on `dev`. A release that completes its own Store (ADR 0037) on a runtime
+without the command is refused before anything is written, by
+`resources.verify_observed_view_check_for_releases`, which the entry point calls
+in its dry run and its run, and the Snakefile in `onstart`, beside the Indexed
+Variant Subset guard.
