@@ -1248,13 +1248,15 @@ class TestOneBundlePerStore(FixtureEmissionTestCase):
             phase_names(steps),
             {
                 "build": ["build", "top-hits", "overview", "validate"],
-                "completion": ["complete", "completion-overview", "completion-validate"],
+                "completion": [
+                    "complete", "completion-overview", "completion-validate", "completion-observed-view-check",
+                ],
             },
         )
         # The build phase runs to completion before the completion phase starts.
         self.assertEqual(
             [step.phase for step in steps],
-            ["build"] * 4 + ["completion"] * 3,
+            ["build"] * 4 + ["completion"] * 4,
         )
         complete = next(step for step in steps if step.name == "complete")
         self.assertEqual(complete.argv[:2], ["opengwasdb", "complete-dense"])
