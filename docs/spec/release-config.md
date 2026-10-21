@@ -40,7 +40,7 @@ key.
 | `description` | Yes | Prose for `release.yaml`. |
 | `notes` | No | Prose; the candidate's own evidence notes follow it in `release.yaml`. |
 | `source_collection` | Yes | The Source Collection and its files (below). |
-| `selection` | Yes | The Selection, in #283's grammar: exactly one of `all: true`, `analyses: [...]` or `where: {...}`. |
+| `selection` | Yes | The Selection, in #283's grammar: exactly one of `all: true`, `analyses: [...]` or `where: {...}`, with an optional `expect_rows` membership bound. |
 | `build` | Yes | The Build Recipe shape `build.yaml` carries (below). |
 | `indexed_subsets`, `indexed_subsets_opt_out` | No | Dense and Hybrid releases declare the maintained `hm3` Indexed Variant Subset by default; `[]` with a reason opts out; a Ragged release declares none (stores #210). |
 | `defaults` | Yes | Collection-wide Analytical Metadata defaults and the method tiers (below). |
@@ -106,9 +106,10 @@ adapter never writes a collection-wide fact into the table (#283).
 
 | Key | Required | Description |
 |---|---:|---|
-| `selection_superpopulation` | Yes | The super-population code (`AFR` `AMR` `EAS` `EUR` `MID` `NAF` `SAS`) the Selection expects. The `assigned_ancestry` Quality Check tests each Assigned Ancestry against it; it never moves an Analysis (ADR 0036). |
+| `selection_superpopulation` | Yes | The super-population code (`AFR` `AMR` `EAS` `EUR` `MID` `NAF` `SAS`) the Selection expects, or `multi-ancestry` for a Selection that names none (#290). The `assigned_ancestry` Quality Check tests each Assigned Ancestry against it; it never moves an Analysis (ADR 0036). `multi-ancestry` makes that check `not_applicable`: the measured fit is recorded and never assigned, so the emitted Assigned Ancestry stays empty with method `unassigned` and no Analysis is excluded for ancestry. |
 | `store_composition.require_maf_filtered` | No | The Store Composition Rule (ADR 0033). Needs a positive `defaults.maf_threshold`. |
 | `trust_source_ancestry_without_af` | No | `true` opts in to #287's decision for sources with no allele frequencies (Sun 2018): an Analysis whose Resolution Record shows ancestry unmeasurable for that reason takes its Source Metadata Table `source_superpopulation` as Assigned Ancestry (`source_trusted_no_af`), a warning-level `assigned_ancestry` result. The record shows it only under a MAF request, so the opt-in needs `defaults.maf_threshold` (0 filters nothing): the resolver then counts every row without a usable frequency (`maf_rows_missing`), and absence is every row it read (`canonical_rows_observed`) with no ancestry site. Default `false`: such an Analysis is `ancestry_unassigned`. A measured ancestry never takes the source label, and frequencies the fit could not read (palindromic sites, unusable standard errors) are not absent. |
+| `keep_unassigned_ancestry_as_warning` | No | `true` opts in to #290's decision: an Analysis the ancestry gates left unassigned (Assigned Ancestry empty in its Resolution Record, with frequencies it could read) stays in, unassigned -- Ancestry Assignment Method `unassigned`, a warning-level `assigned_ancestry` result counted in `validation.yaml` and recorded per Analysis in the Quality Check sidecar. Default `false`: it is excluded as `ancestry_unassigned`. A measured *different* super-population still excludes as `ancestry_not_eur`, and the opt-in is refused in a `multi-ancestry` Selection, which never assigns ancestry. |
 | `imputation_score_declarations` | No | The reviewed per-Analysis INFO score declarations (#175). The table is the Source Collection's, so Selections may share it: a declaration may name an Analysis outside the Selection when the collection intends it (the original Source Metadata Table the snapshot's provenance checksums), and only the Selection's apply. A declaration the collection does not intend is refused, and so is one outside the Selection when that table is not on the host. |
 | `maf_filter_exempt_genotyping_technologies` | No | Technologies exempt from the MAF floor (#176). |
 | `maf_filter_exempt_analyses` | No | The reviewed per-Analysis MAF-floor exemptions (#176). |

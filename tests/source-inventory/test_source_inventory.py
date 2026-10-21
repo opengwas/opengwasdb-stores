@@ -694,6 +694,7 @@ class TestPreflight(SourceInventoryTestCase):
             {
                 "source_collection_id": "gwas-catalog-ssf",
                 "selection": SELECTION,
+                "expect_rows": None,
                 "config_path": str(self.workspace.config_path),
             },
         )
@@ -1040,6 +1041,19 @@ class TestPreflightReconciliation(SourceInventoryTestCase):
             result.report["source_files"]["metadata_build_undeclared"],
             ["GCST90000001", "GCST90000003", "GCST90000004"],
         )
+
+    def test_a_selection_expect_rows_bound_is_checked_against_the_frozen_inventory(self) -> None:
+        """A declared membership bound is a check on the Selection (#290)."""
+        good = self.workspace.config(lambda document: document["selection"].update(expect_rows=9))
+        self.workspace.freeze(config=good)
+        result = self.workspace.preflight(config=good)
+        self.assertTrue(result.ok, result.failures)
+        self.assertEqual(result.report["selection"]["expect_rows"], 9)
+
+        drift = self.workspace.config(lambda document: document["selection"].update(expect_rows=10))
+        result = self.workspace.preflight(config=drift)
+        self.assertFalse(result.ok)
+        self.assertIn("expects 10", " ".join(result.failures))
 
     def test_a_provenance_frozen_for_another_selection_fails(self) -> None:
         self.workspace.freeze()

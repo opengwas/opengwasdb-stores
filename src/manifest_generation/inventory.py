@@ -38,11 +38,18 @@ import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Sequence
 
 import yaml
 
 from manifest_generation import REPO_ROOT
-from manifest_generation.freeze import FreezeError, freeze, frozen_paths, write_frozen_inventory
+from manifest_generation.freeze import (
+    FreezeError,
+    freeze,
+    frozen_paths,
+    load_collection_intent,
+    write_frozen_inventory,
+)
 from manifest_generation.release_config import ReleaseConfig, load_release_config
 from manifest_generation.source_inventory import (
     InventoryError,
@@ -50,6 +57,7 @@ from manifest_generation.source_inventory import (
     preflight,
     read_inventory,
     render_preflight_summary,
+    selection_partition_problems,
 )
 
 
@@ -139,7 +147,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     freeze_parser.add_argument("--frozen-at", help="ISO-8601 freeze timestamp (default: now, UTC)")
 
     check = subparsers.add_parser("preflight", help="prove the frozen inventory before reading any association row")
-    check.add_argument("--config", required=True, help="the release config")
+    check.add_argument(
+        "--config",
+        required=True,
+        action="append",
+        help="a release config; repeat to preflight Selections of one Source Collection together",
+    )
     check.add_argument("--cores", type=int, help="planned worker count (default: config runtime.cores)")
     check.add_argument("--work-root", help="override the run's work/log root (default: config output.work_root)")
     check.add_argument("--report", help="machine-readable JSON report path (default: <work-root>/preflight/)")
@@ -161,43 +174,79 @@ def command_freeze(args: argparse.Namespace, repo_root: Path) -> int:
 
 
 def command_preflight(args: argparse.Namespace, repo_root: Path) -> int:
-    config = load_release_config(_config_path(repo_root, args.config), repo_root)
-    if args.work_root:
-        config = dataclasses.replace(config, work_root=Path(args.work_root))
-    inventory_path = config.inventory_path
-    if not inventory_path.is_file():
+    if args.report and len(args.config) > 1:
         raise InventoryError(
-            f"frozen source inventory not found: {inventory_path}; freeze it first with "
-            "'pixi run inventory-freeze --config <release config>'"
+            "--report names one report path, but several --config values were given; run each "
+            "config separately or omit --report"
         )
-    rows = read_inventory(inventory_path)
-    result = preflight(
-        inventory_path=inventory_path,
-        provenance_path=config.inventory_provenance_path,
-        rows=rows,
-        config=config,
-        repo_root=repo_root,
-        cores=args.cores,
-    )
-
-    report_path = Path(args.report) if args.report else (
-        config.work_root / "preflight" / f"{inventory_path.stem}.json"
-    )
-    report_error: OSError | None = None
-    try:
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(
-            json.dumps(result.report, indent=2, sort_keys=False) + "\n", encoding="utf-8"
+    ok = True
+    releases: list[tuple[str, str, Sequence[str]]] = []
+    provenances: list[Path] = []
+    for value in args.config:
+        config = load_release_config(_config_path(repo_root, value), repo_root)
+        if args.work_root:
+            config = dataclasses.replace(config, work_root=Path(args.work_root))
+        inventory_path = config.inventory_path
+        if not inventory_path.is_file():
+            raise InventoryError(
+                f"frozen source inventory not found: {inventory_path}; freeze it first with "
+                "'pixi run inventory-freeze --config <release config>'"
+            )
+        rows = read_inventory(inventory_path)
+        result = preflight(
+            inventory_path=inventory_path,
+            provenance_path=config.inventory_provenance_path,
+            rows=rows,
+            config=config,
+            repo_root=repo_root,
+            cores=args.cores,
         )
-    except OSError as exc:
-        report_error = exc
+        releases.append((config.label, config.source_collection_id, [row.analysis_id for row in rows]))
+        provenances.append(config.inventory_provenance_path)
 
-    print(render_preflight_summary(result.report))
-    if report_error is not None:
-        print(f"ERROR: could not write report to {report_path}: {report_error}", file=sys.stderr)
-        return 1
-    print(f"Report: {report_path}")
-    return 0 if result.ok else 1
+        report_path = Path(args.report) if args.report else (
+            config.work_root / "preflight" / f"{inventory_path.stem}.json"
+        )
+        report_error: OSError | None = None
+        try:
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(
+                json.dumps(result.report, indent=2, sort_keys=False) + "\n", encoding="utf-8"
+            )
+        except OSError as exc:
+            report_error = exc
+
+        print(render_preflight_summary(result.report))
+        if report_error is not None:
+            print(f"ERROR: could not write report to {report_path}: {report_error}", file=sys.stderr)
+            ok = False
+            continue
+        print(f"Report: {report_path}")
+        ok = ok and result.ok
+
+    if len(releases) > 1:
+        # The multi-config preflight: Selections of one Source Collection must
+        # partition it, so drift in a rule or a bound fails by name (#290). The
+        # collection's checksummed intent is what proves completeness: an
+        # Analysis no Selection covers, or one no Selection could ever take, is
+        # named even though every Selection's own bound still matches
+        # (#290 review).
+        try:
+            intent = load_collection_intent(provenances[0])
+        except FreezeError as exc:
+            raise InventoryError(str(exc)) from exc
+        problems = selection_partition_problems(releases, collection_ids=intent.analysis_ids)
+        if problems:
+            print("FAILED: the Selections do not partition the Source Collection:", file=sys.stderr)
+            for problem in problems:
+                print(f"  - {problem}", file=sys.stderr)
+            ok = False
+        else:
+            print(
+                f"Selections partition {releases[0][1]}: "
+                f"{len(releases)} Selections, {sum(len(ids) for _label, _c, ids in releases)} rows"
+            )
+    return 0 if ok else 1
 
 
 def _config_path(repo_root: Path, value: str) -> Path:

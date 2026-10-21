@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import copy
 import csv
+import functools
 import tempfile
 import unittest
 from pathlib import Path
@@ -32,6 +33,20 @@ from manifest_generation.selection import SelectionError
 from manifest_generation.source_inventory import frozen_for_release_problems, sha256_file
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+#: Work-root prefixes a shipped snapshot may name, each with the ticket and the
+#: reason: a `/data/opengwasdb/work` directory is disposable unless a built
+#: release already binds it, and then it is named where it is kept (#300).
+DURABLE_WORK_ROOTS: dict[str, str] = {
+    # The dbGaP MVP's metadata refresh. OGS-00012..16's accepted
+    # `analyses.tsv` name its `gwas-ssf` mirror as `source_file`, and the
+    # Resolution Records' fingerprints name the same paths, so a regenerated
+    # MVP Selection must freeze them where they are (#290). #292 part 2 reads
+    # dbGaP's own raw GIA files instead and retires this entry.
+    "/data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/": (
+        "#290 the accepted dbGaP MVP bundles' metadata refresh"
+    ),
+}
 
 
 def minimal_config(root: Path) -> dict[str, Any]:
@@ -452,6 +467,28 @@ def shipped_release_configs() -> list[Path]:
     return sorted(GENERATORS.glob("*/release-*.yaml"))
 
 
+@functools.cache
+def shipped_provenance(path: Path) -> dict:
+    """A shipped snapshot's provenance, parsed once per process (#290 review).
+
+    Five dbGaP snapshots each list the reformat lineage of their whole
+    collection, so parsing them per test made this suite twice as slow. It goes
+    through the shared loader, so the tests and ``read_analysis_metadata`` share
+    one parse per snapshot.
+    """
+    from manifest_generation.freeze import load_provenance
+
+    return load_provenance(Path(path))
+
+
+@functools.cache
+def shipped_frozen_connectors(path: Path):
+    """A shipped snapshot's frozen connectors, parsed and checksummed once (#290 review)."""
+    from manifest_generation.freeze import load_frozen_connectors
+
+    return load_frozen_connectors(Path(path))
+
+
 def bundle_analyses(store_id: str) -> list[str]:
     with (REPO_ROOT / "stores" / store_id / "analyses.tsv").open(encoding="utf-8") as fh:
         return [row["analysis_id"] for row in csv.DictReader(fh, delimiter="\t")]
@@ -466,7 +503,7 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         for path in configs:
             with self.subTest(config=path.name):
                 config = load_release_config(path, REPO_ROOT)
-                provenance = yaml.safe_load(config.inventory_provenance_path.read_text(encoding="utf-8"))
+                provenance = shipped_provenance(config.inventory_provenance_path)
                 self.assertEqual(
                     frozen_for_release_problems(provenance, config.inventory_provenance_path, config),
                     [],
@@ -483,12 +520,12 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         lineage) still has the sha256 the freeze recorded; the frozen subsets
         beside the inventory are checked by ``load_frozen_connectors``.
         """
-        from manifest_generation.freeze import load_frozen_connectors, original_path
+        from manifest_generation.freeze import original_path
 
         scratch = ("/tmp/", "/data/opengwasdb/work/")
         for path in shipped_release_configs():
             config = load_release_config(path, REPO_ROOT)
-            provenance = yaml.safe_load(config.inventory_provenance_path.read_text(encoding="utf-8"))
+            provenance = shipped_provenance(config.inventory_provenance_path)
             recorded = [
                 provenance["source_metadata_table"]["original"],
                 provenance["acquisition_manifest"]["original"],
@@ -504,7 +541,7 @@ class ShippedReleaseConfigTests(unittest.TestCase):
                     original = original_path(entry["path"])
                     if original.is_file():
                         self.assertEqual(sha256_file(original), entry["sha256"])
-            table, manifest = load_frozen_connectors(config.inventory_provenance_path)
+            table, manifest = shipped_frozen_connectors(config.inventory_provenance_path)
             self.assertEqual(len(table.rows), provenance["rows"])
             self.assertEqual(len(manifest.entries), provenance["rows"])
 
@@ -513,13 +550,16 @@ class ShippedReleaseConfigTests(unittest.TestCase):
 
         A committed snapshot names files that outlive the run that wrote it:
         an original filtered from a scratch copy is recorded where it is kept
-        (#300).
+        (#300). One work-root directory is allowed because a built release
+        already binds it (``DURABLE_WORK_ROOTS``), and it must still be bound.
         """
         import csv
 
         from manifest_generation.freeze import original_path
 
         scratch = ("/tmp/", "/var/tmp/", "/data/opengwasdb/work/", f"{Path.home()}/.cache/")
+        durable = tuple(DURABLE_WORK_ROOTS)
+        bound: set[str] = set()
 
         def strings(value):
             if isinstance(value, str):
@@ -538,7 +578,7 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         for path in shipped_release_configs():
             config = load_release_config(path, REPO_ROOT)
             provenance_path = config.inventory_provenance_path
-            provenance = yaml.safe_load(provenance_path.read_text(encoding="utf-8"))
+            provenance = shipped_provenance(provenance_path)
             lineage = {"provenance": provenance, "frozen manifest": tsv(
                 provenance_path.parent / provenance["acquisition_manifest"]["frozen"]["path"]
             )}
@@ -551,7 +591,17 @@ class ShippedReleaseConfigTests(unittest.TestCase):
                     lineage["originals"] = tsv(original_path(originals["path"]))
             for where, value in lineage.items():
                 with self.subTest(config=path.name, where=where):
-                    self.assertEqual([text for text in strings(value) if text.startswith(scratch)], [])
+                    texts = list(strings(value))
+                    bound.update(root for root in durable if any(t.startswith(root) for t in texts))
+                    self.assertEqual(
+                        [
+                            text for text in texts
+                            if text.startswith(scratch) and not text.startswith(durable)
+                        ],
+                        [],
+                    )
+        # An allowance that no shipped snapshot uses is stale, not a licence.
+        self.assertEqual(sorted(durable), sorted(bound))
 
     def test_the_ogs_00011_config_reproduces_its_inventory_and_resolver_settings(self) -> None:
         from manifest_generation.candidate_workflow import (
@@ -609,7 +659,7 @@ class ShippedReleaseConfigTests(unittest.TestCase):
             with self.subTest(config=path.name):
                 config = load_candidate_configuration(path, REPO_ROOT)
                 provenance_path = config.base.inventory_provenance_path
-                provenance = yaml.safe_load(provenance_path.read_text(encoding="utf-8"))
+                provenance = shipped_provenance(provenance_path)
                 if not original_path(provenance["source_metadata_table"]["original"]["path"]).is_file():
                     self.skipTest("the collection's Source Metadata Table is not on this host")
                 rows = read_inventory(config.base.inventory_path)
@@ -621,7 +671,11 @@ class ShippedReleaseConfigTests(unittest.TestCase):
                         [row.analysis_id for row in rows],
                         lambda: collection_analysis_ids(provenance_path),
                     )
-                    self.assertEqual(len(declared), 704)
+                    if config.imputation_score_declarations is not None:
+                        # The GWAS Catalog collection's reviewed declarations.
+                        self.assertEqual(len(declared), 704)
+                    else:
+                        self.assertEqual(declared, {})
                     continue
                 metadata = read_analysis_metadata(provenance_path, ready)
                 manifest = derive_resolver_manifest(rows, config, metadata)

@@ -81,12 +81,10 @@ EXEMPTIONS: dict[str, str] = {
     # FinnGen R13 and ukb-b dense generators call it for AF-based ancestry and
     # phenotype SD (resources/generators/lib/opengwas_gwas_vcf_dense.R).
     "opengwas/annotate.py": "#288 (FinnGen), #289 (ukb-b)",
-    # The MVP pilot drives `opengwasdb resolve-analyses` its own way.
-    "dbgap/mvp/pilot/wrapper.py": "#290 (dbGaP MVP)",
 }
 
 #: Tickets an exemption may cite: the source moves still to come (epic #282).
-RETIRING_TICKETS: frozenset[str] = frozenset({"#288", "#289", "#290", "#291"})
+RETIRING_TICKETS: frozenset[str] = frozenset({"#288", "#289", "#291"})
 
 
 def _docstring_nodes(tree: ast.AST) -> set[int]:
@@ -168,7 +166,9 @@ class PerSourceStatisticsTests(unittest.TestCase):
             "gwas_catalog/source_metadata_adapter.py",
             "gwas_catalog/write_acquisition_manifest.py",
             "ukb_b/generate_candidate.py",
-            "dbgap/mvp/generate_candidate.py",
+            "dbgap/metadata.py",
+            "dbgap/mvp/source_metadata_adapter.py",
+            "dbgap/mvp/acquire_dbgap_phs002453.py",
             "finngen/acquire.py",
             "eqtlgen/generate.py",
         ):

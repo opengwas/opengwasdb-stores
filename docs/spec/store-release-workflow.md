@@ -1097,7 +1097,23 @@ one again, by name, rather than misreading it; a regeneration re-runs `resolve`.
 To spare that run the work, an operator may first copy the old Work Root's
 `resolver/records/<analysis_id>.json` files (not its `index.json`) into the
 checkpoint the run will use, `checkpoint/<settings-digest>/`, while no run holds
-the lock. The digest is
+the lock. `python3 -m manifest_generation.resolution_area_import --config
+<release config> --source <old records directory>` does that for one or more
+such directories (#290): it routes the records to the checkpoint the config's
+resolver settings select, writes each atomically, keeps each through the area's
+write-once path, and refuses, by name, a record that is not one the run could
+have written (#290 review). The run's own evidence must be present and must
+corroborate the record: a run with no `index.json`, a run with no receipt in the
+Work Root's sibling `receipt/`, or an index naming no Analysis is refused, never
+treated as nothing to check. A record must be named by that index, its
+measurements (`assigned_ancestry`, `gate_reason`, `status`, `original_sd` and
+`original_sd_method`, and its file name) must be the ones the index recorded,
+and, when the receipt binds per-record sha256 (`record_digests`), its bytes must
+match too. It must also be an Analysis of the Source Collection's checksummed
+intent, its fingerprint must digest to the value it stores, and the
+`source_file`/`source_recorded_sha256`/`source_recorded_bytes` it bound must be
+the ones the collection's Acquisition Manifest records. Only a successful record
+is seeded; a failed one would claim a measurement it does not have. The digest is
 `resolver_settings_digest(resolver_settings(config))` in
 `manifest_generation.candidate_workflow`. The resolver resumes each record whose
 fingerprint still matches, and re-resolves the rest, exactly as it would its own.

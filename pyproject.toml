@@ -34,7 +34,6 @@ packages = [
     "manifest_generation.providers",
     "manifest_generation.providers.dbgap",
     "manifest_generation.providers.dbgap.mvp",
-    "manifest_generation.providers.dbgap.mvp.pilot",
     "manifest_generation.providers.eqtlgen",
     "manifest_generation.providers.finngen",
     "manifest_generation.providers.gwas_catalog",

@@ -12,6 +12,12 @@ A release config declares its Selection in a ``selection`` block, exactly one of
     membership, and the columns are combined with AND. A blank cell matches
     nothing.
 
+Any form may also declare ``expect_rows: N``, the intended size of the
+Selection. It is a bound, not a filter: selecting a different number of rows is
+refused by name, which is how a Source Collection's long-standing membership
+count remains a loud check after a rule replaced a written-out partition
+(#290). It is recorded in the frozen inventory's provenance with the rule.
+
 The rule language stops there on purpose. Anything a rule cannot say is said
 with a list, which is reviewable line by line; negation, ranges and OR would
 make a Selection a program whose meaning a reviewer has to work out.
@@ -38,6 +44,9 @@ from manifest_generation.connector_tsv import FreezeError, listed
 from manifest_generation.source_metadata_table import COLUMNS, SourceMetadataTable
 
 FORMS: tuple[str, ...] = ("all", "analyses", "where")
+
+#: A declaration key that bounds a form's size rather than being a form.
+EXPECT_ROWS_KEY: str = "expect_rows"
 
 #: The keys of the pre-#283 generator-config ``selection`` grammar, every one
 #: a current config uses. #287 migrates those configs to the forms above.
@@ -74,8 +83,17 @@ class Selection:
     form: str = ""
     analyses: tuple[str, ...] = ()
     rule: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    #: The declaration's intended size, or ``None`` when it states none.
+    expect_rows: int | None = None
 
     def __post_init__(self) -> None:
+        if self.expect_rows is not None and (
+            type(self.expect_rows) is not int or self.expect_rows < 1
+        ):
+            raise SelectionError(
+                f"expect_rows must be a whole number of Analyses of at least 1, "
+                f"not {self.expect_rows!r}"
+            )
         if self.form not in FORMS:
             raise SelectionError(f"a Selection's form is one of {', '.join(FORMS)}, not {self.form!r}")
         needs = {"all": (False, False), "analyses": (True, False), "where": (False, True)}[self.form]
@@ -89,15 +107,19 @@ class Selection:
     def as_dict(self) -> dict[str, Any]:
         """The declaration as a release config writes it, for the inventory's provenance."""
         if self.form == "all":
-            return {"all": True}
-        if self.form == "analyses":
-            return {"analyses": list(self.analyses)}
-        return {
-            "where": {
-                column: values[0] if len(values) == 1 else list(values)
-                for column, values in self.rule
+            declared: dict[str, Any] = {"all": True}
+        elif self.form == "analyses":
+            declared = {"analyses": list(self.analyses)}
+        else:
+            declared = {
+                "where": {
+                    column: values[0] if len(values) == 1 else list(values)
+                    for column, values in self.rule
+                }
             }
-        }
+        if self.expect_rows is not None:
+            declared[EXPECT_ROWS_KEY] = self.expect_rows
+        return declared
 
 
 def parse_selection(raw: Any, *, where: str = "selection") -> Selection:
@@ -110,7 +132,7 @@ def parse_selection(raw: Any, *, where: str = "selection") -> Selection:
             f"{where} is a legacy Selection (keys: {', '.join(legacy)}); the shared freeze reads "
             f"only {', '.join(FORMS)}, and #287 migrates every release config to them"
         )
-    unknown = sorted(str(key) for key in raw if key not in FORMS)
+    unknown = sorted(str(key) for key in raw if key not in FORMS and key != EXPECT_ROWS_KEY)
     if unknown:
         raise SelectionError(f"{where} has unknown key(s): {', '.join(unknown)}")
     present = [key for key in FORMS if key in raw]
@@ -120,10 +142,16 @@ def parse_selection(raw: Any, *, where: str = "selection") -> Selection:
         )
     form = present[0]
     value = raw[form]
+    expect_rows = raw.get(EXPECT_ROWS_KEY)
+    if expect_rows is not None and (type(expect_rows) is not int or expect_rows < 1):
+        raise SelectionError(
+            f"{where}.expect_rows must be a whole number of Analyses of at least 1, "
+            f"not {expect_rows!r}"
+        )
     if form == "all":
         if value is not True:
             raise SelectionError(f"{where}.all must be true; select a subset with 'analyses' or 'where'")
-        return Selection(form="all")
+        return Selection(form="all", expect_rows=expect_rows)
     if form == "analyses":
         if not isinstance(value, list) or not value:
             raise SelectionError(f"{where}.analyses must be a non-empty list of source_analysis_id values")
@@ -131,7 +159,7 @@ def parse_selection(raw: Any, *, where: str = "selection") -> Selection:
         twice = sorted({item for item in analyses if analyses.count(item) > 1})
         if twice:
             raise SelectionError(f"{where}.analyses names {', '.join(twice)} twice")
-        return Selection(form="analyses", analyses=analyses)
+        return Selection(form="analyses", analyses=analyses, expect_rows=expect_rows)
     if not isinstance(value, Mapping) or not value:
         raise SelectionError(f"{where}.where must be a non-empty mapping of column to value or list")
     rule: list[tuple[str, tuple[str, ...]]] = []
@@ -145,7 +173,7 @@ def parse_selection(raw: Any, *, where: str = "selection") -> Selection:
         if not values:
             raise SelectionError(f"{where}.where.{column} is an empty list; it would select nothing")
         rule.append((column, tuple(_text(item, f"{where}.where.{column}") for item in values)))
-    return Selection(form="where", rule=tuple(rule))
+    return Selection(form="where", rule=tuple(rule), expect_rows=expect_rows)
 
 
 def load_selection(path: Path) -> Selection:
@@ -187,6 +215,12 @@ def select(table: SourceMetadataTable, selection: Selection) -> tuple[Mapping[st
     if not selected:
         raise SelectionError(
             f"Selection {selection.as_dict()} selects no Analysis from {table.path}"
+        )
+    if selection.expect_rows is not None and len(selected) != selection.expect_rows:
+        raise SelectionError(
+            f"Selection {selection.as_dict()} expects {selection.expect_rows} Analysis/Analyses "
+            f"from {table.path}, but selects {len(selected)}; a changed Source Metadata Table or "
+            "rule is a reviewed re-freeze with a new bound, not a silent membership change"
         )
     return selected
 

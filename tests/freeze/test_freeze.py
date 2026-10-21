@@ -270,6 +270,47 @@ class FreezeSuccessTest(FreezeFixture):
             load_frozen_connectors(provenance)
         self.assertIn("fixture-snapshot.acquisition-manifest.tsv", str(caught.exception))
 
+    def test_a_provenance_rewritten_without_changing_its_size_is_reparsed(self) -> None:
+        """The parse cache is keyed by content, so stale integrity evidence is never served (#290 review)."""
+        _, provenance, _ = self.write(self.freeze())
+        # A first read fills the cache with the valid provenance.
+        load_frozen_connectors(provenance)
+
+        stat = provenance.stat()
+        text = provenance.read_text(encoding="utf-8")
+        document = yaml.safe_load(text)
+        recorded = document["acquisition_manifest"]["frozen"]["sha256"]
+        doctored = "0" * 64 if recorded != "0" * 64 else "1" * 64
+        provenance.write_text(text.replace(recorded, doctored), encoding="utf-8")
+        os.utime(provenance, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+        self.assertEqual(provenance.stat().st_size, stat.st_size)
+        self.assertEqual(provenance.stat().st_mtime_ns, stat.st_mtime_ns)
+
+        with self.assertRaisesRegex(FreezeError, "sha256"):
+            load_frozen_connectors(provenance)
+
+    def test_the_parse_cached_under_a_digest_is_the_parse_of_that_digest_s_bytes(self) -> None:
+        """Bytes changing between hashing and parsing can never file one parse under another's key (#290 review)."""
+        from manifest_generation import freeze as freeze_module
+
+        path = self.tmp / "provenance.yaml"
+        first = b"snapshot_id: alpha\n"
+        second = b"snapshot_id: beta\n"
+        path.write_bytes(first)
+        reads = [first, second]
+
+        def read_bytes(_self: Path) -> bytes:
+            # The first read is what the loader hashes; any later read is a
+            # different file, as a concurrent rewrite would be.
+            return reads.pop(0) if reads else second
+
+        with mock.patch.object(Path, "read_bytes", read_bytes):
+            document = freeze_module.load_provenance(path)
+        # The parse is of the bytes whose digest is the key, not of a later read.
+        self.assertEqual(document, {"snapshot_id": "alpha"})
+        # And a later call for the same content finds that parse under its digest.
+        self.assertEqual(freeze_module.load_provenance(path), {"snapshot_id": "alpha"})
+
     def test_provenance_records_lineage_and_duplicate_content(self) -> None:
         _, provenance, _ = self.write(self.freeze())
         document = yaml.safe_load(provenance.read_text(encoding="utf-8"))

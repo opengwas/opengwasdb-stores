@@ -1,49 +1,26 @@
-# MVP ancestry/META candidate emitter test suite
+# dbGaP MVP test suite (#290)
 
-Test suite for the dbGaP MVP generator, `manifest_generation.providers.dbgap.mvp`
-(issue #221); its config stays in `resources/generators/dbgap-mvp`.
+MVP `phs002453` is the dbGaP Source Provider's pilot collection on the shared
+pipeline. These tests sit at the four seams the ticket agreed:
 
-## Contracts and invariants covered
+| File | Seam |
+|---|---|
+| `test_dbgap_metadata.py` | The shared `providers/dbgap/metadata.py`: tar tables of contents, `*.dbGaP.metadata.txt` parsing, sample sizes. Moved here from the acquisition suite when the plumbing became a helper. |
+| `test_source_metadata_adapter.py` | The MVP adapter: the acquisition mapping and the deposit's metadata become the canonical Source Metadata Table, with literal expected values; `META` is imprecise. |
+| `test_selection_partition.py` | Five disjoint Selections on the adapter's `store_key`, the `expect_rows` bound, and the multi-config partition check. |
+| `test_resolution_import.py` | Seeding the Source Collection's Resolution Area from pre-#284 records (the MVP's five accepted record sets). |
+| `test_end_to_end.py` | Two MVP-shaped Analyses through `freeze`, `prepare`, `resolve` (the hermetic fake resolver in `tests/phase-b-candidate/fixtures/`), `render` and `emit` into a temporary registry, under 5 s. |
 
-1. **Exact, disjoint partition**: the mapping's ancestry buckets are classified
-   into EUR/AFR/AMR/EAS/META, the legacy European bucket reconciles as
-   EUR + META, and an unknown ancestry or a count drift fails loudly.
-2. **META is observed-only**: its emitted bundle has no `derived_from` and no
-   `complete` recipe even though an EUR panel exists.
-3. **Completion is reference-gated honestly**: a qualified reference is never
-   inferred from a `declared_status`, so every completed child is emitted as a
-   pending, blocked definition; a missing suggested panel still produces a
-   pending definition (no fabricated recipe).
-4. **Acceptance stays pending**: every observed Store is `status: accepted` and
-   has an `accepted_at` only so the dev release workflow may build it (#247),
-   and every bundle carries a `validation.yaml` whose `human_acceptance` is
-   `pending` and whose warnings say it is not verified. A completed child whose
-   reference is pending/blocked stays `status: candidate` and is refused by
-   `partition_buildable`.
-5. **Planned metadata cross-check**: the four store manifests under the
-   configured metadata root are read (metadata only) and their counts must match
-   the mapping partition (combined European = EUR + META); a drift raises.
-6. **Tracked definitions**: `write_candidate_definitions` records the intended
-   membership/recipe with `in_stores: false`, `owner_ordering_approved: false`,
-   planned manifest paths, and pending acceptance and resolution.
-7. **Fail closed**: a missing or extra resolution row, a blank or wrong
-   source-binding value (`source_analysis_id`/`source_file`/`source_genome_build`),
-   a non-finite sample size, a cross-ancestry row, a same-count manifest with a
-   swapped ID, a forged config digest, an attempted overwrite, a symlinked
-   output path, or an output under the registry `stores/` tree all raise rather
-   than emit.
-8. **Safe writes**: the shared `safe_write` helper refuses a stale
-   `.partial` temp, a symlinked final, an out-of-root target, and a silent
-   overwrite.
-9. **Provenance**: every emitted `release.yaml` carries a `source_snapshot` with
-   the actual metadata receipt/candidate/manifest/resolution sha256 values
-   (regular metadata only).
-10. Every emitted bundle passes `bundle.check()` (run inside the emitter).
+The acquisition's own suite (`tests/dbgap-phs002453/`) still covers extract,
+map, convert and the shared Acquisition Manifest writer. The retired #221
+generator, partition and pilot have no tests because they no longer exist.
 
-## Running the suite
+Run from the repository root:
 
 ```sh
-python3 tests/dbgap-mvp/test_generate_candidate.py
-# or through the repo orchestrator
-pixi run test-python
+python3 tests/dbgap-mvp/test_dbgap_metadata.py
+python3 tests/dbgap-mvp/test_source_metadata_adapter.py
+python3 tests/dbgap-mvp/test_selection_partition.py
+python3 tests/dbgap-mvp/test_resolution_import.py
+python3 tests/dbgap-mvp/test_end_to_end.py
 ```

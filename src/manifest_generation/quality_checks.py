@@ -95,14 +95,22 @@ class Result(StrEnum):
     INVALID = "invalid"
     #: An exclusion check's measurement fails its test, but a policy the release
     #: declared keeps the Analysis and records the finding. Only a check
-    #: declared ``warns`` gives it; today ``assigned_ancestry``, for an Analysis
+    #: declared ``warns`` gives it; today ``assigned_ancestry``: an Analysis
     #: whose source has no allele frequencies when the release trusts the
-    #: source's super-population (#287).
+    #: source's super-population (#287), or one the ancestry gates left
+    #: unassigned when the release keeps it as a recorded warning (#290).
     WARNING = "warning"
 
 
 if tuple(Result) != QUALITY_CHECK_RESULTS:  # pragma: no cover - import-time guard
     raise ImportError("quality_checks.Result disagrees with ogstores.bundle.QUALITY_CHECK_RESULTS")
+
+#: The ``release_policy.selection_superpopulation`` value for a Selection that
+#: names no single super-population (#290). Assigned Ancestry is never assigned
+#: for such a release: the ancestry fit is measured and recorded, the emitted
+#: ancestry stays blank with method ``unassigned``, and no Analysis is excluded
+#: for ancestry. META, dbGaP's cross-ancestry bucket, is one (OGS-00016).
+MULTI_ANCESTRY_SELECTION: str = "multi-ancestry"
 
 #: The pinned upstream EAF-orientation vocabulary (opengwasdb
 #: ``EafOrientationOutcome``). ``failed`` means the A1-oriented source
@@ -139,7 +147,9 @@ class Subject:
     ``source_superpopulation`` is the Source Metadata Table's, and
     ``trust_source_ancestry_without_af`` the release's opt-in to take it as
     Assigned Ancestry when the record shows the source has no allele
-    frequencies (#287).
+    frequencies (#287). ``keep_unassigned_ancestry_as_warning`` is the release's
+    opt-in to keep an Analysis the ancestry gates left unassigned, recorded but
+    never assigned (#290).
     """
 
     analysis_id: str
@@ -149,6 +159,7 @@ class Subject:
     effect_placeholder_reason: str | None = None
     source_superpopulation: str = ""
     trust_source_ancestry_without_af: bool = False
+    keep_unassigned_ancestry_as_warning: bool = False
 
     @property
     def resolved(self) -> bool:
@@ -386,6 +397,14 @@ def _assigned_ancestry(subject: Subject, _threshold: None) -> Finding:
     Source Metadata Table's ``source_superpopulation`` stands in, recorded as a
     ``warning`` when it is the Selection's. A measured ancestry -- assigned, or
     measured and gated -- never takes the source label.
+
+    #290's two decisions. A multi-ancestry Selection
+    (:data:`MULTI_ANCESTRY_SELECTION`) is ``not_applicable``: its ancestry fit
+    is still measured and recorded, and never becomes Assigned Ancestry. And a
+    release that opts in with
+    ``release_policy.keep_unassigned_ancestry_as_warning`` keeps an Analysis the
+    gates left unassigned as a ``warning``, still unassigned; a measured
+    *different* super-population still excludes.
     """
     if not subject.resolved:
         return Finding(Result.UNMEASURED)
@@ -393,9 +412,26 @@ def _assigned_ancestry(subject: Subject, _threshold: None) -> Finding:
     assigned = str(ancestry.get("assigned_ancestry") or "").strip()
     gate_reason = str(ancestry.get("gate_reason") or "").strip()
     measured = f"assigned_ancestry={assigned or 'none'} gate_reason={gate_reason or 'none'}"
+    if subject.selection_ancestry == MULTI_ANCESTRY_SELECTION:
+        return Finding(
+            Result.NOT_APPLICABLE,
+            measured,
+            detail=(
+                "multi-ancestry Selection: the measured ancestry fit is recorded, never "
+                "assigned, so no Analysis is excluded for ancestry (#290)"
+            ),
+        )
     if not assigned:
         observed = no_allele_frequency(subject.record)
         if observed is None:
+            if subject.keep_unassigned_ancestry_as_warning:
+                return Finding(
+                    Result.WARNING,
+                    measured,
+                    "ancestry_unassigned",
+                    f"gate_reason={gate_reason or 'none'}; release_policy."
+                    "keep_unassigned_ancestry_as_warning keeps it, unassigned (#290)",
+                )
             return Finding(
                 Result.FAILED, measured, "ancestry_unassigned", f"gate_reason={gate_reason or 'none'}"
             )
@@ -445,6 +481,17 @@ def _assigned_ancestry(subject: Subject, _threshold: None) -> Finding:
             f"assigned_ancestry={assigned} (release target {subject.selection_ancestry})",
         )
     return Finding(Result.PASSED, measured)
+
+
+#: The Assigned Ancestry results a kept-unassigned Analysis carries: the
+#: ``assigned_ancestry`` finding is a ``warning`` that names the exclusion reason
+#: the gates would otherwise have given (#290).
+KEPT_UNASSIGNED_REASON: str = "ancestry_unassigned"
+
+
+def kept_unassigned(finding: Finding) -> bool:
+    """True when ``finding`` is the kept-unassigned warning, not a source-trusted one."""
+    return finding.result is Result.WARNING and finding.reason == KEPT_UNASSIGNED_REASON
 
 
 #: OpenGWASDB's phenotype-SD reason when the release's method tier declares the

@@ -60,6 +60,7 @@ import yaml
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
 import manifest_generation.candidate_workflow as candidate_workflow  # noqa: E402
+import manifest_generation.freeze as freeze_module  # noqa: E402
 import manifest_generation.qc_panel_concordance as qc_panel_concordance  # noqa: E402
 from ogstores import bundle as bundle_module  # noqa: E402
 from ogstores.plan import plan  # noqa: E402
@@ -600,11 +601,13 @@ def _one_invocation() -> Iterator[None]:
     time. The content digest memo is keyed by path, device, inode, size and
     mtime, so a reference rewritten to the same length with its mtime restored
     would be read as the bytes it used to be, and verification would pass where
-    a process refuses (#282 review).
+    a process refuses (#282 review). The provenance parse is memoised the same
+    way, for the same reason (#290 review).
     """
 
     def clear() -> None:
         candidate_workflow._SHA256_BY_FILE_IDENTITY.clear()
+        freeze_module._parsed_provenance.cache_clear()
         # Per-worker concordance state: a single-worker run fills it in this
         # process. Every run sets it before use, and dropping it after the run
         # releases the reference the run loaded with it.
@@ -3553,6 +3556,13 @@ class SharedResolutionRecordsTests(unittest.TestCase):
         # review).
         outcomes = self._all_success_outcomes()
         self.assertEqual(self._run(outcomes=outcomes)[0].returncode, 0)
+        # The provenance parse is memoised by file identity too, so a sidecar
+        # rewritten with its mtime restored would be read as the bytes it used
+        # to be. The runner leaves it as empty as a fresh process would (#290
+        # review).
+        self.assertEqual(
+            freeze_module._parsed_provenance.cache_info().currsize, 0
+        )
 
         reference = self.fixture.root / "reference" / "ref_freqs.tsv.gz"
         stat = reference.stat()

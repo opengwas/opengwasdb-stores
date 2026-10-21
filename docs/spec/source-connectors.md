@@ -121,7 +121,7 @@ Its translations, and only these:
 - **Super-population** (`source_ancestry.load_source_label_translation`). A
   label `source_label_map.tsv` lists becomes its code. A label
   `source_label_imprecise.tsv` lists -- `Multiple/Mixed`, `NR/Unknown`,
-  `Other`, `Asian (unspecified)`, each with its reason -- leaves
+  `Other`, `Asian (unspecified)`, `META`, each with its reason -- leaves
   `source_superpopulation` blank on purpose. Any other label is refused by
   name, so a new or misspelt label is never silently blank: map it, or list it
   as imprecise with a reason. Both files live in the
@@ -137,6 +137,39 @@ source_analysis_id  source_trait_label  source_ancestry_label  source_superpopul
 GCST000028          Type 2 diabetes     European               EUR                     case-control  2931         1464     1467        17463246          hybrid__European
 GCST90006908        Anti-human herpes…  European               EUR                     quantitative  8735                             33204752          hybrid__European
 ```
+
+### The dbGaP MVP adapter
+
+`src/manifest_generation/providers/dbgap/mvp/source_metadata_adapter.py`
+joins the acquisition's Analysis/candidate binding (`mapping.tsv`) with the
+deposit's own `*.dbGaP.metadata.txt`, and writes the canonical table. dbGaP is
+a host, not one collection (ADR 0036), so this adapter is the MVP Source
+Collection's; a later dataset shares only `providers/dbgap/metadata.py`.
+
+| Deposit or mapping value | Canonical column |
+|---|---|
+| `analysis_id` | `source_analysis_id` |
+| `Analyzed variable` | `source_trait_label` |
+| `dbgap_trait_code` | `source_trait_id` |
+| member ancestry (`EUR`, `AFR`, `AMR`, `EAS`, `META`) | `source_ancestry_label`: `European`, `African`, `Hispanic or Latin American`, `East Asian`, `META` |
+| that label through `source_label_map.tsv`, or blank for `META` | `source_superpopulation` |
+| `Phenotypic trait type` | `study_design` |
+| `Sample size` | `sample_size`, and `n_cases`/`n_controls` for a case-control study only |
+| the post-split bucket | `store_key`: `dense__pmid-39024449__European`, `__African`, `__Hispanic-or-Latin-American`, `__East-Asian`, `__Multi-ancestry` |
+
+`META` is deliberately imprecise: the cross-ancestry bucket has no single
+super-population, so its `source_superpopulation` is blank and it never maps
+to one. The adapter writes the post-split `store_key` rather than the legacy
+candidate key that folded META into the European bucket, so five Selections
+can each name one bucket on a canonical column.
+
+Counts are validated by study design and absence is never a zero (#290 review):
+a case-control Analysis must record both counts in the deposit and in the
+mapping, and the two must agree; a quantitative Analysis must record neither,
+and a non-zero count there is refused. A count the deposit does not record is
+absent -- `n_cases`/`n_controls` stay blank -- never written as `0`. Every other
+deposit value that disagrees with the mapping is refused, and so is an unknown
+ancestry in a member name, as the GWAS Catalog adapter does (#133, #290).
 
 ### SomaScan target annotation
 
@@ -387,6 +420,35 @@ the pin, as the R emitter leaves it blank on a fresh emit: a mismatch refuses th
 bytes before promotion, leaving the staged `.part` file and the recorded checksum
 untouched.
 
+### The dbGaP MVP acquisition writer
+
+The dbGaP MVP acquisition
+(`src/manifest_generation/providers/dbgap/mvp/acquire_dbgap_phs002453.py`,
+`manifest`) writes one manifest for the whole Source Collection, not one per
+candidate store key (#290). A mapped Analysis whose converted file is absent
+is an explained absence with status `data_absent_upstream` and the path it
+would have had. `--recorded-manifests` lets it reuse the sha256 the
+acquisition recorded while converting, re-checking each file's size, so a
+metadata-only reproduction does not re-read the corpus; without it the writer
+hashes the files itself.
+
+Every ready row carries the reformatting lineage ADR 0036 requires (#290
+review). The original is a member of a published tar, so `original_location` is
+`<tar path>#<member>`; `original_sha256` and `original_bytes` are the extracted
+member's own, cross-checked against the deposit's table of contents (the tar
+itself is deleted after extraction, so only its recorded md5 survives, and it
+identifies the container rather than these bytes); and `reformat_tool` names
+the code that actually rewrote the file, never the code writing the manifest
+(#290 review). `convert` records its own `module_sha256` and the executing
+commit in a receipt under `GIA/convert-receipts/`, which a later `manifest` run
+reads; for files acquired before that, `--conversion-history` reads a
+conversion run's own record (`parent-run-summary.json`'s `code_sha` and
+`refresh-receipt.tsv`'s per-Analysis action), so a file it converted carries
+that commit and a file it only re-canonicalised carries
+`sha256:unrecorded` with the evidence searched, because no conversion-time
+record names that code. A rewritten file whose extracted original is gone is
+refused by name rather than given an invented identity.
+
 ## Selection
 
 A release config declares exactly one form in its `selection` block:
@@ -407,6 +469,12 @@ selection:
     store_key: hybrid__European    #   a value is equality
     study_design: [quantitative, case-control]   # a list is membership
 ```
+
+Any form may also carry `expect_rows: N`, the Selection's intended size. It is
+a bound, not a filter: `freeze` refuses a Selection that takes a different
+number of rows, by name, and preflight re-checks the frozen inventory against
+it. It is recorded in the provenance with the rule, so a changed bound is a
+reviewed re-freeze under a new snapshot id (#290).
 
 Rule values are strings or integers, compared with the cell's text; a blank
 cell matches nothing. A rule column must be canonical and carried by the table.
@@ -496,6 +564,25 @@ must still exist, and a build it declares (`genome_assembly`, as a GWAS-SSF
 else the release config's default. A sidecar declaring no build is counted.
 Harmonisation is not a preflight requirement: the GWAS Catalog downloader gates
 it at acquisition and records a failure as `metadata_rejected`.
+
+### Preflighting several Selections together
+
+`pixi run preflight --config A --config B ...` preflights each release config,
+then checks that the Selections of their one Source Collection partition it:
+they name the same collection, no Analysis is selected twice, and each
+Selection's declared `expect_rows` matches its frozen inventory. The retired
+dbGaP MVP partition proved exactly this for its five ancestry buckets (#290);
+the check now follows the Selections rather than a written-out partition.
+
+Completeness is proved against the collection, not against the Selections
+(#290 review): the command reads the Source Collection's checksummed intent --
+the whole-collection Source Metadata Table and Acquisition Manifest the frozen
+snapshot's provenance records -- and fails, naming each one, on an Analysis no
+Selection covers and on a selected Analysis the collection does not intend. An
+`expect_rows` bound cannot see a row that has been added to the collection, and
+a set of Selections that is merely disjoint is not a partition; a preflight
+that cannot read those originals fails rather than reporting a partial result
+as complete.
 
 ## Pilot prefixes
 

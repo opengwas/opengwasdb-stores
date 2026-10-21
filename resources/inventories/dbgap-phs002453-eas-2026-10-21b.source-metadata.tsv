@@ -1,0 +1,242 @@
+source_analysis_id	source_trait_label	source_trait_id	source_ancestry_label	source_superpopulation	study_design	sample_size	n_cases	n_controls	publication_pmid	store_key
+GCST90476550	hemoglobin A1c (HbA1c, maximum, inv-norm transformed)	A1C_Max_INT	East Asian	EAS	quantitative	5477			39024449	dense__pmid-39024449__East-Asian
+GCST90476551	hemoglobin A1c (HbA1c, mean, inv-norm transformed)	A1C_Mean_INT	East Asian	EAS	quantitative	5475			39024449	dense__pmid-39024449__East-Asian
+GCST90476552	hemoglobin A1c (HbA1c, minimum, inv-norm transformed)	A1C_Min_INT	East Asian	EAS	quantitative	5466			39024449	dense__pmid-39024449__East-Asian
+GCST90476556	alanine transaminase (ALT, maximum, inv-norm transformed)	ALT_Max_INT	East Asian	EAS	quantitative	6054			39024449	dense__pmid-39024449__East-Asian
+GCST90476557	alanine transaminase (ALT, mean, inv-norm transformed)	ALT_Mean_INT	East Asian	EAS	quantitative	6050			39024449	dense__pmid-39024449__East-Asian
+GCST90476558	alanine transaminase (ALT, minimum, inv-norm transformed)	ALT_Min_INT	East Asian	EAS	quantitative	6027			39024449	dense__pmid-39024449__East-Asian
+GCST90476559	aspartate aminotransferase (AST, maximum, inv-norm transformed)	AST_Max_INT	East Asian	EAS	quantitative	5839			39024449	dense__pmid-39024449__East-Asian
+GCST90476560	aspartate aminotransferase (AST, mean, inv-norm transformed)	AST_Mean_INT	East Asian	EAS	quantitative	5835			39024449	dense__pmid-39024449__East-Asian
+GCST90476561	aspartate aminotransferase (AST, minimum, inv-norm transformed)	AST_Min_INT	East Asian	EAS	quantitative	5834			39024449	dense__pmid-39024449__East-Asian
+GCST90476553	albumin (maximum, inv-norm transformed)	Albumin_Max_INT	East Asian	EAS	quantitative	5708			39024449	dense__pmid-39024449__East-Asian
+GCST90476554	albumin (mean, inv-norm transformed)	Albumin_Mean_INT	East Asian	EAS	quantitative	5707			39024449	dense__pmid-39024449__East-Asian
+GCST90476555	albumin (minimum, inv-norm transformed)	Albumin_Min_INT	East Asian	EAS	quantitative	5708			39024449	dense__pmid-39024449__East-Asian
+GCST90476575	blood urea nitrogen (BUN, maximum, inv-norm transformed)	BUN_BSP_Max_INT	East Asian	EAS	quantitative	6277			39024449	dense__pmid-39024449__East-Asian
+GCST90476576	blood urea nitrogen (BUN, mean, inv-norm transformed)	BUN_BSP_Mean_INT	East Asian	EAS	quantitative	6288			39024449	dense__pmid-39024449__East-Asian
+GCST90476577	blood urea nitrogen (BUN, minimum, inv-norm transformed)	BUN_BSP_Min_INT	East Asian	EAS	quantitative	6303			39024449	dense__pmid-39024449__East-Asian
+GCST90476562	bicarbonate (maximum, inv-norm transformed)	Bicarbonate_Max_INT	East Asian	EAS	quantitative	5460			39024449	dense__pmid-39024449__East-Asian
+GCST90476563	bicarbonate (mean, inv-norm transformed)	Bicarbonate_Mean_INT	East Asian	EAS	quantitative	5460			39024449	dense__pmid-39024449__East-Asian
+GCST90476565	bicarbonate (minimum, inv-norm transformed)	Bicarbonate_Min_INT	East Asian	EAS	quantitative	5459			39024449	dense__pmid-39024449__East-Asian
+GCST90476588	chloride  (maximum, inv-norm transformed)	Chloride_BSP_Max_INT	East Asian	EAS	quantitative	5464			39024449	dense__pmid-39024449__East-Asian
+GCST90476590	chloride  (mean, inv-norm transformed)	Chloride_BSP_Mean_INT	East Asian	EAS	quantitative	5468			39024449	dense__pmid-39024449__East-Asian
+GCST90476591	chloride  (minimum, inv-norm transformed)	Chloride_BSP_Min_INT	East Asian	EAS	quantitative	5467			39024449	dense__pmid-39024449__East-Asian
+GCST90476636	creatinine (maximum, inv-norm transformed)	Creat_BSP_Max_INT	East Asian	EAS	quantitative	6275			39024449	dense__pmid-39024449__East-Asian
+GCST90476637	creatinine (mean, inv-norm transformed)	Creat_BSP_Mean_INT	East Asian	EAS	quantitative	6285			39024449	dense__pmid-39024449__East-Asian
+GCST90476638	creatinine (minimum, inv-norm transformed)	Creat_BSP_Min_INT	East Asian	EAS	quantitative	6305			39024449	dense__pmid-39024449__East-Asian
+GCST90476722	estimated glomerular filtration rate (eGFR, maximum, inv-norm transformed)	eGFR_Max_INT	East Asian	EAS	quantitative	6249			39024449	dense__pmid-39024449__East-Asian
+GCST90476723	estimated glomerular filtration rate (eGFR, mean, inv-norm transformed)	eGFR_Mean_INT	East Asian	EAS	quantitative	6248			39024449	dense__pmid-39024449__East-Asian
+GCST90476725	estimated glomerular filtration rate (eGFR, minimum, inv-norm transformed)	eGFR_Min_INT	East Asian	EAS	quantitative	6247			39024449	dense__pmid-39024449__East-Asian
+GCST90476787	glucose (fasting status unknown, maximum, inv-norm transformed)	Glucose_Max_INT	East Asian	EAS	quantitative	6318			39024449	dense__pmid-39024449__East-Asian
+GCST90476788	glucose (fasting status unknown, mean, inv-norm transformed)	Glucose_Mean_INT	East Asian	EAS	quantitative	6317			39024449	dense__pmid-39024449__East-Asian
+GCST90476789	glucose (fasting status unknown, minimum, inv-norm transformed)	Glucose_Min_INT	East Asian	EAS	quantitative	6299			39024449	dense__pmid-39024449__East-Asian
+GCST90476790	hematocrit (maximum, inv-norm transformed)	HCT_Max_INT	East Asian	EAS	quantitative	5964			39024449	dense__pmid-39024449__East-Asian
+GCST90476791	hematocrit (mean, inv-norm transformed)	HCT_Mean_INT	East Asian	EAS	quantitative	5964			39024449	dense__pmid-39024449__East-Asian
+GCST90476792	hematocrit (minimum, inv-norm transformed)	HCT_Min_INT	East Asian	EAS	quantitative	5964			39024449	dense__pmid-39024449__East-Asian
+GCST90475346	high density lipoprotein cholesterol (HDLC, maximum, inv-norm transformed)	HDLC_Max_INT	East Asian	EAS	quantitative	6005			39024449	dense__pmid-39024449__East-Asian
+GCST90475350	high density lipoprotein cholesterol (HDLC, mean, inv-norm transformed)	HDLC_Mean_INT	East Asian	EAS	quantitative	6005			39024449	dense__pmid-39024449__East-Asian
+GCST90475354	high density lipoprotein cholesterol (HDLC, minimm, inv-norm transformed)	HDLC_Min_INT	East Asian	EAS	quantitative	6005			39024449	dense__pmid-39024449__East-Asian
+GCST90475370	hemoglobin (maximum, inv-norm transformed)	Hemoglobin_Max_INT	East Asian	EAS	quantitative	5963			39024449	dense__pmid-39024449__East-Asian
+GCST90475374	hemoglobin (mean, inv-norm transformed)	Hemoglobin_Mean_INT	East Asian	EAS	quantitative	5963			39024449	dense__pmid-39024449__East-Asian
+GCST90475378	hemoglobin (minimum, inv-norm transformed)	Hemoglobin_Min_INT	East Asian	EAS	quantitative	5963			39024449	dense__pmid-39024449__East-Asian
+GCST90475410	low density lipoprotein cholesterol (LDLC, maximum, inv-norm transformed)	LDLC_Max_INT	East Asian	EAS	quantitative	6009			39024449	dense__pmid-39024449__East-Asian
+GCST90475414	low density lipoprotein cholesterol (LDLC, mean, inv-norm transformed)	LDLC_Mean_INT	East Asian	EAS	quantitative	6010			39024449	dense__pmid-39024449__East-Asian
+GCST90475418	low density lipoprotein cholesterol (LDLC, minimum, inv-norm transformed)	LDLC_Min_INT	East Asian	EAS	quantitative	6010			39024449	dense__pmid-39024449__East-Asian
+GCST90475452	mean corpuscular hemoglobin concentration (MCHC, maximum, inv-norm transformed)	MCHC_Max_INT	East Asian	EAS	quantitative	5943			39024449	dense__pmid-39024449__East-Asian
+GCST90475456	mean corpuscular hemoglobin concentration (MCHC, mean, inv-norm transformed)	MCHC_Mean_INT	East Asian	EAS	quantitative	5942			39024449	dense__pmid-39024449__East-Asian
+GCST90475460	mean corpuscular hemoglobin concentration (MCHC, minimum, inv-norm transformed)	MCHC_Min_INT	East Asian	EAS	quantitative	5943			39024449	dense__pmid-39024449__East-Asian
+GCST90475440	mean corpuscular hemoglobin (MCH, maximum, inv-norm transformed)	MCH_Max_INT	East Asian	EAS	quantitative	5942			39024449	dense__pmid-39024449__East-Asian
+GCST90475444	mean corpuscular hemoglobin (MCH, mean, inv-norm transformed)	MCH_Mean_INT	East Asian	EAS	quantitative	5944			39024449	dense__pmid-39024449__East-Asian
+GCST90475448	mean corpuscular hemoglobin (MCH, minimum, inv-norm transformed)	MCH_Min_INT	East Asian	EAS	quantitative	5944			39024449	dense__pmid-39024449__East-Asian
+GCST90475464	mean corpuscular volume (MCV, maximum, inv-norm transformed)	MCV_Max_INT	East Asian	EAS	quantitative	5949			39024449	dense__pmid-39024449__East-Asian
+GCST90475468	mean corpuscular volume (MCV, mean, inv-norm transformed)	MCV_Mean_INT	East Asian	EAS	quantitative	5950			39024449	dense__pmid-39024449__East-Asian
+GCST90475472	mean corpuscular volume (MCV, minimum, inv-norm transformed)	MCV_Min_INT	East Asian	EAS	quantitative	5951			39024449	dense__pmid-39024449__East-Asian
+GCST90479345	platelet count (maximum, inv-norm transformed)	Platelet_Max_INT	East Asian	EAS	quantitative	5942			39024449	dense__pmid-39024449__East-Asian
+GCST90479346	platelet count (mean, inv-norm transformed)	Platelet_Mean_INT	East Asian	EAS	quantitative	5948			39024449	dense__pmid-39024449__East-Asian
+GCST90479347	platelet count (minimum, inv-norm transformed)	Platelet_Min_INT	East Asian	EAS	quantitative	5949			39024449	dense__pmid-39024449__East-Asian
+GCST90479349	potassium (maximum, inv-norm transformed)	Potas_BSP_Max_INT	East Asian	EAS	quantitative	6307			39024449	dense__pmid-39024449__East-Asian
+GCST90479350	potassium (mean, inv-norm transformed)	Potas_BSP_Mean_INT	East Asian	EAS	quantitative	6313			39024449	dense__pmid-39024449__East-Asian
+GCST90479351	potassium (minimum, inv-norm transformed)	Potas_BSP_Min_INT	East Asian	EAS	quantitative	6313			39024449	dense__pmid-39024449__East-Asian
+GCST90476343	red blood cell count (RBC, maximum, inv-norm transformed)	RBC_Max_INT	East Asian	EAS	quantitative	5943			39024449	dense__pmid-39024449__East-Asian
+GCST90476347	red blood cell count (RBC, mean, inv-norm transformed)	RBC_Mean_INT	East Asian	EAS	quantitative	5943			39024449	dense__pmid-39024449__East-Asian
+GCST90476351	red blood cell count (RBC, minimum, inv-norm transformed)	RBC_Min_INT	East Asian	EAS	quantitative	5943			39024449	dense__pmid-39024449__East-Asian
+GCST90476355	red cell diameter width (RDW, maximum, inv-norm transformed)	RDW_Max_INT	East Asian	EAS	quantitative	5548			39024449	dense__pmid-39024449__East-Asian
+GCST90476359	red cell diameter width (RDW, mean, inv-norm transformed)	RDW_Mean_INT	East Asian	EAS	quantitative	5549			39024449	dense__pmid-39024449__East-Asian
+GCST90476363	red cell diameter width (RDW, minimum, inv-norm transformed)	RDW_Min_INT	East Asian	EAS	quantitative	5548			39024449	dense__pmid-39024449__East-Asian
+GCST90479474	sodium (maximum, inv-norm transformed)	Sodium_BSP_Max_INT	East Asian	EAS	quantitative	6311			39024449	dense__pmid-39024449__East-Asian
+GCST90479476	sodium (mean, inv-norm transformed)	Sodium_BSP_Mean_INT	East Asian	EAS	quantitative	6310			39024449	dense__pmid-39024449__East-Asian
+GCST90479478	sodium (minimum, inv-norm transformed)	Sodium_BSP_Min_INT	East Asian	EAS	quantitative	6302			39024449	dense__pmid-39024449__East-Asian
+GCST90476418	total cholesterol (maximum, inv-norm transformed)	TotChol_Max_INT	East Asian	EAS	quantitative	6013			39024449	dense__pmid-39024449__East-Asian
+GCST90476422	total cholesterol (mean, inv-norm transformed)	TotChol_Mean_INT	East Asian	EAS	quantitative	6014			39024449	dense__pmid-39024449__East-Asian
+GCST90479484	total cholesterol (minimum, inv-norm transformed)	TotChol_Min_INT	East Asian	EAS	quantitative	6014			39024449	dense__pmid-39024449__East-Asian
+GCST90476429	triglyceride (maximum, inv-norm transformed)	Trig_Max_INT	East Asian	EAS	quantitative	5787			39024449	dense__pmid-39024449__East-Asian
+GCST90476433	triglyceride (mean, inv-norm transformed)	Trig_Mean_INT	East Asian	EAS	quantitative	5813			39024449	dense__pmid-39024449__East-Asian
+GCST90476437	triglyceride (minimum, inv-norm transformed)	Trig_Min_INT	East Asian	EAS	quantitative	5817			39024449	dense__pmid-39024449__East-Asian
+GCST90479494	white blood cell count (WBC, maximum, inv-norm transformed)	WBC_Max_INT	East Asian	EAS	quantitative	5836			39024449	dense__pmid-39024449__East-Asian
+GCST90479495	white blood cell count (WBC, mean, inv-norm transformed)	WBC_Mean_INT	East Asian	EAS	quantitative	5839			39024449	dense__pmid-39024449__East-Asian
+GCST90479496	white blood cell count (WBC, minimum, inv-norm transformed)	WBC_Min_INT	East Asian	EAS	quantitative	5838			39024449	dense__pmid-39024449__East-Asian
+GCST90477848	Hypertension	Phe_401	East Asian	EAS	case-control	6510	3903	2607	39024449	dense__pmid-39024449__East-Asian
+GCST90477849	Essential hypertension	Phe_401_1	East Asian	EAS	case-control	6506	3880	2626	39024449	dense__pmid-39024449__East-Asian
+GCST90477851	Hypertensive heart and/or renal disease	Phe_401_2	East Asian	EAS	case-control	6534	622	5912	39024449	dense__pmid-39024449__East-Asian
+GCST90477861	Ischemic Heart Disease	Phe_411	East Asian	EAS	case-control	6519	1012	5507	39024449	dense__pmid-39024449__East-Asian
+GCST90477868	Coronary atherosclerosis	Phe_411_4	East Asian	EAS	case-control	6613	847	5766	39024449	dense__pmid-39024449__East-Asian
+GCST90477885	Nonspecific chest pain	Phe_418	East Asian	EAS	case-control	5980	1262	4718	39024449	dense__pmid-39024449__East-Asian
+GCST90477928	Cardiac dysrhythmias	Phe_427	East Asian	EAS	case-control	6146	1077	5069	39024449	dense__pmid-39024449__East-Asian
+GCST90478042	Hemorrhoids	Phe_455	East Asian	EAS	case-control	6126	595	5531	39024449	dense__pmid-39024449__East-Asian
+GCST90478772	Rash and other nonspecific skin eruption	Phe_687_1	East Asian	EAS	case-control	6006	622	5384	39024449	dense__pmid-39024449__East-Asian
+GCST90478838	Diseases of sebaceous glands	Phe_706	East Asian	EAS	case-control	6218	767	5451	39024449	dense__pmid-39024449__East-Asian
+GCST90479305	Atopic/contact dermatitis due to other or unspecified	Phe_939	East Asian	EAS	case-control	6056	1273	4783	39024449	dense__pmid-39024449__East-Asian
+GCST90478230	Diseases of hard tissues of teeth	Phe_521	East Asian	EAS	case-control	6433	1442	4991	39024449	dense__pmid-39024449__East-Asian
+GCST90478234	Dental caries	Phe_521_1	East Asian	EAS	case-control	6425	1375	5050	39024449	dense__pmid-39024449__East-Asian
+GCST90478250	Gingival and periodontal diseases	Phe_523	East Asian	EAS	case-control	6375	1302	5073	39024449	dense__pmid-39024449__East-Asian
+GCST90478254	Gingivitis	Phe_523_1	East Asian	EAS	case-control	6481	524	5957	39024449	dense__pmid-39024449__East-Asian
+GCST90478258	Periodontitis (acute or chronic)	Phe_523_3	East Asian	EAS	case-control	6465	703	5762	39024449	dense__pmid-39024449__East-Asian
+GCST90478274	Other diseases of the teeth and supporting structures	Phe_525	East Asian	EAS	case-control	6407	1307	5100	39024449	dense__pmid-39024449__East-Asian
+GCST90478278	Loss of teeth or edentulism	Phe_525_1	East Asian	EAS	case-control	6614	781	5833	39024449	dense__pmid-39024449__East-Asian
+GCST90478312	Diseases of esophagus	Phe_530	East Asian	EAS	case-control	6283	1689	4594	39024449	dense__pmid-39024449__East-Asian
+GCST90478315	Esophagitis, GERD and related diseases	Phe_530_1	East Asian	EAS	case-control	6288	1662	4626	39024449	dense__pmid-39024449__East-Asian
+GCST90478318	GERD	Phe_530_11	East Asian	EAS	case-control	6288	1581	4707	39024449	dense__pmid-39024449__East-Asian
+GCST90478413	Symptoms involving digestive system	Phe_561	East Asian	EAS	case-control	6218	521	5697	39024449	dense__pmid-39024449__East-Asian
+GCST90478451	Chronic liver disease and cirrhosis	Phe_571	East Asian	EAS	case-control	6572	515	6057	39024449	dense__pmid-39024449__East-Asian
+GCST90478452	Other chronic nonalcoholic liver disease	Phe_571_5	East Asian	EAS	case-control	6579	505	6074	39024449	dense__pmid-39024449__East-Asian
+GCST90478463	Abnormal results of function study of liver	Phe_573_7	East Asian	EAS	case-control	6449	669	5780	39024449	dense__pmid-39024449__East-Asian
+GCST90478489	Gastrointestinal hemorrhage	Phe_578	East Asian	EAS	case-control	6349	632	5717	39024449	dense__pmid-39024449__East-Asian
+GCST90477310	Diabetes mellitus	Phe_250	East Asian	EAS	case-control	6594	2276	4318	39024449	dense__pmid-39024449__East-Asian
+GCST90477314	Type 2 diabetes	Phe_250_2	East Asian	EAS	case-control	6605	2272	4333	39024449	dense__pmid-39024449__East-Asian
+GCST90477320	Abnormal glucose	Phe_250_4	East Asian	EAS	case-control	6222	1056	5166	39024449	dense__pmid-39024449__East-Asian
+GCST90477322	Impaired fasting glucose	Phe_250_41	East Asian	EAS	case-control	6458	725	5733	39024449	dense__pmid-39024449__East-Asian
+GCST90477362	Vitamin deficiency	Phe_261	East Asian	EAS	case-control	6233	1309	4924	39024449	dense__pmid-39024449__East-Asian
+GCST90477364	Vitamin D deficiency	Phe_261_4	East Asian	EAS	case-control	6265	1210	5055	39024449	dense__pmid-39024449__East-Asian
+GCST90477383	Disorders of lipoid metabolism	Phe_272	East Asian	EAS	case-control	6354	4488	1866	39024449	dense__pmid-39024449__East-Asian
+GCST90477384	Hyperlipidemia	Phe_272_1	East Asian	EAS	case-control	6348	4481	1867	39024449	dense__pmid-39024449__East-Asian
+GCST90477385	Hypercholesterolemia	Phe_272_11	East Asian	EAS	case-control	6536	538	5998	39024449	dense__pmid-39024449__East-Asian
+GCST90477386	Mixed hyperlipidemia	Phe_272_13	East Asian	EAS	case-control	6397	1030	5367	39024449	dense__pmid-39024449__East-Asian
+GCST90475729	Gout and other crystal arthrop	Phe_274	East Asian	EAS	case-control	6642	1256	5386	39024449	dense__pmid-39024449__East-Asian
+GCST90475733	Gout	Phe_274_1	East Asian	EAS	case-control	6659	1243	5416	39024449	dense__pmid-39024449__East-Asian
+GCST90477402	Disorders of fluid, electrolyte, and acid-based balance	Phe_276	East Asian	EAS	case-control	6361	559	5802	39024449	dense__pmid-39024449__East-Asian
+GCST90477435	Overweight, obesity and other hyperalimentation	Phe_278	East Asian	EAS	case-control	6190	1974	4216	39024449	dense__pmid-39024449__East-Asian
+GCST90477436	Obesity	Phe_278_1	East Asian	EAS	case-control	6346	1613	4733	39024449	dense__pmid-39024449__East-Asian
+GCST90478519	Renal failure	Phe_585	East Asian	EAS	case-control	6577	879	5698	39024449	dense__pmid-39024449__East-Asian
+GCST90478524	Chronic renal failure [CKD]	Phe_585_3	East Asian	EAS	case-control	6665	708	5957	39024449	dense__pmid-39024449__East-Asian
+GCST90478591	Other symptoms/disorders or the urinary system	Phe_599	East Asian	EAS	case-control	6165	772	5393	39024449	dense__pmid-39024449__East-Asian
+GCST90478610	Hyperplasia of prostate	Phe_600	East Asian	EAS	case-control	5753	1076	4677	39024449	dense__pmid-39024449__East-Asian
+GCST90478642	Erectile dysfunction [ED]	Phe_605	East Asian	EAS	case-control	5648	1276	4372	39024449	dense__pmid-39024449__East-Asian
+GCST90475786	Other anemias	Phe_285	East Asian	EAS	case-control	6478	706	5772	39024449	dense__pmid-39024449__East-Asian
+GCST90477100	screening for infectious and parasitic diseases	Phe_1010_1	East Asian	EAS	case-control	6004	551	5453	39024449	dense__pmid-39024449__East-Asian
+GCST90477104	screening for malignant neoplasms	Phe_1010_2	East Asian	EAS	case-control	5932	712	5220	39024449	dense__pmid-39024449__East-Asian
+GCST90477107	screening for other diseases and disorders	Phe_1010_3	East Asian	EAS	case-control	5451	2222	3229	39024449	dense__pmid-39024449__East-Asian
+GCST90477110	potential health hazards related to communicable diseases	Phe_1010_5	East Asian	EAS	case-control	5641	3776	1865	39024449	dense__pmid-39024449__East-Asian
+GCST90477140	Dermatophytosis / Dermatomycosis	Phe_110	East Asian	EAS	case-control	6177	828	5349	39024449	dense__pmid-39024449__East-Asian
+GCST90477143	Dermatophytosis	Phe_110_1	East Asian	EAS	case-control	6226	772	5454	39024449	dense__pmid-39024449__East-Asian
+GCST90477117	Persons with potential health hazards related to socioeconomic, psychosocial, and other circumstances	Phe_1010_7	East Asian	EAS	case-control	6363	5615	748	39024449	dense__pmid-39024449__East-Asian
+GCST90479234	Sprains and strains	Phe_840	East Asian	EAS	case-control	5994	735	5259	39024449	dense__pmid-39024449__East-Asian
+GCST90478890	Spondylosis and allied disorders	Phe_721	East Asian	EAS	case-control	6381	647	5734	39024449	dense__pmid-39024449__East-Asian
+GCST90478893	Spondylosis without myelopathy	Phe_721_1	East Asian	EAS	case-control	6391	598	5793	39024449	dense__pmid-39024449__East-Asian
+GCST90478900	Intervertebral disc disorders	Phe_722	East Asian	EAS	case-control	6373	758	5615	39024449	dense__pmid-39024449__East-Asian
+GCST90478906	Degeneration of intervertebral disc	Phe_722_6	East Asian	EAS	case-control	6385	533	5852	39024449	dense__pmid-39024449__East-Asian
+GCST90478930	Peripheral enthesopathies and allied syndromes	Phe_726	East Asian	EAS	case-control	5997	1336	4661	39024449	dense__pmid-39024449__East-Asian
+GCST90478934	Enthesopathy	Phe_726_1	East Asian	EAS	case-control	6236	591	5645	39024449	dense__pmid-39024449__East-Asian
+GCST90478945	Other disorders of synovium, tendon, and bursa	Phe_727	East Asian	EAS	case-control	6302	643	5659	39024449	dense__pmid-39024449__East-Asian
+GCST90478961	Fasciitis	Phe_728_7	East Asian	EAS	case-control	6508	707	5801	39024449	dense__pmid-39024449__East-Asian
+GCST90478978	Acquired foot deformities	Phe_735	East Asian	EAS	case-control	6389	613	5776	39024449	dense__pmid-39024449__East-Asian
+GCST90479012	Osteoarthrosis	Phe_740	East Asian	EAS	case-control	6170	1670	4500	39024449	dense__pmid-39024449__East-Asian
+GCST90479015	Osteoarthritis, localized	Phe_740_1	East Asian	EAS	case-control	6244	984	5260	39024449	dense__pmid-39024449__East-Asian
+GCST90479018	Osteoarthrosis, localized, primary	Phe_740_11	East Asian	EAS	case-control	6330	665	5665	39024449	dense__pmid-39024449__East-Asian
+GCST90479029	Osteoarthrosis NOS	Phe_740_9	East Asian	EAS	case-control	6330	1064	5266	39024449	dense__pmid-39024449__East-Asian
+GCST90479062	Pain in joint	Phe_745	East Asian	EAS	case-control	6000	3838	2162	39024449	dense__pmid-39024449__East-Asian
+GCST90477251	Benign neoplasm of colon	Phe_208	East Asian	EAS	case-control	6247	1017	5230	39024449	dense__pmid-39024449__East-Asian
+GCST90477479	Sleep disorders	Phe_327	East Asian	EAS	case-control	5946	1702	4244	39024449	dense__pmid-39024449__East-Asian
+GCST90477484	Sleep apnea	Phe_327_3	East Asian	EAS	case-control	6550	2460	4090	39024449	dense__pmid-39024449__East-Asian
+GCST90477489	Obstructive sleep apnea	Phe_327_32	East Asian	EAS	case-control	6533	2094	4439	39024449	dense__pmid-39024449__East-Asian
+GCST90477492	Insomnia	Phe_327_4	East Asian	EAS	case-control	6171	1142	5029	39024449	dense__pmid-39024449__East-Asian
+GCST90477525	Pain	Phe_338	East Asian	EAS	case-control	6118	732	5386	39024449	dense__pmid-39024449__East-Asian
+GCST90477531	Chronic pain	Phe_338_2	East Asian	EAS	case-control	6360	516	5844	39024449	dense__pmid-39024449__East-Asian
+GCST90477535	Other headache syndromes	Phe_339	East Asian	EAS	case-control	6142	1015	5127	39024449	dense__pmid-39024449__East-Asian
+GCST90477539	Migraine	Phe_340	East Asian	EAS	case-control	6627	541	6086	39024449	dense__pmid-39024449__East-Asian
+GCST90477573	Abnormal movement	Phe_350	East Asian	EAS	case-control	6306	711	5595	39024449	dense__pmid-39024449__East-Asian
+GCST90477579	Abnormality of gait	Phe_350_2	East Asian	EAS	case-control	6429	600	5829	39024449	dense__pmid-39024449__East-Asian
+GCST90477585	Other peripheral nerve disorders	Phe_351	East Asian	EAS	case-control	6411	792	5619	39024449	dense__pmid-39024449__East-Asian
+GCST90477088	Other symptoms	Phe_1005	East Asian	EAS	case-control	5822	916	4906	39024449	dense__pmid-39024449__East-Asian
+GCST90478074	Acute upper respiratory infections of multiple or unspecified sites	Phe_465	East Asian	EAS	case-control	5736	986	4750	39024449	dense__pmid-39024449__East-Asian
+GCST90478106	Allergic rhinitis	Phe_476	East Asian	EAS	case-control	6192	1560	4632	39024449	dense__pmid-39024449__East-Asian
+GCST90478132	Asthma	Phe_495	East Asian	EAS	case-control	6613	609	6004	39024449	dense__pmid-39024449__East-Asian
+GCST90478180	Other symptoms of respiratory system	Phe_512	East Asian	EAS	case-control	5646	1823	3823	39024449	dense__pmid-39024449__East-Asian
+GCST90478189	Shortness of breath	Phe_512_7	East Asian	EAS	case-control	6266	572	5694	39024449	dense__pmid-39024449__East-Asian
+GCST90478192	Cough	Phe_512_8	East Asian	EAS	case-control	5830	989	4841	39024449	dense__pmid-39024449__East-Asian
+GCST90478195	Other dyspnea	Phe_512_9	East Asian	EAS	case-control	6075	568	5507	39024449	dense__pmid-39024449__East-Asian
+GCST90477622	Other retinal disorders	Phe_362	East Asian	EAS	case-control	6261	1116	5145	39024449	dense__pmid-39024449__East-Asian
+GCST90477624	Degeneration of macula and posterior pole of retina	Phe_362_2	East Asian	EAS	case-control	6533	585	5948	39024449	dense__pmid-39024449__East-Asian
+GCST90477662	Glaucoma	Phe_365	East Asian	EAS	case-control	6503	1446	5057	39024449	dense__pmid-39024449__East-Asian
+GCST90477663	Open-angle glaucoma	Phe_365_1	East Asian	EAS	case-control	6529	1127	5402	39024449	dense__pmid-39024449__East-Asian
+GCST90477667	Cataract	Phe_366	East Asian	EAS	case-control	6262	2490	3772	39024449	dense__pmid-39024449__East-Asian
+GCST90477672	Senile cataract	Phe_366_2	East Asian	EAS	case-control	6255	2197	4058	39024449	dense__pmid-39024449__East-Asian
+GCST90477677	Disorders of refraction and accommodation; blindness and low vision	Phe_367	East Asian	EAS	case-control	6010	3830	2180	39024449	dense__pmid-39024449__East-Asian
+GCST90477680	Myopia	Phe_367_1	East Asian	EAS	case-control	5874	1535	4339	39024449	dense__pmid-39024449__East-Asian
+GCST90477682	Astigmatism	Phe_367_2	East Asian	EAS	case-control	5779	1839	3940	39024449	dense__pmid-39024449__East-Asian
+GCST90477686	Presbyopia	Phe_367_4	East Asian	EAS	case-control	6065	2868	3197	39024449	dense__pmid-39024449__East-Asian
+GCST90477689	Hypermetropia	Phe_367_8	East Asian	EAS	case-control	6229	941	5288	39024449	dense__pmid-39024449__East-Asian
+GCST90477694	Visual disturbances	Phe_368	East Asian	EAS	case-control	6073	704	5369	39024449	dense__pmid-39024449__East-Asian
+GCST90477732	Inflammation of the eye	Phe_371	East Asian	EAS	case-control	6115	681	5434	39024449	dense__pmid-39024449__East-Asian
+GCST90477755	Dry eyes	Phe_375_1	East Asian	EAS	case-control	6029	1219	4810	39024449	dense__pmid-39024449__East-Asian
+GCST90477774	Other disorders of eye	Phe_379	East Asian	EAS	case-control	6280	725	5555	39024449	dense__pmid-39024449__East-Asian
+GCST90477780	Disorders of vitreous body	Phe_379_2	East Asian	EAS	case-control	6397	529	5868	39024449	dense__pmid-39024449__East-Asian
+GCST90477817	Dizziness and giddiness (Light-headedness and vertigo)	Phe_386_9	East Asian	EAS	case-control	6221	583	5638	39024449	dense__pmid-39024449__East-Asian
+GCST90477822	Hearing loss	Phe_389	East Asian	EAS	case-control	5973	2671	3302	39024449	dense__pmid-39024449__East-Asian
+GCST90477825	Sensorineural hearing loss	Phe_389_1	East Asian	EAS	case-control	6193	1836	4357	39024449	dense__pmid-39024449__East-Asian
+GCST90477829	Tinnitus	Phe_389_4	East Asian	EAS	case-control	5847	1337	4510	39024449	dense__pmid-39024449__East-Asian
+GCST90479093	Back pain	Phe_760	East Asian	EAS	case-control	6167	3315	2852	39024449	dense__pmid-39024449__East-Asian
+GCST90479096	Cervicalgia	Phe_761	East Asian	EAS	case-control	6280	1172	5108	39024449	dense__pmid-39024449__East-Asian
+GCST90479099	Thoracic or lumbosacral neuritis or radiculitis, unspecified	Phe_763	East Asian	EAS	case-control	6549	540	6009	39024449	dense__pmid-39024449__East-Asian
+GCST90479135	Pain in limb	Phe_773	East Asian	EAS	case-control	5758	1535	4223	39024449	dense__pmid-39024449__East-Asian
+GCST90479146	Abdominal pain	Phe_785	East Asian	EAS	case-control	6082	852	5230	39024449	dense__pmid-39024449__East-Asian
+GCST90479174	Malaise and fatigue	Phe_798	East Asian	EAS	case-control	6241	514	5727	39024449	dense__pmid-39024449__East-Asian
+GCST90475203	High Cholesterol	CircChol	East Asian	EAS	case-control	3547	1998	1549	39024449	dense__pmid-39024449__East-Asian
+GCST90476600	Takes medication for high cholesterol?	CircCholMed	East Asian	EAS	case-control	3547	1621	1926	39024449	dense__pmid-39024449__East-Asian
+GCST90476610	High blood pressure / hypertension	CircHTN	East Asian	EAS	case-control	3547	2059	1488	39024449	dense__pmid-39024449__East-Asian
+GCST90476612	Takes medication for high blood pressure?	CircHTNMed	East Asian	EAS	case-control	3547	1884	1663	39024449	dense__pmid-39024449__East-Asian
+GCST90476661	Biological Father: High cholesterol	DadCircChol	East Asian	EAS	case-control	3547	628	2919	39024449	dense__pmid-39024449__East-Asian
+GCST90476664	Biological Father: High blood pressure	DadCircHTN	East Asian	EAS	case-control	3547	1056	2491	39024449	dense__pmid-39024449__East-Asian
+GCST90476673	Biological Father: Diabetes / "Sugar"	DadDoDM	East Asian	EAS	case-control	3547	545	3002	39024449	dense__pmid-39024449__East-Asian
+GCST90476693	Sleep apnea	DoApnea	East Asian	EAS	case-control	3547	1039	2508	39024449	dense__pmid-39024449__East-Asian
+GCST90476705	Diabetes / "Sugar"	DoDM	East Asian	EAS	case-control	3547	1007	2540	39024449	dense__pmid-39024449__East-Asian
+GCST90476706	Takes medication for Diabetes/sugar?	DoDMMed	East Asian	EAS	case-control	3547	852	2695	39024449	dense__pmid-39024449__East-Asian
+GCST90476714	Skin condition (ex. Eczema, Psoriasis)	DoSkin	East Asian	EAS	case-control	3547	563	2984	39024449	dense__pmid-39024449__East-Asian
+GCST90476761	Colon Polyps	GIPolyp	East Asian	EAS	case-control	3547	627	2920	39024449	dense__pmid-39024449__East-Asian
+GCST90476766	Acid Reflux/GERD	GIReflux	East Asian	EAS	case-control	3547	800	2747	39024449	dense__pmid-39024449__East-Asian
+GCST90476769	Takes medication for acid reflux/GERD?	GIRefluxMed	East Asian	EAS	case-control	3547	581	2966	39024449	dense__pmid-39024449__East-Asian
+GCST90476804	Cataracts	HVCat	East Asian	EAS	case-control	3547	775	2772	39024449	dense__pmid-39024449__East-Asian
+GCST90476814	Severe hearing loss or partial deafness in one or both ears	HVHear	East Asian	EAS	case-control	3547	772	2775	39024449	dense__pmid-39024449__East-Asian
+GCST90476823	Tinnitus or ringing in the ears	HVTin	East Asian	EAS	case-control	3547	1309	2238	39024449	dense__pmid-39024449__East-Asian
+GCST90476897	Biological Mother: High cholesterol	MomCircChol	East Asian	EAS	case-control	3547	612	2935	39024449	dense__pmid-39024449__East-Asian
+GCST90476900	Biological Mother: High blood pressure	MomCircHTN	East Asian	EAS	case-control	3547	1148	2399	39024449	dense__pmid-39024449__East-Asian
+GCST90476909	Biological Mother: Diabetes / "Sugar"	MomDoDM	East Asian	EAS	case-control	3547	717	2830	39024449	dense__pmid-39024449__East-Asian
+GCST90479375	Biological Sibling: High cholesterol	SibCircChol	East Asian	EAS	case-control	3547	589	2958	39024449	dense__pmid-39024449__East-Asian
+GCST90479378	Biological Sibling: High blood pressure	SibCircHTN	East Asian	EAS	case-control	3547	736	2811	39024449	dense__pmid-39024449__East-Asian
+GCST90479387	Biological Sibling: Diabetes / "Sugar"	SibDoDM	East Asian	EAS	case-control	3547	565	2982	39024449	dense__pmid-39024449__East-Asian
+GCST90476377	Gout	SkMsGout	East Asian	EAS	case-control	3547	739	2808	39024449	dense__pmid-39024449__East-Asian
+GCST90479406	Takes medication for gout?	SkMsGoutMed	East Asian	EAS	case-control	3547	573	2974	39024449	dense__pmid-39024449__East-Asian
+GCST90479418	Other skeletal/muscular problem	SkMsOth	East Asian	EAS	case-control	3547	662	2885	39024449	dense__pmid-39024449__East-Asian
+GCST90479422	Other Arthritis	SkMsOthArth	East Asian	EAS	case-control	3547	653	2894	39024449	dense__pmid-39024449__East-Asian
+GCST90479438	Feeling excessively sleepy during the day (does not include regular naps)	SlpExcDy	East Asian	EAS	case-control	2291	586	1705	39024449	dense__pmid-39024449__East-Asian
+GCST90479442	Trouble falling asleep when you first go to bed	SlpFall	East Asian	EAS	case-control	2291	864	1427	39024449	dense__pmid-39024449__East-Asian
+GCST90479445	Feeling unsatisfied or not rested by your night's sleep	SlpUnsat	East Asian	EAS	case-control	2291	953	1338	39024449	dense__pmid-39024449__East-Asian
+GCST90479449	Waking up in the morning earlier than planned or desired	SlpWakeAM	East Asian	EAS	case-control	2291	999	1292	39024449	dense__pmid-39024449__East-Asian
+GCST90479453	Waking up during the night and not easily going back to sleep	SlpWakePM	East Asian	EAS	case-control	2291	977	1314	39024449	dense__pmid-39024449__East-Asian
+GCST90479456	In your lifetime, have you smoked a total of at least 100 cigarettes?	Smk100	East Asian	EAS	case-control	3385	1841	1544	39024449	dense__pmid-39024449__East-Asian
+GCST90476566	body mass index (BMI, maximum, inv-normal transformed)	BMI_Max_INT	East Asian	EAS	quantitative	6384			39024449	dense__pmid-39024449__East-Asian
+GCST90476567	body mass index (BMI, mean, inv-normal transformed)	BMI_Mean_INT	East Asian	EAS	quantitative	6384			39024449	dense__pmid-39024449__East-Asian
+GCST90476568	body mass index (BMI, minimum, inv-normal transformed)	BMI_Min_INT	East Asian	EAS	quantitative	6384			39024449	dense__pmid-39024449__East-Asian
+GCST90476687	diastolic blood pressure (DBP, maximum, inv-normal transformed)	Diastolic_Max_INT	East Asian	EAS	quantitative	6421			39024449	dense__pmid-39024449__East-Asian
+GCST90476688	diastolic blood pressure (DBP, mean, inv-normal transformed)	Diastolic_Mean_INT	East Asian	EAS	quantitative	6421			39024449	dense__pmid-39024449__East-Asian
+GCST90476690	diastolic blood pressure (DBP, minimum, inv-normal transformed)	Diastolic_Min_INT	East Asian	EAS	quantitative	6420			39024449	dense__pmid-39024449__East-Asian
+GCST90476796	height (maximum, inv-normal transformed)	Height_Max_INT	East Asian	EAS	quantitative	6384			39024449	dense__pmid-39024449__East-Asian
+GCST90476797	height (mean, inv-normal transformed)	Height_Mean_INT	East Asian	EAS	quantitative	6384			39024449	dense__pmid-39024449__East-Asian
+GCST90476798	height (minimum, inv-normal transformed)	Height_Min_INT	East Asian	EAS	quantitative	6384			39024449	dense__pmid-39024449__East-Asian
+GCST90479355	heart rate (HR, maximum, inv-normal transformed)	Pulse_Max_INT	East Asian	EAS	quantitative	6421			39024449	dense__pmid-39024449__East-Asian
+GCST90476336	heart rate (HR, mean, inv-normal transformed)	Pulse_Mean_INT	East Asian	EAS	quantitative	6421			39024449	dense__pmid-39024449__East-Asian
+GCST90479356	heart rate (HR, minimum, inv-normal transformed)	Pulse_Min_INT	East Asian	EAS	quantitative	6419			39024449	dense__pmid-39024449__East-Asian
+GCST90479479	systolic blood pressure (SBP, maximum, inv-normal transformed)	Systolic_Max_INT	East Asian	EAS	quantitative	6422			39024449	dense__pmid-39024449__East-Asian
+GCST90479480	systolic blood pressure (SBP, mean, inv-normal transformed)	Systolic_Mean_INT	East Asian	EAS	quantitative	6420			39024449	dense__pmid-39024449__East-Asian
+GCST90479482	systolic blood pressure (SBP, minimum, inv-normal transformed)	Systolic_Min_INT	East Asian	EAS	quantitative	6422			39024449	dense__pmid-39024449__East-Asian
+GCST90479497	weight (maximum, inv-normal transformed)	Weight_Max_INT	East Asian	EAS	quantitative	6419			39024449	dense__pmid-39024449__East-Asian
+GCST90479498	weight (mean, inv-normal transformed)	Weight_Mean_INT	East Asian	EAS	quantitative	6419			39024449	dense__pmid-39024449__East-Asian
+GCST90479499	weight (minimum, inv-normal transformed)	Weight_Min_INT	East Asian	EAS	quantitative	6419			39024449	dense__pmid-39024449__East-Asian
