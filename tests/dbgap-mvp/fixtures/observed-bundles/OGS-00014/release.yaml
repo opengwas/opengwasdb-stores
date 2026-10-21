@@ -1,0 +1,44 @@
+store_id: OGS-00014
+label: mvp-amr
+access_posture: public
+status: accepted
+derived_from: null
+created_at: '2026-10-13T00:00:00+00:00'
+source_snapshot_id: fixture-mvp-pending
+generator:
+  commands:
+  - generate_candidate.py
+description: MVP PMID 39024449 observed-only bundle (mvp-amr). Unbuilt; workflow-buildable
+  for dev, scientific acceptance pending; no Store exists.
+notes: Ancestry bucket AMR; 2 intended Analyses. candidate_store_key dense__pmid-39024449__Hispanic-or-Latin-American.
+  Unbuilt candidate; the human scientific-acceptance step is pending. Release Status
+  is 'accepted' ONLY so the dev release workflow may build this bundle (#247); it
+  is not scientific release acceptance, publication approval or mirror promotion,
+  and no Store exists yet. The pending human acceptance is recorded in validation.yaml:acceptance.human_acceptance.
+accepted_at: '2026-10-13T00:00:00+00:00'
+source_snapshot:
+  metadata_root: {fixture}/meta
+  code_sha: ffffffffffffffffffffffffffffffffffffffff
+  output_metadata_content_sha256: {fixture-digest}
+  membership: 15
+  association_opens: 0
+  acceptance: technical metadata evidence only
+  candidates_table: {fixture}/meta/candidates.tsv
+  candidates_table_path: {fixture}/meta/candidates.tsv
+  candidates_sha256: a6e2ad46220eb0b4174ed57d66559bad3e8f4e5db6c6e3467c8b3dc44f78b84b
+  mapping_table: {fixture}/mapping.tsv
+  configured_mapping_table: {fixture}/mapping.tsv
+  mapping_sha256: d4f151a89850a06fb720789a8b777c90a7a09e44ec0721c0967d560bc616aac9
+  metadata_receipt: {fixture}/meta/parent-run-summary.json
+  metadata_receipt_sha256: {fixture-digest}
+  metadata_fingerprint_sha256: {fixture-digest}
+  metadata_content_sha256_status: recomputed_matches_receipt
+  source_metadata_snapshot: {fixture}/meta/input-metadata-before.json
+  source_metadata_snapshot_sha256: {fixture-digest}
+  source_metadata_verified_files: 15
+  resolution_table: {fixture}/resolution.tsv
+  resolution_sha256: {fixture-digest}
+  planned_manifest: amr.tsv
+  planned_manifest_members: 2
+  planned_manifest_sha256: {fixture-digest}
+  source_metadata_only: true

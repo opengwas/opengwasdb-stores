@@ -5,12 +5,24 @@ Release Bundles** for the dbGaP `phs002453` acquisition of PMID 39024449
 (Verma et al., VA Million Veteran Program). It is Phase B tooling only.
 
 It never accepts, registers, builds, completes or publishes a Store, and it
-never overwrites an existing bundle. It emits each observed Store as a
-schema-valid `status: accepted` bundle with an `accepted_at`, solely so the dev
-release workflow may build it (#247); that is workflow buildability, **not**
-scientific release acceptance or publication. Human acceptance stays explicitly
-**pending** in `validation.yaml`, and a completed child whose reference is only
-pending/blocked stays `status: candidate` so the workflow refuses it.
+never overwrites an existing bundle. It emits each Store as a schema-valid
+`status: accepted` bundle with an `accepted_at`, solely so the dev release
+workflow may build it (#247); that is workflow buildability, **not** scientific
+release acceptance or publication. Human acceptance stays explicitly **pending**
+in `validation.yaml`.
+
+**One id, one bundle (ADR 0037, #308).** Reference completion replaces its
+observed Store under the same id, so a Store never gets a second, `derived_from`
+linked completed id. A reference that is `qualified` and `active` puts both
+phases in that one bundle: `completion_state: reference_completed`, no
+`derived_from`, and a `build.yaml` carrying the unchanged `build` block plus the
+`complete` recipe. A reference that is `pending`, `hold` or `blocked` — every
+reference today — leaves the bundle exactly as it was, observed-only and
+buildable, with the recipe recorded beside it as
+`<observed id>.completion-plan.yaml`. That receipt is not a bundle: completing
+the Store needs the reference to qualify and ADR 0037's one permitted amendment
+to an accepted bundle (#305), or a re-emit while the candidate is still
+unaccepted.
 
 **Terminology.** The 6,022 rows below are the **intended bound** membership from
 the accepted dbGaP mapping. The acquisition is **not accepted** and no Source
@@ -41,13 +53,20 @@ loudly (`partition.validate_partition`).
 
 The owner reordered the identifiers ("reorder the IDs"):
 
-| Store | Observed | Completed definition |
-|---|---|---|
-| EUR | OGS-00012 | OGS-00018 |
-| AFR | OGS-00013 | OGS-00019 |
-| AMR | OGS-00014 | OGS-00020 |
-| EAS | OGS-00015 | OGS-00021 |
-| META (observed-only) | OGS-00016 | none |
+| Store | Id |
+|---|---|
+| EUR | OGS-00012 |
+| AFR | OGS-00013 |
+| AMR | OGS-00014 |
+| EAS | OGS-00015 |
+| META (observed-only) | OGS-00016 |
+
+`OGS-00018`-`OGS-00021` were reserved for ADR 0007's two-id reference completion
+(one "lineage-linked completed" id per single-ancestry Store). ADR 0037 retires
+them: completion is published under the Store's own id, so no Store is allocated
+those ids and none is ever reused. They appear below only as this note. The
+generator refuses a config whose Store still declares `completed_store_id`,
+naming ADR 0037.
 
 FinnGen was migrated **OGS-00016 -> OGS-00017** so META can take OGS-00016 ahead
 of it. The FinnGen bundle (`stores/OGS-00017/`) keeps its membership, recipe
@@ -105,15 +124,28 @@ registry `stores/` tree outright.
   `activation`. A declaration of `status: available` is not a qualification or a
   science PASS; the EUR path is additionally known stale (#239) and the whole
   panel qualification is pending. AMR has no declared panel; its pilot (#241) is
-  approved but not qualified.
-- **Pending completed definitions are always emitted.** Every single-ancestry
-  child gets a `<child>.completion-plan.yaml` receipt with `status: pending`,
-  `blocked: true` and `human_acceptance: pending`. Where a suggested panel path
-  exists the emitter also writes a schema-valid `status: candidate` completed
-  definition bundle; a missing suggested panel leaves only the receipt (no
-  fabricated recipe).
-- **META is observed-only.** Its bundle has no `derived_from` and no `complete`
-  block, even though an EUR panel exists.
+  approved but not qualified. Only `qualification: qualified` **and**
+  `activation: active` makes the bundle declare a completion.
+- **A qualified completion carries a real panel.** The `complete` recipe's
+  `ld-panel` is the reference's own `ld_panel`, or the `suggested_ld_panel` path
+  the config already declares for it. A qualified, active reference with neither
+  fails the emit before anything is written, rather than inventing a path.
+- **Pending completion definitions are always recorded.** Every non-observed-only
+  Store whose reference is not eligible gets `<observed id>.completion-plan.yaml`.
+  Its fields mean:
+  - `status: pending` and `human_acceptance: pending` — nothing is accepted;
+  - `blocked`, true whenever the Store is not eligible: no `resource_id`, or a
+    `qualification` short of `qualified`, or an `activation` short of `active`.
+    It is the same predicate as eligibility itself, never activation alone;
+  - `reference` — the reference's own declared status, qualification and
+    activation, so the reason for blocking is reviewable;
+  - `note` — a "do not execute" instruction.
+
+  There is no separate completed bundle to be refused, because there is no
+  second id. `candidates.yaml`'s `completed` definition records the same facts,
+  plus `declared`: whether this Store's one bundle declares the completion today.
+- **META is observed-only.** Its bundle has no `derived_from`, no `complete`
+  block and no completion definition, even though an EUR panel exists.
 - **Fail closed on membership.** Every intended member must have exactly one
   resolution row and no extra row may be supplied; otherwise nothing is emitted.
 - **Non-empty dataset-source binding.** A resolution row must carry a real

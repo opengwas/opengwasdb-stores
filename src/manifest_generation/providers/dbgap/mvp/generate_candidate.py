@@ -9,16 +9,25 @@ Store. It is deliberately conservative.
   so the dev release workflow may build it (#247), and its ``validation.yaml``
   ``acceptance`` block keeps ``human_acceptance`` ``pending``. That acceptance
   is workflow-buildability, not scientific release acceptance or publication.
-  A completed child stays ``status: candidate`` while its reference is merely
-  pending/blocked, so the workflow refuses it. Nothing here registers, builds,
-  completes or publishes a Store, and no existing bundle is overwritten.
+  Nothing here registers, builds, completes or publishes a Store, and no
+  existing bundle is overwritten.
 * The ancestry partition is validated against the intended bound counts and
   must be disjoint; a missing or drifted membership fails loudly.
 * META is emitted observed-only: no ``derived_from`` and no completion block,
   regardless of the fact that an EUR panel exists.
-* A lineage-linked completed child is emitted only when its ``completion_reference``
-  is ``qualified``. A ``hold`` reference (AMR today) produces a recorded plan,
-  not a buildable bundle.
+* One Store id gets one bundle (ADR 0037, #308). Reference completion replaces
+  the observed Store under its own id, so this generator mints no completed id.
+  - A reference that is ``qualified`` and ``active`` puts both phases in the
+    observed id's ``build.yaml``: the unchanged ``build`` block and the
+    ``complete`` recipe, with ``completion_state: reference_completed`` and no
+    ``derived_from``. That one bundle is built observed-only first and completed
+    under the same id.
+  - A ``pending``, ``hold`` or ``blocked`` reference (every reference today)
+    leaves the observed bundle exactly as it was, observed-only and buildable,
+    and records ``<observed id>.completion-plan.yaml`` beside it. That receipt
+    is a definition, not a bundle: completing the Store needs the reference to
+    qualify and ADR 0037's one permitted amendment (#305), or a re-emit once it
+    has.
 * Without a resolution table it runs in ``plan`` mode: it writes the validated
   partition and a per-store plan only, refusing to invent Analytical Metadata.
 
@@ -86,6 +95,22 @@ REQUIRED_RESOLUTION_COLUMNS: tuple[str, ...] = (
 
 class CandidateError(ValueError):
     """The inputs cannot produce a schema-valid candidate Release Bundle."""
+
+
+#: The Store config key ADR 0007 used to allocate a second, ``derived_from``-linked
+#: completed Store id. ADR 0037 publishes completion under the observed Store's
+#: own id, so a config that still declares one is refused rather than ignored:
+#: dropping it silently would emit an observed-only bundle for a Store its author
+#: meant to complete (#308).
+RETIRED_STORE_KEYS: tuple[str, ...] = ("completed_store_id",)
+
+#: The ids that key retired unused (#308). Recorded so no later run reuses them.
+RETIRED_COMPLETED_IDS: tuple[str, ...] = (
+    "OGS-00018",
+    "OGS-00019",
+    "OGS-00020",
+    "OGS-00021",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -699,6 +724,27 @@ def validate_manifest_membership(
         )
 
 
+def validate_config(config: Mapping) -> None:
+    """Refuse a config this generator can no longer honour (#308, ADR 0037)."""
+    stores = config.get("stores")
+    if not isinstance(stores, Mapping):
+        raise CandidateError("candidate config has no 'stores' mapping")
+    offenders = [
+        f"stores.{ancestry}.{key}"
+        for ancestry, store in stores.items()
+        for key in RETIRED_STORE_KEYS
+        if isinstance(store, Mapping) and key in store
+    ]
+    if offenders:
+        raise CandidateError(
+            f"candidate config declares {', '.join(offenders)}: a reference-completed "
+            "Store is published under the observed Store's own id, and its one bundle "
+            "declares both phases (ADR 0037). "
+            f"{', '.join(RETIRED_COMPLETED_IDS)} were reserved for ADR 0007 two-id "
+            "completion and are retired unused; ids are never reused. Remove the key."
+        )
+
+
 def load_config(path: Path | str) -> dict:
     config_path = Path(path)
     if not config_path.is_file():
@@ -706,8 +752,10 @@ def load_config(path: Path | str) -> dict:
     document = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     if not isinstance(document, dict):
         raise CandidateError(f"candidate config {config_path} is not a YAML mapping")
-    if not isinstance(document.get("stores"), dict):
-        raise CandidateError(f"candidate config {config_path} has no 'stores' mapping")
+    try:
+        validate_config(document)
+    except CandidateError as exc:
+        raise CandidateError(f"candidate config {config_path}: {exc}") from exc
     return document
 
 
@@ -777,11 +825,25 @@ def render_build_yaml(
     completion: bool,
     ld_panel: str | None,
 ) -> dict:
+    """A Build Recipe. ``completion`` adds the completion phase beside the build.
+
+    ADR 0037 publishes a reference-completed Store under one id: it is built
+    observed-only first and completed under the same id, so the bundle that
+    declares completion carries both blocks (#308). A bundle whose reference is
+    still pending, on hold or blocked carries only ``build``.
+    """
     build: dict = {
         "store_id": store_id,
         "layout": config.get("layout", "dense"),
         "completion_state": "reference_completed" if completion else "observed_only",
         "post": {"top_hits": True, "overview": True},
+    }
+    build["build"] = {
+        "command": "build-dense-vcf",
+        "options": {
+            "source-reader-capability": config.get("source_reader_capability"),
+            "source-assembly": config.get("source_assembly"),
+        },
     }
     if completion:
         options: dict = {}
@@ -790,14 +852,6 @@ def render_build_yaml(
         if ld_panel:
             options["ld-panel"] = ld_panel
         build["complete"] = {"command": "complete-dense", "options": options}
-    else:
-        build["build"] = {
-            "command": "build-dense-vcf",
-            "options": {
-                "source-reader-capability": config.get("source_reader_capability"),
-                "source-assembly": config.get("source_assembly"),
-            },
-        }
     return build
 
 
@@ -824,7 +878,7 @@ def render_validation_yaml(
             "declared_status": completion_reference.get("declared_status"),
             "qualification": completion_reference.get("qualification"),
             "activation": completion_reference.get("activation"),
-            "blocked": completion_reference.get("activation") != "active",
+            "blocked": completion_blocked(completion_reference),
         }
     return {
         "status": "not_run",
@@ -906,11 +960,65 @@ def build_partition(config: Mapping, mapping_path: Path | str):
     return rows, partition
 
 
-def _reference_ld_panel(config: Mapping, ancestry: str) -> str | None:
-    reference = (config["stores"][ancestry] or {}).get("completion_reference") or {}
-    if reference.get("status") != "qualified":
-        return None
-    return reference.get("ld_panel") or None
+def _completion_reference(config: Mapping, ancestry: str) -> Mapping:
+    return (config["stores"][ancestry] or {}).get("completion_reference") or {}
+
+
+def reference_is_qualified_and_active(reference: Mapping) -> bool:
+    """Whether an owner decision has qualified and activated a completion reference.
+
+    Neither a declared ``status: available`` nor a suggested path promotes a
+    reference: both ``qualification`` and ``activation`` must say so, and there
+    must be a resource to refer to.
+    """
+    return (
+        bool(reference.get("resource_id"))
+        and reference.get("qualification") == "qualified"
+        and reference.get("activation") == "active"
+    )
+
+
+def completion_blocked(reference: Mapping) -> bool:
+    """Whether completion of this Store is blocked, i.e. not eligible at all yet.
+
+    Eligibility is the whole rule, not activation alone: a reference with no
+    resource, a qualification short of ``qualified``, or an activation short of
+    ``active`` blocks the completion. A receipt that said otherwise would read as
+    "approved, merely switched off".
+    """
+    return not reference_is_qualified_and_active(reference)
+
+
+def completion_ld_panel(reference: Mapping) -> str | None:
+    """The LD panel a qualified reference was qualified against.
+
+    ``ld_panel`` names the panel itself. ``suggested_ld_panel`` is the path the
+    config already declares for the reference, and is what a qualified record
+    that does not restate it points at. A completion recipe with neither fails
+    the emit rather than inventing a path.
+    """
+    for key in ("ld_panel", "suggested_ld_panel"):
+        value = reference.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+    return None
+
+
+def _suggested_ld_panel(config: Mapping, ancestry: str) -> str | None:
+    return _completion_reference(config, ancestry).get("suggested_ld_panel") or None
+
+
+def _declared_completion(config: Mapping, ancestry: str) -> bool:
+    """Whether this Store's own bundle may declare a completion phase (#308).
+
+    Completion replaces the observed Store under one id (ADR 0037), so it is
+    declared only when the reference is qualified and active and the Store is
+    not observed-only by policy.
+    """
+    store = config["stores"][ancestry] or {}
+    if store.get("observed_only"):
+        return False
+    return reference_is_qualified_and_active(_completion_reference(config, ancestry))
 
 
 def run_plan(
@@ -920,6 +1028,7 @@ def run_plan(
     manifest_counts: Mapping[str, int] | None = None,
     registry_roots: Sequence[Path | str] = (),
 ) -> dict:
+    validate_config(config)
     _, partition = build_partition(config, mapping_path)
     manifest_counts = manifest_counts or {}
     if manifest_counts:
@@ -950,7 +1059,11 @@ def run_plan(
         plan["stores"][ancestry] = {
             "candidate_store_key": store.get("candidate_store_key"),
             "observed_store_id": store.get("observed_store_id"),
-            "completed_store_id": store.get("completed_store_id"),
+            # What the emit will declare for this Store: one id, both blocks or
+            # only the observed one (ADR 0037).
+            "completion_state": (
+                "reference_completed" if _declared_completion(config, ancestry) else "observed_only"
+            ),
             "members": len(partition[ancestry]),
             "observed_only": bool(store.get("observed_only")),
             "completion_reference_status": (
@@ -969,17 +1082,13 @@ def run_plan(
     return plan
 
 
-def _suggested_ld_panel(config: Mapping, ancestry: str) -> str | None:
-    reference = (config["stores"][ancestry] or {}).get("completion_reference") or {}
-    return reference.get("suggested_ld_panel") or None
-
-
 def render_candidate_definitions(
     config: Mapping,
     manifest_counts: Mapping[str, int] | None = None,
     source_hashes: Mapping | None = None,
 ) -> dict:
     """The reviewed intended-membership/recipe definitions, tracked (not built)."""
+    validate_config(config)
     manifest_counts = manifest_counts or {}
     definitions: dict = {
         "status": "provisional-draft",
@@ -1013,18 +1122,21 @@ def render_candidate_definitions(
             "recipe": {"command": "build-dense-vcf"},
             "in_stores": False,
         }
-        completed_id = store.get("completed_store_id")
-        completed = None
-        if completed_id:
-            completed = {
-                "store_id": completed_id,
-                "role": "completed-definition",
-                "label": f"{store.get('label')}-completed",
-                "derived_from": observed_id,
+        # The completion definition belongs to the same Store id (#308, ADR
+        # 0037): it names the recipe the bundle will carry once the reference
+        # qualifies, and no parent. META stays observed-only by policy.
+        completion = None
+        if not store.get("observed_only"):
+            completion = {
+                "store_id": observed_id,
+                "role": "completion-definition",
+                "label": store.get("label"),
+                "completion_state": "reference_completed",
+                "declared": _declared_completion(config, ancestry),
                 "status": "pending",
                 "acceptance": "pending",
                 "human_acceptance": "pending",
-                "blocked": reference.get("activation") != "active",
+                "blocked": completion_blocked(reference),
                 "resolution": "pending",
                 "actual_completion": "not_claimed",
                 "recipe": {
@@ -1040,7 +1152,7 @@ def render_candidate_definitions(
                 },
                 "in_stores": False,
             }
-        definitions["stores"][ancestry] = {"observed": observed, "completed": completed}
+        definitions["stores"][ancestry] = {"observed": observed, "completed": completion}
     return definitions
 
 
@@ -1078,6 +1190,7 @@ def run_emit(
     expected_metadata_fingerprint: str | None = None,
     only_buckets: Sequence[str] | None = None,
 ) -> dict:
+    validate_config(config)
     _, partition = build_partition(config, mapping_path)
     stores = dict(config["stores"])
     if only_buckets is not None:
@@ -1139,6 +1252,21 @@ def run_emit(
                 row["assigned_ancestry"] = ""
             member_rows.append(row)
         member_rows_by_ancestry[ancestry] = member_rows
+
+    # Resolve every completion recipe before any output directory exists, so a
+    # qualified reference with no declared panel fails the whole emit rather
+    # than one Store: (declares completion, its LD panel).
+    completion_by_ancestry: dict[str, tuple[bool, str | None]] = {}
+    for ancestry in stores:
+        declares = _declared_completion(config, ancestry)
+        reference = _completion_reference(config, ancestry)
+        panel = completion_ld_panel(reference) if declares else None
+        if declares and panel is None:
+            raise CandidateError(
+                f"{ancestry} reference {reference.get('resource_id')!r} is qualified and "
+                "active but declares no ld-panel; a completion recipe needs one"
+            )
+        completion_by_ancestry[ancestry] = (declares, panel)
 
     assert_not_registry_store_root(out_dir, registry_roots)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1203,23 +1331,34 @@ def run_emit(
 
         observed_id = store["observed_store_id"]
         observed_only = bool(store.get("observed_only"))
+        declares_completion, ld_panel = completion_by_ancestry[ancestry]
+        reference = _completion_reference(config, ancestry)
+        # What this bundle explains beyond the shared sentence: the completion it
+        # declares, or the policy that keeps META observed-only.
+        if declares_completion:
+            explanation = (
+                "Single-id reference completion (ADR 0037): this one bundle declares "
+                "both phases, the Store is published observed-only first and completion "
+                f"then replaces it under the same id. Reference "
+                f"{reference.get('resource_id')!r} is qualified and activated. "
+            )
+        elif observed_only:
+            explanation = (
+                "Cross-ancestry META is observed-only by policy: no derived_from "
+                "and no completion step. "
+            )
+        else:
+            explanation = ""
         notes = (
             f"Ancestry bucket {ancestry}; {len(member_rows)} intended Analyses. "
             f"candidate_store_key {store.get('candidate_store_key')}. "
-            + (
-                "Cross-ancestry META is observed-only by policy: no derived_from "
-                "and no completion step. "
-                if observed_only
-                else ""
-            )
-            + "Unbuilt candidate; the human scientific-acceptance step is pending."
-            + (
-                " Release Status is 'accepted' ONLY so the dev release workflow may "
-                "build this bundle (#247); it is not scientific release acceptance, "
-                "publication approval or mirror promotion, and no Store exists yet. "
-                "The pending human acceptance is recorded in "
-                "validation.yaml:acceptance.human_acceptance."
-            )
+            f"{explanation}"
+            "Unbuilt candidate; the human scientific-acceptance step is pending."
+            " Release Status is 'accepted' ONLY so the dev release workflow may "
+            "build this bundle (#247); it is not scientific release acceptance, "
+            "publication approval or mirror promotion, and no Store exists yet. "
+            "The pending human acceptance is recorded in "
+            "validation.yaml:acceptance.human_acceptance."
         )
         emit_bundle(
             out_dir,
@@ -1230,7 +1369,9 @@ def run_emit(
                 config=config,
                 created_at=created_at,
                 derived_from=None,
-                completion_state="observed-only",
+                completion_state=(
+                    "reference-completed" if declares_completion else "observed-only"
+                ),
                 notes=notes,
                 source_snapshot=source_snapshot,
                 status="accepted",
@@ -1240,82 +1381,48 @@ def run_emit(
                 store_id=observed_id,
                 config=config,
                 ancestry=store.get("assigned_ancestry"),
-                completion=False,
-                ld_panel=None,
+                completion=declares_completion,
+                ld_panel=ld_panel,
             ),
-            render_validation_yaml(store_id=observed_id, partition_total=len(intended)),
+            render_validation_yaml(
+                store_id=observed_id,
+                partition_total=len(intended),
+                completion_reference=reference if declares_completion else None,
+            ),
             analyses_text,
         )
         emitted[ancestry] = observed_id
 
-        completed_id = store.get("completed_store_id")
-        if observed_only or not completed_id:
+        if declares_completion or observed_only:
             continue
-        reference = store.get("completion_reference") or {}
-        suggested = _suggested_ld_panel(config, ancestry)
-        # Always record the pending, blocked completion DEFINITION so the intended
-        # lineage and recipe are reviewable. Qualification is never inferred from
-        # a declared resource or a config label.
+        # The reference is pending, on hold or blocked: keep the intended recipe
+        # reviewable as a receipt beside the bundle, keyed to the observed id
+        # because completion publishes under that id (ADR 0037). It is not a
+        # bundle and must not be executed: completing this Store needs the
+        # reference to qualify and the one permitted amendment (#305), or a
+        # re-emit if the candidate has not been accepted yet.
         _atomic_write(
-            out_dir / f"{completed_id}.completion-plan.yaml",
+            out_dir / f"{observed_id}.completion-plan.yaml",
             yaml.safe_dump(
                 {
-                    "store_id": completed_id,
-                    "derived_from": observed_id,
+                    "store_id": observed_id,
                     "completion_state": "reference_completed",
                     "candidate_store_key": store.get("candidate_store_key"),
                     "reference": reference,
                     "status": "pending",
-                    "blocked": reference.get("activation") != "active",
+                    "blocked": completion_blocked(reference),
                     "human_acceptance": "pending",
                     "source_snapshot": source_snapshot,
                     "note": (
                         "Completion definition only. The reference is not qualified or "
-                        "activated and the completed Store is not accepted, built or "
-                        "registered. Do not execute or promote."
+                        "activated, so this Store's bundle declares no completion. "
+                        "Do not execute or promote."
                     ),
                 },
                 sort_keys=False,
             ),
             out_dir,
         )
-        if suggested is None:
-            # No suggested panel: the definition above is the honest artifact; do
-            # not fabricate a buildable recipe with a missing path.
-            continue
-        emit_bundle(
-            out_dir,
-            completed_id,
-            render_release_yaml(
-                store_id=completed_id,
-                label=f"{store['label']}-completed",
-                config=config,
-                created_at=created_at,
-                derived_from=observed_id,
-                completion_state="reference-completed",
-                notes=(
-                    f"Lineage-linked completed definition for {observed_id} ({ancestry}); "
-                    f"declared reference {reference.get('resource_id')}, qualification "
-                    f"{reference.get('qualification')!r}, activation {reference.get('activation')!r}. "
-                    "Unbuilt, acceptance-pending; not qualified or approved for execution."
-                ),
-                source_snapshot=source_snapshot,
-            ),
-            render_build_yaml(
-                store_id=completed_id,
-                config=config,
-                ancestry=store.get("assigned_ancestry"),
-                completion=True,
-                ld_panel=suggested,
-            ),
-            render_validation_yaml(
-                store_id=completed_id,
-                partition_total=len(intended),
-                completion_reference=reference,
-            ),
-            analyses_text,
-        )
-        emitted[f"{ancestry}-completed"] = completed_id
 
     if check:
         for store_id in emitted.values():
@@ -1327,23 +1434,35 @@ def run_emit(
                 )
             checked.append(store_id)
 
-    # #247: the release workflow builds only `BUILDABLE_STATUSES`. Every observed
-    # Store is emitted `accepted` so `partition_buildable` keeps it; the completion
-    # children stay `candidate` while their reference is pending/blocked, so the
-    # workflow must refuse them rather than schedule them silently.
-    observed_bundles = [
-        bundle_module.load(emitted[ancestry], registry_root=out_dir)
-        for ancestry in stores
-        if ancestry in emitted
-    ]
-    bundle_module.refuse_unbuildable(observed_bundles)
-    for key, store_id in emitted.items():
-        if key.endswith("-completed") and bundle_module.is_buildable(
-            bundle_module.load(store_id, registry_root=out_dir)
-        ):
+    # #247: the release workflow builds only `BUILDABLE_STATUSES`, and ADR 0037
+    # publishes each Store under one id, so every emitted bundle is this Store's
+    # own bundle: all of them are `accepted` and buildable. A bundle may declare
+    # a completion only when its reference is qualified and active; while it is
+    # pending, on hold or blocked the observed bundle stays exactly as it was and
+    # the completion is a receipt beside it.
+    bundles = {
+        store_id: bundle_module.load(store_id, registry_root=out_dir)
+        for store_id in emitted.values()
+    }
+    bundle_module.refuse_unbuildable(list(bundles.values()))
+    for ancestry, store_id in emitted.items():
+        declares_completion, _ = completion_by_ancestry[ancestry]
+        build_document = bundles[store_id].build
+        declared = isinstance(build_document, Mapping) and "complete" in build_document
+        if declares_completion and not declared:
             raise CandidateError(
-                f"completed definition {store_id} must not be buildable while its "
-                "reference is pending/blocked"
+                f"{store_id} has a qualified, active reference but no 'complete' block"
+            )
+        if declared and not declares_completion:
+            raise CandidateError(
+                f"{store_id} must not declare a completion while its reference is "
+                "pending/blocked"
+            )
+        release = bundles[store_id].release
+        if isinstance(release, Mapping) and release.get("derived_from"):
+            raise CandidateError(
+                f"{store_id} must not declare derived_from: reference completion "
+                "publishes under the observed Store's own id (ADR 0037)"
             )
 
     _atomic_write(
