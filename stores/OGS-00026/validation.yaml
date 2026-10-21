@@ -1,5 +1,5 @@
-status: passed
-validated_at: 2026-08-18T21:37:04.108880+00:00
+status: passed_with_warnings
+validated_at: 2026-08-18T21:29:45.505803+00:00
 validator:
   name: resources/generators/gwas-ssf-ragged/build-store.py
   version: null
@@ -18,12 +18,13 @@ checks:
   ancestry: passed
   effect_scale: passed
   sd_estimation: passed
-  sparse_regions: passed
+  sparse_regions: passed_with_warnings
 reports:
   sparse_regions: sidecars/sparse_regions.tsv
   filter_summary: sidecars/filter_summary.tsv
   sd_estimation: sidecars/sd_estimation.tsv
   ancestry: sidecars/ancestry.tsv
   build_report: sidecars/build_report.tsv
-warnings: []
+warnings:
+  - store has 6653533 associations but filter summary records 6653535
 errors: []

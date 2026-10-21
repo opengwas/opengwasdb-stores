@@ -70,16 +70,16 @@ EXPECTED_RAGGED = (
     "OGS-00002",
     "OGS-00006",
     "OGS-00007",
+    "OGS-00024",
     "OGS-00025",
     "OGS-00026",
-    "OGS-00027",
 )
 
 # Dense-component Release Bundles that explicitly declare no subset. They were
 # migrated in #252 from the retired family-first archive with an unchanged
 # recipe, and no evidence records an Indexed Variant Subset ever being built
 # against them, so `indexed_subsets: []` is the answer rather than a guess.
-EXPECTED_OPTED_OUT = ("OGS-00022", "OGS-00023", "OGS-00024")
+EXPECTED_OPTED_OUT = ("OGS-00022", "OGS-00023")
 
 HAPMAP3_RESOURCE_ID = "hapmap3-hg38"
 HAPMAP3_VARIANT_LIST = "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt"
@@ -368,7 +368,7 @@ class TestRegistryMigration(unittest.TestCase):
             record_check()
             self.assertIn(store_id, rendered)
         record_check()
-        self.assertIn("13/16 Dense-component bundles declare hm3; 3 explicitly opted out", rendered)
+        self.assertIn("13/15 Dense-component bundles declare hm3; 2 explicitly opted out", rendered)
         record_check()
         self.assertIn("7/7 Ragged-only bundles declare none", rendered)
         record_check()

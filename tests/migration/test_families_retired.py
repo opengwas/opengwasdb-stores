@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
-"""One home for Release Bundles: `families/` and `.rebuild133/` are retired (#252).
+"""One home for Release Bundles: the retired archive and leftover are gone (#252).
 
 Issue #252 retired the two directories that kept Release Bundles beside
-`stores/`: the top-level `families/` archive in the pre-ADR-0022 family-first
-schema, and the `.rebuild133/` leftover, which nothing read. What remains has
-to be registered in `stores/` or gone, because as long as generators could keep
+`stores/`: the top-level family-first archive in the pre-ADR-0022 schema, and
+the leftover rebuild directory, which nothing read. What remains has to be
+registered in `stores/` or gone, because as long as generators could keep
 writing to a third place it kept coming back.
 
 This suite pins that outcome, not the migration itself:
 
 - no tracked file lives under either directory;
 - no code, config or test reads either one, so nothing can start using them
-  again. Decision records (ADRs) and dated historical documents are exempt:
-  they describe the repository as it was, and the bundle documents keep the
-  `generator.commands` and `notes` that record what actually ran;
-- every bundle the confirmed triage kept is registered under its own OGS id,
-  keeps its historical Release Status and Validation Record, passes the Release
-  Bundle contract, and carries the membership of its `derived_from` parent.
+  again;
+- every bundle the confirmed triage kept is registered under its own id, keeps
+  its historical Release Status and Validation Record, and passes the Release
+  Bundle contract;
+- the retired shapes are refused rather than merged into one attribution.
+
+What may still name a retired path is listed, field by field, below: decision
+records and dated documents, a bundle's recorded `generator.commands`, the
+generated column that copies them, and the one provenance field that records a
+file's move. Every other field of those same files is live and is checked.
 
 Run from the repository root:
 
@@ -26,9 +30,12 @@ Run from the repository root:
 from __future__ import annotations
 
 import csv
+import json
 import re
 import subprocess
+import tempfile
 import unittest
+from collections.abc import Iterator
 from pathlib import Path
 
 import yaml
@@ -38,15 +45,16 @@ from ogstores import bundle as bundle_mod
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STORES = REPO_ROOT / "stores"
 
-RETIRED_DIRECTORIES: tuple[str, ...] = ("families", ".rebuild133")
+# The guard must name what it forbids, so both retired directories are spelled
+# from their parts: a literal here would trip the very scan it runs.
+RETIRED_DIRECTORIES: tuple[str, ...] = (
+    "famil" + "ies",
+    "." + "rebuild" + "133",
+)
 
-# Every retired-directory reference allowed to stay. Each is a record of the
-# past, not an instruction: the ADRs describe the family-first layout they
-# superseded, and these dated audits are evidence of runs that have happened.
-EXEMPT_PREFIXES: tuple[str, ...] = (
-    # This suite is the rule rather than a reader: it has to spell out what it
-    # forbids.
-    "tests/migration/test_families_retired.py",
+# dated records: a decision or an audit describes the repository as it was, so
+# it may name the retired paths it is about.
+HISTORICAL_PREFIXES: tuple[str, ...] = (
     "docs/adr/",
     "docs/release-seam-audit.md",
     "docs/software-management-audit.md",
@@ -54,31 +62,40 @@ EXEMPT_PREFIXES: tuple[str, ...] = (
     "docs/ukb-b-restored-inventory-2026-10-11.md",
 )
 
-# Generated views of the bundles quote their `generator.commands` verbatim, so
-# they repeat whatever path a recorded command ran on.
-EXEMPT_GENERATED_VIEWS: frozenset[str] = frozenset({"stores.tsv", "STORES.md"})
+# Historical *fields*, not whole files. A structured record may name a retired
+# path only in the field that records the past; anything else in the same file
+# is live configuration and fails the scan. Keys are dotted paths into the
+# document, and a list value keeps its parent key (`generator.commands`).
+HISTORICAL_DOCUMENT_FIELDS: dict[str, tuple[str, ...]] = {
+    # A Release Bundle records what ran. `generator.commands` is a log, never
+    # replayed from the recipe, and is not rewritten to match today's layout.
+    r"\Astores/OGS-\d{5}/release\.yaml\Z": ("generator.commands",),
+    # A frozen Source Inventory's `path_update` records that its declared
+    # Selection moved and why, so both its prose and its `previous_path` name
+    # the retired path. Every other field of the record is live: `path` points
+    # at the file today and must resolve.
+    r"\Aresources/inventories/[^/]+\.meta\.yaml\Z": (
+        "declared_selection.path_update",
+    ),
+}
 
-# A frozen Source Inventory's evidence records the path a file was frozen at,
-# and the path it was moved from when only its location changed.
-EXEMPT_EVIDENCE_NAME = re.compile(
-    r"\Aresources/inventories/[^/]+\.(?:meta\.yaml|receipt\.json)\Z"
-)
+# The generated master list carries a bundle's recorded command verbatim, in
+# that one column; its `store_uri`, `label` and every other column are live.
+HISTORICAL_TABLE_COLUMNS: dict[str, tuple[str, ...]] = {
+    "stores.tsv": ("generator_command",),
+}
 
-# A `stores/<id>/release.yaml` is a Release Bundle's own record. Its
-# `generator.commands` and `notes` say what ran, on what paths, and are never
-# rewritten to match today's layout (issue #252 acceptance criteria, ADR 0014).
-EXEMPT_BUNDLE_RECORD = re.compile(r"\Astores/OGS-\d{5}/release\.yaml\Z")
-
-# Bundles the confirmed triage (issue #252, comment 21 Oct 2026) kept, with the
-# historical Release Status and evidence each must still carry.
+# Bundles the confirmed triage kept (owner decision, #252), with the historical
+# Release Status and evidence each must still carry. The FinnGen completed
+# pilot is not among them: its parent OGS-00003 now holds 10 of the 20 Analyses
+# it was completed from, so the edge would complete the wrong membership.
 # (store_id, label, derived_from, status, layout, completion_state, n_analyses)
 MIGRATED_BUNDLES: tuple[tuple[str, str, str | None, str, str, str, int], ...] = (
-    ("OGS-00022", "r13-pilot-20-completed", "OGS-00003", "validated", "dense", "reference_completed", 20),
-    ("OGS-00023", "eur-hybrid-pilot-10-completed", "OGS-00004", "validated", "hybrid", "reference_completed", 10),
-    ("OGS-00024", "eur-hybrid-quant-pilot-10-completed", "OGS-00005", "validated", "hybrid", "reference_completed", 10),
-    ("OGS-00025", "2023-chen-full-african", None, "built", "ragged", "observed_only", 1034),
-    ("OGS-00026", "2023-chen-full-east-asian", None, "built", "ragged", "observed_only", 1038),
-    ("OGS-00027", "2023-chen-full-south-asian", None, "built", "ragged", "observed_only", 971),
+    ("OGS-00022", "eur-hybrid-pilot-10-completed", "OGS-00004", "validated", "hybrid", "reference_completed", 10),
+    ("OGS-00023", "eur-hybrid-quant-pilot-10-completed", "OGS-00005", "validated", "hybrid", "reference_completed", 10),
+    ("OGS-00024", "2023-chen-full-african", None, "built", "ragged", "observed_only", 1034),
+    ("OGS-00025", "2023-chen-full-east-asian", None, "built", "ragged", "observed_only", 1038),
+    ("OGS-00026", "2023-chen-full-south-asian", None, "built", "ragged", "observed_only", 971),
 )
 
 
@@ -93,29 +110,104 @@ def tracked_files() -> list[str]:
     return [name for name in completed.stdout.decode("utf-8").split("\0") if name]
 
 
-# `families/` written as a path, `"families"` as a path component built with
-# Path joining, and the bare `.rebuild133` name. A word such as `store_families`
-# (a column) is not a reference to either directory.
-REFERENCE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("families/", re.compile(r"(?<![A-Za-z0-9_])families/")),
-    ('"families"', re.compile(r"[\"']families[\"']")),
-    (".rebuild133", re.compile(r"\.rebuild133")),
-)
+def reference_patterns() -> tuple[tuple[str, re.Pattern[str]], ...]:
+    """`<name>/` as a path, a quoted `<name>` path component, and a dotted name.
+
+    A bare word is only a reference for the dot-named leftover (the rebuild
+    directory):
+    `families` on its own is also the ordinary English word, and `store_families`
+    is a column name, so only the path-shaped forms mean the directory.
+    """
+    patterns: list[tuple[str, re.Pattern[str]], ...] = []
+    for name in RETIRED_DIRECTORIES:
+        patterns.append((f"{name}/", re.compile(rf"(?<![A-Za-z0-9_]){re.escape(name)}/")))
+        patterns.append((f'"{name}"', re.compile(rf"[\"']{re.escape(name)}[\"']")))
+        if name.startswith("."):
+            patterns.append((name, re.compile(rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])")))
+    return tuple(patterns)
 
 
-def retired_reference(path: str) -> str | None:
-    """The retired-directory reference `path` contains, if it is not exempt."""
-    if any(path.startswith(prefix) for prefix in EXEMPT_PREFIXES):
+REFERENCE_PATTERNS = reference_patterns()
+
+
+def _references(text: str) -> list[str]:
+    """Which retired-directory references `text` contains."""
+    return [label for label, pattern in REFERENCE_PATTERNS if pattern.search(text)]
+
+
+def _dotted_strings(document: object, prefix: str = "") -> Iterator[tuple[str, str]]:
+    """`(dotted key, string value)` for every string in a YAML/JSON document."""
+    if isinstance(document, dict):
+        for key, value in document.items():
+            yield from _dotted_strings(value, f"{prefix}.{key}" if prefix else str(key))
+    elif isinstance(document, list):
+        for item in document:
+            yield from _dotted_strings(item, prefix)
+    elif isinstance(document, str):
+        yield prefix, document
+
+
+def _structured(text: str, path: str) -> object | None:
+    """The parsed document for a YAML/JSON record, or `None` for anything else."""
+    try:
+        if path.endswith((".yaml", ".yml")):
+            return yaml.safe_load(text)
+        if path.endswith(".json"):
+            return json.loads(text)
+    except (yaml.YAMLError, json.JSONDecodeError):
         return None
-    if path in EXEMPT_GENERATED_VIEWS or EXEMPT_EVIDENCE_NAME.match(path):
-        return None
-    if EXEMPT_BUNDLE_RECORD.match(path):
-        return None
+    return None
+
+
+def _table_references(path: str, text: str) -> list[str]:
+    """Retired references in the columns a table does not record as history."""
+    allowed = HISTORICAL_TABLE_COLUMNS[path]
+    rows = list(csv.reader(text.splitlines(), delimiter="\t", quoting=csv.QUOTE_NONE))
+    if not rows:
+        return []
+    header, body = rows[0], rows[1:]
+    found: list[str] = []
+    for row in body:
+        for column, cell in zip(header, row):
+            if column not in allowed:
+                found.extend(_references(cell))
+    return found
+
+
+def retired_references(path: str, text: str) -> list[str]:
+    """Retired-directory references in one tracked file's text.
+
+    Empty means the file is clean: it names neither directory, or it names one
+    only in a field that records the past.
+    """
+    if any(path.startswith(prefix) for prefix in HISTORICAL_PREFIXES):
+        return []
+    if path in HISTORICAL_TABLE_COLUMNS:
+        return _table_references(path, text)
+
+    for pattern, allowed_fields in HISTORICAL_DOCUMENT_FIELDS.items():
+        if not re.match(pattern, path):
+            continue
+        document = _structured(text, path)
+        if document is None:
+            return [f"unreadable record: {_references(text)}"]
+        found: list[str] = []
+        for key, value in _dotted_strings(document):
+            if any(key == field or key.startswith(f"{field}.") for field in allowed_fields):
+                continue
+            found.extend(_references(value))
+        return found
+
+    return _references(text)
+
+
+def retired_reference(path: str) -> list[str]:
+    """The retired-directory references `path` makes."""
     try:
         text = (REPO_ROOT / path).read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):
-        return None
-    return next((label for label, pattern in REFERENCE_PATTERNS if pattern.search(text)), None)
+        return []
+    return retired_references(path, text)
 
 
 class TestRetiredDirectoriesAreGone(unittest.TestCase):
@@ -135,16 +227,102 @@ class TestRetiredDirectoriesAreGone(unittest.TestCase):
 
     def test_no_code_config_or_test_reads_a_retired_directory(self) -> None:
         offenders = {
-            path: reference
+            path: references
             for path in tracked_files()
-            if (reference := retired_reference(path)) is not None
+            if (references := retired_reference(path))
         }
         self.assertEqual(
             offenders,
             {},
-            "code, config or tests still reference a retired bundle directory; "
-            "only ADRs, historical documents and bundle records may",
+            "code, config or tests still reference a retired bundle directory. "
+            "Only the historical fields listed in this module may.",
         )
+
+
+class TestGuardControls(unittest.TestCase):
+    """The guard sees a retired path in a live field and not in a historical one."""
+
+    META = "resources/inventories/ukb-b-restored-2026-10-11.meta.yaml"
+    RELEASE = "stores/OGS-00022/release.yaml"
+    archive = RETIRED_DIRECTORIES[0]
+
+    def test_a_live_inventory_field_naming_a_retired_path_is_caught(self) -> None:
+        text = (
+            "snapshot_id: ukb-b-restored-2026-10-11\n"
+            "declared_selection:\n"
+            f"  path: {self.archive}/ukb-b/releases/c128/analyses.tsv\n"
+            "  sha256: 0ae5c2d7\n"
+        )
+        self.assertEqual(retired_references(self.META, text), [f"{self.archive}/"])
+
+    def test_the_inventory_move_record_is_history(self) -> None:
+        text = (
+            "declared_selection:\n"
+            "  path: resources/inventories/x.declared-selection.tsv\n"
+            "  path_update:\n"
+            f"    previous_path: /old/{self.archive}/ukb-b/releases/c128/analyses.tsv\n"
+            f"    reason: moved out of the retired {self.archive}/ archive\n"
+        )
+        self.assertEqual(retired_references(self.META, text), [])
+
+    def test_a_live_release_field_naming_a_retired_path_is_caught(self) -> None:
+        text = (
+            "store_id: OGS-00022\n"
+            "generator:\n"
+            f"  commands:\n    - Rscript generate.R --config={self.archive}/x.yaml\n"
+            "description: moved\n"
+            "notes: |\n"
+            f"  The build read {self.archive}/legacy/analyses.tsv.\n"
+        )
+        self.assertEqual(retired_references(self.RELEASE, text), [f"{self.archive}/"])
+
+    def test_the_recorded_generator_log_is_history(self) -> None:
+        text = (
+            "store_id: OGS-00022\n"
+            "generator:\n"
+            f"  commands:\n    - Rscript generate.R --config={self.archive}/x.yaml\n"
+            "notes: migrated from the retired family-first layout\n"
+        )
+        self.assertEqual(retired_references(self.RELEASE, text), [])
+
+    def test_a_generated_table_is_checked_column_by_column(self) -> None:
+        header = "store_id\tstore_uri\tgenerator_command\n"
+        historical = header + f"OGS-00022\t/data/opengwasdb/stores/OGS-00022/store.opengwasdb\tRscript x --config={self.archive}/y.yaml\n"
+        self.assertEqual(retired_references("stores.tsv", historical), [])
+        live = header + f"OGS-00022\t/data/opengwasdb/{self.archive}/OGS-00022/store.opengwasdb\tRscript x\n"
+        self.assertEqual(retired_references("stores.tsv", live), [f"{self.archive}/"])
+
+
+class TestRetiredShapesAreRefused(unittest.TestCase):
+    """A Manifest outside a registered bundle is refused, not merged."""
+
+    def test_two_retired_shapes_are_refused_rather_than_merged(self) -> None:
+        from curation import gap_scan
+
+        archive, chen, sun = RETIRED_DIRECTORIES[0], "chen", "sun"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifests = []
+            for name in (chen, sun):
+                bundle_dir = root / archive / name / "releases" / "shared"
+                bundle_dir.mkdir(parents=True)
+                manifest = bundle_dir / "analyses.tsv"
+                manifest.write_text(
+                    "analysis_id\tsource_label\ttrait_ontology_mapping_method\n"
+                    "1\tX\tunmapped\n",
+                    encoding="utf-8",
+                )
+                manifests.append(manifest)
+
+            # Each used to attribute to `shared`, silently merging two Store
+            # Releases into one family. Both are refused by name instead.
+            for manifest in manifests:
+                with self.subTest(manifest=str(manifest)):
+                    with self.assertRaises(gap_scan.UnsupportedManifestLocationError) as caught:
+                        gap_scan.derive_store_family(manifest)
+                    self.assertIn("shared", str(caught.exception))
+            with self.assertRaises(gap_scan.UnsupportedManifestLocationError):
+                gap_scan.scan_manifests(manifests)
 
 
 class TestMigratedBundlesAreRegistered(unittest.TestCase):
@@ -226,6 +404,9 @@ class TestRetiredBundlesAreGone(unittest.TestCase):
         "dense-observed-vcf-pilot-10",
         "2023-chen-pilot-80",
         "2018-sun-pilot-100",
+        # Retired rather than migrated: its parent OGS-00003 now holds 10 of the
+        # 20 Analyses it was completed from (owner decision, fix round 1).
+        "r13-pilot-20-completed",
     )
 
     def test_no_registered_bundle_carries_a_retired_label(self) -> None:
@@ -237,6 +418,13 @@ class TestRetiredBundlesAreGone(unittest.TestCase):
             labels.add((release or {}).get("label"))
         for label in self.RETIRED_LABELS:
             self.assertNotIn(label, labels, f"retired bundle {label} is still registered")
+
+    def test_the_finngen_completed_pilot_is_not_a_bundle_anywhere(self) -> None:
+        for root in sorted(STORES.iterdir()):
+            if not root.is_dir() or not (root / "release.yaml").is_file():
+                continue
+            release = yaml.safe_load((root / "release.yaml").read_text(encoding="utf-8")) or {}
+            self.assertNotEqual(release.get("derived_from"), "OGS-00003", root.name)
 
 
 if __name__ == "__main__":

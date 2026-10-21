@@ -1,17 +1,10 @@
 store_id: OGS-00024
-layout: hybrid
-completion_state: reference_completed
-complete:
-  command: complete-hybrid
+layout: ragged
+completion_state: observed_only
+build:
+  command: build-ragged-ssf
   options:
-    ld-panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
-    ancestry: European
-    n-workers: 32
+    stored-effect-scale: sd
 post:
-  top_hits: false
-  overview: true
-
-# This Store Release declares no Indexed Variant Subset (#209): none was built
-# against it and no evidence records one. An explicit empty list is the
-# reviewable statement that separates "declared none" from "not migrated".
-indexed_subsets: []
+  top_hits: true
+  overview: false

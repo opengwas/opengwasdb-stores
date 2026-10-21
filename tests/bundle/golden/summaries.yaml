@@ -203,18 +203,6 @@ OGS-00017:
   sample_size: 68562-500186
   source_url: https://storage.googleapis.com/finngen-public-data-r13/summary_stats/
 OGS-00022:
-  n_manifest: 20
-  n_admitted: 20
-  n_excluded: 0
-  n_analyses: 20
-  first_author: NA
-  publication_pmid: NA
-  tissue: NA
-  context: NA
-  assigned_ancestry: EUR
-  sample_size: 260016-500186
-  source_url: https://storage.googleapis.com/finngen-public-data-r13/summary_stats/
-OGS-00023:
   n_manifest: 10
   n_admitted: 9
   n_excluded: 1
@@ -226,7 +214,7 @@ OGS-00023:
   assigned_ancestry: EUR
   sample_size: 6753-482730
   source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
-OGS-00024:
+OGS-00023:
   n_manifest: 10
   n_admitted: 10
   n_excluded: 0
@@ -238,7 +226,7 @@ OGS-00024:
   assigned_ancestry: EUR
   sample_size: 511-300447
   source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
-OGS-00025:
+OGS-00024:
   n_manifest: 1034
   n_admitted: 1034
   n_excluded: 0
@@ -250,7 +238,7 @@ OGS-00025:
   assigned_ancestry: AFR
   sample_size: 30-60
   source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
-OGS-00026:
+OGS-00025:
   n_manifest: 1038
   n_admitted: 1038
   n_excluded: 0
@@ -262,7 +250,7 @@ OGS-00026:
   assigned_ancestry: EAS
   sample_size: 51-104
   source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
-OGS-00027:
+OGS-00026:
   n_manifest: 971
   n_admitted: 971
   n_excluded: 0
