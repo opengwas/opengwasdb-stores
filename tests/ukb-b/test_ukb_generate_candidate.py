@@ -46,7 +46,7 @@ INVENTORY_COLUMNS = ukb_inventory.INVENTORY_COLUMNS
 #: The tree before #312. The observed-only bundle is pinned against the bytes
 #: this revision emits from the same fixture, so the pinned values come from the
 #: base code and never from the code under test.
-BASE_REVISION = "a465599"
+BASE_REVISION = "9b899b7"
 
 CREATED_AT = "2026-10-12T00:00:00Z"
 FIXTURE_STORE_ID = "OGS-99001"
