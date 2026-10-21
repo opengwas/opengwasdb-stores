@@ -483,7 +483,7 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         lineage) still has the sha256 the freeze recorded; the frozen subsets
         beside the inventory are checked by ``load_frozen_connectors``.
         """
-        from manifest_generation.freeze import load_frozen_connectors
+        from manifest_generation.freeze import load_frozen_connectors, original_path
 
         scratch = ("/tmp/", "/data/opengwasdb/work/")
         for path in shipped_release_configs():
@@ -499,7 +499,9 @@ class ShippedReleaseConfigTests(unittest.TestCase):
             for entry in recorded:
                 with self.subTest(config=path.name, original=entry["path"]):
                     self.assertFalse(entry["path"].startswith(scratch), entry["path"])
-                    original = Path(entry["path"])
+                    # Inside the checkout it is recorded relative to it (#300).
+                    self.assertFalse(entry["path"].startswith(str(REPO_ROOT)), entry["path"])
+                    original = original_path(entry["path"])
                     if original.is_file():
                         self.assertEqual(sha256_file(original), entry["sha256"])
             table, manifest = load_frozen_connectors(config.inventory_provenance_path)
@@ -549,6 +551,7 @@ class ShippedReleaseConfigTests(unittest.TestCase):
             read_analysis_metadata,
             read_imputation_score_declarations,
         )
+        from manifest_generation.freeze import original_path
         from manifest_generation.source_inventory import read_inventory
 
         for path in shipped_release_configs():
@@ -556,11 +559,12 @@ class ShippedReleaseConfigTests(unittest.TestCase):
                 config = load_candidate_configuration(path, REPO_ROOT)
                 provenance_path = config.base.inventory_provenance_path
                 provenance = yaml.safe_load(provenance_path.read_text(encoding="utf-8"))
-                if not Path(provenance["source_metadata_table"]["original"]["path"]).is_file():
+                if not original_path(provenance["source_metadata_table"]["original"]["path"]).is_file():
                     self.skipTest("the collection's Source Metadata Table is not on this host")
                 rows = read_inventory(config.base.inventory_path)
                 ready = [row.analysis_id for row in rows if row.ready]
-                if len(ready) > 100:
+                declares = config.imputation_score_declarations is not None
+                if declares and len(ready) > 100:
                     declared = read_imputation_score_declarations(
                         config.imputation_score_declarations,
                         [row.analysis_id for row in rows],
@@ -572,7 +576,7 @@ class ShippedReleaseConfigTests(unittest.TestCase):
                 manifest = derive_resolver_manifest(rows, config, metadata)
                 self.assertEqual([row.analysis_id for row in manifest], ready)
                 # The shared table's declarations for these Analyses, and only those.
-                self.assertTrue(any(row.imputation_score_column for row in manifest))
+                self.assertEqual(any(row.imputation_score_column for row in manifest), declares)
 
     def test_the_pilot_configs_select_exactly_their_trial_store_releases(self) -> None:
         for name, store_id in (

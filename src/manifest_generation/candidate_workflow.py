@@ -87,7 +87,7 @@ from manifest_generation.source_inventory import (
 )
 from manifest_generation.release_config import ReleaseConfig, load_release_config
 from manifest_generation.connector_tsv import FreezeError
-from manifest_generation.freeze import load_frozen_connectors
+from manifest_generation.freeze import load_frozen_connectors, original_path
 from manifest_generation.trait_ontology_mapping import (
     CanonicalTraitMappingTable,
     SourceTrait,
@@ -878,7 +878,7 @@ def collection_analysis_ids(provenance_path: Path) -> frozenset[str] | None:
     try:
         document = yaml.safe_load(Path(provenance_path).read_text(encoding="utf-8"))
         original = document["source_metadata_table"]["original"]
-        path, expected = Path(original["path"]), original["sha256"]
+        path, expected = original_path(original["path"]), original["sha256"]
     except (OSError, KeyError, TypeError) as exc:
         raise CandidateError(
             f"{provenance_path} records no original Source Metadata Table: {exc}"

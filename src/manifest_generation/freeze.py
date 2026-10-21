@@ -66,6 +66,7 @@ from typing import Any, Mapping, Sequence
 
 import yaml
 
+from manifest_generation import REPO_ROOT
 from manifest_generation.acquisition_manifest import (
     ACQUISITION_MANIFEST,
     AcquisitionManifest,
@@ -98,6 +99,8 @@ __all__ = [
     "frozen_paths",
     "load_frozen_connectors",
     "write_frozen_inventory",
+    "original_path",
+    "recorded_path",
 ]
 
 
@@ -252,6 +255,25 @@ def write_frozen_inventory(frozen: FrozenInventory, inventory_path: Path, proven
     )
 
 
+def recorded_path(path: Path) -> str:
+    """A connector original's path as provenance records it (#300).
+
+    Relative to the checkout when the original lies inside it, so a committed
+    snapshot names the same file in every checkout; absolute otherwise.
+    """
+    path = Path(path).absolute()
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def original_path(recorded: str) -> Path:
+    """The file a provenance's recorded original path names (:func:`recorded_path`'s inverse)."""
+    path = Path(recorded)
+    return path if path.is_absolute() else REPO_ROOT / path
+
+
 def render_provenance_yaml(
     frozen: FrozenInventory, inventory_sha256: str, frozen_files: Mapping[str, Mapping[str, Any]]
 ) -> str:
@@ -268,7 +290,7 @@ def render_provenance_yaml(
         "source_metadata_table": {
             "frozen": dict(frozen_files["source_metadata_table"]),
             "original": {
-                "path": str(frozen.table.path),
+                "path": recorded_path(frozen.table.path),
                 "sha256": frozen.table.sha256,
                 "bytes": frozen.table.bytes,
                 "rows": len(frozen.table.rows),
@@ -277,13 +299,13 @@ def render_provenance_yaml(
         "acquisition_manifest": {
             "frozen": dict(frozen_files["acquisition_manifest"]),
             "original": {
-                "path": str(frozen.manifest.path),
+                "path": recorded_path(frozen.manifest.path),
                 "sha256": frozen.manifest.sha256,
                 "bytes": frozen.manifest.bytes,
                 "rows": len(frozen.manifest.entries),
                 "readiness_counts": frozen.manifest.readiness_counts,
                 "pass_lineage": (
-                    {"path": str(lineage_path), "sha256": sha256_file(lineage_path)}
+                    {"path": recorded_path(lineage_path), "sha256": sha256_file(lineage_path)}
                     if lineage_path.is_file()
                     else None
                 ),

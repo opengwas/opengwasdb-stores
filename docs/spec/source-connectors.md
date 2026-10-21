@@ -130,6 +130,19 @@ GCST000028          Type 2 diabetes     European               EUR              
 GCST90006908        Anti-human herpes…  European               EUR                     quantitative  8735                             33204752          hybrid__European
 ```
 
+### SomaScan target annotation
+
+`src/manifest_generation/providers/gwas_catalog/somascan_targets.py` adds
+target annotation to the GWAS Catalog's table for a SomaScan pQTL collection
+(#300). It writes the table's rows for the Analyses the tracked target table
+(`resources/reference-resources/somascan/sun-2018-analysis-targets.tsv`)
+names, with their target columns: `target_assay_id`, the source's own SeqId;
+the gene and span when the mapped rows name one gene, none when they name
+several (a complex such as AMP kinase) or none; `target_mhc`;
+`target_is_aggregate` when SomaLogic's `somascan-targets.tsv` flags the assay
+(`somascan_is_multiple`) or the trait label lists several member symbols;
+`target_resolution_method`; and `target_rows`, the mapped rows counted.
+
 ## Acquisition Manifest
 
 What acquisition produced for a Source Collection: one row per Analysis it
@@ -196,6 +209,18 @@ header: the filter selects and never reformats.
 sha256, the filter tool, the policy, and each filtered file's counts
 (`input_rows`, `retained_rows`, `cis_rows`, `significant_trans_regions`,
 `significant_trans_rows`, `suggestive_leads`, `qc_panel_rows`).
+
+### Files the retired R generator filtered
+
+OGS-00006 (Chen 2023) and OGS-00007 (Sun 2018) were built from files the R
+`gwas-ssf-ragged` generator filtered, deleting each original.
+`src/manifest_generation/providers/gwas_catalog/legacy_ragged_acquisition.py`
+writes the Acquisition Manifest of such a bundle's filtered files as they are,
+with lineage from its `sidecars/filter_summary.tsv`: `original_location` (the
+URL R downloaded), `original_bytes` and no `original_sha256` (R recorded
+none), R's policy, and the tool -- the R generator for a file whose sha256 is
+the one R recorded, the 15 Sep 2026 re-materialisation from
+`sparse_regions.tsv` for one whose sha256 differs.
 
 ### Pass lineage
 
@@ -304,7 +329,7 @@ The sidecar keeps the counts preflight re-checks, computed by
 | `rows`, `readiness_counts`, `ready_rows`, `ready_bytes`, `study_design_counts`, `ready_study_design_counts`, `duplicate_content_groups` | The inventory's counts. Duplicate-content groups -- ready Analyses whose files share one sha256 -- are reported for review, never collapsed. |
 | `inventory_tsv_sha256` | Binds the sidecar to `ID.tsv`. |
 | `source_metadata_table.frozen` | `path` (relative to the sidecar), `sha256`, `bytes`, `rows` of the frozen table. |
-| `source_metadata_table.original` | `path`, `sha256`, `bytes`, `rows` of the table freeze read. |
+| `source_metadata_table.original` | `path`, `sha256`, `bytes`, `rows` of the table freeze read. A `path` inside the checkout is recorded relative to it, so a committed snapshot names the same file in every checkout (`freeze.recorded_path`, #300); any other is absolute. |
 | `acquisition_manifest.frozen` | The same, for the frozen manifest. |
 | `acquisition_manifest.original` | `path`, `sha256`, `bytes`, `rows`, `readiness_counts` of the manifest freeze read, and `pass_lineage`: the `path` and `sha256` of its pass lineage, or null when it has none. |
 | `acquisition_manifest.unselected_entries` | Rows claimed by Analyses the Selection leaves out. |

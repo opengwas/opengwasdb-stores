@@ -1,0 +1,54 @@
+# GWAS Catalog region-filtered ragged releases
+
+Release configs for GWAS Catalog collections that are too large to keep whole
+and are filtered at acquisition to a region policy (#300): Chen et al. 2023's
+plasma metabolome atlas and Sun et al. 2018's INTERVAL SomaScan pQTLs. They
+replace the R `gwas-ssf-ragged` generator and its `metabolome-plasma-2023` and
+`pqtl-interval-2018` configs; OGS-00006 and OGS-00007, which those built, keep
+their recorded commands as history.
+
+| Release config | Store Release built as | Region policy |
+|---|---|---|
+| `release-chen-2023-european.yaml` | OGS-00006 (1,400 Analyses) | `signals_only`: significant-trans flanks and suggestive leads |
+| `release-sun-2018-pilot-10.yaml` | OGS-00007 (10 Analyses) | `cis_plus_signals`: also a 1 Mb flank around each target gene |
+
+Both keep the QC panel (`qc-panel-hg38`), so Analysis Resolution can measure
+ancestry and phenotype SD from the filtered rows.
+
+## Connectors
+
+`connectors/` holds the connector files this checkout writes for these
+releases; the GWAS Catalog's whole Source Metadata Table is read-only on
+`/data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-20/`.
+
+| File | Written by |
+|---|---|
+| `sun-2018.source-metadata.tsv` | `python3 -m manifest_generation.providers.gwas_catalog.somascan_targets --source-metadata-table /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-20/gwas-catalog-ssf.source-metadata.tsv --analysis-targets resources/reference-resources/somascan/sun-2018-analysis-targets.tsv --somascan-targets resources/reference-resources/somascan/somascan-targets.tsv --out ...`: the 3,283 Sun Analyses with their target annotation |
+| `chen-2023-european.acquisition-manifest.tsv` | `python3 -m manifest_generation.providers.gwas_catalog.legacy_ragged_acquisition OGS-00006 --out ...` |
+| `sun-2018-pilot-10.acquisition-manifest.tsv` | `python3 -m manifest_generation.providers.gwas_catalog.legacy_ragged_acquisition OGS-00007 --out ...` |
+
+Both Acquisition Manifests list the files the R generator filtered, as they
+are, with lineage from the bundle's `filter_summary.tsv`. Chen's originals were
+deleted after filtering, so its files cannot be acquired afresh; 198 of them
+were re-materialised on 15 Sep 2026 and their lineage says so. R kept no QC
+panel for Sun: to acquire Sun's files to this policy, filter its originals with
+the shared region filter, which deletes each original once the filtered file is
+recorded, and re-freeze under a new snapshot id:
+
+```sh
+pixi run python3 -m manifest_generation.region_filtered_acquisition \
+  --config resources/generators/gwas-catalog-ragged/release-sun-2018-pilot-10.yaml \
+  --originals <Acquisition Manifest of the downloaded originals> \
+  --out-dir <filtered files> --out <Acquisition Manifest> --workers 8
+```
+
+## Generate a candidate
+
+```sh
+pixi run generate-candidate <store-id> \
+  --config resources/generators/gwas-catalog-ragged/release-chen-2023-european.yaml --cores 32
+```
+
+OGS-00006 and OGS-00007 are `built`, so a regeneration emits into a temporary
+`--registry-root` for comparison; a new release of either needs a new Store
+Release id.
