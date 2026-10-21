@@ -13,8 +13,8 @@ See [`docs/spec/store-release-workflow.md`](../../docs/spec/store-release-workfl
 The suite builds a temporary mirror, the Source Collection's two connector
 files (a Source Metadata Table and an Acquisition Manifest), a release config
 (`docs/spec/release-config.md`) and, for most tests, the Source Inventory the
-shared freeze writes from them, and drives the real operator entry point as a
-subprocess.
+shared freeze writes from them, and drives the real operator entry point (in
+this process for most tests -- see "Where the entry point runs" below).
 `fixtures/fake_resolver.py` stands in for `opengwasdb resolve-analyses`: it
 reproduces only the resolver's *contract* (atomic per-Analysis records, a
 deterministic `index.json` in manifest order, fingerprint inputs, `--resume`
@@ -43,7 +43,9 @@ alignment or SD — those stay OpenGWASDB's and are exercised upstream.
    the contract and every kept record's digest and checksum; changing a gate, the ancestry reference
    or fine-group map content, the resolver revision, or forging an
    internally-consistent record with a recomputed self-digest all make
-   `verify`/`emit` fail and preserve a prior candidate.
+   `verify`/`emit` fail and preserve a prior candidate. So does a reference
+   rewritten in place to the same length with its mtime restored, in the very
+   next invocation of the entry point.
    A missing receipt is rejected too. (`--cores` and the resolution root deliberately do
    not change the contract.)
 7. **Resume reuses unchanged records** and reproduces byte-identical tables and
@@ -133,3 +135,27 @@ pixi run --environment dev python3 tests/phase-b-candidate/test_phase_b_candidat
 # or through the repo orchestrator
 pixi run test-python
 ```
+
+### Where the entry point runs
+
+Tests drive `manifest_generation.generate_candidate.main` in the test process,
+not through `python3 -m`: one fresh interpreter per run costs about 1.4 s here
+(`load_candidate_configuration` imports `opengwasdb`), and a suite of them made
+this one the repository's slowest (#282). The same argparse, the same stages and
+the same files are exercised either way, and `_run_cli` clears the state an
+invocation leaves on the entry point's modules (`_one_invocation`) and reports
+`SystemExit` as a process would: an integer code, `None` for a clean exit, and
+exit code 1 with the value on stderr for anything else (#282 review).
+
+Four tests spawn a process instead, and they are the ones whose subject *is* the
+process: the full mixed-design pipeline and both invocations of the unchanged
+re-run reuse test go through `python3 -m` (`_run_cli_subprocess`), the
+legacy-config test proves the entry point fails without a traceback, and the
+killed-run test starts it with `Popen` so its resolver can outlive it. The fake
+resolver, and the real one where a test uses it, always run as subprocesses.
+
+The `RealResolver*` classes resolve once for the class, not once per test: their
+kept records and receipt depend on the resolver settings, not on the release
+policy `RealResolverNoAlleleFrequencyTests` varies, so each of its tests enters
+the pipeline at `emit` over the class's Work Root with its own config and
+registry (#282).
