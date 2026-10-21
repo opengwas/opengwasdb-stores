@@ -321,26 +321,33 @@ def render_provenance_yaml(
     return yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100, allow_unicode=True)
 
 
-@functools.lru_cache(maxsize=64)
-def _parsed_provenance(path: Path, mtime_ns: int, size: int) -> Mapping[str, Any]:
-    """A provenance sidecar, parsed once per file identity.
+@functools.lru_cache(maxsize=16)
+def _parsed_provenance(path: Path, digest: str) -> Mapping[str, Any]:
+    """A provenance sidecar, parsed once per content digest.
 
     A snapshot's provenance is immutable and can be large: the dbGaP MVP sidecars
-    list every selected file's reformat lineage. Keying the cache on the file's
-    mtime and size means a rewritten sidecar is always re-read.
+    list every selected file's reformat lineage. Hashing the bytes is cheap next
+    to parsing them, and keying on the digest -- not the path, mtime and size --
+    means every content change is reparsed: a sidecar whose recorded checksum is
+    edited to the same length with its mtime restored can never be served from
+    the cache (#290 review).
     """
-    del mtime_ns, size  # part of the cache key only
-    return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    data = Path(path).read_bytes()
+    if hashlib.sha256(data).hexdigest() != digest:  # pragma: no cover - a write raced the read
+        # The file changed between hashing and parsing: parse what is there,
+        # uncached, rather than filing it under the digest of older bytes.
+        return yaml.safe_load(data)
+    return yaml.safe_load(data)
 
 
 def load_provenance(provenance_path: Path) -> Mapping[str, Any]:
-    """A frozen snapshot's provenance document, cached by the file's identity."""
+    """A frozen snapshot's provenance document, cached by its content."""
     path = Path(provenance_path)
     try:
-        stat = path.stat()
+        data = path.read_bytes()
     except OSError as exc:
         raise FreezeError(f"frozen Source Inventory provenance not found: {path}") from exc
-    return _parsed_provenance(path, stat.st_mtime_ns, stat.st_size)
+    return _parsed_provenance(path, hashlib.sha256(data).hexdigest())
 
 
 def load_frozen_connectors(provenance_path: Path) -> tuple[SourceMetadataTable, AcquisitionManifest]:

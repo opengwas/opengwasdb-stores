@@ -270,6 +270,25 @@ class FreezeSuccessTest(FreezeFixture):
             load_frozen_connectors(provenance)
         self.assertIn("fixture-snapshot.acquisition-manifest.tsv", str(caught.exception))
 
+    def test_a_provenance_rewritten_without_changing_its_size_is_reparsed(self) -> None:
+        """The parse cache is keyed by content, so stale integrity evidence is never served (#290 review)."""
+        _, provenance, _ = self.write(self.freeze())
+        # A first read fills the cache with the valid provenance.
+        load_frozen_connectors(provenance)
+
+        stat = provenance.stat()
+        text = provenance.read_text(encoding="utf-8")
+        document = yaml.safe_load(text)
+        recorded = document["acquisition_manifest"]["frozen"]["sha256"]
+        doctored = "0" * 64 if recorded != "0" * 64 else "1" * 64
+        provenance.write_text(text.replace(recorded, doctored), encoding="utf-8")
+        os.utime(provenance, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+        self.assertEqual(provenance.stat().st_size, stat.st_size)
+        self.assertEqual(provenance.stat().st_mtime_ns, stat.st_mtime_ns)
+
+        with self.assertRaisesRegex(FreezeError, "sha256"):
+            load_frozen_connectors(provenance)
+
     def test_provenance_records_lineage_and_duplicate_content(self) -> None:
         _, provenance, _ = self.write(self.freeze())
         document = yaml.safe_load(provenance.read_text(encoding="utf-8"))
