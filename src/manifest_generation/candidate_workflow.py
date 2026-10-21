@@ -63,7 +63,7 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 
 import yaml
 
-from ogstores.bundle import SUPERPOPULATIONS
+from ogstores.bundle import SUPERPOPULATIONS, ColumnMapBinding, is_valid_column_map_file
 from manifest_generation import quality_checks
 from manifest_generation.quality_checks import (
     NON_QUANTITATIVE_EFFECT_SCALES,
@@ -460,6 +460,9 @@ class CandidateConfiguration:
     #: ``resources/reference-resources/<id>/resource.yaml``: its ``genome_build``
     #: is the resolver's ``--reference-build`` (opengwasdb#277).
     ancestry_reference_declaration: Path | None = None
+    #: The liftover chain's declaration, ``resources/reference-resources/<id>/resource.yaml``,
+    #: when ``ancestry_assignment.liftover_chain_resource_id`` names one (#292).
+    liftover_chain_declaration: Path | None = None
 
 
 #: The Ancestry Assignment Method of an Analysis whose source has no allele
@@ -522,6 +525,12 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         ancestry_reference_declaration=(
             Path(repo_root) / "resources" / "reference-resources"
             / base.ancestry_reference_resource_id / "resource.yaml"
+        ),
+        liftover_chain_declaration=(
+            Path(repo_root) / "resources" / "reference-resources"
+            / base.liftover_chain_resource_id / "resource.yaml"
+            if base.liftover_chain_resource_id
+            else None
         ),
     )
 
@@ -1171,6 +1180,85 @@ def ancestry_reference_build(config: CandidateConfiguration) -> str:
     return build
 
 
+def column_map_binding(config: CandidateConfiguration) -> ColumnMapBinding | None:
+    """The Column Map the release reads through, as ``build.yaml`` binds it, or ``None``.
+
+    ``name`` and ``sha256`` are what OpenGWASDB records as
+    ``resolution_config.column_map``, so they come from its own loader: a
+    built-in's checksum is the file the pinned package ships, not a name. A
+    carried map is bound by its file name, and must fit the bundle's grammar.
+    """
+    from opengwasdb.readers.column_map import ColumnMapError, load_column_map
+
+    base = config.base
+    if base.column_map_builtin is None and base.column_map_path is None:
+        return None
+    spec = base.column_map_builtin or str(base.column_map_path)
+    try:
+        loaded = load_column_map(spec)
+    except ColumnMapError as exc:
+        raise CandidateError(f"column_map: {exc}") from exc
+    if base.column_map_path is None:
+        return ColumnMapBinding(name=loaded.name, sha256=loaded.sha256)
+    file = base.column_map_path.name
+    if not is_valid_column_map_file(file):
+        raise CandidateError(
+            f"column_map.path {base.column_map_path}: the bundle carries it as "
+            f"column_maps/{file}, which is not a valid Column Map file name"
+        )
+    return ColumnMapBinding(name=loaded.name, sha256=loaded.sha256, file=file)
+
+
+def liftover_chain(config: CandidateConfiguration) -> tuple[str, str] | None:
+    """``(location, sha256)`` of the declared liftover chain, or ``None`` when none is named.
+
+    The chain is a declared Reference Resource (#292): its ``resource.yaml``
+    states the file's ``sha256`` and the builds it lifts ``from`` and ``to``.
+    A chain that lifts to a build other than the Ancestry Reference Panel's,
+    or whose file no longer has the declared checksum, is refused.
+    """
+    if config.base.liftover_chain_resource_id is None:
+        return None
+    resource_id = config.base.liftover_chain_resource_id
+    path = config.liftover_chain_declaration
+    if path is None or not path.is_file():
+        raise CandidateError(
+            f"Reference Resource {resource_id!r} has no declaration at {path}; the resolver "
+            "needs its declared builds and sha256"
+        )
+    try:
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        raise CandidateError(f"{path} is not valid YAML: {exc}") from exc
+    if not isinstance(document, Mapping):
+        raise CandidateError(f"{path} is not a YAML mapping")
+    missing = [
+        key for key in ("from_genome_build", "to_genome_build", "sha256")
+        if not isinstance(document.get(key), str) or not document[key].strip()
+    ]
+    if missing:
+        raise CandidateError(f"{path} declares no {', '.join(missing)}")
+    from opengwasdb.readers.column_map import normalise_build
+
+    reference_build = ancestry_reference_build(config)
+    if normalise_build(document["to_genome_build"]) != normalise_build(reference_build):
+        raise CandidateError(
+            f"Reference Resource {resource_id!r} lifts to {document['to_genome_build']}, but "
+            f"the Ancestry Reference Panel is {reference_build}; the chain must lift to the "
+            "reference build"
+        )
+    location = config.base.reference_resources[resource_id].location
+    if not Path(location).is_file():
+        raise CandidateError(f"liftover chain {location} (Reference Resource {resource_id!r}) is not a file")
+    actual = sha256_file(Path(location))
+    if actual != document["sha256"]:
+        raise CandidateError(
+            f"liftover chain {location} has sha256 {actual}; Reference Resource {resource_id!r} "
+            f"declares {document['sha256']}"
+        )
+    return location, actual
+
+
 def resolver_settings(config: CandidateConfiguration) -> list[str]:
     """The ``opengwasdb resolve-analyses`` flags that apply to every Analysis.
 
@@ -1205,6 +1293,13 @@ def resolver_settings(config: CandidateConfiguration) -> list[str]:
         "--reference-build",
         ancestry_reference_build(config),
     ]
+    chain = liftover_chain(config)
+    if chain is not None:
+        settings.extend(["--chain-file", chain[0]])
+    if config.base.column_map_builtin or config.base.column_map_path:
+        settings.extend(
+            ["--column-map", config.base.column_map_builtin or str(config.base.column_map_path)]
+        )
     extraction_panel = config.ancestry_block.get("extraction_panel")
     if extraction_panel:
         settings.extend(["--extraction-panel", str(extraction_panel)])
@@ -1264,7 +1359,17 @@ _RESOLVER_FILE_FLAGS: tuple[str, ...] = (
     "--ancestry-groups",
     "--extraction-panel",
     "--variant-reference",
+    "--chain-file",
 )
+
+
+def _column_map_sha256(spec: str) -> str:
+    from opengwasdb.readers.column_map import ColumnMapError, load_column_map
+
+    try:
+        return load_column_map(spec).sha256
+    except ColumnMapError as exc:
+        raise CandidateError(f"resolver setting --column-map {spec}: {exc}") from exc
 
 
 def resolver_settings_digest(settings: Sequence[str]) -> str:
@@ -1283,6 +1388,11 @@ def resolver_settings_digest(settings: Sequence[str]) -> str:
             path = value
         elif token == "--af-reference":
             path = value.partition("=")[2]
+        elif token == "--column-map":
+            # A built-in's name is not a file: its checksum is the one the pinned
+            # package ships, which OpenGWASDB's loader reports for both forms.
+            files[f"column-map:{value}"] = _column_map_sha256(value)
+            continue
         else:
             continue
         if not Path(path).is_file():
@@ -1468,6 +1578,12 @@ def verify_records(
     failures.extend(parse_failures)
     records, record_failures = account_kept_records(manifest_rows, area, kept)
     failures.extend(record_failures)
+    try:
+        binding = column_map_binding(config)
+    except CandidateError as exc:
+        failures.append(str(exc))
+    else:
+        failures.extend(_verify_column_map(records, binding))
     failures.extend(
         _verify_receipt(
             manifest_rows=manifest_rows,
@@ -1703,6 +1819,31 @@ def _verify_fingerprints(row: ResolverRow, record: Mapping[str, Any]) -> list[st
     return failures
 
 
+def _verify_column_map(
+    records: Sequence[Mapping[str, Any]], binding: ColumnMapBinding | None
+) -> list[str]:
+    """Require each record to say it was read through the map the bundle will bind (#292).
+
+    A mapped Resolution Record carries ``resolution_config.column_map``, the
+    map's ``{name, sha256}``; it must equal the release's binding. A release
+    that binds no map must see none, so a record made under a map is never
+    frozen into a bundle that does not carry it.
+    """
+    wanted = binding.fingerprint() if binding is not None else None
+    failures: list[str] = []
+    for record in records:
+        fingerprints = record.get("fingerprints")
+        config = fingerprints.get("resolution_config") if isinstance(fingerprints, Mapping) else None
+        if not isinstance(config, Mapping):
+            continue  # _verify_fingerprints reports a record with no resolution_config.
+        if config.get("column_map") != wanted:
+            failures.append(
+                f"{record.get('analysis_id')}: resolver resolution_config.column_map is "
+                f"{config.get('column_map')!r}, expected {wanted!r}"
+            )
+    return failures
+
+
 def _verify_source_file_unchanged(
     row: ResolverRow, fingerprints: Mapping[str, Any]
 ) -> list[str]:
@@ -1887,6 +2028,19 @@ def compute_resolution_contract(config: CandidateConfiguration) -> dict[str, Any
         "opengwasdb_version": opengwasdb_version,
         "opengwasdb_resolver_sha256": opengwasdb_resolver_sha256,
     }
+    # A Column Map and a liftover chain are part of the contract by checksum, so
+    # a record resolved under another one is stale (#292). A release with
+    # neither adds no keys, so every existing receipt's contract is unchanged.
+    column_map = column_map_binding(config)
+    if column_map is not None:
+        contract["column_map"] = column_map.fingerprint()
+    chain = liftover_chain(config)
+    if chain is not None:
+        contract["liftover_chain"] = {
+            "resource_id": config.base.liftover_chain_resource_id,
+            "location": chain[0],
+            "sha256": chain[1],
+        }
     # Keep the legacy no-mapping contract byte-for-byte compatible. A newly
     # configured mapping changes both the manifest and this receipt contract.
     if config.imputation_score_declarations is not None:
@@ -3249,7 +3403,27 @@ def render_build_yaml(store_id: str, config: CandidateConfiguration) -> dict[str
     # no key at all; ``[]`` is a Dense/Hybrid release's reviewed opt-out.
     if config.indexed_subsets is not None:
         document["indexed_subsets"] = [dict(entry) for entry in config.indexed_subsets]
+    # The Column Map the release reads through, by name and checksum (#292); a
+    # carried map also names its file, which the emitter writes under column_maps/.
+    binding = column_map_binding(config)
+    if binding is not None:
+        document["column_map"] = {
+            key: value
+            for key, value in (("name", binding.name), ("sha256", binding.sha256), ("file", binding.file))
+            if value is not None
+        }
     return document
+
+
+def render_column_maps(config: CandidateConfiguration) -> dict[str, bytes]:
+    """The Column Map a bundle carries under ``column_maps/``: empty for a built-in or none."""
+    binding = column_map_binding(config)
+    if binding is None or binding.file is None:
+        return {}
+    data = Path(str(config.base.column_map_path)).read_bytes()
+    if hashlib.sha256(data).hexdigest() != binding.sha256:
+        raise CandidateError(f"Column Map {config.base.column_map_path} changed while it was rendered")
+    return {binding.file: data}
 
 
 def render_release_yaml(
@@ -3549,6 +3723,7 @@ __all__ = [
     "read_resolution_receipt",
     "recompute_fingerprint_digest",
     "render_build_yaml",
+    "render_column_maps",
     "render_release_yaml",
     "render_resolver_manifest",
     "render_validation_yaml",

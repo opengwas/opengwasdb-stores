@@ -100,6 +100,8 @@ def parse_args(argv: list[str]) -> dict:
         "--evidence-sample": "evidence_sample",
         "--n-workers": "n_workers",
         "--reference-version": "reference_version",
+        "--column-map": "column_map",
+        "--chain-file": "chain_file",
     }
     while i < len(argv):
         token = argv[i]
@@ -127,6 +129,36 @@ def parse_args(argv: list[str]) -> dict:
     return options
 
 
+def chain_fingerprint(options: dict) -> dict:
+    """The ``assembly.chain_*`` fingerprint, as the real resolver records it."""
+    chain = options.get("chain_file")
+    if chain is None:
+        return {"chain_file": None, "chain_sha256": None, "chain_bytes": None, "chain_mtime_ns": None}
+    path = Path(str(chain))
+    if not path.is_file():
+        raise SystemExit(f"fake resolver: liftover chain file not found: {path}")
+    stat = path.stat()
+    return {
+        "chain_file": str(path),
+        "chain_sha256": sha256_file(path),
+        "chain_bytes": stat.st_size,
+        "chain_mtime_ns": stat.st_mtime_ns,
+    }
+
+
+def column_map_fingerprint(options: dict) -> dict | None:
+    """``{name, sha256}`` of ``--column-map``, from OpenGWASDB's own loader as the real resolver does."""
+    spec = options.get("column_map")
+    if spec is None:
+        return None
+    from opengwasdb.readers.column_map import ColumnMapError, load_column_map
+
+    try:
+        return load_column_map(str(spec)).fingerprint()
+    except ColumnMapError as exc:
+        raise SystemExit(f"fake resolver: {exc}")
+
+
 def compute_fingerprints(row: dict, options: dict) -> dict:
     source_path = Path(row["source_file"])
     file_bytes = source_path.stat().st_size if source_path.is_file() else None
@@ -140,15 +172,11 @@ def compute_fingerprints(row: dict, options: dict) -> dict:
         "source_file_bytes": file_bytes,
         "source_file_mtime_ns": file_mtime_ns,
         # Both builds, as the real resolver fingerprints them: a record measured
-        # under one is not resumed under another (opengwasdb#277). The pipeline
-        # passes no chain file.
+        # under one is not resumed under another (opengwasdb#277).
         "assembly": {
             "source_build": row.get("source_genome_build"),
             "reference_build": options["reference_build"],
-            "chain_file": None,
-            "chain_sha256": None,
-            "chain_bytes": None,
-            "chain_mtime_ns": None,
+            **chain_fingerprint(options),
         },
         "opengwasdb_version": TOOL_VERSION,
         "opengwasdb_git_hash": "testgithash",
@@ -181,6 +209,12 @@ def compute_fingerprints(row: dict, options: dict) -> dict:
             },
         },
     }
+    # The map a mapped row was read through, by checksum (opengwasdb#281): absent,
+    # not null, for every other row, so their digests are what they were.
+    capability = row.get("source_reader_capability") or options.get("capability")
+    column_map = column_map_fingerprint(options)
+    if column_map is not None and capability == "opengwasdb.column-map":
+        fingerprints["resolution_config"]["column_map"] = column_map
     if row.get("imputation_score_column"):
         fingerprints["resolution_config"].update({
             "info_score_threshold": float(row["info_score_threshold"]),

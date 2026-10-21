@@ -67,6 +67,8 @@ BUILD_BLOCK_KEYS: tuple[str, ...] = ("layout", "completion_state", "command", "p
 
 #: The files a bundle directory may hold, for the command line's `--from`.
 RENDERED_FILES: frozenset[str] = frozenset({"release.yaml", "build.yaml", "analyses.tsv", "validation.yaml"})
+#: The directories it may hold: the sidecars, and the Column Map a mapped bundle carries.
+RENDERED_DIRECTORIES: frozenset[str] = frozenset({"sidecars", "column_maps"})
 
 
 class EmitError(RuntimeError):
@@ -86,6 +88,8 @@ class CandidateBundle:
     validation: Mapping[str, Any] | None = None
     #: File name under `sidecars/` -> its text.
     sidecars: Mapping[str, str] = field(default_factory=dict)
+    #: File name under `column_maps/` -> its bytes: the Column Map `build.yaml` binds, when carried.
+    column_maps: Mapping[str, bytes] = field(default_factory=dict)
 
 
 def render_yaml(document: Mapping[str, Any]) -> str:
@@ -134,11 +138,17 @@ def read_rendered(directory: Path | str, store_id: str, commands: Sequence[str])
     directory = Path(directory)
     unexpected = [
         p.name for p in directory.iterdir()
-        if not ((p.name in RENDERED_FILES and p.is_file()) or (p.name == "sidecars" and p.is_dir()))
+        if not (
+            (p.name in RENDERED_FILES and p.is_file())
+            or (p.name in RENDERED_DIRECTORIES and p.is_dir())
+        )
     ]
     sidecar_dir = directory / "sidecars"
     sidecars = sorted(sidecar_dir.iterdir()) if sidecar_dir.is_dir() else []
     unexpected += [f"sidecars/{p.name}" for p in sidecars if not p.is_file()]
+    map_dir = directory / "column_maps"
+    column_maps = sorted(map_dir.iterdir()) if map_dir.is_dir() else []
+    unexpected += [f"column_maps/{p.name}" for p in column_maps if not p.is_file() or p.is_symlink()]
     if unexpected:
         raise EmitError(
             f"{directory} holds what a Release Bundle does not, or of the wrong kind: {', '.join(sorted(unexpected))}"
@@ -164,6 +174,7 @@ def read_rendered(directory: Path | str, store_id: str, commands: Sequence[str])
         commands=tuple(commands),
         validation=document("validation.yaml"),
         sidecars={p.name: p.read_text(encoding="utf-8") for p in sidecars},
+        column_maps={p.name: p.read_bytes() for p in column_maps},
     )
 
 
@@ -395,6 +406,10 @@ def _stage(candidate: CandidateBundle, release: Mapping[str, Any], staging: Path
         (staging / "sidecars").mkdir()
         for name, text in candidate.sidecars.items():
             (staging / "sidecars" / name).write_text(text, encoding="utf-8")
+    if candidate.column_maps:
+        (staging / "column_maps").mkdir()
+        for name, data in candidate.column_maps.items():
+            (staging / "column_maps" / name).write_bytes(data)
     (staging / "build.yaml").write_text(render_yaml(candidate.build), encoding="utf-8")
     if candidate.validation is not None:
         (staging / "validation.yaml").write_text(render_yaml(candidate.validation), encoding="utf-8")

@@ -95,6 +95,10 @@ TRAIT_ONTOLOGY_MAPPING_KIND: str = "trait_ontology_mapping"
 ANCESTRY_MIXTURE_KIND: str = "ancestry_mixture"
 #: The kind of Reference Resource every region policy keeps (#300).
 QC_PANEL_KIND: str = "qc_panel"
+#: The kind of Reference Resource that lifts a source build to the reference build (#292).
+LIFTOVER_CHAIN_KIND: str = "liftover_chain"
+#: The reader capability a release names to read its sources through a Column Map.
+COLUMN_MAP_CAPABILITY: str = "opengwasdb.column-map"
 
 #: Ancestry-assignment gate defaults: the resolver flags' values when a config
 #: names none (``candidate_workflow.resolver_settings``).
@@ -188,6 +192,13 @@ class ReleaseConfig:
     region_policy: RegionPolicy | None = None
     #: The ``qc_panel`` Reference Resource the region policy always keeps.
     qc_panel_resource_id: str | None = None
+    #: ``column_map.builtin``: the name of a built-in Column Map the release reads through.
+    column_map_builtin: str | None = None
+    #: ``column_map.path``: the carried Column Map file the release reads through.
+    column_map_path: Path | None = None
+    #: ``ancestry_assignment.liftover_chain_resource_id``: the declared chain the
+    #: resolver lifts a differing source build with.
+    liftover_chain_resource_id: str | None = None
 
     # -- what preflight reads ---------------------------------------------------
 
@@ -221,7 +232,7 @@ TOP_LEVEL_REQUIRED = (
 )
 TOP_LEVEL_OPTIONAL = (
     "access_posture", "notes", INDEXED_SUBSETS_KEY, INDEXED_SUBSETS_OPT_OUT_KEY,
-    "quality_checks", "effect_scale_validation", "runtime", "region_policy",
+    "quality_checks", "effect_scale_validation", "runtime", "region_policy", "column_map",
 )
 DEFAULTS_OPTIONAL = (
     "source_genome_build", "license", "publication_doi", "consortium",
@@ -597,9 +608,15 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
 
     where = _where(path, "ancestry_assignment")
     ancestry = _block(document["ancestry_assignment"], where, ("reference_resource_id",),
-                      ("maf_floor", "extraction_panel", "gates"))
+                      ("maf_floor", "extraction_panel", "gates", "liftover_chain_resource_id"))
     ancestry_reference_resource_id = declared(
         ancestry["reference_resource_id"], f"{where}.reference_resource_id", ANCESTRY_MIXTURE_KIND
+    )
+    liftover_chain_resource_id = (
+        declared(ancestry["liftover_chain_resource_id"],
+                 f"{where}.liftover_chain_resource_id", LIFTOVER_CHAIN_KIND)
+        if ancestry.get("liftover_chain_resource_id") is not None
+        else None
     )
     gates = dict(DEFAULT_GATES)
     if ancestry.get("gates") is not None:
@@ -632,6 +649,32 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
     if document.get("region_policy") is not None:
         region_policy, qc_panel_resource_id = _region_policy(
             document["region_policy"], _where(path, "region_policy"), declared
+        )
+
+    # -- Column Map (#292) -----------------------------------------------------------
+    column_map_builtin = column_map_path = None
+    if document.get("column_map") is not None:
+        where = _where(path, "column_map")
+        block = _block(document["column_map"], where, (), ("builtin", "path"))
+        if (block.get("builtin") is None) == (block.get("path") is None):
+            raise ReleaseConfigError(
+                f"{where} names exactly one of builtin (a built-in map's name) or path "
+                "(a carried map file)"
+            )
+        if block.get("builtin") is not None:
+            column_map_builtin = _text(block["builtin"], f"{where}.builtin")
+        else:
+            column_map_path = _path(block["path"], f"{where}.path", repo_root)
+    reader = build.options.get("source-reader-capability")
+    if (column_map_builtin or column_map_path) and reader != COLUMN_MAP_CAPABILITY:
+        raise ReleaseConfigError(
+            f"{_where(path, 'column_map')} is read only through {COLUMN_MAP_CAPABILITY}, but "
+            f"build.options.source-reader-capability is {reader!r}"
+        )
+    if reader == COLUMN_MAP_CAPABILITY and not (column_map_builtin or column_map_path):
+        raise ReleaseConfigError(
+            f"build.options.source-reader-capability {COLUMN_MAP_CAPABILITY} needs a "
+            f"{_where(path, 'column_map')} naming the map"
         )
 
     # -- runtime and Work Root -----------------------------------------------------
@@ -700,10 +743,14 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
                 + [resource_id for _ancestry, resource_id in effect_scale_references]
                 + [trait_mapping_resource_id]
                 + ([qc_panel_resource_id] if qc_panel_resource_id else [])
+                + ([liftover_chain_resource_id] if liftover_chain_resource_id else [])
             )
         ),
         region_policy=region_policy,
         qc_panel_resource_id=qc_panel_resource_id,
+        column_map_builtin=column_map_builtin,
+        column_map_path=column_map_path,
+        liftover_chain_resource_id=liftover_chain_resource_id,
     )
 
 
