@@ -1220,6 +1220,40 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
         self.assertFalse(register.forced_completion(earlier_stamp, b.store_id, artifact_root), "another run")
         self.assertFalse(register.forced_completion(None, b.store_id, artifact_root), "outside the entry point")
 
+    def test_unreadable_force_provenance_is_refused_and_nothing_is_deleted(self) -> None:
+        """A build register record with no `replaced_archive`, or one neither text nor null, is refused (#309).
+
+        Read as unforced, it would let a forced run's completion phase delete
+        the Store it must archive. `force` is computed as the Snakefile's
+        `completion_register` computes it.
+        """
+        for case, value in (("missing", None), ("a number", 42), ("a list", ["replaced"])):
+            with self.subTest(case=case):
+                b, stores_root, artifact_root = self.built_and_completed(Path(tempfile.mkdtemp(dir=self.td)))
+                self.publish_build_phase(b, stores_root, artifact_root)
+                register_p = paths.record_path(b.store_id, "register", root=artifact_root)
+                record = json.loads(register_p.read_text())
+                if case == "missing":
+                    del record["replaced_archive"]
+                else:
+                    record["replaced_archive"] = value
+                register_p.write_text(json.dumps(record))
+
+                with self.assertRaises(RegisterError) as ctx:
+                    register_release(
+                        bundle.load(b.store_id, registry_root=stores_root),
+                        registry_root=stores_root,
+                        artifact_root=artifact_root,
+                        force=register.forced_completion("20261021T130000Z", b.store_id, artifact_root),
+                        phase="completion",
+                    )
+                self.assertIn(str(register_p), str(ctx.exception))
+                store_p = paths.store_path(b.store_id, root=artifact_root)
+                self.assertEqual((store_p / "z" / "c" / "0.0").read_bytes(), b"observed chunk")
+                self.assertTrue(paths.partial_store_path(b.store_id, root=artifact_root).is_dir())
+                self.assertFalse((paths.store_dir(b.store_id, root=artifact_root) / "replaced").exists())
+                self.assertFalse(paths.publication_marker(b.store_id, root=artifact_root).exists())
+
     def test_a_marker_written_before_deletion_existed_still_archives(self) -> None:
         """A pending marker without `replaced_store`, as a crash before #309 left it, archives the Store."""
         b, stores_root, artifact_root = self.built_and_completed()
