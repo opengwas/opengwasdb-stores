@@ -1,0 +1,43 @@
+{
+  "parent": "OGS-00009",
+  "child": "OGS-00010",
+  "seed": 20261021,
+  "axis": {
+    "parent_rows_indexed": 9847701,
+    "parent_rows_unmapped": 0,
+    "child_rows_indexed": 13434945,
+    "order_preserved": true,
+    "n_parent": 9847701,
+    "n_child": 13549988,
+    "seconds": 4.0
+  },
+  "bands_checked": 1077,
+  "bands_by_stratum": {
+    "random": 1000,
+    "chrom_edge": 24,
+    "final_partial": 1,
+    "writer_band_boundary": 54
+  },
+  "totals": {
+    "cells_compared": 2179242824,
+    "parent_observed": 1250967477,
+    "z_mismatch": 0,
+    "se_mismatch": 0,
+    "eaf_mismatch": 0,
+    "observed_marked_imputed": 0,
+    "observed_missing_in_child": 0,
+    "missing_became_observed": 0,
+    "missing_now_imputed": 330861006,
+    "inserted_rows": 530140,
+    "inserted_observed_cells": 0,
+    "parent_rows_without_finite": 0
+  },
+  "max_abs_diff": {
+    "z_max_abs_diff": 0.0,
+    "se_max_abs_diff": 0.0,
+    "eaf_max_abs_diff": 0.0
+  },
+  "bands_with_any_mismatch": [],
+  "seconds_total": 684.4,
+  "seconds_per_band_median": 0.61
+}
