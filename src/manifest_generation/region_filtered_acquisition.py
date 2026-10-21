@@ -36,11 +36,15 @@ originals' manifest, the tool, the policy -- and both files' sha256, under
 candidate carries the selected rows of both files into its bundle as
 ``sidecars/sparse_regions.tsv`` and ``sidecars/filter_summary.tsv``.
 
+``--keep-originals`` filters originals another release still cites, such as
+OGS-00007's: they are only read, and the lineage names them where they are
+kept.
+
 Usage (the release config names the policy, its QC panel and the Source
 Metadata Table whose target spans a cis policy reads):
     python3 -m manifest_generation.region_filtered_acquisition \\
         --config <release config> --originals <originals' Acquisition Manifest> \\
-        --out-dir <filtered files> --out <Acquisition Manifest> [--workers N]
+        --out-dir <filtered files> --out <Acquisition Manifest> [--workers N] [--keep-originals]
 """
 
 from __future__ import annotations
@@ -162,10 +166,14 @@ def acquire_region_filtered(
     manifest_path: Path,
     workers: int = 1,
     source_genome_builds: Mapping[str, str] | None = None,
+    keep_originals: bool = False,
 ) -> AcquisitionManifest:
     """Filter every ready original into ``out_dir``, recording each before deleting its original.
 
     ``source_genome_builds`` gives each Analysis's build for its plan's rows.
+    ``keep_originals`` only reads the originals and never deletes them: for
+    originals a built release still cites, such as OGS-00007's (#300), so the
+    lineage names where they are kept.
     """
     builds = dict(source_genome_builds or {})
     out_dir, manifest_path = Path(out_dir), Path(manifest_path)
@@ -222,7 +230,7 @@ def acquire_region_filtered(
         rows.update(resumed)
         # Every recorded Analysis is this run's: an original an interrupted run
         # left behind may now go.
-        for analysis_id in resumed:
+        for analysis_id in resumed if not keep_originals else ():
             Path(by_id[analysis_id].location).unlink(missing_ok=True)
 
     tool = filter_tool()
@@ -263,7 +271,8 @@ def acquire_region_filtered(
         }
         _write_durably(manifest_path, [rows[analysis_id] for analysis_id in order if analysis_id in rows])
         # Recorded and synced: only now may the original go.
-        Path(entry.location).unlink()
+        if not keep_originals:
+            Path(entry.location).unlink()
 
     if workers > 1 and len(tasks) > 1:
         with Pool(min(workers, len(tasks))) as pool:
@@ -514,6 +523,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--out-dir", required=True, type=Path, help="where the filtered files go")
     parser.add_argument("--out", required=True, type=Path, help="the Acquisition Manifest to write")
     parser.add_argument("--workers", type=int, default=1)
+    parser.add_argument("--keep-originals", action="store_true",
+                        help="only read the originals: another release still cites them")
     args = parser.parse_args(argv)
     try:
         config = load_release_config(args.config, REPO_ROOT)
@@ -529,6 +540,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             manifest_path=args.out,
             workers=args.workers,
             source_genome_builds=source_genome_builds(config),
+            keep_originals=args.keep_originals,
         )
     except (InventoryError, RegionFilterError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

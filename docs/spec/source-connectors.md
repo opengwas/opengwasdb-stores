@@ -180,7 +180,7 @@ is acquired filtered, for scale (ADR 0036, clarified by #300):
 ```sh
 python3 -m manifest_generation.region_filtered_acquisition \
   --config <release config> --originals <originals' Acquisition Manifest> \
-  --out-dir <filtered files> --out <Acquisition Manifest> [--workers N]
+  --out-dir <filtered files> --out <Acquisition Manifest> [--workers N] [--keep-originals]
 ```
 
 It reads the Acquisition Manifest of the downloaded originals, checks each
@@ -198,7 +198,10 @@ be a ready original of this run, filtered
 from that original (location and sha256), to this run's region policy, QC
 panel and target, into a filtered file that still has its recorded size and
 sha256. Any difference refuses the run, naming each Analysis, and deletes
-nothing; otherwise an original an interrupted run left behind is deleted. A cis policy refuses the run if an Analysis has no
+nothing; otherwise an original an interrupted run left behind is deleted.
+`--keep-originals` only reads the originals and never deletes one: for
+originals a built release still cites, such as Sun 2018's (OGS-00007), so the
+lineage names them where they are kept. A cis policy refuses the run if an Analysis has no
 target span in the Source Metadata Table.
 
 The filter is the retired R `gwas-ssf-ragged` generator's, reproduced row for

@@ -97,7 +97,7 @@ class RegionFilteredAcquisitionTest(unittest.TestCase):
             os.chmod(directory, 0o755)
         self._tmp.cleanup()
 
-    def acquire(self, policy=POLICY, panel=PANEL):
+    def acquire(self, policy=POLICY, panel=PANEL, **options):
         return acquire_region_filtered(
             load_acquisition_manifest(self.originals),
             policy=policy,
@@ -106,6 +106,7 @@ class RegionFilteredAcquisitionTest(unittest.TestCase):
             out_dir=self.filtered_dir,
             manifest_path=self.manifest,
             source_genome_builds={"GCST1": "GRCh38"},
+            **options,
         )
 
     def test_the_filtered_file_and_its_lineage_are_recorded_and_the_original_deleted(self) -> None:
@@ -140,6 +141,18 @@ class RegionFilteredAcquisitionTest(unittest.TestCase):
         self.assertEqual((manifest.entry("GCST2").status, manifest.entry("GCST2").error),
                          ("data_absent_upstream", "404"))
         self.assertFalse(self.original.exists())
+
+    def test_originals_another_release_cites_are_only_read(self) -> None:
+        """Sun 2018's originals are OGS-00007's: they are filtered in place, recorded, and kept."""
+        self.acquire(keep_originals=True)
+        self.assertEqual(sha256_file(self.original), self.original_sha256)
+        lineage = load_acquisition_manifest(self.manifest).entry("GCST1").lineage
+        self.assertEqual((lineage.original_location, lineage.original_sha256),
+                         (str(self.original), self.original_sha256))
+        recorded = self.manifest.read_bytes()
+        self.acquire(keep_originals=True)
+        self.assertEqual(sha256_file(self.original), self.original_sha256)
+        self.assertEqual(self.manifest.read_bytes(), recorded)
 
     def test_the_plan_and_summary_are_recorded_beside_the_manifest(self) -> None:
         """R's sparse_regions.tsv and filter_summary.tsv, which the bundle carries (#300)."""

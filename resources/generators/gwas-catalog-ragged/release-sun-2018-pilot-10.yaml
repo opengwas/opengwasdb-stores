@@ -18,12 +18,12 @@
 #   - the Acquisition Manifest lists the 10 files the shared region filter
 #     wrote to this policy, QC panel kept, into the read-only
 #     /data/opengwasdb/raw/ebi-sun-pqtl-10/filtered-qc-2026-10-21/
-#     (manifest_generation.region_filtered_acquisition). It filtered scratch
-#     copies of the originals in /data/opengwasdb/raw/ebi-sun-pqtl-10/, which
-#     OGS-00007 still cites and which were not touched; the originals'
-#     manifest beside it records each copy's sha256, the originals' own. Its
-#     run record checksums the plan and summary the candidate carries
-#     (sparse_regions.tsv, filter_summary.tsv). Each file holds the rows R's
+#     (manifest_generation.region_filtered_acquisition --keep-originals). It
+#     read the originals in /data/opengwasdb/raw/ebi-sun-pqtl-10/ in place:
+#     OGS-00007 still cites them, so they were only read and are kept, and the
+#     lineage names them there with their sha256. Its run record checksums the
+#     plan and summary the candidate carries (sparse_regions.tsv,
+#     filter_summary.tsv). Each file holds the rows R's
 #     filter kept for OGS-00007, plus 8,690 to 8,705 QC-panel rows.
 
 release_config_version: 1
@@ -47,7 +47,7 @@ source_collection:
     source_metadata_table: resources/generators/gwas-catalog-ragged/connectors/sun-2018.source-metadata.tsv
     acquisition_manifest: resources/generators/gwas-catalog-ragged/connectors/sun-2018-pilot-10.acquisition-manifest.tsv
   inventory:
-    snapshot_id: gwas-catalog-ssf-sun-2018-pilot-10-2026-10-21b
+    snapshot_id: gwas-catalog-ssf-sun-2018-pilot-10-2026-10-21c
     directory: resources/inventories
 
 # OGS-00007's 10: a deterministic prefix of the candidate table, written out

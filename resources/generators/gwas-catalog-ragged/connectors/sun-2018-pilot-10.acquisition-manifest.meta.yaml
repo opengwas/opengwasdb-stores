@@ -2,7 +2,7 @@ acquisition_manifest: resources/generators/gwas-catalog-ragged/connectors/sun-20
 written_by: manifest_generation.region_filtered_acquisition
 originals:
   path: resources/generators/gwas-catalog-ragged/connectors/sun-2018-pilot-10.originals.acquisition-manifest.tsv
-  sha256: c31ec674d7852596a77fef7d6e0d25304b647773c3a3a350c0ac7f2ab1dfcf32
+  sha256: 6737d0b3ee2869c55fe4cd30b1ef7a19366730cda0a5f2eca20b55e5046d7ace
 filter_tool: manifest_generation.region_filter sha256:4c323a5eda49fa295a1a2d40a4f058ed3b734fcc925c75c9dae3aa1a085f3b10
 region_policy:
   region_policy_id: cis-1mb_sig-trans-1mb_suggestive-leads

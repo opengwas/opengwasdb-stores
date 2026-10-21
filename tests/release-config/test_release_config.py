@@ -508,6 +508,51 @@ class ShippedReleaseConfigTests(unittest.TestCase):
             self.assertEqual(len(table.rows), provenance["rows"])
             self.assertEqual(len(manifest.entries), provenance["rows"])
 
+    def test_no_shipped_snapshot_names_a_scratch_path_anywhere_in_its_lineage(self) -> None:
+        """Not in the provenance, the frozen manifest's rows, its run record or the originals it names.
+
+        A committed snapshot names files that outlive the run that wrote it:
+        an original filtered from a scratch copy is recorded where it is kept
+        (#300).
+        """
+        import csv
+
+        from manifest_generation.freeze import original_path
+
+        scratch = ("/tmp/", "/var/tmp/", "/data/opengwasdb/work/", f"{Path.home()}/.cache/")
+
+        def strings(value):
+            if isinstance(value, str):
+                yield value
+            elif isinstance(value, dict):
+                for item in value.values():
+                    yield from strings(item)
+            elif isinstance(value, list):
+                for item in value:
+                    yield from strings(item)
+
+        def tsv(path):
+            with Path(path).open(encoding="utf-8", newline="") as fh:
+                return list(csv.DictReader(fh, delimiter="\t"))
+
+        for path in shipped_release_configs():
+            config = load_release_config(path, REPO_ROOT)
+            provenance_path = config.inventory_provenance_path
+            provenance = yaml.safe_load(provenance_path.read_text(encoding="utf-8"))
+            lineage = {"provenance": provenance, "frozen manifest": tsv(
+                provenance_path.parent / provenance["acquisition_manifest"]["frozen"]["path"]
+            )}
+            run = provenance["acquisition_manifest"]["original"]["pass_lineage"]
+            if run is not None and original_path(run["path"]).is_file():
+                record = yaml.safe_load(original_path(run["path"]).read_text(encoding="utf-8"))
+                lineage["run record"] = record
+                originals = (record or {}).get("originals")
+                if originals and original_path(originals["path"]).is_file():
+                    lineage["originals"] = tsv(original_path(originals["path"]))
+            for where, value in lineage.items():
+                with self.subTest(config=path.name, where=where):
+                    self.assertEqual([text for text in strings(value) if text.startswith(scratch)], [])
+
     def test_the_ogs_00011_config_reproduces_its_inventory_and_resolver_settings(self) -> None:
         from manifest_generation.candidate_workflow import (
             load_candidate_configuration,
