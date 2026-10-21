@@ -40,10 +40,16 @@ Test suite for `ogstores.register` (Issue #117), governed by [ADR 0022](../../do
 
 10. **Publication is a recoverable transaction (#195)**:
     - The run is killed (a subprocess exiting as SIGKILL would) at every boundary after `publication.json` is written. `complete_publication` then finishes it: the new Store is published, the old Store, records and Validation Record are archived, `validation.yaml` and `register.json` are written, and nothing is left pending. An exception at each boundary is finished the same way.
+    - Two kinds of replacement are killed, each at every boundary it crosses: a forced run's, which archives the old Store (`old-store-archived`), and a completion phase's, which deletes it (`old-store-deleting`, part-way through, and `old-store-deleted`) (#309). A completion phase killed part-way is shown to have left a half-deleted tree, and the run after the one that finishes finds nothing to do. A boundary that no kind is killed at fails the suite. This suite is where every boundary is covered: `release-faults/boundaries` crashes the whole stack at one boundary of each kind Snakemake sees, and at `old-store-deleting` once, because each of its cases costs a release.
     - With `finalize=False` (the entry point's register job), the marker is kept after the last step, for the entry point to remove.
     - A kill before the marker leaves the old Store and record in place, and its snapshot refuses the next run. A killed first publication is completed too. An impossible state raises `PublicationError` and keeps the marker, and `register` refuses while a publication is pending.
 
-11. **Documented record shape**:
+11. **A release that completes its own Store (ADR 0037, #304, #309)**:
+    - The completion phase replaces the Store its build phase published without `force` and deletes it. `replaced/<stamp>/` keeps copies of the replaced `records/register.json` and of the passing `records/completion-observed-view-check.json`, and the replaced Validation Record, and no Store.
+    - It registers only over a passing check: a verdict that says `passed: false`, an unreadable one (empty, text, truncated, a list, `passed` a string, null or absent), a doubled stdout whose first verdict failed, and a missing record are each refused before the marker, with every file of the release unchanged.
+    - A forced run's completion phase archives the Store instead. `forced_completion` reads it from the build phase's register record, and refuses a record without a `replaced_archive` or with one that is neither a path nor null, deleting nothing. A marker written before #309, with no `replaced_store`, still archives.
+
+12. **Documented record shape**:
    - The written `validation.yaml` carries exactly the canonical `validator`, `build_environment` and `observed` keys that `tests/validation-record/` asserts against the committed records (issue #135).
 
 ## Running the suite

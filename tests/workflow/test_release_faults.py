@@ -58,11 +58,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ogstores import paths, register, release, run  # noqa: E402
 from test_workflow import (  # noqa: E402
     SNAKEFILE_PATH,
-    amend_to_complete_own_store,
     create_dense_fixture_store,
-    create_signal_fixture_vcf,
-    create_signal_ld_panel,
     find_snakemake_cmd,
+    prepare_single_id_signal_release,
     release_argv,
     run_release,
 )
@@ -284,34 +282,25 @@ class TestEveryBoundaryThroughTheEntryPoint(PublishedReleaseFixture):
         self.assertIn("nothing to be done", again.stdout)
 
 
+    # A fresh release, not a copy of `single_id_completion_template`: until
+    # #305 merges, the #195 guard refuses an unforced completion over a
+    # published Store, so only a fresh release reaches the deletion (a forced
+    # run archives). The end-of-epic test-cost pass converts it once #305 is in.
     def test_a_single_id_completion_killed_mid_deletion_is_finished_by_the_next_run(self) -> None:
         """A whole-stack SIGKILL with the replaced Observed-Only Store half deleted; the next run finishes (#309).
 
         The completion phase's register publishes the completed Store, then
-        deletes the Store it replaced. The release is built here the way
-        `test_workflow.single_id_completion_template` builds it, because
-        crossing this boundary takes a completion phase that publishes, and
-        only a fresh release runs one without `force`. The next entry-point
-        run finishes the deletion and the publication, and the run after it
-        executes no job.
+        deletes the Store it replaced. The next entry-point run finishes the
+        deletion and the publication, and the run after it executes no job.
+        This is the one end-to-end deletion case: the register suite crashes
+        the transaction at every deletion boundary.
         """
         boundary = "old-store-deleting"
         self.assertIn(boundary, register.PUBLICATION_BOUNDARIES)
         sid = SINGLE_ID_STORE_ID
         td = Path(tempfile.mkdtemp(prefix="release_fault_single_id_"))
         self.addCleanup(shutil.rmtree, td, True)
-        stores, artifacts = td / "stores", td / "artifacts"
-        stores.mkdir()
-        artifacts.mkdir()
-        create_dense_fixture_store(
-            stores,
-            store_id=sid,
-            artifact_root=artifacts,
-            vcf_path=create_signal_fixture_vcf(td / "signal.vcf.gz"),
-            post_top_hits=False,
-            post_overview=False,
-        )
-        amend_to_complete_own_store(stores, sid, ld_panel=create_signal_ld_panel(td / "ld-panel"))
+        stores, artifacts = prepare_single_id_signal_release(td, sid)
 
         killed = run_release(
             [sid], registry_root=stores, artifact_root=artifacts,
