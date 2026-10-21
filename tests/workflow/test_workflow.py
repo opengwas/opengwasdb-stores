@@ -19,6 +19,11 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
    - The index target proposes 0 build jobs (depends only on bundle files).
 7. End-to-end fixture build, idempotency, interruption resumption, and record deletion.
 8. A run that would rebuild a published release is refused before any job writes (#195).
+11. Reference completion end to end, under two ids (#303): one entry-point run
+   naming only the completed child builds and publishes its parent, then
+   completes, validates and publishes the child; the held-out position comes
+   back imputed, `observed_only=True` matches the source's observations, and a
+   re-run executes 0 jobs.
 """
 
 from __future__ import annotations
