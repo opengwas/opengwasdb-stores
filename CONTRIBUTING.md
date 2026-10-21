@@ -102,7 +102,7 @@ GitHub keeps `refs/pull/<n>/head` after the branch is deleted.
 
 ### Each worktree runs its own environment
 
-The repository's Python code (`ogstores`, `curation`, the generator library)
+The repository's Python code (`ogstores`, `manifest_generation`, `curation`)
 installs editable into the pixi environments (`pyproject.toml`, #257), and an
 editable install points at the checkout that ran `pixi install`. So run
 `pixi install` in a new worktree and use its own environment there: borrowing
@@ -133,60 +133,70 @@ workflow begins at the fixed-input boundary documented in
 ## Repository layout
 
 ```text
-stores/            accepted Release Bundles, one per Store Release
-workflow/          Phase A: accepted bundle -> validated Store Release
-src/ogstores/      Store Release Build, and the Release Bundle contract both use
-src/manifest_generation/  Manifest Generation: sources -> candidate Release Bundle
-  providers/           per-Source-Provider connector code
-resources/         everything on the input side
+stores/            Release Bundles, one per Store Release
+src/               all importable Python
+  ogstores/          Store Release Build, and the Release Bundle contract both use
+  manifest_generation/  Manifest Generation: sources -> candidate Release Bundle
+    providers/         per-Source-Provider connector code
+  curation/          Canonical Trait Mapping Table curation
+workflow/          Snakemake wiring for both workflows, and the release entry point
+resources/         inputs only
   reference-resources/ auxiliary build-time inputs
   annotations/         curated metadata that outlives a release
   inventories/         frozen Source Inventories
-  generators/          Manifest Generation inputs: per-generator configs and reviewed
-                       tables; legacy R generators until they retire
-  scripts/             standalone toolchains and repo tooling
-docs/              adr/ decisions, spec/ specifications, rendered site
-tests/
+  generators/          release configs, reviewed tables and receipts; legacy R
+                       generators until they retire
+tools/             repository tooling that is neither a package nor an input
+tests/             the suites, and the runner behind `pixi run test`
+docs/              adr/ decisions, spec/ specifications, reports/ report sources,
+                   rendered site
 ```
 
-`resources/` is not a miscellany. The split is output versus input: `stores/`
-holds what this repository produces, `workflow/` and `src/` are the machinery
-that produces it, and everything under `resources/` is an input to that, or
-something that makes an input.
+Each kind of thing has one home (ADR 0038). `stores/` holds what this
+repository produces. `src/` holds every importable module, `workflow/` wires
+them into the two workflows, and `resources/` holds their inputs and nothing
+else. Code that is neither a workflow's nor a test goes in `tools/`.
+`tests/packaging/test_layout.py` enforces the layout: no importable Python
+outside `src/` and `tests/`, and no code under `resources/` but the listed
+legacy R generators.
+
+To place a new file:
+1. Something the repository produces goes in `stores/`, or in `docs/` if it
+   is a report.
+2. Something a workflow reads as data goes in `resources/`.
+3. Code a workflow imports or runs goes in `src/`, as a module run with
+   `python3 -m`. A provider's acquisition script, in any language, goes in
+   its `providers/<provider>/`.
+4. A test goes in `tests/`, a report source in `docs/reports/`, and
+   everything else in `tools/`.
+
+A move never breaks a path that generation still reads: frozen inventory
+provenance, the originals named there, and config inputs. Re-freeze under a
+new snapshot id, or leave the file where it is. Paths recorded in `stores/`
+and in `generation-*.yaml` receipts are history and are never edited.
 
 ### `stores/`
 
 One directory per Store Release, named by its opaque `OGS-` identifier
 (ADR 0022): `release.yaml`, `build.yaml`, `analyses.tsv`, `validation.yaml`.
-Simultaneously the output of Phase B and the fixed input of Phase A. Also holds
-candidate releases (`status: candidate`), so what is under consideration and
-what has been built appear in one list.
+Simultaneously the output of Manifest Generation and the fixed input of Store
+Release Build. Also holds candidate releases (`status: candidate`), so what is
+under consideration and what has been built appear in one list.
 
 A bundle is immutable once accepted. A material change to membership or to the
 Build Recipe is a **new** Store Release (ADR 0004), not an edit. Correcting
 Analytical Metadata after publication is a Release Erratum.
 
-### `workflow/`
-
-Phase A. `Snakefile` scans `stores/` and wires dependencies; nothing else.
-Per ADR 0023 it contains no source column name, no
-manifest translation, and no layout branch -- each rule asks `ogstores.plan`
-for a Step and hands it to `ogstores.run`.
-
-`generate.smk` (Manifest Generation) lives here too, as coarse wiring over
-`python3 -m manifest_generation.generate_candidate`. The two share no DAG: the accepted
-bundle is a boundary only because a human froze it, and one graph spanning both
-would silently regenerate a bundle and rebuild a Store when a generator config
-changed.
-
 ### `src/ogstores/`
 
-`bundle.py` (load and check a bundle), `plan.py` (Bundle to argv -- the seam),
-`paths.py`, `run.py`, `index.py`. Top-level rather than inside `workflow/`
-because it is not Phase A's: a generator validates what it emits with
-`bundle.check()` (and Manifest Generation's own rules), so Phase B depends on
-it too. `workflow/` is also Snakemake's
-own namespace (`Snakefile`, `rules/`, `scripts/`, `envs/`).
+Store Release Build: `bundle.py` (load and check a bundle), `plan.py` (Bundle
+to argv -- the seam), `paths.py`, `run.py`, `index.py`, and the release entry
+point's modules. It is a package of its own rather than part of `workflow/`
+because Manifest Generation depends on the Release Bundle contract too: a
+generator validates what it emits with `bundle.check()`. It also holds two
+read-only command-line views of the registry, run with `python3 -m`:
+`release_readiness` (the Store Release readiness view) and
+`audit_indexed_subsets` (`pixi run audit-indexed-subsets`).
 
 Store Release Build imports nothing from Manifest Generation. Manifest
 Generation imports from `ogstores` the Release Bundle contract (`bundle`) and
@@ -206,6 +216,9 @@ Source Collection's connector files (`freeze.py`), Source Inventory preflight
 the Resolution Area where Resolution Records are kept once per Source
 Collection (`resolution_area.py`), the one emitter (`emit.py`), Manifest
 Generation's rules (`generation_rules.py`) and the helpers they share.
+`check_bundles.py` (`pixi run bundle-check`) holds every committed bundle to the
+contract and to those rules; it lives here because Store Release Build may not
+import them.
 
 A candidate run's working files are in two places outside Git. The Work Root,
 `<output.work_root>/<store-id>/`, is one Store Release's: its preflight report,
@@ -220,14 +233,41 @@ configuration, resolved in the Artifact Root's order: the run's
 
 `providers/<provider>/` holds one Source Provider's connector code, each an
 importable subpackage: acquisition and download scripts, metadata adapters,
-and generators specific to that provider. A provider that is inconsistent
-across its collections gets one subpackage per Source Collection (ADR 0036):
-dbGaP is a host rather than one collection, so the MVP (phs002453)
-acquisition and generator are `providers/dbgap/mvp/`.
+and generators specific to that provider. Its non-Python scripts sit beside
+the Python: GWAS Catalog's studies table (`ebi-studies.r`) and
+re-materialisation (`materialise-gwas-ssf-ragged.R`), and OpenGWAS's GWAS-VCF
+download. A provider that is inconsistent across its collections gets one
+subpackage per Source Collection (ADR 0036): dbGaP is a host rather than one
+collection, so the MVP (phs002453) acquisition and generator are
+`providers/dbgap/mvp/`.
 
 Everything here is imported as a module, never loaded by file path or through
 `sys.path` (`tests/packaging/test_imports.py`). Run a module with
 `python3 -m manifest_generation.<module>`.
+
+### `src/curation/`
+
+Canonical Trait Mapping Table curation (#161, #164): candidate retrieval, the
+chooser, resumable curation rounds and promotion into
+`resources/reference-resources/canonical-trait-mapping-efo/`. It runs in its
+own pixi environment, outside the `main` solve group, so its dependencies
+cannot change what a Manifest Generator or a build resolves
+(`pixi run -e curation <task>`).
+
+### `workflow/`
+
+Snakemake wiring. `Snakefile` is Store Release Build's DAG: it scans `stores/`
+and wires dependencies, nothing else, and `release.py` is its entry point
+(`pixi run release`). Per ADR 0023 it contains no source column name, no
+manifest translation, and no layout branch -- each rule asks `ogstores.plan`
+for a Step and hands it to `ogstores.run`.
+
+`generate.smk` (Manifest Generation) lives here too, as coarse wiring over
+`python3 -m manifest_generation.generate_candidate`. The two share no DAG: the accepted
+bundle is a boundary only because a human froze it, and one graph spanning both
+would silently regenerate a bundle and rebuild a Store when a generator config
+changed. `workflow/` is also Snakemake's own namespace (`Snakefile`, `rules/`,
+`scripts/`, `envs/`), which is why no package lives here.
 
 ### `resources/reference-resources/`
 
@@ -235,7 +275,9 @@ Auxiliary build-time inputs that are **not** the Source Collection of any
 Store Release (ADR 0011): LD reference panels, reference allele-frequency panels,
 ancestry-mixture references, QC panels, the Canonical Trait Mapping Table, and
 the SomaScan target tables. Each carries a `resource.yaml` declaring kind,
-ancestry, genome build, variant ID convention, and location.
+ancestry, genome build, variant ID convention, and location. The scripts that
+build or verify one are tooling, in `tools/reference-resources/<resource_id>/`
+or, for the LD panels, `tools/ld-panel/`.
 
 Small tables may be tracked here. Large panels live under the artifact root and
 are referenced by path -- this repository is not an artifact store (ADR 0015).
@@ -249,40 +291,62 @@ The distinction is deliberate and load-bearing. Re-curating a Trait Annotation
 does not create a new Store Release; correcting Analytical Metadata, which
 changes how the statistics are interpreted, does.
 
+### `resources/inventories/`
+
+Frozen Source Inventories with their provenance and, since #283, the selected
+rows of the connector files they were frozen from. Generation reads them, never
+a live source, so a change is a reviewed re-freeze under a new snapshot id,
+never an edit.
+
 ### `resources/generators/`
 
-Manifest Generation's inputs. `<generator>/` holds a generator's configs, reviewed tables,
-`generation-*.yaml` receipts and README; recorded config paths and receipts
-resolve here, so they do not move. The code that reads them is in
-`src/manifest_generation/`.
+Manifest Generation's inputs. `<generator>/` holds a generator's release
+configs, reviewed tables, `generation-*.yaml` receipts and README; recorded
+config paths and receipts resolve here, so they do not move. The code that
+reads them is in `src/manifest_generation/`.
 
-The legacy R generators also live here until epic #282 retires them:
-`<family-id>/generate.R`, the shared R helpers in `lib/`, the metadata
-resolvers in `lib/metadata_resolvers/`, and `lib/source-formats/` for code
-scoped to a Source Format. Where they call Python, they run a
-`manifest_generation` module with `python3 -m`.
+The legacy R generators also live here until stage 2 of epic #282 retires them
+(FinnGen #288, ukb-b #289): `<family-id>/generate.R`, the shared R helpers in
+`lib/`, the metadata resolvers in `lib/metadata_resolvers/`, and
+`lib/source-formats/` for code scoped to a Source Format. Where they call
+Python, they run a `manifest_generation` module with `python3 -m`. They are
+the only code under `resources/`, and `tests/packaging/test_layout.py` lists
+each with the ticket that retires it.
 
 A generator's only output is a bundle directory. It never builds a Store, and
 it invokes statistics rather than implementing them: if two Store Families
 computing something differently would be a bug, it belongs in `opengwasdb`.
 
-### `resources/scripts/`
+### `tools/`
 
-Standalone toolchains and repository tooling that belong to neither phase: LD
-panel construction (`ld-panel/`), documentation rendering (`*.qmd`,
-`build-site.sh`), repository checks (`run_all_tests.py`, `env_check.py`), and
-one-off analyses.
+Repository tooling that belongs to neither workflow and is not an input: the
+LD-panel toolchain (`ld-panel/`), the release benchmarks and the proofs that
+write `docs/benchmark-output/` (`benchmarks/`), the Reference Resources' build
+and verify scripts (`reference-resources/<resource_id>/`), the environment
+check (`env_check.py`, `pixi run env-check`), the site build (`build-site.sh`,
+`pixi run docs`), and one-off analyses and spikes. None of it is a package:
+each is run as a script, and the few tests that load one by path are listed in
+`tests/packaging/test_imports.py`. If one starts being run as a step in
+producing a Store Release, it belongs in `src/manifest_generation/` or
+`workflow/`.
 
-This is the one directory at risk of becoming a junk drawer. The test: if
-something here starts being run as a step in producing a Store Release, it
-belongs in `src/manifest_generation/` or `workflow/` instead.
+### `tests/`
+
+One directory per suite, and `run_all_tests.py`, the runner behind
+`pixi run test` (see Checks).
+
+### `docs/`
+
+Decisions (`adr/`), specifications (`spec/`), and the site GitHub Pages
+serves. The sources of its rendered reports (`*.qmd`, `make-dashboard.r`) are
+in `reports/`; `pixi run docs` renders each and copies it to the name the
+site publishes, so a published link does not change when its source moves.
 
 ### `families/`
 
-Not part of the layout. What remains is the thirteen Release Bundles that have
-not yet migrated to `stores/`, awaiting triage -- each is either given a Store
-Release id or marked `superseded`/`withdrawn` and retired. The directory goes
-when it empties.
+Not part of the layout. Its remaining Release Bundles, which predate the
+`stores/` registry, retire through #252: each is given a Store Release id or
+marked `superseded`/`withdrawn`, and the directory goes.
 
 ## Metadata and scripts
 
