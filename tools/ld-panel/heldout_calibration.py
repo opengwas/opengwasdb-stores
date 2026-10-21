@@ -19,7 +19,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from construct_block import _plink_extract, construct_block, standardised_ea_dosages
-from verify_block import components_at
+from find_underresolved_blocks import components_needed
 
 
 def split_individuals(populations: list[str], *, test_fraction: float, seed: int) -> np.ndarray:
@@ -48,10 +48,17 @@ def calibrate_block(genotypes: np.ndarray, variants: list[dict[str, object]], po
     # z-scores exist only where the variant passes the floor in both halves.
     in_test = {r["SNP"] for r in built["test_in_sample"].variant_table}
     shared = [r for r in built["held_out"].variant_table if r["SNP"] in in_test]
+    settings = {"maf_threshold": maf_threshold, "test_fraction": test_fraction, "mask_fraction": mask_fraction,
+                "replicates": replicates, "ncp": ncp, "thresh": thresh, "min_cor": min_cor,
+                "component_floor": component_floor, "seed": seed}
+    counts = {"n_train": int((~test).sum()), "n_test": int(test.sum()), "n_shared_variants": len(shared)}
+    if len(shared) < 10:  # too few to draw causal variants and a masked set from
+        return {**counts, "panels": {}, "settings": settings, "replicates": [],
+                "skipped": f"{len(shared)} variants pass the floor in both halves"}
     x, _ = standardised_ea_dosages(g[test], variants, shared)
     panels = {}
     for name, result in built.items():
-        k = min(components_at(result.eigenvalues, thresh), result.eigenvectors.shape[1])
+        k = min(components_needed(result.eigenvalues, thresh), result.eigenvectors.shape[1])
         row_of = {r["SNP"]: i for i, r in enumerate(result.variant_table)}
         panels[name] = (result.eigenvalues[:k], result.eigenvectors[:, :k],
                         np.array([row_of[r["SNP"]] for r in shared]))
@@ -68,8 +75,8 @@ def calibrate_block(genotypes: np.ndarray, variants: list[dict[str, object]], po
             observed[panel_rows[~masked]] = z[~masked]
             predicted, quality = impute_z_block(observed, vectors, values, min_cor=min_cor)
             row = {"replicate": replicate, "panel": name, "n_causal": len(causal),
-                   "n_masked": int(masked.sum()), "quality_r": quality, "accepted": predicted is not None,
-                   "pearson_r": float("nan"), "rmse": float("nan"), "slope": float("nan")}
+                   "n_masked": int(masked.sum()), "quality_r": float(quality) if np.isfinite(quality) else None,
+                   "accepted": predicted is not None, "pearson_r": None, "rmse": None, "slope": None}
             if predicted is not None:
                 truth, guess = z[masked], predicted[panel_rows[masked]]
                 row.update(pearson_r=float(np.corrcoef(truth, guess)[0, 1]),
@@ -77,15 +84,12 @@ def calibrate_block(genotypes: np.ndarray, variants: list[dict[str, object]], po
                            slope=float(np.polyfit(truth, guess, 1)[0]))
             rows.append(row)
     return {
-        "n_train": int((~test).sum()), "n_test": int(test.sum()), "n_shared_variants": m,
+        **counts,
         "panels": {name: {"n_variants": len(result.variant_table),
                           "components_at_thresh": int(panels[name][1].shape[1]),
                           "components_retained": int(result.eigenvectors.shape[1])}
                    for name, result in built.items()},
-        "settings": {"maf_threshold": maf_threshold, "test_fraction": test_fraction,
-                     "mask_fraction": mask_fraction, "replicates": replicates, "ncp": ncp,
-                     "thresh": thresh, "min_cor": min_cor, "component_floor": component_floor, "seed": seed},
-        "replicates": rows,
+        "settings": settings, "replicates": rows,
     }
 
 

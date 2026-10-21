@@ -18,6 +18,12 @@ def valid(base: Path) -> bool:
     except (OSError, ValueError, KeyError): return False
 
 
+def built_floor(base: Path) -> tuple[int | None, float | None]:
+    """(MAC, MAF) floor a block was built with; blocks predating #241 carry only a MAC floor."""
+    p = json.loads(base.with_suffix(".provenance.json").read_text())
+    return p.get("mac_threshold"), p.get("maf_threshold")
+
+
 def build(job: tuple[str, ...]) -> tuple[str, int, str]:
     label, *cmd = job
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -40,13 +46,16 @@ def main() -> int:
     args = ap.parse_args()
     if args.jobs < 1: ap.error("--jobs must be >= 1")
     script = Path(__file__).with_name("construct_block.py")
-    jobs = []
+    floor = (None, args.maf) if args.maf is not None else (args.mac, None)
+    jobs, stale = [], []
     with args.regions.open() as fh:
         for row in csv.DictReader(fh, delimiter="\t"):
             anc = row["ancestry"]
             if anc not in args.ancestries: continue
             base = args.reference_root / anc / row["chr"] / f'{row["start"]}-{row["end"]}'
-            if valid(base) and not args.force: continue
+            if valid(base) and not args.force:
+                if built_floor(base) != floor: stale.append(f"{anc}/{row['chr']}/{base.name}")
+                continue
             keep = args.members / f"{anc}.keep"
             ancestry_root = args.genotype_root / anc
             source = (ancestry_root if ancestry_root.is_dir() else args.genotype_root) / f'chr{row["chr"]}'
@@ -56,6 +65,9 @@ def main() -> int:
                    *(("--maf", str(args.maf)) if args.maf is not None else ("--mac", str(args.mac))),
                    "--cumvar", str(args.cumvar), "--min-k", str(args.min_k))
             jobs.append((f"{anc}/{row['chr']}/{base.name}", *cmd))
+    if stale:
+        ap.error(f"{len(stale)} built block(s) have a different variant floor (e.g. {stale[0]}); "
+                 "rebuild them with --force or use another --reference-root")
     failures = args.reference_root / "failures.tsv"
     failures.parent.mkdir(parents=True, exist_ok=True)
     with failures.open("a") as log, ProcessPoolExecutor(max_workers=min(args.jobs, len(jobs)) or 1) as pool:

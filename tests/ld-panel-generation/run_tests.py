@@ -19,6 +19,9 @@ assert acquire_spec.loader; acquire_spec.loader.exec_module(acquire)
 materialize_spec = importlib.util.spec_from_file_location("materialize_reference", SCRIPT.with_name("materialize_reference.py"))
 materialize = importlib.util.module_from_spec(materialize_spec); sys.modules[materialize_spec.name] = materialize
 assert materialize_spec.loader; materialize_spec.loader.exec_module(materialize)
+underresolved_spec = importlib.util.spec_from_file_location("find_underresolved_blocks", SCRIPT.with_name("find_underresolved_blocks.py"))
+underresolved = importlib.util.module_from_spec(underresolved_spec); sys.modules[underresolved_spec.name] = underresolved
+assert underresolved_spec.loader; underresolved_spec.loader.exec_module(underresolved)
 verify_spec = importlib.util.spec_from_file_location("verify_block", SCRIPT.with_name("verify_block.py"))
 verify = importlib.util.module_from_spec(verify_spec); sys.modules[verify_spec.name] = verify
 assert verify_spec.loader; verify_spec.loader.exec_module(verify)
@@ -79,6 +82,7 @@ def test_maf_floor() -> None:
     g = np.column_stack([
         hets(6), hets(7), sparse, np.full(n, np.nan), np.zeros(n), 2 - hets(7),
         *[rng.binomial(2, .3, n).astype(float) for _ in range(20)],
+        np.ones(n),  # every individual heterozygous: above the floor, but no variance
     ])
     variants = [{"chrom": "1", "pos": 100 + i, "allele1": "C", "allele2": "G"}
                 for i in range(g.shape[1])]
@@ -89,8 +93,11 @@ def test_maf_floor() -> None:
           "MAF floor kept the wrong variants")
     check(p["maf_threshold"] == .01 and p["mac_threshold"] is None,
           "a MAF floor must replace, not add to, the MAC floor")
-    check((p["n_variants_all_missing"], p["n_variants_invariant"], p["n_variants_below_floor"]) == (1, 1, 1),
-          "dropped-variant classes are miscounted")
+    classes = ("n_variants_all_missing", "n_variants_invariant", "n_variants_below_floor",
+               "n_variants_alid_collision", "n_variants_zero_variance")
+    check(tuple(p[c] for c in classes) == (1, 1, 1, 0, 1), "dropped-variant classes are miscounted")
+    check(sum(p[c] for c in classes) + p["n_variants_retained"] == p["n_variants_input"],
+          "dropped-variant classes do not account for every input variant")
     check(p["below_floor_mac_counts"] == {"6": 1}, "below-floor MAC strata are wrong")
     check(np.isclose(p["missing_call_rate"], (45 + n) / (n * g.shape[1])), "input missingness is wrong")
     check(np.isclose(p["max_missing_call_rate_retained"], 45 / n) and
@@ -136,6 +143,29 @@ def test_alid_collisions() -> None:
     again = module.construct_block(g, variants, mac_threshold=1, component_floor=1).provenance
     check((again["n_variants_retained"], again["n_variants_alid_collision"], again["n_variants_invariant"]) == (2, 1, 1),
           "a collision must be excluded even when its other record would be dropped anyway")
+    # A record no ALID can name is tolerated wherever construction drops it.
+    malformed = [*variants, {"chrom": "1", "pos": 102, "allele1": "C", "allele2": "C"}]
+    built = module.construct_block(np.column_stack([g, np.zeros(60)]), malformed, mac_threshold=1, component_floor=1)
+    x, _ = module.standardised_ea_dosages(np.column_stack([g, np.zeros(60)]), malformed, built.variant_table)
+    check(x.shape == (60, 2), "an unnameable dropped record broke dosage standardisation")
+
+
+def test_run_panels_floor_resume() -> None:
+    g, variants = ld_fixture()
+    built = module.construct_block(g, variants, mac_threshold=50, component_floor=5)
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp); module._atomic_outputs(tmp / "panel/AMR/22/100-200", built)
+        (tmp / "regions.tsv").write_text("chr\tstart\tend\tancestry\n22\t100\t200\tAMR\n")
+        def run(*floor: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.run([sys.executable, str(SCRIPT.with_name("run_panels.py")),
+                "--genotype-root", str(tmp), "--reference-root", str(tmp / "panel"),
+                "--regions", str(tmp / "regions.tsv"), "--members", str(tmp), "--ancestries", "AMR", *floor],
+                capture_output=True, text=True)
+        same = run("--mac", "50")
+        check(same.returncode == 0 and "built" not in same.stdout, "a block already built under the floor was rebuilt")
+        other = run("--maf", ".01")
+        check(other.returncode != 0 and "floor" in other.stderr,
+              "a block built under another floor must not be resumed as if it were current")
 
 
 def ld_fixture(n: int = 120, seed: int = 241) -> tuple[np.ndarray, list[dict[str, object]]]:
@@ -355,7 +385,8 @@ def test_plink_raw_input() -> None:
 
 
 def main() -> None:
-    test_block(); test_maf_floor(); test_alid_collisions(); test_verify_block(); test_heldout_calibration()
+    test_block(); test_maf_floor(); test_alid_collisions(); test_run_panels_floor_resume()
+    test_verify_block(); test_heldout_calibration()
     test_canonical_effect_allele_ld_orientation()
     test_mapping(); test_membership_keep_format(); test_amr_pilot_mapping(); test_amr_pilot_membership()
     test_index_validation(); test_compressed_pvar_input()

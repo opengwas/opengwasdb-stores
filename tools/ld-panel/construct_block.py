@@ -47,6 +47,15 @@ def canonical_alid(chrom: object, pos: object, allele1: str, allele2: str) -> st
     return f"{chrom}:{int(pos)}:{a1}:{a2}"
 
 
+def variant_alids(variants: list[dict[str, object]]) -> list[str | None]:
+    """Each variant's ALID, or None for a record no ALID can name."""
+    alids: list[str | None] = []
+    for v in variants:
+        try: alids.append(canonical_alid(v["chrom"], v["pos"], str(v["allele1"]), str(v["allele2"])))
+        except ValueError: alids.append(None)
+    return alids
+
+
 def standardised_ea_dosages(genotypes: np.ndarray, variants: list[dict[str, object]],
                             rows: list[dict[str, object]]) -> tuple[np.ndarray, np.ndarray]:
     """Unit-norm centred effect-allele dosages for panel ``rows``, and their EAF.
@@ -56,8 +65,7 @@ def standardised_ea_dosages(genotypes: np.ndarray, variants: list[dict[str, obje
     Missing calls are mean-imputed, as in construction, so for a block built
     from these genotypes ``x.T @ x`` is the LD its eigendecomposition stores.
     """
-    index = {canonical_alid(v["chrom"], v["pos"], str(v["allele1"]), str(v["allele2"])): i
-             for i, v in enumerate(variants)}
+    index = {alid: i for i, alid in enumerate(variant_alids(variants)) if alid is not None}
     columns = [index[str(r["SNP"])] for r in rows]
     alt = np.asarray(genotypes, dtype=np.float64)[:, columns]
     alt_is_ea = np.array([str(variants[c]["allele2"]).upper() == r["EA"] for c, r in zip(columns, rows)])
@@ -113,10 +121,7 @@ def construct_block(
     # splits multi-allelic sites, so the insertion G>GA and the deletion GA>G
     # at one position both become pos:G:GA. Exclude every record of such an
     # ALID, even when another of them would be dropped anyway (#241).
-    alids = []
-    for v in variants:
-        try: alids.append(canonical_alid(v["chrom"], v["pos"], str(v["allele1"]), str(v["allele2"])))
-        except ValueError: alids.append(None)
+    alids = variant_alids(variants)
     records = Counter(a for a in alids if a is not None)
     shared = np.array([a is not None and records[a] > 1 for a in alids], dtype=bool)
     collided = polymorphic & above & shared
@@ -128,7 +133,10 @@ def construct_block(
     x = filled[:, kept]
     x -= x.mean(axis=0)
     scale = np.sqrt(np.sum(x * x, axis=0))
+    # Polymorphic yet constant once mean-imputed, e.g. every called individual
+    # heterozygous: nothing to correlate, so it is dropped and counted.
     nonzero = scale > 0
+    zero_variance = int((~nonzero).sum())
     kept = kept[nonzero]
     x = x[:, nonzero] / scale[nonzero]
     # PLINK --export A emits ALT dosage, while panel rows declare the
@@ -174,6 +182,7 @@ def construct_block(
         "maf_threshold": maf_threshold,
         "n_variants_all_missing": int(all_missing.sum()), "n_variants_invariant": int(invariant.sum()),
         "n_variants_below_floor": int(below.sum()), "n_variants_alid_collision": int(collided.sum()),
+        "n_variants_zero_variance": zero_variance,
         "below_floor_mac_counts": {str(int(m)): int(c) for m, c in zip(*np.unique(mac[below], return_counts=True))},
         "missing_call_rate": float(missing_rate.mean()),
         "max_missing_call_rate_retained": float(missing_rate[kept].max()),
@@ -246,6 +255,13 @@ def _plink_extract(args: argparse.Namespace, work: Path) -> tuple[np.ndarray, li
     subprocess.run([args.plink2, "--pfile", str(prefix), "--export", "A", "--out", str(prefix)], check=True)
     genotypes, names, ids = read_plink_raw(prefix.with_suffix(".raw"))
     pvar = prefix.with_suffix(".pvar")
+    # A raw column is named ID_<counted allele>. Matching each ID against every
+    # name is quadratic, which a floor-free 200k-variant block cannot afford
+    # (#241), so index every prefix that ends at an underscore.
+    matchable = set(names)
+    for name in names:
+        parts = name.split("_")
+        matchable.update("_".join(parts[:i]) for i in range(1, len(parts)))
     variants = []
     with pvar.open() as fh:
         for line in fh:
@@ -253,7 +269,7 @@ def _plink_extract(args: argparse.Namespace, work: Path) -> tuple[np.ndarray, li
             fields = line.rstrip().split("\t")
             if fields[0].lstrip("#") == "CHROM": continue
             chrom, pos, vid, ref, alt = fields[:5]
-            if vid in names or any(name.startswith(vid + "_") for name in names):
+            if vid in matchable:
                 variants.append({"chrom": chrom, "pos": pos, "allele1": ref, "allele2": alt})
     return genotypes, variants, ids
 

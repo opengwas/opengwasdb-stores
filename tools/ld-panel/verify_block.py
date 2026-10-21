@@ -18,14 +18,8 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from construct_block import _plink_extract, canonical_alid, standardised_ea_dosages
-
-
-def components_at(values: np.ndarray, thresh: float) -> int:
-    """Components the consumer keeps for ``thresh`` cumulative variance."""
-    positive = np.maximum(values, 0.0)
-    cumulative = np.cumsum(positive) / (float(positive.sum()) or 1.0)
-    return int(np.searchsorted(cumulative, thresh)) + 1
+from construct_block import _plink_extract, canonical_alid, standardised_ea_dosages, variant_alids
+from find_underresolved_blocks import components_needed
 
 
 def verify_block(base: Path, genotypes: np.ndarray, variants: list[dict[str, object]], *,
@@ -52,13 +46,12 @@ def verify_block(base: Path, genotypes: np.ndarray, variants: list[dict[str, obj
     require(bool((values >= 0).all()), "non_negative")
     require(bool((np.diff(values) <= 0).all()), "descending")
     require(provenance["components_retained"] == vectors.shape[1], "provenance")
-    needed = components_at(values, thresh)
+    needed = components_needed(values, thresh)
     require(needed <= vectors.shape[1], "resolved_at_thresh")
 
-    binding_error = float("nan")
-    index = {canonical_alid(v["chrom"], v["pos"], str(v["allele1"]), str(v["allele2"])): i
-             for i, v in enumerate(variants)}
-    require(all(a in index for a in alids), "binding")
+    binding_error = None
+    nameable = set(variant_alids(variants)) - {None}
+    require(all(a in nameable for a in alids), "binding")
     if finite and "binding" not in failures and "row_count" not in failures:
         x, eaf = standardised_ea_dosages(genotypes, variants, rows)
         require(np.allclose(eaf, [float(r["EAF"]) for r in rows], rtol=0, atol=1e-9), "eaf")
