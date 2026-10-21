@@ -20,11 +20,8 @@ from ogstores import bundle as release_bundle
 from ogstores.paths import is_valid_store_id
 
 from analysis_catalog import database, publish, report, summary
+from analysis_catalog.errors import CatalogError
 from analysis_catalog.policy import Decision, decide
-
-
-class CatalogError(RuntimeError):
-    """The catalog cannot be built, and nothing was written."""
 
 
 @dataclass(frozen=True)
@@ -52,6 +49,8 @@ def build_catalog(
     and `current` stays where it was.
     """
     registry, artifact_root = Path(registry), Path(artifact_root)
+    if renderer is summary.render:
+        summary.quarto_path()
     commit = registry_commit(registry)
     decisions = tuple(
         decide(release_bundle.load(store_id, registry_root=registry), registry)

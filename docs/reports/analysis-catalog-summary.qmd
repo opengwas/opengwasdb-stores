@@ -28,7 +28,11 @@ opts_chunk$set(results = "asis")
 # or a read of its changes.tsv; nothing is recomputed from the Release Bundles.
 catalog_dir <- params$catalog_dir
 if (!nzchar(catalog_dir)) stop("set the catalog_dir parameter: quarto render ... -P catalog_dir:<version dir>")
-con <- dbConnect(SQLite(), file.path(catalog_dir, "catalog.sqlite"), flags = SQLITE_RO)
+con <- dbConnect(SQLite(), file.path(catalog_dir, "catalog.sqlite"), flags = SQLITE_RO,
+                bigint = "numeric")
+# `bigint = "numeric"`: RSQLite returns integer64 for a count past 2^31, and `format(big.mark=)`
+# prints that without separators. A double holds every integer below 2^53 exactly, and no count
+# here (associations, Analyses, sample sizes) approaches 9e15.
 q <- function(sql) dbGetQuery(con, sql)
 meta <- setNames(q("SELECT key, value FROM catalog_meta")$value, q("SELECT key, value FROM catalog_meta")$key)
 
@@ -78,22 +82,35 @@ Totals count listed Stores. An association total is `unknown` as soon as one lis
 
 ## Served Stores
 
+Listed Stores, as each reports itself. Association Coverage is a property of the Store Release (`full`, `cis_and_signals`), as reported.
+
 ```{r stores}
-if (nrow(stores) == 0) {
-  cat("No Store is served.\n")
+if (nrow(listed_stores) == 0) {
+  cat("No Store is listed.\n")
 } else {
-  decision <- setNames(selection$decision, selection$store_id)
   kable(data.frame(
-    Store = stores$store_id,
-    Decision = decision[stores$store_id],
-    Layout = label_na(stores$layout, "not reported"),
-    `Association coverage` = label_na(stores$association_coverage, "not reported"),
-    `Completion state` = label_na(stores$completion_state, "not reported"),
-    `Access posture` = label_na(stores$access_posture, "not reported"),
-    Analyses = ifelse(is.na(stores$n_analyses), "not reported", n_fmt(stores$n_analyses)),
-    Associations = ifelse(is.na(stores$n_associations), "not reported", n_fmt(stores$n_associations)),
+    Store = listed_stores$store_id,
+    Layout = label_na(listed_stores$layout, "not reported"),
+    `Association Coverage` = label_na(listed_stores$association_coverage, "not reported"),
+    `Completion state` = label_na(listed_stores$completion_state, "not reported"),
+    `Access posture` = label_na(listed_stores$access_posture, "not reported"),
+    Analyses = ifelse(is.na(listed_stores$n_analyses), "not reported", n_fmt(listed_stores$n_analyses)),
+    Associations = ifelse(is.na(listed_stores$n_associations), "not reported", n_fmt(listed_stores$n_associations)),
     check.names = FALSE
   ), row.names = FALSE)
+}
+```
+
+### Resolvable but not listed
+
+Placeholder Stores: their Analyses resolve by identifier but are not listed, and are in none of the totals or counts here.
+
+```{r placeholders}
+ph <- selection[selection$decision == "placeholder", ]
+if (nrow(ph) == 0) {
+  cat("No Store is a placeholder.\n")
+} else {
+  kable(data.frame(Store = ph$store_id, Reason = ph$reason), row.names = FALSE)
 }
 ```
 
@@ -130,9 +147,9 @@ show_counts("outcome_type", "undetermined")
 show_counts("trait_class", "undetermined")
 ```
 
-### Association coverage (genome-wide or cis)
+## Association Coverage
 
-As each Store reports it.
+The Association Coverage each listed Store reports, with the Analyses it covers.
 
 ```{r coverage}
 show_counts("coverage", "not reported")
@@ -169,7 +186,8 @@ if (nrow(ss) == 0) {
 
 ```{r mapping}
 m <- q("SELECT trait_class, COUNT(*) AS n, SUM(trait_ontology_id IS NOT NULL AND trait_ontology_id <> '') AS mapped,
-        SUM(analysis_label IS NULL OR TRIM(analysis_label) = '') AS unlabelled
+        SUM(analysis_label IS NULL OR TRIM(analysis_label) = '') AS unlabelled,
+        SUM(label_from_source = 1) AS from_source
         FROM listed_analyses GROUP BY trait_class ORDER BY trait_class")
 if (nrow(m) == 0) {
   cat("No Analyses are listed.\n")
@@ -197,7 +215,9 @@ if (nrow(m) == 0) {
 if (nrow(m) == 0) {
   cat("No Analyses are listed.\n")
 } else {
-  cat(sprintf("%s of %s listed Analyses have no analysis label.\n", n_fmt(sum(m$unlabelled)), n_fmt(sum(m$n))))
+  cat(sprintf("%s of %s listed Analyses have no label at all.\n\n", n_fmt(sum(m$unlabelled)), n_fmt(sum(m$n))))
+  cat(sprintf("%s of %s listed Analyses have no curated label (shown by their source label).\n",
+              n_fmt(sum(m$from_source)), n_fmt(sum(m$n))))
 }
 ```
 

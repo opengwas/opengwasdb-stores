@@ -11,7 +11,7 @@ files under `catalog/`. Expected values are literals.
 
 The summary report is rendered by an injected renderer in these tests, so the
 suite needs no Quarto. The real render is `smoke_summary.py`, run by
-`pixi run -e dev docs-smoke`.
+`pixi run -e dev catalog-summary-smoke` (CI runs it beside `docs-smoke`).
 
 Run from the repository root:
 

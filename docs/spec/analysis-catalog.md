@@ -95,7 +95,9 @@ The columns and their types are `src/analysis_catalog/columns.py`.
   A column a bundle lacks, and an empty cell, are `NULL`, never `0` or `''`.
   `sample_size`, `n_cases`, `n_controls` and `trait_bp` are `INTEGER`;
   `original_sd`, `maf_threshold` and `info_score_threshold` are `REAL`.
-  `analysis_label` falls back to `source_label`. Build internals
+  `analysis_label` falls back to `source_label`, and `label_from_source` is `1`
+  on a row where it did (the manifest had no `analysis_label`), `0` otherwise.
+  Build internals
   (`source_file`, checksums, `inclusion_reason`, `exclude_from_build`,
   `analysis_index`) are not carried.
 - **`selection`**: `store_id`, `decision`, `reason`, for every registered Store
@@ -116,8 +118,9 @@ nothing. The report opens `catalog.sqlite` read-only and reads the version's
 is never a partial sum. An empty catalog renders and says so.
 
 Rendering needs Quarto and R beside the builder, so the operator runs
-`pixi run -e dev catalog` (the default environment has no reporting feature).
-`pixi run -e dev docs-smoke` renders the report against a fixture catalog
+`pixi run catalog`, which runs in the `dev` environment (the task's
+`default-environment`) and uses that environment's own Quarto, refusing before it
+builds anything when none is active. `pixi run -e dev catalog-summary-smoke` renders the report against a fixture catalog
 (`tests/catalog/smoke_summary.py`).
 
 ### Listing, types, counts, search and indexes (#324)

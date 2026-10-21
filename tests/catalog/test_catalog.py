@@ -19,6 +19,7 @@ import sqlite3
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 from typing import Any
 
@@ -587,6 +588,20 @@ class UnrepresentableValuesTest(TempDirCase):
         self.assertEqual(query(self.root, "SELECT original_sd, typeof(original_sd) FROM analyses"), [(0.0, "real")])
 
 
+class LabelFallbackTest(TempDirCase):
+    def test_label_from_source_records_the_fallback(self) -> None:
+        write_bundle(self.registry, "OGS-00001", rows=[
+            analysis_row("A1", analysis_label="Curated", source_label="Raw"),
+            analysis_row("A2", source_label="Raw"),
+            analysis_row("A3"),
+        ])
+        self.build()
+        self.assertEqual(
+            query(self.root, "SELECT analysis_id, analysis_label, label_from_source FROM analyses ORDER BY id"),
+            [("A1", "Curated", 0), ("A2", "Raw", 1), ("A3", None, 0)],
+        )
+
+
 class EmptyCatalogTest(TempDirCase):
     def test_no_listed_store_gives_a_valid_empty_catalog_and_says_why(self) -> None:
         write_bundle(self.registry, "OGS-00001", status="candidate", validation=False)
@@ -646,6 +661,15 @@ class SummaryRenderTest(TempDirCase):
         second = self.build_with(lambda d: (d / "summary.html").write_text("second"))
         self.assertNotEqual(second.version, first.version)
         self.assertEqual((self.root / "catalog" / "current" / "summary.html").read_text(), "second")
+
+    def test_the_default_renderer_refuses_before_building_when_the_environment_has_no_quarto(self) -> None:
+        write_bundle(self.registry, "OGS-00001")
+        with mock.patch.dict(os.environ, {"PATH": ""}):
+            os.environ.pop("CONDA_PREFIX", None)
+            with self.assertRaises(catalog_build.CatalogError) as raised:
+                catalog_build.build_catalog(self.registry, self.root)
+        self.assertIn("Quarto", str(raised.exception))
+        self.assertFalse((self.root / "catalog").exists())
 
     def test_a_no_op_rebuild_renders_nothing(self) -> None:
         write_bundle(self.registry, "OGS-00001")

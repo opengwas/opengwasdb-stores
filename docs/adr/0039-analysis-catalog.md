@@ -94,7 +94,8 @@ indexes for counts, search and paging.
   `exclude_from_build`, `analysis_index` — because they locate and justify a
   build input, which is not what a reader queries.
 - Numeric columns are typed, and `analysis_label` falls back to `source_label`,
-  because the MVP bundles have no `analysis_label`.
+  because the MVP bundles have no `analysis_label`. `label_from_source` records
+  each fallback, so the summary report can count Analyses with no curated label.
 - **The type of an Analysis is a set of columns of `analyses`**, derived once at
   build time from fields the row already holds: `outcome_type` (binary or
   continuous) from `stored_effect_scale` and `sample_size_kind`, binary when

@@ -199,7 +199,8 @@ def _analysis_row(bundle: release_bundle.Bundle, row: Mapping[str, str], listed:
         column: _typed(analysis_id, column, kind, row.get(column))
         for column, kind in MANIFEST_COLUMNS.items()
     }
-    if values["analysis_label"] is None:
+    from_source = values["analysis_label"] is None and values["source_label"] is not None
+    if from_source:
         values["analysis_label"] = values["source_label"]
     values.update(
         id=f"{bundle.store_id}:{analysis_id}",
@@ -207,6 +208,7 @@ def _analysis_row(bundle: release_bundle.Bundle, row: Mapping[str, str], listed:
         analysis_id=analysis_id,
         status=bundle.status,
         listed=int(listed),
+        label_from_source=int(from_source),
         outcome_type=outcome_type(values["stored_effect_scale"], values["sample_size_kind"]),
         ancestry_category=ancestry_category(values["assigned_ancestry"], values["source_ancestry_label"]),
         trait_class=trait_class(values["context"], values["tissue"], values["trait_chr"]),
