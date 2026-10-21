@@ -3826,11 +3826,12 @@ class RealResolverNoAlleleFrequencyTests(unittest.TestCase):
     ``assigned_ancestry`` result. Without the opt-in it is ``ancestry_unassigned``.
     """
 
-    #: One real resolution serves all three tests: the kept records and the
-    #: receipt depend on the resolver settings, not on the release policy these
-    #: tests vary, so a run per test would only re-run the pinned resolver to be
-    #: handed the same records back. Each test then applies its policy variant
-    #: in this process, into its own Work Root and registry (#282).
+    #: One real resolution serves all three tests: the kept records, the resolver
+    #: index and the receipt depend on the resolver settings, not on the release
+    #: policy these tests vary, so a run per test would only re-run the pinned
+    #: resolver to be handed the same records back. Each test then applies its
+    #: policy variant in this process -- its own config and registry, over the
+    #: class's Work Root -- and enters the pipeline at ``emit`` (#282).
     @classmethod
     def setUpClass(cls) -> None:
         cls._tmp = tempfile.TemporaryDirectory(prefix="real-resolver-no-af-")
@@ -3851,15 +3852,18 @@ class RealResolverNoAlleleFrequencyTests(unittest.TestCase):
         cls._tmp.cleanup()
 
     def setUp(self) -> None:
-        # A per-test Work Root, registry and config: the shared fixture's are the
-        # ones the resolution above wrote.
+        # A per-test config and registry, so each test writes its own policy and
+        # its own bundle; the Work Root is the class's, because it holds the run
+        # artefacts the resolve stage bound -- the resolver index and the
+        # receipt -- and verify recomputes the contract from the current config,
+        # where the release policy does not appear.
         self.root = self.__class__.root / self._testMethodName
         self.config_path = self.root / "config.yaml"
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         self.config_path.write_text(self.fixture.config_path.read_text())
         self.registry_root = self.root / "stores"
         self.registry_root.mkdir(parents=True)
-        self.work_root = self.root / "work"
+        self.work_root = self.fixture.work_root
 
     def opt_in(self) -> None:
         document = yaml.safe_load(self.config_path.read_text())
@@ -3867,8 +3871,14 @@ class RealResolverNoAlleleFrequencyTests(unittest.TestCase):
         self.config_path.write_text(yaml.safe_dump(document))
 
     def emitted(self) -> tuple[dict, dict, dict]:
+        # The release policy is what varies here, and it lives outside the
+        # resolution contract, so this re-renders from the records the class
+        # already resolved rather than running the real resolver again: prepare,
+        # verify, render and emit over the shared resolution (#282).
         result = _run_cli(
             self.fixture,
+            "--stage",
+            "emit",
             resolver=REAL_RESOLVER,
             config_path=self.config_path,
             registry_root=self.registry_root,
