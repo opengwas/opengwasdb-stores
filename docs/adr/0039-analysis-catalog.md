@@ -126,7 +126,9 @@ indexes for counts, search and paging.
   and the paging indexes are partial indexes over those rows, so a retired
   Store costs a listing nothing.
 
-Every rebuild is a full rebuild into a fresh database, done in SQL, so a
+Every rebuild is a full rebuild into a fresh database, one Store's rows at a
+time (so memory is set by the largest single Store's manifest, not by the
+catalog), done in SQL, so a
 version is never a mixture of two inputs and a failed build leaves the previous
 version in place. Measured on a replication of the real catalog, 5.07M rows: a
 39 s build, a 2.3 GB file, lookups, full-text search and first pages under
@@ -150,12 +152,15 @@ current -> versions/<version>
 ```
 
 - **The version is a hash of every file of every registered Release Bundle,
-  plus the builder's own source**, which includes the serving policy. That is
-  wider than the selected bundles' contents on purpose: `bundle.check()` reads
-  every file of every bundle, so an edit to an excluded Store's manifest can
-  change its decision, and a change to a decision must give a new version, or
-  the reasons in `selection` go stale. A rebuild whose version already exists
-  writes nothing.
+  plus the builder's own source** (which includes the serving policy) **and the
+  summary template**. Decisions are a pure function of those inputs, so they are
+  not hashed, and the version is known before any manifest row is read. The
+  inputs are wider than the selected bundles' contents on purpose:
+  `bundle.check()` reads every file of every bundle, so an edit to an excluded
+  Store's manifest can change its decision, and a change to a decision must give
+  a new version, or the reasons in `selection` go stale. A rebuild whose version
+  already exists writes nothing and reads no manifest row: it reports the
+  decisions recorded in that version's `selection`.
 - **A version is immutable and the last few are kept**, so rollback is moving
   `current` back: a rebuild writes a new directory and swaps `current`
   atomically, no reader sees a half-written catalog, and nothing is

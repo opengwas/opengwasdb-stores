@@ -52,17 +52,16 @@ def build_catalog(
     if renderer is summary.render:
         summary.quarto_path()
     commit = registry_commit(registry)
-    decisions = tuple(
-        decide(release_bundle.load(store_id, registry_root=registry), registry)
-        for store_id in registered_store_ids(registry)
-    )
-    version = publish.compute_version(decisions, registry)
+    store_ids = registered_store_ids(registry)
+    # The version is a function of the inputs alone, so a rebuild that finds it
+    # returns before reading any manifest row.
+    version = publish.compute_version(registry, store_ids)
     final = publish.versions_dir(artifact_root) / version
     if final.is_dir():
         repointed = publish.current_target(artifact_root) != version
         if repointed:
             publish.swap_current(artifact_root, version)
-        return BuildResult(version, False, repointed, final, decisions)
+        return BuildResult(version, False, repointed, final, _recorded_decisions(final))
 
     built_at = built_at or datetime.now(timezone.utc).isoformat(timespec="microseconds")
     previous = publish.current_target(artifact_root)
@@ -71,8 +70,8 @@ def build_catalog(
         shutil.rmtree(partial)
     partial.mkdir(parents=True)
     try:
-        _write_version(
-            partial, decisions, version=version, built_at=built_at, registry_commit=commit,
+        decisions = _write_version(
+            partial, registry, store_ids, version=version, built_at=built_at, registry_commit=commit,
             previous=(publish.versions_dir(artifact_root) / previous, previous) if previous else None,
         )
         renderer(partial)
@@ -85,18 +84,35 @@ def build_catalog(
     return BuildResult(version, True, True, final, decisions)
 
 
+def _recorded_decisions(version_dir: Path) -> tuple[Decision, ...]:
+    """The decisions a published version recorded in its `selection` table."""
+    connection = sqlite3.connect(f"file:{version_dir / database.DATABASE}?mode=ro", uri=True)
+    try:
+        return tuple(
+            Decision(store_id, decision, reason)
+            for store_id, decision, reason in connection.execute(
+                "SELECT store_id, decision, reason FROM selection ORDER BY store_id"
+            )
+        )
+    finally:
+        connection.close()
+
+
 def _write_version(
     directory: Path,
-    decisions: tuple[Decision, ...],
+    registry: Path,
+    store_ids: list[str],
     *,
     version: str,
     built_at: str,
     registry_commit: str | None,
     previous: tuple[Path, str] | None,
-) -> None:
+) -> tuple[Decision, ...]:
     path = directory / database.DATABASE
-    database.write_database(
-        path, decisions, version=version, built_at=built_at, registry_commit=registry_commit
+    decisions = database.write_database(
+        path,
+        (decide(release_bundle.load(store_id, registry_root=registry), registry) for store_id in store_ids),
+        version=version, built_at=built_at, registry_commit=registry_commit,
     )
     change = None
     if previous is not None:
@@ -115,6 +131,7 @@ def _write_version(
         ),
         encoding="utf-8",
     )
+    return decisions
 
 
 def registered_store_ids(registry: Path) -> list[str]:

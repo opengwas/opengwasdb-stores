@@ -8,7 +8,7 @@ rules apply in the order of `POLICY`, and each decision carries its reason, so
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from math import isfinite
@@ -84,9 +84,12 @@ class Decision:
     store_id: str
     decision: str
     reason: str
-    # Present only for a listed Store: its `stores` row and `analyses` rows.
+    # Present only for a listed or placeholder Store: its `stores` row and its
+    # `analyses` rows. The rows are produced lazily, one at a time, and the
+    # iterator raises `RefusedRow` on a value the columns cannot hold, so the
+    # writer can drop the Store's rows and refuse it.
     store: tuple | None = None
-    analyses: tuple[tuple, ...] = ()
+    analyses: Iterable[tuple] = ()
 
 
 def decide(bundle: release_bundle.Bundle, registry: Path) -> Decision:
@@ -158,10 +161,10 @@ def _admit(
                 "but an Analysis is named <store_id>:<analysis_id>",
             )
     try:
-        rows = tuple(_analysis_row(bundle, row, decision == LISTED) for row in admitted)
         store = _store_row(bundle, observed)
     except RefusedRow as exc:
         return Decision(store_id, REFUSED, str(exc))
+    rows = (_analysis_row(bundle, row, decision == LISTED) for row in admitted)
     return Decision(store_id, decision, reason, store=store, analyses=rows)
 
 

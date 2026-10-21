@@ -83,7 +83,10 @@ and `tests/catalog/test_catalog.py` checks this table and ADR 0039's list agains
 
 ## Tables
 
-One SQLite file, `catalog.sqlite`, built in one transaction into a fresh file.
+One SQLite file, `catalog.sqlite`, built in one transaction into a fresh file,
+one Store at a time: a Store's rows are inserted as its decision is made, and a
+Store refused on a value in its rows is rolled back whole. Memory is set by the
+largest single Store's manifest.
 The columns and their types are `src/analysis_catalog/columns.py`.
 
 - **`stores`**: one row per **listed or placeholder** Store Release, with the
@@ -210,12 +213,13 @@ with the row-value form.
 - **The version** is the first 16 hex digits of a SHA-256 over: the builder's
   version and every `*.py` source file of the package, which includes the
   serving policy; the summary template (`docs/reports/analysis-catalog-summary.qmd`);
-  and every file of every registered Release Bundle directory,
-  with each Store's decision and reason. That is every file of every registered
-  Release Bundle, plus the builder's source. It does not include the build time
-  or the registry commit.
-- **A rebuild whose version exists writes nothing**, and moves `current` only
-  if it names another version.
+  and every file of every registered Release Bundle directory. Decisions are not
+  hashed: they are a function of those inputs, so the version is known before any
+  Release Manifest row is read. It does not include the build time or the
+  registry commit.
+- **A rebuild whose version exists writes nothing**, reads no Release Manifest
+  row, and moves `current` only if it names another version. Its decisions are
+  those in that version's `selection`.
 - **Publication**: the build is written to `versions/<version>.partial/`,
   renamed to `versions/<version>/`, and `current` is then swapped atomically (a
   temporary symlink, then `os.replace`). A failed build removes its partial

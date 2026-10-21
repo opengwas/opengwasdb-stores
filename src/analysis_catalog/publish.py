@@ -23,7 +23,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from analysis_catalog import BUILDER_VERSION, summary
-from analysis_catalog.policy import POLICY, Decision
+from analysis_catalog.policy import POLICY
 
 KEEP_VERSIONS = 5
 PARTIAL_SUFFIX = ".partial"
@@ -51,13 +51,14 @@ def _read(path: Path) -> bytes | None:
     return path.read_bytes() if path.is_file() else None
 
 
-def compute_version(decisions: Iterable[Decision], registry: Path) -> str:
+def compute_version(registry: Path, store_ids: Iterable[str]) -> str:
     """Hash of everything the catalog reads, and the builder that reads it.
 
-    That is every file of every registered Release Bundle directory (`check()`
-    reads them all, so any can change a decision), each Store's decision and
-    reason, and the builder's source, which includes the serving policy. It
-    leaves out the build time and the registry commit.
+    That is every file of every registered Release Bundle directory
+    (`check()` reads them all, so any can change a decision), the serving
+    policy, the builder's source and the summary template. Decisions are a pure
+    function of those inputs, so they are not hashed and no manifest row is read
+    to know the version. It leaves out the build time and the registry commit.
     """
     digest = hashlib.sha256()
     _feed(digest, "builder_version", BUILDER_VERSION.encode("utf-8"))
@@ -66,11 +67,10 @@ def compute_version(decisions: Iterable[Decision], registry: Path) -> str:
         _feed(digest, f"source/{source.relative_to(PACKAGE_DIR)}", source.read_bytes())
     # The summary template shapes `summary.html`, so a fix to it is a new version.
     _feed(digest, "summary_template", _read(summary.SOURCE))
-    for decision in sorted(decisions, key=lambda d: d.store_id):
-        root = registry / decision.store_id
-        _feed(digest, f"{decision.store_id}/decision", f"{decision.decision}\n{decision.reason}".encode("utf-8"))
+    for store_id in sorted(store_ids):
+        root = registry / store_id
         for path in sorted(p for p in root.rglob("*") if p.is_file() or p.is_symlink()):
-            _feed(digest, f"{decision.store_id}/{path.relative_to(root)}", _read(path))
+            _feed(digest, f"{store_id}/{path.relative_to(root)}", _read(path))
     return digest.hexdigest()[:16]
 
 

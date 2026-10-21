@@ -592,6 +592,65 @@ class VersionsTest(TempDirCase):
         self.assertEqual(self.versions(), [probe.version])
 
 
+class ScaleTest(TempDirCase):
+    """The version is known before any per-row work, and rows stream in one Store at a time (#323, #324)."""
+
+    def test_a_rebuild_whose_version_exists_reads_no_bundle_and_no_manifest_row(self) -> None:
+        write_bundle(self.registry, "OGS-00001")
+        write_bundle(self.registry, "OGS-00002", status="candidate", validation=False)
+        write_bundle(self.registry, "OGS-00003", rows=[analysis_row("A1", sample_size="lots")])
+        first = self.build()
+        with mock.patch.object(catalog_build, "decide", side_effect=AssertionError("decided")), \
+                mock.patch("opengwasdb.model.analyses.read_analyses", side_effect=AssertionError("read")), \
+                mock.patch("ogstores.bundle.load", side_effect=AssertionError("loaded")):
+            again = self.build()
+        self.assertFalse(again.published)
+        self.assertEqual(again.version, first.version)
+        self.assertEqual(
+            [(d.store_id, d.decision, d.reason) for d in again.decisions],
+            [(d.store_id, d.decision, d.reason) for d in first.decisions],
+        )
+
+    def test_a_store_refused_on_its_last_row_leaves_no_row_and_the_others_stay(self) -> None:
+        write_bundle(self.registry, "OGS-00001", rows=[analysis_row("A1"), analysis_row("A2", sample_size="lots")])
+        write_bundle(self.registry, "OGS-00002")
+        write_bundle(self.registry, "OGS-00003", rows=[analysis_row("C1")])
+        result = self.build()
+        self.assertEqual([d.decision for d in result.decisions], ["refused", "listed", "listed"])
+        self.assertEqual(
+            query(self.root, "SELECT store_id, COUNT(*) FROM analyses GROUP BY store_id"),
+            [("OGS-00002", 2), ("OGS-00003", 1)],
+        )
+        self.assertEqual(query(self.root, "SELECT store_id FROM stores ORDER BY store_id"),
+                         [("OGS-00002",), ("OGS-00003",)])
+        self.assertEqual(query(self.root, "SELECT n_analyses FROM counts WHERE dimension = 'store' ORDER BY value"),
+                         [(2,), (1,)])
+
+    def test_stores_are_decided_one_at_a_time_as_their_rows_are_written(self) -> None:
+        for n in (1, 2, 3):
+            write_bundle(self.registry, f"OGS-0000{n}")
+        consumed: list[int] = []
+        seen_at_decision: list[list[int]] = []
+        real = catalog_build.decide
+
+        def spy(bundle, registry):
+            seen_at_decision.append(list(consumed))
+            decision = real(bundle, registry)
+            rows = decision.analyses
+            consumed.append(0)
+
+            def counted():
+                for row in rows:
+                    consumed[-1] += 1
+                    yield row
+            return type(decision)(decision.store_id, decision.decision, decision.reason, decision.store, counted())
+
+        with mock.patch.object(catalog_build, "decide", spy):
+            self.build()
+        # Each Store's rows were all written before the next Store was decided.
+        self.assertEqual(seen_at_decision, [[], [2], [2, 2]])
+
+
 class ToleratedLegacyIdTest(TempDirCase):
     """`check()` tolerates ':' in the analysis_id of two legacy releases (#319); the catalog does not."""
 
