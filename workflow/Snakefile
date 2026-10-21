@@ -295,9 +295,11 @@ rule register:
 
 
 # The completion phase's register (ADR 0037): it replaces the Store the build
-# phase's register published, through the same transaction, with no `force`
-# and no records snapshot. Under the entry point its marker is left for the
-# entry point to remove, as every register job's is (#195).
+# phase's register published, through the same transaction, with no records
+# snapshot, and deletes it. It needs no `force`; in a forced run it is passed
+# one, and archives the Store instead, as every forced replacement does (#309).
+# Under the entry point its marker is left for the entry point to remove, as
+# every register job's is (#195).
 rule completion_register:
     input:
         lambda wildcards: last_step_record(wildcards, COMPLETION_PHASE)
@@ -305,13 +307,15 @@ rule completion_register:
         "{root}/{store_id}/records/" + REGISTER_STEPS[COMPLETION_PHASE] + ".json"
     run:
         b = get_bundle(wildcards.store_id)
+        release_run = config.get("release_run")
         register.register_release(
             b,
             registry_root=REGISTRY_ROOT,
             artifact_root=wildcards.root,
+            force=register.forced_completion(release_run, wildcards.store_id, wildcards.root),
             publish=True,
             acceptance_commit=register.committed_revision(b.root / "validation.yaml"),
-            finalize=not config.get("release_run"),
+            finalize=not release_run,
             phase=COMPLETION_PHASE,
         )
 
