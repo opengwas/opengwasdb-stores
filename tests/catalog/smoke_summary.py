@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smoke render of the Analysis Catalog summary report (#325), run by `pixi run docs-smoke`.
+"""Smoke render of the Analysis Catalog summary report (#325), run by `pixi run catalog-summary-smoke`.
 
 Builds a fixture catalog with the real renderer (Quarto), then checks the HTML
 for the lines the report must carry. It is not part of the `catalog` suite: it

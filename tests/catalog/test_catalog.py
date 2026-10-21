@@ -768,7 +768,7 @@ class SummaryRenderTest(TempDirCase):
     """The summary report is rendered into the new version before `current` moves (#325).
 
     The renderer is injected, so these need no Quarto; the real one is exercised by
-    `tests/catalog/smoke_summary.py` (`pixi run docs-smoke`).
+    `tests/catalog/smoke_summary.py` (`pixi run catalog-summary-smoke`).
     """
 
     def build_with(self, renderer) -> catalog_build.BuildResult:
