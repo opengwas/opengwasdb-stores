@@ -324,10 +324,9 @@ def require_passing_observed_view_check(
     The completion phase deletes the Store it replaces, so it goes ahead only
     on a pass its record shows, beside the requirement that every planned
     step succeeded. The verdict is the first JSON object on the record's
-    stdout, as `opengwasdb check-observed-view` prints it; the first, because
-    `run.execute_step` may capture a step's output twice. No record, stdout
-    that does not start with an object, and any `passed` but `true` are each
-    refused.
+    stdout, as `opengwasdb check-observed-view` prints it
+    (`run.first_json_object`). No record, stdout that does not start with an
+    object, and any `passed` but `true` are each refused.
     """
 
     def refuse(reason: str) -> ObservedViewCheckError:
@@ -340,11 +339,9 @@ def require_passing_observed_view_check(
         raise refuse("is missing")
     stdout = check_record.get("stdout")
     try:
-        verdict, _ = json.JSONDecoder().raw_decode(stdout.lstrip() if isinstance(stdout, str) else "")
+        verdict = run.first_json_object(stdout if isinstance(stdout, str) else "")
     except ValueError as exc:
         raise refuse(f"holds no verdict on its stdout ({exc})") from exc
-    if not isinstance(verdict, dict):
-        raise refuse(f"holds no verdict on its stdout (a JSON {type(verdict).__name__}, not an object)")
     if "passed" not in verdict:
         raise refuse("has a verdict with no `passed`")
     if verdict["passed"] is not True:
@@ -765,19 +762,32 @@ def forced_completion(release_run: str | None, store_id: str, root: Path | str) 
     written by a run before #195; and a forced run reruns the build phase and
     rewrites `register.json`, so this run did not force it. Every Store
     published before #195 has such a record, and completing one under its own
-    id (#305) meets it. A `replaced_archive` that is neither text nor null is
-    refused rather than read as unforced, which would delete what a forced run
-    archives.
+    id (#305) meets it. A record that exists but is not a readable JSON object,
+    or whose `replaced_archive` is neither text nor null, is refused rather
+    than read as unforced, which would delete what a forced run archives.
+    `run.load_record` reads an unreadable record as a missing one, so the
+    record is read here.
     """
     if not release_run:
         return False
-    record = run.load_record(store_id, REGISTER_STEPS[BUILD_PHASE], root=root)
-    if record is None:
+    record_p = paths.record_path(store_id, REGISTER_STEPS[BUILD_PHASE], root=root)
+    if not _exists(record_p):
         # Nothing published to replace: `register_release` refuses that itself.
         return False
+    try:
+        record = json.loads(record_p.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise RegisterError(
+            f"Cannot tell whether the run {release_run} forced {store_id}: the build phase's register "
+            f"record {record_p} cannot be read: {exc}. Nothing was changed."
+        ) from exc
+    if not isinstance(record, dict):
+        raise RegisterError(
+            f"Cannot tell whether the run {release_run} forced {store_id}: the build phase's register "
+            f"record {record_p} is not a JSON object. Nothing was changed."
+        )
     replaced_archive = record.get("replaced_archive")
     if not isinstance(replaced_archive, (str, type(None))):
-        record_p = paths.record_path(store_id, REGISTER_STEPS[BUILD_PHASE], root=root)
         raise RegisterError(
             f"Cannot tell whether the run {release_run} forced {store_id}: the build phase's register "
             f"record {record_p} has `replaced_archive` {replaced_archive!r}, not an archive path or null. "

@@ -37,9 +37,14 @@ stores/OGS-00042/
 ```
 
 The `store_id` is the opaque `OGS-` identifier (ADR 0022). It is the directory
-name here, the directory name under the artifact root, and the `release_id`
-written into the built Store's manifest. There is no Store Family tier: the
-`OGS-` id is the only identifier (ADR 0028).
+name here and the directory name under the artifact root. In the built Store's
+manifest it is the `store_id`, and the `release_id` of an Observed-Only release.
+A release that completes its own Store keeps `store_id` as the id once
+completed, and the completed Store carries `release_id` `<id>-completed`: a new
+release of the same Store (ADR 0037, opengwasdb ADR 0011). A two-id
+Reference-Completed child (ADR 0007) is the exception: its id is the
+`release_id`, and the `store_id` is its parent's. There is no Store Family tier:
+the `OGS-` id is the only identifier (ADR 0028).
 
 Large Release Artifacts live outside this repository, at a path that is a pure
 function of the identifier:

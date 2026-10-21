@@ -31,7 +31,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import yaml
 
@@ -1221,20 +1221,28 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
         self.assertFalse(register.forced_completion(None, b.store_id, artifact_root), "outside the entry point")
 
     def test_unreadable_force_provenance_is_refused_and_nothing_is_deleted(self) -> None:
-        """A build register record whose `replaced_archive` is neither text nor null is refused (#309).
+        """A build register record that cannot say whether the run forced is refused (#309).
 
-        Read as unforced, it would let a forced run's completion phase delete
-        the Store it must archive. `force` is computed as the Snakefile's
-        `completion_register` computes it.
+        A `replaced_archive` that is neither text nor null, and a record that
+        exists but is not a readable JSON object. Read as unforced, either
+        would let a forced run's completion phase delete the Store it must
+        archive. `force` is computed as the Snakefile's `completion_register`
+        computes it.
         """
-        for case, value in (("a number", 42), ("a list", ["replaced"])):
+        def with_replaced_archive(value: Any) -> Callable[[dict[str, Any]], str]:
+            return lambda record: json.dumps({**record, "replaced_archive": value})
+
+        for case, rewrite in (
+            ("a number", with_replaced_archive(42)),
+            ("a list", with_replaced_archive(["replaced"])),
+            ("malformed JSON", lambda record: json.dumps(record)[:-1]),
+            ("not an object", lambda record: json.dumps([record])),
+        ):
             with self.subTest(case=case):
                 b, stores_root, artifact_root = self.built_and_completed(Path(tempfile.mkdtemp(dir=self.td)))
                 self.publish_build_phase(b, stores_root, artifact_root)
                 register_p = paths.record_path(b.store_id, "register", root=artifact_root)
-                record = json.loads(register_p.read_text())
-                record["replaced_archive"] = value
-                register_p.write_text(json.dumps(record))
+                register_p.write_text(rewrite(json.loads(register_p.read_text())))
 
                 with self.assertRaises(RegisterError) as ctx:
                     register_release(

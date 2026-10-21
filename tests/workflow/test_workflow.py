@@ -2395,6 +2395,56 @@ class TestWorkflowTheOneAmendmentOfAnAcceptedBundle(PublishedReleaseCopies):
             self.refusal(stores, artifacts, store_id),
         )
 
+    def test_missing_or_unreadable_exclusion_evidence_is_refused_naming_it(self) -> None:
+        """The published `work/analyses.exclusions.json` is the baseline's excluded Analyses, never "none" by default.
+
+        Read as no exclusions, a missing sidecar would let a bundle that now
+        excludes nothing pass for a Store that excluded Analyses.
+        """
+        stores, artifacts, store_id = self.single_id_copy()
+        sidecar = paths.build_manifest_sidecar_path(store_id, root=artifacts)
+        document = json.loads(sidecar.read_text(encoding="utf-8"))
+        self.assertEqual(self.refusal(stores, artifacts, store_id), "")
+
+        for case, text in (
+            ("malformed JSON", json.dumps(document)[:-1]),
+            ("not an object", json.dumps([document])),
+            ("no dropped list", json.dumps({**document, "dropped": "test_analysis"})),
+            ("an entry with no analysis_id", json.dumps({**document, "dropped": [{"row_index": 0}]})),
+            ("deleted", None),
+        ):
+            with self.subTest(case=case):
+                if text is None:
+                    sidecar.unlink()
+                else:
+                    sidecar.write_text(text, encoding="utf-8")
+                refusal = self.refusal(stores, artifacts, store_id)
+                self.assertIn(f"{store_id}: membership cannot be compared", refusal)
+                self.assertIn(str(sidecar), refusal)
+
+    def test_a_register_record_that_is_not_an_object_is_refused_naming_it(self) -> None:
+        """A register record that exists says its phase published; it is never read as unpublished.
+
+        Read as unpublished, a `null` build register record left the build
+        phase and the membership unchecked, so with no membership evidence
+        either nothing was refused. A missing record still means the phase
+        has not published.
+        """
+        stores, artifacts, store_id = self.single_id_copy()
+        paths.build_manifest_path(store_id, root=artifacts).unlink()
+        paths.build_manifest_sidecar_path(store_id, root=artifacts).unlink()
+
+        for step in ("register", "completion-register"):
+            record_p = paths.record_path(store_id, step, root=artifacts)
+            published = record_p.read_text(encoding="utf-8")
+            for case, text in (("null", "null"), ("a list", "[]"), ("malformed JSON", published[:-2])):
+                with self.subTest(step=step, case=case):
+                    record_p.write_text(text, encoding="utf-8")
+                    refusal = self.refusal(stores, artifacts, store_id)
+                    self.assertIn(f"{store_id}: ", refusal)
+                    self.assertIn(str(record_p), refusal)
+            record_p.write_text(published, encoding="utf-8")
+
     def test_a_changed_complete_block_is_refused_once_the_completion_has_published(self) -> None:
         stores, artifacts, store_id = self.single_id_copy()
         self.edit_yaml(

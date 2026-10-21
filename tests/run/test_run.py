@@ -2228,6 +2228,42 @@ class TestObservedViewCheckFailureMessage(unittest.TestCase):
         self.assertIn(self.VERDICT_PATH, message)
 
 
+class TestFirstJsonObject(unittest.TestCase):
+    """The one decoder of a verdict a step prints on stdout (#306, #309).
+
+    A step's output may be captured twice, so the verdict is the first JSON
+    object and whatever follows it is not read. No object first is an error.
+    """
+
+    def test_the_first_object_is_read_and_what_follows_it_is_not(self) -> None:
+        first = json.dumps({"passed": False, "failures": ["z_mismatch"]}, indent=2) + "\n"
+        for label, text in (
+            ("alone", first),
+            ("captured twice", first + json.dumps({"passed": True}) + "\n"),
+            ("text after it", first + "Traceback (most recent call last):\n"),
+            ("leading whitespace", "\n  " + first),
+        ):
+            with self.subTest(label):
+                self.assertEqual(run.first_json_object(text), {"passed": False, "failures": ["z_mismatch"]})
+                record_check()
+
+    def test_no_object_first_is_an_error(self) -> None:
+        for label, text, reason in (
+            ("empty", "", "Expecting value"),
+            ("text", "error: refused: not a Dense Store\n", "Expecting value"),
+            ("text before an object", 'valid\n{"passed": true}', "Expecting value"),
+            ("truncated", '{"passed": true', "Expecting"),
+            ("a list", '[{"passed": true}]', "a JSON list, not an object"),
+            ("a string", '"passed"', "a JSON str, not an object"),
+            ("a number", "1", "a JSON int, not an object"),
+        ):
+            with self.subTest(label):
+                with self.assertRaises(ValueError) as ctx:
+                    run.first_json_object(text)
+                self.assertIn(reason, str(ctx.exception))
+                record_check()
+
+
 def main() -> None:
     suite = unittest.TestSuite()
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestStepClassificationAndArgvRewrite))
@@ -2242,6 +2278,7 @@ def main() -> None:
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestResumingAnInterruptedCompletion))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestProvenanceAndSequentialPlan))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestObservedViewCheckFailureMessage))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestFirstJsonObject))
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     if not result.wasSuccessful():
