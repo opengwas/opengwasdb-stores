@@ -41,18 +41,20 @@ one decision and a reason, in `selection`. The first rule that applies decides:
 | 2 | `trial: true` | `excluded` | `Trial Store Release` |
 | 3 | Access Posture `embargoed` | `excluded` | `Access Posture is embargoed` |
 | 4 | status `candidate`, `accepted`, `built` | `excluded` | `Release Status is <status>, not validated` |
-| 5 | status `superseded`, `withdrawn` | `placeholder` | `Release Status is <status>: kept as placeholder rows, not listed` |
+| 5 | status `superseded`, `withdrawn` | `placeholder`, after rules 7 to 9 | `Release Status is <status>: kept as placeholder rows, not listed` |
 | 6 | `validated`, Access Posture neither `public` nor `controlled` | `refused` | `Access Posture is <value>; a listed Store is public or controlled` |
-| 7 | `validated`, `observed.n_analyses` missing or not an integer | `refused` | `Validation Record has no integer observed.n_analyses` |
-| 8 | `validated`, admitted Release Manifest count differs from it | `refused` | `Release Manifest admits <n> Analyses but the Validation Record's observed.n_analyses is <m>` |
-| 9 | `validated`, a manifest value its column cannot hold | `refused` | `analyses.tsv row '<analysis_id>': <column> '<value>' is not an integer` (or `a finite number`) |
+| 7 | `validated` or a placeholder, `observed.n_analyses` missing or not an integer | `refused` | `Validation Record has no integer observed.n_analyses` |
+| 8 | `validated` or a placeholder, admitted Release Manifest count differs from it | `refused` | `Release Manifest admits <n> Analyses but the Validation Record's observed.n_analyses is <m>` |
+| 9 | `validated` or a placeholder, a manifest value its column cannot hold | `refused` | `analyses.tsv row '<analysis_id>': <column> '<value>' is not an integer` (or `a finite number`) |
 | 10 | `validated`, otherwise | `listed` | `Release Status is validated, Access Posture is <public or controlled>` |
 
 - A refused Store does not stop the build; the other Stores are decided on
   their own.
 - `check()` runs first because `Bundle.trial` raises on a malformed `trial`.
-- Rule 5 writes no `analyses` rows yet: placeholder rows, and the
-  `superseded_by` they carry, are #324.
+- A placeholder Store passes the same count and type checks as a listed one
+  (rules 7 to 9), and a failure refuses it, so a refused retired Store is not
+  resolvable. A retired Trial Store Release or `embargoed` Store is excluded by
+  rules 2 and 3 first, and never becomes a placeholder.
 - The one exception is the schema's own absence marker: a literal `NaN` in
   `info_score_threshold` ("unavailable") or `maf_threshold` ("no MAF filter")
   is `NULL` (`docs/release-metadata-schema.md`), distinct from `0`, which stays
@@ -70,9 +72,11 @@ one decision and a reason, in `selection`. The first rule that applies decides:
 One SQLite file, `catalog.sqlite`, built in one transaction into a fresh file.
 The columns and their types are `src/analysis_catalog/columns.py`.
 
-- **`stores`**: one row per **listed** Store Release, with the columns of epic
-  #313; #324 adds the placeholder Store Releases' rows. A Store that is
-  excluded or refused has none, so nothing excluded is discoverable here; `selection` is where it is accounted for.
+- **`stores`**: one row per **listed or placeholder** Store Release, with the
+  columns of epic #313. `superseded_by` is the successor's Store id for a
+  superseded Store and `NULL` for a withdrawn one (whatever its `release.yaml`
+  says). A Store that is excluded or refused has no row, so nothing excluded is
+  discoverable here; `selection` is where it is accounted for.
   Facts come from `release.yaml` (`label`, `description`, `status`,
   `superseded_by`, `access_posture`, `source_snapshot_id`, `accepted_at`,
   `notes`), `build.yaml` (`layout`, `completion_state`) and `validation.yaml`
@@ -82,9 +86,12 @@ The columns and their types are `src/analysis_catalog/columns.py`.
   `association_coverage` are opengwasdb's values stored as reported, and `NULL`
   while a record lacks them (opengwasdb#294). A count that is not an integer
   refuses the Store.
-- **`analyses`**: one row per admitted Release Manifest row of a listed Store
-  (ADR 0025: rows not excluded from build), keyed by `id`
-  `<store_id>:<analysis_id>`. `status` is the Store Release's Release Status.
+- **`analyses`**: one row per admitted Release Manifest row of a listed or
+  placeholder Store (ADR 0025: rows not excluded from build), keyed by `id`
+  `<store_id>:<analysis_id>`. `status` is the Store Release's Release Status,
+  and `listed` is `1` for an Analysis of a listed Store and `0` for a
+  placeholder row. A client resolves any identifier by `id`; the successor is
+  `stores.superseded_by`.
   A column a bundle lacks, and an empty cell, are `NULL`, never `0` or `''`.
   `sample_size`, `n_cases`, `n_controls` and `trait_bp` are `INTEGER`;
   `original_sd`, `maf_threshold` and `info_score_threshold` are `REAL`.
@@ -97,8 +104,54 @@ The columns and their types are `src/analysis_catalog/columns.py`.
   (`NULL` outside git), `builder_version`, and `serving_policy` (the rules above,
   as a JSON list).
 
-Counts, the Analysis-type columns, indexes and full-text search are #324, and
-the summary report is #325.
+The summary report is #325.
+
+### Listing, types, counts, search and indexes (#324)
+
+**One way to list.** `listed_analyses` is the view
+`SELECT * FROM analyses WHERE listed = 1`. A listing, a keyset page, a region
+lookup and a search join all read it, and every index below is a partial index
+`WHERE listed = 1`, which SQLite uses through the view. A placeholder row is
+reached only by `id` (or `store_id`) on `analyses`.
+
+**Analysis type** is two columns of `analyses`, derived once at build
+(`analysis_catalog.policy.outcome_type` and `trait_class`):
+
+- `outcome_type`: `binary` for (`stored_effect_scale`, `sample_size_kind`) =
+  (`log_or`, `case_control`); `continuous` for (`sd`, `total`); `NULL` for every
+  other pair, including a blank, a disagreement such as (`sd`, `case_control`),
+  and the scales and kinds with no plain reading (`log_hazard`, `effective`,
+  `variant_level`). Never a guess.
+- `trait_class`: `molecular` when any of `context`, `tissue` or `trait_chr` is
+  set, `phenotype` otherwise. A Store whose bundle lacks the three columns is
+  `phenotype`.
+
+**Counts** are the table `counts (dimension, value, n_analyses)`, computed at
+build over listed Analyses only. The dimensions are `store`, `ancestry`
+(`assigned_ancestry`), `tissue`, `effect_scale` (`stored_effect_scale`),
+`outcome_type`, `trait_class` and `coverage` (the Store's
+`association_coverage` as reported, never relabelled). A `NULL` `value` is a
+category of its own, and any other value, `META` included, is counted as it
+stands. Each dimension sums to the number of listed Analyses.
+
+**Search** is the FTS5 table `analysis_search` over `analysis_label`,
+`trait_ontology_label`, `consortium` and `first_author`, external-content on
+`analyses` and holding listed rows only. It joins by rowid:
+
+```sql
+SELECT a.* FROM analysis_search s JOIN analyses a ON a.rowid = s.rowid
+WHERE analysis_search MATCH ? ORDER BY rank LIMIT ?
+```
+
+**Indexes** (all partial, `WHERE listed = 1`): `(id)`; `(col, id)` for each
+sortable column `store_id`, `analysis_label`, `trait_ontology_label`,
+`assigned_ancestry`, `tissue`, `stored_effect_scale` and `sample_size` (the
+columns of the website table and its filters, stories 2 and 3); and
+`(trait_chr, trait_bp, id)` for region lookups. `ORDER BY col, id LIMIT n` and
+`WHERE (col, id) > (?, ?) ORDER BY col, id LIMIT n` use them. A row-value
+comparison is never true for a `NULL` `col`, so a cursor over a nullable
+column pages its `NULL` rows first with `col IS NULL AND id > ?`, then the rest
+with the row-value form.
 
 ## Versions
 

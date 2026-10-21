@@ -63,6 +63,7 @@ def write_bundle(
     n_analyses: Any = "match",
     rows: list[dict[str, str]] | None = None,
     validation: bool = True,
+    observed_extra: dict[str, Any] | None = None,
 ) -> None:
     root = registry / store_id
     root.mkdir(parents=True, exist_ok=True)
@@ -94,6 +95,7 @@ def write_bundle(
         observed: dict[str, Any] = {"n_variants": 5000, "n_associations": None}
         if n_analyses != "absent":
             observed["n_analyses"] = admitted if n_analyses == "match" else n_analyses
+        observed.update(observed_extra or {})
         (root / "validation.yaml").write_text(yaml.safe_dump({
             "status": "passed",
             "validated_at": "2026-10-01T00:00:00Z",
@@ -208,7 +210,7 @@ class ServingPolicyTest(unittest.TestCase):
             ("listed", "Release Status is validated, Access Posture is controlled"),
         )
         self.assertEqual(
-            query(self.root, "SELECT store_id, access_posture FROM stores ORDER BY store_id"),
+            query(self.root, "SELECT store_id, access_posture FROM stores WHERE status = 'validated' ORDER BY store_id"),
             [("OGS-00001", "public"), ("OGS-00002", "controlled")],
         )
 
@@ -267,7 +269,7 @@ class ServingPolicyTest(unittest.TestCase):
             ("refused", "Access Posture is None; a listed Store is public or controlled"),
         )
 
-    def test_the_stores_table_holds_only_listed_stores(self) -> None:
+    def test_the_stores_table_holds_listed_and_placeholder_stores(self) -> None:
         self.assertEqual(
             query(self.root, "SELECT store_id, label, status, layout, completion_state, n_analyses, "
                              "n_variants, n_associations, validated_at, opengwasdb_version "
@@ -277,12 +279,17 @@ class ServingPolicyTest(unittest.TestCase):
                  "2026-10-01T00:00:00Z", "0.3.0"),
                 ("OGS-00002", "label-OGS-00002", "validated", "dense", "observed_only", 2, 5000, None,
                  "2026-10-01T00:00:00Z", "0.3.0"),
+                ("OGS-00008", "label-OGS-00008", "superseded", "dense", "observed_only", 2, 5000, None,
+                 "2026-10-01T00:00:00Z", "0.3.0"),
+                ("OGS-00009", "label-OGS-00009", "withdrawn", "dense", "observed_only", 2, 5000, None,
+                 "2026-10-01T00:00:00Z", "0.3.0"),
             ],
         )
 
     def test_association_coverage_and_reference_assembly_are_null_until_reported(self) -> None:
         self.assertEqual(
-            query(self.root, "SELECT DISTINCT association_coverage, reference_assembly FROM stores"),
+            query(self.root, "SELECT DISTINCT association_coverage, reference_assembly FROM stores "
+                             "WHERE status = 'validated'"),
             [(None, None)],
         )
 
@@ -658,6 +665,209 @@ class RegistryCommitTest(TempDirCase):
         with self.assertRaisesRegex(catalog_build.CatalogError, "uncommitted changes"):
             self.build()
         self.assertFalse((self.root / "catalog").exists())
+
+
+class FeaturesTest(unittest.TestCase):
+    """Retired Stores, search, counts, types and indexes (#324), on one built catalog."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.tmp = Path(tempfile.mkdtemp(prefix="analysis_catalog_features_"))
+        registry, cls.root = cls.tmp / "stores", cls.tmp / "root"
+        registry.mkdir()
+        cls.root.mkdir()
+        write_bundle(registry, "OGS-00001", observed_extra={"association_coverage": "full"}, rows=[
+            analysis_row("L1", analysis_label="Standing height", trait_ontology_label="body height",
+                         consortium="GIANT", first_author="Yengo", sample_size="5000"),
+            analysis_row("L2", analysis_label="Asthma", assigned_ancestry="EAS",
+                         stored_effect_scale="log_or", sample_size_kind="case_control",
+                         n_cases="10", n_controls="90"),
+            analysis_row("L3", analysis_label="Weight", assigned_ancestry="", sample_size="300"),
+            analysis_row("L4", analysis_label="Sitting", stored_effect_scale="sd", sample_size_kind="case_control"),
+            analysis_row("L5", analysis_label="Odd", stored_effect_scale="", sample_size_kind="total"),
+            analysis_row("L6", analysis_label="Hazard", stored_effect_scale="log_hazard",
+                         sample_size_kind="case_control", n_cases="5", n_controls="50"),
+        ])
+        write_bundle(registry, "OGS-00002", release={"access_posture": "controlled"},
+                     observed_extra={"association_coverage": "cis_and_signals"}, rows=[
+            analysis_row("E1", analysis_label="BRCA2 expression", tissue="liver", trait_chr="13",
+                         trait_bp="32000000", assigned_ancestry="AFR"),
+            analysis_row("E2", analysis_label="BRCA2 protein", context="SomaScan", trait_chr="13",
+                         trait_bp="32100000"),
+            analysis_row("E3", analysis_label="Metabolite", trait_chr="1", trait_bp="5"),
+            analysis_row("E4", analysis_label="Blank context", context=" ", tissue=""),
+        ])
+        write_bundle(registry, "OGS-00003", status="superseded",
+                     release={"superseded_by": "OGS-00001"}, rows=[
+            analysis_row("S1", analysis_label="Old height", consortium="GIANT"),
+            analysis_row("S2", analysis_label="Old hidden", exclude_from_build="true"),
+        ])
+        write_bundle(registry, "OGS-00004", status="withdrawn", rows=[
+            analysis_row("W1", analysis_label="Withdrawn thing", first_author="Gone"),
+        ])
+        write_bundle(registry, "OGS-00005", status="superseded", release={"trial": True, "superseded_by": "OGS-00001"},
+                     rows=[analysis_row("T1")])
+        write_bundle(registry, "OGS-00006", status="withdrawn", n_analyses=9)
+        catalog_build.build_catalog(registry, cls.root)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    # placeholder rows
+
+    def test_a_superseded_stores_analyses_resolve_with_their_successor(self) -> None:
+        self.assertEqual(
+            query(self.root, "SELECT a.id, a.status, s.superseded_by, a.listed FROM analyses a "
+                             "JOIN stores s USING (store_id) WHERE a.id = 'OGS-00003:S1'"),
+            [("OGS-00003:S1", "superseded", "OGS-00001", 0)],
+        )
+        self.assertEqual(query(self.root, "SELECT COUNT(*) FROM analyses WHERE store_id = 'OGS-00003'"), [(1,)])
+
+    def test_a_withdrawn_stores_analyses_resolve_without_a_successor(self) -> None:
+        self.assertEqual(
+            query(self.root, "SELECT a.status, s.superseded_by, a.listed FROM analyses a "
+                             "JOIN stores s USING (store_id) WHERE a.id = 'OGS-00004:W1'"),
+            [("withdrawn", None, 0)],
+        )
+
+    def test_a_retired_trial_store_and_a_failed_placeholder_are_not_resolvable(self) -> None:
+        self.assertEqual(query(self.root, "SELECT COUNT(*) FROM analyses WHERE store_id IN ('OGS-00005', 'OGS-00006')"),
+                         [(0,)])
+        self.assertEqual(
+            query(self.root, "SELECT decision FROM selection WHERE store_id IN ('OGS-00005', 'OGS-00006') "
+                             "ORDER BY store_id"),
+            [("excluded",), ("refused",)],
+        )
+
+    def test_a_retired_store_is_not_listed_searchable_or_counted(self) -> None:
+        self.assertEqual(
+            query(self.root, "SELECT COUNT(*) FROM listed_analyses WHERE store_id IN ('OGS-00003', 'OGS-00004')"),
+            [(0,)],
+        )
+        for term in ("Old", "Withdrawn", "Gone"):
+            self.assertEqual(
+                query(self.root, "SELECT COUNT(*) FROM analysis_search WHERE analysis_search MATCH ?", term),
+                [(0,)],
+            )
+        self.assertEqual(
+            query(self.root, "SELECT COUNT(*) FROM counts WHERE dimension = 'store' "
+                             "AND value IN ('OGS-00003', 'OGS-00004')"),
+            [(0,)],
+        )
+
+    # search
+
+    def test_search_finds_an_analysis_by_each_of_the_four_fields(self) -> None:
+        for term, expected in (
+            ("Standing", "OGS-00001:L1"),
+            ("body", "OGS-00001:L1"),
+            ("Yengo", "OGS-00001:L1"),
+            ("expression", "OGS-00002:E1"),
+        ):
+            with self.subTest(term=term):
+                self.assertEqual(
+                    query(self.root, "SELECT a.id FROM analysis_search s JOIN analyses a ON a.rowid = s.rowid "
+                                     "WHERE analysis_search MATCH ?", term),
+                    [(expected,)],
+                )
+        self.assertEqual(
+            query(self.root, "SELECT a.id FROM analysis_search s JOIN analyses a ON a.rowid = s.rowid "
+                             "WHERE analysis_search MATCH 'consortium:GIANT'"),
+            [("OGS-00001:L1",)],
+        )
+
+    # counts
+
+    def test_every_count_table_agrees_with_a_group_by_over_listed_analyses(self) -> None:
+        dimensions = {
+            "store": "a.store_id",
+            "ancestry": "a.assigned_ancestry",
+            "tissue": "a.tissue",
+            "effect_scale": "a.stored_effect_scale",
+            "outcome_type": "a.outcome_type",
+            "trait_class": "a.trait_class",
+            "coverage": "s.association_coverage",
+        }
+        for dimension, expression in dimensions.items():
+            with self.subTest(dimension=dimension):
+                expected = query(
+                    self.root,
+                    f"SELECT {expression}, COUNT(*) FROM analyses a JOIN stores s USING (store_id) "
+                    "WHERE a.status = 'validated' GROUP BY 1 ORDER BY 1",
+                )
+                got = query(self.root, "SELECT value, n_analyses FROM counts WHERE dimension = ? ORDER BY value",
+                            dimension)
+                self.assertEqual(got, expected)
+                self.assertEqual(sum(n for _, n in got), 10)
+
+    def test_null_is_a_category_of_its_own(self) -> None:
+        self.assertEqual(
+            query(self.root, "SELECT value, n_analyses FROM counts WHERE dimension = 'ancestry' ORDER BY value"),
+            [(None, 1), ("AFR", 1), ("EAS", 1), ("EUR", 7)],
+        )
+        self.assertEqual(
+            query(self.root, "SELECT value, n_analyses FROM counts WHERE dimension = 'coverage' ORDER BY value"),
+            [("cis_and_signals", 4), ("full", 6)],
+        )
+
+    # types
+
+    def test_the_analysis_type_columns(self) -> None:
+        self.assertEqual(
+            query(self.root, "SELECT id, outcome_type, trait_class FROM analyses WHERE store_id IN "
+                             "('OGS-00001', 'OGS-00002') ORDER BY id"),
+            [
+                ("OGS-00001:L1", "continuous", "phenotype"),
+                ("OGS-00001:L2", "binary", "phenotype"),
+                ("OGS-00001:L3", "continuous", "phenotype"),
+                ("OGS-00001:L4", None, "phenotype"),
+                ("OGS-00001:L5", None, "phenotype"),
+                ("OGS-00001:L6", None, "phenotype"),
+                ("OGS-00002:E1", "continuous", "molecular"),
+                ("OGS-00002:E2", "continuous", "molecular"),
+                ("OGS-00002:E3", "continuous", "molecular"),
+                ("OGS-00002:E4", "continuous", "phenotype"),
+            ],
+        )
+
+    # indexes
+
+    def plan(self, sql: str, *args: Any) -> str:
+        return " | ".join(row[3] for row in query(self.root, "EXPLAIN QUERY PLAN " + sql, *args))
+
+    def test_sorting_and_keyset_paging_use_an_index_on_every_sortable_column(self) -> None:
+        for column in SORTABLE_COLUMNS:
+            with self.subTest(column=column):
+                if column == "id":
+                    sort = self.plan("SELECT id FROM listed_analyses ORDER BY id LIMIT 10")
+                    keyset = self.plan("SELECT id FROM listed_analyses WHERE id > ? ORDER BY id LIMIT 10", "x")
+                else:
+                    sort = self.plan(f"SELECT id FROM listed_analyses ORDER BY {column}, id LIMIT 10")
+                    keyset = self.plan(
+                        f"SELECT id FROM listed_analyses WHERE ({column}, id) > (?, ?) "
+                        f"ORDER BY {column}, id LIMIT 10", "x", "y",
+                    )
+                for plan in (sort, keyset):
+                    self.assertRegex(plan, r"USING (COVERING )?INDEX")
+                    self.assertNotIn("TEMP B-TREE", plan)
+                self.assertIn("SEARCH", keyset)
+
+    def test_a_region_lookup_uses_the_chromosome_and_position_index(self) -> None:
+        plan = self.plan("SELECT id FROM listed_analyses WHERE trait_chr = ? AND trait_bp BETWEEN ? AND ?",
+                         "13", 1, 2)
+        self.assertRegex(plan, r"SEARCH analyses USING (COVERING )?INDEX")
+        self.assertIn("trait_bp>", plan)
+
+    def test_a_lookup_by_id_uses_the_primary_key(self) -> None:
+        self.assertRegex(self.plan("SELECT * FROM analyses WHERE id = ?", "OGS-00003:S1"),
+                         r"SEARCH analyses USING INDEX sqlite_autoindex")
+
+
+SORTABLE_COLUMNS = (
+    "id", "store_id", "analysis_label", "trait_ontology_label", "assigned_ancestry", "tissue",
+    "stored_effect_scale", "sample_size",
+)
 
 
 if __name__ == "__main__":

@@ -96,11 +96,17 @@ indexes for counts, search and paging.
 - Numeric columns are typed, and `analysis_label` falls back to `source_label`,
   because the MVP bundles have no `analysis_label`.
 - **The type of an Analysis is a set of columns of `analyses`**, derived once at
-  build time from fields the row already holds: binary or continuous from
-  `stored_effect_scale` and `sample_size_kind`; phenotype or molecular from
-  `context`, `tissue` and `trait_chr`; genome-wide or cis from the Store's
-  Association Coverage and layout. The counts and the report read those
-  columns, so a type is derived once and defined in one place.
+  build time from fields the row already holds: `outcome_type` (binary or
+  continuous) from `stored_effect_scale` and `sample_size_kind`, `NULL` unless
+  the two agree; `trait_class` (phenotype or molecular) from `context`,
+  `tissue` and `trait_chr`. Genome-wide or cis is not derived: it is the
+  Store's Association Coverage as OpenGWASDB reports it, counted as it is and
+  never relabelled, and `NULL` until opengwasdb#294. The counts and the report
+  read those columns, so a type is derived once and defined in one place.
+- **A placeholder row is an `analyses` row with `listed = 0`.** Listing,
+  search and counts see only `listed = 1`, through the `listed_analyses` view,
+  and the paging indexes are partial indexes over those rows, so a retired
+  Store costs a listing nothing.
 
 Every rebuild is a full rebuild into a fresh database, done in SQL, so a
 version is never a mixture of two inputs and a failed build leaves the previous

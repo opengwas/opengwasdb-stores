@@ -16,8 +16,10 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from analysis_catalog import BUILDER_VERSION
-from analysis_catalog.columns import ANALYSIS_COLUMNS, DDL, STORE_COLUMNS
-from analysis_catalog.policy import LISTED, POLICY, Decision
+from analysis_catalog.columns import (
+    ANALYSIS_COLUMNS, COUNT_DIMENSIONS, DDL, INDEXES, SEARCH, STORE_COLUMNS,
+)
+from analysis_catalog.policy import LISTED, PLACEHOLDER, POLICY, Decision
 
 DATABASE = "catalog.sqlite"
 STORES_TSV = "stores.tsv"
@@ -36,9 +38,10 @@ def write_database(
     try:
         for statement in DDL:
             connection.execute(statement)
-        listed = [d for d in decisions if d.decision == LISTED]
-        _insert(connection, "stores", STORE_COLUMNS, (d.store for d in listed if d.store))
-        _insert(connection, "analyses", ANALYSIS_COLUMNS, (row for d in listed for row in d.analyses))
+        served = [d for d in decisions if d.decision in (LISTED, PLACEHOLDER)]
+        _insert(connection, "stores", STORE_COLUMNS, (d.store for d in served if d.store))
+        _insert(connection, "analyses", ANALYSIS_COLUMNS, (row for d in served for row in d.analyses))
+        _derive(connection)
         connection.executemany(
             "INSERT INTO selection (store_id, decision, reason) VALUES (?, ?, ?)",
             [(d.store_id, d.decision, d.reason) for d in decisions],
@@ -56,6 +59,19 @@ def write_database(
         connection.commit()
     finally:
         connection.close()
+
+
+def _derive(connection: sqlite3.Connection) -> None:
+    """Counts, indexes and the full-text index, all over listed Analyses only."""
+    for dimension, expression in COUNT_DIMENSIONS.items():
+        connection.execute(
+            "INSERT INTO counts (dimension, value, n_analyses) "
+            f"SELECT ?, {expression}, COUNT(*) FROM analyses a JOIN stores s USING (store_id) "
+            "WHERE a.listed = 1 GROUP BY 2",
+            (dimension,),
+        )
+    for statement in (*INDEXES, *SEARCH):
+        connection.execute(statement)
 
 
 def _insert(
