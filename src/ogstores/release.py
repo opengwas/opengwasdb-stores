@@ -607,8 +607,21 @@ def _stop_snakemake(proc: subprocess.Popen, grace: float = 2.0) -> None:
                 pass
 
 
+def snakemake_env(
+    root: Path, extra_env: dict[str, str] | None = None, *, create: bool = True
+) -> dict[str, str]:
+    """The environment of every Snakemake run: ours, with temp files on the artifact root, not `/tmp` (#312).
+
+    A dry run writes nothing, so it names the directory without creating it.
+    """
+    tmp = paths.entry_point_tmp_dir(root)
+    if create:
+        tmp.mkdir(parents=True, exist_ok=True)
+    return {**os.environ, **dict.fromkeys(run.TEMP_VARIABLES, str(tmp)), **(extra_env or {})}
+
+
 def _run_snakemake(
-    argv: list[str], lock_fds: tuple[int, ...], extra_env: dict[str, str] | None = None
+    argv: list[str], lock_fds: tuple[int, ...], extra_env: dict[str, str] | None = None, *, root: Path
 ) -> tuple[int, int | None]:
     """Run Snakemake under the parent-death supervisor; return its exit code and any interrupt.
 
@@ -623,7 +636,7 @@ def _run_snakemake(
     """
     liveness_read, liveness_write = os.pipe()
     status_read, status_write = os.pipe()
-    env = {**os.environ, run.ENTRY_POINT_PID_ENV: str(os.getpid()), **(extra_env or {})}
+    env = snakemake_env(root, {run.ENTRY_POINT_PID_ENV: str(os.getpid()), **(extra_env or {})})
     proc = subprocess.Popen(
         run._supervised_command(argv, liveness_read, status_write),
         cwd=snakemake_directory(),
@@ -660,7 +673,8 @@ def _run_snakemake(
 def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> int:
     """Show the plan and what the guard would do, writing nothing."""
     result = subprocess.run(
-        snakemake_argv(inv, dry_run=True), cwd=snakemake_directory(), capture_output=True, text=True
+        snakemake_argv(inv, dry_run=True), cwd=snakemake_directory(), env=snakemake_env(root, create=False),
+        capture_output=True, text=True
     )
     sys.stdout.write(result.stdout)
     sys.stderr.write(result.stderr)
@@ -800,7 +814,8 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     run.refuse_pending_force_snapshots([(root, store_id) for store_id in requested])
 
     plan = subprocess.run(
-        snakemake_argv(inv, dry_run=True), cwd=snakemake_directory(), capture_output=True, text=True
+        snakemake_argv(inv, dry_run=True), cwd=snakemake_directory(), env=snakemake_env(root, create=False),
+        capture_output=True, text=True
     )
     if plan.returncode != 0:
         sys.stdout.write(plan.stdout)
@@ -856,6 +871,7 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
                 snakemake_argv(inv, dry_run=False, extra_config={"release_run": stamp}),
                 locks.fds(),
                 extra_env={runtime.VERIFIED_RUNTIME_ENV: identity.handoff()},
+                root=root,
             )
         except (KeyboardInterrupt, _Interrupted) as exc:
             # Interrupted before Snakemake started: any snapshot this run took is

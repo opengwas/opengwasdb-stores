@@ -154,6 +154,21 @@ def work_dir(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
     return store_dir(store_id, root=root) / "work"
 
 
+def tmp_dir(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
+    """Where a release's steps put temporary files: `<root>/<store_id>/tmp`.
+
+    Beside the Store, so a step's spill never lands on the root filesystem
+    (`/tmp`) and a rename out of it stays on one filesystem. It is not under
+    `work/`, which holds checkpoints a completion reads back (#312).
+    """
+    return store_dir(store_id, root=root) / "tmp"
+
+
+def entry_point_tmp_dir(root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
+    """Where the release entry point's own Snakemake run puts temporary files: `<root>/.tmp`."""
+    return Path(root) / ".tmp"
+
+
 def build_manifest_path(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
     """Derived build manifest: `<root>/<store_id>/work/analyses.tsv`.
 

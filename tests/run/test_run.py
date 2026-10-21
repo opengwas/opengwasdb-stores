@@ -396,6 +396,45 @@ class TestStepClassificationAndArgvRewrite(unittest.TestCase):
         record_check()
 
 
+class TestStepsSpillToTheArtifactRoot(unittest.TestCase):
+    """Every step's subprocess gets TMPDIR, TMP and TEMP on the release's own tmp directory (#312)."""
+
+    def setUp(self) -> None:
+        self.test_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.test_dir.name)
+        self.store_id = "OGS-00042"
+
+    def tearDown(self) -> None:
+        self.test_dir.cleanup()
+
+    def _printed_env(self, name: str, env: dict[str, str] | None) -> dict[str, str]:
+        script = self.root / "print_env.py"
+        script.write_text(
+            "import json, os, sys; from pathlib import Path; Path(sys.argv[1]).mkdir(parents=True, exist_ok=True); "
+            "print(json.dumps(dict(os.environ)))"
+        )
+        target = paths.store_path(self.store_id, root=self.root)
+        step = Step(name=name, argv=[sys.executable, str(script), str(target)], inputs=[], outputs=[target])
+        res = execute_step(step, store_id=self.store_id, artifact_root=self.root, env=env)
+        return json.loads(res.stdout)
+
+    def test_step_subprocess_sees_the_release_tmp_directory(self) -> None:
+        expected = str(paths.store_dir(self.store_id, root=self.root) / "tmp")
+        for name in ("build", "validate"):
+            seen = self._printed_env(name, env=None)
+            for var in ("TMPDIR", "TMP", "TEMP"):
+                self.assertEqual(seen[var], expected, f"{name}: {var}")
+            record_check()
+        self.assertTrue(Path(expected).is_dir())
+
+    def test_an_explicit_env_is_overridden_for_the_temp_variables_only(self) -> None:
+        expected = str(paths.store_dir(self.store_id, root=self.root) / "tmp")
+        seen = self._printed_env("build", env={"TMPDIR": "/tmp", "KEEP": "1", "PATH": os.environ["PATH"]})
+        self.assertEqual(seen["TMPDIR"], expected)
+        self.assertEqual(seen["KEEP"], "1")
+        record_check()
+
+
 class TestStagedReleaseTransactionAndPublicationGating(unittest.TestCase):
     """Test full staged release transaction lifecycle, force timing, and publication gating."""
 
@@ -2268,6 +2307,7 @@ def main() -> None:
     suite = unittest.TestSuite()
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestStepClassificationAndArgvRewrite))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestVariantReferenceExecution))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestStepsSpillToTheArtifactRoot))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestStagedReleaseTransactionAndPublicationGating))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestProcessGroupAndDescendantIsolation))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestSupervisorGroupGuard))

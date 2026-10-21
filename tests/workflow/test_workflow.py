@@ -2870,6 +2870,35 @@ class TestWorkflowVariantReferenceDAG(unittest.TestCase):
         self.assertNotIn("variant-reference", scheduled_targets(res.stdout))
 
 
+class TestEntryPointSnakemakeTemporaryFiles(unittest.TestCase):
+    """The entry point's Snakemake runs with TMPDIR on the artifact root, never /tmp (#312)."""
+
+    def test_snakemake_gets_a_tmpdir_under_the_artifact_root(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            expected = str(root / ".tmp")
+            seen: dict[str, Any] = {}
+
+            class FakeProc:
+                def wait(self) -> int:
+                    return 0
+
+            def fake_popen(argv: list[str], **kwargs: Any) -> FakeProc:
+                seen.update(kwargs["env"])
+                return FakeProc()
+
+            with mock.patch.object(release.subprocess, "Popen", fake_popen), \
+                    mock.patch.object(release.run, "_supervised_command", lambda a, *r: a), \
+                    mock.patch.object(release.os, "read", lambda fd, n: b""):
+                try:
+                    release._run_snakemake(["snakemake"], (), root=root)
+                except Exception:
+                    pass
+            for var in ("TMPDIR", "TMP", "TEMP"):
+                self.assertEqual(seen.get(var), expected, var)
+            self.assertTrue((root / ".tmp").is_dir())
+
+
 class TestPixiReleaseTaskPassthrough(unittest.TestCase):
     """`pixi run release <ID> --config key=value` reaches Snakemake's config (#195).
 
