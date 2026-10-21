@@ -56,8 +56,10 @@ from ogstores.plan import plan
 #: `tests/runtime/test_runtime_guard.py`.
 #:
 #: Repinned from `1be2a15` (PR #275) to `4e922566` (PR #276) with core #254's
-#: bounded Dense-validation memory work; the Store format stays 0.2.0.
-PINNED_OPENGWASDB_REVISION: str = "4e922566d7fa4c13a11be3637069da63e48be28c"
+#: bounded Dense-validation memory work; the Store format stays 0.2.0. Then to
+#: `023774a7` (the head of PR #291) for `check-observed-view` (core #289, stores
+#: #306), which gates a single-id completion's swap.
+PINNED_OPENGWASDB_REVISION: str = "023774a7881940c497e3bdb6710637819b023755"
 OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
 
 #: The Store format the pinned builders write and the only format Reference

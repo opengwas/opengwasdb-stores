@@ -680,6 +680,10 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
         )
     except (resources.IndexedSubsetRuntimeError, resources.ReferenceResourceError) as exc:
         print(f"release-dry: the real run would refuse:\n{exc}")
+    try:
+        resources.verify_observed_view_check_for_releases(idle, registry_root=registry_root)
+    except resources.ObservedViewCheckRuntimeError as exc:
+        print(f"release-dry: the real run would refuse:\n{exc}")
     return result.returncode
 
 
@@ -692,6 +696,7 @@ GUARD_ERRORS: tuple[type[BaseException], ...] = (
     register.PublicationError,
     runtime.RuntimeGuardError,
     resources.IndexedSubsetRuntimeError,
+    resources.ObservedViewCheckRuntimeError,
     resources.ReferenceResourceError,
     UsageError,
 )
@@ -743,6 +748,9 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     resources.verify_indexed_subsets_for_releases(
         scheduled, registry_root=registry_root, repo_root=paths.REPO_ROOT
     )
+    # A release that completes its own Store gates its swap on the Observed-View
+    # Check, which the resolved runtime must provide (#306).
+    resources.verify_observed_view_check_for_releases(scheduled, registry_root=registry_root)
 
     stamp = run.utc_stamp()
     snapshots: list[Path] = []

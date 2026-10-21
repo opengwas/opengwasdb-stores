@@ -79,6 +79,10 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
    - A rerun executes 0 jobs and rewrites no record, both in place, where Snakemake reads the build's own metadata, and from a copy of the artifact root, where it decides by mtime.
    - The release is built at most once per process (`single_id_completion_template`), from #303's signal fixture and `amend_to_complete_own_store`, the shape later completion tickets reuse.
 
+13. **The Observed-View Check gates the swap (#306, ADR 0037)**:
+   - In the passing run of contract 12, `completion-observed-view-check` ran between `completion-validate` and `completion-register`. Its record holds the verdict the command printed (`passed: true`, `seed` 20261021) and its argv names the published Store, the staged Store and `work/observed-view-check.json`.
+   - A second, fresh single-id release is paused as the check starts (`OGSTORES_TEST_PAUSE_AT=completion-observed-view-check-started`). An observed Z of the staged completed Store is perturbed through opengwasdb's plane `patch` API, and the run resumes: it exits non-zero, its error names `z_mismatch` and the verdict's path, `completion-register` never runs, and the published Observed-Only Store, its register record and its Validation Record are byte-for-byte what they were, with no `replaced/` archive and no publication marker. Snakemake removes the failed step's record, so the verdict file under `work/` is the evidence.
+
 ## Running the suite
 
 ```sh

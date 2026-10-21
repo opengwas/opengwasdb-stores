@@ -22,7 +22,8 @@ calling `ogstores.manifest`; it carries no filtering logic itself (ADR 0025).
 A release that completes its own Store (ADR 0037) then runs its completion
 phase from that `register` record:
 
-    register --> complete --> completion-rho --> completion-overview --> completion-validate --> completion-register
+    register --> complete --> completion-rho --> completion-overview --> completion-validate
+        --> completion-observed-view-check --> completion-register
 
 The `build_manifest` rule feeds every build-phase command: `plan()` resolves
 the `analyses` token to the derived path `<artifact-root>/<store_id>/work/
@@ -51,6 +52,7 @@ from ogstores import bundle, index, manifest, paths, register, resources, run, r
 from ogstores.plan import (
     BUILD_PHASE,
     COMPLETION_PHASE,
+    OBSERVED_VIEW_CHECK_STEP,
     REGISTER_STEPS,
     completion_step_name,
     plan,
@@ -74,7 +76,10 @@ INDEXED_SUBSET_STEP_PATTERN = "indexed-subset-[A-Za-z0-9._-]+"
 # A release that completes its own Store (ADR 0037) records its completion
 # phase's post steps as `completion-<step>`, apart from its build phase's.
 # Its first step is `complete`, and its register is a rule of its own.
-COMPLETION_STEPS = [completion_step_name(name) for name in ("rho", "overview", "validate")]
+COMPLETION_STEPS = [
+    *(completion_step_name(name) for name in ("rho", "overview", "validate")),
+    OBSERVED_VIEW_CHECK_STEP,
+]
 COMPLETION_SUBSET_STEP_PATTERN = completion_step_name(INDEXED_SUBSET_STEP_PATTERN)
 
 
@@ -207,6 +212,13 @@ onstart:
         resources.IndexedSubsetRuntimeError,
         resources.ReferenceResourceError,
     ) as exc:
+        raise WorkflowError(str(exc))
+    # Defence in depth for a direct `snakemake` run (#306): a release that
+    # completes its own Store gates its swap on the Observed-View Check, which
+    # the resolved runtime must provide.
+    try:
+        resources.verify_observed_view_check_for_releases(scheduled, registry_root=REGISTRY_ROOT)
+    except resources.ObservedViewCheckRuntimeError as exc:
         raise WorkflowError(str(exc))
 
 
