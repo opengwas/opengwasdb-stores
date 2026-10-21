@@ -703,6 +703,10 @@ class TestRegisteredOGS00009(unittest.TestCase):
         self.assertEqual(option(complete.argv, "--ancestry"), self.declaration["ancestry_dir"])
         self.assertEqual(option(complete.argv, "--ancestry"), "EUR")
 
+    def test_the_retired_ids_have_no_bundle(self) -> None:
+        for retired in RETIRED_IDS:
+            self.assertFalse((REPO_ROOT / "stores" / retired).exists(), retired)
+
 
 if __name__ == "__main__":
     if "--write-goldens" in sys.argv[1:]:

@@ -151,10 +151,11 @@ class TestBundleContract(unittest.TestCase):
             if path.is_dir() and paths.is_valid_store_id(path.name)
         )
         # OGS-00018-00021 are reserved elsewhere and never allocated; the five
-        # bundles migrated in #252 take the next free ids.
+        # bundles migrated in #252 take the next free ids. OGS-00010 is retired:
+        # OGS-00009 completes its own Store (#312, ADR 0037).
         self.assertEqual(
             store_ids,
-            [f"OGS-{number:05d}" for number in [*range(1, 18)]]
+            [f"OGS-{number:05d}" for number in [*range(1, 18)] if number != 10]
             + [f"OGS-{number:05d}" for number in range(22, 27)],
         )
         for store_id in store_ids:

@@ -132,7 +132,9 @@ def test_reconcile_stores() -> None:
     stores_dir = REPO_ROOT / "stores"
     verified_executable: dict[str, bool] = {}
 
-    for store_id, phase in store_phases(stores_dir, (f"OGS-{i:05d}" for i in range(1, 11))):
+    # OGS-00010 is retired unused: OGS-00009 completes its own Store (#312).
+    early = (f"OGS-{i:05d}" for i in range(1, 11) if i != 10)
+    for store_id, phase in store_phases(stores_dir, early):
         store_path = stores_dir / store_id
         check(store_path.is_dir(), f"Store directory {store_path} exists")
 

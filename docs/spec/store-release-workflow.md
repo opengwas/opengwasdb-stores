@@ -163,7 +163,7 @@ complete:
     n-workers: 16
 ```
 
-A two-id Reference-Completed child, the form from before ADR 0037, has a `complete` block instead of `build`, and its parent is `release.yaml`'s `derived_from`, whose artifact path is a pure function of that ID. Existing two-id bundles (OGS-00002, OGS-00010) stay valid; nothing new should take that form.
+A two-id Reference-Completed child, the form from before ADR 0037, has a `complete` block instead of `build`, and its parent is `release.yaml`'s `derived_from`, whose artifact path is a pure function of that ID. Existing two-id bundles (OGS-00002, OGS-00022, OGS-00023) stay valid; nothing new should take that form.
 
 ### Artifact root comes from configuration
 
@@ -586,8 +586,8 @@ rebuilt by declaring or not declaring a subset.
 
 **Registry migration (stores#211, epic #214).** Every existing registered
 Release Bundle with a Dense Component now declares the default `hm3` subset:
-`OGS-00003`, `OGS-00004`, `OGS-00005`, `OGS-00008`, `OGS-00009`, `OGS-00010`,
-`OGS-00011` and `OGS-00017`. The four Ragged-only bundles (`OGS-00001`,
+`OGS-00003`, `OGS-00004`, `OGS-00005`, `OGS-00008`, `OGS-00009`,
+`OGS-00011` and `OGS-00017` (and `OGS-00010`, retired by #312). The four Ragged-only bundles (`OGS-00001`,
 `OGS-00002`, `OGS-00006`, `OGS-00007`) are unchanged. The declaration is
 planning metadata only: it adds no Analysis and changes no `release.yaml`
 status, lineage or `analyses.tsv`, so it mints no new Store Release and rebuilds

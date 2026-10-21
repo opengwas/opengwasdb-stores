@@ -47,15 +47,15 @@ def record_check() -> None:
     n_checks += 1
 
 
-# The thirteen registered bundles with a Dense Component (stores#211 scope),
-# and the four Ragged-only bundles that must stay untouched.
+# The registered bundles with a Dense Component (stores#211 scope), and the
+# Ragged-only bundles that must stay untouched. OGS-00010 was in scope until
+# #312 retired it: OGS-00009 completes its own Store (ADR 0037).
 EXPECTED_IN_SCOPE = (
     "OGS-00003",
     "OGS-00004",
     "OGS-00005",
     "OGS-00008",
     "OGS-00009",
-    "OGS-00010",
     "OGS-00011",
     "OGS-00012",
     "OGS-00013",
@@ -152,15 +152,6 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
             "command": "complete-dense",
             "options": {"ld-panel": "/data/opengwasdb/reference/ld", "ancestry": "EUR"},
         },
-    },
-    "OGS-00010": {
-        "phase": "complete",
-        "command": "complete-dense",
-        "options": {
-            "ld-panel": "/data/opengwasdb/reference/hgdp1kgp-hg38/panel",
-            "ancestry": "EUR",
-        },
-        "post": {"top_hits": False, "overview": True},
     },
     "OGS-00011": {
         "phase": "build",
@@ -378,7 +369,7 @@ class TestRegistryMigration(unittest.TestCase):
             record_check()
             self.assertIn(store_id, rendered)
         record_check()
-        self.assertIn("13/15 Dense-component bundles declare hm3; 2 explicitly opted out", rendered)
+        self.assertIn("12/14 Dense-component bundles declare hm3; 2 explicitly opted out", rendered)
         record_check()
         self.assertIn("7/7 Ragged-only bundles declare none", rendered)
         record_check()

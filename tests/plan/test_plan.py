@@ -66,6 +66,10 @@ from ogstores.plan import (
 
 n_checks = 0
 
+#: The early registered bundles the committed-recipe checks walk. OGS-00010 is
+#: retired unused: OGS-00009 completes its own Store (#312, ADR 0037).
+EARLY_REGISTERED: tuple[str, ...] = tuple(f"OGS-{i:05d}" for i in range(1, 10))
+
 
 def record_check() -> None:
     global n_checks
@@ -1571,8 +1575,7 @@ class TestPlanReferenceCompleted(unittest.TestCase):
             self.assertFalse(Path("/data/opengwasdb/eqtlgen-cis-pilot/releases/pilot-10/source/pilot-10.epi").exists())
 
             # Verify plan() succeeds for all registered bundles without raising or requiring host existence
-            for i in range(1, 11):
-                sid = f"OGS-{i:05d}"
+            for sid in EARLY_REGISTERED:
                 b = load(sid)
                 steps = plan(b)
                 record_check()
@@ -1808,8 +1811,7 @@ class TestPostDefaults(unittest.TestCase):
 
     def test_committed_recipes_omit_defaulted_keys(self) -> None:
         """All committed Build Recipes carry only the per-release choices in post."""
-        for i in range(1, 11):
-            sid = f"OGS-{i:05d}"
+        for sid in EARLY_REGISTERED:
             post = load(sid).build.get("post") or {}
             record_check()
             self.assertEqual(set(post), {"top_hits", "overview"}, f"{sid} post keys")
@@ -1820,8 +1822,7 @@ class TestPostDefaults(unittest.TestCase):
 
     def test_committed_recipes_still_plan_validate_and_no_rho(self) -> None:
         """Removing the defaulted keys from the recipes did not change planned steps."""
-        for i in range(1, 11):
-            sid = f"OGS-{i:05d}"
+        for sid in EARLY_REGISTERED:
             names = [s.name for s in plan(load(sid))]
             record_check()
             self.assertIn("validate", names, f"{sid} still plans validate")

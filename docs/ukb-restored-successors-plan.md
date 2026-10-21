@@ -1,7 +1,13 @@
 # Restored UKB successors: identity, completion-panel and qualification plan (#219)
 
-> **Superseded in part (#312, 2026-10-21).** The panel declaration proposed
-> below is active as
+> **Superseded (#312, 2026-10-21).** The [owner decision on
+> #312](https://github.com/opengwas/opengwasdb-stores/issues/312#issuecomment-6326686714)
+> replaces this plan. `OGS-00009` is the full 2,514-Analysis Store, one
+> single-id Reference-Completed release (ADR 0037) completed against the UKB
+> EUR panel; `OGS-00010`, `OGS-00030` and `OGS-00031` are retired unused, and
+> the old Stores are deleted once the new `OGS-00009` is completed. See
+> [`resources/generators/ukb-b/successor-identity.yaml`](../resources/generators/ukb-b/successor-identity.yaml).
+> The panel declaration proposed below is active as
 > [`resources/reference-resources/ukb-hg38-eur-ld/resource.yaml`](../resources/reference-resources/ukb-hg38-eur-ld/resource.yaml),
 > through the `EUR -> ukb` alias now at `/data/opengwasdb/reference/ld/EUR`;
 > `resources/generators/ukb-b/proposed-ld-resource.yaml` is retired. The rest

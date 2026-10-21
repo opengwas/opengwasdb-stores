@@ -193,6 +193,11 @@ releases:
         OGS-00010 derives from the incomplete OGS-00009. It is a valid
         historical artifact but is not a valid completed descendant of the
         restored membership.
+      - >-
+        Retired unused by #312 (2026-10-21): its bundle is removed and the id is
+        never reused. OGS-00009 completes its own Store (ADR 0037). This entry
+        records the published Store until it is deleted, once the new OGS-00009
+        is completed.
     blockers:
       - 'requires a compatible complete observed parent (#219/#222)'
 
