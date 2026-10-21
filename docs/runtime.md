@@ -9,8 +9,8 @@ provides, and what upgrading it does **not** do.
 | Fact | Value |
 |---|---|
 | Repository | `https://github.com/opengwas/opengwasdb` |
-| Revision | `023774a7881940c497e3bdb6710637819b023755`, the branch core PR #291 merged into `dev` as `d405de0` (its second parent, so an ancestor of `dev`) |
-| Core merge | opengwas/opengwasdb PR #291 (`check-observed-view`, core #289), on top of `dev` with #277, #278, #281 and #282; earlier pins: PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
+| Revision | `d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c`, the core `dev` merge of PR #291; its first parent is PR #288's merge `ba84a0c` |
+| Core merge | opengwas/opengwasdb PR #291 (`check-observed-view`, core #289), on top of `dev` with #277, #278, #281, #282 and #288 (strand-aware hg19 lift, core #284); earlier pins: PR #291's branch head `023774a7` (stores #306, which excluded #288) and PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
 | Package version | `0.3.0` |
 | Writers' Store `format_version` | `0.2.0` |
 | Python floor | 3.12 |
@@ -42,6 +42,11 @@ re-run `pixi lock` in the same commit.
   including Dense, completed-Dense and Hybrid Dense components:
   `build-indexed-subset`, audited by `validate` and reported by `overview`.
 - The shared HM3 benchmark seam (opengwas/opengwasdb#272).
+- **One strand-aware hg19 lift** (opengwas/opengwasdb#288, core #284; moved here
+  for stores #312's OGS-00009 rebuild). The resolver and the Dense, Hybrid and
+  BESD builders share it, so signed statistics and EAF follow the projected
+  allele pair on a reverse-strand variant. A single-pass Hybrid build whose
+  off-reference rows lift onto the reverse strand is refused.
 
 ## The pre-write gate
 
@@ -153,11 +158,10 @@ chosen runtime, and treat any future repin as a deliberate coordinated change.
 Core opengwas/opengwasdb#289 adds `opengwasdb check-observed-view`, the
 Observed-View Check that gates a single-id completion's swap (stores #306,
 ADR 0037). The pin was raised to `023774a7`, the head of its PR #291, so the
-tracked runtime has the command. That PR has merged into core `dev` as
-`d405de0`, whose second parent is `023774a7`, so the pin is permanently in
-`dev`'s history. It stays at `023774a7` rather than `d405de0`, because
-`d405de0` also brings core #288 (the strand-aware hg19 lift), which stores epic
-#282 holds until the #222 build lands. A release that completes its own Store
+tracked runtime has the command. That PR merged into core `dev` as `d405de0`
+(second parent `023774a7`), and stores #312 then moved the pin to `d405de0`
+itself, because the OGS-00009 rebuild needs core #288's strand-aware hg19 lift,
+its first parent's merge. A release that completes its own Store
 (ADR 0037) on a runtime without the command is refused before anything is
 written, by
 `resources.verify_observed_view_check_for_releases`, which the entry point calls

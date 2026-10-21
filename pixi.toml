@@ -214,12 +214,18 @@ threadpoolctl = ">=3.0"
 #   - bounded Dense validation memory (opengwasdb#254/#276).
 #
 # Repinned for #306 to `023774a7` for `check-observed-view` (opengwasdb#289),
-# which gates a single-id completion's swap. It also brings opengwasdb #277,
-# #278, #281 and #282 merged to `dev` since `4e922566`. The pin stays at
-# `023774a7`: opengwas/opengwasdb PR #291 merged it into `dev` as `d405de0`, of
-# which it is the second parent, so it is permanently in `dev`'s history, and
-# `d405de0` itself also brings opengwasdb#288 (the strand-aware hg19 lift),
-# which epic #282 holds until the #222 build lands.
+# which gates a single-id completion's swap. It also brought opengwasdb #277,
+# #278, #281 and #282 merged to `dev` since `4e922566`.
+#
+# Repinned for #312 to `d405de0a`, the opengwasdb `dev` merge of PR #291, whose
+# first parent is PR #288's merge `ba84a0c`. The OGS-00009 rebuild from hg19
+# sources needs #288's strand-aware lift: one lift (`statistics_swap`) shared by
+# the resolver and the Dense, Hybrid and BESD builders, so z/beta and EAF follow
+# the projected allele pair on reverse-strand variants. The range
+# `023774a..d405de0` is #288's commits and merge plus the #291 merge, and #288
+# (opengwasdb#284) supplies its only functional change; a Hybrid single-pass build whose
+# off-reference rows lift onto the reverse strand is now refused, not signed
+# wrongly.
 #
 # Because these capabilities ship in the tracked pin, the ordinary
 # `pixi run release` invocation resolves a capable runtime from this
@@ -236,7 +242,7 @@ threadpoolctl = ">=3.0"
 # docs/runtime.md. Upgrading the runtime does not convert or requalify any
 # published Store; each build ticket must supply a compatible observed parent
 # (or convert/rebuild first) before completion.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "023774a7881940c497e3bdb6710637819b023755" }
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"
