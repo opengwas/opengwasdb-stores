@@ -1015,7 +1015,7 @@ immutable commit in `pixi.toml` rather than vendoring it (ADR 0023).
 executable in place of the pinned one: the hermetic tests' fake resolver, or
 the resolver a past run's records were made with. The OGS-00011 regeneration
 (#287) used it to resume records whose fingerprints carry opengwasdb `a0656c0`
-while the pin is `4e92256`, which would otherwise re-resolve every Analysis. The
+while the pin was `4e92256`, which would otherwise re-resolve every Analysis. The
 receipt records the override (`resolver.override`: the executable's `path` and
 `sha256`, beside the version and git hash its index reported), and `emit`
 refuses such a receipt into the repository's own `stores/`: a verification run
