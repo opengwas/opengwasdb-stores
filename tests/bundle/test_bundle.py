@@ -842,12 +842,14 @@ class TestBundleContract(unittest.TestCase):
         )
 
     def test_legacy_blank_analysis_exemption_is_reported_not_silently_dropped(self) -> None:
-        """Issue #142: the #134 exemption's tolerated count must be surfaced, never zero.
+        """Issue #142: each exemption's tolerated count must be surfaced, never zero.
 
-        The exemption itself is unchanged (still exactly OGS-00001 and OGS-00002,
-        still suppressing only blank required Analysis values, still no fabricated
-        value). What must not happen is a clean ``[]`` that erases the 70 tolerated
-        blank required values, so the gate's second channel reports the count.
+        The #134 exemption itself is unchanged (still exactly OGS-00001 and
+        OGS-00002, still suppressing only blank required Analysis values, still no
+        fabricated value). Both legacy releases also carry eQTLGen's
+        ``<probe>::<tissue>`` ids, disclosed as a second tolerated gap (#319). What
+        must not happen is a clean ``[]`` that erases either gap, so the gate's
+        second channel reports both counts.
         """
         registry = REPO_ROOT / "stores"
         for store_id in ("OGS-00001", "OGS-00002"):
@@ -856,15 +858,20 @@ class TestBundleContract(unittest.TestCase):
                 registry_root=registry,
             )
             record_check()
-            # Primary channel: the exemption still yields a clean pass.
+            # Primary channel: the exemptions still yield a clean pass.
             self.assertEqual(result, [], f"{store_id}: {result}")
-            # Second channel: the tolerated gap is reported, not silently zero.
-            self.assertEqual(len(result.tolerated), 1, result.tolerated)
-            gap = result.tolerated[0]
-            self.assertEqual(gap.store_id, store_id)
-            self.assertEqual(gap.count, 70)
-            self.assertEqual(gap.citation, "#134")
-            self.assertEqual(gap.detail, "blank required Analysis values")
+            # Second channel: both tolerated gaps are reported, not silently zero.
+            self.assertEqual(len(result.tolerated), 2, result.tolerated)
+            by_citation = {gap.citation: gap for gap in result.tolerated}
+            self.assertEqual(sorted(by_citation), ["#134", "#319"], result.tolerated)
+            blank = by_citation["#134"]
+            self.assertEqual(blank.store_id, store_id)
+            self.assertEqual(blank.count, 70)
+            self.assertEqual(blank.detail, "blank required Analysis values")
+            namespaced = by_citation["#319"]
+            self.assertEqual(namespaced.store_id, store_id)
+            self.assertEqual(namespaced.count, 10)
+            self.assertEqual(namespaced.detail, "analysis_id values containing ':'")
 
     def test_a_bundle_store_release_build_will_not_build_discloses_its_blanks(self) -> None:
         """Required values must be present only in a bundle the release workflow builds (#250, #247).
@@ -1376,6 +1383,84 @@ class TestBundleContract(unittest.TestCase):
         finally:
             for patch in helper_patches:
                 patch.stop()
+
+
+class TestAnalysisIdRule(unittest.TestCase):
+    """`analysis_id` is one path segment, so `<store_id>:<analysis_id>` splits (#319).
+
+    The Analysis Catalog names an Analysis `<store_id>:<analysis_id>`, and a client splits
+    that on `:` to get its two parts -- R `strsplit`, JavaScript `split(":")`,
+    Python `str.split(":")`. `analysis_id` is also the filename of the resolver's
+    per-Analysis record, and `:` is not legal in a Windows filename. So the value
+    must match `^[A-Za-z0-9][A-Za-z0-9._-]*$`. The two legacy eQTLGen releases
+    keep their `<probe>::<tissue>` ids, disclosed as a tolerated gap rather than
+    edited (ADR 0004).
+    """
+
+    setUp = TestBundleContract.setUp
+    tearDown = TestBundleContract.tearDown
+    make_bundle = TestBundleContract.make_bundle
+
+    def check_id(self, analysis_id: str, *, excluded: bool = False) -> bundle.CheckResult:
+        """`check()` on a one-row bundle whose only Analysis is named `analysis_id`."""
+        base = self.make_bundle()
+        header, row = (base.root / "analyses.tsv").read_text().strip().split("\n")
+        values = row.replace("FIXTURE_1", analysis_id)
+        if excluded:
+            header += "\texclude_from_build"
+            values += "\ttrue"
+        checked = self.make_bundle(analyses=header + "\n" + values + "\n")
+        record_check()
+        return bundle.check(checked, registry_root=self.tmp_dir)
+
+    def test_an_analysis_id_outside_the_pattern_is_refused_and_names_its_row(self) -> None:
+        for analysis_id in (
+            "ENSG00000175445::whole_blood",
+            "EFO:0001073",
+            "ukb b",
+            "ukb/b",
+            ".hidden",
+            "-leading",
+        ):
+            with self.subTest(analysis_id=analysis_id):
+                errors = self.check_id(analysis_id)
+                self.assertEqual(len(errors), 1, errors)
+                self.assertIn(f"analysis_id {analysis_id!r}", errors[0])
+                self.assertIn("on analyses.tsv row 1", errors[0])
+
+    def test_an_excluded_row_is_checked_too(self) -> None:
+        """An excluded Analysis is still named by the Analysis Catalog, so it is still checked."""
+        errors = self.check_id("ENSG00000175445::whole_blood", excluded=True)
+        self.assertEqual(len(errors), 1, errors)
+
+    def test_ordinary_analysis_ids_pass(self) -> None:
+        for analysis_id in ("GCST000998", "ENSG00000175445", "ukb-b-19953", "a.b_c-1"):
+            with self.subTest(analysis_id=analysis_id):
+                self.assertEqual(self.check_id(analysis_id), [])
+
+    def test_the_two_legacy_releases_tolerate_their_namespaced_ids(self) -> None:
+        """Only OGS-00001 and OGS-00002 are exempt, and only as a disclosed gap."""
+        self.assertEqual(
+            bundle.LEGACY_ANALYSIS_ID_RELEASES, frozenset({"OGS-00001", "OGS-00002"})
+        )
+        for store_id in ("OGS-00001", "OGS-00002"):
+            with self.subTest(store_id=store_id):
+                base = self.make_bundle(store_id=store_id)
+                header, row = (base.root / "analyses.tsv").read_text().strip().split("\n")
+                analyses = (
+                    header + "\n"
+                    + row.replace("FIXTURE_1", "ENSG00000175445::whole_blood") + "\n"
+                )
+                checked = self.make_bundle(store_id=store_id, analyses=analyses)
+                result = bundle.check(checked, registry_root=self.tmp_dir)
+                record_check()
+                self.assertEqual(result, [], result)
+                self.assertEqual(len(result.tolerated), 1, result.tolerated)
+                gap = result.tolerated[0]
+                self.assertEqual(gap.store_id, store_id)
+                self.assertEqual(gap.count, 1)
+                self.assertEqual(gap.citation, "#319")
+                self.assertEqual(gap.detail, "analysis_id values containing ':'")
 
 
 class TestQualityCheckSidecar(unittest.TestCase):

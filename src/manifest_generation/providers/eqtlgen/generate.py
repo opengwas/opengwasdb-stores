@@ -88,6 +88,72 @@ def write_yaml_file(value: dict, path: Path) -> None:
     path.write_text("\n".join(_dump_yaml(value)) + "\n", encoding="utf-8")
 
 
+def require_tissue(cfg: dict) -> str:
+    """The tissue every emitted Analysis states, refusing a blank (issue #319).
+
+    ``require_text`` returns ``""`` for an explicit YAML ``null``, so a config
+    that names no tissue would otherwise write a blank ``tissue`` on every row:
+    a required Analytical Metadata value silently missing, which CONTRIBUTING.md
+    rules out. Surrounding whitespace is trimmed; a value that is only
+    whitespace is refused like an absent one.
+    """
+    tissue = require_text(cfg, "source", "tissue").strip()
+    if not tissue:
+        raise SystemExit(
+            "config source.tissue is blank: every eQTLGen Analysis must state the "
+            "tissue it was measured in, and the generator writes it into the Release "
+            "Manifest's tissue column (issue #319)"
+        )
+    return tissue
+
+
+def write_release_manifest_analyses(
+    store_analyses_path: Path, dest: Path, *, tissue: str
+) -> None:
+    """Write the Release Manifest's ``analyses.tsv`` from a built Store's table.
+
+    The Build Recipe passes no ``tissue`` to ``build-ragged-besd`` (issue #319),
+    so the builder names each Analysis by bare probe id and leaves the
+    ``tissue`` column empty. Tissue is still Analytical Metadata every eQTLGen
+    Analysis states, and this generator's config is its authority, so the
+    generator writes it here rather than relying on a builder option that would
+    also name the id ``<probe>::<tissue>``.
+
+    The built Store's own column stays empty: filling it needs an opengwasdb
+    change (issue #319's note on ``_overlay_ontology`` and the manifest overlay).
+    A blank is honest there; a manifest that shipped blank would not be.
+    """
+    tissue = tissue.strip()
+    if not tissue:
+        raise ValueError(
+            f"a Release Manifest needs a tissue for every row, got {tissue!r}; the "
+            "writer would otherwise blank the column instead of failing"
+        )
+    with store_analyses_path.open(newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh, delimiter="\t")
+        fieldnames = list(reader.fieldnames or [])
+        if "analysis_id" not in fieldnames:
+            raise ValueError(f"{store_analyses_path} is missing required column 'analysis_id'")
+        if "tissue" not in fieldnames:
+            fieldnames.append("tissue")
+        rows = list(reader)
+    for number, row in enumerate(rows, start=2):
+        stated = str(row.get("tissue") or "").strip()
+        if stated and stated != tissue:
+            raise ValueError(
+                f"{store_analyses_path}:{number}: analysis {row.get('analysis_id')!r} states "
+                f"tissue {stated!r}, not the config's {tissue!r}"
+            )
+        row["tissue"] = tissue
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with dest.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(
+            fh, fieldnames=fieldnames, delimiter="\t", lineterminator="\n"
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
@@ -135,6 +201,9 @@ def main() -> None:
     args = parse_args()
     config_path = Path(args.config).resolve()
     cfg = read_release_yaml(config_path)
+    # Refused before either mode writes anything: a blank tissue would ship a
+    # blank column on every row, not merely fail a later check (issue #319).
+    tissue = require_tissue(cfg)
     if args.mode == "emit-registry":
         emit_registry(cfg, args.config)
         return
@@ -144,7 +213,6 @@ def main() -> None:
     family_release_id = require_text(cfg, "family_release_id")
     besd_prefix = require_text(cfg, "source", "besd_prefix")
     source_genome_build = require_text(cfg, "source", "source_genome_build")
-    tissue = require_text(cfg, "source", "tissue")
     probe_ids = [str(p) for p in get(cfg, "selection", "probe_ids", default=[])]
     if not probe_ids:
         raise SystemExit("config selection.probe_ids is empty")
@@ -169,19 +237,22 @@ def main() -> None:
     )
 
     # ── 2. Build the real Ragged Store ─────────────────────────────────────────
+    # No `tissue=`: with one, opengwasdb names each Analysis
+    # `"<probe>::<tissue>"`, and an analysis_id never contains ':' (issue #319).
+    # The tissue is written into the Release Manifest below instead.
     print(f"Building Ragged Store at {store_dir} ...")
     build_result = build_ragged_from_besd(
         subset_prefix,
         store_dir,
         store_id=store_family_id,
         release_id=family_release_id,
-        tissue=tissue,
         source_build=source_genome_build,
         overwrite=args.overwrite,
     )
 
-    # ── 3. Copy the store's own analyses.tsv into the release bundle for
-    #        provenance/inspection. opengwasdb.model.analyses.validate_analyses()
+    # ── 3. Write the release bundle's analyses.tsv from the store's own table,
+    #        filling the tissue the builder was not given (issue #319).
+    #        opengwasdb.model.analyses.validate_analyses()
     #        (this registry's usual pre-build "schema" gate for a
     #        registry-authored manifest, e.g. gwas-ssf-ragged/gwas-ssf-hybrid's
     #        analyses.tsv before it is handed to opengwasdb) does not apply here:
@@ -199,17 +270,17 @@ def main() -> None:
     #        `validate_store()` (step 4 below), which does tolerate these
     #        columns being blank.
     analyses_path = release_dir / "analyses.tsv"
-    analyses_path.write_bytes((store_dir / "analyses.tsv").read_bytes())
+    write_release_manifest_analyses(store_dir / "analyses.tsv", analyses_path, tissue=tissue)
 
     # ── 4. Validate the built store itself ─────────────────────────────────────
     store_validation = validate_store(store_dir)
 
     # ── 5. Read-back smoke test: two probes, including one deliberately
-    #        MHC-adjacent (TNF) locus ──────────────────────────────────────────
-    probe_analysis_ids = [f"{pid}::{tissue}" for pid in probe_ids]
+    #        MHC-adjacent (TNF) locus. The Analysis is named by bare probe id,
+    #        since the builder was given no tissue (#319). ──────────────────
     query = query_store(store_dir)
     try:
-        smoke_probes = probe_analysis_ids[:2]
+        smoke_probes = probe_ids[:2]
         smoke_results = {pid: query.analysis(pid, observed_only=True) for pid in smoke_probes}
     finally:
         query.close()
@@ -232,7 +303,7 @@ def main() -> None:
         writer.writeheader()
         for rank, pid in enumerate(probe_ids, start=1):
             writer.writerow({
-                "selection_rank": rank, "analysis_id": f"{pid}::{tissue}",
+                "selection_rank": rank, "analysis_id": pid,
                 "probe_id": pid, "tissue": tissue,
             })
 

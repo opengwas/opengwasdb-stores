@@ -354,7 +354,8 @@ through `PYTHONPATH`. `tests/packaging` enforces both rules.
 Every suite runs side by side with the rest, with single-threaded BLAS and a
 Snakemake working directory of its own (`OGSTORES_TEST_SNAKEMAKE_DIRECTORY`),
 so no test touches the checkout's `.snakemake/`. The slowest suites
-(`PER_TEST_SUITES` in the runner) run as one process per test. `pixi run test
+(`SHARDED_SUITES` in the runner) are spread over up to one process per job
+(`--jobs`), each repeating the fixtures of the tests it runs. `pixi run test
 --list-release-stack` names the suites that build Stores through the whole
 release stack. CI gives each of them a runner of its own and runs everything
 else with `--skip-release-stack`.
