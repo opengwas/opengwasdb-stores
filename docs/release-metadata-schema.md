@@ -1164,6 +1164,14 @@ Three implementations exist:
   `num_controls = 0`; those rows resolve to `sd`/`total` without
   misrepresenting that total as a case count. Any other shape is explicit
   `unresolved`.
+- `src/manifest_generation/providers/finngen/source_metadata_adapter.py`
+  (issue #288, `docs/spec/source-connectors.md`), the same classification as
+  Python, for the shared pipeline. It applies the identical rules and refuses
+  an endpoint it cannot describe honestly rather than leaving it `unresolved`;
+  the release config's method tiers turn `study_design` into
+  `stored_effect_scale`/`sample_size_kind`. Both implementations stay while the
+  R generator is the only path that resolves FinnGen: the pinned `opengwasdb`
+  cannot read the format yet (#288).
 
 ### Trait ontology mapping resolver
 

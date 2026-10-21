@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Public-CLI integration test for resumable FinnGen artifact acquisition."""
+"""Public-CLI integration test for resumable FinnGen artifact acquisition.
+
+Drives the R path's acquisition interface (``--release-dir``), which stays
+until the R generator retires with #288's acceptance criterion 1: the working
+bundle's checksums are filled from what was fetched, its download evidence and
+``validation.yaml`` are written, and the same acquisition is recorded in the
+shared Acquisition Manifest beside them.
+"""
 from __future__ import annotations
 
 import csv
@@ -13,6 +20,8 @@ from pathlib import Path
 from typing import ClassVar
 
 ROOT = Path(__file__).resolve().parents[2]
+
+from manifest_generation.acquisition_manifest import load_acquisition_manifest  # noqa: E402
 
 
 class RangeHandler(http.server.BaseHTTPRequestHandler):
@@ -174,6 +183,23 @@ def main() -> None:
             assert mismatch.returncode != 0
             assert not target.exists()
             assert read_rows(release / "analyses.tsv")[0]["checksum"] == "0" * 64
+
+            # The compatibility mode also records this acquisition in the shared
+            # Acquisition Manifest, so the R path's evidence is in the same
+            # format as every other source's (#288).
+            manifest_rows = {
+                row["source_analysis_id"]: row
+                for row in read_rows(release / "acquisition-manifest.tsv")
+            }
+            second_row = manifest_rows["finngen-r13-SECOND"]
+            assert second_row["status"] == "already_present", second_row
+            assert second_row["sha256"] == hashlib.sha256(payload).hexdigest()
+            assert second_row["location"] == str(second_target)
+            refused = manifest_rows["finngen-r13-FIXTURE"]
+            assert refused["status"] == "data_failed", refused
+            assert refused["sha256"] == "" and refused["location"] == ""
+            assert "0" * 64 in refused["error"]
+            load_acquisition_manifest(release / "acquisition-manifest.tsv")
     finally:
         server.shutdown()
         server.server_close()

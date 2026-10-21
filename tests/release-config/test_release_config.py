@@ -599,6 +599,12 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         from manifest_generation.freeze import original_path
         from manifest_generation.source_inventory import read_inventory
 
+        # A config's Sources publish an imputation-score column when its release
+        # declares one and so carries it into the resolver manifest: the
+        # eur-hybrid trio, whose full release declares the 704 shared
+        # declarations the pilots reuse (#287). FinnGen publishes no INFO column,
+        # so its release declares none (#288).
+
         for path in shipped_release_configs():
             with self.subTest(config=path.name):
                 config = load_candidate_configuration(path, REPO_ROOT)

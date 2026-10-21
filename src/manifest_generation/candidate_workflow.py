@@ -757,6 +757,14 @@ class AnalysisMetadata:
     target_rows: str = ""
     tissue: str = ""
     context: str = ""
+    #: The Store's Analysis id, when the table declares one (``analysis_id``,
+    #: #288). Blank means the pipeline's default, ``analysis_id`` above: a Source
+    #: Collection whose ids are namespaced, or otherwise not its source's, says
+    #: so here, and this is the id the bundle reports.
+    store_analysis_id: str = ""
+    #: ``analysis_group_id`` when the table declares one (#288); else the release
+    #: config's collection-wide default.
+    analysis_group_id: str = ""
     trait_ontology: TraitOntologyMapping | None = None
 
     @property
@@ -801,6 +809,8 @@ def read_analysis_metadata(
         row = table.row(analysis_id)
         found[analysis_id] = AnalysisMetadata(
             analysis_id=analysis_id,
+            store_analysis_id=row.get("analysis_id", ""),
+            analysis_group_id=row.get("analysis_group_id", ""),
             source_label=row.get("source_trait_label", ""),
             source_trait_ontology_id=row.get("source_trait_ontology_id", ""),
             source_trait_ontology_label=row.get("source_trait_ontology_label", ""),
@@ -2113,6 +2123,16 @@ class AnalysisOutcome:
         return self.row.analysis_id
 
     @property
+    def store_analysis_id(self) -> str:
+        """The Store's Analysis id: the connector's when it declares one (#288).
+
+        Resolution, the resolver manifest and the Resolution Records stay keyed
+        by the source's id (``analysis_id``); this is the id the bundle's
+        ``analyses.tsv`` and its sidecars report.
+        """
+        return self.metadata.store_analysis_id or self.row.analysis_id
+
+    @property
     def maf_filtered(self) -> bool:
         """True when a MAF floor was emitted on resolver evidence (#203)."""
         return self.maf_threshold != "NaN"
@@ -2496,7 +2516,9 @@ def build_candidate_tables(
     quality_checks_tsv, quality_check_summary = _quality_check_tables(outcomes, config)
     warnings.extend(quality_checks.warning_lines(quality_check_summary))
     targets = [
-        {"analysis_id": outcome.analysis_id}
+        # The Store's Analysis id, like every other sidecar: this one joins to
+        # ``analyses.tsv`` (#288).
+        {"analysis_id": outcome.store_analysis_id}
         | {column: getattr(outcome.metadata, column) for column in ANALYSIS_TARGETS_COLUMNS[1:]}
         for outcome in outcomes
         if outcome.metadata.targeted
@@ -2560,7 +2582,7 @@ def _quality_check_tables(
             )
     rows = [
         quality_checks.sidecar_row(
-            outcome.analysis_id,
+            outcome.store_analysis_id,
             outcome.included,
             outcome.exclusion_reason,
             outcome.check_results,
@@ -2703,7 +2725,7 @@ def _reference_overlap(
         )
         fingerprints = record_section(outcome.record, "fingerprints")
         row = {
-            "analysis_id": outcome.analysis_id,
+            "analysis_id": outcome.store_analysis_id,
             "ancestry_reference_id": str(fingerprints.get("ancestry_reference_id") or ""),
             "ancestry_rows_scanned": str(ancestry_n) if success and type(ancestry_n) is int and ancestry_n >= 0 else "",
             "ancestry_rows_matched": str(ancestry_matched) if anc_valid else "",
@@ -2826,7 +2848,7 @@ def _analyses_row(
         )
     return {
         "analysis_index": str(index),
-        "analysis_id": row.analysis_id,
+        "analysis_id": outcome.store_analysis_id,
         "source_analysis_id": row.analysis_id,
         "source_label": resolved.source_label or row.trait,
         "analysis_label": resolved.analysis_label or row.trait,
@@ -2861,7 +2883,10 @@ def _analyses_row(
         "sample_size": outcome.sample_size,
         "n_cases": outcome.n_cases,
         "n_controls": outcome.n_controls,
-        "analysis_group_id": str(config.defaults.get("analysis_group_id", "")),
+        "analysis_group_id": (
+            resolved.analysis_group_id
+            or str(config.defaults.get("analysis_group_id", ""))
+        ),
         "info_score_threshold": outcome.info_score_threshold,
         "imputation_score_column": outcome.info_score_column,
         "imputation_score_kind": outcome.info_score_kind,
@@ -2890,7 +2915,7 @@ def _ancestry_row(
     record = outcome.record
     ancestry = record_section(record, "ancestry")
     row: dict[str, str] = {name: "" for name in ANCESTRY_SIDECAR_COLUMNS}
-    row["analysis_id"] = outcome.analysis_id
+    row["analysis_id"] = outcome.store_analysis_id
     row["source_analysis_id"] = outcome.analysis_id
     row["source_ancestry_label"] = outcome.metadata.source_ancestry_label
     row["assigned_ancestry"] = outcome.assigned_ancestry
@@ -2936,7 +2961,7 @@ def _sd_row(
     record = outcome.record
     pheno = record_section(record, "phenotype_sd")
     row: dict[str, str] = {name: "" for name in SD_ESTIMATION_SIDECAR_COLUMNS}
-    row["analysis_id"] = outcome.analysis_id
+    row["analysis_id"] = outcome.store_analysis_id
     row["source_analysis_id"] = outcome.analysis_id
     row["original_sd_method"] = outcome.original_sd_method
     row["maf_min"] = str(config.effect_scale_block.get("maf_min", ""))
@@ -3003,7 +3028,7 @@ def _af_source(original_sd_method: str) -> str:
 def _exclusion_row(outcome: AnalysisOutcome) -> dict[str, str]:
     record_status = str((outcome.record or {}).get("status") or "missing")
     return {
-        "analysis_id": outcome.analysis_id,
+        "analysis_id": outcome.store_analysis_id,
         "source_analysis_id": outcome.analysis_id,
         "study_design": outcome.row.study_design,
         "category": controlled_exclusion_categories()[outcome.exclusion_reason],

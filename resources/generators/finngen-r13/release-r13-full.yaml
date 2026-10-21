@@ -1,0 +1,160 @@
+# Release config for the full FinnGen R13 release (#288), OGS-00017's successor
+# in content.
+#
+# The release config schema is docs/spec/release-config.md (#287); the
+# connectors it names are documented in docs/spec/source-connectors.md (#283,
+# #288). This file replaces config-full.yaml for every new run. config-full.yaml
+# stays unchanged, with the other R-era configs, because OGS-00017's and
+# OGS-00003's generator.commands cite them as history.
+#
+# Membership comes from the frozen Source Inventory named below, never from a
+# glob over the provider mirror (/data/opengwasdb/raw/finngen-r13, ~2 TB, never
+# copied). That snapshot is the shared freeze of FinnGen's two connector files
+# for this Selection, written 2026-10-21:
+#   - the Source Metadata Table the FinnGen adapter writes from the pinned
+#     public endpoint manifest
+#     (/data/opengwasdb/raw/finngen-r13/releases/r13-full/manifest/finngen_R13_manifest.tsv,
+#     sha256 c9caafa9...): 2,754 endpoints, of which 3 are the
+#     inverse-rank-normalised quantitative endpoints and 2,751 are case-control;
+#   - the Acquisition Manifest the acquisition script writes from that same
+#     endpoint manifest and the files in
+#     /data/opengwasdb/raw/finngen-r13/releases/r13-full/source.
+# Both connector files and the Acquisition Manifest's pass lineage are kept,
+# read-only, under /data/opengwasdb/raw/finngen-r13/connectors/: the 2026-10-21
+# acquisition pass, and the Source Metadata Table re-derived from it on
+# 2026-10-22 with the Store-identity columns (#288). A new acquisition, a
+# changed Selection or a changed connector is a re-freeze under a new snapshot
+# id in a new pass directory -- never a rewrite of a frozen pass.
+
+release_config_version: 1
+
+label: r13-full
+access_posture: public
+description: >
+  Full FinnGen R13 release: every endpoint in the frozen public
+  summary-statistics endpoint manifest -- three inverse-rank-normalised
+  quantitative endpoints plus every case-control endpoint -- selected in the
+  manifest's own order. Production-scale sibling of the 20-Analysis
+  r13-pilot-20 Trial Store Release (OGS-00003).
+notes: >
+  Selection is the whole frozen connector table, so the release membership is
+  exactly what FinnGen publishes and the pinned manifest checksum makes it
+  reproducible. The FinnGen reader (source-reader-capability below) reads the
+  provider's own tabular files: the release declares no Column Map because
+  opengwasdb already has that reader, and a later FinnGen round in a format the
+  generic tabular reader can describe needs only a new Column Map and a release
+  config (resources/generators/finngen-r13/README.md).
+
+source_collection:
+  source_collection_id: finngen-r13
+  connectors:
+    source_metadata_table: /data/opengwasdb/raw/finngen-r13/connectors/2026-10-22/finngen-r13.source-metadata.tsv
+    acquisition_manifest: /data/opengwasdb/raw/finngen-r13/connectors/2026-10-21/finngen-r13-full.acquisition-manifest.tsv
+  inventory:
+    snapshot_id: finngen-r13-full-2026-10-22
+    directory: resources/inventories
+
+selection:
+  all: true
+
+# The observed-only Dense Build Recipe the candidate carries. It is a registry
+# fact plus opengwasdb flags: the artifact root is deployment configuration,
+# never a bundle field (issue #126), and `command` names a subcommand, never an
+# import path (ADR 0023).
+build:
+  layout: dense
+  completion_state: observed_only
+  command: build-dense-vcf
+  options:
+    # FinnGen's own tabular reader: opengwasdb.readers.finngen, the reader the R
+    # path used too, so the format needs no Column Map yet (ADR 0036).
+    source-reader-capability: opengwasdb.finngen-r13
+    source-assembly: hg38
+    # Source and target assembly are GRCh38, so no liftover is used. A Dense
+    # build's Pass 1 is serial; 32 workers is the release's Pass 2 width.
+    n-workers: 32
+  post:
+    top_hits: true
+    overview: true
+
+defaults:
+  # Collection-wide facts the adapter does not write (#287): FinnGen publishes
+  # every R13 endpoint on GRCh38 under its public-data terms.
+  source_genome_build: GRCh38
+  license: FinnGen public data
+  consortium: FinnGen
+  sample_size_scope: analysis_level
+  # One method tier per study design. The IRN quantitative endpoints are
+  # standardised over the whole cohort by construction, so their tier declares
+  # the scale (declared_standardised) instead of estimating a phenotype SD --
+  # the R path declared it the same way. Case-control endpoints are on the
+  # log-OR scale with counts.
+  by_study_design:
+    quantitative:
+      stored_effect_scale: sd
+      original_effect_scale: sd
+      original_sd_method: declared_standardised
+      sample_size_kind: total
+    case-control:
+      stored_effect_scale: log_or
+      original_effect_scale: log_or
+      original_sd_method: binary_trait
+      sample_size_kind: case_control
+
+release_policy:
+  # The Assigned Ancestry check tests each Analysis against this; it never
+  # moves an Analysis (ADR 0036). FinnGen R13 is a Finnish cohort; ancestry is
+  # measured from the source allele frequencies, never taken from the label.
+  selection_superpopulation: EUR
+  # No Store Composition Rule: the R path applied no MAF floor, and OGS-00017
+  # is a single Store Release over all endpoints.
+
+reference_resources:
+  - resource_id: ukb-ancestry-mixture-hg38
+    kind: ancestry_mixture
+    ancestry: multi
+    super_populations: [AFR, AMR, EAS, EUR, MID, NAF, SAS]
+    genome_build: GRCh38
+    variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+    location: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
+    location_kind: external_file
+    fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+    # Canonical declaration: resources/reference-resources/ukb-ancestry-mixture-hg38/resource.yaml
+  - resource_id: canonical-trait-mapping-efo
+    kind: trait_ontology_mapping
+    location: resources/reference-resources/canonical-trait-mapping-efo
+    location_kind: tracked_directory
+    version: "3"
+
+ancestry_assignment:
+  reference_resource_id: ukb-ancestry-mixture-hg38
+  maf_floor: 0.01
+  # The full reference scan, as the R path used: a 10k extraction panel failed
+  # the preregistered concordance gate (#152).
+  extraction_panel: null
+  gates:
+    tau: 0.50
+    delta: 0.20
+    n_min: 5000
+    residual_max: 0.06
+
+effect_scale_validation:
+  # Recorded for the sd-estimation sidecar; the quantitative tier declares its
+  # scale, so no phenotype SD is estimated and no reference-AF fallback is
+  # declared.
+  maf_min: 0.01
+  maf_max: 0.5
+  dispersion_max: 0.5
+  reference_resources: []
+
+trait_ontology_mapping:
+  reference_resource_id: canonical-trait-mapping-efo
+
+runtime:
+  # The resolver reads every endpoint's ~800 MB file; 32 workers, and the host
+  # is shared (the issue #150 cap is 64).
+  cores: 32
+  min_free_gb: 50
+
+output:
+  work_root: /data/opengwasdb/work/finngen-r13-full

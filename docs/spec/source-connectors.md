@@ -62,6 +62,8 @@ value -- never zero and never a default.
 | `publication_doi`, `first_author`, `consortium` | No | text | Publication Metadata. |
 | `license` | No | text | Source License, when the source states it per Analysis. A collection-wide licence is the release config's default instead. |
 | `store_key` | No | text | A provider-side curation's proposed Store grouping (GWAS Catalog: `ebi-studies.r`'s `store_key`). Present so a Selection can name it. |
+| `analysis_id` | No | unique | The Store's Analysis ID, when it is not the source's (#288). Becomes `analyses.tsv`'s `analysis_id` and the id the sidecars name; blank means `source_analysis_id`. Resolution, the resolver manifest and the Resolution Records are always keyed by `source_analysis_id`, so declaring this renames nothing the resolver reads. A Source Collection whose ids are namespaced because a bare source id is not unique across sources declares its namespace here (FinnGen: `finngen-r13-<phenocode>`). Uniqueness is the *effective* id -- the declared value, else `source_analysis_id` -- so a declared value that collides with another row's source id is refused too; `bundle.check()` would refuse the bundle they render. |
+| `analysis_group_id` | No | text | The Analysis's Store grouping (`analyses.tsv`'s `analysis_group_id`), when it is per Analysis (#288). Blank means the release config's collection-wide `defaults.analysis_group_id`. FinnGen groups by its provider manifest's `category`. |
 | `target_assay_id` | No | text | Target annotation for an Analysis of one molecular target: the assay identifier (Sun 2018: the SomaScan SeqId, `5227-60`). |
 | `target_symbol` | No | text | The target's gene symbol (`PDK1`). |
 | `target_ensembl_gene_id` | No | `ENSG` + 11 digits, optional `.version` | The target's Ensembl gene. |
@@ -78,6 +80,12 @@ not the Trait (issue #141). They render into `analyses.tsv` (`trait_chr` and
 `target_resolution_method`, `n_target_rows`, and the Analysis Label: the
 `target_symbol` of a single target, the `target_assay_id` of an aggregate) and
 into `sidecars/analysis_targets.tsv`, one row per targeted Analysis (#300).
+
+The two Store-identity columns are the only ones that do not reach the frozen
+Source Inventory: the inventory, the resolver manifest and the Resolution
+Records are keyed by `source_analysis_id`, and the bundle's `analyses.tsv` and
+its sidecars report the declared identity instead (#288). Both are optional,
+so a collection that declares neither keeps the pipeline's defaults.
 
 ### The GWAS Catalog adapter
 
@@ -143,6 +151,57 @@ several (a complex such as AMP kinase) or none; `target_mhc`;
 (`somascan_is_multiple`) or the trait label lists several member symbols;
 `target_resolution_method`; and `target_rows`, the mapped rows counted.
 
+### The FinnGen adapter
+
+`src/manifest_generation/providers/finngen/source_metadata_adapter.py` converts
+FinnGen's published `finngen_R13_manifest.tsv` -- one row per endpoint, with
+`phenocode`, `phenotype`, `category`, `num_cases`, `num_controls` -- into the
+canonical table (#288). Its classification is the R metadata resolver's
+(`resources/generators/lib/metadata_resolvers/finngen_manifest.R`), which stays
+while the R generator is the only path that resolves FinnGen, and it keeps it
+exactly:
+
+| Provider column | Canonical column |
+|---|---|
+| `phenocode` | `source_analysis_id`, and `source_trait_id` |
+| `phenocode` | `analysis_id`, as `finngen-r13-<phenocode>` |
+| `category` | `analysis_group_id` |
+| `phenotype` | `source_trait_label` |
+| `category`, `num_cases`, `num_controls` | `study_design`, `sample_size`, `n_cases`, `n_controls` |
+| -- (`Finnish` for every endpoint) | `source_ancestry_label`, and its `source_label_map.tsv` translation as `source_superpopulation` |
+
+Its translations, and only these:
+
+- **Endpoint classification.** `category` equal to `Quantitative endpoints`
+  (trimmed, case-insensitively) is a `quantitative` endpoint whose total
+  `sample_size` is `num_cases`; the inverse-rank-normalised traits are
+  standardised over the whole cohort, so any `num_controls` upstream reports on
+  such a row is not a case count and is not carried. Any other category with a
+  positive `num_cases` and a positive `num_controls` is `case-control`, with
+  both counts and their sum as `sample_size`. Anything else -- a quantitative
+  endpoint with no positive `num_cases`, any other endpoint without both
+  positive counts, a non-numeric count -- is refused by phenocode, so an
+  endpoint the manifest cannot describe honestly fails the adapter rather than
+  shrinking the release.
+- **No declared effect scale.** The provider manifest has none, so the release
+  config's `defaults.by_study_design` tiers decide `stored_effect_scale`, and
+  the quantitative tier says `declared_standardised` for the IRN traits.
+- **Collection-wide facts** -- the GRCh38 build, the FinnGen public-data
+  licence and the FinnGen consortium -- are not written; the release config's
+  defaults supply them (#287).
+- **Padding** is trimmed, as the GWAS Catalog adapter trims it.
+- **The Source Ancestry Label** `Finnish` is carried verbatim and translated
+  through the tracked map, so `source_superpopulation` is `EUR`; a map without
+  that label refuses it by name rather than leaving the cell blank.
+
+Example:
+
+```text
+source_analysis_id  source_trait_label                    source_trait_id     source_ancestry_label  source_superpopulation  study_design    sample_size  n_cases  n_controls
+BMI_IRN             Body mass index, inverse-rank norm…   BMI_IRN             Finnish                EUR                     quantitative    362216
+AB1_ACTINOMYCOSIS   Actinomycosis                         AB1_ACTINOMYCOSIS   Finnish                EUR                     case-control    433889       132      433757
+```
+
 ## Acquisition Manifest
 
 What acquisition produced for a Source Collection: one row per Analysis it
@@ -155,8 +214,8 @@ file for that Analysis -- an explained absence (see Freeze).
 | `source_analysis_id` | Yes, every row | The Analysis the file was acquired for: its claim. Unique. |
 | `status` | Yes, every row | The readiness vocabulary of `source_inventory.py`: `ok` and `already_present` are ready; `missing_remote_harmonised_yaml`, `header_rejected`, `metadata_rejected`, `data_absent_upstream`, `data_failed`, `yaml_failed`, `dry_run` and `error` record why there is no usable file. An unknown status is refused. |
 | `location` | Column yes; value on every ready row | The exact local path acquisition wrote. Becomes the inventory's `data_file`. |
-| `bytes` | Column yes; value on every ready row | The file's size in bytes, with no leading zero. Becomes `data_bytes`. |
-| `sha256` | Column yes; value on every ready row | The file's lower-case sha256. |
+| `bytes` | Column yes; value on every ready row | The file's size in bytes, with no leading zero. Becomes `data_bytes`. On a refused row it is the size the run holds the Analysis to (see the FinnGen writer below). |
+| `sha256` | Column yes; value on every ready row | The file's lower-case sha256. On a refused row it is the digest the run holds the Analysis to, so the refusal does not erase its own pin. |
 | `source_url` | No | Where the file was fetched from. Becomes `data_url`. |
 | `sidecar_location`, `sidecar_url`, `sidecar_bytes` | No | A per-Analysis metadata file acquisition fetched with it (GWAS-SSF `-meta.yaml`). Become `yaml_file`, `yaml_url`, `yaml_bytes`. |
 | `error` | No | The acquisition error, when there was one. |
@@ -281,6 +340,52 @@ source_analysis_id  status                          location                    
 GCST000028          ok                              /data/…/17463246-GCST000028-EFO_0001360.h.tsv.gz  35279386  fd598567…  https://ftp.ebi.ac.uk/…/…EFO_0001360.h.tsv.gz  /data/…/…EFO_0001360.h.tsv.gz-meta.yaml  811
 GCST000803          missing_remote_harmonised_yaml
 ```
+
+### The FinnGen acquisition writer
+
+`src/manifest_generation/providers/finngen/acquire.py` has two interfaces. The
+canonical one is the writer a release config's connectors name:
+
+```sh
+python3 -m manifest_generation.providers.finngen.acquire \
+  --manifest <provider endpoint manifest> --source-dir <dir> --out <acquisition manifest>
+```
+
+It fetches every listed endpoint's file into `--source-dir` (resumable: `.part`
+files and HTTP Range; a complete file is checksummed and kept, never refetched)
+and writes the manifest above, plus `<manifest-stem>.meta.yaml` pass lineage. An
+endpoint upstream no longer serves is `data_absent_upstream`; a failed transfer
+is `data_failed`; the manifest is written either way and the run exits non-zero,
+so an unattended retry reuses every completed file.
+
+The second is a **compatibility mode**, kept only until the R generator retires
+with FinnGen's acceptance criterion 1 (#288), because that generator emits a
+working bundle before acquisition runs:
+
+```sh
+python3 -m manifest_generation.providers.finngen.acquire --release-dir=<dir>
+```
+
+It reads `<dir>/analyses.tsv`, fetches each row's `source_url` into its
+`source_file` with the same downloader, writes the rows back with `checksum` and
+`size_bytes` filled, writes `<dir>/sidecars/downloads.tsv` with the download
+evidence, merges `checks.files` into `<dir>/validation.yaml`, and records the
+same acquisition as the shared Acquisition Manifest at
+`<dir>/acquisition-manifest.tsv`. The two interfaces are exclusive: combining
+`--release-dir` with `--manifest`, `--source-dir` or `--out` is refused.
+
+**A recorded digest is identity evidence.** In the canonical mode, the manifest
+at `--out` is the pin, read from every row that carries a digest whether that row
+is ready or refused. An existing file whose bytes no longer match is refused by
+name -- status `data_failed`, `location` empty, the error naming the Analysis and
+both digests -- and never re-hashed into a fresh row. A fresh download is held to
+the same pin and refused *before* promotion if it does not match. A refused row
+keeps the pin in `bytes` and `sha256`, so the next retry is held to it rather
+than accepting the bytes the previous run refused; only a ready row's `bytes` and
+`sha256` describe a file on disk. In compatibility mode a row's own `checksum` is
+the pin, as the R emitter leaves it blank on a fresh emit: a mismatch refuses the
+bytes before promotion, leaving the staged `.part` file and the recorded checksum
+untouched.
 
 ## Selection
 

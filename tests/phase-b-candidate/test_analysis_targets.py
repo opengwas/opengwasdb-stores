@@ -70,11 +70,16 @@ class AnalysisTargetsTests(unittest.TestCase):
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    def render(self, targets=TARGETS):
+    def render(self, targets=TARGETS, store_ids=None):
         rows, metadata, records = [], {}, {}
         for analysis_id, fields in targets.items():
             rows.append(replace(_synthetic_inventory_row(), analysis_id=analysis_id))
-            metadata[analysis_id] = replace(_synthetic_analysis_metadata(), analysis_id=analysis_id, **fields)
+            metadata[analysis_id] = replace(
+                _synthetic_analysis_metadata(),
+                analysis_id=analysis_id,
+                store_analysis_id=(store_ids or {}).get(analysis_id, ""),
+                **fields,
+            )
             records[analysis_id] = dict(_synthetic_resolver_record(), analysis_id=analysis_id)
         outcomes = apply_release_policy(rows, self.config, metadata, records)
         return build_candidate_tables(
@@ -122,6 +127,25 @@ class AnalysisTargetsTests(unittest.TestCase):
             "\tsomascan_db_seqid\t1\n"
             "GCST90240123\t4707-50\tYWHAH\tENSG00000128245\t22\t31944465\t31957603\tfalse\ttrue"
             "\tsomascan_db_seqid\t2\n",
+        )
+
+    def test_the_target_sidecar_is_keyed_by_the_stores_analysis_id(self) -> None:
+        """It joins to ``analyses.tsv``, so it names the Store's Analysis (#288).
+
+        A Source Collection that declares its own ``analysis_id`` -- FinnGen
+        namespaces every phenocode -- must find its targets under that id; keying
+        the sidecar by ``source_analysis_id`` would leave it unable to join.
+        """
+        tables = self.render(
+            {"GCST005806": TARGETS["GCST005806"]},
+            store_ids={"GCST005806": "fixture-00001-GCST005806"},
+        )
+        analyses = list(csv.DictReader(io.StringIO(tables.analyses_tsv), delimiter="\t"))
+        sidecar = list(csv.DictReader(io.StringIO(tables.analysis_targets_tsv), delimiter="\t"))
+        self.assertEqual([row["source_analysis_id"] for row in analyses], ["GCST005806"])
+        self.assertEqual([row["analysis_id"] for row in analyses], ["fixture-00001-GCST005806"])
+        self.assertEqual(
+            [row["analysis_id"] for row in sidecar], [row["analysis_id"] for row in analyses]
         )
 
 
