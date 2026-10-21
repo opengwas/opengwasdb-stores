@@ -3826,28 +3826,56 @@ class RealResolverNoAlleleFrequencyTests(unittest.TestCase):
     ``assigned_ancestry`` result. Without the opt-in it is ``ancestry_unassigned``.
     """
 
-    def setUp(self) -> None:
-        self._tmp = tempfile.TemporaryDirectory(prefix="real-resolver-no-af-")
-        self.fixture = FixtureBuilder(Path(self._tmp.name), bodies=_no_af_fixture_body).build()
-        _write_real_reference(self.fixture)
+    #: One real resolution serves all three tests: the kept records and the
+    #: receipt depend on the resolver settings, not on the release policy these
+    #: tests vary, so a run per test would only re-run the pinned resolver to be
+    #: handed the same records back. Each test then applies its policy variant
+    #: in this process, into its own Work Root and registry (#282).
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._tmp = tempfile.TemporaryDirectory(prefix="real-resolver-no-af-")
+        cls.root = Path(cls._tmp.name)
+        cls.fixture = FixtureBuilder(cls.root / "fixture", bodies=_no_af_fixture_body).build()
+        _write_real_reference(cls.fixture)
         # A MAF request makes the resolver count the rows with no usable
         # frequency (maf_rows_missing); 0 filters nothing (#287 review).
-        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document = yaml.safe_load(cls.fixture.config_path.read_text())
         document["defaults"]["maf_threshold"] = 0
-        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        cls.fixture.config_path.write_text(yaml.safe_dump(document))
+        resolved = _run_cli(cls.fixture, "--stage", "resolve", resolver=REAL_RESOLVER)
+        if resolved.returncode != 0:
+            raise AssertionError(f"the pinned resolver failed: {resolved.stderr}{resolved.stdout}")
 
-    def tearDown(self) -> None:
-        self._tmp.cleanup()
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._tmp.cleanup()
+
+    def setUp(self) -> None:
+        # A per-test Work Root, registry and config: the shared fixture's are the
+        # ones the resolution above wrote.
+        self.root = self.__class__.root / self._testMethodName
+        self.config_path = self.root / "config.yaml"
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        self.config_path.write_text(self.fixture.config_path.read_text())
+        self.registry_root = self.root / "stores"
+        self.registry_root.mkdir(parents=True)
+        self.work_root = self.root / "work"
 
     def opt_in(self) -> None:
-        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document = yaml.safe_load(self.config_path.read_text())
         document["release_policy"]["trust_source_ancestry_without_af"] = True
-        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        self.config_path.write_text(yaml.safe_dump(document))
 
     def emitted(self) -> tuple[dict, dict, dict]:
-        result = _run_cli(self.fixture, resolver=REAL_RESOLVER)
+        result = _run_cli(
+            self.fixture,
+            resolver=REAL_RESOLVER,
+            config_path=self.config_path,
+            registry_root=self.registry_root,
+            work_root=self.work_root,
+        )
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        bundle_dir = self.fixture.registry_root / STORE_ID
+        bundle_dir = self.registry_root / STORE_ID
         analyses = {row["analysis_id"]: row for row in _read_tsv(bundle_dir / "analyses.tsv")}
         checks = {
             row["analysis_id"]: row
@@ -3857,8 +3885,6 @@ class RealResolverNoAlleleFrequencyTests(unittest.TestCase):
         return analyses, checks, validation
 
     def test_the_record_reports_every_row_without_a_frequency(self) -> None:
-        result = _run_cli(self.fixture, "--stage", "resolve", resolver=REAL_RESOLVER)
-        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         for analysis_id, _, _, _, _, _, _ in READY_ANALYSES:
             record = json.loads(_kept_record(self.fixture, analysis_id).read_text())
             diagnostics = record["diagnostics"]
