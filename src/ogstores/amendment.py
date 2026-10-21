@@ -58,11 +58,23 @@ class AmendmentError(RuntimeError):
     """A bundle that completes its own Store no longer plans the Store it published."""
 
 
-def _read_json(path: Path) -> dict[str, Any] | None:
+def _read_record(path: Path) -> dict[str, Any] | None:
+    """A step record, None only when there is no such file; a ValueError, naming it, if it cannot be read.
+
+    A record that exists but is not a readable JSON object is not a missing
+    one: read as missing, a register record would make its published phase
+    look unpublished and leave it unchecked (#305), as `register.forced_completion`
+    refuses to read it as unforced (#309).
+    """
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        record = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return None
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"the record {path} cannot be read: {exc}") from exc
+    if not isinstance(record, dict):
+        raise ValueError(f"the record {path} is not a JSON object")
+    return record
 
 
 def _record_root(record: dict[str, Any], store_id: str, default: Path) -> Path:
@@ -100,7 +112,11 @@ def _phase_changes(b: Bundle, phase: str, register: dict[str, Any], root: Path) 
         if name not in planned
     ]
     for name in (n for n in registered if n in planned):
-        record = _read_json(paths.record_path(store_id, name, root=root))
+        try:
+            record = _read_record(paths.record_path(store_id, name, root=root))
+        except ValueError as exc:
+            changes.append(f"{store_id}: {phase} phase step {name!r} cannot be compared: {exc}")
+            continue
         if record is None or not isinstance(record.get("planned_argv"), list):
             changes.append(f"{store_id}: {phase} phase step {name!r} has no record of the argv it planned")
             continue
@@ -190,10 +206,15 @@ def bundle_changes(b: Bundle, artifact_root: Path | str) -> list[str]:
     root = Path(artifact_root)
     changes: list[str] = []
     for phase, register_step in REGISTER_STEPS.items():
-        register = _read_json(paths.record_path(b.store_id, register_step, root=root))
-        if register is None:
-            continue
-        changes += _phase_changes(b, phase, register, root)
+        try:
+            register = _read_record(paths.record_path(b.store_id, register_step, root=root))
+        except ValueError as exc:
+            # It exists, so the phase published; its steps cannot be compared.
+            changes.append(f"{b.store_id}: {phase} phase cannot be compared: {exc}")
+        else:
+            if register is None:
+                continue
+            changes += _phase_changes(b, phase, register, root)
         if phase == BUILD_PHASE:
             changes += _membership_changes(b, root)
     return changes
