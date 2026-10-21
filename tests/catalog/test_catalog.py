@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import csv
 import gzip
+import json
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -27,6 +29,11 @@ import yaml
 
 from analysis_catalog import build as catalog_build
 from analysis_catalog import publish as catalog_publish
+from analysis_catalog.policy import POLICY, RULES
+from ogstores import paths
+
+SPEC = paths.REPO_ROOT / "docs" / "spec" / "analysis-catalog.md"
+ADR = paths.REPO_ROOT / "docs" / "adr" / "0039-analysis-catalog.md"
 
 REQUIRED_COLUMNS = (
     "analysis_id", "stored_effect_scale", "sample_size_kind", "sample_size_scope",
@@ -74,6 +81,7 @@ def write_bundle(
     rows: list[dict[str, str]] | None = None,
     validation: bool = True,
     observed_extra: dict[str, Any] | None = None,
+    validation_status: str = "passed",
 ) -> None:
     root = registry / store_id
     root.mkdir(parents=True, exist_ok=True)
@@ -107,7 +115,7 @@ def write_bundle(
             observed["n_analyses"] = admitted if n_analyses == "match" else n_analyses
         observed.update(observed_extra or {})
         (root / "validation.yaml").write_text(yaml.safe_dump({
-            "status": "passed",
+            "status": validation_status,
             "validated_at": "2026-10-01T00:00:00Z",
             "build_environment": {"opengwasdb_version": "0.3.0"},
             "observed": observed,
@@ -191,6 +199,18 @@ class ServingPolicyTest(unittest.TestCase):
         write_bundle(registry, "OGS-00016")
         (registry / "OGS-00016" / "release.yaml").write_text("store_id: OGS-00016\n", encoding="utf-8")
         write_bundle(registry, "OGS-00017", release={"access_posture": None})
+        write_bundle(registry, "OGS-00018", status="superseded", validation=False,
+                     release={"superseded_by": "OGS-00001"})
+        write_bundle(registry, "OGS-00019", status="withdrawn", validation=False)
+        write_bundle(registry, "OGS-00020", status="withdrawn", validation_status="failed")
+        write_bundle(registry, "OGS-00021", status="superseded", validation_status="passed_with_warnings",
+                     release={"superseded_by": "OGS-00001"})
+        write_bundle(registry, "OGS-00022", status="withdrawn", release={"superseded_by": "OGS-00001"})
+        write_bundle(registry, "OGS-00023", observed_extra={"n_associations": -5})
+        write_bundle(registry, "OGS-00024", observed_extra={"n_associations": 0})
+        write_bundle(registry, "OGS-00025", status="superseded", n_analyses="absent",
+                     release={"superseded_by": "OGS-00001"})
+        write_bundle(registry, "OGS-00026", status="withdrawn", n_analyses="absent", validation_status="failed")
         (registry / "by-label").mkdir()
         build_catalog(registry, cls.root)
         cls.selection = {
@@ -206,7 +226,7 @@ class ServingPolicyTest(unittest.TestCase):
         return self.selection[store_id]
 
     def test_every_registered_store_release_has_one_decision(self) -> None:
-        self.assertEqual(sorted(self.selection), [f"OGS-{n:05d}" for n in range(1, 18)])
+        self.assertEqual(sorted(self.selection), [f"OGS-{n:05d}" for n in range(1, 27)])
 
     def test_a_validated_public_store_is_listed(self) -> None:
         self.assertEqual(
@@ -221,7 +241,7 @@ class ServingPolicyTest(unittest.TestCase):
         )
         self.assertEqual(
             query(self.root, "SELECT store_id, access_posture FROM stores WHERE status = 'validated' ORDER BY store_id"),
-            [("OGS-00001", "public"), ("OGS-00002", "controlled")],
+            [("OGS-00001", "public"), ("OGS-00002", "controlled"), ("OGS-00024", "public")],
         )
 
     def test_a_trial_store_release_is_excluded(self) -> None:
@@ -244,6 +264,40 @@ class ServingPolicyTest(unittest.TestCase):
             self.decision("OGS-00009"),
             ("placeholder", "Release Status is withdrawn: kept as placeholder rows, not listed"),
         )
+
+    def test_a_retired_store_that_never_passed_validation_is_excluded_not_refused(self) -> None:
+        for store_id in ("OGS-00018", "OGS-00019", "OGS-00020", "OGS-00026"):
+            with self.subTest(store_id=store_id):
+                self.assertEqual(self.decision(store_id), ("excluded", "retired before validation"))
+        self.assertEqual(
+            query(self.root, "SELECT COUNT(*) FROM analyses WHERE store_id IN "
+                             "('OGS-00018', 'OGS-00019', 'OGS-00020', 'OGS-00026')"),
+            [(0,)],
+        )
+
+    def test_a_retired_store_that_passed_validation_without_a_count_is_refused(self) -> None:
+        self.assertEqual(
+            self.decision("OGS-00025"),
+            ("refused", "Validation Record has no integer observed.n_analyses"),
+        )
+
+    def test_a_retired_store_with_a_warned_validation_record_is_a_placeholder(self) -> None:
+        self.assertEqual(
+            self.decision("OGS-00021"),
+            ("placeholder", "Release Status is superseded: kept as placeholder rows, not listed"),
+        )
+
+    def test_a_withdrawn_store_that_names_a_successor_fails_check(self) -> None:
+        decision, reason = self.decision("OGS-00022")
+        self.assertEqual(decision, "refused")
+        self.assertTrue(reason.startswith("bundle.check() failed: "), reason)
+
+    def test_a_negative_association_count_is_refused_and_zero_is_not(self) -> None:
+        self.assertEqual(
+            self.decision("OGS-00023"),
+            ("refused", "Validation Record: n_associations -5 is not a non-negative integer"),
+        )
+        self.assertEqual(self.decision("OGS-00024")[0], "listed")
 
     def test_a_count_that_disagrees_with_the_validation_record_is_refused(self) -> None:
         self.assertEqual(
@@ -293,6 +347,10 @@ class ServingPolicyTest(unittest.TestCase):
                  "2026-10-01T00:00:00Z", "0.3.0"),
                 ("OGS-00009", "label-OGS-00009", "withdrawn", "dense", "observed_only", 2, 5000, None,
                  "2026-10-01T00:00:00Z", "0.3.0"),
+                ("OGS-00021", "label-OGS-00021", "superseded", "dense", "observed_only", 2, 5000, None,
+                 "2026-10-01T00:00:00Z", "0.3.0"),
+                ("OGS-00024", "label-OGS-00024", "validated", "dense", "observed_only", 2, 5000, 0,
+                 "2026-10-01T00:00:00Z", "0.3.0"),
             ],
         )
 
@@ -308,7 +366,26 @@ class ServingPolicyTest(unittest.TestCase):
         self.assertEqual(sorted(meta), ["builder_version", "built_at", "registry_commit", "serving_policy", "version"])
         self.assertEqual(meta["version"], os.path.basename(os.readlink(self.root / "catalog" / "current")))
         self.assertIsNone(meta["registry_commit"])
-        self.assertIn("embargoed", meta["serving_policy"])
+        self.assertEqual(json.loads(meta["serving_policy"]), list(POLICY))
+
+    def test_the_recorded_policy_is_the_specs_table_and_the_adrs_list_verbatim(self) -> None:
+        rows = [
+            [cell.strip() for cell in line.strip("|\n").split("|")]
+            for line in SPEC.read_text(encoding="utf-8").splitlines()
+            if re.match(r"\| \d+ \|", line)
+        ]
+        self.assertEqual(
+            [(int(row[0]), row[1], row[2].strip("`")) for row in rows],
+            [(n, rule.fact, rule.decision) for n, rule in enumerate(RULES, start=1)],
+        )
+        self.assertEqual(list(POLICY), [f"{n}. {rule}" for n, rule in enumerate(RULES, start=1)])
+        adr = " ".join(ADR.read_text(encoding="utf-8").split("**Serving policy.**")[1].split("**Schema")[0].split())
+        position = 0
+        for n, rule in enumerate(RULES, start=1):
+            item = f"{n}. {rule.fact} — {rule.decision}"
+            found = adr.find(item, position)
+            self.assertGreaterEqual(found, 0, item)
+            position = found + len(item)
 
 
 class AnalysesTest(unittest.TestCase):
@@ -524,6 +601,153 @@ class VersionsTest(TempDirCase):
         self.assertEqual(self.versions(), [probe.version])
 
 
+class ScaleTest(TempDirCase):
+    """The version is known before any per-row work, and rows stream in one Store at a time (#323, #324)."""
+
+    def test_a_rebuild_whose_version_exists_reads_no_bundle_and_no_manifest_row(self) -> None:
+        write_bundle(self.registry, "OGS-00001")
+        write_bundle(self.registry, "OGS-00002", status="candidate", validation=False)
+        write_bundle(self.registry, "OGS-00003", rows=[analysis_row("A1", sample_size="lots")])
+        first = self.build()
+        with mock.patch.object(catalog_build, "decide", side_effect=AssertionError("decided")), \
+                mock.patch("opengwasdb.model.analyses.read_analyses", side_effect=AssertionError("read")), \
+                mock.patch("ogstores.bundle.load", side_effect=AssertionError("loaded")):
+            again = self.build()
+        self.assertFalse(again.published)
+        self.assertEqual(again.version, first.version)
+        self.assertEqual(
+            [(d.store_id, d.decision, d.reason) for d in again.decisions],
+            [(d.store_id, d.decision, d.reason) for d in first.decisions],
+        )
+
+    def test_a_store_refused_on_its_last_row_leaves_no_row_and_the_others_stay(self) -> None:
+        write_bundle(self.registry, "OGS-00001", rows=[analysis_row("A1"), analysis_row("A2", sample_size="lots")])
+        write_bundle(self.registry, "OGS-00002")
+        write_bundle(self.registry, "OGS-00003", rows=[analysis_row("C1")])
+        result = self.build()
+        self.assertEqual([d.decision for d in result.decisions], ["refused", "listed", "listed"])
+        self.assertEqual(
+            query(self.root, "SELECT store_id, COUNT(*) FROM analyses GROUP BY store_id"),
+            [("OGS-00002", 2), ("OGS-00003", 1)],
+        )
+        self.assertEqual(query(self.root, "SELECT store_id FROM stores ORDER BY store_id"),
+                         [("OGS-00002",), ("OGS-00003",)])
+        self.assertEqual(query(self.root, "SELECT n_analyses FROM counts WHERE dimension = 'store' ORDER BY value"),
+                         [(2,), (1,)])
+
+    def test_stores_are_decided_one_at_a_time_as_their_rows_are_written(self) -> None:
+        for n in (1, 2, 3):
+            write_bundle(self.registry, f"OGS-0000{n}")
+        consumed: list[int] = []
+        seen_at_decision: list[list[int]] = []
+        real = catalog_build.decide
+
+        def spy(bundle, registry):
+            seen_at_decision.append(list(consumed))
+            decision = real(bundle, registry)
+            rows = decision.analyses
+            consumed.append(0)
+
+            def counted():
+                for row in rows:
+                    consumed[-1] += 1
+                    yield row
+            return type(decision)(decision.store_id, decision.decision, decision.reason, decision.store, counted())
+
+        with mock.patch.object(catalog_build, "decide", spy):
+            self.build()
+        # Each Store's rows were all written before the next Store was decided.
+        self.assertEqual(seen_at_decision, [[], [2], [2, 2]])
+
+
+class VersionInputsTest(TempDirCase):
+    """The version covers everything a decision depends on, and the publication is durable (#323)."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        write_bundle(self.registry, "OGS-00001")
+
+    def test_a_change_to_the_ogstores_source_gives_a_new_version(self) -> None:
+        copy = self.tmp / "ogstores"
+        shutil.copytree(Path(catalog_publish.OGSTORES_DIR), copy, ignore=shutil.ignore_patterns("__pycache__"))
+        with mock.patch.object(catalog_publish, "OGSTORES_DIR", copy):
+            first = self.build()
+            self.assertFalse(self.build().published)
+            with open(copy / "bundle.py", "a", encoding="utf-8") as handle:
+                handle.write("\n# a change to check()\n")
+            second = self.build()
+        self.assertNotEqual(second.version, first.version)
+        self.assertTrue(second.published)
+
+    def test_a_different_opengwasdb_install_gives_a_new_version(self) -> None:
+        first = self.build()
+        with mock.patch.object(catalog_publish, "opengwasdb_identity", return_value="opengwasdb 9.9.9"):
+            second = self.build()
+        self.assertNotEqual(second.version, first.version)
+
+    def test_the_opengwasdb_identity_names_its_version_and_commit(self) -> None:
+        identity = catalog_publish.opengwasdb_identity()
+        self.assertRegex(identity, r"^opengwasdb \S+")
+        self.assertRegex(identity, r"commit [0-9a-f]{40}")
+
+    def test_a_registered_directory_without_files_changes_the_version(self) -> None:
+        first = self.build()
+        (self.registry / "OGS-00002").mkdir()
+        second = self.build()
+        self.assertNotEqual(second.version, first.version)
+        self.assertEqual([d.store_id for d in second.decisions], ["OGS-00001", "OGS-00002"])
+        self.assertEqual(second.decisions[1].decision, "refused")
+        (self.registry / "OGS-00002").rmdir()
+        self.assertEqual(self.build().version, first.version)
+
+    def test_the_version_does_not_depend_on_the_hashing_chunk_size(self) -> None:
+        first = self.build()
+        with mock.patch.object(catalog_publish, "CHUNK_SIZE", 7):
+            self.assertEqual(catalog_publish.compute_version(self.registry, ["OGS-00001"]), first.version)
+
+    def test_a_published_version_is_fsynced_before_the_rename_and_its_parents_after(self) -> None:
+        real = os.fsync
+        synced: list[str] = []
+
+        def spy(fd: int) -> None:
+            synced.append(os.readlink(f"/proc/self/fd/{fd}"))
+            real(fd)
+
+        with mock.patch("os.fsync", spy):
+            result = self.build()
+        partial_dir = f"{result.version}.partial"
+        before = [Path(p) for p in synced if partial_dir in p]
+        # Every file of the version, and the directory itself, while it is still `.partial`.
+        self.assertEqual(
+            sorted(p.name for p in before if p.name != partial_dir),
+            sorted(p.name for p in result.path.iterdir()),
+        )
+        self.assertIn(partial_dir, [p.name for p in before])
+        # Then `versions/` after the rename, and `catalog/` after the `current` swap.
+        self.assertEqual(
+            [Path(p) for p in synced if partial_dir not in p],
+            [self.root / "catalog" / "versions", self.root / "catalog"],
+        )
+
+
+class ToleratedLegacyIdTest(TempDirCase):
+    """`check()` tolerates ':' in the analysis_id of two legacy releases (#319); the catalog does not."""
+
+    def test_a_store_that_check_passes_only_by_tolerating_319_is_refused_with_that_reason(self) -> None:
+        write_bundle(self.registry, "OGS-00002", rows=[analysis_row("probe::liver"), analysis_row("A2")])
+        result = self.build()
+        self.assertEqual([(d.decision, d.reason) for d in result.decisions], [(
+            "refused",
+            "the Release Manifest carries analysis_id values containing ':' (1), "
+            "tolerated by bundle.check() under #319",
+        )])
+        self.assertEqual(query(self.root, "SELECT COUNT(*) FROM analyses"), [(0,)])
+
+    def test_a_clean_legacy_store_is_listed(self) -> None:
+        write_bundle(self.registry, "OGS-00002")
+        self.assertEqual(self.build().decisions[0].decision, "listed")
+
+
 class UnrepresentableValuesTest(TempDirCase):
     """A cell the column cannot hold refuses its Store; the build goes on (#323 review)."""
 
@@ -623,7 +847,7 @@ class SummaryRenderTest(TempDirCase):
     """The summary report is rendered into the new version before `current` moves (#325).
 
     The renderer is injected, so these need no Quarto; the real one is exercised by
-    `tests/catalog/smoke_summary.py` (`pixi run docs-smoke`).
+    `tests/catalog/smoke_summary.py` (`pixi run catalog-summary-smoke`).
     """
 
     def build_with(self, renderer) -> catalog_build.BuildResult:
@@ -670,6 +894,18 @@ class SummaryRenderTest(TempDirCase):
                 catalog_build.build_catalog(self.registry, self.root)
         self.assertIn("Quarto", str(raised.exception))
         self.assertFalse((self.root / "catalog").exists())
+
+    def test_a_change_to_the_summary_template_gives_a_new_version(self) -> None:
+        write_bundle(self.registry, "OGS-00001")
+        template = self.tmp / "summary.qmd"
+        template.write_text("first template", encoding="utf-8")
+        with mock.patch.object(catalog_build.summary, "SOURCE", template):
+            first = self.build_with(skip_summary)
+            self.assertFalse(self.build_with(skip_summary).published)
+            template.write_text("second template", encoding="utf-8")
+            second = self.build_with(skip_summary)
+        self.assertNotEqual(second.version, first.version)
+        self.assertTrue(second.published)
 
     def test_a_no_op_rebuild_renders_nothing(self) -> None:
         write_bundle(self.registry, "OGS-00001")
@@ -951,6 +1187,13 @@ class FeaturesTest(unittest.TestCase):
                     self.assertNotIn("TEMP B-TREE", plan)
                 self.assertIn("SEARCH", keyset)
 
+    def test_filtering_on_the_derived_columns_searches_an_index(self) -> None:
+        for column in ("ancestry_category", "outcome_type", "trait_class", "assigned_ancestry"):
+            with self.subTest(column=column):
+                plan = self.plan(f"SELECT id FROM listed_analyses WHERE {column} = ? ORDER BY id LIMIT 10", "x")
+                self.assertRegex(plan, rf"SEARCH analyses USING (COVERING )?INDEX analyses_by_{column} ")
+                self.assertNotIn("TEMP B-TREE", plan)
+
     def test_a_region_lookup_uses_the_chromosome_and_position_index(self) -> None:
         plan = self.plan("SELECT id FROM listed_analyses WHERE trait_chr = ? AND trait_bp BETWEEN ? AND ?",
                          "13", 1, 2)
@@ -999,7 +1242,7 @@ class SearchIntegrityTest(unittest.TestCase):
 
 SORTABLE_COLUMNS = (
     "id", "store_id", "analysis_label", "trait_ontology_label", "assigned_ancestry", "tissue",
-    "stored_effect_scale", "sample_size",
+    "stored_effect_scale", "sample_size", "ancestry_category", "outcome_type", "trait_class",
 )
 
 

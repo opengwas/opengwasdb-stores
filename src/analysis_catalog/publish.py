@@ -16,18 +16,25 @@ nothing. A new version is written under `.partial`, renamed, and only then does
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata
+import json
 import os
 import shutil
 import sqlite3
 from collections.abc import Iterable
 from pathlib import Path
 
-from analysis_catalog import BUILDER_VERSION
-from analysis_catalog.policy import POLICY, Decision
+from ogstores import bundle as release_bundle
+
+from analysis_catalog import BUILDER_VERSION, summary
+from analysis_catalog.policy import POLICY
 
 KEEP_VERSIONS = 5
 PARTIAL_SUFFIX = ".partial"
 PACKAGE_DIR = Path(__file__).resolve().parent
+OGSTORES_DIR = Path(release_bundle.__file__).resolve().parent
+# Read in pieces, so hashing a manifest never holds more than this of it.
+CHUNK_SIZE = 1 << 20
 
 
 def catalog_dir(root: Path | str) -> Path:
@@ -46,30 +53,81 @@ def _feed(digest: "hashlib._Hash", label: str, content: bytes | None) -> None:
     digest.update(len(name).to_bytes(8, "big") + name + len(body).to_bytes(8, "big") + body)
 
 
-def _read(path: Path) -> bytes | None:
-    # A symlink is hashed by its target, so a dangling one hashes as absent.
-    return path.read_bytes() if path.is_file() else None
+def _feed_file(digest: "hashlib._Hash", label: str, path: Path) -> None:
+    """Hash a file as `_feed` would, reading it in `CHUNK_SIZE` pieces.
+
+    A symlink is hashed by its target, so a dangling one hashes as absent.
+    """
+    name = label.encode("utf-8")
+    if not path.is_file():
+        _feed(digest, label, None)
+        return
+    digest.update(len(name).to_bytes(8, "big") + name + (1 + path.stat().st_size).to_bytes(8, "big") + b"\1")
+    with open(path, "rb") as handle:
+        while chunk := handle.read(CHUNK_SIZE):
+            digest.update(chunk)
 
 
-def compute_version(decisions: Iterable[Decision], registry: Path) -> str:
-    """Hash of everything the catalog reads, and the builder that reads it.
+def opengwasdb_identity() -> str:
+    """The installed opengwasdb: its distribution version and, when the install records one, its commit."""
+    distribution = importlib.metadata.distribution("opengwasdb")
+    identity = f"opengwasdb {distribution.version}"
+    direct_url = distribution.read_text("direct_url.json")
+    if direct_url:
+        commit = json.loads(direct_url).get("vcs_info", {}).get("commit_id")
+        if commit:
+            identity += f" commit {commit}"
+    return identity
 
-    That is every file of every registered Release Bundle directory (`check()`
-    reads them all, so any can change a decision), each Store's decision and
-    reason, and the builder's source, which includes the serving policy. It
-    leaves out the build time and the registry commit.
+
+def _source_files(package: Path) -> list[Path]:
+    return sorted(p for p in package.rglob("*.py") if "__pycache__" not in p.parts)
+
+
+def compute_version(registry: Path, store_ids: Iterable[str]) -> str:
+    """Hash of everything a decision depends on, and the builder that reads it.
+
+    Decisions are a pure function of: the registered store ids; every file of
+    every registered Release Bundle directory (`check()` reads them all, so any
+    can change a decision); the source of `analysis_catalog` (which includes the
+    serving policy) and of `ogstores` (`check()`, `Bundle`,
+    `partition_membership`); the installed opengwasdb, whose reader parses the
+    manifest; and the summary template, which shapes `summary.html`. They are not
+    hashed themselves, so no manifest row is read to know the version. The build
+    time and the registry commit are left out.
     """
     digest = hashlib.sha256()
+    ids = sorted(store_ids)
     _feed(digest, "builder_version", BUILDER_VERSION.encode("utf-8"))
     _feed(digest, "policy", "\n".join(POLICY).encode("utf-8"))
-    for source in sorted(PACKAGE_DIR.rglob("*.py")):
-        _feed(digest, f"source/{source.relative_to(PACKAGE_DIR)}", source.read_bytes())
-    for decision in sorted(decisions, key=lambda d: d.store_id):
-        root = registry / decision.store_id
-        _feed(digest, f"{decision.store_id}/decision", f"{decision.decision}\n{decision.reason}".encode("utf-8"))
+    _feed(digest, "opengwasdb", opengwasdb_identity().encode("utf-8"))
+    _feed(digest, "store_ids", "\n".join(ids).encode("utf-8"))
+    for name, package in (("analysis_catalog", PACKAGE_DIR), ("ogstores", OGSTORES_DIR)):
+        for source in _source_files(package):
+            _feed_file(digest, f"source/{name}/{source.relative_to(package)}", source)
+    _feed_file(digest, "summary_template", summary.SOURCE)
+    for store_id in ids:
+        root = registry / store_id
         for path in sorted(p for p in root.rglob("*") if p.is_file() or p.is_symlink()):
-            _feed(digest, f"{decision.store_id}/{path.relative_to(root)}", _read(path))
+            _feed_file(digest, f"{store_id}/{path.relative_to(root)}", path)
     return digest.hexdigest()[:16]
+
+
+def fsync_path(path: Path) -> None:
+    """fsync a file or a directory."""
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def fsync_tree(directory: Path) -> None:
+    """fsync every file under `directory`, then `directory` itself."""
+    for path in sorted(directory.rglob("*")):
+        if path.is_file():
+            fsync_path(path)
+    fsync_path(directory)
 
 
 def current_target(root: Path | str) -> str | None:
@@ -88,6 +146,7 @@ def swap_current(root: Path | str, version: str) -> None:
         temporary.unlink()
     os.symlink(f"versions/{version}", temporary)
     os.replace(temporary, catalog / "current")
+    fsync_path(catalog)
 
 
 def _built_at(version_dir: Path) -> str:

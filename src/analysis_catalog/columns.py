@@ -86,13 +86,13 @@ ANALYSIS_COLUMNS: dict[str, str] = {
     **DERIVED_COLUMNS,
 }
 
-# The columns a listing can be sorted by, each with an index on (column, id) for
+# The columns a listing can be sorted or filtered by, each with an index on (column, id) for
 # `ORDER BY col, id` and keyset paging. `id` itself has a partial index of its own
 # (`INDEXES`): the primary key covers placeholder rows too, so it cannot serve a
 # listing of listed rows alone.
 SORTABLE_COLUMNS: tuple[str, ...] = (
     "store_id", "analysis_label", "trait_ontology_label", "assigned_ancestry", "tissue",
-    "stored_effect_scale", "sample_size",
+    "stored_effect_scale", "sample_size", "ancestry_category", "outcome_type", "trait_class",
 )
 
 # The dimensions `counts` holds, and the SQL expression each groups the listed Analyses by.

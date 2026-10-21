@@ -24,7 +24,7 @@ membership is its Release Manifest's answer, and the catalog's filter reuses it
 (ADR 0025).
 
 The serving policy lives here and not in the registry, because ADR 0008 puts
-default served releases in the service-catalogue layer. The registry keeps
+default served releases in ADR 0008's service-catalogue layer. The registry keeps
 recording facts about releases; the catalog decides what those facts mean for
 serving.
 
@@ -61,17 +61,25 @@ n_analyses` counts matrix cells, not associations, and is removed.
 
 **Serving policy.** Every registered Store Release is recorded with a decision
 and its reason, so "why is this Store not in the catalog?" is answerable from
-the catalog itself. The rules apply in this order:
+the catalog itself. The rules apply in this order, and the first that matches
+decides:
 
-1. **Trial Store Release** — excluded.
-2. **Access Posture `embargoed`** — excluded.
-3. **Release Status `candidate`, `accepted` or `built`** — excluded.
-4. **Release Status `superseded` or `withdrawn`** — placeholder rows: kept and
-   resolvable, not listed.
-5. **Release Status `validated`** — listed with its Access Posture, unless the
-   admitted Release Manifest's count differs from the Validation Record's
-   `n_analyses`, or that count is missing, which refuses the Store with the
-   reason recorded.
+1. bundle.check() returns errors — refused
+2. Trial Store Release — excluded
+3. Access Posture is embargoed — excluded
+4. Release Status is candidate, accepted or built — excluded
+5. Release Status is superseded or withdrawn, and the Validation Record is not passed or passed_with_warnings — excluded
+6. Release Status is validated, and Access Posture is neither public nor controlled — refused
+7. Release Status is validated, superseded or withdrawn, and observed.n_analyses is missing or not an integer — refused
+8. the admitted Release Manifest count differs from observed.n_analyses — refused
+9. a manifest or Validation Record value cannot be stored exactly, or check() tolerates ':' in an analysis_id under #319 — refused
+10. Release Status is superseded or withdrawn — placeholder
+11. Release Status is validated — listed
+
+Rule 5 excludes, and does not refuse, a retired release with no passing
+Validation Record: it was never served, so there is no fault to report. A retired
+release that did pass, but records no count, is refused by rule 7 as a `validated`
+one is.
 
 The order matters because the first two rules are not about Release Status: a
 Trial Store Release or an `embargoed` Store is never resolvable, not even after
@@ -83,8 +91,9 @@ the Store does not hold, and a missing count is an absence, never a match.
 
 **Schema and build.** Two main tables and supporting ones, in one SQLite file:
 `stores`, one row per listed or placeholder Store Release (an excluded or
-refused Store has none, so nothing excluded is discoverable there); `analyses`, one row per
-Analysis of a listed Store; `selection`, the decision and reason per registered
+refused Store has none, so nothing excluded is discoverable there); `analyses`,
+one row per Analysis of a listed or placeholder Store, with `listed` telling
+them apart; `selection`, the decision and reason per registered
 Store Release; `catalog_meta`, the build's own facts; and derived tables and
 indexes for counts, search and paging.
 
@@ -111,11 +120,17 @@ indexes for counts, search and paging.
   and the paging indexes are partial indexes over those rows, so a retired
   Store costs a listing nothing.
 
-Every rebuild is a full rebuild into a fresh database, done in SQL, so a
+Every rebuild is a full rebuild into a fresh database, one Store's rows at a
+time (so memory is set by the largest single Store's manifest, not by the
+catalog), done in SQL, so a
 version is never a mixture of two inputs and a failed build leaves the previous
-version in place. Measured on a replication of the real catalog, 5.07M rows: a
-39 s build, a 2.3 GB file, lookups, full-text search and first pages under
-1 ms, a 4M-row `OFFSET` at 65 ms and a filtered count at 59 ms. So the indexes
+version in place. The prototype's raw SQL fold, measured on a replication of the real catalog
+at 5.07M rows, took 39 s for a 2.3 GB file, with lookups, full-text search and
+first pages under 1 ms, a 4M-row `OFFSET` at 65 ms and a filtered count at
+59 ms. This builder validates and converts every row in Python, and has been
+measured only at 500k rows in one wide Store: about 25 s and 0.8 GB peak, with a
+no-op rebuild that reads no manifest row (a few seconds at that size, all of it
+hashing the files). It is not extrapolated beyond that. So the indexes
 support server-side paging, including keyset paging; counts per filter value
 are computed at build time, because a filtered count is the expensive query and
 only changes when the catalog does; and the full-text index is FTS5, over the
@@ -134,17 +149,26 @@ versions/<version>/
 current -> versions/<version>
 ```
 
-- **The version is a hash of every file of every registered Release Bundle,
-  plus the builder's own source**, which includes the serving policy. That is
-  wider than the selected bundles' contents on purpose: `bundle.check()` reads
-  every file of every bundle, so an edit to an excluded Store's manifest can
-  change its decision, and a change to a decision must give a new version, or
-  the reasons in `selection` go stale. A rebuild whose version already exists
-  writes nothing.
+- **The version is a hash of everything a decision depends on**: every file of
+  every registered Release Bundle, the list of registered store ids, the source
+  of `analysis_catalog` (which includes the serving policy) and of `ogstores`
+  (`check()` and `Bundle`), the installed opengwasdb's version and commit (its
+  reader parses the manifest), and the summary template. Decisions are a pure
+  function of those inputs, so they are not hashed, and the version is known
+  before any manifest row is read. The bundle inputs are wider than the
+  selected bundles' contents on purpose:
+  `bundle.check()` reads every file of every bundle, so an edit to an excluded
+  Store's manifest can change its decision, and a change to a decision, from a
+  bundle or from the code that reads it, must give a new version, or the
+  reasons in `selection` go stale. A rebuild whose version
+  already exists writes nothing and reads no manifest row: it reports the
+  decisions recorded in that version's `selection`.
 - **A version is immutable and the last few are kept**, so rollback is moving
   `current` back: a rebuild writes a new directory and swaps `current`
   atomically, no reader sees a half-written catalog, and nothing is
-  reconstructed from git.
+  reconstructed from git. The files and directories are fsynced before the
+  rename and the swap, because an immutable version that a crash tore would
+  never be rebuilt.
 - The catalog is a generated artifact under the Artifact Root with no Store id,
   because it belongs to no single Store Release. Bulk download is TSV.gz beside
   the SQLite file, so a client that wants every Analysis reads a flat file, and
@@ -191,7 +215,8 @@ current bundle excludes.
 
 **Parquet as the served format.** Rejected. The served file has to answer
 full-text search, server-side paging with a cursor, and per-filter counts, and
-one SQLite file met all three at 5.07M rows within a 39 s build and 2.3 GB. A
+the prototype's one SQLite file met all three at 5.07M rows within a 39 s build
+and 2.3 GB. A
 Parquet dataset has no full-text index and no per-row addressing, so each of
 those queries would need a second, derived structure beside it, maintained in
 step with the first. It gains readers nothing either: bulk download is a plain

@@ -356,10 +356,10 @@ COMPLETE_RECORD_FIELDS: tuple[str, ...] = (
 
 
 def _validation_record_completeness(bundle_obj: Bundle, committed: Channel) -> Channel:
-    """Whether the committed Validation Record carries every measurement the catalog lists.
+    """Whether the committed Validation Record carries `COMPLETE_RECORD_FIELDS`.
 
-    Counts, coverage and assembly are recorded only as a producing step reported
-    them, and ``null`` otherwise (#322), so a record can pass validation and
+    Other `observed` fields are not checked. Those fields are recorded only as a
+    producing step reported them, and ``null`` otherwise (#322), so a record can pass validation and
     still be incomplete. The channel names exactly which measurements are null
     (#326). Only a Store validation record has an ``observed`` block to read.
     """
@@ -1082,7 +1082,8 @@ def reconcile_registry(
     by_id = {b.store_id: b for b in loaded}
     incomplete = set(incomplete_parents)
     # A parent is incomplete when the ledger marks it so; this is the mechanism
-    # that keeps OGS-00010 flagged as derived from the incomplete OGS-00009.
+    # that flagged a two-id child derived from an incomplete parent, as OGS-00010
+    # was from the 2,024-Analysis OGS-00009 until #312 retired it.
     for entry_id, entry in (ledger_doc.get("releases") or {}).items():
         if isinstance(entry, Mapping) and entry.get("incomplete_membership"):
             incomplete.add(entry_id)

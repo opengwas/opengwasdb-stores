@@ -535,7 +535,8 @@ inline, so the completion phase plans no separate `top_hits` step.
 A two-id Reference-Completed release, from before ADR 0037, is the same file
 with a `complete` block instead of `build`. It carries no parent path: the
 parent is `release.yaml`'s `derived_from`, and its artifact path is a pure
-function of that ID. Existing two-id bundles (OGS-00002, OGS-00010) stay valid.
+function of that ID. Existing two-id bundles (OGS-00002, OGS-00022, OGS-00023)
+stay valid.
 
 ```yaml
 store_id: OGS-00043

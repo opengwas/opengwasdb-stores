@@ -19,7 +19,7 @@ from analysis_catalog import BUILDER_VERSION
 from analysis_catalog.columns import (
     ANALYSIS_COLUMNS, COUNT_DIMENSIONS, DDL, INDEXES, SEARCH, STORE_COLUMNS,
 )
-from analysis_catalog.policy import LISTED, PLACEHOLDER, POLICY, Decision
+from analysis_catalog.policy import LISTED, PLACEHOLDER, POLICY, REFUSED, Decision, RefusedRow
 
 DATABASE = "catalog.sqlite"
 STORES_TSV = "stores.tsv"
@@ -28,23 +28,31 @@ ANALYSES_TSV = "analyses.tsv.gz"
 
 def write_database(
     path: Path,
-    decisions: Sequence[Decision],
+    decisions: Iterable[Decision],
     *,
     version: str,
     built_at: str,
     registry_commit: str | None,
-) -> None:
-    connection = sqlite3.connect(path)
+) -> tuple[Decision, ...]:
+    """Write the database, taking `decisions` one at a time, and return the final ones.
+
+    Each Store's rows are inserted as its decision arrives, so no more than one
+    Store's manifest is held. A Store whose rows turn out to hold a value the
+    columns cannot store is rolled back whole and recorded as refused.
+    """
+    connection = sqlite3.connect(path, isolation_level=None)
     try:
+        connection.execute("PRAGMA synchronous = OFF")
         for statement in DDL:
             connection.execute(statement)
-        served = [d for d in decisions if d.decision in (LISTED, PLACEHOLDER)]
-        _insert(connection, "stores", STORE_COLUMNS, (d.store for d in served if d.store))
-        _insert(connection, "analyses", ANALYSIS_COLUMNS, (row for d in served for row in d.analyses))
+        connection.execute("BEGIN")
+        final: list[Decision] = []
+        for decision in decisions:
+            final.append(_write_store(connection, decision))
         _derive(connection)
         connection.executemany(
             "INSERT INTO selection (store_id, decision, reason) VALUES (?, ?, ?)",
-            [(d.store_id, d.decision, d.reason) for d in decisions],
+            [(d.store_id, d.decision, d.reason) for d in final],
         )
         connection.executemany(
             "INSERT INTO catalog_meta (key, value) VALUES (?, ?)",
@@ -56,9 +64,26 @@ def write_database(
                 ("serving_policy", json.dumps(list(POLICY))),
             ],
         )
-        connection.commit()
+        connection.execute("COMMIT")
+        return tuple(final)
     finally:
         connection.close()
+
+
+def _write_store(connection: sqlite3.Connection, decision: Decision) -> Decision:
+    """Insert a listed or placeholder Store's rows; refuse it, and write none of them, on a bad value."""
+    if decision.decision not in (LISTED, PLACEHOLDER) or decision.store is None:
+        return Decision(decision.store_id, decision.decision, decision.reason)
+    connection.execute("SAVEPOINT store")
+    try:
+        _insert(connection, "stores", STORE_COLUMNS, [decision.store])
+        _insert(connection, "analyses", ANALYSIS_COLUMNS, decision.analyses)
+    except RefusedRow as exc:
+        connection.execute("ROLLBACK TO store")
+        connection.execute("RELEASE store")
+        return Decision(decision.store_id, REFUSED, str(exc))
+    connection.execute("RELEASE store")
+    return Decision(decision.store_id, decision.decision, decision.reason)
 
 
 def _derive(connection: sqlite3.Connection) -> None:

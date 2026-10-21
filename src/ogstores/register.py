@@ -72,10 +72,10 @@ OBSERVED_FIELDS: tuple[str, ...] = (
     "n_analyses",
     "n_variants",
     "n_associations",
-    # What associations the Store is expected to hold (`full_gwas`, `cis`,
-    # `trans`, `cis_plus_signals`, `top_hits`, `unknown`) and the assembly its
-    # coordinates are on. Both are only ever the producing step's report, never
-    # read from the Store or its `manifest.json` (ADR 0023, #322).
+    # What associations the Store is expected to hold and the assembly its
+    # coordinates are on. Both are recorded as opengwasdb reports them (for
+    # coverage, `full` or `cis_and_signals`), only ever the producing step's
+    # report, never read from the Store or its `manifest.json` (ADR 0023, #322).
     "association_coverage",
     "reference_assembly",
     "store_bytes",

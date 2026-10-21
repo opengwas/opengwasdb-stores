@@ -124,5 +124,52 @@ class MovedToolPathsTest(unittest.TestCase):
                 self.assertTrue((checkout / "docs" / page).is_file(), page)
 
 
+class AlleleOrientationPoolTest(unittest.TestCase):
+    """The UK Biobank pool is the queried Store's own Analyses (#312 review H2).
+
+    A lookup of an Analysis the Store lacks returns no rows, which would read
+    as "no effect" rather than as a missing Analysis, so the check refuses
+    first and names how many are missing.
+    """
+
+    def setUp(self) -> None:
+        self.tool = load_tool("tools/check_allele_orientation.py")
+
+    def study(self, analysis_id: str):
+        return self.tool.ComparisonStudy(
+            source_bundle="OGS-00009",
+            analysis_id=analysis_id,
+            trait=analysis_id,
+            publication_pmid="",
+            ontology_ids=frozenset(),
+            label_tokens=frozenset(),
+            normalised_label=analysis_id,
+        )
+
+    def test_a_pool_analysis_the_store_lacks_is_refused_with_the_count(self) -> None:
+        pool = [self.study(analysis_id) for analysis_id in ("ukb-b-1", "ukb-b-2", "ukb-b-3")]
+        with self.assertRaisesRegex(SystemExit, r"2 of the 3 .*ukb-b-2.*ukb-b-3") as raised:
+            self.tool.require_pool_in_store(pool, ["ukb-b-1"], Path("/fixture/store.opengwasdb"))
+        self.assertIn("/fixture/store.opengwasdb", str(raised.exception))
+
+    def test_a_pool_inside_the_store_passes(self) -> None:
+        pool = [self.study(analysis_id) for analysis_id in ("ukb-b-1", "ukb-b-2")]
+        self.tool.require_pool_in_store(pool, ["ukb-b-1", "ukb-b-2", "ukb-b-9"], Path("/fixture/store.opengwasdb"))
+
+    def test_a_run_refuses_before_scanning_when_the_store_lacks_pool_analyses(self) -> None:
+        _catalogue, ukb = self.tool.load_comparison_pools()
+        held = [study.analysis_id for study in ukb[3:]]
+        self.tool.store_built_ids = lambda store: (tuple(held), "fixture runtime")
+
+
+        def no_scanning(*args, **kwargs):
+            raise AssertionError("scanned sources before the pool was checked")
+
+        self.tool.ProcessPoolExecutor = no_scanning
+        with tempfile.TemporaryDirectory() as out:
+            with self.assertRaisesRegex(SystemExit, rf"3 of the {len(ukb)} "):
+                self.tool.main(["--limit", "1", "--workers", "1", "--out-dir", out])
+
+
 if __name__ == "__main__":
     unittest.main()

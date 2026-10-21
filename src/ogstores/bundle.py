@@ -1226,8 +1226,8 @@ def _check_analysis_ids(
     Callers split ``<store_id>:<analysis_id>`` on ``:``, so the value may not
     contain it -- nor anything else that would make the id two segments or no
     filename: a space, ``/``, or a leading ``.``/``-``. Every row of the Release
-    Manifest is judged, excluded ones included, because an excluded Analysis is
-    still named by the Analysis Catalog. The value is judged exactly as
+    Manifest is judged, excluded ones included, because ``analysis_id`` is also
+    the resolver's per-Analysis filename. The value is judged exactly as
     ``read_analyses`` returned it, never stripped or coerced, so an id padded
     with whitespace cannot pass here and then fail a client's split.
 

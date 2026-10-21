@@ -47,15 +47,15 @@ def record_check() -> None:
     n_checks += 1
 
 
-# The thirteen registered bundles with a Dense Component (stores#211 scope),
-# and the four Ragged-only bundles that must stay untouched.
+# The registered bundles with a Dense Component (stores#211 scope), and the
+# Ragged-only bundles that must stay untouched. OGS-00010 was in scope until
+# #312 retired it: OGS-00009 completes its own Store (ADR 0037).
 EXPECTED_IN_SCOPE = (
     "OGS-00003",
     "OGS-00004",
     "OGS-00005",
     "OGS-00008",
     "OGS-00009",
-    "OGS-00010",
     "OGS-00011",
     "OGS-00012",
     "OGS-00013",
@@ -146,15 +146,12 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
             "n-workers": 32,
         },
         "post": {"top_hits": True, "overview": True},
-    },
-    "OGS-00010": {
-        "phase": "complete",
-        "command": "complete-dense",
-        "options": {
-            "ld-panel": "/data/opengwasdb/reference/hgdp1kgp-hg38/panel",
-            "ancestry": "EUR",
+        # #312 re-emitted OGS-00009 as one single-id release (ADR 0037): the
+        # same build phase, then completion under the same id, at 32 workers.
+        "complete": {
+            "command": "complete-dense",
+            "options": {"ld-panel": "/data/opengwasdb/reference/ld", "ancestry": "EUR", "n-workers": 32},
         },
-        "post": {"top_hits": False, "overview": True},
     },
     "OGS-00011": {
         "phase": "build",
@@ -298,17 +295,22 @@ class TestRegistryMigration(unittest.TestCase):
         """The key is the only addition; options, command and post are unchanged.
 
         Note: OGS-00012/13/14/16 additionally carry the owner-authorized
-        execution-only `n-workers: 16` amendment.
+        execution-only `n-workers: 16` amendment, and OGS-00009 its completion
+        phase (#312).
         """
         for store_id, expected in EXPECTED_UNRELATED.items():
             build = load_build(store_id)
             phase = expected["phase"]
+            completion = {"complete"} if "complete" in expected else set()
             record_check()
             self.assertEqual(
                 set(build),
-                {"store_id", "layout", "completion_state", phase, "post", "indexed_subsets"},
+                {"store_id", "layout", "completion_state", phase, "post", "indexed_subsets"} | completion,
                 store_id,
             )
+            if completion:
+                record_check()
+                self.assertEqual(build["complete"], expected["complete"], store_id)
             record_check()
             self.assertEqual(build[phase]["command"], expected["command"], store_id)
             record_check()
@@ -367,7 +369,7 @@ class TestRegistryMigration(unittest.TestCase):
             record_check()
             self.assertIn(store_id, rendered)
         record_check()
-        self.assertIn("13/15 Dense-component bundles declare hm3; 2 explicitly opted out", rendered)
+        self.assertIn("12/14 Dense-component bundles declare hm3; 2 explicitly opted out", rendered)
         record_check()
         self.assertIn("7/7 Ragged-only bundles declare none", rendered)
         record_check()

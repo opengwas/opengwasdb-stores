@@ -175,11 +175,13 @@ class TestBundleContract(unittest.TestCase):
             for path in registry.iterdir()
             if path.is_dir() and paths.is_valid_store_id(path.name)
         )
-        # OGS-00018-00021 are reserved elsewhere and never allocated; the five
-        # bundles migrated in #252 take the next free ids.
+        # The five bundles migrated in #252 take the next ids after the ones
+        # reserved for OGS-00018-00021. Those, and OGS-00010, are retired unused
+        # (#308, #312): ids are never reused.
+        allocated = [f"OGS-{number:05d}" for number in [*range(1, 18)]]
         self.assertEqual(
             store_ids,
-            [f"OGS-{number:05d}" for number in [*range(1, 18)]]
+            [store_id for store_id in allocated if store_id not in paths.RETIRED_STORE_IDS]
             + [f"OGS-{number:05d}" for number in range(22, 27)],
         )
         for store_id in store_ids:
