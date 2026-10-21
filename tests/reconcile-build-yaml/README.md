@@ -15,8 +15,8 @@ CLI (pinned to `dev` SHA `a9e8bc8` via issue #106):
    confirming that canonical ADR 0034 names (`analysis_id`, `source_file`, `stored_effect_scale`,
    `original_sd_method`, `sample_size`, `analysis_index`) are consumed as-is without registry-side projection.
    BESD probe derivation for `OGS-00001` is validated unconditionally via a committed fixture
-   `tests/reconcile-build-yaml/fixtures/pilot-10.epi` (a 10-row provenance slice of authentic eQTLGen
-   Trial Store Release probe records), reconciling each committed manifest against the ids opengwasdb's builder
+   `tests/reconcile-build-yaml/fixtures/pilot-10.epi` (a 10-row provenance slice of authentic probe records
+   of the eQTLGen Trial Store Releases), reconciling each committed manifest against the ids opengwasdb's builder
    derives from its own recipe: `::{tissue}` where the recipe passes a `tissue`, bare probe ids
    otherwise. Since issue #319 an `analysis_id` never contains `:`, which `bundle.check()` enforces;
    only the two tolerated legacy releases (`OGS-00001`, `OGS-00002`) keep the namespaced names, and
