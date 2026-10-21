@@ -57,12 +57,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import functools
 import hashlib
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Mapping, Sequence
 
 import yaml
@@ -321,33 +321,52 @@ def render_provenance_yaml(
     return yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100, allow_unicode=True)
 
 
-@functools.lru_cache(maxsize=16)
-def _parsed_provenance(path: Path, digest: str) -> Mapping[str, Any]:
-    """A provenance sidecar, parsed once per content digest.
+class _ProvenanceParses:
+    """Parse-once cache keyed by a provenance's content digest (#290 review).
 
-    A snapshot's provenance is immutable and can be large: the dbGaP MVP sidecars
-    list every selected file's reformat lineage. Hashing the bytes is cheap next
-    to parsing them, and keying on the digest -- not the path, mtime and size --
-    means every content change is reparsed: a sidecar whose recorded checksum is
-    edited to the same length with its mtime restored can never be served from
-    the cache (#290 review).
+    A snapshot's provenance is immutable and can be large: the dbGaP MVP
+    sidecars list every selected file's reformat lineage. Hashing the bytes is
+    cheap next to parsing them. The cache stores only parsed documents, and
+    ``parse`` is handed the very bytes whose digest is the key, so no parse can
+    ever be filed under another content's digest. It keeps the
+    ``functools.lru_cache`` surface (`cache_clear`, `cache_info`) the tests use
+    to simulate a fresh process.
     """
-    data = Path(path).read_bytes()
-    if hashlib.sha256(data).hexdigest() != digest:  # pragma: no cover - a write raced the read
-        # The file changed between hashing and parsing: parse what is there,
-        # uncached, rather than filing it under the digest of older bytes.
-        return yaml.safe_load(data)
-    return yaml.safe_load(data)
+
+    def __init__(self, maxsize: int = 16) -> None:
+        self._documents: dict[str, Mapping[str, Any]] = {}
+        self._maxsize = maxsize
+
+    def parse(self, digest: str, data: bytes) -> Mapping[str, Any]:
+        """The parse of ``data``, cached under ``digest`` (which must be its sha256)."""
+        document = self._documents.get(digest)
+        if document is None:
+            document = yaml.safe_load(data)
+            if len(self._documents) >= self._maxsize:
+                # A process reads a handful of snapshots; drop rather than grow.
+                self._documents.clear()
+            self._documents[digest] = document
+        return document
+
+    def cache_clear(self) -> None:
+        self._documents.clear()
+
+    def cache_info(self) -> SimpleNamespace:
+        return SimpleNamespace(currsize=len(self._documents))
+
+
+#: The process's parsed provenance documents, by content digest.
+_parsed_provenance = _ProvenanceParses()
 
 
 def load_provenance(provenance_path: Path) -> Mapping[str, Any]:
-    """A frozen snapshot's provenance document, cached by its content."""
+    """A frozen snapshot's provenance document, cached by the content it was read from."""
     path = Path(provenance_path)
     try:
         data = path.read_bytes()
     except OSError as exc:
         raise FreezeError(f"frozen Source Inventory provenance not found: {path}") from exc
-    return _parsed_provenance(path, hashlib.sha256(data).hexdigest())
+    return _parsed_provenance.parse(hashlib.sha256(data).hexdigest(), data)
 
 
 def load_frozen_connectors(provenance_path: Path) -> tuple[SourceMetadataTable, AcquisitionManifest]:

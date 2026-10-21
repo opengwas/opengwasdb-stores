@@ -289,6 +289,28 @@ class FreezeSuccessTest(FreezeFixture):
         with self.assertRaisesRegex(FreezeError, "sha256"):
             load_frozen_connectors(provenance)
 
+    def test_the_parse_cached_under_a_digest_is_the_parse_of_that_digest_s_bytes(self) -> None:
+        """Bytes changing between hashing and parsing can never file one parse under another's key (#290 review)."""
+        from manifest_generation import freeze as freeze_module
+
+        path = self.tmp / "provenance.yaml"
+        first = b"snapshot_id: alpha\n"
+        second = b"snapshot_id: beta\n"
+        path.write_bytes(first)
+        reads = [first, second]
+
+        def read_bytes(_self: Path) -> bytes:
+            # The first read is what the loader hashes; any later read is a
+            # different file, as a concurrent rewrite would be.
+            return reads.pop(0) if reads else second
+
+        with mock.patch.object(Path, "read_bytes", read_bytes):
+            document = freeze_module.load_provenance(path)
+        # The parse is of the bytes whose digest is the key, not of a later read.
+        self.assertEqual(document, {"snapshot_id": "alpha"})
+        # And a later call for the same content finds that parse under its digest.
+        self.assertEqual(freeze_module.load_provenance(path), {"snapshot_id": "alpha"})
+
     def test_provenance_records_lineage_and_duplicate_content(self) -> None:
         _, provenance, _ = self.write(self.freeze())
         document = yaml.safe_load(provenance.read_text(encoding="utf-8"))
