@@ -104,9 +104,21 @@ bundle's `validation.yaml` then describes the completed Store and names the
 archive.
 
 A failed or interrupted completion leaves the Observed-Only Store published
-and the build phase's records untouched. Resuming it without
-`--config force=1` comes with #305: until then the next run refuses, because
-the Store is published.
+and the build phase's records untouched. The next `pixi run release <ID>`,
+with no `--config force=1`, reruns its missing completion-phase records
+(#305).
+
+The preflight lets an unforced run through only when every job it schedules
+for a published release is a completion-phase job, and the release's records
+show its Observed-Only Store published and not yet completed
+(`records/register.json` without `records/completion-register.json`). A run
+that would rebuild any part of the build phase is refused as before.
+
+**A Store published as Observed-Only can be completed later.** Its accepted
+`observed_only` bundle may gain a `complete` block and switch to
+`completion_state: reference_completed`, the only change an accepted bundle
+allows (ADR 0037). Then `pixi run release <ID>` runs the completion phase
+alone.
 
 ### Production Execution vs. Fixture-Scale Tests
 

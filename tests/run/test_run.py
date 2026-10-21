@@ -74,7 +74,7 @@ from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-from ogstores import _pdeath_supervisor, bundle, paths, plan, run
+from ogstores import _pdeath_supervisor, bundle, paths, plan, release, run
 from ogstores.bundle import Bundle
 from ogstores.plan import Step
 from ogstores.run import (
@@ -1457,6 +1457,134 @@ class TestForcedRunGuard(unittest.TestCase):
         record_check()
 
 
+class TestCompletingAPublishedObservedOnlyStore(unittest.TestCase):
+    """Completion-phase jobs over the id's own published Observed-Only Store are no rebuild (#305, ADR 0037).
+
+    What is published is read from records and bundles, never from the Store
+    (ADR 0023): the build phase's `records/register.json` without
+    `records/completion-register.json` says the Observed-Only Store is
+    published and not yet completed. A job is the record it writes.
+    """
+
+    STORE_ID = "OGS-00110"
+    STAMP = "20261021T090000Z"
+    # The #195 refusal exactly as it read before #305, which must not change.
+    REFUSAL = (
+        "Refusing to run: these releases are already published, and this run would "
+        "rebuild them, rewriting their work/ and records/:\n  {store_id}: {store}\n"
+        "Nothing was written. To replace one, name its id as a target and add "
+        "`--config force=1`; the replaced Store, its records and its validation.yaml "
+        "are archived under replaced/<UTC>/ beside it (#195)."
+    )
+    COMPLETION_JOBS = ("complete", "completion-validate", "completion-register")
+
+    def setUp(self) -> None:
+        self.test_dir = tempfile.TemporaryDirectory()
+        self.registry = Path(self.test_dir.name) / "stores"
+        self.root = Path(self.test_dir.name) / "artifacts"
+
+    def tearDown(self) -> None:
+        self.test_dir.cleanup()
+
+    def write_bundle(self, store_id: str, *, derived_from: str | None = None, complete: bool = True) -> None:
+        """A Dense bundle: single-id completed, two-id child (`derived_from`) or Observed-Only."""
+        import yaml
+
+        bundle_dir = self.registry / store_id
+        bundle_dir.mkdir(parents=True)
+        release = {"store_id": store_id, "status": "accepted", "derived_from": derived_from}
+        build: dict[str, Any] = {
+            "store_id": store_id,
+            "layout": "dense",
+            "completion_state": "reference_completed" if complete else "observed_only",
+            "post": {"top_hits": False, "overview": False, "validate": True},
+        }
+        if derived_from is None:
+            build["build"] = {"command": "build-dense-vcf", "options": {"source-assembly": "hg38"}}
+        if complete:
+            build["complete"] = {"command": "complete-dense", "options": {"ld-panel": "/panel", "ancestry": "EUR"}}
+        (bundle_dir / "release.yaml").write_text(yaml.safe_dump(release), encoding="utf-8")
+        (bundle_dir / "build.yaml").write_text(yaml.safe_dump(build), encoding="utf-8")
+
+    def publish(self, store_id: str, *records: str) -> None:
+        """A published Store and the named records beside it."""
+        paths.store_path(store_id, root=self.root).mkdir(parents=True)
+        records_dir = paths.records_dir(store_id, root=self.root)
+        records_dir.mkdir(parents=True)
+        for name in records:
+            (records_dir / f"{name}.json").write_text(json.dumps({"step": name}) + "\n", encoding="utf-8")
+
+    def jobs(self, *records: str | None, store_id: str = STORE_ID) -> list[tuple[Path, str, str | None]]:
+        return [(self.root, store_id, record) for record in records]
+
+    def refusal(self, store_id: str = STORE_ID) -> str:
+        return self.REFUSAL.format(store_id=store_id, store=paths.store_path(store_id, root=self.root))
+
+    def test_completion_phase_jobs_over_the_published_observed_only_store_run_unforced(self) -> None:
+        self.write_bundle(self.STORE_ID)
+        self.publish(self.STORE_ID, "build", "validate", "register")
+        jobs = self.jobs(*self.COMPLETION_JOBS)
+        scheduled = [(self.root, self.STORE_ID)]
+
+        completing = run.completing_own_stores(jobs, registry_root=self.registry)
+
+        self.assertEqual(completing, frozenset({self.STORE_ID}))
+        run.refuse_rebuilding_published_releases(scheduled, completing=completing)
+        self.assertEqual(run.prepare_release_run(scheduled, completing=completing, stamp=self.STAMP), [])
+        self.assertEqual(run.pending_force_snapshots(self.STORE_ID, self.root), [], "no snapshot is taken")
+        record_check()
+
+    def test_a_build_phase_job_over_the_published_store_is_still_refused_unchanged(self) -> None:
+        """`build_manifest` (no record), a build-phase step and the build phase's register are each a rebuild."""
+        self.write_bundle(self.STORE_ID)
+        self.publish(self.STORE_ID, "build", "validate", "register")
+        scheduled = [(self.root, self.STORE_ID)]
+
+        for build_phase_job in (None, "build", "validate", "register"):
+            with self.subTest(job=build_phase_job):
+                completing = run.completing_own_stores(
+                    self.jobs(*self.COMPLETION_JOBS, build_phase_job), registry_root=self.registry
+                )
+                self.assertEqual(completing, frozenset())
+                with self.assertRaises(StoreExistsError) as ctx:
+                    run.refuse_rebuilding_published_releases(scheduled, completing=completing)
+                self.assertEqual(str(ctx.exception), self.refusal())
+        record_check()
+
+    def test_the_records_of_a_dry_run_are_read_by_the_jobs_parser_and_fail_closed(self) -> None:
+        """The entry point reads each job's record from the dry run, or refuses to guess."""
+        sample = (
+            "rule step:\n    wildcards: root=/AR, store_id=OGS-00110, step=complete\n"
+            "rule completion_register:\n    wildcards: root=/AR, store_id=OGS-00110\n"
+            "localrule build_manifest:\n    wildcards: root=/AR, store_id=OGS-00110\n"
+        )
+        self.assertEqual(
+            release.scheduled_records(sample),
+            [("/AR", "OGS-00110", None), ("/AR", "OGS-00110", "complete"), ("/AR", "OGS-00110", "completion-register")],
+        )
+        with self.assertRaises(RuntimeError):
+            release.scheduled_records("rule completion_register:\n    jobid: 1\n    wildcards: root=/AR\n")
+        record_check()
+
+    def test_only_an_observed_only_store_its_own_release_published_is_completed(self) -> None:
+        """No completion over a completed Store, over a Store with no register record, or for a two-id child."""
+        self.write_bundle(self.STORE_ID)
+        self.write_bundle("OGS-00111")
+        self.write_bundle("OGS-00109", complete=False)
+        self.write_bundle("OGS-00112", derived_from="OGS-00109")
+        self.publish(self.STORE_ID, "build", "validate", "register", "complete", "completion-validate", "completion-register")
+        self.publish("OGS-00111", "build", "validate")
+        self.publish("OGS-00112", "complete", "validate", "register")
+        jobs = [
+            *self.jobs(*self.COMPLETION_JOBS),
+            *self.jobs(*self.COMPLETION_JOBS, store_id="OGS-00111"),
+            *self.jobs("complete", store_id="OGS-00112"),
+        ]
+
+        self.assertEqual(run.completing_own_stores(jobs, registry_root=self.registry), frozenset())
+        record_check()
+
+
 class TestProvenanceAndSequentialPlan(unittest.TestCase):
     """Test provenance derivation bound to executable environment, tripwires, resumption, and sequential execution."""
 
@@ -1902,6 +2030,7 @@ def main() -> None:
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestCommandExecClassification))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPublicationRollbackAndCrashRecovery))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestForcedRunGuard))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestCompletingAPublishedObservedOnlyStore))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestProvenanceAndSequentialPlan))
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)

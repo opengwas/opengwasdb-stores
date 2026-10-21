@@ -177,9 +177,23 @@ onstart:
         )
     except bundle.NotBuildableError as exc:
         raise WorkflowError(str(exc))
+    # Completion-phase jobs over the release's own published Observed-Only
+    # Store are its next step, not a rebuild of it (#305, ADR 0037).
     run.refuse_rebuilding_published_releases(
         scheduled,
         forced=run.forced_by_transaction(config.get("release_run"), scheduled),
+        completing=run.completing_own_stores(
+            [
+                (
+                    job.wildcards_dict["root"],
+                    job.wildcards_dict["store_id"],
+                    run.job_record(job.rule.name, job.wildcards_dict.get("step")),
+                )
+                for job in workflow.dag.needrun_jobs()
+                if {"root", "store_id"} <= job.wildcards_dict.keys()
+            ],
+            registry_root=REGISTRY_ROOT,
+        ),
     )
     # Defence in depth for a direct `snakemake` run (#218): the resolved
     # runtime must be the tracked pin, provide every capability the scheduled

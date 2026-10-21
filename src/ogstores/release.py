@@ -106,7 +106,7 @@ SNAPSHOT_RESOLUTIONS: frozenset[str] = frozenset({"restore", "delete"})
 
 _TARGET = re.compile(r"\AOGS-\d{5}\Z|\Aall\Z")
 _WILDCARDS = re.compile(r"^\s*wildcards:\s*(?P<body>.*)$")
-_RELEASE_JOB = re.compile(r"^\s*(?:local)?rule (?:step|register|completion_register|build_manifest):\s*$")
+_RELEASE_JOB = re.compile(r"^\s*(?:local)?rule (?P<rule>step|register|completion_register|build_manifest):\s*$")
 
 
 class UsageError(ValueError):
@@ -213,35 +213,59 @@ def snakemake_argv(
     return argv
 
 
-def scheduled_jobs(dry_run_output: str) -> list[tuple[str, str, str | None]]:
-    """The (artifact root, store_id, step) of every job a Snakemake dry run scheduled.
+def _scheduled(dry_run_output: str) -> list[tuple[str, str, str, str | None]]:
+    """The (rule, artifact root, store_id, step) of every release job a Snakemake dry run scheduled.
 
     Every step, register, completion_register and build_manifest job prints
-    its wildcards, so a job block without one means the output is not what
-    this parser expects, and that fails loudly rather than under-reporting
-    what the run will touch. `step` is `None` for a job with no `step`
-    wildcard (`build_manifest`, `register`, `completion_register`). The
-    runtime guard needs the step to tell a real parent rebuild from an
-    enhancement-only job on the same Store (#218).
+    its wildcards after its rule line, so a job block without them means the
+    output is not what this parser expects, and that fails loudly rather than
+    under-reporting what the run will touch. `step` is `None` for a job with
+    no `step` wildcard (`build_manifest`, `register`, `completion_register`).
     """
-    found: list[tuple[str, str, str | None]] = []
+    found: list[tuple[str, str, str, str | None]] = []
     jobs = 0
+    rule: str | None = None
     for line in dry_run_output.splitlines():
-        if _RELEASE_JOB.match(line):
+        job = _RELEASE_JOB.match(line)
+        if job:
             jobs += 1
+            rule = job["rule"]
         match = _WILDCARDS.match(line)
         if not match:
             continue
         fields = dict(part.split("=", 1) for part in match["body"].split(", ") if "=" in part)
         if "root" in fields and "store_id" in fields:
-            step = fields.get("step")
-            found.append((fields["root"], fields["store_id"], step))
+            found.append((rule or "", fields["root"], fields["store_id"], fields.get("step")))
+            rule = None
     if len(found) != jobs:
         raise RuntimeError(
             f"The dry run listed {jobs} release job(s) but the wildcards of {len(found)}; "
             "refusing to guess what the run would touch"
         )
-    return sorted(set(found), key=lambda job: (job[0], job[1], job[2] or ""))
+    return found
+
+
+def scheduled_jobs(dry_run_output: str) -> list[tuple[str, str, str | None]]:
+    """The (artifact root, store_id, step) of every job a Snakemake dry run scheduled.
+
+    The runtime guard needs the step to tell a real parent rebuild from an
+    enhancement-only job on the same Store (#218).
+    """
+    jobs = {(root, store_id, step) for _rule, root, store_id, step in _scheduled(dry_run_output)}
+    return sorted(jobs, key=lambda job: (job[0], job[1], job[2] or ""))
+
+
+def scheduled_records(dry_run_output: str) -> list[tuple[str, str, str | None]]:
+    """The (artifact root, store_id, record) of every job a Snakemake dry run scheduled.
+
+    `record` is the record the job writes (`run.job_record`), None for
+    `build_manifest`, so the preflight can tell a completion-phase job from a
+    build-phase one (#305).
+    """
+    records = {
+        (root, store_id, run.job_record(rule, step)) for rule, root, store_id, step in _scheduled(dry_run_output)
+    }
+    return sorted(records, key=lambda job: (job[0], job[1], job[2] or ""))
 
 
 def scheduled_releases(dry_run_output: str) -> list[tuple[str, str]]:
@@ -662,7 +686,13 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
     forced = run.forced_releases(force, inv.targets)
     try:
         run.refuse_pending_force_snapshots(idle)
-        run.refuse_rebuilding_published_releases(idle, forced=forced)
+        run.refuse_rebuilding_published_releases(
+            idle,
+            forced=forced,
+            completing=run.completing_own_stores(
+                scheduled_records(result.stdout + result.stderr), registry_root=registry_root
+            ),
+        )
     except (run.ForceSnapshotPendingError, run.StoreExistsError) as exc:
         print(f"release-dry: the real run would refuse:\n{exc}")
         return result.returncode
@@ -752,7 +782,12 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     try:
         try:
             snapshots = run.prepare_release_run(
-                scheduled, forced=run.forced_releases(force, inv.targets), stamp=stamp
+                scheduled,
+                forced=run.forced_releases(force, inv.targets),
+                stamp=stamp,
+                completing=run.completing_own_stores(
+                    scheduled_records(plan.stdout + plan.stderr), registry_root=registry_root
+                ),
             )
             run.fault_boundary("snapshots-taken")
             # The hand-off spares the Snakefile's `onstart` check from probing
@@ -847,6 +882,7 @@ __all__ = [
     "resolve_targets",
     "resolve_snapshot",
     "scheduled_jobs",
+    "scheduled_records",
     "scheduled_releases",
     "settle",
     "snakemake_argv",

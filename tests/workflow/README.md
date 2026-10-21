@@ -79,6 +79,10 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
    - A rerun executes 0 jobs and rewrites no record, both in place, where Snakemake reads the build's own metadata, and from a copy of the artifact root, where it decides by mtime.
    - The release is built at most once per process (`single_id_completion_template`), from #303's signal fixture and `amend_to_complete_own_store`, the shape later completion tickets reuse.
 
+13. **Completing a published Observed-Only Store later (#305, ADR 0037)**:
+   - Preflight (`tests/run`, through the entry point here): completion-phase jobs over an id's own published Observed-Only Store run without `--config force=1`. Any build-phase job over a published Store is still refused with the unchanged #195 message: an amended release whose files are older than its bundle, as after a fresh checkout, reschedules its build phase and is refused.
+   - A Store built before #304: the workflow as it was at `PRE_304_REVISION` (`ff204b6`, `dev` before epic #302) builds and publishes the Observed-Only Store. That revision runs from a `git archive` of itself, with its own `ogstores` ahead of this checkout's editable install on `PYTHONPATH`, and is repinned to the runtime this environment provides, the old code's own way to run another runtime. Its `.snakemake` is this checkout's, so the current code reads that run's metadata (shown for the step records; settlement clears the register job's in both revisions). The bundle then gains a `complete` block in place, and the current entry point's dry run schedules only `complete`, `completion-validate` and `completion-register`. The run completes the Store with every build-phase record and the derived build manifest unchanged, bytes and mtimes, under Snakemake's default rerun triggers. A clone without that revision fails the class, saying why; CI fetches full history for this suite.
+
 ## Running the suite
 
 ```sh

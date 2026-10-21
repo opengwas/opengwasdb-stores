@@ -29,18 +29,26 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
    completes it into the id's staged path and publishes the completed Store
    at the same path, archiving the replaced Store, its register record and its
    Validation Record; a re-run executes 0 jobs.
+13. Completing a published Observed-Only Store later (#305, ADR 0037): a
+   Store built by the workflow as it was before #304 completes, once its
+   bundle gains a `complete` block, with no build-phase job scheduled, and an
+   unforced rebuild of its build phase is still refused.
 """
 
 from __future__ import annotations
 
+import base64
 import gzip
+import io
 import json
 import math
 import os
+import re
 import shlex
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import tomllib
 import unittest
@@ -1636,6 +1644,281 @@ class TestWorkflowSingleIdReferenceCompletion(unittest.TestCase):
         self.assertIn("nothing to be done", res.stdout)
         for rec_p, mtime in before.items():
             self.assertEqual(rec_p.stat().st_mtime_ns, mtime, f"{rec_p.name} was rewritten in the copy")
+
+
+# `dev` before epic #302: the workflow as it was before #304 made a release
+# complete its own Store. It stays reachable from `dev` and `main` however the
+# epic is merged; CI fetches full history for this suite to have it.
+PRE_304_REVISION: str = "ff204b6"
+
+_PRE_304_COMPLETION: dict[str, Any] | None = None
+
+
+def snakemake_metadata(output: Path) -> Path:
+    """Where Snakemake keeps what it recorded about the job that wrote `output`.
+
+    Snakemake's own layout (`snakemake/persistence/file.py`): the path,
+    urlsafe-base64 encoded, split into chunks a file name can hold. Used only
+    to show a fixture really kept an earlier run's metadata.
+    """
+    encoded = base64.urlsafe_b64encode(str(output).encode()).decode()
+    max_len = os.pathconf(REPO_ROOT, "PC_NAME_MAX") - 1
+    chunks = [encoded[i:i + max_len] for i in range(0, len(encoded), max_len)]
+    return REPO_ROOT.joinpath(".snakemake", "metadata", *(["@" + c for c in chunks[:-1]] + chunks[-1:]))
+
+
+def pre_304_completion_template() -> dict[str, Any]:
+    """A Store built before #304, then completed by the current code, once per process (#305).
+
+    The Observed-Only Store is built and published by the workflow as it was
+    at `PRE_304_REVISION`. That revision runs from an archive of itself, with
+    its own `ogstores` ahead of this checkout's editable install, and is
+    repinned to the runtime this environment provides (below). The archive's
+    `.snakemake` is this checkout's, so the current code later reads that
+    run's Snakemake metadata, as an operator's checkout would after a pull.
+
+    A copy of the published Observed-Only release is taken (`observed_stores`,
+    `observed_artifacts`) for tests that may write. Then the bundle gains a
+    `complete` block in place, the one amendment ADR 0037 allows, and the
+    current entry point is dry-run and run on it once, with Snakemake's default
+    rerun triggers. The build phase's files as they stood before that run are
+    `build_phase_before`.
+    """
+    global _PRE_304_COMPLETION
+    if _PRE_304_COMPLETION is not None:
+        return _PRE_304_COMPLETION
+
+    present = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "cat-file", "-e", f"{PRE_304_REVISION}^{{commit}}"], capture_output=True
+    )
+    if present.returncode != 0:
+        raise RuntimeError(
+            f"revision {PRE_304_REVISION} is not in this clone, so no Store can be built with the "
+            "workflow as it was before #304. A shallow clone lacks it: fetch the full history "
+            "(`git fetch --unshallow`; CI checks this suite out with `fetch-depth: 0`)."
+        )
+
+    store_id = "OGS-00120"
+    temp_dir = tempfile.TemporaryDirectory()
+    root = Path(temp_dir.name)
+    checkout = root / "pre-304"
+    checkout.mkdir()
+    archive = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "archive", "--format=tar", PRE_304_REVISION], capture_output=True, check=True
+    )
+    with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
+        tar.extractall(checkout, filter="data")
+
+    # The old guard refuses any runtime but the one it pinned. Repinning is
+    # that code's own way to run another runtime ("repin the repository
+    # deliberately", stores#218): here, to the runtime this environment
+    # provides, which this checkout's guard proves. Nothing of this checkout's
+    # guard changes.
+    from ogstores import runtime
+
+    runtime_py = checkout / "src" / "ogstores" / "runtime.py"
+    pin = re.compile(r'^PINNED_OPENGWASDB_REVISION: str = "[0-9a-f]{40}"$', re.MULTILINE)
+    text = runtime_py.read_text(encoding="utf-8")
+    if len(pin.findall(text)) != 1:
+        raise RuntimeError(f"{runtime_py} no longer states its pin as this test expects")
+    runtime_py.write_text(
+        pin.sub(f'PINNED_OPENGWASDB_REVISION: str = "{runtime.PINNED_OPENGWASDB_REVISION}"', text),
+        encoding="utf-8",
+    )
+
+    shared_metadata = REPO_ROOT / ".snakemake"
+    shared_metadata.mkdir(exist_ok=True)
+    (checkout / ".snakemake").symlink_to(shared_metadata, target_is_directory=True)
+    # The archived revision's code, not this checkout's: put it ahead of the
+    # editable install for every process the old entry point starts.
+    old_code = checkout / "src"
+    old_env = {**os.environ, "PYTHONPATH": str(old_code)}
+    imported = subprocess.run(
+        [sys.executable, "-c", "import ogstores; print(ogstores.__file__)"],
+        cwd=checkout, env=old_env, capture_output=True, text=True, check=True,
+    ).stdout.strip()
+
+    stores = root / "stores"
+    stores.mkdir()
+    artifacts = root / "artifacts"
+    artifacts.mkdir()
+    create_dense_fixture_store(
+        stores,
+        store_id=store_id,
+        artifact_root=artifacts,
+        vcf_path=create_signal_fixture_vcf(root / "signal.vcf.gz"),
+        post_top_hits=False,
+        post_overview=False,
+    )
+    old_result = subprocess.run(
+        [
+            sys.executable, str(checkout / "workflow" / "release.py"), store_id, "--cores", "1",
+            "--config", f"registry_root={stores}", f"artifact_root={artifacts}",
+        ],
+        cwd=checkout, env=old_env, capture_output=True, text=True,
+    )
+
+    observed = root / "observed"
+    shutil.copytree(stores, observed / "stores")
+    shutil.copytree(artifacts, observed / "artifacts")
+    store_dir = paths.store_dir(store_id, root=artifacts)
+    build_phase_before = {
+        p: (p.stat().st_mtime_ns, p.read_bytes())
+        for directory in ("records", "work") for p in sorted((store_dir / directory).iterdir())
+    }
+
+    amend_to_complete_own_store(stores, store_id, ld_panel=create_signal_ld_panel(root / "ld-panel"))
+    dry_result = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts)
+    release_result = run_release([store_id], registry_root=stores, artifact_root=artifacts)
+
+    _PRE_304_COMPLETION = {
+        "temp_dir": temp_dir,
+        "store_id": store_id,
+        "imported": imported,
+        "old_code": old_code,
+        "old_result": old_result,
+        "observed_stores": observed / "stores",
+        "observed_artifacts": observed / "artifacts",
+        "stores": stores,
+        "artifacts": artifacts,
+        "build_phase_before": build_phase_before,
+        "dry_result": dry_result,
+        "release_result": release_result,
+    }
+    return _PRE_304_COMPLETION
+
+
+class PublishedReleaseCopies(unittest.TestCase):
+    """Copies of published releases for a test to change, and the check that a refused run wrote nothing.
+
+    Each copy has a root of its own, so the records name another artifact
+    root than the run's.
+    """
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.td = Path(self.temp_dir.name)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def published_copy(self, stores: Path, artifacts: Path) -> tuple[Path, Path]:
+        copy_root = Path(tempfile.mkdtemp(dir=self.td))
+        copied_stores, copied_artifacts = copy_root / "stores", copy_root / "artifacts"
+        shutil.copytree(stores, copied_stores)
+        shutil.copytree(artifacts, copied_artifacts)
+        return copied_stores, copied_artifacts
+
+    def assert_refused_before_any_write(
+        self, stores: Path, artifacts: Path, store_id: str, *, release_only: bool = False
+    ) -> str:
+        """Run the entry point; it must refuse with nothing under either root written. Returns its stderr.
+
+        `release_only` narrows that to the release's own files, as the #195
+        refusal promises: it comes after the run has taken its release lock.
+        """
+        roots = (stores / store_id, paths.store_dir(store_id, root=artifacts)) if release_only else (stores, artifacts)
+
+        def files() -> dict[str, tuple[int, bytes]]:
+            found = [p for root in roots for p in root.rglob("*") if p.is_file()]
+            return {str(p): (p.stat().st_mtime_ns, p.read_bytes()) for p in found}
+
+        before = files()
+        res = run_release([store_id], registry_root=stores, artifact_root=artifacts)
+        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        self.assertIn("Nothing was written", res.stderr)
+        self.assertEqual(files(), before, "a refused run wrote under the registry or artifact root")
+        return res.stderr
+
+
+class TestWorkflowCompletingAStoreBuiltBefore304(PublishedReleaseCopies):
+    """A Store built and published before #304 is completed later under its id, with no rebuild (#305).
+
+    Its accepted `observed_only` bundle gains a `complete` block, the one
+    amendment ADR 0037 allows, and an unforced `pixi run release <id>` then
+    runs only the completion phase over the published Observed-Only Store.
+    The Store is built by the workflow of `PRE_304_REVISION` itself, and the
+    current code reads that run's Snakemake metadata, so this holds under
+    Snakemake's default rerun triggers (code, params, input, mtime), not only
+    when every file is untouched. A copy of the release, aged as after a fresh
+    checkout, shows that a run rebuilding its build phase is still refused.
+    """
+
+    BUILD_PHASE_RECORDS = {"build.json", "validate.json", "register.json"}
+    COMPLETION_RECORDS = ["complete", "completion-validate", "completion-register"]
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.template = pre_304_completion_template()
+        cls.STORE_ID: str = cls.template["store_id"]
+        cls.artifacts: Path = cls.template["artifacts"]
+
+    def observed_only_copy(self) -> tuple[Path, Path, str]:
+        """A copy of the Observed-Only release `PRE_304_REVISION` published, its bundle unamended."""
+        stores, artifacts = self.published_copy(self.template["observed_stores"], self.template["observed_artifacts"])
+        return stores, artifacts, self.STORE_ID
+
+    def test_the_observed_only_store_was_built_by_the_old_code(self) -> None:
+        old = self.template["old_result"]
+        self.assertEqual(old.returncode, 0, f"the pre-#304 build failed:\n{old.stdout}\n{old.stderr}")
+        self.assertTrue(
+            self.template["imported"].startswith(str(self.template["old_code"])),
+            f"the old entry point imported {self.template['imported']}",
+        )
+        built = {p.name for p in self.template["build_phase_before"] if p.parent.name == "records"}
+        self.assertEqual(built, self.BUILD_PHASE_RECORDS)
+        # Settlement clears the register job's metadata (`--cleanup-metadata`),
+        # in both revisions, so only the step jobs' is kept.
+        for name in self.BUILD_PHASE_RECORDS - {"register.json"}:
+            record_p = paths.records_dir(self.STORE_ID, root=self.artifacts) / name
+            self.assertTrue(snakemake_metadata(record_p).is_file(), f"no Snakemake metadata kept for {name}")
+
+    def test_the_amended_bundle_schedules_only_the_completion_phase(self) -> None:
+        dry = self.template["dry_result"]
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        records = [t for t in scheduled_targets(dry.stdout) if t != self.STORE_ID]
+        self.assertEqual(records, self.COMPLETION_RECORDS)
+        self.assertNotIn("would refuse", dry.stdout)
+
+    def test_an_unforced_run_completes_the_store_and_rebuilds_nothing(self) -> None:
+        res = self.template["release_result"]
+        self.assertEqual(res.returncode, 0, f"the completion failed:\n{res.stdout}\n{res.stderr}")
+        for p, (mtime, content) in self.template["build_phase_before"].items():
+            self.assertEqual((p.stat().st_mtime_ns, p.read_bytes()), (mtime, content), f"{p} was rewritten")
+        rec_dir = paths.records_dir(self.STORE_ID, root=self.artifacts)
+        for step in self.COMPLETION_RECORDS:
+            self.assertTrue(json.loads((rec_dir / f"{step}.json").read_text(encoding="utf-8"))["success"], step)
+        store_p = paths.store_path(self.STORE_ID, root=self.artifacts)
+        manifest_doc = json.loads((store_p / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest_doc["completion_state"], "reference_completed")
+        archives = list((paths.store_dir(self.STORE_ID, root=self.artifacts) / "replaced").iterdir())
+        self.assertEqual(len(archives), 1, archives)
+        replaced = json.loads((archives[0] / "store.opengwasdb" / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(replaced["completion_state"], "observed_only")
+
+    def test_an_unforced_run_rebuilding_its_build_phase_is_still_refused_unchanged(self) -> None:
+        """Only completion-phase jobs are let through: a fresh checkout reschedules the build phase too (#195)."""
+        stores, artifacts, store_id = self.observed_only_copy()
+        amend_to_complete_own_store(stores, store_id, ld_panel=self.td / "ld-panel")
+        day_ns = 86_400 * 10**9
+        for p in paths.store_dir(store_id, root=artifacts).rglob("*"):
+            if p.is_file():
+                st = p.stat()
+                os.utime(p, ns=(st.st_atime_ns - day_ns, st.st_mtime_ns - day_ns))
+        dry = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts)
+        self.assertIn("build", scheduled_targets(dry.stdout), "the fixture must reschedule the build phase")
+        self.assertIn("complete", scheduled_targets(dry.stdout))
+
+        refusal = self.assert_refused_before_any_write(stores, artifacts, store_id, release_only=True)
+
+        self.assertEqual(
+            refusal,
+            "release: Refusing to run: these releases are already published, and this run would rebuild "
+            f"them, rewriting their work/ and records/:\n  {store_id}: {paths.store_path(store_id, root=artifacts)}\n"
+            "Nothing was written. To replace one, name its id as a target and add `--config force=1`; the "
+            "replaced Store, its records and its validation.yaml are archived under replaced/<UTC>/ beside it "
+            "(#195).\n",
+        )
 
 
 class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):

@@ -84,7 +84,16 @@ from ogstores.bundle import (
     Bundle,
     is_valid_indexed_subset_name,
 )
-from ogstores.plan import COMPLETION_STEP_PREFIX, REGISTER_STEPS, Step, completion_step_name
+from ogstores.bundle import load as load_bundle
+from ogstores.plan import (
+    BUILD_PHASE,
+    COMPLETION_PHASE,
+    COMPLETION_STEP_PREFIX,
+    REGISTER_STEPS,
+    Step,
+    completion_step_name,
+    plan,
+)
 
 STORE_PRODUCING_STEPS: frozenset[str] = frozenset({"build", "complete"})
 VARIANT_REFERENCE_STEP: str = "variant-reference"
@@ -898,9 +907,63 @@ def refuse_pending_force_snapshots(scheduled: Iterable[tuple[Path | str, str]]) 
     )
 
 
+# The workflow's rules that write a phase's register record (ADR 0037).
+_REGISTER_RULES: dict[str, str] = {"register": BUILD_PHASE, "completion_register": COMPLETION_PHASE}
+
+
+def job_record(rule: str, step: str | None) -> str | None:
+    """The record a workflow job writes: its step's, its phase's register's, or None.
+
+    `build_manifest` writes no record. The preflight tells a completion-phase
+    job from a build-phase one by this name (#305).
+    """
+    if step is not None:
+        return step
+    phase = _REGISTER_RULES.get(rule)
+    return REGISTER_STEPS[phase] if phase is not None else None
+
+
+def completing_own_stores(
+    jobs: Iterable[tuple[Path | str, str, str | None]],
+    *,
+    registry_root: Path | str,
+) -> frozenset[str]:
+    """The releases whose every scheduled job completes their own published Observed-Only Store (#305).
+
+    `jobs` is the (artifact root, store_id, record) of every job the run is
+    about to execute, `record` as `job_record` names it. Completing that Store
+    is a release's next step, not a rebuild of it (ADR 0037). Whether it is
+    published and not yet completed is read from records, never from the Store
+    (ADR 0023): the build phase's `records/register.json` exists and the
+    completion phase's does not. Which records belong to the completion phase
+    is the plan's to say, so a two-id child's `complete` stays a build of its
+    Store.
+    """
+    scheduled: dict[tuple[Path, str], set[str | None]] = {}
+    for root, store_id, record in jobs:
+        if paths.is_valid_store_id(store_id):
+            scheduled.setdefault((Path(root), store_id), set()).add(record)
+    completing: set[str] = set()
+    for (root, store_id), records in scheduled.items():
+        registers = {
+            phase: paths.record_path(store_id, name, root=root) for phase, name in REGISTER_STEPS.items()
+        }
+        if not registers[BUILD_PHASE].is_file() or _lstat_exists(registers[COMPLETION_PHASE]):
+            continue
+        loaded = load_bundle(store_id, registry_root=registry_root)
+        if not loaded.completes_own_store:
+            continue
+        completion = {step.name for step in plan(loaded, artifact_root=root) if step.phase == COMPLETION_PHASE}
+        completion.add(REGISTER_STEPS[COMPLETION_PHASE])
+        if records <= completion:
+            completing.add(store_id)
+    return frozenset(completing)
+
+
 def refuse_rebuilding_published_releases(
     scheduled: Iterable[tuple[Path | str, str]],
     forced: Iterable[str] = frozenset(),
+    completing: Iterable[str] = frozenset(),
 ) -> None:
     """Refuse a workflow run that would execute a job for a published release (#195).
 
@@ -910,14 +973,16 @@ def refuse_rebuilding_published_releases(
     inside the job would already have cost the release its records. An
     up-to-date release schedules no job, so it never reaches this check.
 
-    A release in `forced` (`forced_releases`) is let through to be replaced;
-    every other published release is refused.
+    A release in `forced` (`forced_releases`) is let through to be replaced,
+    and so is one in `completing` (`completing_own_stores`), whose jobs only
+    complete the Observed-Only Store it published (#305). Every other
+    published release is refused.
     """
-    forced_ids = frozenset(forced)
+    passed = frozenset(forced) | frozenset(completing)
     published = [
         (store_id, str(paths.store_path(store_id, root=root)))
         for root, store_id in _scheduled_releases(scheduled)
-        if store_id not in forced_ids and _lstat_exists(paths.store_path(store_id, root=root))
+        if store_id not in passed and _lstat_exists(paths.store_path(store_id, root=root))
     ]
     if published:
         listed = "\n".join(f"  {store_id}: {store_p}" for store_id, store_p in published)
@@ -935,13 +1000,15 @@ def prepare_release_run(
     *,
     forced: Iterable[str] = frozenset(),
     stamp: str | None = None,
+    completing: Iterable[str] = frozenset(),
 ) -> list[Path]:
     """The entry point's preflight: refuse, then snapshot what a forced run may replace (#195).
 
     The entry point (`ogstores.release`) calls this after it has completed any
     pending publication and before Snakemake starts. It refuses a scheduled
     release that still has a pending publication or a leftover snapshot, and
-    an unforced published release, so a refused run takes no snapshot. It also
+    an unforced published release unless it is `completing` its own
+    Observed-Only Store (#305), so a refused run takes no snapshot. It also
     removes the hidden partial copy an interrupted snapshot can leave. Then, for
     each forced release whose Store is published, it copies `records/` to
     `records.before-force-<stamp>/`, keeping mtimes so a restored record is the
@@ -960,7 +1027,7 @@ def prepare_release_run(
             "Refusing to run: these publications have not finished: " + ", ".join(pending)
         )
     refuse_pending_force_snapshots(releases)
-    refuse_rebuilding_published_releases(releases, forced=forced_ids)
+    refuse_rebuilding_published_releases(releases, forced=forced_ids, completing=completing)
     for root, store_id in releases:
         store_dir_p = paths.store_dir(store_id, root=root)
         if store_dir_p.is_dir():
@@ -1654,6 +1721,7 @@ __all__ = [
     "VALID_STEP_NAMES",
     "VARIANT_REFERENCE_STEP",
     "archive_force_snapshot",
+    "completing_own_stores",
     "execute_step",
     "fault_boundary",
     "force_requested",
@@ -1664,6 +1732,7 @@ __all__ = [
     "get_opengwasdb_version",
     "is_exact_commit_hash",
     "is_store_producing_step",
+    "job_record",
     "load_record",
     "pending_force_snapshots",
     "prepare_release_run",
