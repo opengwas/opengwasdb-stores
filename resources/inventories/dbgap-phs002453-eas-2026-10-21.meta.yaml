@@ -1,0 +1,48 @@
+snapshot_id: dbgap-phs002453-eas-2026-10-21
+source_collection_id: dbgap-phs002453
+frozen_at: '2026-10-21T09:38:34Z'
+frozen_by: manifest_generation.freeze
+selection:
+  where:
+    store_key: dense__pmid-39024449__East-Asian
+  expect_rows: 241
+rows: 241
+readiness_counts:
+  ok: 241
+ready_rows: 241
+ready_bytes: 63479001396
+study_design_counts:
+  case-control: 148
+  quantitative: 93
+ready_study_design_counts:
+  case-control: 148
+  quantitative: 93
+duplicate_content_groups: []
+inventory_tsv_sha256: 6eb8c2913c09418839ede44d75541783872f64512a768df7ed78737f91fc4e39
+source_metadata_table:
+  frozen:
+    path: dbgap-phs002453-eas-2026-10-21.source-metadata.tsv
+    sha256: ea1cd7cafb0a5b327dd4d09f89b5d356ecf4ffa83d810cf6208e9ea038dc0dd4
+    bytes: 34894
+    rows: 241
+  original:
+    path: resources/generators/dbgap-mvp/connectors/source-metadata-table.tsv
+    sha256: d6ef94233396a1615102afa7397fa3556c3317019e2090df4d2c63901d92e7cb
+    bytes: 883045
+    rows: 6022
+acquisition_manifest:
+  frozen:
+    path: dbgap-phs002453-eas-2026-10-21.acquisition-manifest.tsv
+    sha256: 4ab5b25e713605aa6b16b1f96652f1e086cd6d66f1be412123aae7772931d51c
+    bytes: 133948
+    rows: 241
+  original:
+    path: resources/generators/dbgap-mvp/connectors/acquisition-manifest.tsv
+    sha256: e24a1a7549a55dd20d20e33f693d97a5e5f822b51ec430b5bd4f2a9f48e0e348
+    bytes: 3366477
+    rows: 6022
+    readiness_counts:
+      ok: 6022
+    pass_lineage: null
+  unselected_entries: 5781
+lineage: []

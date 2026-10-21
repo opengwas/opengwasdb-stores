@@ -1,0 +1,246 @@
+snapshot_id: gwas-catalog-ssf-sun-2018-pilot-10-2026-10-21c
+source_collection_id: gwas-catalog-ssf
+frozen_at: '2026-10-21T09:24:47Z'
+frozen_by: manifest_generation.freeze
+selection:
+  analyses:
+  - GCST005806
+  - GCST90240120
+  - GCST90240121
+  - GCST90240122
+  - GCST90240123
+  - GCST90240124
+  - GCST90240125
+  - GCST90240126
+  - GCST90240127
+  - GCST90240128
+rows: 10
+readiness_counts:
+  ok: 10
+ready_rows: 10
+ready_bytes: 8982947
+study_design_counts:
+  quantitative: 10
+ready_study_design_counts:
+  quantitative: 10
+duplicate_content_groups: []
+inventory_tsv_sha256: eb9039180260d6408eb70349fb51cb182b2029169f584ed0fcc1ad66ed0c7911
+source_metadata_table:
+  frozen:
+    path: gwas-catalog-ssf-sun-2018-pilot-10-2026-10-21c.source-metadata.tsv
+    sha256: 3fb96f2f1e01e2cd1fe8f69fad6d6b6d76189426c6622bbbe27f856b471f52e6
+    bytes: 3776
+    rows: 10
+  original:
+    path: resources/generators/gwas-catalog-ragged/connectors/sun-2018.source-metadata.tsv
+    sha256: 1f7753c5ffbc51e7f028269eb4dc8aec03436588e9511c139724375959a2f4de
+    bytes: 1034949
+    rows: 3283
+acquisition_manifest:
+  frozen:
+    path: gwas-catalog-ssf-sun-2018-pilot-10-2026-10-21c.acquisition-manifest.tsv
+    sha256: 5445a358c7cbde5cf15a270785885ae187c7f3eb99ee7bc96b0f321226ff5f3b
+    bytes: 9737
+    rows: 10
+  original:
+    path: resources/generators/gwas-catalog-ragged/connectors/sun-2018-pilot-10.acquisition-manifest.tsv
+    sha256: 5445a358c7cbde5cf15a270785885ae187c7f3eb99ee7bc96b0f321226ff5f3b
+    bytes: 9737
+    rows: 10
+    readiness_counts:
+      ok: 10
+    pass_lineage:
+      path: resources/generators/gwas-catalog-ragged/connectors/sun-2018-pilot-10.acquisition-manifest.meta.yaml
+      sha256: fb2799318ec336c14980be656a2934c2ac6bd2502887c38200f9a89e9f11b9a6
+  unselected_entries: 0
+lineage:
+- analysis_id: GCST005806
+  original_location: /data/opengwasdb/raw/ebi-sun-pqtl-10/GCST005806.h.tsv.gz
+  original_sha256: 6d2b1fe10cdebb9622a56033c171844ff3810112f82fad24eedb9149bf205d34
+  reformat_tool: manifest_generation.region_filter sha256:4c323a5eda49fa295a1a2d40a4f058ed3b734fcc925c75c9dae3aa1a085f3b10
+  region_policy:
+    association_coverage: cis_plus_signals
+    cis_flank_bp: 1000000
+    qc_panel:
+      resource_id: qc-panel-hg38
+      sha256: 0bfe49c9f8083b7f8a3c9bb79b40b7540e8eb47f3e5e9524dbd0d591dc5bca88
+    region_policy_id: cis-1mb_sig-trans-1mb_suggestive-leads
+    significant_p: 5.0e-08
+    suggestive_lead_min_distance_bp: 100000
+    suggestive_p: 1.0e-05
+    target:
+      chromosome: '2'
+      end: 172628598
+      start: 172555373
+    trans_flank_bp: 1000000
+- analysis_id: GCST90240120
+  original_location: /data/opengwasdb/raw/ebi-sun-pqtl-10/GCST90240120.h.tsv.gz
+  original_sha256: 4c3ea50ead990029e720512233917a02344531a51cc3bf66ad00df377140205a
+  reformat_tool: manifest_generation.region_filter sha256:4c323a5eda49fa295a1a2d40a4f058ed3b734fcc925c75c9dae3aa1a085f3b10
+  region_policy:
+    association_coverage: cis_plus_signals
+    cis_flank_bp: 1000000
+    qc_panel:
+      resource_id: qc-panel-hg38
+      sha256: 0bfe49c9f8083b7f8a3c9bb79b40b7540e8eb47f3e5e9524dbd0d591dc5bca88
+    region_policy_id: cis-1mb_sig-trans-1mb_suggestive-leads
+    significant_p: 5.0e-08
+    suggestive_lead_min_distance_bp: 100000
+    suggestive_p: 1.0e-05
+    target:
+      chromosome: '17'
+      end: 50120276
+      start: 50094737
+    trans_flank_bp: 1000000
+- analysis_id: GCST90240121
+  original_location: /data/opengwasdb/raw/ebi-sun-pqtl-10/GCST90240121.h.tsv.gz
+  original_sha256: 1de59c05765ca346c6048e40939751541c63adc4708ad970801461a20e63b9ab
+  reformat_tool: manifest_generation.region_filter sha256:4c323a5eda49fa295a1a2d40a4f058ed3b734fcc925c75c9dae3aa1a085f3b10
+  region_policy:
+    association_coverage: cis_plus_signals
+    cis_flank_bp: 1000000
+    qc_panel:
+      resource_id: qc-panel-hg38
+      sha256: 0bfe49c9f8083b7f8a3c9bb79b40b7540e8eb47f3e5e9524dbd0d591dc5bca88
+    region_policy_id: cis-1mb_sig-trans-1mb_suggestive-leads
+    significant_p: 5.0e-08
+    suggestive_lead_min_distance_bp: 100000
+    suggestive_p: 1.0e-05
+    target:
+      chromosome: '20'
+      end: 41196801
+      start: 41136931
+    trans_flank_bp: 1000000
+- analysis_id: GCST90240122
+  original_location: /data/opengwasdb/raw/ebi-sun-pqtl-10/GCST90240122.h.tsv.gz
+  original_sha256: bcb27978518269111cb6cd4e82315f6e1a4b4353c11bac44d56badf535519b2b
+  reformat_tool: manifest_generation.region_filter sha256:4c323a5eda49fa295a1a2d40a4f058ed3b734fcc925c75c9dae3aa1a085f3b10
+  region_policy:
+    association_coverage: cis_plus_signals
+    cis_flank_bp: 1000000
+    qc_panel:
+      resource_id: qc-panel-hg38
+      sha256: 0bfe49c9f8083b7f8a3c9bb79b40b7540e8eb47f3e5e9524dbd0d591dc5bca88
+    region_policy_id: cis-1mb_sig-trans-1mb_suggestive-leads
+    significant_p: 5.0e-08
+    suggestive_lead_min_distance_bp: 100000
+    suggestive_p: 1.0e-05
+    target:
+      chromosome: '17'
+      end: 1400326
+      start: 1344275
+    trans_flank_bp: 1000000
+- analysis_id: GCST90240123
+  original_location: /data/opengwasdb/raw/ebi-sun-pqtl-10/GCST90240123.h.tsv.gz
+  original_sha256: 9f36bfa400abde2670f3fa8ff5ffedfffa3e8cb7838a5cd133f4d17fd1aa4451
+  reformat_tool: manifest_generation.region_filter sha256:4c323a5eda49fa295a1a2d40a4f058ed3b734fcc925c75c9dae3aa1a085f3b10
+  region_policy:
+    association_coverage: cis_plus_signals
+    cis_flank_bp: 1000000
+    qc_panel:
+      resource_id: qc-panel-hg38
+      sha256: 0bfe49c9f8083b7f8a3c9bb79b40b7540e8eb47f3e5e9524dbd0d591dc5bca88
+    region_policy_id: cis-1mb_sig-trans-1mb_suggestive-leads
+    significant_p: 5.0e-08
+    suggestive_lead_min_distance_bp: 100000
+    suggestive_p: 1.0e-05
+    target:
+      chromosome: '22'
+      end: 31957603
+      start: 31944465
+    trans_flank_bp: 1000000
+- analysis_id: GCST90240124
+  original_location: /data/opengwasdb/raw/ebi-sun-pqtl-10/GCST90240124.h.tsv.gz
+  original_sha256: 094265928affefd8c8f6ed97265d4d19162bb63fb38dc9095de38c1730803963
+  reformat_tool: manifest_generation.region_filter sha256:4c323a5eda49fa295a1a2d40a4f058ed3b734fcc925c75c9dae3aa1a085f3b10
+  region_policy:
+    association_coverage: cis_plus_signals
+    cis_flank_bp: 1000000
+    qc_panel:
+      resource_id: qc-panel-hg38
+      sha256: 0bfe49c9f8083b7f8a3c9bb79b40b7540e8eb47f3e5e9524dbd0d591dc5bca88
+    region_policy_id: cis-1mb_sig-trans-1mb_suggestive-leads
+    significant_p: 5.0e-08
+    suggestive_lead_min_distance_bp: 100000
+    suggestive_p: 1.0e-05
+    target:
+      chromosome: '1'
+      end: 26864456
+      start: 26863149
+    trans_flank_bp: 1000000
+- analysis_id: GCST90240125
+  original_location: /data/opengwasdb/raw/ebi-sun-pqtl-10/GCST90240125.h.tsv.gz
+  original_sha256: 3fd85cad0dddd506d087315643f07ba4ecc6e031ac9277522834a6fe901f9440
+  reformat_tool: manifest_generation.region_filter sha256:4c323a5eda49fa295a1a2d40a4f058ed3b734fcc925c75c9dae3aa1a085f3b10
+  region_policy:
+    association_coverage: cis_plus_signals
+    cis_flank_bp: 1000000
+    qc_panel:
+      resource_id: qc-panel-hg38
+      sha256: 0bfe49c9f8083b7f8a3c9bb79b40b7540e8eb47f3e5e9524dbd0d591dc5bca88
+    region_policy_id: cis-1mb_sig-trans-1mb_suggestive-leads
+    significant_p: 5.0e-08
+    suggestive_lead_min_distance_bp: 100000
+    suggestive_p: 1.0e-05
+    target:
+      chromosome: '2'
+      end: 9639472
+      start: 9583334
+    trans_flank_bp: 1000000
+- analysis_id: GCST90240126
+  original_location: /data/opengwasdb/raw/ebi-sun-pqtl-10/GCST90240126.h.tsv.gz
+  original_sha256: 66d9211c45bc7aac991ea163eb94d634524a13ba1c464a34a7ad05c73e0ee321
+  reformat_tool: manifest_generation.region_filter sha256:4c323a5eda49fa295a1a2d40a4f058ed3b734fcc925c75c9dae3aa1a085f3b10
+  region_policy:
+    association_coverage: cis_plus_signals
+    cis_flank_bp: 1000000
+    qc_panel:
+      resource_id: qc-panel-hg38
+      sha256: 0bfe49c9f8083b7f8a3c9bb79b40b7540e8eb47f3e5e9524dbd0d591dc5bca88
+    region_policy_id: cis-1mb_sig-trans-1mb_suggestive-leads
+    significant_p: 5.0e-08
+    suggestive_lead_min_distance_bp: 100000
+    suggestive_p: 1.0e-05
+    target:
+      chromosome: '8'
+      end: 100953397
+      start: 100914526
+    trans_flank_bp: 1000000
+- analysis_id: GCST90240127
+  original_location: /data/opengwasdb/raw/ebi-sun-pqtl-10/GCST90240127.h.tsv.gz
+  original_sha256: ebebf31cfa784a8d410eb88b0ffd437128ef99e6e31c2768c058c57b98b2dd91
+  reformat_tool: manifest_generation.region_filter sha256:4c323a5eda49fa295a1a2d40a4f058ed3b734fcc925c75c9dae3aa1a085f3b10
+  region_policy:
+    association_coverage: cis_plus_signals
+    cis_flank_bp: 1000000
+    qc_panel:
+      resource_id: qc-panel-hg38
+      sha256: 0bfe49c9f8083b7f8a3c9bb79b40b7540e8eb47f3e5e9524dbd0d591dc5bca88
+    region_policy_id: cis-1mb_sig-trans-1mb_suggestive-leads
+    significant_p: 5.0e-08
+    suggestive_lead_min_distance_bp: 100000
+    suggestive_p: 1.0e-05
+    target:
+      chromosome: '4'
+      end: 174523154
+      start: 174453668
+    trans_flank_bp: 1000000
+- analysis_id: GCST90240128
+  original_location: /data/opengwasdb/raw/ebi-sun-pqtl-10/GCST90240128.h.tsv.gz
+  original_sha256: 4474a9b3d95080e21852aa5b06085394e0aca77c7748ce64babcc772d6bbbfe2
+  reformat_tool: manifest_generation.region_filter sha256:4c323a5eda49fa295a1a2d40a4f058ed3b734fcc925c75c9dae3aa1a085f3b10
+  region_policy:
+    association_coverage: cis_plus_signals
+    cis_flank_bp: 1000000
+    qc_panel:
+      resource_id: qc-panel-hg38
+      sha256: 0bfe49c9f8083b7f8a3c9bb79b40b7540e8eb47f3e5e9524dbd0d591dc5bca88
+    region_policy_id: cis-1mb_sig-trans-1mb_suggestive-leads
+    significant_p: 5.0e-08
+    suggestive_lead_min_distance_bp: 100000
+    suggestive_p: 1.0e-05
+    target:
+      chromosome: '19'
+      end: 48837064
+      start: 48813014
+    trans_flank_bp: 1000000

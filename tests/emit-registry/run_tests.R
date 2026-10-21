@@ -61,7 +61,7 @@ write_yaml(list(status = "passed", validated_at = NULL, checks = list(schema = "
 # The working bundle's own command log, as a legacy writer records it.
 write_yaml(list(generator = list(command = "Rscript fixture/generate.R --mode=emit")),
            file.path(work_root, "release.yaml"))
-script <- "resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R"
+script <- "resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/generate.R"
 cfg$.config_path <- "fixture/config.yaml"
 emit_registry(cfg, root, script, also_ran = "python fixture/acquire.py")
 commands <- c("Rscript fixture/generate.R --mode=emit", "python fixture/acquire.py",
@@ -108,10 +108,6 @@ check(!is.null(missing) && grepl("output.store_id", missing), "a missing output.
 # Each legacy generator's --mode=emit-registry emits its working bundle through
 # the shared helper (#248). Their own suites cover how the bundle is made.
 generators <- list(
-  `gwas-ssf-hybrid` = list(id = "OGS-99012", layout = "hybrid", command = "build-hybrid",
-                           options = list(`source-reader-capability` = "opengwasdb.gwas-ssf", `source-assembly` = "hg38")),
-  `gwas-ssf-ragged` = list(id = "OGS-99013", layout = "ragged", command = "build-ragged-ssf",
-                           options = list(`stored-effect-scale` = "sd")),
   `opengwas-gwas-vcf-dense` = list(id = "OGS-99014", layout = "dense", command = "build-dense-vcf",
                                    options = list(`source-reader-capability` = "opengwasdb.gwas-vcf"))
 )

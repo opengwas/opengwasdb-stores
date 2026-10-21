@@ -1,6 +1,6 @@
 # Resolver for one row of FinnGen's public summary-statistics manifest.
 suppressPackageStartupMessages(library(data.table))
-source("resources/generators/lib/metadata_resolvers/contract.R")
+source("src/manifest_generation/providers/gwas_catalog/contract.R")
 
 resolve_finngen_manifest_metadata <- function(record) {
   if (is.null(record) || !length(record)) {

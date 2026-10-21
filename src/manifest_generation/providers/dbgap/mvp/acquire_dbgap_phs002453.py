@@ -40,10 +40,12 @@ Subcommands, in order:
     rather than guessing.
 
 ``manifest``
-    Write one acquisition manifest per candidate-table ``store_key`` with EBI's
-    raw-pass manifest columns, ``status=ok`` and the data file's sha256 for
-    converted files.  The manifests are consumed by
-    ``manifest_generation.source_inventory``.
+    Write the Source Collection's one shared Acquisition Manifest (#290): one
+    row per mapped Analysis with its location, size, sha256 and optional
+    metadata sidecar, or a non-ready status and the reason there is no file.
+    The acquisition's own per-store download manifests may supply the recorded
+    sha256 (``--recorded-manifests``), so a metadata-only reproduction does not
+    re-read the corpus.
 
 Usage (see ``README.md`` next to this module)::
 
@@ -54,27 +56,46 @@ from __future__ import annotations
 import argparse
 import collections
 import csv
-import hashlib
+import json
 import os
 import re
 import subprocess
 import sys
-import tarfile
 import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TextIO
+from typing import Mapping, TextIO
 
 import yaml
 
 from manifest_generation import REPO_ROOT
+from manifest_generation.acquisition_manifest import (
+    ACQUISITION_MANIFEST,
+    load_acquisition_manifest,
+)
+from manifest_generation.connector_tsv import write_connector
+from manifest_generation.source_inventory import READY_STATUSES
+from manifest_generation.providers.dbgap.metadata import (
+    DbgapError as AcquisitionError,
+    TarResult,
+    extract_member,
+    extract_tar,
+    load_toc,
+    md5_file,
+    metadata_path_for,
+    parse_metadata,
+    parse_sample_size,
+    parse_tar_listing,
+    sha256_file,
+    tar_md5,
+)
 
 DEFAULT_OUT = "/data/opengwasdb/raw/dbgap-phs002453"
 DEFAULT_CANDIDATES = "resources/data/derived/store-candidates-analyses.tsv"
-DEFAULT_DISCREPANCIES = str(REPO_ROOT / "resources/scripts/dbgap-phs002453-key-discrepancies.yaml")
+DEFAULT_DISCREPANCIES = str(REPO_ROOT / "resources/generators/dbgap-mvp/dbgap-phs002453-key-discrepancies.yaml")
 PUBMED_ID = "39024449"
 
 #: Dispositions a key-discrepancy ledger record may carry.  Anything else is an
@@ -98,11 +119,9 @@ CANDIDATE_ANCESTRY = {
 #: identified by ``ancestry_fraction < 1`` and only *labelled* Multi-ancestry.
 META_ANCESTRY_LABEL = "Multi-ancestry"
 
-#: Manifest columns: exactly the ones ``download_ebi_gwas_catalog_raw.py``
-#: writes, because the frozen Source Inventory reads the same schema.  The
-#: first fourteen are ``source_inventory.ACQUISITION_MANIFEST_COLUMNS``'s
-#: required set (``seconds`` is dropped there deliberately: per-run timing is
-#: not a release fact).
+#: The per-store download-manifest columns the ``refresh`` command still merges.
+#: The shared Acquisition Manifest is ``acquisition_manifest.COLUMNS``; these
+#: are the acquisition's own record of what it converted, not the connector.
 MANIFEST_COLUMNS: tuple[str, ...] = (
     "analysis_id", "publication_pmid", "trait", "study_design", "sample_size",
     "harmonised_status", "status", "data_url", "yaml_url", "data_file", "yaml_file",
@@ -279,29 +298,9 @@ FNR == 1 {
 """
 
 
-class AcquisitionError(RuntimeError):
-    """An acquisition input or output is not usable as declared."""
-
-
 # ---------------------------------------------------------------------------
-# Shared helpers
+# Source Collection helpers
 # ---------------------------------------------------------------------------
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(4 * 1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def md5_file(path: Path) -> str:
-    digest = hashlib.md5()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(4 * 1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def bucket_of(accession: str) -> str:
@@ -359,80 +358,6 @@ def write_tsv_guarded(
 def read_tsv(path: Path) -> list[dict[str, str]]:
     with path.open(newline="", encoding="utf-8") as handle:
         return list(csv.DictReader(handle, delimiter="\t"))
-
-
-def parse_tar_listing(path: Path) -> dict[str, tuple[str, int]]:
-    """``member path -> (tar name, size)`` from one ``tar -tv`` table of contents.
-
-    A TOC line is ``<mode> <owner> <size> <date> <time> <member>``; directories
-    are listed too and are skipped.  The TOC is named ``<tar>.table_of_contents.txt``
-    (keeping the tar's own ``phs002453.`` prefix), so the tar name is the file
-    name with that suffix removed.
-    """
-    tar_name = path.name[: -len(".table_of_contents.txt")]
-    members: dict[str, tuple[str, int]] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        parts = line.split()
-        if len(parts) < 6 or not parts[-1]:
-            continue
-        member = parts[-1]
-        if member.endswith("/"):
-            continue
-        if member.startswith("/") or ".." in Path(member).parts:
-            raise AcquisitionError(f"{path.name}: unsafe member path {member!r}")
-        members[member] = (tar_name, int(parts[2]))
-    return members
-
-
-def load_toc(out: Path) -> dict[str, tuple[str, int]]:
-    meta_dir = out / "GIA" / "meta"
-    members: dict[str, tuple[str, int]] = {}
-    for toc in sorted(meta_dir.glob("*.table_of_contents.txt")):
-        for member, entry in parse_tar_listing(toc).items():
-            if member in members:
-                raise AcquisitionError(f"{member} is listed in more than one table of contents")
-            members[member] = entry
-    return members
-
-
-def tar_md5(tars_dir: Path, tar_name: str) -> str:
-    """The verified MD5 of a tar, as recorded by the fetch script."""
-    for suffix in (".verified", ".md5"):
-        path = tars_dir / f"{tar_name}{suffix}"
-        if path.is_file():
-            text = path.read_text(encoding="utf-8").strip()
-            if text:
-                return text.split()[0]
-    return ""
-
-
-def parse_metadata(path: Path) -> dict[str, str]:
-    """Read one ``*.dbGaP.metadata.txt`` two-column TSV into an Info->Description map."""
-    with path.open(newline="", encoding="utf-8") as handle:
-        reader = csv.reader(handle, delimiter="\t")
-        header = next(reader, None)
-        if header is None or [cell.strip() for cell in header[:2]] != ["Info", "Description"]:
-            raise AcquisitionError(f"{path}: not an Info/Description metadata table")
-        info: dict[str, str] = {}
-        for row in reader:
-            if not row or not row[0].strip():
-                continue
-            info[row[0].strip()] = row[1].strip() if len(row) > 1 else ""
-    return info
-
-
-def parse_sample_size(text: str, path: Path) -> tuple[int, int, int]:
-    """``(N, cases, controls)`` from ``Total Sample Size=N[; Cases=a; Controls=b]``."""
-    total = re.search(r"Total Sample Size\s*=\s*(\d+)", text)
-    if total is None:
-        raise AcquisitionError(f"{path}: cannot parse sample size from {text!r}")
-    cases = re.search(r"Cases\s*=\s*(\d+)", text)
-    controls = re.search(r"Controls\s*=\s*(\d+)", text)
-    return (
-        int(total.group(1)),
-        int(cases.group(1)) if cases else 0,
-        int(controls.group(1)) if controls else 0,
-    )
 
 
 def normalise_trait(text: str) -> str:
@@ -719,83 +644,6 @@ def read_discrepancies(path: Path) -> list[KeyDiscrepancy]:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class TarResult:
-    tar: str
-    extracted: int = 0
-    skipped: int = 0
-    missing: list[str] = field(default_factory=list)
-    unexpected: list[str] = field(default_factory=list)
-
-
-def extract_member(tar: tarfile.TarFile, member: tarfile.TarInfo, target: Path, size: int) -> None:
-    """Write one tar member atomically, verifying the byte count as it streams."""
-    target.parent.mkdir(parents=True, exist_ok=True)
-    partial = target.with_name(target.name + ".partial")
-    handle = tar.extractfile(member)
-    if handle is None:
-        raise AcquisitionError(f"{member.name}: not a regular file in the tar")
-    written = 0
-    try:
-        with partial.open("wb") as out:
-            while True:
-                chunk = handle.read(1024 * 1024)
-                if not chunk:
-                    break
-                written += len(chunk)
-                out.write(chunk)
-    except BaseException:
-        partial.unlink(missing_ok=True)
-        raise
-    finally:
-        handle.close()
-    if written != size:
-        partial.unlink(missing_ok=True)
-        raise AcquisitionError(f"{member.name}: wrote {written} bytes, table of contents says {size}")
-    os.replace(partial, target)
-
-
-def extract_tar(tar_path: Path, out: Path, tocs: dict[str, tuple[str, int]]) -> TarResult:
-    """Stream one tar once and extract its members.
-
-    ``tarfile``'s streaming mode cannot seek, which is the point: a member is
-    only reachable by reading everything before it, so the whole tar is read in
-    one pass rather than once per member.
-    """
-    result = TarResult(tar=tar_path.name)
-    expected = {member: entry for member, entry in tocs.items() if entry[0] == tar_path.name}
-    if not expected:
-        return result
-    pending = {
-        member: size for member, (_, size) in expected.items()
-        if not (out / "GIA" / "extracted" / member).is_file()
-        or (out / "GIA" / "extracted" / member).stat().st_size != size
-    }
-    if not pending:
-        result.skipped = len(expected)
-        return result
-
-    seen: set[str] = set()
-    with tarfile.open(tar_path, mode="r|") as tar:
-        for member in tar:
-            if not member.isfile():
-                continue
-            name = member.name
-            if name not in expected:
-                result.unexpected.append(name)
-                continue
-            seen.add(name)
-            size = expected[name][1]
-            target = out / "GIA" / "extracted" / name
-            if name not in pending and target.is_file() and target.stat().st_size == size:
-                result.skipped += 1
-                continue
-            extract_member(tar, member, target, size)
-            result.extracted += 1
-    result.missing = sorted(set(expected) - seen)
-    return result
-
-
 def command_extract(args: argparse.Namespace) -> int:
     out = Path(args.out)
     tars_dir = out / "GIA" / "tars"
@@ -914,6 +762,9 @@ def load_analysis(
     if trait_type not in ("binary trait", "quantitative trait"):
         raise AcquisitionError(f"{path}: unrecognised phenotypic trait type {info[METADATA_TRAIT_TYPE]!r}")
     sample_size, n_cases, n_controls = parse_sample_size(info[METADATA_SAMPLE_SIZE], path)
+    # The mapping writes the candidate table's convention: 0 stands for "the
+    # study has no such count" (a quantitative study). The adapter and this
+    # manifest generator read a 0 there as absence, never as a count (#290).
     return Analysis(
         member=member,
         stem=stem,
@@ -924,8 +775,8 @@ def load_analysis(
         description=info.get(METADATA_DESCRIPTION, ""),
         trait_type="binary" if trait_type == "binary trait" else "quantitative",
         sample_size=sample_size,
-        n_cases=n_cases,
-        n_controls=n_controls,
+        n_cases=n_cases or 0,
+        n_controls=n_controls or 0,
     )
 
 
@@ -1341,12 +1192,9 @@ def render_metadata_yaml(
 
 def metadata_description(out: Path, member: str) -> str:
     extracted = out / "GIA" / "extracted"
-    metadata = extracted / member.replace(".txt.gz", ".metadata.txt")
-    if not metadata.is_file():
-        found = sorted(extracted.glob("*/" + Path(metadata).name))
-        if len(found) != 1:
-            return ""
-        metadata = found[0]
+    metadata = metadata_path_for(extracted, member)
+    if metadata is None:
+        return ""
     return parse_metadata(metadata).get(METADATA_DESCRIPTION, "")
 
 
@@ -1370,6 +1218,7 @@ def command_convert(args: argparse.Namespace) -> int:
 
     started = time.monotonic()
     counts: dict[str, int] = {}
+    statuses: dict[str, str] = {}
     failures = 0
     with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
         futures = {
@@ -1383,6 +1232,7 @@ def command_convert(args: argparse.Namespace) -> int:
             except Exception as exc:  # noqa: BLE001 - keep a long batch alive
                 status, error, seconds = "error", repr(exc), 0.0
             counts[status] = counts.get(status, 0) + 1
+            statuses[row["analysis_id"]] = status
             if status == "error":
                 failures += 1
             print(
@@ -1390,6 +1240,13 @@ def command_convert(args: argparse.Namespace) -> int:
                 flush=True,
             )
     elapsed = time.monotonic() - started
+    # The files this run's code wrote, recorded at conversion time (#290 review).
+    converted = [
+        analysis_id for analysis_id, status in statuses.items() if status == "converted"
+    ]
+    receipt = write_convert_receipt(out, converted)
+    if receipt is not None:
+        print(f"convert: version receipt {receipt}")
     print("convert: " + ", ".join(f"{key}={value}" for key, value in sorted(counts.items())))
     print(f"convert: {elapsed:.1f}s wall for {len(rows)} Analysis(es)")
     return 1 if failures else 0
@@ -1400,97 +1257,365 @@ def command_convert(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
-def manifest_row(
-    candidate: Candidate, mapping: dict[str, str] | None, data_digest: str, path: Path, yaml_path: Path
+#: The module a converted dbGaP file is rewritten by, as lineage records it.
+REFORMAT_TOOL_MODULE = "manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453"
+
+
+#: Where ``convert`` keeps the receipts that say which code wrote each file.
+CONVERT_RECEIPTS_DIRNAME = Path("GIA") / "convert-receipts"
+
+#: The version a file's converter carries when no run recorded one.
+UNRECORDED_VERSION = (
+    "sha256:unrecorded (no conversion-time code identity recorded; searched the conversion "
+    "runs and the metadata-refresh run records; see #290)"
+)
+
+
+def module_sha256() -> str:
+    """This module's own digest: the converter's version when nothing better is recorded."""
+    return sha256_file(Path(__file__).resolve())
+
+
+def code_sha() -> str:
+    """The repository commit executing this code, or ``""`` when it cannot be read."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"],
+            capture_output=True, text=True, check=False,
+        )
+    except OSError:  # pragma: no cover - a host without git
+        return ""
+    commit = result.stdout.strip()
+    return commit if result.returncode == 0 and re.fullmatch(r"[0-9a-f]{40}", commit) else ""
+
+
+def reformat_tool() -> str:
+    """The rewrite tool and its version: this module's name and its own sha256 (#290 review)."""
+    return f"{REFORMAT_TOOL_MODULE} sha256:{module_sha256()}"
+
+
+def write_convert_receipt(out: Path, analysis_ids: Sequence[str]) -> Path | None:
+    """Record which code converted which files in this run (#290 review).
+
+    The version is the module's digest and the commit executing it, written at
+    conversion time: a later ``manifest`` run reads it instead of stamping its
+    own version onto files it did not write.
+    """
+    if not analysis_ids:
+        return None
+    directory = out / CONVERT_RECEIPTS_DIRNAME
+    directory.mkdir(parents=True, exist_ok=True)
+    recorded_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    path = directory / f"{recorded_at.replace(':', '')}-{os.getpid()}.json"
+    document = {
+        "tool": REFORMAT_TOOL_MODULE,
+        "module_sha256": module_sha256(),
+        "code_sha": code_sha(),
+        "recorded_at": recorded_at,
+        "analyses": sorted(analysis_ids),
+    }
+    path.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
+def recorded_versions(out: Path) -> dict[str, str]:
+    """``analysis_id -> reformat_tool`` from the conversion receipts convert wrote."""
+    versions: dict[str, str] = {}
+    for path in sorted((out / CONVERT_RECEIPTS_DIRNAME).glob("*.json")):
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise AcquisitionError(f"{path} is not a conversion receipt: {exc}") from exc
+        digest = document.get("module_sha256")
+        if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise AcquisitionError(f"{path} records no module_sha256")
+        tool = f"{REFORMAT_TOOL_MODULE} sha256:{digest}"
+        commit = document.get("code_sha")
+        if isinstance(commit, str) and re.fullmatch(r"[0-9a-f]{40}", commit):
+            tool += f" code:{commit}"
+        for analysis_id in document.get("analyses") or []:
+            versions[str(analysis_id)] = tool
+    return versions
+
+
+def historical_versions(directory: Path) -> dict[str, str]:
+    """``analysis_id -> reformat_tool`` from a conversion run's own record (#290 review).
+
+    A metadata-refresh run records its code commit and, per Analysis, what it
+    did: a file it converted carries that commit as its version, while a file it
+    only canonicalised was converted by an earlier run whose code identity the
+    record does not name. Nothing is inferred beyond what the record says.
+    """
+    summary_path = directory / "parent-run-summary.json"
+    receipt_path = directory / "refresh-receipt.tsv"
+    if not summary_path.is_file() or not receipt_path.is_file():
+        raise AcquisitionError(
+            f"--conversion-history {directory} records no parent-run-summary.json and "
+            "refresh-receipt.tsv pair"
+        )
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    commit = summary.get("code_sha")
+    if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise AcquisitionError(f"{summary_path} records no code_sha")
+    versions: dict[str, str] = {}
+    for row in read_tsv(receipt_path):
+        analysis_id = row.get("analysis_id", "")
+        if not analysis_id:
+            raise AcquisitionError(f"{receipt_path}: a row has no analysis_id")
+        if row.get("action") == "new-conversion":
+            versions[analysis_id] = f"{REFORMAT_TOOL_MODULE} code:{commit}"
+    return versions
+
+
+def reformat_lineage(
+    mapping: dict[str, str],
+    *,
+    tars_dir: Path,
+    extracted: Path,
+    original_sha256: str,
+    original_size: int,
+    tool: str = "",
 ) -> dict[str, str]:
-    row = {name: "" for name in MANIFEST_COLUMNS}
-    canonical_trait = (mapping or {}).get("analyzed_variable") or candidate.trait
-    canonical_sample_size = (mapping or {}).get("sample_size") or str(candidate.sample_size)
-    row.update({
-        "analysis_id": candidate.analysis_id,
-        "publication_pmid": PUBMED_ID,
-        # Canonical label/size follow the owner decision (#220, 2026-10-11):
-        # dbGaP is authoritative.  The Catalog counterpart lives in mapping.tsv
-        # and, where it differs, in the converted sidecar's catalog_metadata.
-        "trait": canonical_trait,
-        "study_design": candidate.study_design,
-        "sample_size": canonical_sample_size,
-        # The dbGaP pass is not preceded by a harmonised pass on this mirror, so
-        # there is no harmonised status to report; EBI's raw manifest carries the
-        # other pass's fact here, and an empty value is the honest analogue.
-        "harmonised_status": "",
-    })
-    row["data_file"] = str(path)
-    row["yaml_file"] = str(yaml_path)
-    row["data_url"] = f"{DBGAP_BASE}/{mapping['tar']}" if mapping and mapping.get("tar") else ""
-    if path.is_file() and path.stat().st_size > 0 and yaml_path.is_file():
-        row.update({
-            "status": "ok",
-            "data_bytes": str(path.stat().st_size),
-            "yaml_bytes": str(yaml_path.stat().st_size),
-            "sha256": data_digest,
-            "genome_assembly": "GRCh38",
-            "file_type": "GWAS-SSF v1.0",
-            "is_harmonised": "false",
-        })
-    else:
-        # Not a transfer failure: this Analysis has no converted file yet.  The
-        # frozen Source Inventory classifies any non-ready status as a
-        # non-member, so an incomplete conversion shows up as a missing Analysis
-        # rather than as a usable one.
-        row["status"] = "error"
+    """The tar member a converted file was rewritten from, and what changed it.
+
+    A dbGaP member is one file inside a published tar, so its location is
+    ``<tar path>#<member>``: the tar the deposit published and the member
+    inside it. The checksum is the extracted member's own sha256 -- the tar
+    itself is deleted after extraction, so its recorded md5 identifies the
+    container rather than these bytes (ADR 0036's reformatting rule, #290).
+    """
+    tar = mapping.get("tar", "")
+    member = mapping.get("member", "")
+    if not tar or not member:
+        raise AcquisitionError(
+            f"{mapping.get('analysis_id', '?')}: the mapping names no tar/member, so the "
+            "rewritten file has no original to record"
+        )
+    original = extracted / member
+    if not original.is_file():
+        raise AcquisitionError(
+            f"{mapping['analysis_id']}: the extracted original {original} is gone, so the "
+            "rewritten file has no durable original identity to record"
+        )
+    actual = original.stat().st_size
+    if actual != original_size:
+        raise AcquisitionError(
+            f"{mapping['analysis_id']}: the deposited member is {original_size} bytes, but "
+            f"{original} is {actual}; it changed after extraction"
+        )
+    return {
+        "original_location": f"{tars_dir / tar}#{member}",
+        "original_sha256": original_sha256,
+        "reformat_tool": tool or reformat_tool(),
+        "original_bytes": str(original_size),
+    }
+
+
+def member_sizes(out: Path) -> dict[str, int]:
+    """``member -> size`` from the deposit's tables of contents.
+
+    An empty deposit (no tables of contents) is no sizes, not an error; a bad
+    one -- a duplicate member, an unsafe path -- is the deposit's own refusal
+    (``AcquisitionError``), which names its rule and must not be swallowed
+    (#290 review).
+    """
+    return {member: size for member, (_tar, size) in load_toc(out).items()}
+
+
+def manifest_row(
+    mapping: dict[str, str],
+    data_root: Path,
+    recorded: dict[str, dict[str, str]] | None,
+    digest: str | None,
+    lineage: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """One shared Acquisition Manifest row for one mapped Analysis (#290).
+
+    ``recorded`` is the acquisition's own per-store download manifest row when
+    there is one: it carries the sha256 the acquisition computed while it
+    converted the file, so a metadata-only reproduction need not re-read 4 TB.
+    The recorded size is re-checked against disk, and a recorded non-ready
+    status is carried rather than turned into a usable file.
+    """
+    analysis_id = mapping["analysis_id"]
+    directory = data_root / "gwas-ssf" / bucket_of(analysis_id) / analysis_id
+    path = directory / f"{analysis_id}.tsv.gz"
+    yaml_path = directory / f"{analysis_id}.tsv.gz-meta.yaml"
+    row = {name: "" for name in ACQUISITION_MANIFEST.columns}
+    row["source_analysis_id"] = analysis_id
+    row["source_url"] = f"{DBGAP_BASE}/{mapping['tar']}" if mapping.get("tar") else ""
+
+    if recorded and recorded.get("status") and recorded["status"] not in READY_STATUSES:
+        row["status"] = recorded["status"]
+        row["error"] = recorded.get("error", "")
+        return row
+    if not path.is_file() or path.stat().st_size == 0:
+        # An explained absence: this Analysis has no converted file yet, so the
+        # Source Inventory keeps a non-ready row for it and it never becomes a
+        # release member. The status names the reason rather than "error".
+        row["status"] = "data_absent_upstream"
         row["error"] = f"not converted: {path}"
+        return row
+    if digest is None:
+        raise AcquisitionError(f"no sha256 for {analysis_id}; cannot write a ready manifest row")
+    recorded_bytes = (recorded or {}).get("data_bytes")
+    if recorded_bytes and int(recorded_bytes) != path.stat().st_size:
+        raise AcquisitionError(
+            f"{analysis_id}: recorded data_bytes {recorded_bytes} is not the file's size "
+            f"{path.stat().st_size}; re-convert before recording it"
+        )
+    row.update({
+        "status": "ok",
+        "location": str(path),
+        "bytes": str(path.stat().st_size),
+        "sha256": digest,
+    })
+    if yaml_path.is_file() and yaml_path.stat().st_size > 0:
+        row["sidecar_location"] = str(yaml_path)
+        row["sidecar_bytes"] = str(yaml_path.stat().st_size)
+    if lineage is not None:
+        row.update(lineage)
     return row
 
 
+def read_mapping_rows(path: Path) -> list[dict[str, str]]:
+    """The acquisition mapping's rows, requiring the columns a manifest needs."""
+    if not path.is_file():
+        raise AcquisitionError(f"mapping not found: {path}")
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        missing = [column for column in ("analysis_id", "member", "tar") if column not in (reader.fieldnames or [])]
+        if missing:
+            raise AcquisitionError(f"{path} is missing column(s): {', '.join(missing)}")
+        rows = [dict(row) for row in reader]
+    if not rows:
+        raise AcquisitionError(f"mapping is empty: {path}")
+    return rows
+
+
+def read_recorded_manifests(directory: Path) -> dict[str, dict[str, str]]:
+    """``analysis_id -> row`` from the acquisition's per-store download manifests."""
+    recorded: dict[str, dict[str, str]] = {}
+    for path in sorted(directory.glob("*-download-manifest.tsv")):
+        for row in read_tsv(path):
+            analysis_id = row.get("analysis_id", "")
+            if not analysis_id:
+                raise AcquisitionError(f"{path}: a recorded manifest row has no analysis_id")
+            if analysis_id in recorded:
+                raise AcquisitionError(f"{analysis_id} is recorded in more than one download manifest")
+            recorded[analysis_id] = row
+    return recorded
+
+
 def command_manifest(args: argparse.Namespace) -> int:
+    """Write the Source Collection's one shared Acquisition Manifest (#290)."""
     out = Path(args.out)
-    candidates = read_candidates(Path(args.candidates))
-    if not candidates:
-        raise SystemExit("manifest: no candidate rows")
     mapping_path = Path(args.mapping) if args.mapping else out / "mapping.tsv"
-    mapping = {row["analysis_id"]: row for row in read_tsv(mapping_path)} if mapping_path.is_file() else {}
-    selected = selected_values(args.analysis)
-    if selected:
-        candidates = [c for c in candidates if c.analysis_id in selected]
+    data_root = Path(args.data_root) if args.data_root else out
+    mapping = read_mapping_rows(mapping_path)
+    if args.analysis:
+        wanted = set(args.analysis)
+        mapping = [row for row in mapping if row["analysis_id"] in wanted]
     if args.limit:
-        candidates = candidates[: args.limit]
-    if not candidates:
-        raise SystemExit("manifest: nothing selected")
+        mapping = mapping[: args.limit]
+    if not mapping:
+        raise AcquisitionError("manifest: nothing selected")
+    recorded: dict[str, dict[str, str]] = {}
+    if args.recorded_manifests:
+        recorded = read_recorded_manifests(Path(args.recorded_manifests))
+        unknown = sorted(set(recorded) - {row["analysis_id"] for row in mapping})
+        if unknown and not (args.analysis or args.limit):
+            raise AcquisitionError(
+                f"recorded manifests name Analysis/Analyses the mapping does not: {', '.join(unknown[:10])}"
+            )
 
-    # The checksum is the release fact the freeze records, so it is computed
-    # here from the materialised bytes rather than carried over from conversion.
+    # The checksum is the release fact freeze records. It is the acquisition's
+    # own recorded digest when there is one; otherwise it is computed here from
+    # the materialised bytes.
     digests: dict[str, str] = {}
+    missing_recorded = [
+        row["analysis_id"] for row in mapping
+        if row["analysis_id"] not in recorded
+        and (data_root / "gwas-ssf" / bucket_of(row["analysis_id"]) / row["analysis_id"] / f"{row['analysis_id']}.tsv.gz").is_file()
+    ]
+    if missing_recorded:
+        with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
+            futures = {
+                pool.submit(
+                    sha256_file,
+                    data_root / "gwas-ssf" / bucket_of(analysis_id) / analysis_id / f"{analysis_id}.tsv.gz",
+                ): analysis_id
+                for analysis_id in missing_recorded
+            }
+            for future in as_completed(futures):
+                digests[futures[future]] = future.result()
+    for analysis_id, row in recorded.items():
+        if row.get("sha256"):
+            digests[analysis_id] = row["sha256"]
+
+    # The original identity of every file acquisition rewrote (#290 review): the
+    # tar member it came from, and that member's own sha256. The tar itself is
+    # deleted after extraction, so the extracted member is the durable original.
+    tars_dir = out / "GIA" / "tars"
+    extracted = out / "GIA" / "extracted"
+    sizes = member_sizes(out)
+    ready_rows = [
+        row for row in mapping
+        if row["analysis_id"] in digests
+    ]
+    original_digests: dict[str, str] = {}
+    originals = {row["analysis_id"]: extracted / row["member"] for row in ready_rows}
+    missing = sorted(
+        analysis_id for analysis_id, path in originals.items() if not path.is_file()
+    )
+    if missing:
+        raise AcquisitionError(
+            f"{len(missing)} rewritten file(s) have no durable original to record: "
+            + ", ".join(missing[:10])
+            + (" ..." if len(missing) > 10 else "")
+        )
     with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
-        futures = {}
-        for candidate in candidates:
-            path = out / "gwas-ssf" / bucket_of(candidate.analysis_id) / candidate.analysis_id / f"{candidate.analysis_id}.tsv.gz"
-            if path.is_file() and path.stat().st_size > 0:
-                futures[pool.submit(sha256_file, path)] = candidate.analysis_id
+        futures = {
+            pool.submit(sha256_file, path): analysis_id
+            for analysis_id, path in originals.items()
+        }
         for future in as_completed(futures):
-            digests[futures[future]] = future.result()
-
-    by_store: dict[str, list[Candidate]] = {}
-    for candidate in candidates:
-        by_store.setdefault(candidate.store_key, []).append(candidate)
-
-    status = 0
-    manifest_dir = Path(args.manifest_dir) if args.manifest_dir else out / "manifests"
-    for store_key, group in sorted(by_store.items()):
-        rows: list[dict[str, str]] = []
-        for candidate in sorted(group, key=lambda c: c.analysis_id):
-            directory = out / "gwas-ssf" / bucket_of(candidate.analysis_id) / candidate.analysis_id
-            path = directory / f"{candidate.analysis_id}.tsv.gz"
-            yaml_path = directory / f"{candidate.analysis_id}.tsv.gz-meta.yaml"
-            rows.append(manifest_row(candidate, mapping.get(candidate.analysis_id), digests.get(candidate.analysis_id, ""), path, yaml_path))
-        slug = store_key.replace("__", "-")
-        manifest_path = manifest_dir / f"{slug}-download-manifest.tsv"
-        write_tsv(manifest_path, MANIFEST_COLUMNS, rows)
-        ready = sum(1 for row in rows if row["status"] == "ok")
-        print(f"manifest: {store_key}: {ready}/{len(rows)} ok -> {manifest_path}")
-        if ready != len(rows):
-            status = 1
-    return 0 if (args.allow_partial or selected or args.limit) else status
+            original_digests[futures[future]] = future.result()
+    # A conversion-time receipt names the code that wrote the file; historical
+    # recovery only fills the gaps it leaves (#290 review).
+    versions = recorded_versions(out)
+    for directory in args.conversion_history or []:
+        for analysis_id, tool in historical_versions(Path(directory)).items():
+            versions.setdefault(analysis_id, tool)
+    lineage_by_id: dict[str, dict[str, str]] = {}
+    for row in ready_rows:
+        analysis_id = row["analysis_id"]
+        size = originals[analysis_id].stat().st_size
+        recorded_size = sizes.get(row["member"])
+        if recorded_size is not None and recorded_size != size:
+            raise AcquisitionError(
+                f"{analysis_id}: the table of contents records {recorded_size} bytes for "
+                f"{row['member']}, but the extracted member is {size}"
+            )
+        lineage_by_id[analysis_id] = reformat_lineage(
+            row, tars_dir=tars_dir, extracted=extracted,
+            original_sha256=original_digests[analysis_id], original_size=size,
+            tool=versions.get(analysis_id, f"{REFORMAT_TOOL_MODULE} {UNRECORDED_VERSION}"),
+        )
+    rows = [
+        manifest_row(
+            row, data_root, recorded.get(row["analysis_id"]), digests.get(row["analysis_id"]),
+            lineage_by_id.get(row["analysis_id"]),
+        )
+        for row in mapping
+    ]
+    manifest_path = Path(args.manifest) if args.manifest else out / "acquisition-manifest.tsv"
+    write_connector(manifest_path, ACQUISITION_MANIFEST, ACQUISITION_MANIFEST.columns, rows)
+    loaded = load_acquisition_manifest(manifest_path)
+    print(
+        f"manifest: {len(loaded.entries)} rows ({loaded.readiness_counts}) -> {manifest_path}"
+    )
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -1961,14 +2086,27 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     convert.add_argument("--force", action="store_true")
     convert.set_defaults(func=command_convert)
 
-    manifest = subparsers.add_parser("manifest", help="write one acquisition manifest per store_key")
-    manifest.add_argument("--candidates", default=DEFAULT_CANDIDATES)
+    manifest = subparsers.add_parser(
+        "manifest", help="write the Source Collection's one shared Acquisition Manifest"
+    )
     manifest.add_argument("--mapping", help="mapping TSV (default: <out>/mapping.tsv)")
-    manifest.add_argument("--manifest-dir", help="default: <out>/manifests")
+    manifest.add_argument("--data-root", help="root of the converted gwas-ssf tree (default: <out>)")
+    manifest.add_argument(
+        "--recorded-manifests",
+        help="the acquisition's per-store download manifests, whose sha256 values are reused",
+    )
+    manifest.add_argument("--manifest", help="output TSV (default: <out>/acquisition-manifest.tsv)")
+    manifest.add_argument(
+        "--conversion-history",
+        action="append",
+        help=(
+            "a conversion run's own record (parent-run-summary.json and refresh-receipt.tsv) "
+            "whose code_sha and per-Analysis actions recover a historical converter version"
+        ),
+    )
     manifest.add_argument("--jobs", type=int, default=8)
     manifest.add_argument("--analysis", action="append")
     manifest.add_argument("--limit", type=int)
-    manifest.add_argument("--allow-partial", action="store_true")
     manifest.set_defaults(func=command_manifest)
 
     refresh = subparsers.add_parser(

@@ -1,2 +1,0 @@
-analysis_index	analysis_id	assigned_ancestry	ancestry_assignment_method	source_ancestry_label	stored_effect_scale	sample_size_kind	sample_size_scope	sample_size	original_effect_scale	original_sd_method	source_file	source_genome_build	source_label	source_analysis_id
-0	GCST_eas1	EAS	af_assigned	EAS	sd	total	analysis_level	1000	sd	source_provided	{fixture}/meta/gwas-ssf/bucket-EAS/GCST_eas1/GCST_eas1.tsv.gz	GRCh38	EAS trait	GCST_eas1

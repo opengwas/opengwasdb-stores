@@ -1,5 +1,10 @@
 # Release seam audit
 
+> **Historical record.** This audit was written on 2026-09-10 and is kept as
+> written. Its relative links into the family-first bundle archive are dead:
+> that directory was retired in #252, and each bundle it held is now registered
+> in `stores/<store-id>/` or retired with git history keeping it.
+
 Research for [Audit the existing release seam decisions and working-store evidence](https://github.com/opengwas/opengwasdb-stores/issues/84), against repository commit `8bd722b` on 2026-09-10. The seed is [The release seam to opengwasdb has no interface: builder.entrypoint is inert, the Builder Manifest adapter is copy-pasted and lossy, and the bundle format has no owner module](https://github.com/opengwas/opengwasdb-stores/issues/82).
 
 ## Answer

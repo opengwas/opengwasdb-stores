@@ -15,8 +15,10 @@ traceable resolution record:
   to `stored_effect_scale`, a usable `ncase`/`ncontrol` pair means
   `case_control`, otherwise `sample_size` means `total`;
 - it records each JSON's sha256 so the resolution is bound to frozen bytes;
-- it cross-checks every previously-resolved Analysis against the recorded
-  `opengwas-api-r2026-08-10` resolution and reports disagreements rather than
+- it cross-checks every previously-resolved Analysis against a recorded
+  resolution table given with `--recorded` (the `opengwas-api-r2026-08-10`
+  selection that this snapshot was measured against, kept in git history now
+  that its Release Bundle is retired) and reports disagreements rather than
   hiding them.
 
 Ancestry is taken from the provider's own `population` field as a
@@ -32,7 +34,7 @@ Usage:
         --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b \\
         --out resources/inventories/ukb-b-provider-resolution-2026-10-11.tsv \\
         --receipt resources/inventories/ukb-b-provider-resolution-2026-10-11.receipt.json \\
-        --recorded families/ukb-b/releases/dense-observed-vcf-c128-resolved/analyses.tsv
+        --recorded resources/inventories/<recorded-resolution>.tsv
 """
 
 from __future__ import annotations

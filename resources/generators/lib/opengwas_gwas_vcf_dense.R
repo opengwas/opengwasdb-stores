@@ -47,7 +47,7 @@ apply_resolution <- function(candidates, resolution) {
   # An analysis_id absent from `resolution` entirely (resolve_batch() got no
   # gwasinfo record back for it at all) already has every resolved_* column
   # at NA here, for free, via the outer join's unmatched-row behaviour --
-  # matching resources/generators/lib/metadata_resolvers/contract.R's
+  # matching src/manifest_generation/providers/gwas_catalog/contract.R's
   # unresolved_metadata_record() shape without reconstructing it field by
   # field; only resolved_status/resolved_notes need patching in explicitly.
   merged <- merge(candidates, resolution, by = "analysis_id", all.x = TRUE, sort = FALSE)

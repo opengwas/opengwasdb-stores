@@ -147,9 +147,9 @@ class BundleCheckTest(unittest.TestCase):
         self._tmp.cleanup()
 
     def bundle_check(self) -> subprocess.CompletedProcess[str]:
-        script = Path(__file__).resolve().parents[2] / "resources" / "scripts" / "check_bundles.py"
         return subprocess.run(
-            [sys.executable, str(script), "--registry-root", str(self.registry)], capture_output=True, text=True
+            [sys.executable, "-m", "manifest_generation.check_bundles", "--registry-root", str(self.registry)],
+            capture_output=True, text=True,
         )
 
     def write(self, store_id: str, analyses: str, **release) -> None:

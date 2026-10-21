@@ -38,17 +38,33 @@ pixi run python3 -m manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002
 # 2. bind each Analysis to its candidate-table row; writes mapping.tsv,
 #    mapping-report.tsv and the mapping-review.tsv trait queue, and exits
 #    non-zero unless the bijection is complete (the default
-#    --discrepancies ledger is resources/scripts/dbgap-phs002453-key-discrepancies.yaml)
+#    --discrepancies ledger is resources/generators/dbgap-mvp/dbgap-phs002453-key-discrepancies.yaml)
 pixi run python3 -m manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 map \
   --candidates resources/data/derived/store-candidates-analyses.tsv
 
 # 3. convert into gwas-ssf/<bucket>/<GCST>/{<GCST>.tsv.gz,<GCST>.tsv.gz-meta.yaml}
 pixi run python3 -m manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 convert --jobs 32
 
-# 4. one acquisition manifest per store_key, readable by
-#    manifest_generation.source_inventory
-pixi run python3 -m manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 manifest --jobs 8
+# 4. the collection's one shared Acquisition Manifest (#290)
+pixi run python3 -m manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 manifest \
+  --mapping mapping.tsv --jobs 8
+
+# 5. the canonical Source Metadata Table the shared freeze reads (#290)
+pixi run python3 -m manifest_generation.providers.dbgap.mvp.source_metadata_adapter \
+  --mapping mapping.tsv --extracted GIA/extracted --out source-metadata-table.tsv
 ```
+
+The manifest can reuse the sha256 the acquisition recorded while converting
+(`--recorded-manifests <dir>`), re-checking each file's size, so a metadata-only
+reproduction does not re-read 4 TB. `providers/dbgap/metadata.py` is the shared
+plumbing: tar tables of contents, extraction and `*.dbGaP.metadata.txt` parsing.
+
+The retired #221 generator (`generate_candidate.py`), its `partition.py` and the
+`pilot/` wrapper are gone (#290). The five release configs that replaced them
+live in `resources/generators/dbgap-mvp/`; their Selections name the adapter's
+post-split `store_key`. When OpenGWASDB's Column Map reader lands (#292 part 2),
+MVP should read dbGaP's own GIA files through a Column Map and this GWAS-SSF
+rewrite should be deleted; that is a note, not part of #290.
 
 Every stage is idempotent, writes through `.partial` files and renames, and can
 be re-run after an interruption. For trials, `map`/`convert`/`manifest` accept

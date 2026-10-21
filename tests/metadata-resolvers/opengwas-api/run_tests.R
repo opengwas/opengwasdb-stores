@@ -11,7 +11,7 @@
 # structural edge cases (unresolvable/zero/NULL), which do not occur as a
 # distinguishable real dataset shape to capture. This repository's test
 # suites are themselves documented as data-only and network-free (see
-# resources/scripts/run_all_tests.py), so fetch_opengwas_gwasinfo() (the
+# tests/run_all_tests.py), so fetch_opengwas_gwasinfo() (the
 # live HTTP transport) is not itself exercised here -- only the resolver
 # logic it feeds, using its captured output as fixtures.
 #

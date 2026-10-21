@@ -1,0 +1,140 @@
+# Release config for the Chen et al. 2023 plasma metabolome atlas, European
+# slice (PMID 36635386): the release OGS-00006 was built as (#300).
+#
+# The release config schema is docs/spec/release-config.md. It replaces
+# resources/generators/metabolome-plasma-2023/config-european.yaml and the R
+# gwas-ssf-ragged generator, both retired with #300; OGS-00006's
+# generator.commands still cite them, and git history keeps them.
+#
+# Connectors (ADR 0036):
+#   - the Source Metadata Table is the GWAS Catalog's own, frozen read-only on
+#     /data for OGS-00011 (#287). Chen's 1,400 Analyses are the rows the
+#     candidate curation groups as ragged__pmid-36635386__European;
+#   - the Acquisition Manifest lists the files the R generator filtered, as they
+#     are: the originals were deleted after filtering, so they cannot be
+#     acquired afresh. Each row's lineage comes from OGS-00006's
+#     filter_summary.tsv (written by
+#     manifest_generation.providers.gwas_catalog.legacy_ragged_acquisition): the
+#     original's URL and size, R's filter policy, and the tool. 198 of the files
+#     were re-materialised on 15 Sep 2026 from sparse_regions.tsv, which also
+#     kept the multi-allelic siblings of some suggestive leads (20 rows in the
+#     16 of them whose originals survive); their lineage names the materialiser.
+
+release_config_version: 1
+
+label: 2023-chen-full-european
+access_posture: public
+description: >
+  Full European-ancestry slice of the Chen et al. 2023 plasma metabolome atlas
+  (PMID 36635386): every candidate Analysis for this ancestry, no cap, as a
+  single-ancestry, signals-only ragged GWAS-SSF release. Each source file is
+  filtered at acquisition to its significant-trans flanks and suggestive leads,
+  and keeps the QC panel so Analysis Resolution can measure ancestry and
+  phenotype SD.
+notes: >
+  Metabolites have no single encoding gene, so the region policy keeps no cis
+  window (issue #26) and the release carries no target columns.
+
+source_collection:
+  source_collection_id: gwas-catalog-ssf
+  connectors:
+    source_metadata_table: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-20/gwas-catalog-ssf.source-metadata.tsv
+    acquisition_manifest: resources/generators/gwas-catalog-ragged/connectors/chen-2023-european.acquisition-manifest.tsv
+  inventory:
+    snapshot_id: gwas-catalog-ssf-chen-2023-european-2026-10-21b
+    directory: resources/inventories
+
+selection:
+  where:
+    store_key: ragged__pmid-36635386__European
+
+build:
+  layout: ragged
+  completion_state: observed_only
+  command: build-ragged-ssf
+  options:
+    stored-effect-scale: sd
+  post:
+    top_hits: true
+    overview: false
+
+defaults:
+  source_genome_build: GRCh38
+  license: EBI GWAS Catalog terms of use
+  publication_doi: 10.1038/s41588-022-01270-1
+  consortium: Chen et al. 2023
+  sample_size_scope: analysis_level
+  analysis_group_id: PMID36635386
+  tissue: plasma
+  context: metabolomics
+  by_study_design:
+    quantitative:
+      stored_effect_scale: sd
+      original_effect_scale: sd
+      # Source allele frequencies (ADR 0019): OpenGWASDB estimates the SD from
+      # the filtered rows, the QC panel among them.
+      original_sd_method: estimated_from_source_maf
+      sample_size_kind: total
+
+release_policy:
+  selection_superpopulation: EUR
+
+# The R generator's sig-trans-1mb_suggestive-leads, with its QC panel.
+region_policy:
+  region_policy_id: sig-trans-1mb_suggestive-leads
+  association_coverage: signals_only
+  trans_flank_bp: 1000000
+  significant_p: 5.0e-8
+  suggestive_p: 1.0e-5
+  suggestive_lead_min_distance_bp: 100000
+  qc_panel_resource_id: qc-panel-hg38
+
+reference_resources:
+  - resource_id: ukb-ancestry-mixture-hg38
+    kind: ancestry_mixture
+    ancestry: multi
+    super_populations: [AFR, AMR, EAS, EUR, MID, NAF, SAS]
+    genome_build: GRCh38
+    variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+    location: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
+    location_kind: external_file
+    fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+  - resource_id: qc-panel-hg38
+    kind: qc_panel
+    genome_build: GRCh38
+    variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+    location: resources/reference-resources/qc-panel-hg38/qc_panel.tsv
+    location_kind: tracked_file
+  - resource_id: canonical-trait-mapping-efo
+    kind: trait_ontology_mapping
+    location: resources/reference-resources/canonical-trait-mapping-efo
+    location_kind: tracked_directory
+    version: "3"
+
+ancestry_assignment:
+  reference_resource_id: ukb-ancestry-mixture-hg38
+  maf_floor: 0.01
+  extraction_panel: null
+  # The R generator's gates: a filtered file overlaps the reference at its QC
+  # panel and signal rows only, so the overlap floor is 200, not 5,000.
+  gates:
+    tau: 0.50
+    delta: 0.20
+    n_min: 200
+    residual_max: 0.06
+
+effect_scale_validation:
+  maf_min: 0.01
+  maf_max: 0.5
+  dispersion_max: 0.5
+  reference_resources: []
+
+trait_ontology_mapping:
+  reference_resource_id: canonical-trait-mapping-efo
+
+runtime:
+  cores: 32
+  min_free_gb: 10
+
+output:
+  work_root: /data/opengwasdb/work/gwas-catalog-ragged

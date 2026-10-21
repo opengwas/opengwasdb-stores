@@ -1,6 +1,0 @@
-analysis_index	analysis_id	assigned_ancestry	ancestry_assignment_method	source_ancestry_label	stored_effect_scale	sample_size_kind	sample_size_scope	sample_size	original_effect_scale	original_sd_method	source_file	source_genome_build	source_label	source_analysis_id
-0	GCST_eur1	EUR	af_assigned	EUR	sd	total	analysis_level	1000	sd	source_provided	{fixture}/meta/gwas-ssf/bucket-EUR/GCST_eur1/GCST_eur1.tsv.gz	GRCh38	EUR trait	GCST_eur1
-1	GCST_eur2	EUR	af_assigned	EUR	sd	total	analysis_level	1000	sd	source_provided	{fixture}/meta/gwas-ssf/bucket-EUR/GCST_eur2/GCST_eur2.tsv.gz	GRCh38	EUR trait	GCST_eur2
-2	GCST_eur3	EUR	af_assigned	EUR	sd	total	analysis_level	1000	sd	source_provided	{fixture}/meta/gwas-ssf/bucket-EUR/GCST_eur3/GCST_eur3.tsv.gz	GRCh38	EUR trait	GCST_eur3
-3	GCST_eur4	EUR	af_assigned	EUR	sd	total	analysis_level	1000	sd	source_provided	{fixture}/meta/gwas-ssf/bucket-EUR/GCST_eur4/GCST_eur4.tsv.gz	GRCh38	EUR trait	GCST_eur4
-4	GCST_eur5	EUR	af_assigned	EUR	sd	total	analysis_level	1000	sd	source_provided	{fixture}/meta/gwas-ssf/bucket-EUR/GCST_eur5/GCST_eur5.tsv.gz	GRCh38	EUR trait	GCST_eur5

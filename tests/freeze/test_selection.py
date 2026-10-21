@@ -131,8 +131,6 @@ class SelectionTest(unittest.TestCase):
             "resources/generators/finngen-r13/config-pilot-20.yaml",
             "resources/generators/gwas-catalog-eur-hybrid/config-pilot-10.yaml",
             "resources/generators/gwas-catalog-eur-hybrid/config-quant-pilot-10.yaml",
-            "resources/generators/metabolome-plasma-2023/config-european.yaml",
-            "resources/generators/pqtl-interval-2018/config-pilot-10.yaml",
         )
         for config in configs:
             with self.subTest(config=config):

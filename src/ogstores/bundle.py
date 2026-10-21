@@ -1,10 +1,11 @@
 """Load and validate Release Bundles without inspecting Store artifacts.
 
 ``check()`` owns registry-side structure only: bundle identity and provenance,
-declared bundle files, checksum syntax, Release Status, lineage, and the shared
-``analyses.tsv`` contract. It accumulates errors and never raises, so CI and a
-Manifest Generator can report every defect from one pass. It does not resolve
-source files, construct artifact paths, or open a Store.
+declared bundle files, checksum syntax, Release Status, lineage, the shared
+``analyses.tsv`` contract, and a mapped bundle's Column Map. It accumulates
+errors and never raises, so CI and a Manifest Generator can report every defect
+from one pass. It does not resolve source files, construct artifact paths, or
+open a Store.
 
 See docs/spec/store-release-workflow.md and ADRs 0017, 0022, 0023, and 0028.
 """
@@ -12,7 +13,10 @@ See docs/spec/store-release-workflow.md and ADRs 0017, 0022, 0023, and 0028.
 from __future__ import annotations
 
 import csv
+import functools
+import hashlib
 import re
+import tomllib
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
@@ -83,6 +87,11 @@ BUILD_REQUIRED_KEYS: tuple[str, ...] = (
     "post",
 )
 
+# The Build Recipe blocks that produce a Store, `build` for an observed-only
+# release and `complete` for a Reference-Completed one. Each is also the name of
+# the execution Step it plans (`ogstores.run`).
+STORE_PRODUCING_STEPS: frozenset[str] = frozenset({"build", "complete"})
+
 # Optional named Indexed Variant Subset declarations (stores #209, epic #214).
 # A Build Recipe may declare one or more; `plan()` turns each into a
 # `build-indexed-subset` Step. The declaration names a maintained variant-list
@@ -122,6 +131,16 @@ INDEXED_SUBSET_RESERVED_OPTION_KEYS: frozenset[str] = frozenset(
 def normalize_option_key(key: object) -> str:
     """The flag name `render_options` derives from an `options` key (ADR 0023)."""
     return str(key).strip().lstrip("-")
+
+
+def reserved_options(options: Mapping[Any, Any], reserved: Iterable[str]) -> list[str]:
+    """The `options` keys, as written, that render as one of the `reserved` flags.
+
+    A reserved flag is one the registry composes from a verified input of its
+    own; passed through `options`, it would reach the CLI unverified.
+    """
+    flags = frozenset(reserved)
+    return sorted(str(key) for key in options if normalize_option_key(key) in flags)
 
 
 def is_valid_indexed_subset_name(name: object) -> bool:
@@ -184,6 +203,64 @@ _TRAIT_ONTOLOGY_AUTHORITY_LABELS: frozenset[str] = frozenset(
     {"ensembl", "hgnc", "entrez", "entrezgene", "entrez gene", "ncbigene", "uniprot"}
 )
 
+# A ``trait_ontology_id`` holds one CURIE, or several joined by exactly ", " in
+# the source's order when the source maps the Trait to more than one term
+# (GWAS Catalog's ``MAPPED_TRAIT_URI``, #286). Each term is a CURIE --
+# ``EFO:0004839``, ``OBA:VT0001253``, ``Orphanet:101960`` -- never a URI.
+TRAIT_ONTOLOGY_ID_SEPARATOR: str = ", "
+_TRAIT_ONTOLOGY_CURIE: re.Pattern[str] = re.compile(
+    r"[A-Za-z][A-Za-z0-9._-]*:[A-Za-z0-9][A-Za-z0-9._-]*"
+)
+
+# Accepted Store Releases emitted before #286 with ``trait_ontology_id`` values
+# that are not CURIEs: OGS-00011 carries GWAS Catalog's raw EFO/ORDO URIs and
+# half-converted lists. An accepted bundle is never rewritten, so its values
+# are tolerated by name and disclosed on check()'s second channel (#142); every
+# other bundle is held to the CURIE form.
+LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES: frozenset[str] = frozenset({"OGS-00011"})
+
+
+def trait_ontology_id_terms(value: str) -> list[str]:
+    """The terms of a ``trait_ontology_id`` value, in order; empty for a blank value.
+
+    The one split rule (#286): split on every comma and strip each part, so a
+    malformed list (``A,B``, padding, an empty term) still yields its terms for
+    the guards. Whether the value is in canonical form is a separate question:
+    :func:`is_canonical_trait_ontology_id`.
+    """
+    return [part.strip() for part in value.split(",")] if value else []
+
+
+def is_trait_ontology_curie(term: str) -> bool:
+    """Whether one ``trait_ontology_id`` term is a CURIE."""
+    return _TRAIT_ONTOLOGY_CURIE.fullmatch(term) is not None
+
+
+def is_canonical_trait_ontology_id(value: str) -> bool:
+    """Whether ``value`` is blank, one CURIE, or CURIEs joined by exactly ``", "``."""
+    terms = trait_ontology_id_terms(value)
+    return all(map(is_trait_ontology_curie, terms)) and (
+        TRAIT_ONTOLOGY_ID_SEPARATOR.join(terms) == value
+    )
+
+
+def is_gene_shaped_trait_ontology_id(value: str) -> bool:
+    """Whether any term of ``value`` is a gene or protein identifier (#141).
+
+    Every term is checked, so a gene identifier cannot hide behind an ontology
+    term in a list (#286).
+    """
+    return any(_GENE_SHAPED_TRAIT_ONTOLOGY_ID.match(term) for term in trait_ontology_id_terms(value))
+
+
+def is_authority_name_trait_ontology_label(label: str) -> bool:
+    """Whether ``label`` names an identifier authority rather than a Trait (#141).
+
+    The label is checked whole, as #141 defines it, and never split: a term's
+    own label may contain a comma (``osteoarthritis, hip``).
+    """
+    return label.strip().lower() in _TRAIT_ONTOLOGY_AUTHORITY_LABELS
+
 # Store-level descriptive metadata that is derived from the membership table.
 # Names intentionally match their source columns: in particular, ``context``
 # is not renamed to ``assay`` because the Analysis contract has no assay field.
@@ -206,11 +283,33 @@ QUALITY_CHECK_RESULTS: tuple[str, ...] = (
     "not_applicable",
     "unmeasured",
     "invalid",
+    # The measurement fails the test, but a declared release policy keeps the
+    # Analysis and records the finding (#287: Assigned Ancestry trusted from the
+    # source for an Analysis with no allele frequencies).
+    "warning",
 )
 #: The exclusions sidecar, whose ``reason`` the Quality Check sidecar must agree with.
 EXCLUSIONS_SIDECAR: str = "sidecars/exclusions.tsv"
 #: How many row-level errors one sidecar reports before summarising the rest.
 _MAX_SIDECAR_ROW_ERRORS: int = 10
+
+#: The Source Reader Capability that reads a tabular collection through a Column
+#: Map (#292, ADR 0036; opengwasdb ADR 0063). A bundle with an Analysis read
+#: through it binds its map in the Build Recipe and carries it; see
+#: :func:`_check_column_map`.
+COLUMN_MAP_CAPABILITY: str = "opengwasdb.column-map"
+#: The Build Recipe key binding the map; see :class:`ColumnMapBinding`.
+COLUMN_MAP_KEY: str = "column_map"
+COLUMN_MAP_BINDING_KEYS: tuple[str, ...] = ("name", "sha256", "file")
+#: Where a bundle carries the map it binds: ``column_maps/<file>``.
+COLUMN_MAPS_DIR: str = "column_maps"
+COLUMN_MAP_SUFFIX: str = ".toml"
+#: Lower-case, as ``hashlib`` writes it, so the binding compares byte for byte
+#: with the Resolution Record's fingerprint.
+_SHA256_RE: re.Pattern[str] = re.compile(r"\A[0-9a-f]{64}\Z")
+#: The flag Store Release Build will compose from the binding; ``options`` may not pass it.
+_COLUMN_MAP_OPTIONS: frozenset[str] = frozenset({"column-map"})
+_READER_OPTION: str = "source-reader-capability"
 
 SUMMARY_COLUMNS: tuple[str, ...] = (
     "first_author",
@@ -822,11 +921,7 @@ def _check_indexed_subsets(build: Mapping[str, Any]) -> list[str]:
             if not isinstance(options, Mapping):
                 errors.append(f"{where} options must be a mapping")
             else:
-                reserved = sorted(
-                    str(key)
-                    for key in options
-                    if normalize_option_key(key) in INDEXED_SUBSET_RESERVED_OPTION_KEYS
-                )
+                reserved = reserved_options(options, INDEXED_SUBSET_RESERVED_OPTION_KEYS)
                 if reserved:
                     errors.append(
                         f"{where} options must not set {reserved}; variant_list and "
@@ -1026,7 +1121,9 @@ def _check_validation(bundle: Bundle) -> list[str]:
     return errors
 
 
-def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
+def _check_analyses(
+    bundle: Bundle, analyses: Callable[[], opengwasdb_analyses.AnalysesTable]
+) -> tuple[list[str], list[ToleratedGap]]:
     from opengwasdb.model import analyses as opengwasdb_analyses
     errors: list[str] = []
     tolerated: list[ToleratedGap] = []
@@ -1036,7 +1133,7 @@ def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
             return [f"analyses file must not be a symbolic link: {analyses_path}"], []
         if not analyses_path.is_file():
             return [f"analyses file does not exist: {bundle.analyses_path}"], []
-        table = opengwasdb_analyses.read_analyses(bundle.analyses_path)
+        table = analyses()
     except Exception as exc:
         return [f"failed to read analyses.tsv: {type(exc).__name__}: {exc}"], []
 
@@ -1050,25 +1147,45 @@ def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
     # A Trait Ontology Mapping is an ontology term plus its trait label. It is
     # never a gene identifier with an authority name standing in for the label:
     # that asserts a gene is the Trait (issue #141). Empty is the correct
-    # answer where no acceptable term exists.
+    # answer where no acceptable term exists. Each term of a list is checked,
+    # and each term must be a CURIE (#286).
     if "trait_ontology_id" in table.fieldnames:
+        tolerate_non_curie = bundle.store_id in LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES
+        tolerated_non_curie = 0
         for row in table.rows:
             analysis_id = row.get("analysis_id") or "<unknown analysis_id>"
-            ontology_id = (row.get("trait_ontology_id") or "").strip()
-            if ontology_id and _GENE_SHAPED_TRAIT_ONTOLOGY_ID.match(ontology_id):
+            ontology_id = row.get("trait_ontology_id") or ""
+            if ontology_id and is_gene_shaped_trait_ontology_id(ontology_id):
                 errors.append(
                     f"analysis {analysis_id!r} has gene-shaped trait_ontology_id "
                     f"{ontology_id!r}; trait_ontology_id must be an ontology term "
                     "(or empty), never a gene or protein identifier"
                 )
-            ontology_label = (row.get("trait_ontology_label") or "").strip().lower()
-            if ontology_label in _TRAIT_ONTOLOGY_AUTHORITY_LABELS:
+            elif not is_canonical_trait_ontology_id(ontology_id):
+                if tolerate_non_curie:
+                    tolerated_non_curie += 1
+                else:
+                    errors.append(
+                        f"analysis {analysis_id!r} has trait_ontology_id {ontology_id!r}, "
+                        "which is not a CURIE or a list of CURIEs joined by "
+                        f"{TRAIT_ONTOLOGY_ID_SEPARATOR!r}"
+                    )
+            if is_authority_name_trait_ontology_label(row.get("trait_ontology_label") or ""):
                 errors.append(
                     f"analysis {analysis_id!r} has trait_ontology_label "
                     f"{row.get('trait_ontology_label')!r}, which names an identifier "
                     "authority rather than a Trait; use the trait label or leave it "
                     "empty"
                 )
+        if tolerated_non_curie:
+            tolerated.append(
+                ToleratedGap(
+                    store_id=bundle.store_id,
+                    count=tolerated_non_curie,
+                    detail="non-CURIE trait_ontology_id values",
+                    citation="#286",
+                )
+            )
 
     # Assigned Ancestry is the registry-normalised super-population code, never a
     # free-text Source Ancestry Label. Empty is the one valid way to record an
@@ -1177,6 +1294,32 @@ def _check_analyses(bundle: Bundle) -> tuple[list[str], list[ToleratedGap]]:
     return errors, tolerated
 
 
+def _entry_kind(path: Path) -> str:
+    """``absent``, ``file`` or ``directory``; ``other`` for a symbolic link or anything else.
+
+    A bundle's contract files are real files in the bundle, never links out of it.
+    """
+    if path.is_symlink():
+        return "other"
+    if not path.exists():
+        return "absent"
+    if path.is_file():
+        return "file"
+    return "directory" if path.is_dir() else "other"
+
+
+def _analyses_reader(bundle: Bundle) -> Callable[[], opengwasdb_analyses.AnalysesTable]:
+    """``analyses.tsv``, parsed at most once by one ``check()``; a failed parse raises again."""
+
+    @functools.cache
+    def read() -> opengwasdb_analyses.AnalysesTable:
+        from opengwasdb.model import analyses as opengwasdb_analyses
+
+        return opengwasdb_analyses.read_analyses(bundle.analyses_path)
+
+    return read
+
+
 def _read_sidecar_rows(path: Path) -> tuple[list[str], list[list[str]]]:
     """Header and rows of a strict TSV sidecar, or raise ``ValueError``."""
     with path.open(newline="", encoding="utf-8") as fh:
@@ -1220,7 +1363,9 @@ def _exclusion_reasons(bundle: Bundle) -> dict[str, str] | None:
     return {row[id_at]: row[reason_at] for row in body}
 
 
-def _check_quality_checks(bundle: Bundle) -> list[str]:
+def _check_quality_checks(
+    bundle: Bundle, analyses: Callable[[], opengwasdb_analyses.AnalysesTable]
+) -> list[str]:
     """Validate ``sidecars/quality_checks.tsv`` when the bundle carries one (#285).
 
     It must name every ``analyses.tsv`` Analysis once, in the same order; use
@@ -1229,9 +1374,10 @@ def _check_quality_checks(bundle: Bundle) -> list[str]:
     on why. Absent is valid.
     """
     path = bundle.root / QUALITY_CHECKS_SIDECAR
-    if not path.exists() and not path.is_symlink():
+    kind = _entry_kind(path)
+    if kind == "absent":
         return []
-    if path.is_symlink() or not path.is_file():
+    if kind != "file":
         return [f"{QUALITY_CHECKS_SIDECAR} must be a regular file"]
     try:
         header, body = _read_sidecar_rows(path)
@@ -1241,9 +1387,7 @@ def _check_quality_checks(bundle: Bundle) -> list[str]:
     if errors:
         return errors
 
-    from opengwasdb.model import analyses as opengwasdb_analyses
-
-    table = opengwasdb_analyses.read_analyses(bundle.analyses_path)
+    table = analyses()
     expected: list[tuple[str, bool]] = []
     for index, row in enumerate(table.rows):
         analysis_id = (row.get("analysis_id") or "").strip()
@@ -1305,6 +1449,258 @@ def _check_quality_checks(bundle: Bundle) -> list[str]:
     return shown
 
 
+@dataclass(frozen=True)
+class ColumnMapBinding:
+    """The Build Recipe's ``column_map``: which map a mapped bundle reads through.
+
+    ``name`` and ``sha256`` are the fingerprint OpenGWASDB records in a mapped
+    Resolution Record (``resolution_config.column_map``) and Store manifest
+    (``provenance.column_map``): the map's own ``name``, which may be any
+    non-empty string, and the sha256 of its file's bytes. ``file`` is where the
+    bundle carries it, under ``column_maps/``; a built-in map has none.
+    """
+
+    name: str
+    sha256: str
+    file: str | None = None
+
+    @property
+    def path(self) -> str | None:
+        """The carried map, relative to the bundle root; ``None`` for a built-in."""
+        return column_map_path(self.file) if self.file is not None else None
+
+    def fingerprint(self) -> dict[str, str]:
+        """The ``{name, sha256}`` a Resolution Record made with this map carries."""
+        return {"name": self.name, "sha256": self.sha256}
+
+
+def column_map_path(file: str) -> str:
+    """Where a bundle carries a Column Map ``file``, relative to its root."""
+    return f"{COLUMN_MAPS_DIR}/{file}"
+
+
+def is_valid_column_map_file(file: object) -> bool:
+    """A carried map's file name: the Indexed Variant Subset grammar, ending ``.toml``."""
+    return (
+        isinstance(file, str)
+        and file.endswith(COLUMN_MAP_SUFFIX)
+        and is_valid_indexed_subset_name(file)
+    )
+
+
+def _recipe_options(build: Mapping[str, Any]) -> Iterable[tuple[str, Mapping[Any, Any]]]:
+    """``(block name, options)`` for each Store-producing Build Recipe block."""
+    for block_name in sorted(STORE_PRODUCING_STEPS):
+        block = build.get(block_name)
+        options = block.get("options") if isinstance(block, Mapping) else None
+        if isinstance(options, Mapping):
+            yield block_name, options
+
+
+def _column_map_option_errors(build: Mapping[str, Any]) -> list[str]:
+    """``--column-map`` comes from the checksummed binding, never through ``options``."""
+    errors: list[str] = []
+    for block_name, options in _recipe_options(build):
+        reserved = reserved_options(options, _COLUMN_MAP_OPTIONS)
+        if reserved:
+            errors.append(
+                f"build.yaml {block_name}.options must not set {reserved}; the Column Map "
+                f"is the Build Recipe's checksummed {COLUMN_MAP_KEY!r} binding"
+            )
+    return errors
+
+
+def _column_map_binding(build: Mapping[str, Any]) -> tuple[ColumnMapBinding | None, list[str]]:
+    """The Build Recipe's binding, or ``None`` when it binds none or binds one malformed."""
+    if COLUMN_MAP_KEY not in build:
+        return None, []
+    raw = build[COLUMN_MAP_KEY]
+    where = f"build.yaml {COLUMN_MAP_KEY}"
+    shape = "a Column Map binding {name, sha256, file}, with no file for a built-in map"
+    if raw is None:
+        return None, [f"{where} must be {shape}, not null; omit the key to bind none"]
+    if not isinstance(raw, Mapping):
+        return None, [f"{where} must be {shape}, not {type(raw).__name__}"]
+    errors: list[str] = []
+    unknown = sorted(str(key) for key in raw if key not in COLUMN_MAP_BINDING_KEYS)
+    if unknown:
+        errors.append(f"{where} has unknown key(s) {unknown}; allowed are {list(COLUMN_MAP_BINDING_KEYS)}")
+    name, sha256, file = raw.get("name"), raw.get("sha256"), raw.get("file")
+    if not isinstance(name, str) or not name.strip():
+        errors.append(f"{where} name must be a non-empty string, the map's own name; got {name!r}")
+    if not isinstance(sha256, str) or not _SHA256_RE.fullmatch(sha256):
+        errors.append(
+            f"{where} sha256 must be the map file's sha256 as 64 lower-case hex "
+            f"characters; got {sha256!r}"
+        )
+    if file is not None and not is_valid_column_map_file(file):
+        errors.append(
+            f"{where} file {file!r} must be a file name in {COLUMN_MAPS_DIR}/ matching "
+            f"{INDEXED_SUBSET_NAME_RE.pattern}, with no '..', ending {COLUMN_MAP_SUFFIX}"
+        )
+    if file is None and isinstance(name, str):
+        builtins = _builtin_column_maps()
+        packaged = builtins.get(name)
+        if packaged is None:
+            errors.append(
+                f"{where} {name!r} names no built-in map and carries no file; a carried "
+                f"map needs file, and the built-ins are {sorted(builtins)}"
+            )
+        elif isinstance(sha256, str) and _SHA256_RE.fullmatch(sha256) and sha256 != packaged:
+            errors.append(
+                f"{where} sha256 {sha256} is not built-in Column Map {name!r}'s: the "
+                f"pinned opengwasdb ships it with sha256 {packaged}"
+            )
+    if errors:
+        return None, errors
+    return ColumnMapBinding(name=name, sha256=sha256, file=file), []
+
+
+@functools.cache
+def _builtin_column_maps() -> dict[str, str]:
+    """OpenGWASDB's built-in Column Maps by name, each with the sha256 of the file it ships.
+
+    Imported when a binding names a built-in, not with this module: importing
+    the package takes over a second, and every Snakemake job imports this one.
+    """
+    from opengwasdb.readers.column_map import BUILTIN_COLUMN_MAPS, load_column_map
+
+    return {name: load_column_map(name).sha256 for name in BUILTIN_COLUMN_MAPS}
+
+
+def _column_map_reference_errors(
+    build: Mapping[str, Any],
+    rows: Sequence[Mapping[str, str]],
+    binding_declared: bool,
+) -> list[str]:
+    """A bundle binds a map exactly when one of its Analyses reads through it.
+
+    A row reads through its own ``source_reader_capability``, or, left blank,
+    through the Build Recipe's ``source-reader-capability``.
+    """
+    inherited = {
+        str(value).strip()
+        for _, options in _recipe_options(build)
+        for key, value in options.items()
+        if normalize_option_key(key) == _READER_OPTION
+    }
+    own = [(row.get("source_reader_capability") or "").strip() for row in rows]
+    named = sum(capability == COLUMN_MAP_CAPABILITY for capability in own)
+    inheriting = sum(not capability for capability in own) if COLUMN_MAP_CAPABILITY in inherited else 0
+    if named + inheriting and not binding_declared:
+        return [
+            f"Column Map missing: {named + inheriting} analyses.tsv row(s) read through "
+            f"{COLUMN_MAP_CAPABILITY} ({named} named, {inheriting} from the Build Recipe), "
+            f"but build.yaml binds no {COLUMN_MAP_KEY!r}"
+        ]
+    if binding_declared and not named + inheriting:
+        return [
+            f"Column Map bound in build.yaml, but no Analysis reads through it: no "
+            f"analyses.tsv row names {COLUMN_MAP_CAPABILITY} or inherits it from the "
+            "Build Recipe"
+        ]
+    return []
+
+
+def _column_map_file_errors(path: Path, relative: str, binding: ColumnMapBinding) -> list[str]:
+    """Checksum and shallow shape of a carried map; OpenGWASDB validates the rest."""
+    data = path.read_bytes()
+    errors: list[str] = []
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != binding.sha256:
+        errors.append(
+            f"Column Map {relative} has sha256 {digest}; build.yaml "
+            f"{COLUMN_MAP_KEY}.sha256 records {binding.sha256}"
+        )
+    try:
+        document = tomllib.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+        return [*errors, f"Column Map {relative} is not UTF-8 TOML: {exc}"]
+    for key in ("column_map_version", "name"):
+        if key not in document:
+            errors.append(f"Column Map {relative} is missing {key!r}")
+    if "name" in document and document["name"] != binding.name:
+        errors.append(
+            f"Column Map {relative} names itself {document['name']!r}; build.yaml "
+            f"binds {binding.name!r}"
+        )
+    return errors
+
+
+def _bound_column_map_file(build: Mapping[str, Any]) -> tuple[bool, str | None]:
+    """``(known, path)``: the carried map the Build Recipe binds, if it can be told.
+
+    Read from the binding's ``file`` alone, so a defect in its other fields
+    does not hide one in ``column_maps/``. A binding that is not a mapping, or
+    whose ``file`` is malformed, binds no file anyone can name: ``known`` is
+    then false. No binding, or a built-in one, binds no file.
+    """
+    raw = build.get(COLUMN_MAP_KEY)
+    if COLUMN_MAP_KEY in build and not isinstance(raw, Mapping):
+        return raw is None, None
+    file = raw.get("file") if isinstance(raw, Mapping) else None
+    if file is None:
+        return True, None
+    return (True, column_map_path(file)) if is_valid_column_map_file(file) else (False, None)
+
+
+def _carried_column_map_errors(
+    bundle: Bundle, build: Mapping[str, Any], binding: ColumnMapBinding | None
+) -> list[str]:
+    """``column_maps/`` holds the bound map, checksummed, and nothing else."""
+    directory = Path(bundle.root) / COLUMN_MAPS_DIR
+    kind = _entry_kind(directory)
+    if kind not in ("absent", "directory"):
+        return [f"Column Map directory {COLUMN_MAPS_DIR}/ must be a directory, not a symbolic link or file"]
+    known, expected = _bound_column_map_file(build)
+    errors: list[str] = []
+    if kind == "directory" and known:
+        bound = expected or (f"built-in {binding.name!r}" if binding is not None else "no carried map")
+        for entry in sorted(directory.iterdir()):
+            relative = column_map_path(entry.name)
+            if relative != expected:
+                errors.append(f"Column Map {relative} is carried but not bound: build.yaml binds {bound}")
+    if expected is None:
+        return errors
+    path = Path(bundle.root) / expected
+    match _entry_kind(path):
+        case "absent":
+            errors.append(f"Column Map: build.yaml binds {expected}, but the bundle does not carry it")
+        case "file" if binding is not None:
+            errors.extend(_column_map_file_errors(path, expected, binding))
+        case "file":
+            pass  # The binding's own errors say why its checksum cannot be compared.
+        case _:
+            errors.append(f"Column Map {expected} must be a regular file")
+    return errors
+
+
+def _check_column_map(
+    bundle: Bundle, analyses: Callable[[], opengwasdb_analyses.AnalysesTable]
+) -> tuple[list[str], list[ToleratedGap]]:
+    """A mapped bundle binds its Column Map and carries it, checksummed (#292, ADR 0036).
+
+    The map is checked shallowly: readable TOML with ``column_map_version`` and
+    a ``name`` equal to the binding's. Its full validation is OpenGWASDB's, at
+    resolution and build. A built-in's sha256 is checked against the map file
+    the pinned package ships.
+    """
+    build = bundle.build if isinstance(bundle.build, Mapping) else {}
+    binding_declared = COLUMN_MAP_KEY in build
+    binding, errors = _column_map_binding(build)
+    errors += _column_map_option_errors(build)
+    rows = None
+    if _entry_kind(Path(bundle.analyses_path)) == "file":
+        try:
+            rows = analyses().rows
+        except Exception:  # The analyses.tsv stage reports why it cannot be read.
+            pass
+    if rows is not None:
+        errors += _column_map_reference_errors(build, rows, binding_declared)
+    errors += _carried_column_map_errors(bundle, build, binding)
+    return errors, []
+
+
 def check(
     bundle: Bundle,
     previous_status: str | Bundle | None = None,
@@ -1326,6 +1722,7 @@ def check(
     """
     errors: list[str] = []
     tolerated: list[ToleratedGap] = []
+    analyses = _analyses_reader(bundle)
     stages: tuple[
         tuple[str, Callable[[], tuple[list[str], list[ToleratedGap]]]], ...
     ] = (
@@ -1335,8 +1732,9 @@ def check(
         ("Release Status transition", lambda: (_check_previous_status(bundle, previous_status), [])),
         ("Release Lineage", lambda: (_check_lineage(bundle, registry_root), [])),
         ("validation.yaml", lambda: (_check_validation(bundle), [])),
-        ("analyses.tsv", lambda: _check_analyses(bundle)),
-        (QUALITY_CHECKS_SIDECAR, lambda: (_check_quality_checks(bundle), [])),
+        ("analyses.tsv", lambda: _check_analyses(bundle, analyses)),
+        (QUALITY_CHECKS_SIDECAR, lambda: (_check_quality_checks(bundle, analyses), [])),
+        ("Column Map", lambda: _check_column_map(bundle, analyses)),
     )
     for label, stage in stages:
         try:
@@ -1352,9 +1750,16 @@ def check(
 __all__ = [
     "BUILDABLE_STATUSES",
     "BUILD_REQUIRED_KEYS",
+    "COLUMN_MAPS_DIR",
+    "COLUMN_MAP_BINDING_KEYS",
+    "COLUMN_MAP_CAPABILITY",
+    "COLUMN_MAP_KEY",
+    "COLUMN_MAP_SUFFIX",
     "Bundle",
     "CheckResult",
+    "ColumnMapBinding",
     "LEGACY_BLANK_ANALYSIS_RELEASES",
+    "LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES",
     "LEGAL_STATUS_TRANSITIONS",
     "QUALITY_CHECKS_SIDECAR",
     "QUALITY_CHECK_LEADING_COLUMNS",
@@ -1362,20 +1767,30 @@ __all__ = [
     "QUALITY_CHECK_RESULTS",
     "NotBuildableError",
     "RELEASE_REQUIRED_KEYS",
+    "STORE_PRODUCING_STEPS",
     "SUPERPOPULATIONS",
+    "TRAIT_ONTOLOGY_ID_SEPARATOR",
     "ToleratedGap",
     "VALIDATED_RECORD_STATUSES",
     "VALID_STATUSES",
     "build_refusal",
     "check",
+    "column_map_path",
+    "is_authority_name_trait_ontology_label",
     "is_buildable",
+    "is_canonical_trait_ontology_id",
     "is_completion_pending",
+    "is_gene_shaped_trait_ontology_id",
     "is_legal_status_transition",
+    "is_trait_ontology_curie",
+    "is_valid_column_map_file",
     "load",
     "membership_ids",
     "partition_buildable",
     "partition_membership",
     "refuse_unbuildable",
+    "reserved_options",
     "summarise",
+    "trait_ontology_id_terms",
     "validate_status_transition",
 ]

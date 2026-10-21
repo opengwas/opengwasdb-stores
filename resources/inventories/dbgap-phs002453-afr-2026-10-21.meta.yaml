@@ -1,0 +1,48 @@
+snapshot_id: dbgap-phs002453-afr-2026-10-21
+source_collection_id: dbgap-phs002453
+frozen_at: '2026-10-21T09:38:27Z'
+frozen_by: manifest_generation.freeze
+selection:
+  where:
+    store_key: dense__pmid-39024449__African
+  expect_rows: 1368
+rows: 1368
+readiness_counts:
+  ok: 1368
+ready_rows: 1368
+ready_bytes: 1539943369475
+study_design_counts:
+  case-control: 1187
+  quantitative: 181
+ready_study_design_counts:
+  case-control: 1187
+  quantitative: 181
+duplicate_content_groups: []
+inventory_tsv_sha256: 630150e4f36ce16be0d28c6eabcc7bbdb6da1d67345b7c2c8b981de36ed95e6d
+source_metadata_table:
+  frozen:
+    path: dbgap-phs002453-afr-2026-10-21.source-metadata.tsv
+    sha256: 8dc098a3ff3973d315d9fc8ff2ea9d95f949eb98d3926838af7795d58b5c5cf2
+    bytes: 189788
+    rows: 1368
+  original:
+    path: resources/generators/dbgap-mvp/connectors/source-metadata-table.tsv
+    sha256: d6ef94233396a1615102afa7397fa3556c3317019e2090df4d2c63901d92e7cb
+    bytes: 883045
+    rows: 6022
+acquisition_manifest:
+  frozen:
+    path: dbgap-phs002453-afr-2026-10-21.acquisition-manifest.tsv
+    sha256: 30a0e6342176f745040427098157da6abec2530e6b185f456dd6780604a8c2ac
+    bytes: 765921
+    rows: 1368
+  original:
+    path: resources/generators/dbgap-mvp/connectors/acquisition-manifest.tsv
+    sha256: e24a1a7549a55dd20d20e33f693d97a5e5f822b51ec430b5bd4f2a9f48e0e348
+    bytes: 3366477
+    rows: 6022
+    readiness_counts:
+      ok: 6022
+    pass_lineage: null
+  unselected_entries: 4654
+lineage: []

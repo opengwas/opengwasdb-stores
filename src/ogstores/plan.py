@@ -80,6 +80,7 @@ from ogstores.bundle import (
     indexed_subset_step_name,
     is_valid_indexed_subset_name,
     normalize_option_key,
+    reserved_options,
 )
 
 
@@ -587,11 +588,7 @@ def indexed_subset_declarations(bundle: Bundle) -> list[IndexedSubsetDeclaration
         if options is not None and not isinstance(options, Mapping):
             raise ValueError(f"{where} options must be a mapping")
         if isinstance(options, Mapping):
-            reserved = sorted(
-                str(key)
-                for key in options
-                if normalize_option_key(key) in INDEXED_SUBSET_RESERVED_OPTION_KEYS
-            )
+            reserved = reserved_options(options, INDEXED_SUBSET_RESERVED_OPTION_KEYS)
             if reserved:
                 raise ValueError(
                     f"{where} options must not set {reserved}; variant_list and "

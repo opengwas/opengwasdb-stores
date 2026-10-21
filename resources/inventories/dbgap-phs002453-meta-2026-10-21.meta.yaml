@@ -1,0 +1,48 @@
+snapshot_id: dbgap-phs002453-meta-2026-10-21
+source_collection_id: dbgap-phs002453
+frozen_at: '2026-10-21T09:43:02Z'
+frozen_by: manifest_generation.freeze
+selection:
+  where:
+    store_key: dense__pmid-39024449__Multi-ancestry
+  expect_rows: 1691
+rows: 1691
+readiness_counts:
+  ok: 1691
+ready_rows: 1691
+ready_bytes: 1339123410330
+study_design_counts:
+  case-control: 1489
+  quantitative: 202
+ready_study_design_counts:
+  case-control: 1489
+  quantitative: 202
+duplicate_content_groups: []
+inventory_tsv_sha256: 596e2cf40588da557fcf2de50b41af88af48f80ed758d95d4efa95063c8275a7
+source_metadata_table:
+  frozen:
+    path: dbgap-phs002453-meta-2026-10-21.source-metadata.tsv
+    sha256: 888d728159f1508633d1ca49c3d46649f485268814d27b45b2b1e92b69667aaf
+    bytes: 237965
+    rows: 1691
+  original:
+    path: resources/generators/dbgap-mvp/connectors/source-metadata-table.tsv
+    sha256: d6ef94233396a1615102afa7397fa3556c3317019e2090df4d2c63901d92e7cb
+    bytes: 883045
+    rows: 6022
+acquisition_manifest:
+  frozen:
+    path: dbgap-phs002453-meta-2026-10-21.acquisition-manifest.tsv
+    sha256: d39e97cc32f045eaca2d95c949f98332f33397d72ebb163a46a2b341ae1fdf3b
+    bytes: 945633
+    rows: 1691
+  original:
+    path: resources/generators/dbgap-mvp/connectors/acquisition-manifest.tsv
+    sha256: e24a1a7549a55dd20d20e33f693d97a5e5f822b51ec430b5bd4f2a9f48e0e348
+    bytes: 3366477
+    rows: 6022
+    readiness_counts:
+      ok: 6022
+    pass_lineage: null
+  unselected_entries: 4331
+lineage: []

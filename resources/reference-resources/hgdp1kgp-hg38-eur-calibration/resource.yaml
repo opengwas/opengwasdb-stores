@@ -15,7 +15,7 @@ source:
   cohort: HGDP + 1kGP harmonised callset
   n_individuals: 771
   variant_inclusion: MAC >= 50
-  generator: resources/scripts/ld-panel/run_panels.py
+  generator: tools/ld-panel/run_panels.py
 status: available
 description: >
   Non-production EUR control built genome-wide (1,357 blocks) using exactly the

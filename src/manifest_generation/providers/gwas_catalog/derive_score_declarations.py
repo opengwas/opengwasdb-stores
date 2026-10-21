@@ -2,7 +2,7 @@
 """Derive reviewed imputation-score declarations from source headers.
 
 The Phase B candidate generator consumes an explicit, reviewed per-Analysis
-score declaration TSV (``source.imputation_score_declarations``).  That file
+score declaration TSV (``release_policy.imputation_score_declarations``).  That file
 must not be an ad-hoc survey: this command scans the header of every *ready*
 row in the frozen Source Inventory, applies one fixed, case-sensitive synonym
 table, and writes the declarations deterministically.

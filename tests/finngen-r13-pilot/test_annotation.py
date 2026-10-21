@@ -11,7 +11,8 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-REFERENCE = ROOT / "tests/ancestry-assignment/fixtures/reference"
+GENERATE_FIXTURES = ROOT / "tests/ancestry-assignment/fixtures/generate_fixtures.py"
+REFERENCE_RELATIVE = Path("tests/ancestry-assignment/fixtures/reference")
 
 
 def read_rows(path: Path) -> list[dict[str, str]]:
@@ -45,9 +46,14 @@ def write_finngen(path: Path, reference_rows: list[dict[str, str]], sample_size:
 def main() -> None:
     with tempfile.TemporaryDirectory() as tmp_raw:
         tmp = Path(tmp_raw)
+        # The reference is generated, not tracked; nothing else generates it
+        # since the ancestry-assignment suite retired (#300), so this suite
+        # generates its own copy, as tests/opengwas-gwas-vcf-dense does.
+        subprocess.run([sys.executable, str(GENERATE_FIXTURES)], cwd=tmp, check=True)
+        reference = tmp / REFERENCE_RELATIVE
         release = tmp / "release"
         release.mkdir()
-        with gzip.open(REFERENCE / "ref_freqs.hg38.tsv.gz", "rt", newline="") as handle:
+        with gzip.open(reference / "ref_freqs.hg38.tsv.gz", "rt", newline="") as handle:
             reference_rows = list(csv.DictReader(handle, delimiter="\t"))
         binary_source = tmp / "finngen_R13_BINARY.gz"
         quant_source = tmp / "finngen_R13_QUANT.gz"
@@ -123,8 +129,8 @@ normalisation:
 reference_resources:
 - resource_id: fixture-mixture
   kind: ancestry_mixture
-  location: {REFERENCE / 'ref_freqs.hg38.tsv.gz'}
-  fine_group_map: {REFERENCE / 'ancestry_groups.tsv'}
+  location: {reference / 'ref_freqs.hg38.tsv.gz'}
+  fine_group_map: {reference / 'ancestry_groups.tsv'}
 ancestry_assignment:
   enabled: yes
   reference_resource_id: fixture-mixture

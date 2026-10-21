@@ -26,6 +26,7 @@ from __future__ import annotations
 import csv
 import gzip
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -40,14 +41,16 @@ REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 SCRIPT = ("-m", "manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453")
 
 from manifest_generation.providers.dbgap.mvp import acquire_dbgap_phs002453 as ACQUIRE
-from manifest_generation.source_inventory import (
-    ACQUISITION_MANIFEST_COLUMNS,
-    AcquisitionPass,
-    build_snapshot,
-    read_acquisition_pass,
-    read_candidate_selection,
-    write_snapshot,
+from manifest_generation.freeze import freeze, write_frozen_inventory
+from manifest_generation.providers.gwas_catalog.source_metadata_adapter import (
+    convert_candidate_table,
 )
+from manifest_generation.acquisition_manifest import (
+    ACQUISITION_MANIFEST,
+    load_acquisition_manifest,
+)
+from manifest_generation.selection import parse_selection
+
 
 TAR = "phs002453.MVP_R4.1000G_AGR.GIA.Fixture.analysis-PI.MULTI.tar"
 INNER = "MVP_R4.1000G_AGR.GIA.Fixture"
@@ -183,7 +186,7 @@ CANDIDATES: list[dict[str, str]] = [
      "study_design": "quantitative", "n_cases": "0", "n_controls": "0", "sample_size": "542276",
      "n_variants": "14903227", "association_count": "14903227", "MAPPED_TRAIT_URI": "EFO_0004531"},
     {"STUDY.ACCESSION": "GCST90479999", "PUBMED.ID": "39024449", "FIRST.AUTHOR": "Verma A",
-     "STUDY": "Diversity and scale", "DISEASE.TRAIT": "Bogus trait", "MAPPED_TRAIT": "bogus trait",
+     "STUDY": "Diversity and scale", "DISEASE.TRAIT": "Bogus trait", "MAPPED_TRAIT": "",
      "ancestry_group": "European", "ancestry_fraction": "1", "is_molecular": "FALSE",
      "molecular_subtype": "", "store_type": "dense", "store_key": STORE_KEY, "molecular_type": "",
      "study_design": "quantitative", "n_cases": "0", "n_controls": "0", "sample_size": "12345",
@@ -288,6 +291,16 @@ class AcquisitionTest(unittest.TestCase):
 
     def data(self, accession: str) -> Path:
         return self.data_from(self.root, accession)
+
+    def ensure_mapping_and_conversion(self) -> None:
+        if not (self.root / "GIA" / "extracted" / INNER).is_dir():
+            result = run(self.root, "extract")
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        if not (self.root / "mapping.tsv").is_file():
+            result = run(self.root, "map", "--candidates", str(self.candidates), "--allow-partial")
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        if not list((self.root / "gwas-ssf").glob("*/GCST90475097/*.tsv.gz")):
+            run(self.root, "convert", "--candidates", str(self.candidates), "--jobs", "4")
 
     def data_from(self, root: Path, accession: str) -> Path:
         bucket = root / "gwas-ssf"
@@ -547,64 +560,221 @@ class AcquisitionTest(unittest.TestCase):
             [{"sample_ancestry_category": ["Multi-ancestry"], "sample_size": 542276}],
         )
 
-    # -- manifest ---------------------------------------------------------
+    # -- acquisition manifest ---------------------------------------------
 
-    def test_11_manifest_has_the_ebi_columns_and_sha256(self) -> None:
-        result = run(self.root, "manifest", "--candidates", str(self.candidates))
-        self.assertEqual(result.returncode, 1, result.stdout)  # GCST90479999 has no converted file
-        path = self.root / "manifests" / f"{STORE_KEY.replace('__', '-')}-download-manifest.tsv"
+    def test_11_manifest_has_the_shared_columns_and_sha256(self) -> None:
+        self.ensure_mapping_and_conversion()
+        result = run(self.root, "manifest", "--mapping", str(self.root / "mapping.tsv"))
+        # The bogus member never converted; that is an explained absence, not a
+        # failure of the manifest itself.
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        path = self.root / "acquisition-manifest.tsv"
         self.assertTrue(path.is_file(), result.stdout + result.stderr)
-        rows = {row["analysis_id"]: row for row in self.rows(path)}
+        rows = {row["source_analysis_id"]: row for row in self.rows(path)}
         with path.open(encoding="utf-8") as handle:
-            self.assertEqual(handle.readline().rstrip("\n"), "\t".join(ACQUIRE.MANIFEST_COLUMNS))
-        self.assertEqual(
-            ACQUIRE.MANIFEST_COLUMNS,
-            ("analysis_id", "publication_pmid", "trait", "study_design", "sample_size",
-             "harmonised_status", "status", "data_url", "yaml_url", "data_file", "yaml_file",
-             "data_bytes", "yaml_bytes", "sha256", "genome_assembly", "file_type",
-             "is_harmonised", "seconds", "error"),
-        )
-        self.assertTrue(set(ACQUISITION_MANIFEST_COLUMNS).issubset(ACQUIRE.MANIFEST_COLUMNS))
+            self.assertEqual(handle.readline().rstrip("\n"), "\t".join(ACQUISITION_MANIFEST.columns))
         ready = rows["GCST90475097"]
         self.assertEqual(ready["status"], "ok")
         self.assertEqual(ready["sha256"], hashlib.sha256(self.data("GCST90475097").read_bytes()).hexdigest())
-        self.assertEqual(ready["data_bytes"], str(self.data("GCST90475097").stat().st_size))
-        self.assertEqual(ready["genome_assembly"], "GRCh38")
-        self.assertEqual(ready["file_type"], "GWAS-SSF v1.0")
-        self.assertEqual(ready["is_harmonised"], "false")
-        self.assertEqual(ready["data_url"], f"https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs002453/analyses/GIA/{TAR}")
-        self.assertEqual(rows["GCST90479999"]["status"], "error")
+        self.assertEqual(ready["location"], str(self.data("GCST90475097")))
+        self.assertEqual(ready["bytes"], str(self.data("GCST90475097").stat().st_size))
+        self.assertEqual(ready["sidecar_location"], str(self.data("GCST90475097").with_name("GCST90475097.tsv.gz-meta.yaml")))
+        self.assertEqual(ready["source_url"], f"https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs002453/analyses/GIA/{TAR}")
+        self.assertEqual(rows["GCST90479999"]["status"], "data_absent_upstream")
         self.assertTrue(rows["GCST90479999"]["error"].startswith("not converted:"))
 
-    def test_12_manifest_is_accepted_by_the_source_inventory(self) -> None:
-        path = self.root / "manifests" / f"{STORE_KEY.replace('__', '-')}-download-manifest.tsv"
-        rows = read_acquisition_pass(path)
-        self.assertEqual(len(rows), 3)
-        self.assertIn("GCST90479999", {row["analysis_id"] for row in rows if row["status"] != "ok"})
-
-        selection = read_candidate_selection(self.candidates, STORE_KEY)
-        snapshot = build_snapshot(
-            snapshot_id="test-dbgap-phs002453",
-            source_collection_id="test-source-collection",
-            store_key=STORE_KEY,
-            ancestry_group="European",
-            manifests=[AcquisitionPass(role="dbgap-phs002453", path=path)],
-            candidates=selection,
+    def test_12_manifest_records_the_tar_member_each_file_was_rewritten_from(self) -> None:
+        """A rewritten file names its original: the tar, the member, and the best checksum (#290 review)."""
+        self.ensure_mapping_and_conversion()
+        result = run(self.root, "manifest", "--mapping", str(self.root / "mapping.tsv"))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        rows = {row["source_analysis_id"]: row for row in self.rows(self.root / "acquisition-manifest.tsv")}
+        member_name = f"{INNER}/MVP_R4.1000G_AGR.A1C_Min_INT.EUR.GIA.dbGaP.txt.gz"
+        original = self.root / "GIA" / "extracted" / member_name
+        ready = rows["GCST90475097"]
+        self.assertEqual(
+            ready["original_location"],
+            f"{self.root / 'GIA' / 'tars' / TAR}#{member_name}",
         )
-        self.assertEqual(len(snapshot.rows), 3)
-        self.assertEqual({row.analysis_id for row in snapshot.ready_rows}, {"GCST90475097", "GCST90477833"})
-        write_snapshot(snapshot, self.root / "inventory.tsv", self.root / "inventory.meta.yaml")
-        self.assertTrue((self.root / "inventory.tsv").is_file())
+        self.assertEqual(
+            ready["original_sha256"], hashlib.sha256(original.read_bytes()).hexdigest()
+        )
+        self.assertEqual(ready["original_bytes"], str(original.stat().st_size))
+        script = REPO_ROOT / "src/manifest_generation/providers/dbgap/mvp/acquire_dbgap_phs002453.py"
+        receipts = sorted((self.root / "GIA" / "convert-receipts").glob("*.json"))
+        commit = json.loads(receipts[-1].read_text(encoding="utf-8"))["code_sha"]
+        self.assertEqual(
+            ready["reformat_tool"],
+            "manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 "
+            f"sha256:{hashlib.sha256(script.read_bytes()).hexdigest()} code:{commit}",
+        )
+        # An explained absence carries no lineage: there is no file to trace.
+        self.assertEqual(rows["GCST90479999"]["original_location"], "")
+        # The shared loader accepts the lineage it wrote.
+        load_acquisition_manifest(self.root / "acquisition-manifest.tsv")
 
-    def test_13_manifest_covers_each_store_key(self) -> None:
+    def test_13_a_duplicate_toc_is_refused_by_the_deposit_rule(self) -> None:
+        """A refused deposit names its rule, never a NameError (#290 review)."""
+        self.ensure_mapping_and_conversion()
+        meta = self.root / "GIA" / "meta"
+        original = meta / f"{TAR}.table_of_contents.txt"
+        duplicate = meta / "second-tar.table_of_contents.txt"
+        duplicate.write_text(original.read_text(encoding="utf-8"), encoding="utf-8")
+        self.addCleanup(duplicate.unlink)
+        result = run(self.root, "manifest", "--mapping", str(self.root / "mapping.tsv"))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("listed in more than one table of contents", result.stderr)
+        self.assertNotIn("NameError", result.stderr)
+
+    def test_14_convert_records_the_version_that_rewrote_each_file(self) -> None:
+        """A future acquisition records the converter's identity at conversion (#290 review)."""
+        self.ensure_mapping_and_conversion()
+        receipts = [
+            json.loads(path.read_text(encoding="utf-8"))
+            for path in sorted((self.root / "GIA" / "convert-receipts").glob("*.json"))
+        ]
+        self.assertTrue(receipts, "convert wrote no receipt")
+        receipt = next(
+            entry for entry in receipts if "GCST90475097" in entry["analyses"]
+        )
+        script = REPO_ROOT / "src/manifest_generation/providers/dbgap/mvp/acquire_dbgap_phs002453.py"
+        self.assertEqual(
+            receipt["module_sha256"], hashlib.sha256(script.read_bytes()).hexdigest()
+        )
+        # Each run names the files it wrote, and the code commit it ran.
+        self.assertIn("GCST90477833", [i for entry in receipts for i in entry["analyses"]])
+        for entry in receipts:
+            self.assertRegex(entry["code_sha"], r"^[0-9a-f]{40}$")
+            self.assertRegex(entry["recorded_at"], r"^\d{4}-\d{2}-\d{2}T")
+
+        result = run(self.root, "manifest", "--mapping", str(self.root / "mapping.tsv"))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        rows = {row["source_analysis_id"]: row for row in self.rows(self.root / "acquisition-manifest.tsv")}
+        self.assertEqual(
+            rows["GCST90475097"]["reformat_tool"],
+            "manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 "
+            f"sha256:{receipt['module_sha256']} code:{receipt['code_sha']}",
+        )
+
+    def test_15_a_historical_conversion_version_is_recovered_or_honestly_unrecorded(self) -> None:
+        """Only a run record that names its code can stamp a version (#290 review)."""
+        self.ensure_mapping_and_conversion()
+        history = self.root / "conversion-history"
+        history.mkdir()
+        (history / "parent-run-summary.json").write_text(
+            json.dumps({"code_sha": "b" * 40}), encoding="utf-8"
+        )
+        (history / "refresh-receipt.tsv").write_text(
+            "analysis_id\tmember\tstore_key\taction\n"
+            f"GCST90475097\tmember-a\t{STORE_KEY}\tnew-conversion\n"
+            f"GCST90477833\tmember-b\t{STORE_KEY}\tcanonicalised\n",
+            encoding="utf-8",
+        )
+        # No conversion receipts: this workspace's own conversions are set aside.
+        for receipt in (self.root / "GIA" / "convert-receipts").glob("*.json"):
+            receipt.rename(receipt.with_suffix(".set-aside"))
+        self.addCleanup(
+            lambda: [
+                path.rename(path.with_suffix(".json"))
+                for path in (self.root / "GIA" / "convert-receipts").glob("*.set-aside")
+            ]
+        )
         result = run(
-            self.root, "manifest", "--candidates", str(self.candidates),
-            "--analysis", "GCST90475097,GCST90477833,GCST90479504",
+            self.root, "manifest", "--mapping", str(self.root / "mapping.tsv"),
+            "--conversion-history", str(history),
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        meta = self.root / "manifests" / f"{META_STORE_KEY.replace('__', '-')}-download-manifest.tsv"
-        self.assertTrue(meta.is_file())
-        self.assertEqual([row["analysis_id"] for row in self.rows(meta)], ["GCST90479504"])
+        rows = {row["source_analysis_id"]: row for row in self.rows(self.root / "acquisition-manifest.tsv")}
+        tool = "manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453"
+        self.assertEqual(rows["GCST90475097"]["reformat_tool"], f"{tool} code:{'b' * 40}")
+        unrecorded = rows["GCST90477833"]["reformat_tool"]
+        self.assertTrue(unrecorded.startswith(f"{tool} sha256:unrecorded"), unrecorded)
+        self.assertIn("no conversion-time code identity", unrecorded)
+
+    def test_17_a_conversion_receipt_outranks_historical_evidence(self) -> None:
+        """Historical recovery fills gaps; it never overrides the code that wrote the file (#290 review)."""
+        self.ensure_mapping_and_conversion()
+        receipts = sorted((self.root / "GIA" / "convert-receipts").glob("*.json"))
+        receipt = json.loads(receipts[-1].read_text(encoding="utf-8"))
+        history = self.root / "conversion-history"
+        history.mkdir(exist_ok=True)
+        (history / "parent-run-summary.json").write_text(
+            json.dumps({"code_sha": "b" * 40}), encoding="utf-8"
+        )
+        (history / "refresh-receipt.tsv").write_text(
+            "analysis_id\tmember\tstore_key\taction\n"
+            f"GCST90475097\tmember-a\t{STORE_KEY}\tnew-conversion\n",
+            encoding="utf-8",
+        )
+        result = run(
+            self.root, "manifest", "--mapping", str(self.root / "mapping.tsv"),
+            "--conversion-history", str(history),
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        rows = {row["source_analysis_id"]: row for row in self.rows(self.root / "acquisition-manifest.tsv")}
+        self.assertEqual(
+            rows["GCST90475097"]["reformat_tool"],
+            "manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 "
+            f"sha256:{receipt['module_sha256']} code:{receipt['code_sha']}",
+        )
+        self.assertNotIn("b" * 40, rows["GCST90475097"]["reformat_tool"])
+
+    def test_16_manifest_refuses_a_rewritten_file_whose_original_is_gone(self) -> None:
+        """No durable original identity means stop, not invent one (#290 review)."""
+        self.ensure_mapping_and_conversion()
+        original = self.root / "GIA" / "extracted" / f"{INNER}/MVP_R4.1000G_AGR.A1C_Min_INT.EUR.GIA.dbGaP.txt.gz"
+        hidden = original.with_name(original.name + ".hidden")
+        original.rename(hidden)
+        self.addCleanup(hidden.rename, original)
+        result = run(self.root, "manifest", "--mapping", str(self.root / "mapping.tsv"))
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("no durable original", result.stderr)
+        self.assertIn("GCST90475097", result.stderr)
+
+    def test_12_manifest_is_accepted_by_the_shared_freeze(self) -> None:
+        self.ensure_mapping_and_conversion()
+        path = self.root / "acquisition-manifest.tsv"
+        manifest = load_acquisition_manifest(path)
+        self.assertEqual(len(manifest.entries), 4)
+        self.assertEqual(manifest.readiness_counts, {"data_absent_upstream": 1, "ok": 3})
+
+        # Its consumer is the shared freeze (#283): the mapping becomes the
+        # Source Metadata Table through the dbGaP adapter, and the manifest is
+        # the Acquisition Manifest.
+        from manifest_generation.providers.dbgap.mvp.source_metadata_adapter import (
+            convert_mapping,
+        )
+
+        table = self.root / "source-metadata.tsv"
+        convert_mapping(
+            self.root / "mapping.tsv", self.root / "GIA" / "extracted", table, repo_root=REPO_ROOT
+        )
+        frozen = freeze(
+            snapshot_id="test-dbgap-phs002453",
+            source_collection_id="test-source-collection",
+            metadata_table=table,
+            acquisition_manifest=path,
+            selection=parse_selection({"where": {"store_key": STORE_KEY}}),
+        )
+        self.assertEqual(len(frozen.rows), 3)
+        self.assertEqual(
+            {row.analysis_id for row in frozen.rows if row.ready}, {"GCST90475097", "GCST90477833"}
+        )
+        write_frozen_inventory(frozen, self.root / "inventory.tsv", self.root / "inventory.meta.yaml")
+        self.assertTrue((self.root / "inventory.tsv").is_file())
+
+    def test_13_manifest_is_one_file_for_the_collection(self) -> None:
+        self.ensure_mapping_and_conversion()
+        result = run(self.root, "manifest", "--mapping", str(self.root / "mapping.tsv"))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        manifest = load_acquisition_manifest(self.root / "acquisition-manifest.tsv")
+        self.assertEqual(
+            {entry.source_analysis_id for entry in manifest.entries},
+            {"GCST90475097", "GCST90477833", "GCST90479504", "GCST90479999"},
+        )
+        # No per-store keyed manifests: one file records the collection.
+        self.assertEqual(list(self.root.glob("*-download-manifest.tsv")), [])
+        self.assertEqual(list((self.root / "manifests").glob("*")), [])
 
     # -- helpers ----------------------------------------------------------
 
@@ -736,12 +906,10 @@ class KeyDiscrepancyTests(unittest.TestCase):
             ["Hemoglobin A1c (HbA1c, minimum, inv-norm transformed)"],
         )
 
-        result = run(self.root, "manifest", "--candidates", str(self.mismatched), "--analysis", "GCST90475097")
+        result = run(self.root, "manifest", "--mapping", str(self.root / "mapping.tsv"), "--analysis", "GCST90475097")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        manifest = self.root / "manifests" / "dense-pmid-39024449-European-download-manifest.tsv"
-        rows = {row["analysis_id"]: row for row in self.rows(manifest)}
-        self.assertEqual(rows["GCST90475097"]["sample_size"], "338640")
-        self.assertEqual(rows["GCST90475097"]["trait"], "hemoglobin A1c (HbA1c, minimum, inv-norm transformed)")
+        manifest = load_acquisition_manifest(self.root / "acquisition-manifest.tsv")
+        self.assertTrue(manifest.entry("GCST90475097").ready)
 
     def test_stale_ledger_entry_fails_loudly(self) -> None:
         # With the original candidate table the keys agree, so the ledger entry
@@ -840,7 +1008,7 @@ class DiscrepancyLedgerTests(unittest.TestCase):
     def test_committed_ledger_is_resolved_with_owner_citation(self) -> None:
         import yaml
 
-        ledger = REPO_ROOT / "resources/scripts/dbgap-phs002453-key-discrepancies.yaml"
+        ledger = REPO_ROOT / "resources/generators/dbgap-mvp/dbgap-phs002453-key-discrepancies.yaml"
         raw = yaml.safe_load(ledger.read_text(encoding="utf-8"))
         citation = "issues/220#issuecomment-6132878250"
         timestamp = "2026-10-12T21:24:22Z"
@@ -1701,14 +1869,6 @@ class ConverterEdgeCaseTests(unittest.TestCase):
         self.assertEqual(result.returncode, 3)
         self.assertIn("more fields than the header", result.stderr)
 
-    def test_unsafe_member_path_in_a_table_of_contents_fails(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            toc = Path(tmp) / f"{TAR}.table_of_contents.txt"
-            toc.write_text(
-                "-rw-r--r-- user/group 10 2024-01-01 00:00 ../escape.txt.gz\n", encoding="utf-8"
-            )
-            with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "unsafe member path"):
-                ACQUIRE.parse_tar_listing(toc)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

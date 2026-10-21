@@ -2,10 +2,9 @@
 
 ``resources/reference-resources/ukb-ancestry-mixture-hg38/source_label_map.tsv``
 translates a free-text Source Ancestry Label (``European``) to one of the
-ancestry mixture's super-population codes (``EUR``). R reads it through
-``ancestry.R``; every Python reader reads it here, so the candidate workflow,
-the ancestry-assignment stage and the GWAS Catalog metadata adapter cannot
-parse it three ways.
+ancestry mixture's super-population codes (``EUR``). Every reader reads it
+here, so the candidate workflow and the metadata adapters cannot parse it
+several ways (the R generators' ``ancestry.R`` reader retired with them, #300).
 
 The map lists only labels precise enough to translate. Its companion,
 ``source_label_imprecise.tsv``, lists the labels left out on purpose --
@@ -13,7 +12,7 @@ The map lists only labels precise enough to translate. Its companion,
 with its reason. :func:`load_source_label_translation` reads both: a mapped
 label gives its code, a deliberately imprecise one gives blank, and any other
 label is refused by name, so a new or misspelt label cannot pass as blank.
-The map stays exactly as ``ancestry.R`` and the bundle tests read it.
+The map stays exactly as the bundle tests read it.
 """
 
 from __future__ import annotations
@@ -27,7 +26,7 @@ from manifest_generation import REPO_ROOT
 from manifest_generation.source_inventory import PreflightConfigError
 from ogstores.bundle import SUPERPOPULATIONS
 
-#: Path (relative to the repository root) of the tracked map, as ``ancestry.R`` reads it.
+#: Path (relative to the repository root) of the tracked map.
 SOURCE_LABEL_MAP_RELATIVE_PATH: str = (
     "resources/reference-resources/ukb-ancestry-mixture-hg38/source_label_map.tsv"
 )

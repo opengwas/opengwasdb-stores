@@ -8,7 +8,7 @@ build can be handed `--variant-reference` for the ancestry it is building and
 skip Pass 1 (the variant union and liftover) entirely.
 
 ```sh
-pixi run python resources/reference-resources/gnomad-v4-common-hg38/build_common_panel.py \
+pixi run python tools/reference-resources/gnomad-v4-common-hg38/build_common_panel.py \
   --out-dir /data/opengwasdb/reference/gnomad-v4-common-hg38 \
   --min-maf 0.01 --jobs 12
 ```
@@ -128,7 +128,7 @@ same store, so the pinned revision belongs in the build evidence either way.
 ## Verification
 
 ```sh
-pixi run python resources/reference-resources/gnomad-v4-common-hg38/verify_axis_coverage.py \
+pixi run python tools/reference-resources/gnomad-v4-common-hg38/verify_axis_coverage.py \
   --inventory resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv \
   --axis /data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz \
   --axis /data/opengwasdb/reference/alid-panel/EUR-variants.tsv.gz \
