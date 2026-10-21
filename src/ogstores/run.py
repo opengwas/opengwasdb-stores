@@ -1266,6 +1266,34 @@ def _supervised_command(
     ]
 
 
+def _finish_build_phase_publication(step: Step, store_id: str, root: Path) -> None:
+    """Finish the build phase's publication before a step that reads it stages anything (ADR 0037).
+
+    A step with a `published_store_arg` reads the published Store its
+    release's build phase has just published; that publication is finished
+    before anything is staged beside it. `register` imports this module,
+    hence the import here.
+    """
+    if step.published_store_arg is not None:
+        from ogstores import register
+
+        register.finish_build_phase_publication(store_id, root)
+
+
+def _record_completion_start(step: Step, executed_argv: list[str], store_id: str, root: Path) -> None:
+    """Record the plan a fresh `complete-dense` starts from, before it can write a checkpoint (#305).
+
+    An interrupted completion is then resumed only from that plan
+    (`resume_argv_for_completion`). A resumed completion, and any other
+    step, records nothing.
+    """
+    if step.name == "complete" and executed_argv[1:2] == [COMPLETE_DENSE]:
+        _write_record_atomically(
+            {"planned_argv": list(step.argv), "checkpoint": str(paths.completion_checkpoint_path(store_id, root=root))},
+            paths.completion_start_path(store_id, root=root),
+        )
+
+
 def execute_step(
     step: Step,
     store_id: str | None = None,
@@ -1379,13 +1407,7 @@ def execute_step(
 
     # 3. Preflight paths and recover any stale backup from prior crash/interruption
     _preflight_paths(store_id, resolved_root)
-    if step.published_store_arg is not None:
-        # The step reads the published Store its release's build phase has just
-        # published; that publication is finished before anything is staged
-        # beside it (ADR 0037). `register` imports this module, hence the import here.
-        from ogstores import register
-
-        register.finish_build_phase_publication(store_id, resolved_root)
+    _finish_build_phase_publication(step, store_id, resolved_root)
     _recover_pending_backup(store_id, resolved_root)
 
     # 4. Clean up stale partial store before starting a fresh build (unless explicit resume)
@@ -1473,14 +1495,7 @@ def execute_step(
         _write_record_atomically(skip_result.to_dict(), record_p)
         return skip_result
 
-    # A fresh `complete-dense` records the plan it starts from before it can
-    # write a checkpoint, so an interrupted one is resumed only from that plan.
-    starts_completion = step.name == "complete" and executed_argv[1:2] == [COMPLETE_DENSE]
-    if starts_completion:
-        _write_record_atomically(
-            {"planned_argv": list(step.argv), "checkpoint": str(paths.completion_checkpoint_path(store_id, root=resolved_root))},
-            paths.completion_start_path(store_id, root=resolved_root),
-        )
+    _record_completion_start(step, executed_argv, store_id, resolved_root)
 
     # A test-only pause or crash point: the step's record is gone and its
     # command has not started, so a run stopped here is mid-step (#195).
@@ -1718,15 +1733,21 @@ def execute_step(
         )
 
     if not success and check:
-        if step.name == OBSERVED_VIEW_CHECK_STEP:
-            message = observed_view_check_failure(
-                step, store_id, executed_argv, exit_code, stdout_captured or "", stderr_captured or ""
-            )
-        else:
-            message = f"Step {step.name!r} for {store_id} failed with exit code {exit_code}:\n{stderr_captured}"
-        raise StepExecutionError(message, result)
+        raise StepExecutionError(
+            _step_failure_message(step, store_id, executed_argv, exit_code, stdout_captured, stderr_captured),
+            result,
+        )
 
     return result
+
+
+def _step_failure_message(
+    step: Step, store_id: str, executed_argv: list[str], exit_code: int, stdout: str, stderr: str
+) -> str:
+    """What a failed step raises with: the Observed-View Check's reading of its verdict, or the step's stderr."""
+    if step.name == OBSERVED_VIEW_CHECK_STEP:
+        return observed_view_check_failure(step, store_id, executed_argv, exit_code, stdout or "", stderr or "")
+    return f"Step {step.name!r} for {store_id} failed with exit code {exit_code}:\n{stderr}"
 
 
 def first_json_object(text: str) -> dict[str, Any]:
